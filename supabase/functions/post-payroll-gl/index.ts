@@ -662,23 +662,24 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Phase C.1 — Sub-ledger discipline: stamp `contact_id` (partner) on
-    // every garnishment payable CR line. One control account, per-recipient
-    // sub-ledger. Recipient is resolved via the canonical Party-spine field
-    // (recipient_contact_id) with graceful fallback to legacy links, so
-    // pre-Phase-A orders still post even if only payee_contact_id / the
-    // legacy recipient link is populated.
+    // Phase R4 (ADR-0093) — Sub-ledger discipline: stamp `contact_id` (partner)
+    // on every garnishment payable CR line. Recipient is resolved via the
+    // canonical master `legal_recipients` (joined through recipient_id) which
+    // owns the party spine; legacy overlay columns (recipient_contact_id /
+    // payee_contact_id) are retained only as a fallback for orders written
+    // before the master-ID CHECK constraint was enforced.
     let garnRecipientByOrderId = new Map<string, string | null>();
     if (garnishmentMap.size > 0) {
       const garnIds = Array.from(garnishmentMap.keys());
       const { data: garnRows } = await supabaseAdmin
         .from("legal_orders")
-        .select("id, recipient_contact_id, payee_contact_id")
+        .select("id, recipient_id, recipient_contact_id, payee_contact_id, legal_recipients:recipient_id(contact_id)")
         .in("id", garnIds);
       garnRecipientByOrderId = new Map(
         (garnRows || []).map((r: any) => [
           r.id as string,
-          (r.recipient_contact_id as string | null) ??
+          (r.legal_recipients?.contact_id as string | null) ??
+            (r.recipient_contact_id as string | null) ??
             (r.payee_contact_id as string | null) ??
             null,
         ]),
@@ -1055,34 +1056,30 @@ Deno.serve(async (req) => {
       if (garnishmentMap.size > 0) {
         // Hydrate payee_contact_id + due_date hint from the order + resolved policy.
         const garnIds = Array.from(garnishmentMap.keys());
-        // Phase 6c: read from canonical `legal_orders` view so authority,
-        // calc_model, priority_class, and pack-resolved payee fields land here
-        // instead of the raw physical row. FSM/write paths still use the
-        // physical `legal_orders_records` table.
+        // Phase R4 (ADR-0093): resolve authority display name and payee
+        // contact via the master `legal_recipients` table (joined through
+        // recipient_id). Legacy overlay columns are read only as fallbacks
+        // for pre-master orders.
         const { data: garnRows } = await supabaseAdmin
           .from("legal_orders")
-          .select("id, recipient_contact_id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
+          .select("id, recipient_id, recipient_contact_id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id, legal_recipients:recipient_id(contact_id, display_name)")
           .in("id", garnIds);
         const garnById = new Map<string, any>(
           (garnRows || []).map((r: any) => [r.id, r]),
         );
-
-        // Resolve tenant > pack > platform garnishment policy for this org;
-        // policy.remittance_due_day overrides the legacy "next month + 8" fallback.
-        let policyDueDay = 8;
-        try {
-          const { data: pol } = await supabaseAdmin.rpc("garnishment_resolve_policy", {
-            p_org_id: organization_id,
-          });
-          const dd = (pol as any)?.remittance_due_day ?? (pol as any)?.due_day;
-          if (typeof dd === "number" && dd >= 1 && dd <= 31) policyDueDay = dd;
-        } catch (e) {
-          console.warn("garnishment_resolve_policy unavailable, using default due_day=8:", e);
-        }
-
+...
         for (const garn of garnishmentMap.values()) {
           const order = garnById.get(garn.garnishment_id) || {};
-          const authority = order.payee_name || garn.label || "Garnishment payee";
+          const authority =
+            order.legal_recipients?.display_name ||
+            order.payee_name ||
+            garn.label ||
+            "Garnishment payee";
+          const payeeContactId =
+            order.legal_recipients?.contact_id ||
+            order.recipient_contact_id ||
+            order.payee_contact_id ||
+            null;
           const periodEnd = new Date(payrollRun.pay_period_end);
           const due = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, policyDueDay);
           liabRows.push({
@@ -1103,7 +1100,7 @@ Deno.serve(async (req) => {
             status: 'open',
             liability_account_id: garnishmentPayableAcct,
             garnishment_id: garn.garnishment_id,
-            payee_contact_id: order.recipient_contact_id || order.payee_contact_id || null,
+            payee_contact_id: payeeContactId,
             notes: `Auto-created from payroll ${payrollRun.payroll_number} (garnishment ${order.kind_code ?? ""})`.trim(),
             created_by: userId,
           });
