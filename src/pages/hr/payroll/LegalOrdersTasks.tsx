@@ -66,8 +66,8 @@ export default function LegalOrdersTasks() {
           empty="No orders awaiting approval."
           items={pendingApproval.slice(0, 8).map((o: any) => ({
             key: o.id,
-            primary: o.reference_number ?? o.case_number ?? o.id,
-            secondary: o.employee_name ?? o.employee_id,
+            primary: o.case_reference ?? o.kind_code ?? o.id,
+            secondary: o.authority_name ?? o.employee_id,
             action: (
               <Link to="/hr/payroll/legal-orders/orders">
                 <Button size="sm" variant="outline">Review</Button>
