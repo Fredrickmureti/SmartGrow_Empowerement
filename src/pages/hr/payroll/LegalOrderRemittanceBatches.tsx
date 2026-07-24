@@ -493,3 +493,109 @@ function SettleBatchDialog({
     </Dialog>
   );
 }
+
+function MatchBatchDialog({
+  target, orgId, onClose, onSubmit, submitting,
+}: {
+  target: RemittanceBatch | null;
+  orgId: string | null;
+  onClose: () => void;
+  onSubmit: (v: { bank_transaction_id: string }) => void;
+  submitting: boolean;
+}) {
+  const [selected, setSelected] = useState<string>("");
+
+  // Load unmatched bank transactions near the batch settled date and amount.
+  const { data: candidates = [] } = useQuery({
+    queryKey: ["bank-txn-candidates-for-batch", target?.id, orgId],
+    enabled: !!target && !!orgId,
+    queryFn: async () => {
+      if (!target || !orgId) return [];
+      const centre = target.settled_payment_date ?? target.bank_file_generated_at ?? target.created_at;
+      const from = new Date(centre);
+      from.setDate(from.getDate() - 7);
+      const to = new Date(centre);
+      to.setDate(to.getDate() + 7);
+      const { data, error } = await (supabase as any)
+        .from("bank_transactions")
+        .select("id, transaction_date, description, amount, reference_number, matched_status")
+        .eq("organization_id", orgId)
+        .gte("transaction_date", format(from, "yyyy-MM-dd"))
+        .lte("transaction_date", format(to, "yyyy-MM-dd"))
+        .in("matched_status", ["unmatched", "partial"])
+        .order("transaction_date", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; transaction_date: string; description: string | null;
+        amount: number; reference_number: string | null; matched_status: string;
+      }>;
+    },
+  });
+
+  const amountHint = target ? Number(target.planned_total) : 0;
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Match to bank transaction · {target?.batch_number}</DialogTitle>
+          <DialogDescription>
+            Link the settled batch of {fmtMoney(amountHint)} to the incoming bank debit for full-cycle reconciliation.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 max-h-[50vh] overflow-auto">
+          {candidates.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">
+              No unmatched bank transactions in the ±7 day window.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {candidates.map((c) => {
+                  const isMatch = Math.abs(Number(c.amount) - amountHint) < 0.01;
+                  return (
+                    <TableRow
+                      key={c.id}
+                      className={selected === c.id ? "bg-muted/50" : "cursor-pointer"}
+                      onClick={() => setSelected(c.id)}
+                    >
+                      <TableCell>
+                        <input type="radio" checked={selected === c.id} onChange={() => setSelected(c.id)} />
+                      </TableCell>
+                      <TableCell className="text-xs">{c.transaction_date}</TableCell>
+                      <TableCell className="text-xs">{c.description ?? "—"}</TableCell>
+                      <TableCell className="text-xs font-mono">{c.reference_number ?? "—"}</TableCell>
+                      <TableCell className="text-right text-xs">
+                        {fmtMoney(Math.abs(Number(c.amount)))}
+                        {isMatch && <Badge variant="outline" className="ml-2 text-[10px]">exact</Badge>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={!selected || submitting}
+            onClick={() => onSubmit({ bank_transaction_id: selected })}
+          >
+            {submitting ? "Matching…" : "Match"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
