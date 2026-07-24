@@ -10,7 +10,8 @@ import { useMemo, useState } from "react";
 import { useGarnishments, useGarnishmentLifecycle, useResolvedGarnishmentKinds, useResolvedGarnishmentPolicy, type Garnishment, type GarnishmentKind, type GarnishmentCapRule, type GarnishmentStatus, type GarnishmentTransitionAction } from "@/hooks/useGarnishments";
 import { useEmployees } from "@/hooks/useEmployees";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Card, CardHeader, CardTitle, CardContent, CardDescription,
 } from "@/components/ui/card";
@@ -349,16 +350,30 @@ export default function GarnishmentsPage() {
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
                               {lo.payee_unmapped && (
-                                <button
-                                  type="button"
-                                  onClick={() => setLinkContactFor(g)}
-                                  className="inline-flex"
-                                  title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Click to pick a Contact and enable remittance payments. This is unrelated to PAYE tax."
-                                >
-                                  <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-secondary/70">
-                                    recipient not linked — click to link
-                                  </Badge>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => setLinkContactFor(g)}
+                                    className="inline-flex"
+                                    title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Click to pick a Contact and enable remittance payments. This is unrelated to PAYE tax."
+                                  >
+                                    <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-secondary/70">
+                                      recipient not linked — click to link
+                                    </Badge>
+                                  </button>
+                                  {g.authority_id && (
+                                    <button
+                                      type="button"
+                                      onClick={() => useAuthorityAsRecipient(g.id)}
+                                      className="inline-flex"
+                                      title="Use the issuing authority (court/agency) as the remittance recipient. A recipient master record is created from the authority's details; no separate Contact needed for accrual and statement purposes. A Contact is still required later before bank-file generation."
+                                    >
+                                      <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-muted">
+                                        use issuing authority as recipient
+                                      </Badge>
+                                    </button>
+                                  )}
+                                </>
                               )}
                             </>
                           );
