@@ -662,15 +662,38 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Phase C.1 — Sub-ledger discipline: stamp `contact_id` (partner) on
+    // every garnishment payable CR line. One control account, per-recipient
+    // sub-ledger. Recipient is resolved via the canonical Party-spine field
+    // (recipient_contact_id) with graceful fallback to legacy links, so
+    // pre-Phase-A orders still post even if only payee_contact_id / the
+    // legacy recipient link is populated.
+    let garnRecipientByOrderId = new Map<string, string | null>();
+    if (garnishmentMap.size > 0) {
+      const garnIds = Array.from(garnishmentMap.keys());
+      const { data: garnRows } = await supabaseAdmin
+        .from("legal_orders")
+        .select("id, recipient_contact_id, payee_contact_id")
+        .in("id", garnIds);
+      garnRecipientByOrderId = new Map(
+        (garnRows || []).map((r: any) => [
+          r.id as string,
+          (r.recipient_contact_id as string | null) ??
+            (r.payee_contact_id as string | null) ??
+            null,
+        ]),
+      );
+    }
     for (const garn of garnishmentMap.values()) {
       lines.push({
         account_id: garnishmentPayableAcct!,
         debit: 0,
         credit: garn.amount,
         description: `${runLabel} - ${garn.label}`,
-        contact_id: null,
+        contact_id: garnRecipientByOrderId.get(garn.garnishment_id) ?? null,
       });
     }
+
 
     // ─── Slice 2: custom deduction JE lines ───
     // Per-type mapping is stored on custom_deduction_types (not
@@ -1038,7 +1061,7 @@ Deno.serve(async (req) => {
         // physical `legal_orders_records` table.
         const { data: garnRows } = await supabaseAdmin
           .from("legal_orders")
-          .select("id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
+          .select("id, recipient_contact_id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
           .in("id", garnIds);
         const garnById = new Map<string, any>(
           (garnRows || []).map((r: any) => [r.id, r]),
@@ -1080,7 +1103,7 @@ Deno.serve(async (req) => {
             status: 'open',
             liability_account_id: garnishmentPayableAcct,
             garnishment_id: garn.garnishment_id,
-            payee_contact_id: order.payee_contact_id || null,
+            payee_contact_id: order.recipient_contact_id || order.payee_contact_id || null,
             notes: `Auto-created from payroll ${payrollRun.payroll_number} (garnishment ${order.kind_code ?? ""})`.trim(),
             created_by: userId,
           });
