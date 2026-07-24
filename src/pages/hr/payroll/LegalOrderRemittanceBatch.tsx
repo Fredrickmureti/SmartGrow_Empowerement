@@ -106,7 +106,7 @@ export default function LegalOrderRemittanceBatch() {
           legal_orders:garnishment_id (
             id, employee_id, kind_code, case_reference,
             authority_id, authority_name, priority_class,
-            recipient_id, payee_name, payee_payment_method_id, /* ADR-0093 retired fallback */
+            recipient_id, payee_payment_method_id,
             legal_recipients:recipient_id ( display_name )
           )
         `)
