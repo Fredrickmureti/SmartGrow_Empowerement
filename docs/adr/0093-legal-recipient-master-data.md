@@ -101,3 +101,43 @@ change is a one-column flip on the same identity.
   GL → Reconciliation loop with a writable batch builder.
 - Phase 4 — operator workspace that treats Recipient as a first-class
   tab alongside Orders, Remittance Batches, Reports, and Audit.
+
+
+## Authority ↔ Contact spine (single-party model)
+
+`legal_order_authorities` and `contacts` used to be two independent
+identities for the same real-world entity (a court, a CSA, a tax
+office). Operators would create an "issuing authority" during
+garnishment intake but the recipient-link dialog then asked for a
+`Contact` — with no bridge between them. Result: an empty search and
+the impression that the authority was orphaned.
+
+Fix: authority owns a party-only Contact via a nullable
+`legal_order_authorities.contact_id`.
+
+- On INSERT/UPDATE, a BEFORE trigger (`legal_order_authority_ensure_contact`)
+  reuses an existing party-only Contact with the same name in the org,
+  or creates one (`customer_rank = 0`, `supplier_rank = 0`,
+  `is_company = true`) from the authority's name, email, phone,
+  address, and jurisdiction country.
+- Backfill runs the same reuse-or-create pass for every existing
+  authority so localization-pack-seeded rows are AP-ready.
+- `legal_order_use_authority_as_recipient` now stamps
+  `legal_recipients.contact_id` **and** `legal_orders_records.payee_contact_id`
+  from `authority.contact_id`, satisfying the bank-file guard in a
+  single step.
+- `LinkRecipientDialog` surfaces authorities as first-class candidates
+  above general Contacts (badge: `Authority`, subtitle carries the
+  authority code + jurisdiction). Contacts that back an authority are
+  deduplicated from the "Contacts" tier so the same entity never
+  appears twice.
+
+Jurisdictional/statutory metadata (`remittance_schedule_ref`,
+`reporting_binding_ref`, `jurisdiction_*`) stays on the authority row
+— it doesn't belong on a per-tenant contact. This mirrors Odoo's
+single `res.partner` spine pattern: one identity for the AP/banking
+pipeline, roles/facets layered on top.
+
+Pattern reference: SAP HCM third-party remittance uses Business
+Partner as the same substrate; Workday's payee resolves to the same
+supplier used by AP.
