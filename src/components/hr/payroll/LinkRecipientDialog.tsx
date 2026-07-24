@@ -83,10 +83,24 @@ interface ContactRow {
   supplier_rank: number | null;
 }
 
-type RoleTag = "recipient" | "vendor" | "party-only" | "customer";
+interface AuthorityRow {
+  id: string;
+  name: string;
+  code: string;
+  authority_type: string;
+  jurisdiction_country: string | null;
+  jurisdiction_region: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  contact_id: string | null;
+  is_active: boolean;
+}
 
-function roleOf(c: ContactRow, recipientIds: Set<string>): RoleTag {
+type RoleTag = "recipient" | "authority" | "vendor" | "party-only" | "customer";
+
+function roleOf(c: ContactRow, recipientIds: Set<string>, authorityContactIds: Set<string>): RoleTag {
   if (recipientIds.has(c.id)) return "recipient";
+  if (authorityContactIds.has(c.id)) return "authority";
   const s = Number(c.supplier_rank ?? 0);
   const cu = Number(c.customer_rank ?? 0);
   if (s > 0) return "vendor";
@@ -97,17 +111,20 @@ function roleOf(c: ContactRow, recipientIds: Set<string>): RoleTag {
 // Preferred first, customer last.
 const ROLE_ORDER: Record<RoleTag, number> = {
   recipient: 0,
-  vendor: 1,
-  "party-only": 2,
-  customer: 3,
+  authority: 1,
+  vendor: 2,
+  "party-only": 3,
+  customer: 4,
 };
 
 const ROLE_BADGE: Record<RoleTag, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   recipient: { label: "Recipient", variant: "default" },
+  authority: { label: "Authority", variant: "secondary" },
   vendor: { label: "Vendor", variant: "secondary" },
   "party-only": { label: "Party-only", variant: "outline" },
   customer: { label: "Customer", variant: "destructive" },
 };
+
 
 export function LinkRecipientDialog({
   open,
@@ -156,6 +173,32 @@ export function LinkRecipientDialog({
     staleTime: 30_000,
   });
 
+  // Curated issuing authorities (courts/agencies) — shown as first-class candidates.
+  const { data: authorities = [] } = useQuery<AuthorityRow[]>({
+    enabled: open && !!orgId,
+    queryKey: ["link-recipient-authorities", orgId, search],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("legal_order_authorities")
+        .select("id,name,code,authority_type,jurisdiction_country,jurisdiction_region,contact_email,contact_phone,contact_id,is_active")
+        .eq("organization_id", orgId!)
+        .eq("is_active", true)
+        .order("name", { ascending: true })
+        .limit(50);
+      const s = search.trim();
+      if (s) q = q.or(`name.ilike.%${s}%,code.ilike.%${s}%,authority_type.ilike.%${s}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as AuthorityRow[];
+    },
+    staleTime: 30_000,
+  });
+
+  const authorityContactIds = useMemo(
+    () => new Set(authorities.map((a) => a.contact_id).filter((v): v is string => !!v)),
+    [authorities],
+  );
+
   const { data: contacts = [], isLoading } = useQuery<ContactRow[]>({
     enabled: open && !!orgId,
     queryKey: ["link-recipient-contacts", orgId, search],
@@ -175,24 +218,53 @@ export function LinkRecipientDialog({
   });
 
   const rIds = recipientIds ?? new Set<string>();
+
+  // Merge curated authorities into the picker as first-class candidates.
+  const authorityRows = useMemo(
+    () =>
+      authorities
+        .filter((a) => !!a.contact_id)
+        .map((a) => ({
+          c: {
+            id: a.contact_id!,
+            name: a.name,
+            email: a.contact_email,
+            phone: a.contact_phone,
+            country: a.jurisdiction_country,
+            type: null,
+            customer_rank: 0,
+            supplier_rank: 0,
+          } as ContactRow,
+          role: "authority" as RoleTag,
+          authority: a,
+        })),
+    [authorities],
+  );
+
   const scored = useMemo(() => {
-    const rows = contacts.map((c) => ({ c, role: roleOf(c, rIds) }));
-    const visible = includeCustomers ? rows : rows.filter((r) => r.role !== "customer");
+    // Drop contacts that are already surfaced via an authority row (avoid duplication).
+    const rows = contacts
+      .filter((c) => !authorityContactIds.has(c.id))
+      .map((c) => ({ c, role: roleOf(c, rIds, authorityContactIds), authority: null as AuthorityRow | null }));
+    const combined = [...authorityRows, ...rows];
+    const visible = includeCustomers ? combined : combined.filter((r) => r.role !== "customer");
     visible.sort((a, b) => {
       const d = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
       if (d !== 0) return d;
       return a.c.name.localeCompare(b.c.name);
     });
     return visible;
-  }, [contacts, rIds, includeCustomers]);
+  }, [contacts, rIds, authorityContactIds, authorityRows, includeCustomers]);
+
 
   const hiddenCustomerCount = useMemo(
     () =>
       includeCustomers
         ? 0
-        : contacts.filter((c) => roleOf(c, rIds) === "customer").length,
-    [contacts, rIds, includeCustomers],
+        : contacts.filter((c) => roleOf(c, rIds, authorityContactIds) === "customer").length,
+    [contacts, rIds, authorityContactIds, includeCustomers],
   );
+
 
   const linkExistingContact = async (contactId: string) => {
     if (!mode) throw new Error("no mode");
@@ -404,8 +476,10 @@ export function LinkRecipientDialog({
               ) : scored.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground space-y-2">
                   <p>
-                    No matching contacts. Recipients are usually courts,
-                    agencies, creditors or SACCOs — none exist yet.
+                    No matches. Recipients are usually a curated{" "}
+                    <b>issuing authority</b> (court, agency) or a{" "}
+                    <b>Contact</b> (creditor, SACCO). Create one below, or
+                    seed authorities from the Authorities admin.
                   </p>
                   <Button
                     type="button"
@@ -418,12 +492,23 @@ export function LinkRecipientDialog({
                 </div>
               ) : (
                 <ul className="divide-y">
-                  {scored.map(({ c, role }) => {
+                  {scored.map(({ c, role, authority }) => {
                     const isSel = selected?.id === c.id;
                     const badge = ROLE_BADGE[role];
+                    const subtitle = authority
+                      ? [
+                          authority.authority_type,
+                          [authority.jurisdiction_country, authority.jurisdiction_region]
+                            .filter(Boolean)
+                            .join("/"),
+                          authority.code,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : [c.email, c.phone, c.country].filter(Boolean).join(" · ") || "—";
                     return (
                       <li
-                        key={c.id}
+                        key={`${role}-${c.id}`}
                         className={`p-3 cursor-pointer hover:bg-muted/40 ${
                           isSel ? "bg-muted" : ""
                         }`}
@@ -433,9 +518,7 @@ export function LinkRecipientDialog({
                           <div className="min-w-0">
                             <div className="font-medium truncate">{c.name}</div>
                             <div className="text-xs text-muted-foreground truncate">
-                              {[c.email, c.phone, c.country]
-                                .filter(Boolean)
-                                .join(" · ") || "—"}
+                              {subtitle}
                             </div>
                             {role === "customer" && (
                               <div className="mt-1 flex items-center gap-1 text-[11px] text-destructive">
@@ -449,6 +532,7 @@ export function LinkRecipientDialog({
                           </Badge>
                         </div>
                       </li>
+
                     );
                   })}
                 </ul>

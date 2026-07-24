@@ -24411,6 +24411,7 @@ export type Database = {
           authority_type: string
           code: string
           contact_email: string | null
+          contact_id: string | null
           contact_phone: string | null
           created_at: string
           created_by: string | null
@@ -24433,6 +24434,7 @@ export type Database = {
           authority_type: string
           code: string
           contact_email?: string | null
+          contact_id?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
@@ -24455,6 +24457,7 @@ export type Database = {
           authority_type?: string
           code?: string
           contact_email?: string | null
+          contact_id?: string | null
           contact_phone?: string | null
           created_at?: string
           created_by?: string | null
@@ -24473,6 +24476,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "legal_order_authorities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "legal_order_authorities_organization_id_fkey"
             columns: ["organization_id"]
