@@ -44,10 +44,9 @@ interface RemittanceLineJoined {
     authority_id: string | null;
     authority_name: string | null;
     priority_class: number | null;
-    // Phase R4b (ADR-0093): recipient display resolved via master.
+    // Recipient display resolved via master (ADR-0093, Phase R4b).
     recipient_id: string | null;
     legal_recipients: { display_name: string | null } | null;
-    payee_name: string | null; // ADR-0093 retired legacy fallback
     payee_payment_method_id: string | null;
   } | null;
 }
