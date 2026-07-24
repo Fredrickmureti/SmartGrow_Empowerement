@@ -13,7 +13,7 @@
  * bar so bookmarks and deep links keep working.
  */
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { ClipboardList, Scale, Users, Banknote, Layers, PackageCheck } from "lucide-react";
+import { ClipboardList, Scale, Users, Banknote, Layers, PackageCheck, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -23,6 +23,7 @@ const TABS = [
   { to: "/hr/payroll/legal-orders/recipients", label: "Recipients", icon: Users, end: false },
   { to: "/hr/payroll/legal-orders/remittance-batch", label: "Remittances", icon: Banknote, end: false },
   { to: "/hr/payroll/legal-orders/batches", label: "Batches", icon: PackageCheck, end: false },
+  { to: "/hr/payroll/legal-orders/audit", label: "Audit", icon: Activity, end: false },
 ];
 
 export default function LegalOrdersWorkspace() {
