@@ -1048,32 +1048,26 @@ Deno.serve(async (req) => {
       // rule_code = `garnishment_<uuid>` (matches the payslip_lines rule_code,
       // so the existing (run, rule_code) unique index keeps re-posts idempotent).
       if (garnishmentMap.size > 0) {
-        // Hydrate payee_contact_id + due_date hint from the order + resolved policy.
+        // Hydrate recipient contact + due_date hint from the order + resolved policy.
         const garnIds = Array.from(garnishmentMap.keys());
-        // Phase R4 (ADR-0093): resolve authority display name and payee
-        // contact via the master `legal_recipients` table (joined through
-        // recipient_id). Legacy overlay columns are read only as fallbacks
-        // for pre-master orders.
+        // ADR-0093 / Phase R4b: authority display name and recipient
+        // contact are resolved from the `legal_recipients` master via
+        // `recipient_id`. Legacy overlay/snapshot columns are gone.
         const { data: garnRows } = await supabaseAdmin
           .from("legal_orders")
-          .select("id, recipient_id, recipient_contact_id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id, legal_recipients:recipient_id(contact_id, display_name)")
+          .select("id, recipient_id, kind_code, end_date, priority_class, calc_model, authority_id, legal_recipients:recipient_id(contact_id, display_name)")
           .in("id", garnIds);
         const garnById = new Map<string, any>(
           (garnRows || []).map((r: any) => [r.id, r]),
         );
-...
         for (const garn of garnishmentMap.values()) {
           const order = garnById.get(garn.garnishment_id) || {};
           const authority =
             order.legal_recipients?.display_name ||
-            order.payee_name ||
             garn.label ||
-            "Garnishment payee";
+            "Garnishment recipient";
           const payeeContactId =
-            order.legal_recipients?.contact_id ||
-            order.recipient_contact_id ||
-            order.payee_contact_id ||
-            null;
+            (order.legal_recipients?.contact_id as string | null) ?? null;
           const periodEnd = new Date(payrollRun.pay_period_end);
           const due = new Date(periodEnd.getFullYear(), periodEnd.getMonth() + 1, policyDueDay);
           liabRows.push({
