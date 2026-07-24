@@ -86,10 +86,8 @@ export interface Garnishment {
   status: GarnishmentStatus;
   status_changed_at: string | null;
   status_reason: string | null;
-  payee_name: string | null;
-  payee_account: string | null;
-  payee_bank: string | null;
-  payee_reference: string | null;
+  // Recipient identity/bank/reference now live on legal_recipients master
+  // (ADR-0093, Phase R4b). Resolve via `recipient_id` if the caller needs them.
   document_url: string | null;
   document_filename: string | null;
   minimum_take_home_amount: number | null;
