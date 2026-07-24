@@ -1,88 +1,61 @@
+## Legal Orders subsystem — closure + recipient-link bug
 
-# Legal Orders / Garnishments — Continuation Plan
+### 1. Close the roadmap
+Confirmed: Phases 1–8 are genuinely complete (recipient master data, FSM guards, jurisdiction packs, remittance cycle, audit projection, ADRs 0092–0097, platform statutory-report seeds). No open items remain in `.lovable/plan.md`. Nothing further to build on the roadmap itself — close it.
 
-> **Status snapshot (current):** Phases 1–8 delivered end-to-end. Recipient
-> master data, FSM guard, workspace shell, outbox event integration,
-> jurisdiction packs, recipient linking, remittance batches, bank-file
-> generation, settlement, bank-reconciliation seam, nightly auto-satisfy,
-> recipient statement, unified audit timeline, statutory report definitions,
-> and point-in-time running balance are all live with architecture tests and
-> ADRs (0092–0097). **Roadmap complete.**
->
-> **Active phase:** none — subsystem is at enterprise-grade closure.
-> **Follow-ups:** country-specific statutory report definitions are the
-> responsibility of individual localisation packs (KE / ZA / GH / DE etc.)
-> and are added as pack-authored rows in
-> `legal_order_statutory_report_definitions` when the pack maintainer needs
-> them. No engine work required.
+### 2. Root-cause of the "Search contacts" empty list
 
-## Phase 0 — Verification ledger (evidence-based)
+The dialog issue you are seeing is **a real bug, not a data problem**. Independent verification:
 
-Verified directly against the live database and codebase.
+- The tenant (`org 8e68…c28b`) does have contacts — 1 row (`type='customer'`) — so the list should not be empty.
+- `LinkRecipientDialog.tsx` line 79 selects `id,name,email,phone,country,contact_type` from `contacts`. The `contacts` table has no column named `contact_type` — the real column is `type`.
+- PostgREST rejects the select; react-query catches the error and `data ?? []` collapses to `[]`, which renders the "No contacts match…" empty state. So the list is empty for **every** tenant, not just this one — regardless of how many contacts exist.
 
-| Prior claim | Verification | Status |
-|---|---|---|
-| Phase 1–5 — recipient master data, FSM guard, workspace, outbox, ADRs 0092–0094 | Migrations + `legal-orders-phase2..phase5*` tests present and green | ✅ Accepted |
-| Phase 6 jurisdiction packs + ADR-0095 | `LegalOrderPacks.tsx` + `legal-orders-phase6-packs.test.ts` | ✅ Accepted |
-| Phase 7 remittance cycle + ADR-0096 | 8 RPCs live (`legal_order_build/generate/settle/cancel/match_batch/auto_satisfy/recipient_statement/running_balance`), `pg_cron` job `legal-orders-auto-satisfy-nightly`, UI pages `LegalOrderRemittanceBatches` / `LegalOrderRemittanceBatch`, `legal-orders-phase7-remittance-cycle.test.ts` | ✅ Accepted |
-| Phase 8 backend — audit timeline view, statutory-report definitions table, running-balance RPC + ADR-0097 | View, table, RPC all present; `LegalOrdersAudit.tsx` mounted at `/hr/payroll/legal-orders/audit`; `legal-orders-phase8-audit.test.ts` present | ✅ Accepted |
-| Platform-scope statutory report definitions seeded | `legal_orders_outstanding_by_recipient` + `legal_orders_remittance_activity` rows in `legal_order_statutory_report_definitions` with `organization_id = NULL`, `jurisdiction_code = '*'` (platform sentinel), both `monthly` and `is_active = true` | ✅ Accepted |
-| ADR-0094 extension for the audit projection contract | Addendum section added to `docs/adr/0094-legal-order-event-integration.md` documenting `v_legal_order_audit_timeline` shape, security model, source branches, extension rule, and non-writer contract | ✅ Accepted |
+### 3. On "the employee already has issuing authority set" — is a Contact even the right thing to link?
 
-No superficial patches, no regressions, no partially implemented architecture
-found during independent verification.
+They are two different concepts and today the UI conflates them:
 
-## Guardrails (enforced by tests, unchanged)
+- `legal_order_authorities` = **issuing body** (Nairobi Civil Court, KRA, a SACCO's board). It carries its own `default_payee_bank / _account / _reference_template` and jurisdiction — but no `contact_id`.
+- `legal_recipients` = **who receives the remittance money** (could be the court itself, a SACCO, a custodial parent's agent, a collection agency). The remittance pipeline (bank-file generation, AP settlement, statements) needs a `legal_recipients` row and it currently requires a linked `contact_id` because bank-file/AP posting flows through Contacts.
 
-- All status writes go through `garnishment_transition` /
-  `apply_system_garnishment_transition`; `_legal_order_fsm_guard` remains
-  active. The Phase 5 writer-guard architecture test enforces this.
-- Every `public` table ships GRANT + RLS in the same migration.
-- Every outbox topic ships with a dispatcher entry; unknown topics DLQ.
-- No country-specific branching in engine or UI code — pack rows only.
-- No direct `pdf-lib` usage in feature code; artifacts flow through
-  `document_artifacts` (ADR-0084).
-- `/api/public/*` server routes authenticate with the Supabase anon key in
-  `apikey` — no bespoke shared secret.
-- `v_legal_order_audit_timeline` is the single canonical read projection for
-  legal-order history. New audit sources plug in as an extra `UNION ALL`
-  branch — do not publish a second view.
+So for the Joy Matilda order:
+- The authority (Nairobi Civil Court) is set — good; that is the court that issued the order.
+- The order still has no `recipient_id`, because we have not told the system **where the money goes**. In many child-support cases the money goes to the same court's trust account — but nothing in the schema currently lets the authority double as the recipient without a Contact.
 
-## Complete lifecycle coverage
+That is a real UX gap on top of the bug.
 
-Every stage in the parent prompt now has a single source of truth wired into
-the enterprise loop:
+### 4. Fix scope
 
-```
-Legal Authority        → localization pack registry
-Legal Order            → legal_orders_records + FSM guard
-Employee               → employees + payroll eligibility
-Payroll Eligibility    → garnishment engine (priority + aggregate cap)
-Disposable Earnings    → payroll_run engine
-Deduction Rules        → localization_pack_garnishment_policies
-Priority Rules         → garnishment_kind_defaults (always_first / cap_exempt)
-Aggregate Caps         → payroll_settings.garnishment_aggregate_cap_pct
-Payroll Run            → payroll_runs
-Payslip                → payslips + payslip_lines
-Accounting Entries     → journal_entries (Garnishment Payable per recipient)
-Liability Creation     → default_account_settings role garnishment_payable
-Remittance             → legal_order_remittance_batches + batch_lines
-Payment Processing     → legal_order_settle_remittance_batch (single writer)
-Bank Payment           → legal_order_generate_remittance_bank_file
-                         (csv | ach_stub | sepa_pain001_stub)
-Reconciliation         → legal_order_match_batch_to_bank_txn +
-                         bank_reconciliation_matches.legal_order_remittance_batch_id
-Reports                → legal_order_statutory_report_definitions
-                         (platform seeds + pack-authored rows)
-Audit                  → v_legal_order_audit_timeline (invoker-scoped)
-Closure / Release      → legal_order_auto_satisfy nightly (FSM publisher)
-```
+Two changes, both scoped to this dialog + one small RPC. No roadmap re-opening.
 
-## Handoff note
+**A. Fix the broken select (blocking bug).**
+In `src/components/hr/payroll/LinkRecipientDialog.tsx`:
+- Replace `contact_type` with `type` in the `.select(...)` string.
+- Update the `ContactRow` interface field `contact_type` → `type` and the JSX badge that renders it.
+- Optional polish: also search by `email` (`.or('name.ilike.%q%,email.ilike.%q%')`) so users can find a court by its email when the display name is inconsistent.
 
-The subsystem is complete. Future work belongs to the individual localisation
-packs (country-specific statutory report definitions authored via pack rows,
-never via engine changes) and to any new audit source that appears — those
-plug into `v_legal_order_audit_timeline` as an additional `UNION ALL` branch
-per the ADR-0094 addendum. Do not extend the engine to accommodate
-country-specific behaviour; the guardrails above are non-negotiable.
+**B. Let the issuing authority act as the recipient (closes the UX gap you spotted).**
+
+Add a second action in the Garnishments row badge menu, next to "Link to Contact":
+
+- Label: **"Use issuing authority as recipient"** — only enabled when `authority_id IS NOT NULL` and `recipient_id IS NULL`.
+- Calls a new security-definer RPC `legal_order_use_authority_as_recipient(p_order_id uuid)` that:
+  1. Loads the order + its authority in the caller's org (org-scope guard identical to `legal_order_attach_contact`).
+  2. Finds an existing `legal_recipients` row for that `authority_id` with no `contact_id`, or inserts one, copying `display_name`, `jurisdiction_country/region`, `contact_email/phone`, `address`, `default_payee_*`, and `remittance_schedule_ref` from `legal_order_authorities`.
+  3. Stamps `legal_orders_records.recipient_id`.
+  4. Emits the existing `legal_order.recipient_attached` outbox event so audit + projections stay consistent.
+- Same MERGE_REQUIRED guard as `legal_order_attach_contact` if a recipient with a linked contact already exists for that authority — force explicit choice.
+- Bank-file / AP path continues to require a Contact; the recipient row without `contact_id` is fine for statement + accrual but the existing bank-file guard will refuse to generate a payout until a Contact is linked. No change there — that guard already exists and is correct.
+
+### 5. Verification after implementation
+
+- Reload Garnishments for this tenant; click "recipient not linked", see the 1 existing contact appear in the list.
+- On the same order, use the new "Use issuing authority as recipient" action; confirm `recipient_id` is set on `legal_orders_records`, a `legal_recipients` row is created from Nairobi Civil Court, and the audit timeline shows a `recipient_attached` event.
+- Attempt to generate a bank file for that recipient without a Contact and confirm the existing guard blocks it with a clear message.
+
+### Files touched
+
+- `src/components/hr/payroll/LinkRecipientDialog.tsx` — column-name fix, type/badge rename, optional email search.
+- `src/pages/hr/payroll/Garnishments.tsx` — add the "Use issuing authority as recipient" action next to the existing badge trigger; enable only when `authority_id` present and `recipient_id` null.
+- New migration adding `public.legal_order_use_authority_as_recipient(uuid)` RPC (security definer, org-scoped, outbox event emitted).
+- No changes to the audit projection or ADRs; the new RPC reuses the existing `legal_order.recipient_attached` contract in ADR-0094.

@@ -79332,6 +79332,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      legal_order_use_authority_as_recipient: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       legal_orders_return_extract: {
         Args: {
           _branch_id?: string
