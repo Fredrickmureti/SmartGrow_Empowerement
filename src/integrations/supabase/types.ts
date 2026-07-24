@@ -79030,6 +79030,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      install_legal_order_authorities_from_pack: {
+        Args: { p_organization_id: string; p_pack_id: string }
+        Returns: number
+      }
       install_legal_order_kind_defaults: {
         Args: { p_organization_id: string; p_pack_id: string }
         Returns: number
