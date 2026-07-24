@@ -23,6 +23,7 @@ import {
   useLegalRecipientStatement,
   type LegalRecipientOutstanding,
 } from "@/hooks/useLegalRecipients";
+import { LinkRecipientDialog } from "@/components/hr/payroll/LinkRecipientDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
