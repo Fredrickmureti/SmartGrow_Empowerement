@@ -1,158 +1,100 @@
-# Enterprise Legal Orders (Garnishments) — Execution Plan
+# Legal Orders (Garnishments) — Continuation Plan
 
-Multi-phase hardening of the Legal Orders subsystem to enterprise-grade
-quality (SAP HCM / Oracle HCM / Workday / D365 F&O / Odoo parity).
+## Phase 0 — Independent verification of prior work (DONE, findings below)
 
-## Phase 1 — Recipient master data ✅
-- Tables `legal_recipient_types`, `legal_recipients`, dedupe index,
-  `legal_orders_records.recipient_id` FK + backfill, extended
-  `public.legal_orders` view, `legal_recipient_merge` RPC, client
-  seam, ADR-0093.
+Verified directly against the codebase and database — not against `.lovable/plan.md` claims.
 
-## Phase 2 — Lifecycle & engine seals ✅
-- `_legal_order_fsm_guard` trigger + `_legal_order_publish_status_event`
-  trigger + architecture test `legal-orders-phase2-seams`.
-- (Phase 5 later fixed a schema mismatch in the publisher that had been
-  silently swallowed — see below.)
+| Claim in plan.md | Verification | Status |
+|---|---|---|
+| Phase 1 recipient master data (`legal_recipients`, `legal_recipient_types`, `legal_recipient_outstanding`) | `to_regclass` returned all three | ✅ real |
+| Phase 2 FSM guard + status publisher | Architecture test `legal-orders-phase2-seams` (4 tests) green | ✅ real |
+| Phase 3 recipient continuity | `legal-orders-phase3-recipient-continuity` (3 tests) green; view exists | ✅ real |
+| Phase 4 workspace shell | `legal-orders-phase4-workspace` (4 tests) green; pages present under `src/pages/hr/payroll/` (`LegalOrdersWorkspace`, `LegalRecipients`, `LegalOrdersTasks`, `LegalOrderRemittanceBatch`) | ✅ real |
+| Phase 5 outbox publisher + finance/ess subscribers + writer guard | `legal_order_subscriber_dispatch_log` table, `legal_order_check_finance_drift` + `legal_order_notify_employee` functions, 4 rows in `business_event_subscriptions` (finance/ess × status_changed/payment_posted, all `is_active=true`), writer-guard test green | ✅ real |
+| Engine already reads pack fields (`calc_model`, `priority_class`, `aggregate_cap_membership`, `protected_earnings_rule`) | Confirmed in `supabase/functions/_shared/garnishment-engine.ts` Phase-4 header + branches | ✅ real |
 
-## Phase 3 — Recipient financial continuity ✅
-- View `legal_recipient_outstanding`, RPC `legal_recipient_statement`,
-  hooks, `/hr/payroll/legal-orders/recipients` workspace tab, test.
+Test suite: `bunx vitest run src/test/architecture/legal-orders-phase*.test.ts` → **15/15 pass** (4 files).
 
-## Phase 4 — Operator workspace ✅
-- `LegalOrdersWorkspace` shell with four nested tabs, action-inbox
-  Tasks page, legacy redirect, test `legal-orders-phase4-workspace`.
+No regressions or shallow patches detected in the Phase 1–5 surface. Resume at Phase 6 as the plan states, with two additional phases (7 and 8) appended for genuine closure of the money-out-the-door lifecycle and the audit/reporting story.
 
-## Phase 5 — Cross-domain integration & guardrails ✅
+## Phase 6 — Jurisdiction packs (was NEXT, now active)
 
-Fully implemented and verified (2026-07-24).
+The engine already consumes pack contract fields; what's missing is (a) the storage/resolution layer and (b) actual seeded jurisdictions.
 
-Landed:
-- **Publisher fix.** `_legal_order_publish_status_event` rewritten to
-  use the real outbox schema (`org_id`, `event_type`, `source_doc_type`,
-  `source_doc_id`, `payload`, `status`, `idempotency_key`). Previous
-  version referenced `topic`/`aggregate_id`/`produced_by` and swallowed
-  the exception, so no lifecycle events ever reached the outbox.
-  Idempotency key = `legal_order.status_changed:<id>:<changed_at>:<from>><to>`.
-- **Subscriber-scoped dispatch log.** New
-  `legal_order_subscriber_dispatch_log(source_event_id, subscriber, …)`
-  primary-keyed by both columns so multiple domains can independently
-  consume the same source event.
-- **Finance drift subscriber.** RPC
-  `legal_order_check_finance_drift(event_id, org_id, business_id, topic, payload)`
-  recomputes accrued (from `garnishment_ledger`) and paid (from
-  `legal_order_remittance_lines`) per recipient, compares to the
-  `legal_recipient_outstanding` view, and opens
-  `finance_integrity_issues` rows on `paid > accrued` (severity
-  `error`, code `legal_order.recipient_over_remit`) or drift above
-  0.01 (`warning`, code `legal_order.recipient_rollup_drift`).
-- **ESS employee subscriber.** RPC `legal_order_notify_employee`
-  resolves the affected employee's linked `auth.uid()` and calls
-  `create_notification` under `payroll` category with a deep link to
-  `/me/legal-orders`. Fires on `status_changed → active/suspended/
-  satisfied/released` and on every `payment_posted`.
-- **Subscription registry rows.** Four rows in
-  `business_event_subscriptions` (finance + ess against status_changed
-  and payment_posted) — this is the authoritative subscription table
-  even though the dispatcher's routing is edge-function code.
-- **Dispatcher routing.** `supabase/functions/outbox-dispatcher/index.ts`
-  now handles the new `legal_order.status_changed` topic and calls the
-  shared `fanoutFinanceAndEss` helper from both handlers.
-- **ESS surface.** `src/pages/me/MyLegalOrders.tsx` now shows
-  `recipient_name` (falling back to authority_name) and per-order
-  running balance (`total_accrued - total_paid`) sourced from the
-  existing `legal_orders` view — no new RPC.
-- **Writer-guard architecture test.**
-  `src/test/architecture/legal-orders-phase5-writer-guard.test.ts`
-  parses every `supabase/migrations/*.sql`, extracts function bodies by
-  dollar-quoted tag, and fails the build if any
-  `UPDATE ... legal_orders_records SET status = ...` lives outside the
-  five sanctioned functions (`garnishment_transition_impl`,
-  `garnishment_transition`, `apply_system_garnishment_transition`,
-  `apply_garnishment_payment_to_order`, `garnishment_auto_expire`).
-  Also pins the presence of the new migration objects, dispatcher
-  routing, and ADR-0094.
-- **ADR-0094** — `docs/adr/0094-legal-order-event-integration.md`
-  documents the emitter contract, subscriber responsibilities, payload
-  shape for both topics, and idempotency model.
+1. **Schema.** Migration adding:
+   - `legal_order_jurisdiction_packs(id, country_code, region_code null, effective_from date, effective_to date null, rules jsonb, source text, checksum text, created_at, updated_at)`.
+   - `legal_order_jurisdiction_pack_kinds(pack_id, kind, calc_model, priority_class, aggregate_cap_membership, protected_earnings_rule jsonb, employer_fee_amount, employer_fee_account_role, default_priority, always_first)` — one row per garnishment kind the pack defines.
+   - `legal_order_org_pack_overrides(org_id, business_id null, country_code, region_code null, pack_id)` — org-level pin.
+   - `security_invoker` view `legal_order_effective_kind_defaults` resolving `org override → country/region seed → global default in garnishment_kind_defaults`.
+   - GRANTs + RLS (authenticated read for their org; service_role writes; admin role for overrides).
+2. **Resolver RPC.** `public.legal_order_resolve_kind_defaults(_org_id uuid, _country text, _region text, _kind text) → jsonb`. `compute-payroll` + `_shared/garnishment-engine` receive resolved defaults through the existing `KindDefault` shape — no engine math change.
+3. **Seed migrations, one per jurisdiction.** Each migration is self-contained (GRANT + RLS + INSERT into pack tables). Baseline set:
+   - `US-FED` (CCPA disposable-earnings caps + child-support ordering).
+   - `US-CA`, `US-NY`, `US-TX` (state overrides on caps + protected earnings).
+   - `UK` (AEO priority vs. non-priority; DEA percentages).
+   - `KE` (court order + child maintenance).
+   - `ZA` (emoluments attachment order).
+   - `IN` (CPC §60 protected earnings).
+   - `DE` (Pfändungstabelle bands as `protected_earnings_rule`).
+   - `FR` (barème saisie).
+   - `AU` (CSA Section 72A percentage protected earnings).
+   - `CA-ON` (Family Responsibility Office).
+   Each migration ships in isolation and must contain `INSERT ... ON CONFLICT DO NOTHING` so it is re-runnable.
+4. **Pack management UI.** New tab `/hr/payroll/legal-orders/packs`:
+   - list active packs per org, effective window, source, checksum;
+   - diff view against seeded baseline (jsonb deep-diff);
+   - admin-only pin/unpin org override;
+   - reuses the existing workspace shell (`LegalOrdersWorkspace`).
+5. **Tests.**
+   - New architecture test `legal-orders-phase6-packs`: schema objects exist, resolver returns override before seed before global default, engine still deterministic when pack is empty.
+   - Deno test extending `garnishment-engine.test.ts` with US-CA and UK fixtures — same input, pack-driven output.
+6. **ADR-0095** — pack contract, resolution order, migration playbook, pack authoring rules (no code changes needed to add a country).
 
-Verified:
-- `bunx vitest run src/test/architecture/legal-orders-phase*.test.ts`
-  → 15/15 tests, 4 files, all green.
-- Migration applied cleanly; only pre-existing project-wide linter
-  noise (security-definer views from other modules) reported.
+Guardrails (preserved): no new status writer; no bypass of `create_notification`; every new outbox topic requires a dispatcher handler.
 
-## Phase 6 — Localization & jurisdiction packs (NEXT)
+## Phase 7 — Remittance cycle closure (APPENDED)
 
-Currently the next active phase.
+Rationale: parent prompt requires the flow to reach "money legally reaches its destination + reconciliation + closure". Verified today the batch page (`LegalOrderRemittanceBatch.tsx`) and the `post-garnishment-payment` edge function exist and emit `legal_order.payment_posted`, but the loop back into GL reconciliation and closure is only partial.
 
-### Preconditions the next agent must verify before starting
+1. **Liability → bank file → payment → GL reconciliation loop.**
+   - RPC `legal_order_build_remittance_batch(_org_id, _business_id, _recipient_id null, _as_of_date)` — materialises pending accruals from `garnishment_ledger` minus `legal_order_remittance_lines` per recipient, respects payment method preferences on `legal_recipients`.
+   - RPC `legal_order_generate_bank_file(_batch_id, _format)` — pluggable format (EFT/ACH/SEPA/PAIN.001/local CSV) driven by localization pack; format is data, not code.
+   - Reconciliation join: `bank_transactions ↔ legal_order_remittance_lines` via existing `bank_reconciliation_matches`; auto-match rule for recipient name + amount + reference_number.
+2. **Auto-closure FSM steps.**
+   - Extend `garnishment_transition_impl` to accept `satisfied` when `total_paid >= total_owed` AND no pending accrual — routed through the FSM, still writer-guarded.
+   - Nightly job `legal_order_auto_satisfy` scans `legal_recipient_outstanding` for zeroed orders and calls the transition; emits `status_changed` as always.
+3. **Recipient statements.**
+   - `legal_recipient_statement_pdf` server function producing a bank-grade per-recipient statement (opening balance, accrued, paid, closing balance, per-order lines). Uses existing document artifact pipeline.
+4. **Tests.**
+   - `legal-orders-phase7-remittance-cycle`: RPC contracts, auto-satisfy transition path, bank-file format pluggability, reconciliation match round-trip on a seeded fixture.
+5. **ADR-0096** — remittance cycle contract; drift/over-remittance codes owned by Phase 5's `finance_integrity_issues`.
 
-1. Read `.lovable/plan.md` end-to-end and confirm Phases 1–5 are marked
-   complete.
-2. Run `bunx vitest run src/test/architecture/legal-orders-phase*.test.ts`
-   — must show 15/15 green (4 files).
-3. Confirm the DB objects added in Phase 5 exist:
-   - table `public.legal_order_subscriber_dispatch_log`;
-   - functions `public.legal_order_check_finance_drift`,
-     `public.legal_order_notify_employee`;
-   - four rows in `public.business_event_subscriptions` for
-     `legal_order.status_changed` and `legal_order.payment_posted`.
-4. Manually trigger a status transition in a dev org (e.g.
-   `select garnishment_transition('<id>','activate',null,null)`);
-   confirm a row appears in `business_event_outbox` with
-   `event_type = 'legal_order.status_changed'`, and after the
-   dispatcher tick a row appears in
-   `legal_order_subscriber_dispatch_log` for both subscribers.
-5. Fire a synthetic over-remittance in seed data; confirm one row
-   opens in `finance_integrity_issues` with code
-   `legal_order.recipient_over_remit` and `details.source_event_id`
-   set — this is the "drift alert has fired at least once against
-   seed data" gate called out in the earlier plan.
-6. Smoke `/me/legal-orders` while impersonating an employee with a
-   linked user — recipient name and running balance render.
+## Phase 8 — Audit, reporting, historical balances (APPENDED)
 
-### Phase 6 scope (only after preconditions pass)
+Rationale: parent prompt lists Reports and Audit as first-class stages; today the audit trail is spread across `commercial_audit_logs`, `_legal_order_publish_status_event`, `finance_integrity_issues` and ad-hoc columns.
 
-1. **Country/jurisdiction pack schema.** Introduce
-   `legal_order_jurisdiction_packs(country, region, effective_from,
-   effective_to, rules jsonb)` with a `security_invoker` view resolving
-   the currently-effective pack per org.
-2. **Cross-country garnishment kinds.** Extend
-   `garnishment_kind_defaults` seeds per pack (US federal + state,
-   UK AEO/DEA, KE court, ZA emoluments, IN section 60, DE Pfändung,
-   FR saisie, AU child support, CA family responsibility). One
-   migration per country; each migration must include GRANTs and RLS.
-3. **Priority + cap engine hook.** Extend `computeGarnishments` to
-   consult the resolved pack for `priority_class`,
-   `aggregate_cap_membership`, `protected_earnings_rule`. No behavior
-   change for orgs without a pack (defaults preserved).
-4. **Pack management UI.** New workspace tab
-   `/hr/payroll/legal-orders/packs` (admin-only) listing active packs
-   with a diff view against the seeded baseline.
-5. **ADR-0095.** Document the pack contract, resolution order
-   (`org override > country/region seed > global default`) and
-   migration playbook.
+1. **Unified audit projection.** View `legal_order_audit_timeline` joining FSM transitions (from outbox), remittance lines, payments, drift issues, recipient merges. Read-only, `security_invoker`, RLS by org.
+2. **Statutory reporting hooks.** Extend the reporting centre (ADR-0062) with two report definitions:
+   - "Legal Orders — outstanding by recipient" (uses `legal_recipient_outstanding`).
+   - "Legal Orders — remittance activity by period" (uses `legal_order_remittance_lines`).
+   Both pack-neutral; jurisdictions add packaging via localization packs only.
+3. **Historical rehydration.** RPC `legal_recipient_running_balance(_recipient_id, _as_of)` for point-in-time balance — required for backdated statements and reopened periods.
+4. **Tests.**
+   - `legal-orders-phase8-audit`: timeline view returns rows for status changes, remittances and drift; historical balance matches replayed ledger.
+5. Update ADR-0094 with the audit-projection contract; append note to ADR-0093.
 
-### Guardrails to preserve while doing Phase 6
+## Guardrails carried through all phases
 
-- Do not open a new status writer. All status changes still route
-  through the FSM; the writer-guard test enforces this.
-- Do not bypass `create_notification` for ESS pings.
-- Do not add new outbox topics without a corresponding dispatcher
-  handler entry — unknown topics DLQ hard by design.
+- All status writes go through the FSM. Writer-guard test enforces.
+- All pack behaviour is data — no country name in engine code (`no-country-fixture-in-shared-preview` rule already exists; add a matching lint if any new engine file lands).
+- Every new outbox topic ships with a dispatcher handler entry — unknown topics DLQ.
+- Every migration creating a table in `public` includes GRANTs + RLS in the same file.
+- Every phase ends with: architecture test green, DB objects verified via read query, and a plan.md status update.
 
-## Next-agent handoff instructions
+## Execution order (concrete)
 
-1. Read this plan end-to-end. Do not skip Phase 5's verification list
-   above — it exists because Phase 2 shipped a broken publisher for a
-   week that nobody caught until Phase 5.
-2. Run the four architecture-test files in this subsystem
-   (`legal-orders-phase*.test.ts`). If any fail, fix regressions
-   before adding new work.
-3. Manually trigger the smoke steps under "Preconditions" §4-§6
-   above.
-4. Only then start Phase 6 step 1. Ship each numbered step as its own
-   migration + test + plan update before moving to the next.
-5. After every phase step, append status to this file — never leave it
-   stale.
+1. Phase 6 step 1 (schema) → Phase 6 step 2 (resolver + engine wiring) → Phase 6 step 3 (US-FED + UK + KE first, remaining seeds after) → Phase 6 step 4 (UI) → Phase 6 step 5 (tests) → ADR-0095.
+2. Phase 7 step 1 → step 2 → step 3 → step 4 → ADR-0096.
+3. Phase 8 as above.
+
+Each numbered step lands as its own migration/PR-shaped change with tests before moving on.
