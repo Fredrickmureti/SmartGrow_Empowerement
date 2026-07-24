@@ -14,8 +14,9 @@
  *   3. Back-fills the legacy `legal_order_authorities` row for readers
  *      that still hit that table.
  *
- * Emits `{ authority_id, authority_contact_id }` on selection so callers
- * can stamp both columns on `legal_orders_records`.
+ * Emits `{ authority_id }` on selection. Callers stamp only `authority_id`
+ * on `legal_orders_records`; the retired overlay column
+ * `authority_contact_id` is no longer written (ADR-0093).
  */
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
