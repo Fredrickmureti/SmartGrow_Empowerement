@@ -91,13 +91,13 @@ Deno.serve(async (req) => {
 
     const requested = round2(amount);
 
-    // 1) Load the order (scoped to organization) and validate payee.
-    // Phase R4 (ADR-0093): resolve display name via master `legal_recipients`
-    // (joined through recipient_id). Legacy `payee_name` is read only as a
-    // fallback for pre-master orders.
+    // 1) Load the order (scoped to organization) and validate recipient.
+    // ADR-0093 / Phase R4b: recipient identity + contact live on the
+    // `legal_recipients` master, resolved through `recipient_id`. The legacy
+    // payee snapshot columns are gone.
     const { data: order, error: ordErr } = await supabaseAdmin
       .from("legal_orders_records" as any)
-      .select("id, organization_id, business_id, recipient_id, payee_name, payee_contact_id, kind, status, total_owed, total_paid, payee_unmapped, legal_recipients:recipient_id(display_name, contact_id)")
+      .select("id, organization_id, business_id, recipient_id, kind, status, total_owed, total_paid, legal_recipients:recipient_id(display_name, contact_id)")
       .eq("id", garnishment_id)
       .maybeSingle();
     if (ordErr || !order) return bad("Garnishment order not found");
@@ -105,14 +105,15 @@ Deno.serve(async (req) => {
       return bad("Garnishment order belongs to a different organization");
     if (order.business_id && order.business_id !== business_id)
       return bad("Garnishment order belongs to a different business");
-    if (order.payee_unmapped)
-      return bad("Garnishment payee is unmapped — assign a payee contact before paying");
+    if (!order.recipient_id)
+      return bad("Garnishment recipient is not linked — link a recipient before paying");
     if (!["active", "approved"].includes(String(order.status)))
       return bad(`Garnishment status is ${order.status}; cannot pay`);
 
+    const recipientContactId =
+      ((order as any).legal_recipients?.contact_id as string | null) ?? null;
     const authority_name =
-      (order as any).legal_recipients?.display_name ||
-      order.payee_name ||
+      ((order as any).legal_recipients?.display_name as string | null) ||
       `Garnishment ${order.kind}`;
 
     // 2) Pull open liabilities for this garnishment (FIFO by due_date, then period_end)
