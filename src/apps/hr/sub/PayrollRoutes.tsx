@@ -125,6 +125,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           <Route path="legal-orders" element={gate(<LazyRoute module="Legal Orders"><LegalOrdersWorkspace /></LazyRoute>, "managePayroll")}>
             <Route index element={<LazyRoute module="Legal Orders Tasks"><LegalOrdersTasks /></LazyRoute>} />
             <Route path="orders" element={<LazyRoute module="Legal Orders Register"><Garnishments /></LazyRoute>} />
+            <Route path="packs" element={<LazyRoute module="Legal Order Packs"><LegalOrderPacks /></LazyRoute>} />
             <Route path="recipients" element={<LazyRoute module="Legal Recipients"><LegalRecipients /></LazyRoute>} />
             <Route path="remittance-batch" element={<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>} />
           </Route>
