@@ -371,7 +371,7 @@ export default function GarnishmentsPage() {
                               {evidenceMissing && (
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
-                              {lo.payee_unmapped && (
+                              {!lo.recipient_id && (
                                 <>
                                   <button
                                     type="button"
@@ -414,12 +414,10 @@ export default function GarnishmentsPage() {
                       {g.total_owed ?? "—"} / {g.total_paid}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {g.payee_name ? (
-                        <div>
-                          <div>{g.payee_name}</div>
-                          {g.payee_account && <div className="text-muted-foreground">{g.payee_account}</div>}
-                        </div>
-                      ) : "—"}
+                      {(() => {
+                        const lo = legalOrderById.get(g.id);
+                        return lo?.recipient_name ? <div>{lo.recipient_name}</div> : "—";
+                      })()}
                     </TableCell>
                     <TableCell className="text-xs">
                       {g.start_date} → {g.end_date ?? "open"}
@@ -684,7 +682,8 @@ export default function GarnishmentsPage() {
                 kind: "order",
                 orderId: linkContactFor.id,
                 orderLabel:
-                  (linkContactFor.payee_name || linkContactFor.kind.replace(/_/g, " ")) +
+                  (legalOrderById.get(linkContactFor.id)?.recipient_name ||
+                    linkContactFor.kind.replace(/_/g, " ")) +
                   ` (${employeeById.get(linkContactFor.employee_id) ?? "employee"})`,
               }
             : null

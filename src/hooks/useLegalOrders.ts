@@ -92,14 +92,18 @@ export interface LegalOrderRow {
   status_changed_by: string | null;
   status_reason: string | null;
 
-  // Payee
-  payee_name: string | null;
-  payee_bank: string | null;
-  payee_account: string | null;
-  payee_reference: string | null;
-  payee_contact_id: string | null;
+  // Payee remittance method. Identity / bank / reference now live on
+  // legal_recipients master (ADR-0093, Phase R4b).
   payee_payment_method_id: string | null;
-  payee_unmapped: boolean | null;
+
+  // Recipient master projection (from legal_recipients via recipient_id).
+  recipient_id: string | null;
+  recipient_name: string | null;
+  recipient_type: string | null;
+  recipient_jurisdiction_country: string | null;
+  recipient_jurisdiction_region: string | null;
+  recipient_always_first_default: boolean | null;
+  recipient_cap_exempt_default: boolean | null;
 
   // Evidence (legacy single-doc; versioned files live in legal_order_documents)
   document_url: string | null;

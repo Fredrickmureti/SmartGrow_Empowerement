@@ -2411,34 +2411,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "asset_maintenance_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "asset_maintenance_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "asset_maintenance_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "asset_maintenance_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       attendance: {
@@ -4655,34 +4627,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bank_reconciliation_rules_counterpart_contact_id_fkey"
-            columns: ["counterpart_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_rules_counterpart_contact_id_fkey"
-            columns: ["counterpart_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_rules_counterpart_contact_id_fkey"
-            columns: ["counterpart_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_rules_counterpart_contact_id_fkey"
-            columns: ["counterpart_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bank_reconciliation_rules_journal_book_id_fkey"
             columns: ["journal_book_id"]
             isOneToOne: false
@@ -6582,34 +6526,6 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -8643,34 +8559,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "contact_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "contact_addresses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -8689,242 +8577,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contact_authority_profile: {
-        Row: {
-          authority_type: string | null
-          business_id: string | null
-          code: string | null
-          contact_id: string
-          created_at: string
-          created_by: string | null
-          default_payee_account: string | null
-          default_payee_bank: string | null
-          default_payee_reference_template: string | null
-          is_active: boolean
-          jurisdiction_country: string | null
-          jurisdiction_region: string | null
-          metadata: Json
-          organization_id: string
-          remittance_schedule_ref: string | null
-          statutory_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          authority_type?: string | null
-          business_id?: string | null
-          code?: string | null
-          contact_id: string
-          created_at?: string
-          created_by?: string | null
-          default_payee_account?: string | null
-          default_payee_bank?: string | null
-          default_payee_reference_template?: string | null
-          is_active?: boolean
-          jurisdiction_country?: string | null
-          jurisdiction_region?: string | null
-          metadata?: Json
-          organization_id: string
-          remittance_schedule_ref?: string | null
-          statutory_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          authority_type?: string | null
-          business_id?: string | null
-          code?: string | null
-          contact_id?: string
-          created_at?: string
-          created_by?: string | null
-          default_payee_account?: string | null
-          default_payee_bank?: string | null
-          default_payee_reference_template?: string | null
-          is_active?: boolean
-          jurisdiction_country?: string | null
-          jurisdiction_region?: string | null
-          metadata?: Json
-          organization_id?: string
-          remittance_schedule_ref?: string | null
-          statutory_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_authority_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_authority_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_authority_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_authority_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_authority_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contact_recipient_profile: {
-        Row: {
-          aggregate_cap_exempt: boolean
-          always_first: boolean
-          authority_contact_id: string | null
-          business_id: string | null
-          contact_id: string
-          created_at: string
-          created_by: string | null
-          default_payee_account: string | null
-          default_payee_bank: string | null
-          default_payment_method_id: string | null
-          default_reference_template: string | null
-          is_active: boolean
-          jurisdiction_country: string | null
-          jurisdiction_region: string | null
-          metadata: Json
-          organization_id: string
-          recipient_type_code: string | null
-          remittance_schedule_ref: string | null
-          statement_cadence: string | null
-          updated_at: string
-        }
-        Insert: {
-          aggregate_cap_exempt?: boolean
-          always_first?: boolean
-          authority_contact_id?: string | null
-          business_id?: string | null
-          contact_id: string
-          created_at?: string
-          created_by?: string | null
-          default_payee_account?: string | null
-          default_payee_bank?: string | null
-          default_payment_method_id?: string | null
-          default_reference_template?: string | null
-          is_active?: boolean
-          jurisdiction_country?: string | null
-          jurisdiction_region?: string | null
-          metadata?: Json
-          organization_id: string
-          recipient_type_code?: string | null
-          remittance_schedule_ref?: string | null
-          statement_cadence?: string | null
-          updated_at?: string
-        }
-        Update: {
-          aggregate_cap_exempt?: boolean
-          always_first?: boolean
-          authority_contact_id?: string | null
-          business_id?: string | null
-          contact_id?: string
-          created_at?: string
-          created_by?: string | null
-          default_payee_account?: string | null
-          default_payee_bank?: string | null
-          default_payment_method_id?: string | null
-          default_reference_template?: string | null
-          is_active?: boolean
-          jurisdiction_country?: string | null
-          jurisdiction_region?: string | null
-          metadata?: Json
-          organization_id?: string
-          recipient_type_code?: string | null
-          remittance_schedule_ref?: string | null
-          statement_cadence?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: true
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -9098,34 +8750,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "contacts_commercial_partner_id_fkey"
-            columns: ["commercial_partner_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contacts_commercial_partner_id_fkey"
-            columns: ["commercial_partner_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_commercial_partner_id_fkey"
-            columns: ["commercial_partner_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contacts_commercial_partner_id_fkey"
-            columns: ["commercial_partner_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "contacts_customer_group_id_fkey"
             columns: ["customer_group_id"]
             isOneToOne: false
@@ -9235,34 +8859,6 @@ export type Database = {
             columns: ["parent_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_parent_contact_id_fkey"
-            columns: ["parent_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contacts_parent_contact_id_fkey"
-            columns: ["parent_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_parent_contact_id_fkey"
-            columns: ["parent_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contacts_parent_contact_id_fkey"
-            columns: ["parent_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -10453,34 +10049,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "credit_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "credit_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "credit_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "credit_notes_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -11008,34 +10576,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_company_contact_id_fkey"
-            columns: ["company_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "crm_leads_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -11043,66 +10583,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
             columns: ["converted_to_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "crm_leads_converted_to_contact_id_fkey"
-            columns: ["converted_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -11646,34 +11130,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "customer_loyalty_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "customer_loyalty_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_loyalty_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "customer_loyalty_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "customer_loyalty_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -11904,34 +11360,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "customer_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "customer_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -12826,34 +12254,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "delivery_notes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -12879,34 +12279,6 @@ export type Database = {
             columns: ["received_by_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -13001,34 +12373,6 @@ export type Database = {
             columns: ["received_by_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -18402,34 +17746,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "estimates_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "estimates_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "estimates_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "estimates_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "estimates_converted_invoice_id_fkey"
             columns: ["converted_invoice_id"]
             isOneToOne: false
@@ -19255,34 +18571,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "expenses_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "expenses_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "expenses_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       finance_alert_drift_streaks: {
@@ -19933,34 +19221,6 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -22100,34 +21360,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "inbound_shipments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "inbound_shipments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "inbound_shipments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "inbound_shipments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "inbound_shipments_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
@@ -23082,34 +22314,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "invoices_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -24050,34 +23254,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "journal_entry_lines_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -24516,34 +23692,6 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "landed_cost_bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -25336,34 +24484,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "legal_order_authorities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_order_authorities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_order_authorities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_order_authorities_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "legal_order_authorities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -25971,7 +25091,6 @@ export type Database = {
       legal_orders_records: {
         Row: {
           aggregate_cap_exempt: boolean
-          authority_contact_id: string | null
           authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
@@ -25990,16 +25109,9 @@ export type Database = {
           minimum_take_home_amount: number | null
           notes: string | null
           organization_id: string
-          payee_account: string | null
-          payee_bank: string | null
-          payee_contact_id: string | null
-          payee_name: string | null
           payee_payment_method_id: string | null
-          payee_reference: string | null
-          payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
-          recipient_contact_id: string | null
           recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
@@ -26013,7 +25125,6 @@ export type Database = {
         }
         Insert: {
           aggregate_cap_exempt?: boolean
-          authority_contact_id?: string | null
           authority_id?: string | null
           business_id?: string | null
           cap_rule?: Database["public"]["Enums"]["garnishment_cap_rule"]
@@ -26032,16 +25143,9 @@ export type Database = {
           minimum_take_home_amount?: number | null
           notes?: string | null
           organization_id: string
-          payee_account?: string | null
-          payee_bank?: string | null
-          payee_contact_id?: string | null
-          payee_name?: string | null
           payee_payment_method_id?: string | null
-          payee_reference?: string | null
-          payee_unmapped?: boolean
           percent_of_disposable?: number | null
           priority?: number
-          recipient_contact_id?: string | null
           recipient_id?: string | null
           start_date: string
           status?: Database["public"]["Enums"]["garnishment_status"]
@@ -26055,7 +25159,6 @@ export type Database = {
         }
         Update: {
           aggregate_cap_exempt?: boolean
-          authority_contact_id?: string | null
           authority_id?: string | null
           business_id?: string | null
           cap_rule?: Database["public"]["Enums"]["garnishment_cap_rule"]
@@ -26074,16 +25177,9 @@ export type Database = {
           minimum_take_home_amount?: number | null
           notes?: string | null
           organization_id?: string
-          payee_account?: string | null
-          payee_bank?: string | null
-          payee_contact_id?: string | null
-          payee_name?: string | null
           payee_payment_method_id?: string | null
-          payee_reference?: string | null
-          payee_unmapped?: boolean
           percent_of_disposable?: number | null
           priority?: number
-          recipient_contact_id?: string | null
           recipient_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["garnishment_status"]
@@ -26160,115 +25256,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "employee_garnishments_payee_payment_method_id_fkey"
             columns: ["payee_payment_method_id"]
             isOneToOne: false
             referencedRelation: "organization_payment_methods"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -26455,34 +25446,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -29051,34 +28014,6 @@ export type Database = {
             columns: ["matched_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
-            columns: ["matched_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
-            columns: ["matched_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
-            columns: ["matched_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
-            columns: ["matched_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -32595,34 +31530,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "payments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "payments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "payments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "payments_deposit_account_id_fkey"
             columns: ["deposit_account_id"]
             isOneToOne: false
@@ -33747,34 +32654,6 @@ export type Database = {
             columns: ["payee_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_liabilities_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "payroll_liabilities_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payroll_liabilities_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "payroll_liabilities_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -43123,34 +42002,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pos_gift_cards_issued_to_customer_id_fkey"
-            columns: ["issued_to_customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_gift_cards_issued_to_customer_id_fkey"
-            columns: ["issued_to_customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_gift_cards_issued_to_customer_id_fkey"
-            columns: ["issued_to_customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_gift_cards_issued_to_customer_id_fkey"
-            columns: ["issued_to_customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "pos_gift_cards_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -43489,34 +42340,6 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_held_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_held_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_held_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_held_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -47844,34 +46667,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pos_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pos_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "pos_transactions_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "pos_transactions_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -49862,34 +48657,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "product_reorder_rules_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -50568,34 +49335,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "proforma_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "proforma_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "proforma_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "proforma_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -51916,34 +50655,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "projects_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -52589,34 +51300,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "purchase_orders_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "purchase_orders_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_orders_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "purchase_orders_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       purchase_requisition_approvals: {
@@ -53086,34 +51769,6 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_returns_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "purchase_returns_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "purchase_returns_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "purchase_returns_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -53592,34 +52247,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recurring_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "recurring_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recurring_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "recurring_invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -55138,34 +53765,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "rfq_vendors_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "rfq_vendors_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "rfq_vendors_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "rfq_vendors_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       rfqs: {
@@ -55906,34 +54505,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "sales_orders_converted_invoice_id_fkey"
             columns: ["converted_invoice_id"]
             isOneToOne: false
@@ -56227,34 +54798,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -59411,34 +57954,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "stock_lots_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "stock_lots_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "stock_lots_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "stock_lots_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       stock_movements: {
@@ -61299,34 +59814,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "suppliers_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -64913,34 +63400,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "vendor_credit_notes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       vendor_portal_invitations: {
@@ -65010,34 +63469,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_portal_invitations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_portal_invitations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_portal_invitations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_portal_invitations_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -65199,34 +63630,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "vendor_pricelists_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_pricelists_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       vendor_statements: {
@@ -65311,34 +63714,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -67978,34 +66353,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ar_subledger_entries: {
@@ -68097,34 +66444,6 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -68388,34 +66707,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       effective_reorder_rule: {
@@ -68438,34 +66729,6 @@ export type Database = {
             columns: ["preferred_supplier_id"]
             isOneToOne: false
             referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "product_reorder_rules_preferred_supplier_id_fkey"
-            columns: ["preferred_supplier_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -69033,28 +67296,6 @@ export type Database = {
           },
         ]
       }
-      legal_order_authorities_v: {
-        Row: {
-          authority_type: string | null
-          code: string | null
-          contact_email: string | null
-          contact_id: string | null
-          contact_phone: string | null
-          created_at: string | null
-          default_payee_account: string | null
-          default_payee_bank: string | null
-          default_payee_reference_template: string | null
-          id: string | null
-          is_active: boolean | null
-          jurisdiction_country: string | null
-          jurisdiction_region: string | null
-          name: string | null
-          organization_id: string | null
-          remittance_schedule_ref: string | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
       legal_order_effective_kind_defaults: {
         Row: {
           aggregate_cap_membership:
@@ -69086,7 +67327,6 @@ export type Database = {
           aggregate_cap_membership:
             | Database["public"]["Enums"]["legal_order_cap_membership"]
             | null
-          authority_contact_id: string | null
           authority_id: string | null
           business_id: string | null
           calc_model:
@@ -69113,20 +67353,13 @@ export type Database = {
           minimum_take_home_amount: number | null
           notes: string | null
           organization_id: string | null
-          payee_account: string | null
-          payee_bank: string | null
-          payee_contact_id: string | null
-          payee_name: string | null
           payee_payment_method_id: string | null
-          payee_reference: string | null
-          payee_unmapped: boolean | null
           percent_of_disposable: number | null
           priority: number | null
           priority_class: number | null
           protected_earnings_rule: Json | null
           recipient_always_first_default: boolean | null
           recipient_cap_exempt_default: boolean | null
-          recipient_contact_id: string | null
           recipient_id: string | null
           recipient_jurisdiction_country: string | null
           recipient_jurisdiction_region: string | null
@@ -69209,41 +67442,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "employee_garnishments_payee_contact_id_fkey"
-            columns: ["payee_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "employee_garnishments_payee_payment_method_id_fkey"
             columns: ["payee_payment_method_id"]
             isOneToOne: false
@@ -69255,76 +67453,6 @@ export type Database = {
             columns: ["legal_behavior_pack_id"]
             isOneToOne: false
             referencedRelation: "localization_packs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
-            columns: ["authority_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
-            columns: ["recipient_contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -69372,34 +67500,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "legal_recipients_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -69418,71 +67518,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      legal_recipients_v: {
-        Row: {
-          address: string | null
-          aggregate_cap_exempt: boolean | null
-          always_first: boolean | null
-          authority_id: string | null
-          contact_email: string | null
-          contact_id: string | null
-          contact_phone: string | null
-          created_at: string | null
-          default_payee_account: string | null
-          default_payee_bank: string | null
-          default_payee_reference_template: string | null
-          default_payment_method_id: string | null
-          display_name: string | null
-          id: string | null
-          is_active: boolean | null
-          jurisdiction_country: string | null
-          jurisdiction_region: string | null
-          metadata: Json | null
-          organization_id: string | null
-          recipient_type_code: string | null
-          remittance_schedule_ref: string | null
-          statement_cadence: string | null
-          tax_id: string | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "contact_recipient_profile_authority_contact_id_fkey"
-            columns: ["authority_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
         ]
@@ -74934,34 +72969,6 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_authorities_v"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "legal_recipients_v"
-            referencedColumns: ["id"]
-          },
         ]
       }
       wms_billable_activities_summary_view: {
@@ -79879,7 +77886,6 @@ export type Database = {
         }
         Returns: {
           aggregate_cap_exempt: boolean
-          authority_contact_id: string | null
           authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
@@ -79898,16 +77904,9 @@ export type Database = {
           minimum_take_home_amount: number | null
           notes: string | null
           organization_id: string
-          payee_account: string | null
-          payee_bank: string | null
-          payee_contact_id: string | null
-          payee_name: string | null
           payee_payment_method_id: string | null
-          payee_reference: string | null
-          payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
-          recipient_contact_id: string | null
           recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
@@ -81258,7 +79257,6 @@ export type Database = {
         }
         Returns: {
           aggregate_cap_exempt: boolean
-          authority_contact_id: string | null
           authority_id: string | null
           business_id: string | null
           cap_rule: Database["public"]["Enums"]["garnishment_cap_rule"]
@@ -81277,16 +79275,9 @@ export type Database = {
           minimum_take_home_amount: number | null
           notes: string | null
           organization_id: string
-          payee_account: string | null
-          payee_bank: string | null
-          payee_contact_id: string | null
-          payee_name: string | null
           payee_payment_method_id: string | null
-          payee_reference: string | null
-          payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
-          recipient_contact_id: string | null
           recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
