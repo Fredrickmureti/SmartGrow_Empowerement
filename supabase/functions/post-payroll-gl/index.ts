@@ -1061,7 +1061,7 @@ Deno.serve(async (req) => {
         // physical `legal_orders_records` table.
         const { data: garnRows } = await supabaseAdmin
           .from("legal_orders")
-          .select("id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
+          .select("id, recipient_contact_id, payee_contact_id, payee_name, kind_code, end_date, priority_class, calc_model, authority_id")
           .in("id", garnIds);
         const garnById = new Map<string, any>(
           (garnRows || []).map((r: any) => [r.id, r]),
