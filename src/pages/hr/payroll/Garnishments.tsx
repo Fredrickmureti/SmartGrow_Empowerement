@@ -682,7 +682,8 @@ export default function GarnishmentsPage() {
                 kind: "order",
                 orderId: linkContactFor.id,
                 orderLabel:
-                  (linkContactFor.payee_name || linkContactFor.kind.replace(/_/g, " ")) +
+                  (legalOrderById.get(linkContactFor.id)?.recipient_name ||
+                    linkContactFor.kind.replace(/_/g, " ")) +
                   ` (${employeeById.get(linkContactFor.employee_id) ?? "employee"})`,
               }
             : null
