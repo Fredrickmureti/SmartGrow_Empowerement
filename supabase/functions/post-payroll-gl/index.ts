@@ -662,26 +662,20 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    // Phase R4 (ADR-0093) — Sub-ledger discipline: stamp `contact_id` (partner)
-    // on every garnishment payable CR line. Recipient is resolved via the
-    // canonical master `legal_recipients` (joined through recipient_id) which
-    // owns the party spine; legacy overlay columns (recipient_contact_id /
-    // payee_contact_id) are retained only as a fallback for orders written
-    // before the master-ID CHECK constraint was enforced.
+    // Sub-ledger discipline (ADR-0093, Phase R4b): stamp `contact_id` on
+    // every garnishment payable CR line, resolved from the `legal_recipients`
+    // master through `recipient_id`. Legacy overlay/snapshot columns are gone.
     let garnRecipientByOrderId = new Map<string, string | null>();
     if (garnishmentMap.size > 0) {
       const garnIds = Array.from(garnishmentMap.keys());
       const { data: garnRows } = await supabaseAdmin
         .from("legal_orders")
-        .select("id, recipient_id, recipient_contact_id, payee_contact_id, legal_recipients:recipient_id(contact_id)")
+        .select("id, recipient_id, legal_recipients:recipient_id(contact_id)")
         .in("id", garnIds);
       garnRecipientByOrderId = new Map(
         (garnRows || []).map((r: any) => [
           r.id as string,
-          (r.legal_recipients?.contact_id as string | null) ??
-            (r.recipient_contact_id as string | null) ??
-            (r.payee_contact_id as string | null) ??
-            null,
+          (r.legal_recipients?.contact_id as string | null) ?? null,
         ]),
       );
     }
