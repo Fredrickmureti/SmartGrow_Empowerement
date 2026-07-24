@@ -122,6 +122,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
           {/* Phase 5: canonical "legal orders" alias — same shell, keeps old links working. */}
           <Route path="legal-orders"         element={gate(<LazyRoute module="Legal Orders"><Garnishments /></LazyRoute>, "managePayroll")} />
           <Route path="legal-orders/remittance-batch" element={gate(<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>, "managePayroll")} />
+          <Route path="legal-orders/recipients" element={gate(<LazyRoute module="Legal Recipients"><LegalRecipients /></LazyRoute>, "managePayroll")} />
           <Route path="loan-skip-overrides"  element={gate(<LazyRoute module="Loan Skip Overrides"><LoanSkipOverrides /></LazyRoute>, "runPayroll")} />
         </Routes>
       ) : (
