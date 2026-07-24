@@ -330,31 +330,46 @@ export function LinkRecipientDialog({
       const name = newContact.name.trim();
       if (!name) throw new Error("Name is required");
 
-      // Party-only contact: no customer/supplier role, no default AR/AP
-      // account mapping. Recipient role is expressed by the
-      // legal_recipients linkage created by the RPC below.
-      const insert: any = {
-        organization_id: orgId,
-        business_id: businessId,
-        name,
-        email: newContact.email.trim() || null,
-        phone: newContact.phone.trim() || null,
-        country: newContact.country.trim() || null,
-        is_company: newContact.is_company,
-        is_active: true,
-        customer_rank: 0,
-        supplier_rank: 0,
-        type: null,
-      };
-      const { data: created, error: cErr } = await (supabase as any)
-        .from("contacts")
-        .insert(insert)
-        .select("id,name,email,phone,country,type,customer_rank,supplier_rank")
-        .single();
-      if (cErr) throw cErr;
-      const contactId = (created as ContactRow).id;
+      // Canonical Party writer: upserts the Contact + contact_recipient_profile
+      // atomically via security-definer RPC, preserving the party-only
+      // stance (customer_rank=0, supplier_rank=0) so the row stays out
+      // of AR/AP lists but is promotable later.
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "party_upsert_recipient_from_form",
+        {
+          p_organization_id: orgId,
+          p_business_id: businessId,
+          p_contact_id: null,
+          p_name: name,
+          p_is_company: newContact.is_company,
+          p_email: newContact.email.trim() || null,
+          p_phone: newContact.phone.trim() || null,
+          p_address_line1: newContact.address_line1.trim() || null,
+          p_city: newContact.city.trim() || null,
+          p_state: newContact.state.trim() || null,
+          p_postal_code: newContact.postal_code.trim() || null,
+          p_country: newContact.country.trim() || null,
+          p_tax_id: newContact.tax_id.trim() || null,
+          p_recipient_type_code: newContact.recipient_type_code || "creditor",
+          p_jurisdiction_country:
+            newContact.jurisdiction_country.trim() ||
+            newContact.country.trim() ||
+            null,
+          p_jurisdiction_region: newContact.jurisdiction_region.trim() || null,
+          p_default_payee_bank: newContact.default_payee_bank.trim() || null,
+          p_default_payee_account:
+            newContact.default_payee_account.trim() || null,
+          p_default_reference_template:
+            newContact.default_reference_template.trim() || null,
+          p_remittance_schedule_ref:
+            newContact.remittance_schedule_ref.trim() || null,
+        },
+      );
+      if (rpcErr) throw rpcErr;
+      const contactId = (rpcRes as any)?.contact_id as string | undefined;
+      if (!contactId) throw new Error("Party writer returned no contact_id");
       const result = await linkExistingContact(contactId);
-      return { result, created: created as ContactRow };
+      return { result };
     },
     onSuccess: ({ result }) => {
       toast.success("Recipient created and linked");
