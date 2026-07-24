@@ -81977,6 +81977,66 @@ export type Database = {
           validation_regex: string
         }[]
       }
+      party_upsert_authority_from_form: {
+        Args: {
+          p_address_line1?: string
+          p_authority_type?: string
+          p_business_id: string
+          p_city?: string
+          p_code?: string
+          p_contact_id: string
+          p_country?: string
+          p_default_payee_account?: string
+          p_default_payee_bank?: string
+          p_default_payee_reference_template?: string
+          p_email?: string
+          p_is_company?: boolean
+          p_jurisdiction_country?: string
+          p_jurisdiction_region?: string
+          p_metadata?: Json
+          p_name: string
+          p_notes?: string
+          p_organization_id: string
+          p_phone?: string
+          p_postal_code?: string
+          p_remittance_schedule_ref?: string
+          p_state?: string
+          p_statutory_id?: string
+          p_tax_id?: string
+        }
+        Returns: Json
+      }
+      party_upsert_recipient_from_form: {
+        Args: {
+          p_address_line1?: string
+          p_aggregate_cap_exempt?: boolean
+          p_always_first?: boolean
+          p_authority_contact_id?: string
+          p_business_id: string
+          p_city?: string
+          p_contact_id: string
+          p_country?: string
+          p_default_payee_account?: string
+          p_default_payee_bank?: string
+          p_default_reference_template?: string
+          p_email?: string
+          p_is_company?: boolean
+          p_jurisdiction_country?: string
+          p_jurisdiction_region?: string
+          p_metadata?: Json
+          p_name: string
+          p_notes?: string
+          p_organization_id: string
+          p_phone?: string
+          p_postal_code?: string
+          p_recipient_type_code?: string
+          p_remittance_schedule_ref?: string
+          p_state?: string
+          p_statement_cadence?: string
+          p_tax_id?: string
+        }
+        Returns: Json
+      }
       payroll_add_employees_to_run: {
         Args: { p_employee_ids: string[]; p_run_id: string }
         Returns: {

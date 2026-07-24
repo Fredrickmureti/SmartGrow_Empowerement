@@ -171,6 +171,7 @@ export default function GarnishmentsPage() {
     case_reference: "",
     authority_text: "",
     authority_id: null as string | null,
+    authority_contact_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
@@ -207,6 +208,7 @@ export default function GarnishmentsPage() {
       case_reference: g.case_reference ?? "",
       authority_text: "",
       authority_id: (g as any).authority_id ?? null,
+      authority_contact_id: (g as any).authority_contact_id ?? null,
       cap_rule: g.cap_rule,
       fixed_amount: g.fixed_amount?.toString() ?? "",
       percent_of_disposable: g.percent_of_disposable?.toString() ?? "",
@@ -250,6 +252,7 @@ export default function GarnishmentsPage() {
       priority: form.priority,
       case_reference: form.case_reference || null,
       authority_id: form.authority_id,
+      authority_contact_id: form.authority_contact_id,
       cap_rule: form.cap_rule,
       fixed_amount: form.fixed_amount ? Number(form.fixed_amount) : null,
       percent_of_disposable: form.percent_of_disposable ? Number(form.percent_of_disposable) : null,
@@ -529,10 +532,11 @@ export default function GarnishmentsPage() {
               <AuthorityPicker
                 value={form.authority_id}
                 fallbackText={form.authority_text}
-                onChange={({ authority_id, authority_text, picked }) =>
+                onChange={({ authority_id, authority_contact_id, authority_text, picked }) =>
                   setForm({
                     ...form,
                     authority_id,
+                    authority_contact_id,
                     authority_text,
                     // Prefill payee defaults from the authority when the user hasn't set them.
                     payee_bank: form.payee_bank || picked?.default_payee_bank || "",
