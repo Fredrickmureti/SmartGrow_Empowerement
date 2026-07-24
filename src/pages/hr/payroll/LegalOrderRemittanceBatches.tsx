@@ -96,7 +96,7 @@ export default function LegalOrderRemittanceBatches() {
           id, organization_id, business_id, recipient_id, batch_number, status,
           period_from, period_to, planned_total, planned_line_count,
           bank_file_format, bank_file_checksum, bank_file_generated_at,
-          settled_at, settled_payment_date, settled_reference,
+          settled_at, settled_payment_date, settled_reference, settled_bank_transaction_id,
           cancelled_at, cancelled_reason, notes, created_at,
           legal_recipients:recipient_id ( display_name, recipient_type_code )
         `)
