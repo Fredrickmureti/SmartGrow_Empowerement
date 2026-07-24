@@ -79182,6 +79182,15 @@ export type Database = {
         }
         Returns: number
       }
+      legal_order_recipient_statement: {
+        Args: {
+          _from: string
+          _organization_id: string
+          _recipient_id: string
+          _to: string
+        }
+        Returns: Json
+      }
       legal_order_settle_remittance_batch: {
         Args: {
           p_bank_transaction_id?: string
