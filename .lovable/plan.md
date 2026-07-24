@@ -129,3 +129,24 @@ _C.2 — Remittance = AP bill cycle — ⏳ PENDING (next milestone)_
 - No new UI for "recipient not linked" — the state ceases to exist.
 - No changes to the garnishment computation engine's math (priority ordering, aggregate cap, min take-home) — only its inputs move to the party spine.
 - No Supabase Edge Function proliferation; new server work uses `createServerFn`.
+
+## 9. Handoff to next agent
+
+**Currently active phase:** Phase C — Sub-ledger & remittance.
+**Next milestone:** Phase C.2 — Remittance = AP bill cycle.
+
+Before writing any new code, verify Phase C.1 landed correctly to enterprise-grade standards:
+
+1. `SELECT recipient_contact_id, authority_contact_id FROM public.legal_orders LIMIT 1;` — must succeed (view exposes both columns).
+2. `SELECT public.garnishment_recipient_contact_for_order(<a real order id>);` — must return a non-null uuid for orders that have any of `recipient_contact_id` / `payee_contact_id` / `legal_recipients.contact_id`.
+3. Run `post-payroll-gl` dry-run on a run with a garnishment; inspect the returned lines — the `Garnishment Payable` CR line must carry `contact_id = <recipient contact uuid>`, and the debits/credits must still balance.
+4. Confirm `journal_entry_lines_contact_id_partial_idx` exists (`\d public.journal_entry_lines` in psql or the SQL editor).
+5. Confirm no writer in `src/**` inserts into `journal_entry_lines` for garnishments with `contact_id: null` — the sub-ledger discipline is now a category rule, not a per-run patch.
+
+Then start C.2:
+
+- Model a "remittance intent" projection from `payroll_liabilities` where `rule_code LIKE 'garnishment_%'`, grouped by `(payee_contact_id, period)`.
+- On remittance batch confirm, materialize an AP `bills` row (contact = recipient), with `bill_items` referencing the source legal orders; write the payment through the existing AP payment stack rather than the legacy `legal_order_remittance_batches` path (keep the latter as a read-only projection during transition).
+- Add an idempotent repair function that backfills `journal_entry_lines.contact_id` on historical garnishment CR rows by joining `journal_entries.reference_id = payroll_run_id` → `payroll_liabilities.payee_contact_id` where `rule_code = 'garnishment_' || <order_id>`. Ship as an SQL function invoked from a one-off admin action, not an automatic migration, so ops can review counts first.
+
+Do not skip ahead to Phase D/E/F. Do not touch the garnishment computation math. Keep the free-text `payee_*` columns readable but never write to them.
