@@ -52,6 +52,7 @@ interface RemittanceBatch {
   settled_at: string | null;
   settled_payment_date: string | null;
   settled_reference: string | null;
+  settled_bank_transaction_id: string | null;
   cancelled_at: string | null;
   cancelled_reason: string | null;
   notes: string | null;
