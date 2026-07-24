@@ -414,12 +414,10 @@ export default function GarnishmentsPage() {
                       {g.total_owed ?? "—"} / {g.total_paid}
                     </TableCell>
                     <TableCell className="text-xs">
-                      {g.payee_name ? (
-                        <div>
-                          <div>{g.payee_name}</div>
-                          {g.payee_account && <div className="text-muted-foreground">{g.payee_account}</div>}
-                        </div>
-                      ) : "—"}
+                      {(() => {
+                        const lo = legalOrderById.get(g.id);
+                        return lo?.recipient_name ? <div>{lo.recipient_name}</div> : "—";
+                      })()}
                     </TableCell>
                     <TableCell className="text-xs">
                       {g.start_date} → {g.end_date ?? "open"}
