@@ -171,8 +171,10 @@ export default function GarnishmentsPage() {
     case_reference: "",
     authority_text: "",
     authority_id: null as string | null,
-    // NOTE: `authority_contact_id` on legal_orders_records is the retired
-    // overlay column (ADR-0093). `authority_id` is the sole writer path.
+    // Recipient identity lives on `legal_recipients` (master, ADR-0093),
+    // linked via `recipient_id`. Free-text `payee_*` snapshots have been
+    // retired from the write path — use the "Link recipient" action in the
+    // Garnishments list to attach or create the recipient master row.
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
@@ -181,10 +183,6 @@ export default function GarnishmentsPage() {
     end_date: "",
     status: "draft" as GarnishmentStatus,
     status_reason: "",
-    payee_name: "",
-    payee_account: "",
-    payee_bank: "",
-    payee_reference: "",
     document_url: "",
     document_filename: "",
     minimum_take_home_amount: "",
@@ -209,7 +207,7 @@ export default function GarnishmentsPage() {
       case_reference: g.case_reference ?? "",
       authority_text: "",
       authority_id: (g as any).authority_id ?? null,
-      
+
       cap_rule: g.cap_rule,
       fixed_amount: g.fixed_amount?.toString() ?? "",
       percent_of_disposable: g.percent_of_disposable?.toString() ?? "",
@@ -218,10 +216,6 @@ export default function GarnishmentsPage() {
       end_date: g.end_date ?? "",
       status: g.status ?? (g.is_active ? "active" : "suspended"),
       status_reason: g.status_reason ?? "",
-      payee_name: g.payee_name ?? "",
-      payee_account: g.payee_account ?? "",
-      payee_bank: g.payee_bank ?? "",
-      payee_reference: g.payee_reference ?? "",
       document_url: g.document_url ?? "",
       document_filename: g.document_filename ?? "",
       minimum_take_home_amount: g.minimum_take_home_amount?.toString() ?? "",
@@ -247,23 +241,22 @@ export default function GarnishmentsPage() {
     }
     // Status is FSM-owned: never set directly here on existing rows.
     // New rows are created in 'draft' (DB default); status moves via transitionGarnishment.
+    // Phase R4b: `payee_*` snapshot columns are no longer written from the UI.
+    // Recipient identity/bank details live on `legal_recipients` (ADR-0093),
+    // linked via `recipient_id` through the LinkRecipientDialog.
     const base: any = {
       employee_id: form.employee_id,
       kind: form.kind,
       priority: form.priority,
       case_reference: form.case_reference || null,
       authority_id: form.authority_id,
-      
+
       cap_rule: form.cap_rule,
       fixed_amount: form.fixed_amount ? Number(form.fixed_amount) : null,
       percent_of_disposable: form.percent_of_disposable ? Number(form.percent_of_disposable) : null,
       total_owed: form.total_owed ? Number(form.total_owed) : null,
       start_date: form.start_date,
       end_date: form.end_date || null,
-      payee_name: form.payee_name || null,
-      payee_account: form.payee_account || null,
-      payee_bank: form.payee_bank || null,
-      payee_reference: form.payee_reference || null,
       document_url: form.document_url || null,
       document_filename: form.document_filename || null,
       minimum_take_home_amount: form.minimum_take_home_amount ? Number(form.minimum_take_home_amount) : null,
@@ -529,18 +522,15 @@ export default function GarnishmentsPage() {
             <WorkflowField label="Case reference">
               <Input value={form.case_reference} onChange={(e) => setForm({ ...form, case_reference: e.target.value })} />
             </WorkflowField>
-            <WorkflowField label="Issuing authority" hint="Pick a curated authority to auto-populate payee defaults.">
+            <WorkflowField label="Issuing authority" hint="Court, agency, or creditor that issued the order.">
               <AuthorityPicker
                 value={form.authority_id}
                 fallbackText={form.authority_text}
-                onChange={({ authority_id, authority_text, picked }) =>
+                onChange={({ authority_id, authority_text }) =>
                   setForm({
                     ...form,
                     authority_id,
                     authority_text,
-                    // Prefill payee defaults from the authority when the user hasn't set them.
-                    payee_bank: form.payee_bank || picked?.default_payee_bank || "",
-                    payee_account: form.payee_account || picked?.default_payee_account || "",
                   })
                 }
               />
@@ -632,19 +622,25 @@ export default function GarnishmentsPage() {
 
         <WorkflowSheetGrid>
           <WorkflowSheetSection number={4} title="Recipient & remittance" subtitle="Where the deducted amount is sent. This is the third party on the legal order (court, CSA, creditor) — not the tax authority.">
-            <div className="grid grid-cols-2 gap-3">
-              <WorkflowField label="Recipient name">
-                <Input value={form.payee_name} onChange={(e) => setForm({ ...form, payee_name: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="Recipient bank">
-                <Input value={form.payee_bank} onChange={(e) => setForm({ ...form, payee_bank: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="Recipient account">
-                <Input value={form.payee_account} onChange={(e) => setForm({ ...form, payee_account: e.target.value })} />
-              </WorkflowField>
-              <WorkflowField label="Recipient reference">
-                <Input value={form.payee_reference} onChange={(e) => setForm({ ...form, payee_reference: e.target.value })} />
-              </WorkflowField>
+            <div className="rounded-md border bg-muted/30 px-3 py-3 text-xs space-y-2">
+              <p>
+                Recipient identity, bank details, and remittance reference
+                template live on the recipient master (<code>legal_recipients</code>,
+                ADR-0093). After saving this order, use the
+                <strong> "Link recipient" </strong> action on the row to attach
+                an existing recipient or create a new one — the recipient
+                master is the sole source of truth for bank-file generation,
+                statements, and reconciliation.
+              </p>
+              {editing && (editing as any).recipient_id ? (
+                <Badge variant="outline" className="text-[10px]">
+                  Recipient linked
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px]">
+                  No recipient linked yet
+                </Badge>
+              )}
             </div>
           </WorkflowSheetSection>
 

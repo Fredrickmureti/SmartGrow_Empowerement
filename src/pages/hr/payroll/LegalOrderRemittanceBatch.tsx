@@ -44,7 +44,10 @@ interface RemittanceLineJoined {
     authority_id: string | null;
     authority_name: string | null;
     priority_class: number | null;
-    payee_name: string | null;
+    // Phase R4b (ADR-0093): recipient display resolved via master.
+    recipient_id: string | null;
+    legal_recipients: { display_name: string | null } | null;
+    payee_name: string | null; // ADR-0093 retired legacy fallback
     payee_payment_method_id: string | null;
   } | null;
 }
@@ -104,7 +107,8 @@ export default function LegalOrderRemittanceBatch() {
           legal_orders:garnishment_id (
             id, employee_id, kind_code, case_reference,
             authority_id, authority_name, priority_class,
-            payee_name, payee_payment_method_id
+            recipient_id, payee_name, payee_payment_method_id, /* ADR-0093 retired fallback */
+            legal_recipients:recipient_id ( display_name )
           )
         `)
         .eq("organization_id", orgId!)
@@ -185,7 +189,11 @@ export default function LegalOrderRemittanceBatch() {
       priority_class: l.legal_orders?.priority_class ?? "",
       kind: l.legal_orders?.kind_code ?? "",
       case_reference: l.legal_orders?.case_reference ?? "",
-      payee_name: l.legal_orders?.payee_name ?? "",
+      // Phase R4b: resolve recipient display via master, fall back to
+      // legacy snapshot for pre-master orders.
+      recipient: l.legal_orders?.legal_recipients?.display_name
+        ?? l.legal_orders?.payee_name
+        ?? "",
       payment_method_id: l.legal_orders?.payee_payment_method_id ?? "",
       amount: Number(l.amount ?? 0).toFixed(2),
       reference: l.reference_number ?? "",
@@ -270,7 +278,7 @@ export default function LegalOrderRemittanceBatch() {
                               <TableCell className="text-xs">{format(new Date(l.payment_date), "yyyy-MM-dd")}</TableCell>
                               <TableCell className="text-xs">{l.legal_orders?.kind_code ?? "—"}</TableCell>
                               <TableCell className="text-xs">{l.legal_orders?.case_reference ?? "—"}</TableCell>
-                              <TableCell className="text-xs">{l.legal_orders?.payee_name ?? "—"}</TableCell>
+                              <TableCell className="text-xs">{l.legal_orders?.legal_recipients?.display_name ?? l.legal_orders?.payee_name ?? "—"}</TableCell>
                               <TableCell className="text-xs">{l.reference_number ?? "—"}</TableCell>
                               <TableCell className="text-xs text-right">{fmtMoney(Number(l.amount ?? 0))}</TableCell>
                             </TableRow>
