@@ -232,6 +232,20 @@ export default function LegalRecipients() {
           )}
         </SheetContent>
       </Sheet>
+
+      <LinkRecipientDialog
+        open={!!linkTarget}
+        onOpenChange={(o) => !o && setLinkTarget(null)}
+        mode={
+          linkTarget
+            ? {
+                kind: "recipient",
+                recipientId: linkTarget.recipient_id,
+                recipientName: linkTarget.display_name,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
