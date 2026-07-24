@@ -349,7 +349,16 @@ export default function GarnishmentsPage() {
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
                               {lo.payee_unmapped && (
-                                <Badge variant="secondary" className="text-[10px]" title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Link it to a Contact to enable remittance payments. This is unrelated to PAYE tax.">recipient not linked</Badge>
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkContactFor(g)}
+                                  className="inline-flex"
+                                  title="The third-party recipient (e.g. court, CSA, creditor) is stored as free text only. Click to pick a Contact and enable remittance payments. This is unrelated to PAYE tax."
+                                >
+                                  <Badge variant="secondary" className="text-[10px] cursor-pointer hover:bg-secondary/70">
+                                    recipient not linked — click to link
+                                  </Badge>
+                                </button>
                               )}
                             </>
                           );
