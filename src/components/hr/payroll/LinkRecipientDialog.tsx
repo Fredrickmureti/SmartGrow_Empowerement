@@ -140,13 +140,26 @@ export function LinkRecipientDialog({
   const [selected, setSelected] = useState<ContactRow | null>(null);
   const [includeCustomers, setIncludeCustomers] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [newContact, setNewContact] = useState({
+  const emptyContact = {
     name: "",
+    is_company: true,
     email: "",
     phone: "",
+    address_line1: "",
+    city: "",
+    state: "",
+    postal_code: "",
     country: "",
-    is_company: true,
-  });
+    tax_id: "",
+    recipient_type_code: "creditor",
+    jurisdiction_country: "",
+    jurisdiction_region: "",
+    default_payee_bank: "",
+    default_payee_account: "",
+    default_reference_template: "",
+    remittance_schedule_ref: "",
+  };
+  const [newContact, setNewContact] = useState(emptyContact);
   const qc = useQueryClient();
 
   const resetAndClose = () => {
@@ -154,7 +167,7 @@ export function LinkRecipientDialog({
     setSelected(null);
     setSearch("");
     setShowCreate(false);
-    setNewContact({ name: "", email: "", phone: "", country: "", is_company: true });
+    setNewContact(emptyContact);
   };
 
   // Existing recipient contact ids for this org (drives "Recipient" badge).
