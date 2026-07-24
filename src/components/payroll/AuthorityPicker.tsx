@@ -1,23 +1,23 @@
 /**
- * AuthorityPicker — canonical Party-spine writer (Phase B).
+ * AuthorityPicker — canonical master-data writer (ADR-0093).
  *
- * Reads the curated authority list from `legal_order_authorities` (kept
- * in sync with `contact_authority_profile` by the Phase A backfill and
- * the Phase B `party_upsert_authority_from_form` RPC).
+ * Reads the curated authority list from `legal_order_authorities`, the
+ * single source of truth for issuing bodies (courts, tax agencies,
+ * child-support offices, labor ministries). At install time R5 seeds
+ * this table from the localization pack's `statutory_authorities`, so
+ * tenants land with the jurisdiction pre-loaded.
  *
- * Inline "Register new authority" no longer inserts a lightweight row
- * directly. It calls `party_upsert_authority_from_form`, which:
- *   1. Creates a party-only Contact (customer_rank=0, supplier_rank=0)
- *      with the full master-data field set (name, org/individual, email,
- *      phone, address, tax id, notes, banking, statutory id).
- *   2. Upserts the `contact_authority_profile` role facet.
- *   3. Back-fills the legacy `legal_order_authorities` row for readers
- *      that still hit that table.
+ * Inline "Register new authority" calls `party_upsert_authority_from_form`,
+ * which creates the backing Contact and upserts the
+ * `legal_order_authorities` row atomically.
  *
  * Emits `{ authority_id }` on selection. Callers stamp only `authority_id`
- * on `legal_orders_records`; the retired overlay column
- * `authority_contact_id` is no longer written (ADR-0093).
+ * on `legal_orders_records`. The retired overlay column
+ * `authority_contact_id` and the payee snapshot columns
+ * (payee_name/bank/account/reference) are gone — recipient identity, bank
+ * details, and remittance reference live on `legal_recipients`.
  */
+
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
