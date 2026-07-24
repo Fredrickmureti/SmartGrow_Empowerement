@@ -231,7 +231,6 @@ export function AuthorityPicker({ value, fallbackText, onChange, disabled }: Pro
           onChange={(e) =>
             onChange({
               authority_id: null,
-              authority_contact_id: null,
               authority_text: e.target.value,
               picked: null,
             })
