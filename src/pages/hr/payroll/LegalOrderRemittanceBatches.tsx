@@ -82,6 +82,7 @@ export default function LegalOrderRemittanceBatches() {
 
   const [buildOpen, setBuildOpen] = useState(false);
   const [settleTarget, setSettleTarget] = useState<RemittanceBatch | null>(null);
+  const [matchTarget, setMatchTarget] = useState<RemittanceBatch | null>(null);
   const [previewBody, setPreviewBody] = useState<{ batch: RemittanceBatch; body: string; checksum: string; format: string } | null>(null);
 
   const { data: recipients = [] } = useLegalRecipientOutstanding();
