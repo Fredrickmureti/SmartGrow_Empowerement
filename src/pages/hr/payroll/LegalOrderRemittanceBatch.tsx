@@ -47,7 +47,7 @@ interface RemittanceLineJoined {
     // Phase R4b (ADR-0093): recipient display resolved via master.
     recipient_id: string | null;
     legal_recipients: { display_name: string | null } | null;
-    payee_name: string | null; // legacy fallback until DB DROP lands
+    payee_name: string | null; // ADR-0093 retired legacy fallback
     payee_payment_method_id: string | null;
   } | null;
 }
@@ -107,7 +107,7 @@ export default function LegalOrderRemittanceBatch() {
           legal_orders:garnishment_id (
             id, employee_id, kind_code, case_reference,
             authority_id, authority_name, priority_class,
-            recipient_id, payee_name, payee_payment_method_id,
+            recipient_id, payee_name, payee_payment_method_id, /* ADR-0093 retired fallback */
             legal_recipients:recipient_id ( display_name )
           )
         `)
