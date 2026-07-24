@@ -91,10 +91,13 @@ Deno.serve(async (req) => {
 
     const requested = round2(amount);
 
-    // 1) Load the order (scoped to organization) and validate payee
+    // 1) Load the order (scoped to organization) and validate payee.
+    // Phase R4 (ADR-0093): resolve display name via master `legal_recipients`
+    // (joined through recipient_id). Legacy `payee_name` is read only as a
+    // fallback for pre-master orders.
     const { data: order, error: ordErr } = await supabaseAdmin
       .from("legal_orders_records" as any)
-      .select("id, organization_id, business_id, payee_name, payee_contact_id, kind, status, total_owed, total_paid, payee_unmapped")
+      .select("id, organization_id, business_id, recipient_id, payee_name, payee_contact_id, kind, status, total_owed, total_paid, payee_unmapped, legal_recipients:recipient_id(display_name, contact_id)")
       .eq("id", garnishment_id)
       .maybeSingle();
     if (ordErr || !order) return bad("Garnishment order not found");
@@ -107,7 +110,10 @@ Deno.serve(async (req) => {
     if (!["active", "approved"].includes(String(order.status)))
       return bad(`Garnishment status is ${order.status}; cannot pay`);
 
-    const authority_name = order.payee_name || `Garnishment ${order.kind}`;
+    const authority_name =
+      (order as any).legal_recipients?.display_name ||
+      order.payee_name ||
+      `Garnishment ${order.kind}`;
 
     // 2) Pull open liabilities for this garnishment (FIFO by due_date, then period_end)
     const { data: liabs, error: liabErr } = await supabaseAdmin
