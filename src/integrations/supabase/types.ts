@@ -24009,6 +24009,7 @@ export type Database = {
           payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
+          recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
           status_changed_at: string | null
@@ -24048,6 +24049,7 @@ export type Database = {
           payee_unmapped?: boolean
           percent_of_disposable?: number | null
           priority?: number
+          recipient_id?: string | null
           start_date: string
           status?: Database["public"]["Enums"]["garnishment_status"]
           status_changed_at?: string | null
@@ -24087,6 +24089,7 @@ export type Database = {
           payee_unmapped?: boolean
           percent_of_disposable?: number | null
           priority?: number
+          recipient_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["garnishment_status"]
           status_changed_at?: string | null
@@ -24173,6 +24176,199 @@ export type Database = {
             columns: ["payee_payment_method_id"]
             isOneToOne: false
             referencedRelation: "organization_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_recipient_types: {
+        Row: {
+          code: string
+          created_at: string
+          default_always_first: boolean
+          default_cap_exempt: boolean
+          default_statement_cadence: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_government: boolean
+          label: string
+          metadata: Json
+          organization_id: string | null
+          source_pack_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_always_first?: boolean
+          default_cap_exempt?: boolean
+          default_statement_cadence?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_government?: boolean
+          label: string
+          metadata?: Json
+          organization_id?: string | null
+          source_pack_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_always_first?: boolean
+          default_cap_exempt?: boolean
+          default_statement_cadence?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_government?: boolean
+          label?: string
+          metadata?: Json
+          organization_id?: string | null
+          source_pack_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_recipient_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_recipient_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_recipients: {
+        Row: {
+          address: string | null
+          aggregate_cap_exempt: boolean
+          always_first: boolean
+          authority_id: string | null
+          contact_email: string | null
+          contact_id: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          default_payee_account: string | null
+          default_payee_bank: string | null
+          default_payee_reference_template: string | null
+          default_payment_method_id: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          jurisdiction_country: string | null
+          jurisdiction_region: string | null
+          metadata: Json
+          organization_id: string
+          recipient_type_code: string
+          remittance_schedule_ref: string | null
+          statement_cadence: string | null
+          tax_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          aggregate_cap_exempt?: boolean
+          always_first?: boolean
+          authority_id?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_payee_account?: string | null
+          default_payee_bank?: string | null
+          default_payee_reference_template?: string | null
+          default_payment_method_id?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string | null
+          jurisdiction_region?: string | null
+          metadata?: Json
+          organization_id: string
+          recipient_type_code: string
+          remittance_schedule_ref?: string | null
+          statement_cadence?: string | null
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          aggregate_cap_exempt?: boolean
+          always_first?: boolean
+          authority_id?: string | null
+          contact_email?: string | null
+          contact_id?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_payee_account?: string | null
+          default_payee_bank?: string | null
+          default_payee_reference_template?: string | null
+          default_payment_method_id?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_country?: string | null
+          jurisdiction_region?: string | null
+          metadata?: Json
+          organization_id?: string
+          recipient_type_code?: string
+          remittance_schedule_ref?: string | null
+          statement_cadence?: string | null
+          tax_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_recipients_authority_id_fkey"
+            columns: ["authority_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_default_payment_method_id_fkey"
+            columns: ["default_payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "organization_payment_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -64777,7 +64973,6 @@ export type Database = {
             | Database["public"]["Enums"]["legal_order_cap_membership"]
             | null
           authority_id: string | null
-          authority_name: string | null
           business_id: string | null
           calc_model:
             | Database["public"]["Enums"]["legal_order_calc_model"]
@@ -64814,6 +65009,13 @@ export type Database = {
           priority: number | null
           priority_class: number | null
           protected_earnings_rule: Json | null
+          recipient_always_first_default: boolean | null
+          recipient_cap_exempt_default: boolean | null
+          recipient_id: string | null
+          recipient_jurisdiction_country: string | null
+          recipient_jurisdiction_region: string | null
+          recipient_name: string | null
+          recipient_type: string | null
           remittance_schedule_ref: string | null
           reporting_binding_ref: string | null
           start_date: string | null
@@ -64909,6 +65111,13 @@ export type Database = {
             columns: ["legal_behavior_pack_id"]
             isOneToOne: false
             referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients"
             referencedColumns: ["id"]
           },
         ]
@@ -74978,6 +75187,7 @@ export type Database = {
           payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
+          recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
           status_changed_at: string | null
@@ -76268,6 +76478,7 @@ export type Database = {
           payee_unmapped: boolean
           percent_of_disposable: number | null
           priority: number
+          recipient_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["garnishment_status"]
           status_changed_at: string | null
@@ -76310,6 +76521,10 @@ export type Database = {
           priority_class: number
           start_date: string
         }[]
+      }
+      legal_recipient_merge: {
+        Args: { p_source_id: string; p_target_id: string }
+        Returns: Json
       }
       link_employee_to_user: {
         Args: { p_employee_id: string; p_force?: boolean; p_user_id: string }
