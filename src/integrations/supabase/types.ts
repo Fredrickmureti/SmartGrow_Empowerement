@@ -69086,6 +69086,7 @@ export type Database = {
           aggregate_cap_membership:
             | Database["public"]["Enums"]["legal_order_cap_membership"]
             | null
+          authority_contact_id: string | null
           authority_id: string | null
           business_id: string | null
           calc_model:
@@ -69125,6 +69126,7 @@ export type Database = {
           protected_earnings_rule: Json | null
           recipient_always_first_default: boolean | null
           recipient_cap_exempt_default: boolean | null
+          recipient_contact_id: string | null
           recipient_id: string | null
           recipient_jurisdiction_country: string | null
           recipient_jurisdiction_region: string | null
@@ -69253,6 +69255,76 @@ export type Database = {
             columns: ["legal_behavior_pack_id"]
             isOneToOne: false
             referencedRelation: "localization_packs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
+            columns: ["authority_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
+            columns: ["authority_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities_v"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
+            columns: ["authority_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
+            columns: ["authority_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients_v"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_authority_contact_id_fkey"
+            columns: ["authority_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
+            columns: ["recipient_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
+            columns: ["recipient_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities_v"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
+            columns: ["recipient_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_authorities_v"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
+            columns: ["recipient_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients_v"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_contact_id_fkey"
+            columns: ["recipient_contact_id"]
+            isOneToOne: false
+            referencedRelation: "legal_recipients_v"
             referencedColumns: ["id"]
           },
           {
@@ -79770,6 +79842,10 @@ export type Database = {
       garnishment_dashboard_summary: {
         Args: { p_business_id?: string; p_org_id: string }
         Returns: Json
+      }
+      garnishment_recipient_contact_for_order: {
+        Args: { p_order_id: string }
+        Returns: string
       }
       garnishment_resolve_kinds: {
         Args: { p_org_id: string }
