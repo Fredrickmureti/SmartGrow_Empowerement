@@ -140,13 +140,26 @@ export function LinkRecipientDialog({
   const [selected, setSelected] = useState<ContactRow | null>(null);
   const [includeCustomers, setIncludeCustomers] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [newContact, setNewContact] = useState({
+  const emptyContact = {
     name: "",
+    is_company: true,
     email: "",
     phone: "",
+    address_line1: "",
+    city: "",
+    state: "",
+    postal_code: "",
     country: "",
-    is_company: true,
-  });
+    tax_id: "",
+    recipient_type_code: "creditor",
+    jurisdiction_country: "",
+    jurisdiction_region: "",
+    default_payee_bank: "",
+    default_payee_account: "",
+    default_reference_template: "",
+    remittance_schedule_ref: "",
+  };
+  const [newContact, setNewContact] = useState(emptyContact);
   const qc = useQueryClient();
 
   const resetAndClose = () => {
@@ -154,7 +167,7 @@ export function LinkRecipientDialog({
     setSelected(null);
     setSearch("");
     setShowCreate(false);
-    setNewContact({ name: "", email: "", phone: "", country: "", is_company: true });
+    setNewContact(emptyContact);
   };
 
   // Existing recipient contact ids for this org (drives "Recipient" badge).
@@ -317,31 +330,46 @@ export function LinkRecipientDialog({
       const name = newContact.name.trim();
       if (!name) throw new Error("Name is required");
 
-      // Party-only contact: no customer/supplier role, no default AR/AP
-      // account mapping. Recipient role is expressed by the
-      // legal_recipients linkage created by the RPC below.
-      const insert: any = {
-        organization_id: orgId,
-        business_id: businessId,
-        name,
-        email: newContact.email.trim() || null,
-        phone: newContact.phone.trim() || null,
-        country: newContact.country.trim() || null,
-        is_company: newContact.is_company,
-        is_active: true,
-        customer_rank: 0,
-        supplier_rank: 0,
-        type: null,
-      };
-      const { data: created, error: cErr } = await (supabase as any)
-        .from("contacts")
-        .insert(insert)
-        .select("id,name,email,phone,country,type,customer_rank,supplier_rank")
-        .single();
-      if (cErr) throw cErr;
-      const contactId = (created as ContactRow).id;
+      // Canonical Party writer: upserts the Contact + contact_recipient_profile
+      // atomically via security-definer RPC, preserving the party-only
+      // stance (customer_rank=0, supplier_rank=0) so the row stays out
+      // of AR/AP lists but is promotable later.
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "party_upsert_recipient_from_form",
+        {
+          p_organization_id: orgId,
+          p_business_id: businessId,
+          p_contact_id: null,
+          p_name: name,
+          p_is_company: newContact.is_company,
+          p_email: newContact.email.trim() || null,
+          p_phone: newContact.phone.trim() || null,
+          p_address_line1: newContact.address_line1.trim() || null,
+          p_city: newContact.city.trim() || null,
+          p_state: newContact.state.trim() || null,
+          p_postal_code: newContact.postal_code.trim() || null,
+          p_country: newContact.country.trim() || null,
+          p_tax_id: newContact.tax_id.trim() || null,
+          p_recipient_type_code: newContact.recipient_type_code || "creditor",
+          p_jurisdiction_country:
+            newContact.jurisdiction_country.trim() ||
+            newContact.country.trim() ||
+            null,
+          p_jurisdiction_region: newContact.jurisdiction_region.trim() || null,
+          p_default_payee_bank: newContact.default_payee_bank.trim() || null,
+          p_default_payee_account:
+            newContact.default_payee_account.trim() || null,
+          p_default_reference_template:
+            newContact.default_reference_template.trim() || null,
+          p_remittance_schedule_ref:
+            newContact.remittance_schedule_ref.trim() || null,
+        },
+      );
+      if (rpcErr) throw rpcErr;
+      const contactId = (rpcRes as any)?.contact_id as string | undefined;
+      if (!contactId) throw new Error("Party writer returned no contact_id");
       const result = await linkExistingContact(contactId);
-      return { result, created: created as ContactRow };
+      return { result };
     },
     onSuccess: ({ result }) => {
       toast.success("Recipient created and linked");
@@ -368,7 +396,7 @@ export function LinkRecipientDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : resetAndClose())}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{heading}</DialogTitle>
           <DialogDescription>
@@ -379,62 +407,189 @@ export function LinkRecipientDialog({
         </DialogHeader>
 
         {showCreate ? (
-          <div className="space-y-3">
-            <div className="rounded border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Creates a party-only Contact (not a customer, not a vendor). It
-              stays out of AR/AP lists and can be promoted to a vendor later
-              without a merge.
-            </div>
-            <div className="grid gap-3">
-              <div>
-                <Label htmlFor="new-recipient-name">Name *</Label>
-                <Input
-                  id="new-recipient-name"
-                  autoFocus
-                  value={newContact.name}
-                  onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Nairobi Family Court, CSA, ABC SACCO…"
-                />
+          <ScrollArea className="max-h-[65vh] pr-3">
+            <div className="space-y-4">
+              <div className="rounded border bg-muted/30 p-3 text-xs text-muted-foreground">
+                Creates a party-only Contact (customer/vendor ranks stay at zero)
+                with a recipient profile capturing jurisdiction, statutory
+                identifiers and default remittance instructions. Promotable to
+                a vendor later without a merge.
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="new-recipient-email">Email</Label>
-                  <Input
-                    id="new-recipient-email"
-                    type="email"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
-                  />
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Identity
+                </h4>
+                <div className="grid gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-name">Legal name *</Label>
+                    <Input
+                      id="new-recipient-name"
+                      autoFocus
+                      value={newContact.name}
+                      onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Nairobi Family Court, CSA, ABC SACCO…"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={newContact.is_company}
+                      onCheckedChange={(v) =>
+                        setNewContact((p) => ({ ...p, is_company: v === true }))
+                      }
+                    />
+                    <span>Organization (court / agency / SACCO / creditor entity)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="new-recipient-email">Email</Label>
+                      <Input
+                        id="new-recipient-email"
+                        type="email"
+                        value={newContact.email}
+                        onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-phone">Phone</Label>
+                      <Input
+                        id="new-recipient-phone"
+                        value={newContact.phone}
+                        onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-tax">Statutory / Tax ID</Label>
+                    <Input
+                      id="new-recipient-tax"
+                      value={newContact.tax_id}
+                      onChange={(e) => setNewContact((p) => ({ ...p, tax_id: e.target.value }))}
+                      placeholder="PIN, TIN, registration no."
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="new-recipient-phone">Phone</Label>
-                  <Input
-                    id="new-recipient-phone"
-                    value={newContact.phone}
-                    onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
-                  />
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Address
+                </h4>
+                <div className="grid gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-addr1">Street</Label>
+                    <Input
+                      id="new-recipient-addr1"
+                      value={newContact.address_line1}
+                      onChange={(e) => setNewContact((p) => ({ ...p, address_line1: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="new-recipient-city">City</Label>
+                      <Input
+                        id="new-recipient-city"
+                        value={newContact.city}
+                        onChange={(e) => setNewContact((p) => ({ ...p, city: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-state">Region / State</Label>
+                      <Input
+                        id="new-recipient-state"
+                        value={newContact.state}
+                        onChange={(e) => setNewContact((p) => ({ ...p, state: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-postal">Postal</Label>
+                      <Input
+                        id="new-recipient-postal"
+                        value={newContact.postal_code}
+                        onChange={(e) => setNewContact((p) => ({ ...p, postal_code: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-country">Country (ISO)</Label>
+                    <Input
+                      id="new-recipient-country"
+                      value={newContact.country}
+                      onChange={(e) => setNewContact((p) => ({ ...p, country: e.target.value }))}
+                      placeholder="KE"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="new-recipient-country">Country</Label>
-                <Input
-                  id="new-recipient-country"
-                  value={newContact.country}
-                  onChange={(e) => setNewContact((p) => ({ ...p, country: e.target.value }))}
-                  placeholder="KE"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={newContact.is_company}
-                  onCheckedChange={(v) =>
-                    setNewContact((p) => ({ ...p, is_company: v === true }))
-                  }
-                />
-                <span>This is an organization (court / agency / SACCO)</span>
-              </label>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Recipient profile
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-type">Recipient type</Label>
+                    <Input
+                      id="new-recipient-type"
+                      value={newContact.recipient_type_code}
+                      onChange={(e) => setNewContact((p) => ({ ...p, recipient_type_code: e.target.value }))}
+                      placeholder="creditor / court / agency / sacco"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-jur-region">Jurisdiction region</Label>
+                    <Input
+                      id="new-recipient-jur-region"
+                      value={newContact.jurisdiction_region}
+                      onChange={(e) => setNewContact((p) => ({ ...p, jurisdiction_region: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Default remittance
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-bank">Bank</Label>
+                    <Input
+                      id="new-recipient-bank"
+                      value={newContact.default_payee_bank}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_payee_bank: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-account">Account no.</Label>
+                    <Input
+                      id="new-recipient-account"
+                      value={newContact.default_payee_account}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_payee_account: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-ref">Reference template</Label>
+                    <Input
+                      id="new-recipient-ref"
+                      value={newContact.default_reference_template}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_reference_template: e.target.value }))}
+                      placeholder="CASE-{case_no}"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-sched">Schedule</Label>
+                    <Input
+                      id="new-recipient-sched"
+                      value={newContact.remittance_schedule_ref}
+                      onChange={(e) => setNewContact((p) => ({ ...p, remittance_schedule_ref: e.target.value }))}
+                      placeholder="monthly / weekly / on-payroll"
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
-          </div>
+          </ScrollArea>
         ) : (
           <div className="space-y-3">
             <div className="flex items-end gap-2">
