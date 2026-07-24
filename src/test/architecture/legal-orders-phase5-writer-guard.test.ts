@@ -27,6 +27,10 @@ const ALLOWED_FUNCTIONS = [
   "garnishment_transition",
   "apply_system_garnishment_transition",
   "apply_garnishment_payment_to_order",
+  // Scheduled bulk expirer — runs as a SECURITY DEFINER cron job and
+  // writes the same status/lifecycle rows the FSM would. Documented in
+  // ADR-0094 as a sanctioned system writer.
+  "garnishment_auto_expire",
 ];
 
 function readMigrations(): Array<{ path: string; src: string }> {
