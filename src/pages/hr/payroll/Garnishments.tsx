@@ -40,6 +40,7 @@ import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard"
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
 import { LegalOrderDocuments } from "@/components/payroll/LegalOrderDocuments";
 import { useLegalOrder, useLegalOrders } from "@/hooks/useLegalOrders";
+import { LinkRecipientDialog } from "@/components/hr/payroll/LinkRecipientDialog";
 
 /**
  * Allowed FSM transitions per source status. Mirrors garnishment_transition()
