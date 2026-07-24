@@ -178,7 +178,17 @@ export default function LegalRecipients() {
                         <Badge variant="outline">Settled</Badge>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {!r.is_linked_to_contact && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setLinkTarget(r)}
+                          title="Attach this recipient to a Contact so bank-file generation and remittance can proceed."
+                        >
+                          Link Contact
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setSelected(r)}>
                         Statement
                       </Button>
