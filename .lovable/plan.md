@@ -42,22 +42,34 @@ I read `.lovable/plan.md`, ADRs 0092–0097, the migration timeline, and the UI 
 ### ✅ Phase R4a — Edge-function master-data resolution — COMPLETE
 - `supabase/functions/post-payroll-gl/index.ts`: resolves partner `contact_id` and authority display name via `legal_recipients` (joined through `recipient_id`) in both the JE-line stamping path and the `payroll_liabilities` upsert path. Legacy `recipient_contact_id` / `payee_contact_id` / `payee_name` retained only as fallback for pre-master orders.
 - `supabase/functions/post-garnishment-payment/index.ts`: resolves `authority_name` from `legal_recipients.display_name` with `payee_name` fallback.
-- Rationale: server code must stop depending on the retired overlay columns before we can drop them physically. This closes the last app-code dependency on the legacy `payee_*` / `*_contact_id` snapshot.
+
+### ✅ Phase R4b-pre — Stop all UI writers of `payee_*` snapshot columns — COMPLETE (this turn)
+- `src/pages/hr/payroll/Garnishments.tsx`:
+  - Removed `payee_name`, `payee_bank`, `payee_account`, `payee_reference` from the form's `empty` state, `openEdit` loader, and submit payload.
+  - Replaced the "Recipient & remittance" section-4 inputs with an inline note directing users to the LinkRecipientDialog (recipient master owns identity, bank, and reference template per ADR-0093). Section shows a live badge indicating whether `recipient_id` is linked.
+  - Removed the payee-defaults autopopulation branch from `AuthorityPicker.onChange` (the master seeds those on the recipient row itself).
+- `src/pages/hr/payroll/LegalOrderRemittanceBatch.tsx`:
+  - Query now joins `legal_recipients:recipient_id(display_name)`.
+  - CSV export field renamed `payee_name` → `recipient`; table cell resolves via master, falls back to legacy snapshot only when master is absent (pre-master orders).
+- Architecture test extended to block `payee_name`/`payee_bank`/`payee_account`/`payee_reference` as object-key writes anywhere under `src/pages`, `src/components`, `src/features`. All 6 tests green.
 
 ### ⏭️ Phase R4b — Retire free-text `payee_*` snapshot + overlay FK columns (DB) — NEXT
 Preconditions (all satisfied):
-- UI writers stopped (R2). ✅
+- UI writers stopped (R2, R4b-pre). ✅
 - Form RPCs stopped syncing overlay tables (R3). ✅
 - Edge functions no longer *require* the legacy columns (R4a). ✅
+- Architecture guard prevents regressions (R4b-pre). ✅
 
-Migration work still to draft:
-1. Data-safety backfill: for any `legal_orders_records` row where `recipient_id IS NULL` (should now be impossible thanks to R1 CHECK, but the migration must still be idempotent) — materialise a `legal_recipients` row from `payee_*` + `recipient_contact_id`, dedupe via unique index.
-2. Drop trigger that maintains `payee_unmapped`.
-3. `ALTER TABLE public.legal_orders_records DROP COLUMN payee_name, payee_bank, payee_account, payee_reference, payee_contact_id, payee_unmapped, authority_contact_id, recipient_contact_id;`
-4. Refresh dependent view `public.legal_orders` (it still selects these columns — must be recreated first, then columns dropped).
+Migration work to draft (in a SINGLE migration for atomicity):
+1. **Recreate the `public.legal_orders` view FIRST with the reduced column set.** Postgres will refuse to drop columns that dependent views select. Query the current definition with `pg_get_viewdef('public.legal_orders'::regclass, true)`, remove the columns being dropped, keep every other projection identical.
+2. Drop the trigger and function that maintain `payee_unmapped` on `legal_orders_records`.
+3. Data-safety backfill (idempotent, expected to be a no-op thanks to the R1 CHECK): for any `legal_orders_records` where `recipient_id IS NULL` and legacy `payee_*` is populated, materialise a `legal_recipients` row (dedupe via unique index / `legal_recipient_merge`) and link it.
+4. `ALTER TABLE public.legal_orders_records DROP COLUMN payee_name, payee_bank, payee_account, payee_reference, payee_contact_id, payee_unmapped, authority_contact_id, recipient_contact_id;`
 5. Drop compat views `legal_order_authorities_v` / `legal_recipients_v` if still present.
-6. Drop tables `contact_authority_profile`, `contact_recipient_profile` (empty of new writes after R3).
+6. Drop tables `contact_authority_profile`, `contact_recipient_profile` (they carry no new data after R3 and their FKs to `contacts` are the only remaining consumers).
 7. Update ADR-0092 note that the "payee_unmapped" state ceased to exist.
+8. After migration, tighten `useLegalOrders.LegalOrderRow` / `useGarnishments.Garnishment` TypeScript types to remove the dropped fields (types.ts regenerates automatically post-migration; hooks need a follow-up patch).
+9. Delete the `payee_name` fallback branches in `LegalOrderRemittanceBatch.tsx` and the edge functions once types.ts confirms the columns are gone.
 
 ### ⏭️ Phase R5 — Auto-provisioning at install time
 - `install-localization-pack` seeds well-known authorities as `legal_order_authorities` (contact-backed, idempotent by `(country, code)`), not `contact_authority_profile`.
