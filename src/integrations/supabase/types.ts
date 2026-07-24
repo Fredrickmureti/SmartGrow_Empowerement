@@ -25003,6 +25003,51 @@ export type Database = {
           },
         ]
       }
+      legal_order_statutory_report_definitions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          definition: Json
+          description: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          jurisdiction_code: string
+          name: string
+          organization_id: string | null
+          report_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          definition?: Json
+          description?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_code: string
+          name: string
+          organization_id?: string | null
+          report_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          definition?: Json
+          description?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          jurisdiction_code?: string
+          name?: string
+          organization_id?: string | null
+          report_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       legal_order_subscriber_dispatch_log: {
         Row: {
           details: Json
@@ -70342,6 +70387,20 @@ export type Database = {
           },
         ]
       }
+      v_legal_order_audit_timeline: {
+        Row: {
+          action: string | null
+          actor_user_id: string | null
+          details: Json | null
+          entry_kind: string | null
+          legal_order_id: string | null
+          occurred_at: string | null
+          organization_id: string | null
+          source_row_id: string | null
+          source_table: string | null
+        }
+        Relationships: []
+      }
       v_loan_exposure_by_dimension: {
         Row: {
           arrears_total: number | null
@@ -79190,6 +79249,23 @@ export type Database = {
           _to: string
         }
         Returns: Json
+      }
+      legal_order_running_balance: {
+        Args: {
+          _as_of?: string
+          _legal_order_id: string
+          _organization_id: string
+        }
+        Returns: {
+          accrued: number
+          as_of: string
+          last_accrual_at: string
+          last_remittance_at: string
+          legal_order_id: string
+          outstanding: number
+          remitted: number
+          total_owed: number
+        }[]
       }
       legal_order_settle_remittance_batch: {
         Args: {
