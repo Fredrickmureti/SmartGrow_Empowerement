@@ -55,7 +55,7 @@ interface ContactRow {
   email: string | null;
   phone: string | null;
   country: string | null;
-  contact_type: string | null;
+  type: string | null;
 }
 
 export function LinkRecipientDialog({
@@ -76,11 +76,12 @@ export function LinkRecipientDialog({
     queryFn: async () => {
       let q = (supabase as any)
         .from("contacts")
-        .select("id,name,email,phone,country,contact_type")
+        .select("id,name,email,phone,country,type")
         .eq("organization_id", orgId!)
         .order("name", { ascending: true })
         .limit(50);
-      if (search.trim()) q = q.ilike("name", `%${search.trim()}%`);
+      const s = search.trim();
+      if (s) q = q.or(`name.ilike.%${s}%,email.ilike.%${s}%`);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as ContactRow[];
@@ -191,9 +192,9 @@ export function LinkRecipientDialog({
                               .join(" · ") || "—"}
                           </div>
                         </div>
-                        {c.contact_type && (
+                        {c.type && (
                           <Badge variant="outline" className="text-[10px]">
-                            {c.contact_type}
+                            {c.type}
                           </Badge>
                         )}
                       </div>
