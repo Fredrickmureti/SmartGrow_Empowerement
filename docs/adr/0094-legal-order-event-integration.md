@@ -113,9 +113,70 @@ reached the outbox, and finance/ESS could not subscribe to them.
 - ESS employees see lifecycle and payment activity in-app without any
   ESS module reading the payroll writer tables directly.
 
+## Addendum (Phase 8) — Audit projection contract
+
+The write side of a legal order emits events through the outbox (above). The
+**read side** of "what happened to this order" is served by a single
+canonical projection: `public.v_legal_order_audit_timeline`. This addendum
+extends the ADR-0094 contract to cover that projection so downstream
+consumers (Audit tab, statutory reports, external auditors) have one
+supported shape to bind to.
+
+### Shape
+
+Every row conforms to:
+
+```
+(organization_id  uuid,
+ legal_order_id   uuid,
+ occurred_at      timestamptz,
+ entry_kind       text,   -- 'lifecycle' | 'audit' | 'dispatch' | 'remittance'
+ action           text,   -- transition name, audit verb, dispatch topic, or 'batch_created'|'batch_settled'|'batch_cancelled'
+ actor_user_id    uuid,
+ details          jsonb,  -- source-branch-specific payload
+ source_row_id    uuid,   -- primary key of the underlying row
+ source_table     text)   -- name of the underlying table
+```
+
+### Security
+
+The view is declared with `WITH (security_invoker = true)`. It carries no
+policies of its own; every branch inherits RLS from its source table, so a
+caller sees only rows they could already read directly. `GRANT SELECT` is
+issued to `authenticated` only.
+
+### Source branches (current)
+
+1. `garnishment_lifecycle_events` — FSM transitions (single writer path).
+2. `garnishment_audit_log` — mutation audit for legal-order rows.
+3. `legal_order_event_dispatch_log` joined to lifecycle events —
+   notification dispatches emitted by the Phase 5 outbox handlers.
+4. `legal_order_remittance_batches` — three virtual rows per batch:
+   `batch_created`, `batch_settled` (only when `status='settled'`), and
+   `batch_cancelled` (only when `status='cancelled'`).
+
+### Extension rule
+
+Adding a new audit source (dispute log, correspondence log, further
+subscriber logs, etc.) is done by appending a `UNION ALL` branch to
+`v_legal_order_audit_timeline` in a migration — **not** by publishing a
+second view. Consumers bind to `v_legal_order_audit_timeline` and expect
+new branches to appear over time without a shape change.
+
+### Non-writer contract
+
+The projection is strictly read-only. It does not, and must never, become
+a write path. All legal-order state changes continue to route through the
+four sanctioned SECURITY DEFINER writers listed in §6 above, with
+`_legal_order_fsm_guard` and `legal-orders-phase5-writer-guard` remaining
+active.
+
 ## References
 
 - ADR-0093 — Legal Recipient Master Data.
+- ADR-0097 — Legal Order Historical Balance & Reporting Contract.
 - `supabase/migrations/20260724140000_legal_orders_phase5_event_integration.sql`
 - `supabase/functions/outbox-dispatcher/index.ts`
 - `src/test/architecture/legal-orders-phase5-writer-guard.test.ts`
+- `src/test/architecture/legal-orders-phase8-audit.test.ts`
+

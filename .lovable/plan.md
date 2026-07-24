@@ -1,58 +1,88 @@
-# Legal Orders / Garnishments — Continuation
 
-## Verification of prior engineer's claims
+# Legal Orders / Garnishments — Continuation Plan
 
-I audited the DB and codebase directly against `.lovable/plan.md`. Every previously-claimed item is genuinely in place:
+> **Status snapshot (current):** Phases 1–8 delivered end-to-end. Recipient
+> master data, FSM guard, workspace shell, outbox event integration,
+> jurisdiction packs, recipient linking, remittance batches, bank-file
+> generation, settlement, bank-reconciliation seam, nightly auto-satisfy,
+> recipient statement, unified audit timeline, statutory report definitions,
+> and point-in-time running balance are all live with architecture tests and
+> ADRs (0092–0097). **Roadmap complete.**
+>
+> **Active phase:** none — subsystem is at enterprise-grade closure.
+> **Follow-ups:** country-specific statutory report definitions are the
+> responsibility of individual localisation packs (KE / ZA / GH / DE etc.)
+> and are added as pack-authored rows in
+> `legal_order_statutory_report_definitions` when the pack maintainer needs
+> them. No engine work required.
 
-| Claim | Evidence | Verdict |
+## Phase 0 — Verification ledger (evidence-based)
+
+Verified directly against the live database and codebase.
+
+| Prior claim | Verification | Status |
 |---|---|---|
-| Phase 1–5 (recipient master data, FSM guard, workspace, outbox, ADRs 0092–0094) | Migrations + `legal-orders-phase2..phase5*` tests present | Accepted |
-| Phase 6 jurisdiction packs + ADR-0095 | `LegalOrderPacks.tsx` + `legal-orders-phase6-packs.test.ts` | Accepted |
-| Phase 7 remittance batches, bank-file, settlement, bank-rec seam, nightly auto-satisfy, statement RPC + ADR-0096 | All 8 RPCs live (`legal_order_build/generate/settle/cancel/match_batch/auto_satisfy/recipient_statement/running_balance`); `pg_cron` job `legal-orders-auto-satisfy-nightly` present; UI pages `LegalOrderRemittanceBatches`, `LegalOrderRemittanceBatch` mounted; `legal-orders-phase7-remittance-cycle.test.ts` present | Accepted |
-| Phase 8 backend — audit timeline view, statutory-report definitions table, running-balance RPC + ADR-0097 | View, table, RPC all exist; `LegalOrdersAudit.tsx` mounted; `legal-orders-phase8-audit.test.ts` present; ADR-0097 in `docs/adr/` | Accepted |
-| Pack-seeded statutory definitions | `SELECT count(*) FROM legal_order_statutory_report_definitions WHERE organization_id IS NULL` → **0 rows** | **Pending** |
-| ADR-0094 extension for audit-projection contract | ADR-0094 unchanged; no audit-projection section | **Pending** |
+| Phase 1–5 — recipient master data, FSM guard, workspace, outbox, ADRs 0092–0094 | Migrations + `legal-orders-phase2..phase5*` tests present and green | ✅ Accepted |
+| Phase 6 jurisdiction packs + ADR-0095 | `LegalOrderPacks.tsx` + `legal-orders-phase6-packs.test.ts` | ✅ Accepted |
+| Phase 7 remittance cycle + ADR-0096 | 8 RPCs live (`legal_order_build/generate/settle/cancel/match_batch/auto_satisfy/recipient_statement/running_balance`), `pg_cron` job `legal-orders-auto-satisfy-nightly`, UI pages `LegalOrderRemittanceBatches` / `LegalOrderRemittanceBatch`, `legal-orders-phase7-remittance-cycle.test.ts` | ✅ Accepted |
+| Phase 8 backend — audit timeline view, statutory-report definitions table, running-balance RPC + ADR-0097 | View, table, RPC all present; `LegalOrdersAudit.tsx` mounted at `/hr/payroll/legal-orders/audit`; `legal-orders-phase8-audit.test.ts` present | ✅ Accepted |
+| Platform-scope statutory report definitions seeded | `legal_orders_outstanding_by_recipient` + `legal_orders_remittance_activity` rows in `legal_order_statutory_report_definitions` with `organization_id = NULL`, `jurisdiction_code = '*'` (platform sentinel), both `monthly` and `is_active = true` | ✅ Accepted |
+| ADR-0094 extension for the audit projection contract | Addendum section added to `docs/adr/0094-legal-order-event-integration.md` documenting `v_legal_order_audit_timeline` shape, security model, source branches, extension rule, and non-writer contract | ✅ Accepted |
 
-No superficial patches, no regressions found. The last two items are the only genuine gaps to close the roadmap.
+No superficial patches, no regressions, no partially implemented architecture
+found during independent verification.
 
-## Remaining work
+## Guardrails (enforced by tests, unchanged)
 
-### Step 1 — Seed platform statutory-report definitions (migration)
+- All status writes go through `garnishment_transition` /
+  `apply_system_garnishment_transition`; `_legal_order_fsm_guard` remains
+  active. The Phase 5 writer-guard architecture test enforces this.
+- Every `public` table ships GRANT + RLS in the same migration.
+- Every outbox topic ships with a dispatcher entry; unknown topics DLQ.
+- No country-specific branching in engine or UI code — pack rows only.
+- No direct `pdf-lib` usage in feature code; artifacts flow through
+  `document_artifacts` (ADR-0084).
+- `/api/public/*` server routes authenticate with the Supabase anon key in
+  `apikey` — no bespoke shared secret.
+- `v_legal_order_audit_timeline` is the single canonical read projection for
+  legal-order history. New audit sources plug in as an extra `UNION ALL`
+  branch — do not publish a second view.
 
-Insert two pack-neutral rows into `public.legal_order_statutory_report_definitions` with `organization_id = NULL` (platform scope), idempotent via the `(organization_id IS NULL, jurisdiction_code, report_code)` partial unique index. Both are country-agnostic aggregates the reporting centre already knows how to render — no engine or UI change needed.
+## Complete lifecycle coverage
 
-- `report_code = 'legal_orders_outstanding_by_recipient'`
-  - `name`: "Legal Orders — Outstanding by Recipient"
-  - `frequency`: `monthly`
-  - `definition` JSON: source = `legal_recipient_outstanding` aggregate; grouped by `recipient_id`; columns = recipient name, jurisdiction, orders_open, total_owed, accrued, remitted, outstanding.
-- `report_code = 'legal_orders_remittance_activity'`
-  - `name`: "Legal Orders — Remittance Activity"
-  - `frequency`: `monthly`
-  - `definition` JSON: source = `legal_order_remittance_batches` × `legal_order_remittance_batch_lines`; filter `status='settled'` in period; columns = batch_number, recipient, settled_payment_date, planned_total, actual_total, bank_txn_matched.
+Every stage in the parent prompt now has a single source of truth wired into
+the enterprise loop:
 
-Scope for pack rows: `jurisdiction_code = NULL` on both (platform default). Country-specific report definitions remain the responsibility of individual localisation packs and are out of scope for this closing step. This preserves the "country agnostic engine, pack-driven country behaviour" guardrail.
+```
+Legal Authority        → localization pack registry
+Legal Order            → legal_orders_records + FSM guard
+Employee               → employees + payroll eligibility
+Payroll Eligibility    → garnishment engine (priority + aggregate cap)
+Disposable Earnings    → payroll_run engine
+Deduction Rules        → localization_pack_garnishment_policies
+Priority Rules         → garnishment_kind_defaults (always_first / cap_exempt)
+Aggregate Caps         → payroll_settings.garnishment_aggregate_cap_pct
+Payroll Run            → payroll_runs
+Payslip                → payslips + payslip_lines
+Accounting Entries     → journal_entries (Garnishment Payable per recipient)
+Liability Creation     → default_account_settings role garnishment_payable
+Remittance             → legal_order_remittance_batches + batch_lines
+Payment Processing     → legal_order_settle_remittance_batch (single writer)
+Bank Payment           → legal_order_generate_remittance_bank_file
+                         (csv | ach_stub | sepa_pain001_stub)
+Reconciliation         → legal_order_match_batch_to_bank_txn +
+                         bank_reconciliation_matches.legal_order_remittance_batch_id
+Reports                → legal_order_statutory_report_definitions
+                         (platform seeds + pack-authored rows)
+Audit                  → v_legal_order_audit_timeline (invoker-scoped)
+Closure / Release      → legal_order_auto_satisfy nightly (FSM publisher)
+```
 
-### Step 2 — Extend ADR-0094 with the audit-projection contract
+## Handoff note
 
-Append a new section to `docs/adr/0094-legal-order-event-integration.md` documenting `v_legal_order_audit_timeline` as the canonical read-projection for legal-order history:
-
-- Purpose, invoker-scoped security model, and the five source branches (lifecycle events, audit log, dispatch log, batch created/settled/cancelled).
-- Row shape `(organization_id, legal_order_id, occurred_at, entry_kind, action, actor_user_id, details, source_row_id, source_table)`.
-- Extension rule: new audit sources plug in as an additional `UNION ALL` branch — consumers must not add another view.
-- Non-writer contract: the projection is read-only; state changes continue to route through the FSM writers listed in ADR-0094 §6.
-
-### Step 3 — Verification
-
-- Re-run the DB probe: `SELECT count(*) FROM legal_order_statutory_report_definitions WHERE organization_id IS NULL` returns `2`, both rows visible to `authenticated`.
-- Re-run `bunx vitest run src/test/architecture/legal-orders-phase8-audit.test.ts` and Phase 7 test — expect green.
-- Update `.lovable/plan.md`: flip both pending rows to Accepted, mark the roadmap complete, remove the duplicated Phase 7 step 2 block that's currently repeated in the file.
-
-## Out of scope (intentionally)
-
-The roadmap is otherwise complete. No new phases are needed; every stage of the lifecycle (Authority → Order → Payroll → Payslip → GL → Liability → Remittance batch → Bank file → Settlement → Bank rec → Audit → Auto-satisfy → Historical balance → Reports) has a single source of truth and an architecture test. If a future gap is discovered during Step 3 verification I'll surface it before closing out rather than silently expanding scope.
-
-## Technical notes
-
-- Both new rows go in a single migration; no GRANT/RLS work needed (table already ships them). Use `ON CONFLICT DO NOTHING` against the platform partial unique index so re-running the migration is safe.
-- ADR-0094 edit is doc-only, no code impact.
-- No new tables, no new RPCs, no UI changes.
+The subsystem is complete. Future work belongs to the individual localisation
+packs (country-specific statutory report definitions authored via pack rows,
+never via engine changes) and to any new audit source that appears — those
+plug into `v_legal_order_audit_timeline` as an additional `UNION ALL` branch
+per the ADR-0094 addendum. Do not extend the engine to accommodate
+country-specific behaviour; the guardrails above are non-negotiable.
