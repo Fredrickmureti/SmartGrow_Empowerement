@@ -1,61 +1,95 @@
-## Legal Orders subsystem — closure + recipient-link bug
+# Legal Order Recipient — Contact Linking & Inline Creation
 
-### 1. Close the roadmap
-Confirmed: Phases 1–8 are genuinely complete (recipient master data, FSM guards, jurisdiction packs, remittance cycle, audit projection, ADRs 0092–0097, platform statutory-report seeds). No open items remain in `.lovable/plan.md`. Nothing further to build on the roadmap itself — close it.
+## The real problem
 
-### 2. Root-cause of the "Search contacts" empty list
+Today `LinkRecipientDialog` searches **all** contacts. That surfaces customers, which are almost never legitimate garnishment recipients, and offers no way to create a fresh recipient without leaving Payroll for the Contacts app. Meanwhile we don't want to invent a parallel "recipient master" that duplicates identity — ADR-0038/0079/0093 already lock in Contact as the single party record.
 
-The dialog issue you are seeing is **a real bug, not a data problem**. Independent verification:
+## How the big platforms solve this
 
-- The tenant (`org 8e68…c28b`) does have contacts — 1 row (`type='customer'`) — so the list should not be empty.
-- `LinkRecipientDialog.tsx` line 79 selects `id,name,email,phone,country,contact_type` from `contacts`. The `contacts` table has no column named `contact_type` — the real column is `type`.
-- PostgREST rejects the select; react-query catches the error and `data ?? []` collapses to `[]`, which renders the "No contacts match…" empty state. So the list is empty for **every** tenant, not just this one — regardless of how many contacts exist.
+| Platform | Pattern |
+|---|---|
+| SAP HCM | Garnishment recipient is a **Vendor** in a dedicated *vendor account group* (e.g. `GARN`). Grouping keeps AP clean; posting still uses the vendor master. |
+| Oracle HCM Fusion | **Third-Party Payment Payee** is its own master, optionally linked to a Supplier for banking. Payee ≠ supplier by default. |
+| Workday | **Third Party Payee** master owns identity + banking, exists whether or not the payee is a supplier. |
+| Dynamics 365 F&O | Garnishment recipient is a Vendor in a **vendor group** (`GARN`) with dedicated posting profile. |
+| Odoo | `res.partner` **tagged** with a category (e.g. `Garnishment recipient`); the partner is *neither customer nor vendor* unless separately flagged. Promotion to vendor is a rank flip, not a new record. |
 
-### 3. On "the employee already has issuing authority set" — is a Contact even the right thing to link?
+The common thread: **one party record, role expressed by tag/group/rank, never by duplication**. Odoo's rank-flip model is the closest fit to our existing `customer_rank` / `supplier_rank` schema and ADR-0038.
 
-They are two different concepts and today the UI conflates them:
+## Decision
 
-- `legal_order_authorities` = **issuing body** (Nairobi Civil Court, KRA, a SACCO's board). It carries its own `default_payee_bank / _account / _reference_template` and jurisdiction — but no `contact_id`.
-- `legal_recipients` = **who receives the remittance money** (could be the court itself, a SACCO, a custodial parent's agent, a collection agency). The remittance pipeline (bank-file generation, AP settlement, statements) needs a `legal_recipients` row and it currently requires a linked `contact_id` because bank-file/AP posting flows through Contacts.
+Adopt the **"party-only recipient contact"** pattern:
 
-So for the Joy Matilda order:
-- The authority (Nairobi Civil Court) is set — good; that is the court that issued the order.
-- The order still has no `recipient_id`, because we have not told the system **where the money goes**. In many child-support cases the money goes to the same court's trust account — but nothing in the schema currently lets the authority double as the recipient without a Contact.
+- A recipient Contact is created with `customer_rank = 0` **and** `supplier_rank = 0`. Its recipient role is expressed by the presence of a `legal_recipients` row pointing at it (`recipient_role_via_link`). No new column, no new rank enum.
+- Contacts list filters (`Customers` / `Vendors`) already require `rank > 0`, so party-only recipients stay invisible there — the workspace stays clean.
+- The `legal_recipients` row (already the enterprise aggregate per ADR-0093) is what Payroll/Remittance keys off. Contacts UI is untouched.
+- Promotion path: if this party ever becomes a vendor, set `supplier_rank = 1` + fill AP defaults on the same Contact. No merge, no data move. Matches ADR-0038/0079.
+- Legitimate reuse: existing **vendors** (e.g. a SACCO already paid via AP) can be picked as recipients directly — no duplicate contact.
 
-That is a real UX gap on top of the bug.
+## Changes
 
-### 4. Fix scope
+### 1. Scope the recipient picker (`LinkRecipientDialog.tsx`)
 
-Two changes, both scoped to this dialog + one small RPC. No roadmap re-opening.
+Search results become **role-aware**, sorted and filtered by suitability:
 
-**A. Fix the broken select (blocking bug).**
-In `src/components/hr/payroll/LinkRecipientDialog.tsx`:
-- Replace `contact_type` with `type` in the `.select(...)` string.
-- Update the `ContactRow` interface field `contact_type` → `type` and the JSX badge that renders it.
-- Optional polish: also search by `email` (`.or('name.ilike.%q%,email.ilike.%q%')`) so users can find a court by its email when the display name is inconsistent.
+```text
+Preferred        → contacts already linked as a legal_recipient
+Allowed          → suppliers (supplier_rank > 0) — SACCOs, existing AP vendors
+Party-only       → contacts with rank 0/0 (created for this purpose)
+Hidden by default → customers (customer_rank > 0 AND supplier_rank = 0)
+                    revealed only via a "Include customers" toggle,
+                    with an inline warning "Usually not a recipient"
+```
 
-**B. Let the issuing authority act as the recipient (closes the UX gap you spotted).**
+Each row shows badges (`Recipient`, `Vendor`, `Party-only`, `Customer`) so the user cannot mislink blindly. Search covers name/email/phone (the `contact_type` bug is already fixed).
 
-Add a second action in the Garnishments row badge menu, next to "Link to Contact":
+### 2. Inline "Create recipient" flow
 
-- Label: **"Use issuing authority as recipient"** — only enabled when `authority_id IS NOT NULL` and `recipient_id IS NULL`.
-- Calls a new security-definer RPC `legal_order_use_authority_as_recipient(p_order_id uuid)` that:
-  1. Loads the order + its authority in the caller's org (org-scope guard identical to `legal_order_attach_contact`).
-  2. Finds an existing `legal_recipients` row for that `authority_id` with no `contact_id`, or inserts one, copying `display_name`, `jurisdiction_country/region`, `contact_email/phone`, `address`, `default_payee_*`, and `remittance_schedule_ref` from `legal_order_authorities`.
-  3. Stamps `legal_orders_records.recipient_id`.
-  4. Emits the existing `legal_order.recipient_attached` outbox event so audit + projections stay consistent.
-- Same MERGE_REQUIRED guard as `legal_order_attach_contact` if a recipient with a linked contact already exists for that authority — force explicit choice.
-- Bank-file / AP path continues to require a Contact; the recipient row without `contact_id` is fine for statement + accrual but the existing bank-file guard will refuse to generate a payout until a Contact is linked. No change there — that guard already exists and is correct.
+Empty state and a persistent `+ New recipient` button open a **minimal** form inside the dialog (no route change):
 
-### 5. Verification after implementation
+- Name (required)
+- Recipient type (dropdown from `legal_recipient_types`)
+- Jurisdiction country / region (defaults from the order)
+- Contact channel: email, phone (optional)
+- Banking: bank name, account number, reference (optional; can be filled later before batch build)
 
-- Reload Garnishments for this tenant; click "recipient not linked", see the 1 existing contact appear in the list.
-- On the same order, use the new "Use issuing authority as recipient" action; confirm `recipient_id` is set on `legal_orders_records`, a `legal_recipients` row is created from Nairobi Civil Court, and the audit timeline shows a `recipient_attached` event.
-- Attempt to generate a bank file for that recipient without a Contact and confirm the existing guard blocks it with a clear message.
+On submit:
+1. Insert `public.contacts` row with `customer_rank = 0`, `supplier_rank = 0`, `type = null`, `is_company = true` by default, `business_id = current`.
+2. Call existing `legal_recipient_upsert(...)` RPC with the new `contact_id`, recipient type, jurisdiction, and bank fields. The RPC's unique index still enforces dedupe.
+3. Attach the returned `recipient_id` to the order (same path the current dialog already uses).
 
-### Files touched
+All in one transaction from the client's perspective (RPC wraps the two writes). No orphan contacts on failure.
 
-- `src/components/hr/payroll/LinkRecipientDialog.tsx` — column-name fix, type/badge rename, optional email search.
-- `src/pages/hr/payroll/Garnishments.tsx` — add the "Use issuing authority as recipient" action next to the existing badge trigger; enable only when `authority_id` present and `recipient_id` null.
-- New migration adding `public.legal_order_use_authority_as_recipient(uuid)` RPC (security definer, org-scoped, outbox event emitted).
-- No changes to the audit projection or ADRs; the new RPC reuses the existing `legal_order.recipient_attached` contract in ADR-0094.
+### 3. Clarify the "issuing authority" affordance
+
+The existing `legal_order_use_authority_as_recipient` RPC stays and continues to work — but the Orders row hint changes from **"Recipient not linked"** to a two-option chooser: `Use issuing authority` | `Link/Create recipient…`. This makes it obvious the authority is a fast path, not the only path.
+
+### 4. Docs
+
+Amend **ADR-0093** with a new section *"Recipient Contact roles"* documenting:
+- The party-only contact pattern (rank 0/0) as canonical for pure recipients.
+- Vendor reuse is allowed and preferred when the party already exists in AP.
+- Customers are hidden from the picker unless explicitly opted in.
+- Promotion from party-only → vendor is a rank flip, not a new record.
+
+No schema migration is required. No new columns. No new tables.
+
+## Technical notes
+
+- Files touched:
+  - `src/components/hr/payroll/LinkRecipientDialog.tsx` — role-scoped search, badges, customer toggle, inline "New recipient" panel.
+  - `src/pages/hr/payroll/Garnishments.tsx` — split the "Recipient not linked" chip into two clear actions.
+  - `docs/adr/0093-legal-recipient-master-data.md` — new section.
+- Query shape (Supabase): fetch candidates in one call using `contacts` with a left join projection to `legal_recipients` (to compute the `Recipient` badge) plus `customer_rank`/`supplier_rank` for the other badges. No new RLS.
+- Reuses existing RPCs: `legal_recipient_upsert`, `legal_order_link_recipient`, `legal_order_use_authority_as_recipient`. No new SQL unless we want a small helper RPC to fuse steps (1)+(2) — optional, decided during implementation based on whether client-side atomicity is acceptable.
+- Contacts create policy already allows `authenticated` inserts scoped to `business_id`; no policy change needed.
+
+## Out of scope
+
+- Merging existing customer-flagged recipients back to party-only.
+- A separate "Recipients" master screen inside Contacts app (the Legal Orders → Recipients tab already covers this).
+- Any change to posting / GL — recipient accrual accounts remain governed by `default_account_settings` role `garnishment_payable`.
+
+## Why not add a `recipient_rank` column
+
+Considered and rejected: it would fork ADR-0038's two-rank contract, force every consumer to learn a third role, and duplicate what `legal_recipients` already encodes. Odoo's partner-category / SAP's vendor-group precedent is exactly this: role via linkage, not via a new identity flag.
