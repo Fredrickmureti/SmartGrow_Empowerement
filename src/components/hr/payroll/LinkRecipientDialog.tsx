@@ -83,10 +83,24 @@ interface ContactRow {
   supplier_rank: number | null;
 }
 
-type RoleTag = "recipient" | "vendor" | "party-only" | "customer";
+interface AuthorityRow {
+  id: string;
+  name: string;
+  code: string;
+  authority_type: string;
+  jurisdiction_country: string | null;
+  jurisdiction_region: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  contact_id: string | null;
+  is_active: boolean;
+}
 
-function roleOf(c: ContactRow, recipientIds: Set<string>): RoleTag {
+type RoleTag = "recipient" | "authority" | "vendor" | "party-only" | "customer";
+
+function roleOf(c: ContactRow, recipientIds: Set<string>, authorityContactIds: Set<string>): RoleTag {
   if (recipientIds.has(c.id)) return "recipient";
+  if (authorityContactIds.has(c.id)) return "authority";
   const s = Number(c.supplier_rank ?? 0);
   const cu = Number(c.customer_rank ?? 0);
   if (s > 0) return "vendor";
@@ -97,17 +111,20 @@ function roleOf(c: ContactRow, recipientIds: Set<string>): RoleTag {
 // Preferred first, customer last.
 const ROLE_ORDER: Record<RoleTag, number> = {
   recipient: 0,
-  vendor: 1,
-  "party-only": 2,
-  customer: 3,
+  authority: 1,
+  vendor: 2,
+  "party-only": 3,
+  customer: 4,
 };
 
 const ROLE_BADGE: Record<RoleTag, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   recipient: { label: "Recipient", variant: "default" },
+  authority: { label: "Authority", variant: "secondary" },
   vendor: { label: "Vendor", variant: "secondary" },
   "party-only": { label: "Party-only", variant: "outline" },
   customer: { label: "Customer", variant: "destructive" },
 };
+
 
 export function LinkRecipientDialog({
   open,
