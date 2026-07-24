@@ -31,6 +31,7 @@ const LoanSkipOverrides = lazy(() => import("@/pages/hr/payroll/LoanSkipOverride
 const CustomDeductionTypes = lazy(() => import("@/pages/hr/payroll/CustomDeductionTypes"));
 const CustomDeductions = lazy(() => import("@/pages/hr/payroll/CustomDeductions"));
 const LegalOrderRemittanceBatch = lazy(() => import("@/pages/hr/payroll/LegalOrderRemittanceBatch"));
+const LegalRecipients = lazy(() => import("@/pages/hr/payroll/LegalRecipients"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
