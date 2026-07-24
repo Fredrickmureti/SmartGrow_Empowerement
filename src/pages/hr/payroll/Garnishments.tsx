@@ -171,6 +171,7 @@ export default function GarnishmentsPage() {
     case_reference: "",
     authority_text: "",
     authority_id: null as string | null,
+    authority_contact_id: null as string | null,
     cap_rule: "fixed_amount" as GarnishmentCapRule,
     fixed_amount: "",
     percent_of_disposable: "",
