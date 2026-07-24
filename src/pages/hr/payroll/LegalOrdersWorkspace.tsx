@@ -13,12 +13,13 @@
  * bar so bookmarks and deep links keep working.
  */
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { ClipboardList, Scale, Users, Banknote } from "lucide-react";
+import { ClipboardList, Scale, Users, Banknote, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { to: "/hr/payroll/legal-orders", label: "Tasks", icon: ClipboardList, end: true },
   { to: "/hr/payroll/legal-orders/orders", label: "Orders", icon: Scale, end: false },
+  { to: "/hr/payroll/legal-orders/packs", label: "Packs", icon: Layers, end: false },
   { to: "/hr/payroll/legal-orders/recipients", label: "Recipients", icon: Users, end: false },
   { to: "/hr/payroll/legal-orders/remittance-batch", label: "Remittances", icon: Banknote, end: false },
 ];

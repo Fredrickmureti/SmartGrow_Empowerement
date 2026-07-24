@@ -251,6 +251,13 @@ export type Database = {
             foreignKeyName: "accounting_integrity_reports_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "accounting_integrity_reports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -356,6 +363,13 @@ export type Database = {
             foreignKeyName: "accounts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -451,6 +465,13 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "admin_audit_log_target_org_id_fkey"
+            columns: ["target_org_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "admin_audit_log_target_org_id_fkey"
             columns: ["target_org_id"]
@@ -583,6 +604,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "advance_repayment_schedule_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "advance_repayment_schedule_organization_id_fkey"
@@ -760,6 +788,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "ai_insights_cache_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "ai_insights_cache_organization_id_fkey"
@@ -972,6 +1007,13 @@ export type Database = {
             foreignKeyName: "analytic_accounts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "analytic_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -1057,6 +1099,13 @@ export type Database = {
             foreignKeyName: "analytic_distributions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "analytic_distributions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -1124,6 +1173,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "analytic_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "analytic_groups_organization_id_fkey"
@@ -1230,6 +1286,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "app_install_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "app_install_attempts_organization_id_fkey"
             columns: ["organization_id"]
@@ -1398,6 +1461,13 @@ export type Database = {
             foreignKeyName: "app_setup_status_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "app_setup_status_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -1495,6 +1565,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "platform_apps"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "app_trial_status_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "app_trial_status_organization_id_fkey"
@@ -1625,6 +1702,13 @@ export type Database = {
             foreignKeyName: "approval_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "approval_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -1717,6 +1801,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "approval_rule_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "approval_rule_logs_organization_id_fkey"
@@ -1834,6 +1925,13 @@ export type Database = {
             foreignKeyName: "approval_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "approval_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -1942,6 +2040,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "approval_workflows_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "approval_workflows_organization_id_fkey"
@@ -2184,6 +2289,13 @@ export type Database = {
             foreignKeyName: "asset_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "asset_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -2270,6 +2382,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "asset_maintenance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "asset_maintenance_organization_id_fkey"
@@ -2609,6 +2728,13 @@ export type Database = {
             foreignKeyName: "attendance_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "attendance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -2841,6 +2967,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "attendance_corrections_organization_id_fkey"
@@ -3302,6 +3435,13 @@ export type Database = {
             foreignKeyName: "attendance_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "attendance_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -3384,6 +3524,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "audit_logs_organization_id_fkey"
@@ -3481,6 +3628,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "automated_action_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "automated_action_logs_organization_id_fkey"
@@ -3650,6 +3804,13 @@ export type Database = {
             foreignKeyName: "automated_actions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "automated_actions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -3718,6 +3879,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "automation_execution_tracker_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "automation_execution_tracker_organization_id_fkey"
@@ -3796,6 +3964,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "backorders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "backorders_organization_id_fkey"
@@ -3997,6 +4172,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "bank_accounts_organization_id_fkey"
@@ -4275,6 +4457,13 @@ export type Database = {
             foreignKeyName: "bank_reconciliation_matches_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -4438,6 +4627,13 @@ export type Database = {
             foreignKeyName: "bank_reconciliation_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -4592,6 +4788,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "bank_reconciliation_sessions_organization_id_fkey"
@@ -4885,6 +5088,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "bank_statements_organization_id_fkey"
@@ -5188,6 +5398,13 @@ export type Database = {
             foreignKeyName: "bank_transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -5341,6 +5558,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "benefit_plans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "benefit_plans_organization_id_fkey"
@@ -5981,6 +6205,13 @@ export type Database = {
             foreignKeyName: "bill_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -6228,6 +6459,13 @@ export type Database = {
             foreignKeyName: "bills_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -6428,6 +6666,13 @@ export type Database = {
             foreignKeyName: "branch_setting_overrides_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "branch_setting_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -6543,6 +6788,13 @@ export type Database = {
             foreignKeyName: "branches_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "branches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -6638,6 +6890,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budget_actuals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "budget_actuals_organization_id_fkey"
@@ -6778,6 +7037,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "budgets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "budgets_organization_id_fkey"
@@ -6941,6 +7207,13 @@ export type Database = {
             foreignKeyName: "bulk_operation_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bulk_operation_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -7002,6 +7275,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "business_active_currencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "business_active_currencies_organization_id_fkey"
@@ -7378,6 +7658,13 @@ export type Database = {
           weekly_hours_target?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "businesses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "businesses_organization_id_fkey"
             columns: ["organization_id"]
@@ -8161,6 +8448,13 @@ export type Database = {
             foreignKeyName: "compliance_checklist_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "compliance_checklist_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -8253,6 +8547,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_addresses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "contact_addresses_organization_id_fkey"
@@ -8521,6 +8822,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tax_rates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "contacts_organization_id_fkey"
@@ -8895,6 +9203,13 @@ export type Database = {
             foreignKeyName: "contract_amendments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "contract_amendments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -9218,6 +9533,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "core_field_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "core_field_overrides_organization_id_fkey"
@@ -9727,6 +10049,13 @@ export type Database = {
             foreignKeyName: "credit_notes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "credit_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -9864,6 +10193,13 @@ export type Database = {
             foreignKeyName: "crm_activities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "crm_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -9931,6 +10267,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_activity_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "crm_activity_types_organization_id_fkey"
@@ -10025,6 +10368,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "crm_leads"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_lead_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "crm_lead_items_organization_id_fkey"
@@ -10240,6 +10590,13 @@ export type Database = {
             foreignKeyName: "crm_leads_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "crm_leads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -10305,6 +10662,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_lost_reasons_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "crm_lost_reasons_organization_id_fkey"
@@ -10392,6 +10756,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "crm_stages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "crm_stages_organization_id_fkey"
@@ -10651,6 +11022,13 @@ export type Database = {
             foreignKeyName: "customer_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -10740,6 +11118,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_loyalty_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "customer_loyalty_organization_id_fkey"
@@ -10971,6 +11356,13 @@ export type Database = {
             foreignKeyName: "customer_statements_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -11186,6 +11578,13 @@ export type Database = {
             foreignKeyName: "default_account_setting_bindings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "default_account_setting_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -11308,6 +11707,13 @@ export type Database = {
             foreignKeyName: "default_account_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "default_account_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -11407,6 +11813,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "default_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "default_accounts_organization_id_fkey"
@@ -11834,6 +12247,13 @@ export type Database = {
             foreignKeyName: "delivery_notes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -12139,6 +12559,13 @@ export type Database = {
             foreignKeyName: "departments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "departments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -12293,6 +12720,13 @@ export type Database = {
             foreignKeyName: "depreciation_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "depreciation_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -12441,6 +12875,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "depreciation_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "depreciation_schedules_organization_id_fkey"
@@ -12755,6 +13196,13 @@ export type Database = {
             foreignKeyName: "device_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "device_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -12953,6 +13401,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "document_emails_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "document_emails_organization_id_fkey"
@@ -13262,6 +13717,13 @@ export type Database = {
             foreignKeyName: "document_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "document_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -13327,6 +13789,13 @@ export type Database = {
           template_variables?: Json | null
         }
         Relationships: [
+          {
+            foreignKeyName: "email_event_outbox_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "email_event_outbox_organization_id_fkey"
             columns: ["organization_id"]
@@ -13413,6 +13882,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "email_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "email_templates_organization_id_fkey"
@@ -13575,6 +14051,13 @@ export type Database = {
             foreignKeyName: "employee_advances_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -13729,6 +14212,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "benefit_enrollment_windows"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_benefits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_benefits_organization_id_fkey"
@@ -13965,6 +14455,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_compensation_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_compensation_history_organization_id_fkey"
@@ -14250,6 +14747,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_contracts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_contracts_organization_id_fkey"
@@ -14951,6 +15455,13 @@ export type Database = {
             foreignKeyName: "employee_documents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -15104,6 +15615,13 @@ export type Database = {
             foreignKeyName: "employee_exit_clearance_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_exit_clearance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -15248,6 +15766,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_field_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_field_configs_organization_id_fkey"
@@ -15597,6 +16122,13 @@ export type Database = {
             foreignKeyName: "employee_loans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -15844,6 +16376,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_onboarding_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_onboarding_organization_id_fkey"
@@ -16257,6 +16796,13 @@ export type Database = {
             foreignKeyName: "employee_statutory_identifiers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_statutory_identifiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -16535,6 +17081,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -16782,6 +17335,13 @@ export type Database = {
             foreignKeyName: "entity_field_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "entity_field_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -16865,6 +17425,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "entity_field_configs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_field_values_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "entity_field_values_organization_id_fkey"
@@ -17179,6 +17746,13 @@ export type Database = {
             foreignKeyName: "estimates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "estimates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -17310,6 +17884,13 @@ export type Database = {
             foreignKeyName: "etims_tax_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "etims_tax_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -17409,6 +17990,13 @@ export type Database = {
             foreignKeyName: "etims_transmission_logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "etims_transmission_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -17473,6 +18061,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "exchange_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "exchange_rates_organization_id_fkey"
@@ -17566,6 +18161,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "expense_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "expense_categories_organization_id_fkey"
@@ -17846,6 +18448,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "expenses_organization_id_fkey"
@@ -18162,6 +18771,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "fiscal_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "fiscal_periods_organization_id_fkey"
@@ -18573,6 +19189,13 @@ export type Database = {
             foreignKeyName: "fixed_assets_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "fixed_assets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -18688,6 +19311,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "form_layouts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "form_layouts_organization_id_fkey"
@@ -18937,6 +19567,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fx_revaluation_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "fx_revaluation_runs_organization_id_fkey"
@@ -19229,6 +19866,13 @@ export type Database = {
           source_pack_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "garnishment_kind_defaults_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "garnishment_kind_defaults_organization_id_fkey"
             columns: ["organization_id"]
@@ -19812,6 +20456,13 @@ export type Database = {
             foreignKeyName: "goods_receipts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -19939,6 +20590,13 @@ export type Database = {
             foreignKeyName: "governance_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "governance_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -19995,6 +20653,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "governance_export_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "governance_export_jobs_organization_id_fkey"
             columns: ["organization_id"]
@@ -20436,6 +21101,13 @@ export type Database = {
             foreignKeyName: "identity_change_audit_log_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "identity_change_audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -20743,6 +21415,13 @@ export type Database = {
             foreignKeyName: "installed_localization_packs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "installed_localization_packs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -20885,6 +21564,13 @@ export type Database = {
             foreignKeyName: "invoice_activities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "invoice_activities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -21006,6 +21692,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_emails_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "invoice_emails_organization_id_fkey"
@@ -21255,6 +21948,13 @@ export type Database = {
             foreignKeyName: "invoice_reminders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "invoice_reminders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -21316,6 +22016,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "invoice_sequences_organization_id_fkey"
@@ -21649,6 +22356,13 @@ export type Database = {
             foreignKeyName: "invoices_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -21799,6 +22513,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "je_number_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "je_number_sequences_organization_id_fkey"
@@ -22102,6 +22823,13 @@ export type Database = {
             foreignKeyName: "journal_books_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "journal_books_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -22308,6 +23036,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_books"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
@@ -23280,6 +24015,13 @@ export type Database = {
             foreignKeyName: "leave_allocations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "leave_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -23482,6 +24224,13 @@ export type Database = {
             foreignKeyName: "leave_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "leave_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -23620,6 +24369,13 @@ export type Database = {
             foreignKeyName: "leave_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "leave_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -23711,6 +24467,13 @@ export type Database = {
             foreignKeyName: "legal_order_authorities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_order_authorities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -23794,6 +24557,13 @@ export type Database = {
             foreignKeyName: "legal_order_documents_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_order_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -23868,6 +24638,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "legal_order_kind_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "legal_order_kind_overrides_organization_id_fkey"
             columns: ["organization_id"]
@@ -23962,6 +24739,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "legal_orders_records"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_order_remittance_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "legal_order_remittance_lines_organization_id_fkey"
@@ -24278,6 +25062,13 @@ export type Database = {
             foreignKeyName: "legal_recipient_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_recipient_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -24398,6 +25189,13 @@ export type Database = {
             foreignKeyName: "legal_recipients_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -24474,6 +25272,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_loan_writeoffs"
             referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "loan_lifecycle_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "loan_lifecycle_events_organization_id_fkey"
@@ -24792,6 +25597,13 @@ export type Database = {
             foreignKeyName: "loan_skip_override_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "loan_skip_override_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -25016,6 +25828,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "loan_types_organization_id_fkey"
@@ -26025,6 +26844,13 @@ export type Database = {
             foreignKeyName: "localization_packs_publisher_org_id_fkey"
             columns: ["publisher_org_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "localization_packs_publisher_org_id_fkey"
+            columns: ["publisher_org_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -26256,6 +27082,13 @@ export type Database = {
             foreignKeyName: "loyalty_programs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "loyalty_programs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -26413,6 +27246,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "member_permission_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "member_permission_groups_organization_id_fkey"
@@ -26720,6 +27560,13 @@ export type Database = {
             foreignKeyName: "migration_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "migration_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -26917,6 +27764,13 @@ export type Database = {
             foreignKeyName: "mpesa_c2b_transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -27014,6 +27868,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "notification_alert_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "notification_alert_settings_organization_id_fkey"
@@ -27146,6 +28007,13 @@ export type Database = {
             foreignKeyName: "notification_digest_queue_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "notification_digest_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -27219,6 +28087,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "notification_preferences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "notification_preferences_organization_id_fkey"
@@ -27315,6 +28190,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "notifications_organization_id_fkey"
@@ -27475,6 +28357,13 @@ export type Database = {
             foreignKeyName: "onboarding_attempts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "onboarding_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -27562,6 +28451,13 @@ export type Database = {
             foreignKeyName: "onboarding_status_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "onboarding_status_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -27606,6 +28502,13 @@ export type Database = {
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "onboarding_suggestions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "onboarding_suggestions_organization_id_fkey"
             columns: ["organization_id"]
@@ -27724,6 +28627,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "onboarding_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "onboarding_templates_organization_id_fkey"
@@ -28095,6 +29005,13 @@ export type Database = {
             foreignKeyName: "org_entitlement_overrides_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "org_entitlement_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -28145,6 +29062,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "org_usage_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "org_usage_counters_organization_id_fkey"
             columns: ["organization_id"]
@@ -28225,6 +29149,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "organization_api_integrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "organization_api_integrations_organization_id_fkey"
@@ -28341,6 +29272,13 @@ export type Database = {
             foreignKeyName: "organization_installed_apps_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_installed_apps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -28450,6 +29388,13 @@ export type Database = {
             foreignKeyName: "organization_invitations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -28546,6 +29491,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "organization_payment_gateways_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "organization_payment_gateways_organization_id_fkey"
@@ -28662,6 +29614,13 @@ export type Database = {
             foreignKeyName: "organization_payment_methods_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_payment_methods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -28735,6 +29694,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "organization_statutory_identifiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "organization_statutory_identifiers_organization_id_fkey"
@@ -29003,6 +29969,13 @@ export type Database = {
             foreignKeyName: "overtime_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "overtime_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -29202,6 +30175,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pack_publisher_grants_publisher_org_id_fkey"
+            columns: ["publisher_org_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "pack_publisher_grants_publisher_org_id_fkey"
             columns: ["publisher_org_id"]
@@ -29821,6 +30801,13 @@ export type Database = {
             foreignKeyName: "payment_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payment_provider_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -29924,6 +30911,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payment_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payment_requests_organization_id_fkey"
@@ -30083,6 +31077,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payment_terms_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payment_terms_organization_id_fkey"
@@ -30327,6 +31328,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "migration_sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payments_organization_id_fkey"
@@ -31354,6 +32362,13 @@ export type Database = {
             foreignKeyName: "payroll_liabilities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -31576,6 +32591,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_loan_recovery_policy_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_loan_recovery_policy_organization_id_fkey"
@@ -32201,6 +33223,13 @@ export type Database = {
             foreignKeyName: "payroll_periods_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -32321,6 +33350,13 @@ export type Database = {
             foreignKeyName: "payroll_readiness_findings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_readiness_findings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -32369,6 +33405,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_readiness_rule_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_readiness_rule_overrides_organization_id_fkey"
             columns: ["organization_id"]
@@ -32450,6 +33493,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_readiness_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_readiness_rules_organization_id_fkey"
             columns: ["organization_id"]
@@ -32540,6 +33590,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_readiness_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_readiness_runs_organization_id_fkey"
@@ -32974,6 +34031,13 @@ export type Database = {
             foreignKeyName: "payroll_remittance_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_remittance_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -33074,6 +34138,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_remittances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_remittances_organization_id_fkey"
@@ -33747,6 +34818,13 @@ export type Database = {
             foreignKeyName: "payroll_rule_traces_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_traces_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -33866,6 +34944,13 @@ export type Database = {
             foreignKeyName: "payroll_rule_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_rule_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -33970,6 +35055,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_run_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_run_groups_organization_id_fkey"
             columns: ["organization_id"]
@@ -34425,6 +35517,13 @@ export type Database = {
             foreignKeyName: "payroll_run_loan_skip_overrides_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_run_loan_skip_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -34815,6 +35914,13 @@ export type Database = {
             foreignKeyName: "payroll_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -35072,6 +36178,13 @@ export type Database = {
             foreignKeyName: "payroll_salary_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_salary_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -35170,6 +36283,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_settings_organization_id_fkey"
             columns: ["organization_id"]
@@ -35293,6 +36413,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
@@ -35794,6 +36921,13 @@ export type Database = {
             foreignKeyName: "payroll_work_entry_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_work_entry_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -36284,6 +37418,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslips_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payslips_organization_id_fkey"
@@ -36955,6 +38096,13 @@ export type Database = {
             foreignKeyName: "permission_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "permission_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -37486,6 +38634,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "platform_admin_alerts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "platform_admin_alerts_organization_id_fkey"
             columns: ["organization_id"]
@@ -38198,6 +39353,13 @@ export type Database = {
             foreignKeyName: "platform_email_logs_recipient_org_id_fkey"
             columns: ["recipient_org_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "platform_email_logs_recipient_org_id_fkey"
+            columns: ["recipient_org_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -38876,6 +40038,13 @@ export type Database = {
             foreignKeyName: "pos_approval_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_approval_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -39251,6 +40420,13 @@ export type Database = {
             foreignKeyName: "pos_cash_movement_types_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_cash_movement_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -39402,6 +40578,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_manager_overrides"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_cash_movements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_cash_movements_organization_id_fkey"
@@ -39606,6 +40789,13 @@ export type Database = {
             foreignKeyName: "pos_cashiers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_cashiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -39679,6 +40869,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_courses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_courses_organization_id_fkey"
@@ -39873,6 +41070,13 @@ export type Database = {
             foreignKeyName: "pos_daily_sales_summary_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_daily_sales_summary_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -39990,6 +41194,13 @@ export type Database = {
             foreignKeyName: "pos_daily_summary_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_daily_summary_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -40089,6 +41300,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_discounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_discounts_organization_id_fkey"
@@ -40290,6 +41508,13 @@ export type Database = {
             foreignKeyName: "pos_floors_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_floors_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -40377,6 +41602,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_gift_cards"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_gift_card_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_gift_card_transactions_organization_id_fkey"
@@ -40498,6 +41730,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_gift_cards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_gift_cards_organization_id_fkey"
@@ -40710,6 +41949,13 @@ export type Database = {
             foreignKeyName: "pos_happy_hours_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_happy_hours_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -40825,6 +42071,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_held_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_held_transactions_organization_id_fkey"
@@ -40964,6 +42217,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_courses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_kitchen_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_kitchen_orders_organization_id_fkey"
@@ -41119,6 +42379,13 @@ export type Database = {
             foreignKeyName: "pos_manager_overrides_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_manager_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -41209,6 +42476,13 @@ export type Database = {
             foreignKeyName: "pos_manager_pins_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_manager_pins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -41288,6 +42562,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_modifier_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_modifier_groups_organization_id_fkey"
@@ -41375,6 +42656,13 @@ export type Database = {
             foreignKeyName: "pos_modifiers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_modifiers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -41451,6 +42739,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_override_matrix_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_override_matrix_organization_id_fkey"
@@ -41609,6 +42904,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payment_methods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_payment_methods_organization_id_fkey"
@@ -42062,6 +43364,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_registers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_registers_organization_id_fkey"
@@ -42582,6 +43891,13 @@ export type Database = {
             foreignKeyName: "pos_security_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_security_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -42694,6 +44010,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_cashiers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_sessions_organization_id_fkey"
@@ -42844,6 +44167,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_floors"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_settings_organization_id_fkey"
@@ -43129,6 +44459,13 @@ export type Database = {
             foreignKeyName: "pos_shifts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -43342,6 +44679,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_split_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_split_bills_organization_id_fkey"
@@ -43734,6 +45078,13 @@ export type Database = {
             foreignKeyName: "pos_table_bookings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_table_bookings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -43839,6 +45190,13 @@ export type Database = {
             foreignKeyName: "pos_table_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_table_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -43927,6 +45285,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_table_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_table_transfers_organization_id_fkey"
@@ -44055,6 +45420,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_floors"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_tables_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_tables_organization_id_fkey"
@@ -44282,6 +45654,13 @@ export type Database = {
             foreignKeyName: "pos_terminal_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_terminal_provider_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -44368,6 +45747,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "pos_terminal_provider_configs"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_terminal_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_terminal_sessions_organization_id_fkey"
@@ -45063,6 +46449,13 @@ export type Database = {
             foreignKeyName: "pos_transactions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -45411,6 +46804,13 @@ export type Database = {
             foreignKeyName: "pos_waitlist_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "pos_waitlist_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -45692,6 +47092,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "price_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "price_lists_organization_id_fkey"
@@ -46468,6 +47875,13 @@ export type Database = {
             foreignKeyName: "product_categories_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -46948,6 +48362,13 @@ export type Database = {
             foreignKeyName: "product_reorder_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "product_reorder_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -47291,6 +48712,13 @@ export type Database = {
             foreignKeyName: "products_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -47430,6 +48858,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_last_org_id_fkey"
+            columns: ["last_org_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "profiles_last_org_id_fkey"
             columns: ["last_org_id"]
@@ -47638,6 +49073,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proforma_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "proforma_invoices_organization_id_fkey"
@@ -47872,6 +49314,13 @@ export type Database = {
             foreignKeyName: "project_cost_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "project_cost_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -47986,6 +49435,13 @@ export type Database = {
           visibility?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "project_documents_organization_id_fkey"
             columns: ["organization_id"]
@@ -48172,6 +49628,13 @@ export type Database = {
             foreignKeyName: "project_recurring_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "project_recurring_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -48251,6 +49714,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "project_milestones"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_revenue_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "project_revenue_entries_organization_id_fkey"
@@ -48529,6 +49999,13 @@ export type Database = {
             foreignKeyName: "project_tasks_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "project_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -48647,6 +50124,13 @@ export type Database = {
             foreignKeyName: "project_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "project_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -48697,6 +50181,13 @@ export type Database = {
           summary?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_updates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "project_updates_organization_id_fkey"
             columns: ["organization_id"]
@@ -48897,6 +50388,13 @@ export type Database = {
             foreignKeyName: "projects_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -49041,6 +50539,13 @@ export type Database = {
             foreignKeyName: "promotions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "promotions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -49120,6 +50625,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "public_holidays_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "public_holidays_organization_id_fkey"
@@ -49475,6 +50987,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bills"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "purchase_orders_organization_id_fkey"
@@ -49958,6 +51477,13 @@ export type Database = {
             foreignKeyName: "purchase_returns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -50247,6 +51773,13 @@ export type Database = {
             foreignKeyName: "reconciliation_sessions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "reconciliation_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -50450,6 +51983,13 @@ export type Database = {
             foreignKeyName: "recurring_invoices_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "recurring_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -50543,6 +52083,13 @@ export type Database = {
             foreignKeyName: "recurring_journal_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "recurring_journal_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -50622,6 +52169,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "replenishment_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "replenishment_logs_organization_id_fkey"
@@ -50761,6 +52315,13 @@ export type Database = {
             foreignKeyName: "report_access_log_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "report_access_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -50846,6 +52407,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "report_field_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "report_field_configs_organization_id_fkey"
@@ -50944,6 +52512,13 @@ export type Database = {
             foreignKeyName: "report_generation_logs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "report_generation_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -51001,6 +52576,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "report_run_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "report_run_log_organization_id_fkey"
             columns: ["organization_id"]
@@ -51081,6 +52663,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "report_saved_views_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "report_saved_views_organization_id_fkey"
@@ -51991,6 +53580,13 @@ export type Database = {
             foreignKeyName: "rfqs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "rfqs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -52094,6 +53690,13 @@ export type Database = {
             foreignKeyName: "salary_components_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "salary_components_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -52182,6 +53785,13 @@ export type Database = {
             foreignKeyName: "salary_structure_lifecycle_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "salary_structure_lifecycle_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -52235,6 +53845,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "salary_structure_rule_sets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "salary_structure_rule_sets_organization_id_fkey"
             columns: ["organization_id"]
@@ -52325,6 +53942,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "salary_structures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "salary_structures_organization_id_fkey"
@@ -52616,6 +54240,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "sales_orders_organization_id_fkey"
@@ -52917,6 +54548,13 @@ export type Database = {
             foreignKeyName: "sales_returns_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -52996,6 +54634,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "saved_views_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "saved_views_organization_id_fkey"
@@ -53192,6 +54837,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "scanner_device_trust_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "scanner_device_trust_organization_id_fkey"
             columns: ["organization_id"]
@@ -53415,6 +55067,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "scheduled_reports_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "scheduled_reports_organization_id_fkey"
@@ -54265,6 +55924,13 @@ export type Database = {
             foreignKeyName: "sms_event_outbox_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sms_event_outbox_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -54380,6 +56046,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_event_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "sms_event_rules_organization_id_fkey"
@@ -54515,6 +56188,13 @@ export type Database = {
             foreignKeyName: "sms_log_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sms_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -54583,6 +56263,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_opt_outs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "sms_opt_outs_organization_id_fkey"
@@ -54705,6 +56392,13 @@ export type Database = {
             foreignKeyName: "sms_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sms_provider_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -54794,6 +56488,13 @@ export type Database = {
             foreignKeyName: "sms_recipient_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sms_recipient_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -54861,6 +56562,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "sms_templates_organization_id_fkey"
@@ -55695,6 +57403,13 @@ export type Database = {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -55931,6 +57646,13 @@ export type Database = {
             foreignKeyName: "stock_lots_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_lots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -56102,6 +57824,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "migration_sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "stock_movements_organization_id_fkey"
@@ -56483,6 +58212,13 @@ export type Database = {
             foreignKeyName: "stock_reservations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -56817,6 +58553,13 @@ export type Database = {
             foreignKeyName: "stock_transfers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -57044,6 +58787,13 @@ export type Database = {
             foreignKeyName: "subscription_payments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -57104,6 +58854,13 @@ export type Database = {
           users_count?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "subscription_usage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "subscription_usage_organization_id_fkey"
             columns: ["organization_id"]
@@ -58215,6 +59972,13 @@ export type Database = {
             foreignKeyName: "talent_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: true
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "talent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -58262,6 +60026,13 @@ export type Database = {
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "task_attachments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "task_attachments_organization_id_fkey"
             columns: ["organization_id"]
@@ -58314,6 +60085,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_comments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "task_comments_organization_id_fkey"
             columns: ["organization_id"]
@@ -58375,6 +60153,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "project_tasks"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "task_dependencies_organization_id_fkey"
@@ -58500,6 +60285,13 @@ export type Database = {
             foreignKeyName: "tax_compliance_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "tax_compliance_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -58602,6 +60394,13 @@ export type Database = {
             foreignKeyName: "tax_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "tax_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -58693,6 +60492,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "tax_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "tax_rates_organization_id_fkey"
@@ -58826,6 +60632,13 @@ export type Database = {
             foreignKeyName: "tax_report_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "tax_report_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -58888,6 +60701,13 @@ export type Database = {
           verified_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tenant_ownership_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "tenant_ownership_transfers_organization_id_fkey"
             columns: ["organization_id"]
@@ -59039,6 +60859,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "timesheet_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "timesheet_settings_organization_id_fkey"
@@ -59207,6 +61034,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheet_submissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "timesheet_submissions_organization_id_fkey"
@@ -59431,6 +61265,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "timesheets_organization_id_fkey"
@@ -59913,6 +61754,13 @@ export type Database = {
             foreignKeyName: "transaction_categorization_rules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "transaction_categorization_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -60086,6 +61934,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "transactions_organization_id_fkey"
@@ -60288,6 +62143,13 @@ export type Database = {
             foreignKeyName: "user_active_business_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "user_active_business_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -60332,6 +62194,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_activity_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "user_activity_logs_organization_id_fkey"
             columns: ["organization_id"]
@@ -60428,6 +62297,13 @@ export type Database = {
             foreignKeyName: "user_branch_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "user_branch_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -60498,6 +62374,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "user_business_access_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "user_business_access_organization_id_fkey"
@@ -60576,6 +62459,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "user_business_module_permissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "user_business_module_permissions_organization_id_fkey"
@@ -60776,6 +62666,13 @@ export type Database = {
             foreignKeyName: "user_roles_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "user_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -60900,6 +62797,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vendor_credit_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
@@ -61202,6 +63106,13 @@ export type Database = {
             foreignKeyName: "vendor_credit_notes_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "vendor_credit_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -61289,6 +63200,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_portal_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "vendor_portal_invitations_organization_id_fkey"
@@ -61399,6 +63317,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "vendor_pricelists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "vendor_pricelists_organization_id_fkey"
@@ -61520,6 +63445,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_statements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "vendor_statements_organization_id_fkey"
@@ -61677,6 +63609,13 @@ export type Database = {
             foreignKeyName: "warehouse_stock_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -61782,6 +63721,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_lots_expiring_soon"
             referencedColumns: ["lot_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_lots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "warehouse_stock_lots_organization_id_fkey"
@@ -61924,6 +63870,13 @@ export type Database = {
             foreignKeyName: "warehouses_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "warehouses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -61965,6 +63918,13 @@ export type Database = {
           provider?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "webhook_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "webhook_events_organization_id_fkey"
             columns: ["organization_id"]
@@ -63870,6 +65830,13 @@ export type Database = {
             foreignKeyName: "work_schedules_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "work_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -63988,6 +65955,13 @@ export type Database = {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -64059,6 +66033,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
@@ -64145,6 +66126,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
@@ -64343,6 +66331,13 @@ export type Database = {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -64418,6 +66413,13 @@ export type Database = {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -64479,6 +66481,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "products_organization_id_fkey"
@@ -64580,6 +66589,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_contracts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_contracts_organization_id_fkey"
@@ -64869,6 +66885,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -65002,6 +67025,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      legal_order_effective_kind_defaults: {
+        Row: {
+          aggregate_cap_membership:
+            | Database["public"]["Enums"]["legal_order_cap_membership"]
+            | null
+          always_first: boolean | null
+          calc_model:
+            | Database["public"]["Enums"]["legal_order_calc_model"]
+            | null
+          counts_toward_aggregate_cap: boolean | null
+          default_priority: number | null
+          employer_fee_amount: number | null
+          evidence_required: boolean | null
+          kind: string | null
+          label: string | null
+          max_concurrent: number | null
+          organization_id: string | null
+          priority_class: number | null
+          protected_earnings_rule: Json | null
+          required_identifiers: Json | null
+          source: string | null
+          source_pack_id: string | null
+        }
+        Relationships: []
       }
       legal_orders: {
         Row: {
@@ -65193,6 +67241,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "legal_recipients_organization_id_fkey"
@@ -65623,6 +67678,13 @@ export type Database = {
             foreignKeyName: "default_account_settings_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "default_account_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -65744,6 +67806,13 @@ export type Database = {
             foreignKeyName: "purchase_orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -65828,6 +67897,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "stock_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "stock_reservations_organization_id_fkey"
@@ -65923,6 +67999,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "projects_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "projects_organization_id_fkey"
@@ -66076,6 +68159,13 @@ export type Database = {
             foreignKeyName: "stock_adjustments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "stock_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -66167,6 +68257,13 @@ export type Database = {
             foreignKeyName: "sms_provider_configs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sms_provider_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -66209,6 +68306,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sms_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "sms_log_organization_id_fkey"
@@ -66406,6 +68510,13 @@ export type Database = {
             foreignKeyName: "attendance_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "attendance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -66538,6 +68649,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "departments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -66751,6 +68869,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -66809,6 +68934,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -67002,6 +69134,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -67204,6 +69343,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -67255,6 +69401,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "departments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -67371,6 +69524,13 @@ export type Database = {
             foreignKeyName: "employee_contracts_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_contracts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -67419,6 +69579,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "departments"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -67498,6 +69665,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -67566,6 +69740,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_runs_organization_id_fkey"
@@ -67653,6 +69834,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -67695,6 +69883,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -67760,6 +69955,13 @@ export type Database = {
           source_type?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"
             columns: ["organization_id"]
@@ -67881,6 +70083,13 @@ export type Database = {
             foreignKeyName: "leave_allocations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "leave_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -67934,6 +70143,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "loan_types"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_loans_organization_id_fkey"
@@ -68072,6 +70288,13 @@ export type Database = {
             foreignKeyName: "employee_loans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -68114,6 +70337,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_loans_organization_id_fkey"
@@ -68162,6 +70392,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employee_loans_organization_id_fkey"
@@ -68291,6 +70528,13 @@ export type Database = {
             foreignKeyName: "employee_loans_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employee_loans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -68394,6 +70638,13 @@ export type Database = {
             foreignKeyName: "warehouse_stock_lots_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_lots_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -68491,6 +70742,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "employees_organization_id_fkey"
@@ -68729,6 +70987,13 @@ export type Database = {
             foreignKeyName: "employees_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "employees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -68794,6 +71059,13 @@ export type Database = {
             foreignKeyName: "installed_localization_packs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "installed_localization_packs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -68842,6 +71114,13 @@ export type Database = {
           total_other_deductions: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_run_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_run_groups_organization_id_fkey"
             columns: ["organization_id"]
@@ -68938,6 +71217,13 @@ export type Database = {
           updated_at: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payroll_run_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "payroll_run_groups_organization_id_fkey"
             columns: ["organization_id"]
@@ -69069,6 +71355,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_runs_organization_id_fkey"
@@ -69240,6 +71533,13 @@ export type Database = {
             foreignKeyName: "payroll_run_groups_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_run_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -69339,6 +71639,13 @@ export type Database = {
             foreignKeyName: "payroll_liabilities_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "payroll_liabilities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -69396,6 +71703,13 @@ export type Database = {
           standard_working_days: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "businesses_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "businesses_organization_id_fkey"
             columns: ["organization_id"]
@@ -69470,6 +71784,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
@@ -69560,6 +71881,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
@@ -69682,6 +72010,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "payroll_statutory_rules_organization_id_fkey"
@@ -69815,6 +72150,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "pos_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "pos_shifts_organization_id_fkey"
@@ -70160,6 +72502,13 @@ export type Database = {
             foreignKeyName: "timesheets_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "timesheets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
             referencedRelation: "org_health"
             referencedColumns: ["org_id"]
           },
@@ -70224,6 +72573,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "accounts_organization_id_fkey"
@@ -70313,6 +72669,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
           },
           {
             foreignKeyName: "journal_entries_organization_id_fkey"

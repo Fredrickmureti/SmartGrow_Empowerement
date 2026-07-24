@@ -98,3 +98,18 @@ Rationale: parent prompt lists Reports and Audit as first-class stages; today th
 3. Phase 8 as above.
 
 Each numbered step lands as its own migration/PR-shaped change with tests before moving on.
+
+---
+
+## Phase 6 — STATUS: DELIVERED (2026-07-24)
+
+Migration applied and verified in DB. Follow-up:
+
+- `garnishment_kind_defaults` platform baseline: 7 → 12 kinds, every row now carries a non-null `priority_class` on the 10/20/30/40/50/60/99 ladder.
+- `localization_pack_garnishment_kinds` seeded for KE (9 kinds total), ZA (3), GH (7 total), DE (3) with statute-anchored `protected_earnings_rule` values.
+- View `public.legal_order_effective_kind_defaults` (security_invoker) publishes resolver output for the workspace.
+- UI: `LegalOrderPacks.tsx` mounted at `/hr/payroll/legal-orders/packs`, wired into workspace tabs.
+- Architecture test `legal-orders-phase6-packs.test.ts` (4 tests, all green).
+- ADR-0095 recorded.
+
+Next up: Phase 7 (remittance cycle closure) then Phase 8 (audit + historical balances). No Phase 6 work remaining.
