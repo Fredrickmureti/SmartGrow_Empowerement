@@ -396,7 +396,7 @@ export function LinkRecipientDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : resetAndClose())}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{heading}</DialogTitle>
           <DialogDescription>
@@ -407,62 +407,189 @@ export function LinkRecipientDialog({
         </DialogHeader>
 
         {showCreate ? (
-          <div className="space-y-3">
-            <div className="rounded border bg-muted/30 p-3 text-xs text-muted-foreground">
-              Creates a party-only Contact (not a customer, not a vendor). It
-              stays out of AR/AP lists and can be promoted to a vendor later
-              without a merge.
-            </div>
-            <div className="grid gap-3">
-              <div>
-                <Label htmlFor="new-recipient-name">Name *</Label>
-                <Input
-                  id="new-recipient-name"
-                  autoFocus
-                  value={newContact.name}
-                  onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="Nairobi Family Court, CSA, ABC SACCO…"
-                />
+          <ScrollArea className="max-h-[65vh] pr-3">
+            <div className="space-y-4">
+              <div className="rounded border bg-muted/30 p-3 text-xs text-muted-foreground">
+                Creates a party-only Contact (customer/vendor ranks stay at zero)
+                with a recipient profile capturing jurisdiction, statutory
+                identifiers and default remittance instructions. Promotable to
+                a vendor later without a merge.
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="new-recipient-email">Email</Label>
-                  <Input
-                    id="new-recipient-email"
-                    type="email"
-                    value={newContact.email}
-                    onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
-                  />
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Identity
+                </h4>
+                <div className="grid gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-name">Legal name *</Label>
+                    <Input
+                      id="new-recipient-name"
+                      autoFocus
+                      value={newContact.name}
+                      onChange={(e) => setNewContact((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Nairobi Family Court, CSA, ABC SACCO…"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={newContact.is_company}
+                      onCheckedChange={(v) =>
+                        setNewContact((p) => ({ ...p, is_company: v === true }))
+                      }
+                    />
+                    <span>Organization (court / agency / SACCO / creditor entity)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="new-recipient-email">Email</Label>
+                      <Input
+                        id="new-recipient-email"
+                        type="email"
+                        value={newContact.email}
+                        onChange={(e) => setNewContact((p) => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-phone">Phone</Label>
+                      <Input
+                        id="new-recipient-phone"
+                        value={newContact.phone}
+                        onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-tax">Statutory / Tax ID</Label>
+                    <Input
+                      id="new-recipient-tax"
+                      value={newContact.tax_id}
+                      onChange={(e) => setNewContact((p) => ({ ...p, tax_id: e.target.value }))}
+                      placeholder="PIN, TIN, registration no."
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="new-recipient-phone">Phone</Label>
-                  <Input
-                    id="new-recipient-phone"
-                    value={newContact.phone}
-                    onChange={(e) => setNewContact((p) => ({ ...p, phone: e.target.value }))}
-                  />
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Address
+                </h4>
+                <div className="grid gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-addr1">Street</Label>
+                    <Input
+                      id="new-recipient-addr1"
+                      value={newContact.address_line1}
+                      onChange={(e) => setNewContact((p) => ({ ...p, address_line1: e.target.value }))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="new-recipient-city">City</Label>
+                      <Input
+                        id="new-recipient-city"
+                        value={newContact.city}
+                        onChange={(e) => setNewContact((p) => ({ ...p, city: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-state">Region / State</Label>
+                      <Input
+                        id="new-recipient-state"
+                        value={newContact.state}
+                        onChange={(e) => setNewContact((p) => ({ ...p, state: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-recipient-postal">Postal</Label>
+                      <Input
+                        id="new-recipient-postal"
+                        value={newContact.postal_code}
+                        onChange={(e) => setNewContact((p) => ({ ...p, postal_code: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-country">Country (ISO)</Label>
+                    <Input
+                      id="new-recipient-country"
+                      value={newContact.country}
+                      onChange={(e) => setNewContact((p) => ({ ...p, country: e.target.value }))}
+                      placeholder="KE"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="new-recipient-country">Country</Label>
-                <Input
-                  id="new-recipient-country"
-                  value={newContact.country}
-                  onChange={(e) => setNewContact((p) => ({ ...p, country: e.target.value }))}
-                  placeholder="KE"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={newContact.is_company}
-                  onCheckedChange={(v) =>
-                    setNewContact((p) => ({ ...p, is_company: v === true }))
-                  }
-                />
-                <span>This is an organization (court / agency / SACCO)</span>
-              </label>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Recipient profile
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-type">Recipient type</Label>
+                    <Input
+                      id="new-recipient-type"
+                      value={newContact.recipient_type_code}
+                      onChange={(e) => setNewContact((p) => ({ ...p, recipient_type_code: e.target.value }))}
+                      placeholder="creditor / court / agency / sacco"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-jur-region">Jurisdiction region</Label>
+                    <Input
+                      id="new-recipient-jur-region"
+                      value={newContact.jurisdiction_region}
+                      onChange={(e) => setNewContact((p) => ({ ...p, jurisdiction_region: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Default remittance
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="new-recipient-bank">Bank</Label>
+                    <Input
+                      id="new-recipient-bank"
+                      value={newContact.default_payee_bank}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_payee_bank: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-account">Account no.</Label>
+                    <Input
+                      id="new-recipient-account"
+                      value={newContact.default_payee_account}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_payee_account: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-ref">Reference template</Label>
+                    <Input
+                      id="new-recipient-ref"
+                      value={newContact.default_reference_template}
+                      onChange={(e) => setNewContact((p) => ({ ...p, default_reference_template: e.target.value }))}
+                      placeholder="CASE-{case_no}"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-recipient-sched">Schedule</Label>
+                    <Input
+                      id="new-recipient-sched"
+                      value={newContact.remittance_schedule_ref}
+                      onChange={(e) => setNewContact((p) => ({ ...p, remittance_schedule_ref: e.target.value }))}
+                      placeholder="monthly / weekly / on-payroll"
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
-          </div>
+          </ScrollArea>
         ) : (
           <div className="space-y-3">
             <div className="flex items-end gap-2">
