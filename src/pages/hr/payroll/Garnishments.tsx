@@ -208,7 +208,7 @@ export default function GarnishmentsPage() {
       case_reference: g.case_reference ?? "",
       authority_text: "",
       authority_id: (g as any).authority_id ?? null,
-      cap_rule: g.cap_rule,
+      authority_contact_id: (g as any).authority_contact_id ?? null,
       fixed_amount: g.fixed_amount?.toString() ?? "",
       percent_of_disposable: g.percent_of_disposable?.toString() ?? "",
       total_owed: g.total_owed?.toString() ?? "",
