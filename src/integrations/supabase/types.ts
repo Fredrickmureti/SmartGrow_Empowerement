@@ -24182,6 +24182,13 @@ export type Database = {
             foreignKeyName: "legal_orders_records_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "legal_recipient_outstanding"
+            referencedColumns: ["recipient_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "legal_recipients"
             referencedColumns: ["id"]
           },
@@ -65117,7 +65124,58 @@ export type Database = {
             foreignKeyName: "legal_orders_records_recipient_id_fkey"
             columns: ["recipient_id"]
             isOneToOne: false
+            referencedRelation: "legal_recipient_outstanding"
+            referencedColumns: ["recipient_id"]
+          },
+          {
+            foreignKeyName: "legal_orders_records_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
             referencedRelation: "legal_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_recipient_outstanding: {
+        Row: {
+          accrued_total: number | null
+          contact_id: string | null
+          display_name: string | null
+          employee_count: number | null
+          is_active: boolean | null
+          is_linked_to_contact: boolean | null
+          jurisdiction_country: string | null
+          jurisdiction_region: string | null
+          last_remittance_date: string | null
+          latest_accrual_date: string | null
+          oldest_accrual_date: string | null
+          order_count: number | null
+          organization_id: string | null
+          outstanding_balance: number | null
+          paid_total: number | null
+          recipient_id: string | null
+          recipient_type_code: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "legal_recipients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -76525,6 +76583,19 @@ export type Database = {
       legal_recipient_merge: {
         Args: { p_source_id: string; p_target_id: string }
         Returns: Json
+      }
+      legal_recipient_statement: {
+        Args: { p_from: string; p_recipient_id: string; p_to: string }
+        Returns: {
+          amount: number
+          employee_id: string
+          entry_date: string
+          entry_kind: string
+          garnishment_id: string
+          payment_id: string
+          payroll_run_id: string
+          reference: string
+        }[]
       }
       link_employee_to_user: {
         Args: { p_employee_id: string; p_force?: boolean; p_user_id: string }
