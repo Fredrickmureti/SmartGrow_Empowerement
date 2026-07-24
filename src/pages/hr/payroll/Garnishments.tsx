@@ -371,7 +371,7 @@ export default function GarnishmentsPage() {
                               {evidenceMissing && (
                                 <Badge variant="destructive" className="text-[10px]" title="Required evidence not yet attached — see the Evidence section in the editor.">no evidence</Badge>
                               )}
-                              {lo.payee_unmapped && (
+                              {!lo.recipient_id && (
                                 <>
                                   <button
                                     type="button"
