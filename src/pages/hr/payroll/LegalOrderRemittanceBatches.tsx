@@ -292,6 +292,14 @@ export default function LegalOrderRemittanceBatches() {
                           <Landmark className="h-3.5 w-3.5 mr-1" /> Settle
                         </Button>
                       )}
+                      {b.status === "settled" && !b.settled_bank_transaction_id && (
+                        <Button size="sm" variant="outline" onClick={() => setMatchTarget(b)}>
+                          <Link2 className="h-3.5 w-3.5 mr-1" /> Match
+                        </Button>
+                      )}
+                      {b.status === "settled" && b.settled_bank_transaction_id && (
+                        <Badge variant="outline" className="text-[10px]">matched</Badge>
+                      )}
                       {(b.status === "draft" || b.status === "generated") && (
                         <Button size="sm" variant="ghost"
                           onClick={() => cancelMut.mutate({ batch_id: b.id, reason: "manual_cancel" })}
