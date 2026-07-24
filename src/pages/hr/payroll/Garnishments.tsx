@@ -635,6 +635,21 @@ export default function GarnishmentsPage() {
         onClose={() => setLifecycleFor(null)}
         onAction={(action) => lifecycleFor && runAction(lifecycleFor, action)}
       />
+      <LinkRecipientDialog
+        open={!!linkContactFor}
+        onOpenChange={(o) => !o && setLinkContactFor(null)}
+        mode={
+          linkContactFor
+            ? {
+                kind: "order",
+                orderId: linkContactFor.id,
+                orderLabel:
+                  (linkContactFor.payee_name || linkContactFor.kind.replace(/_/g, " ")) +
+                  ` (${employeeById.get(linkContactFor.employee_id) ?? "employee"})`,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
