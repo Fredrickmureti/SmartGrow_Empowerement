@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
         debit: entry.amount,
         credit: 0,
         description: entry.description,
-        contact_id: order.payee_contact_id || null,
+        contact_id: recipientContactId,
       });
     }
     lines.push({
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       debit: 0,
       credit: total,
       description: `Garnishment payment ${authority_name}${reference_number ? ` ref ${reference_number}` : ""}`,
-      contact_id: order.payee_contact_id || null,
+      contact_id: recipientContactId,
     });
 
     // 6) Post JE
