@@ -43,6 +43,7 @@ interface LegalOrderRow {
   total_accrued: number | null;
   evidence_requirements: Record<string, unknown> | null;
   notes: string | null;
+  recipient_name: string | null;
 }
 
 function statusTone(status: string): "success" | "warning" | "danger" | "info" | "neutral" {
@@ -75,7 +76,7 @@ export default function MyLegalOrders() {
       const { data, error } = await supabase
         .from("legal_orders" as any)
         .select(
-          "id, organization_id, employee_id, kind_code, case_reference, authority_name, status, priority_class, start_date, end_date, total_owed, total_paid, total_accrued, evidence_requirements, notes",
+          "id, organization_id, employee_id, kind_code, case_reference, authority_name, status, priority_class, start_date, end_date, total_owed, total_paid, total_accrued, evidence_requirements, notes, recipient_name",
         )
         .eq("employee_id", currentEmployee!.id)
         .order("priority_class", { ascending: true, nullsFirst: false })
@@ -165,12 +166,16 @@ export default function MyLegalOrders() {
                             <StatusBadge tone={statusTone(o.status)}>{o.status.replace(/_/g, " ")}</StatusBadge>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {o.authority_name ?? "Authority pending"}
+                            {o.recipient_name ?? o.authority_name ?? "Recipient pending"}
                             {o.start_date ? ` · from ${o.start_date}` : ""}
                             {o.end_date ? ` · to ${o.end_date}` : ""}
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            Owed {formatCurrency(Number(o.total_owed || 0))} · Paid {formatCurrency(Number(o.total_paid || 0))}
+                            Owed {formatCurrency(Number(o.total_owed || 0))}
+                            {" · "}Paid {formatCurrency(Number(o.total_paid || 0))}
+                            {" · "}Running balance {formatCurrency(
+                              Math.max(Number(o.total_accrued || 0) - Number(o.total_paid || 0), 0),
+                            )}
                           </div>
                         </div>
                       </button>

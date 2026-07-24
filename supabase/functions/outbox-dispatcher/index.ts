@@ -271,6 +271,28 @@ async function handlePosStatementPostingRequested(row: OutboxRow): Promise<void>
 // notifications for every lifecycle event. Both RPCs are idempotent via
 // `source_event_id`, so outbox retries never double-book.
 
+async function fanoutFinanceAndEss(row: OutboxRow): Promise<void> {
+  // ADR-0094 Phase 5 — per-recipient drift check + ESS employee ping.
+  // Both RPCs are idempotent via legal_order_subscriber_dispatch_log.
+  const { error: driftErr } = await admin.rpc("legal_order_check_finance_drift", {
+    p_event_id: row.id,
+    p_org_id:   row.org_id,
+    p_business: null,
+    p_topic:    row.event_type,
+    p_payload:  row.payload ?? {},
+  });
+  if (driftErr) throw new Error(`finance drift: ${driftErr.message}`);
+
+  const { error: essErr } = await admin.rpc("legal_order_notify_employee", {
+    p_event_id: row.id,
+    p_org_id:   row.org_id,
+    p_business: null,
+    p_topic:    row.event_type,
+    p_payload:  row.payload ?? {},
+  });
+  if (essErr) throw new Error(`ess notify: ${essErr.message}`);
+}
+
 async function handleLegalOrderPaymentPosted(row: OutboxRow): Promise<void> {
   const { error: remitErr } = await admin.rpc(
     "legal_order_apply_payment_remittance",
@@ -292,6 +314,8 @@ async function handleLegalOrderPaymentPosted(row: OutboxRow): Promise<void> {
     p_payload:  row.payload ?? {},
   });
   if (notifErr) throw new Error(`notify: ${notifErr.message}`);
+
+  await fanoutFinanceAndEss(row);
 }
 
 async function handleLegalOrderLifecycle(row: OutboxRow): Promise<void> {
@@ -305,6 +329,13 @@ async function handleLegalOrderLifecycle(row: OutboxRow): Promise<void> {
   if (error) throw new Error(`notify: ${error.message}`);
 }
 
+async function handleLegalOrderStatusChanged(row: OutboxRow): Promise<void> {
+  // Canonical status_changed event (ADR-0094 Phase 5). Admin notify is
+  // already handled by the specific lifecycle topics above; this handler
+  // exists to drive finance + ESS via the shared fanout.
+  await fanoutFinanceAndEss(row);
+}
+
 const HANDLERS: Record<string, HandlerFn> = {
   "pos.sale.committed":              handlePosSaleCommitted,
   "inventory.movement.recorded":     handleInventoryMovementRecorded,
@@ -313,7 +344,7 @@ const HANDLERS: Record<string, HandlerFn> = {
   "settlement.card.closed":          handleSettlementCardClosed,
   "pos.statement.posting.requested": handlePosStatementPostingRequested,
 
-  // Legal Order fabric — Phase 6b
+  // Legal Order fabric — Phase 6b lifecycle topics
   "legal_order.payment_posted":        handleLegalOrderPaymentPosted,
   "legal_order.submit":                handleLegalOrderLifecycle,
   "legal_order.approve":               handleLegalOrderLifecycle,
@@ -325,6 +356,9 @@ const HANDLERS: Record<string, HandlerFn> = {
   "legal_order.release":               handleLegalOrderLifecycle,
   "legal_order.expire":                handleLegalOrderLifecycle,
   "legal_order.terminate_unsatisfied": handleLegalOrderLifecycle,
+
+  // ADR-0094 Phase 5 — canonical status_changed emitted by the DB trigger
+  "legal_order.status_changed":        handleLegalOrderStatusChanged,
 };
 
 async function dispatch(row: OutboxRow): Promise<void> {
