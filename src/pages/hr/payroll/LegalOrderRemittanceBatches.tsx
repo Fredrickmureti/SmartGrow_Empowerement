@@ -31,7 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Ban, FileDown, PlayCircle, Landmark } from "lucide-react";
+import { Ban, FileDown, PlayCircle, Landmark, Link2 } from "lucide-react";
 
 type BatchStatus = "draft" | "generated" | "settled" | "cancelled";
 
@@ -52,6 +52,7 @@ interface RemittanceBatch {
   settled_at: string | null;
   settled_payment_date: string | null;
   settled_reference: string | null;
+  settled_bank_transaction_id: string | null;
   cancelled_at: string | null;
   cancelled_reason: string | null;
   notes: string | null;
@@ -81,6 +82,7 @@ export default function LegalOrderRemittanceBatches() {
 
   const [buildOpen, setBuildOpen] = useState(false);
   const [settleTarget, setSettleTarget] = useState<RemittanceBatch | null>(null);
+  const [matchTarget, setMatchTarget] = useState<RemittanceBatch | null>(null);
   const [previewBody, setPreviewBody] = useState<{ batch: RemittanceBatch; body: string; checksum: string; format: string } | null>(null);
 
   const { data: recipients = [] } = useLegalRecipientOutstanding();
@@ -95,7 +97,7 @@ export default function LegalOrderRemittanceBatches() {
           id, organization_id, business_id, recipient_id, batch_number, status,
           period_from, period_to, planned_total, planned_line_count,
           bank_file_format, bank_file_checksum, bank_file_generated_at,
-          settled_at, settled_payment_date, settled_reference,
+          settled_at, settled_payment_date, settled_reference, settled_bank_transaction_id,
           cancelled_at, cancelled_reason, notes, created_at,
           legal_recipients:recipient_id ( display_name, recipient_type_code )
         `)
@@ -182,6 +184,24 @@ export default function LegalOrderRemittanceBatches() {
       await qc.invalidateQueries({ queryKey: ["legal-order-remittance-batches"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Cancel failed"),
+  });
+
+  const matchMut = useMutation({
+    mutationFn: async (v: { batch_id: string; bank_transaction_id: string }) => {
+      const { data, error } = await (supabase as any).rpc("legal_order_match_batch_to_bank_txn", {
+        _batch_id: v.batch_id,
+        _bank_transaction_id: v.bank_transaction_id,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: async () => {
+      toast.success("Matched to bank transaction");
+      setMatchTarget(null);
+      await qc.invalidateQueries({ queryKey: ["legal-order-remittance-batches"] });
+      await qc.invalidateQueries({ queryKey: ["bank-reconciliation-matches"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Match failed"),
   });
 
   const rows = batchesQ.data ?? [];
@@ -271,6 +291,14 @@ export default function LegalOrderRemittanceBatches() {
                         <Button size="sm" onClick={() => setSettleTarget(b)}>
                           <Landmark className="h-3.5 w-3.5 mr-1" /> Settle
                         </Button>
+                      )}
+                      {b.status === "settled" && !b.settled_bank_transaction_id && (
+                        <Button size="sm" variant="outline" onClick={() => setMatchTarget(b)}>
+                          <Link2 className="h-3.5 w-3.5 mr-1" /> Match
+                        </Button>
+                      )}
+                      {b.status === "settled" && b.settled_bank_transaction_id && (
+                        <Badge variant="outline" className="text-[10px]">matched</Badge>
                       )}
                       {(b.status === "draft" || b.status === "generated") && (
                         <Button size="sm" variant="ghost"
