@@ -4286,6 +4286,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          legal_order_remittance_batch_id: string | null
           match_type: string
           matched_amount: number
           matched_bill_payment_id: string | null
@@ -4312,6 +4313,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          legal_order_remittance_batch_id?: string | null
           match_type?: string
           matched_amount?: number
           matched_bill_payment_id?: string | null
@@ -4338,6 +4340,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          legal_order_remittance_batch_id?: string | null
           match_type?: string
           matched_amount?: number
           matched_bill_payment_id?: string | null
@@ -4396,6 +4399,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliation_matches_legal_order_remittance_batch_i_fkey"
+            columns: ["legal_order_remittance_batch_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_remittance_batches"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "bank_reconciliation_matches_matched_bill_payment_id_fkey"
@@ -79147,6 +79157,10 @@ export type Database = {
       legal_order_generate_remittance_bank_file: {
         Args: { p_batch_id: string; p_format?: string }
         Returns: Json
+      }
+      legal_order_match_batch_to_bank_txn: {
+        Args: { _bank_transaction_id: string; _batch_id: string }
+        Returns: string
       }
       legal_order_notify_employee: {
         Args: {
