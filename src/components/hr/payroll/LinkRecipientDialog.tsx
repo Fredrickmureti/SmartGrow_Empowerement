@@ -173,6 +173,32 @@ export function LinkRecipientDialog({
     staleTime: 30_000,
   });
 
+  // Curated issuing authorities (courts/agencies) — shown as first-class candidates.
+  const { data: authorities = [] } = useQuery<AuthorityRow[]>({
+    enabled: open && !!orgId,
+    queryKey: ["link-recipient-authorities", orgId, search],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("legal_order_authorities")
+        .select("id,name,code,authority_type,jurisdiction_country,jurisdiction_region,contact_email,contact_phone,contact_id,is_active")
+        .eq("organization_id", orgId!)
+        .eq("is_active", true)
+        .order("name", { ascending: true })
+        .limit(50);
+      const s = search.trim();
+      if (s) q = q.or(`name.ilike.%${s}%,code.ilike.%${s}%,authority_type.ilike.%${s}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as AuthorityRow[];
+    },
+    staleTime: 30_000,
+  });
+
+  const authorityContactIds = useMemo(
+    () => new Set(authorities.map((a) => a.contact_id).filter((v): v is string => !!v)),
+    [authorities],
+  );
+
   const { data: contacts = [], isLoading } = useQuery<ContactRow[]>({
     enabled: open && !!orgId,
     queryKey: ["link-recipient-contacts", orgId, search],
@@ -193,7 +219,10 @@ export function LinkRecipientDialog({
 
   const rIds = recipientIds ?? new Set<string>();
   const scored = useMemo(() => {
-    const rows = contacts.map((c) => ({ c, role: roleOf(c, rIds) }));
+    // Drop contacts that are already surfaced via an authority row (avoid duplication).
+    const rows = contacts
+      .filter((c) => !authorityContactIds.has(c.id))
+      .map((c) => ({ c, role: roleOf(c, rIds, authorityContactIds) }));
     const visible = includeCustomers ? rows : rows.filter((r) => r.role !== "customer");
     visible.sort((a, b) => {
       const d = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
@@ -201,15 +230,16 @@ export function LinkRecipientDialog({
       return a.c.name.localeCompare(b.c.name);
     });
     return visible;
-  }, [contacts, rIds, includeCustomers]);
+  }, [contacts, rIds, authorityContactIds, includeCustomers]);
 
   const hiddenCustomerCount = useMemo(
     () =>
       includeCustomers
         ? 0
-        : contacts.filter((c) => roleOf(c, rIds) === "customer").length,
-    [contacts, rIds, includeCustomers],
+        : contacts.filter((c) => roleOf(c, rIds, authorityContactIds) === "customer").length,
+    [contacts, rIds, authorityContactIds, includeCustomers],
   );
+
 
   const linkExistingContact = async (contactId: string) => {
     if (!mode) throw new Error("no mode");
