@@ -89,3 +89,24 @@ client token.
 ### Next
 Phase 4.2 — retire `approval_rule_logs` + delete `useApprovalGate`, then
 Expenses/Bills/POs onto `routeApproval`.
+
+### Phase 4.2 — client-side approval gate retired — DONE
+- Deleted `useApprovalGate`, `ApprovalGateDialog`, `ApprovalStatusBanner`
+  (browser-side threshold evaluation was bypassable; they had no other
+  consumers).
+- `procurement_recommendation.approve` registered; `useProcurementRecommendations`
+  now calls `routeApproval` only — `routeApproval` returns `null` when policy
+  does not gate the action, and triggers
+  `trg_exec_procurement_rec_approval_{ins,upd}` mirror routed/decided requests
+  onto the recommendation (`in_review` → `approved` / back to `open`).
+- `approval_rule_logs` INSERT/UPDATE/DELETE revoked from `authenticated`/`anon`;
+  it is now legacy-read-only. Remaining writer: the stock-adjustment
+  SECURITY DEFINER RPCs (Phase 4.3, Inventory).
+- Verified: typecheck clean; `src/test/architecture` has no approval/
+  governance/procurement failures (the 106 failing tests there are
+  pre-existing and unrelated).
+
+### Next
+Phase 4.3 — Inventory: move `apply_or_request_stock_adjustment` +
+`physical_count` gating off `approval_rule_logs` onto `approval_route`, then
+delete the table.

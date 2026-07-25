@@ -42,7 +42,16 @@ export interface ApprovalRequestRow {
   current_step: number | null;
 }
 
-export async function routeApproval(args: RouteApprovalArgs): Promise<ApprovalRequestRow> {
+/**
+ * Route an event through the engine.
+ *
+ * Returns `null` when policy does not gate this action (no matching rule
+ * and the registry does not mark it `requires_approval_always`) — callers
+ * treat `null` as "proceed immediately".
+ */
+export async function routeApproval(
+  args: RouteApprovalArgs,
+): Promise<ApprovalRequestRow | null> {
   const { data, error } = await (supabase as any).rpc("approval_route", {
     _action_key: args.actionKey,
     _entity_type: args.entityType,
