@@ -44,7 +44,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat(undefined, {
