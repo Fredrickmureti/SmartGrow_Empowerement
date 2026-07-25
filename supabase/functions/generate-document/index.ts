@@ -2202,7 +2202,7 @@ serve(async (req) => {
     // Milestone C.1 — tabular exports are gated to statement document types.
     // `format=csv` for anything else 400s here so it never reaches the
     // sales/receipt/label renderer path by accident.
-    const CSV_EXPORT_ALLOWED = new Set<string>(["customer_statement", "vendor_statement"]);
+    const CSV_EXPORT_ALLOWED = new Set<string>(["customer_statement", "vendor_statement", "legal_recipient_statement"]);
     if (format === "csv" && !CSV_EXPORT_ALLOWED.has(String(documentType))) {
       return new Response(
         JSON.stringify({ error: `format="csv" is only supported for: ${[...CSV_EXPORT_ALLOWED].join(", ")}.` }),
