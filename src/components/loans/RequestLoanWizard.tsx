@@ -21,6 +21,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import {
   Select,
   SelectContent,
@@ -87,6 +89,8 @@ export function RequestLoanWizard({ open, onClose }: Props) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
   const [repaymentMethod, setRepaymentMethod] = useState<RepaymentMethod>("fixed_installment");
+  const [consent, setConsent] = useState(false);
+  const [collateral, setCollateral] = useState("");
 
   // Stable per-wizard-session idempotency key — protects against
   // double-tap/offline-retry duplicates.
@@ -97,9 +101,15 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     [activeLoanTypes, loanTypeId],
   );
 
+  const needsConsent = !!loanType?.requires_consent;
+  const needsCollateral = !!loanType?.requires_collateral;
+
   useEffect(() => {
     if (!loanType) return;
     setRepaymentMethod(loanType.default_repayment_method);
+    // Consent is per-request authorisation — never carry it across types.
+    setConsent(false);
+    setCollateral("");
     if (loanType.default_installments && !installments) {
       setInstallments(String(loanType.default_installments));
     }
@@ -111,9 +121,12 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     setAmount("");
     setInstallments("");
     setReason("");
+    setConsent(false);
+    setCollateral("");
     setStartDate(new Date().toISOString().slice(0, 10));
     idempotencyKeyRef.current = crypto.randomUUID();
   };
+
 
   const handleClose = () => {
     if (requestLoan.isPending) return;
@@ -150,7 +163,10 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     principalNum > 0 &&
     !!startDate &&
     (isOneOff || installmentsNum > 0) &&
+    (!needsConsent || consent) &&
+    (!needsCollateral || collateral.trim().length > 0) &&
     errors.length === 0;
+
 
   // Live estimated monthly deduction — same formula the hook will persist.
   const estimatedMonthly =
@@ -175,7 +191,10 @@ export function RequestLoanWizard({ open, onClose }: Props) {
           start_date: startDate,
           repayment_method: repaymentMethod,
           reason: reason || null,
+          consent_acknowledged: needsConsent ? consent : undefined,
+          collateral_description: needsCollateral ? collateral.trim() : undefined,
         },
+
         options: { idempotencyKey: idempotencyKeyRef.current },
       });
       handleClose();
@@ -325,7 +344,60 @@ export function RequestLoanWizard({ open, onClose }: Props) {
               rows={4}
             />
           </WorkflowField>
+
+          {needsCollateral && (
+            <WorkflowField
+              label="Collateral offered"
+              required
+              hint="Describe the security you are offering against this loan."
+            >
+              <Textarea
+                value={collateral}
+                onChange={(e) => setCollateral(e.target.value)}
+                placeholder="e.g. Motor vehicle, logbook no. …"
+                rows={3}
+                maxLength={500}
+              />
+            </WorkflowField>
+          )}
+
+          {needsCollateral && collateral.trim().length === 0 && (
+            <p className="text-xs text-destructive">
+              A collateral description is required for {loanType?.name}.
+            </p>
+          )}
+
+          {needsConsent && (
+            <Card className="border-primary/30">
+              <CardContent className="py-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={consent}
+                    onCheckedChange={(v) => setConsent(v === true)}
+                    className="mt-0.5"
+                    aria-label="Payroll deduction authorisation"
+                  />
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    I authorise my employer to recover this {loanType?.name}
+                    {estimatedMonthly !== null && errors.length === 0 ? (
+                      <>
+                        {" "}
+                        at approximately{" "}
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatCurrency(estimatedMonthly)}
+                        </span>{" "}
+                        {isOneOff ? "from my next payroll" : "per payroll period"}
+                      </>
+                    ) : null}{" "}
+                    by deduction from my salary until it is fully repaid, in line with
+                    the loan policy shown above.
+                  </span>
+                </label>
+              </CardContent>
+            </Card>
+          )}
         </WorkflowSheetSection>
+
       </WorkflowSheetGrid>
     </WorkflowSheet>
   );
