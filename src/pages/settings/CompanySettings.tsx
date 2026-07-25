@@ -47,9 +47,8 @@ import {
   ArrowLeft,
   Mail as MailIcon,
   Package,
-  History,
 } from "lucide-react";
-import { SettingsAuditLogPanel } from "@/components/settings/SettingsAuditLogPanel";
+
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
 import { TaxSettings } from "@/components/settings/TaxSettings";
 import { PaymentGatewaySettings } from "@/components/settings/PaymentGatewaySettings";
@@ -203,12 +202,8 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Inventory</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageBusiness && (
-                <TabsTrigger value="audit-log" className="gap-1.5 text-xs sm:text-sm">
-                  <History className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Audit Log</span>
-                </TabsTrigger>
-              )}
+              {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
+
             </TabsList>
           </div>
 
@@ -278,9 +273,8 @@ function CompanySettingsInner() {
             <InventorySettings />
           </TabsContent>
 
-          <TabsContent value="audit-log">
-            <SettingsAuditLogPanel />
-          </TabsContent>
+
+
         </Tabs>
       </div>
     </PlatformAppLayout>

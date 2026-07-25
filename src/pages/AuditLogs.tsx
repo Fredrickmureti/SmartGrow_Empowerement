@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { downloadCsv } from "@/lib/exports/csv";
 import { PlatformAppLayout } from "@/apps/platform";
 import { useAuditLogsPaginated, AuditLogFilters } from "@/hooks/useAuditLogsPaginated";
@@ -6,8 +7,12 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { supabase } from "@/integrations/supabase/client";
+import { SettingsAuditLogPanel } from "@/components/settings/SettingsAuditLogPanel";
+import LegalOrdersAudit from "@/pages/hr/payroll/LegalOrdersAudit";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -53,7 +58,11 @@ import {
   Filter,
   Trash2,
   Copy,
+  Settings as SettingsIcon,
+  Scale,
+  Activity,
 } from "lucide-react";
+
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
@@ -188,6 +197,17 @@ export default function AuditLogs() {
       })
     : [];
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: "activity" | "settings" | "legal-orders" =
+    tabParam === "settings" || tabParam === "legal-orders" ? tabParam : "activity";
+  const setActiveTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (v === "activity") next.delete("tab");
+    else next.set("tab", v);
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <PlatformAppLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -195,52 +215,81 @@ export default function AuditLogs() {
           <div>
             <h1 className="page-title">Audit Logs</h1>
             <p className="text-sm sm:text-base text-muted-foreground">
-              Track all changes made in your organization
+              A single audit surface for every governance-relevant change in your organization.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-              <Filter className="mr-2 h-4 w-4" />
-              Filters
-            </Button>
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-            {isAdmin && auditLogs.length > 0 && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={isClearing}>
-                    {isClearing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Clear All
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Clear All Audit Logs</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete all audit logs for this organization.
-                      This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleClearAllLogs}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Clear All Logs
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
+          {activeTab === "activity" && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+                <Filter className="mr-2 h-4 w-4" />
+                Filters
+              </Button>
+              <Button variant="outline" onClick={handleExportCSV}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+              {isAdmin && auditLogs.length > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isClearing}>
+                      {isClearing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Clear All
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Clear All Audit Logs</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all audit logs for this organization.
+                        This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearAllLogs}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Clear All Logs
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          )}
         </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+          <TabsList>
+            <TabsTrigger value="activity" className="gap-1.5">
+              <Activity className="h-3.5 w-3.5" />
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-1.5">
+              <SettingsIcon className="h-3.5 w-3.5" />
+              Settings changes
+            </TabsTrigger>
+            <TabsTrigger value="legal-orders" className="gap-1.5">
+              <Scale className="h-3.5 w-3.5" />
+              Legal orders
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="settings" className="space-y-4">
+            <SettingsAuditLogPanel />
+          </TabsContent>
+
+          <TabsContent value="legal-orders" className="space-y-4">
+            <LegalOrdersAudit />
+          </TabsContent>
+
+          <TabsContent value="activity" className="space-y-4 sm:space-y-6">
+
 
         {/* Filters Panel */}
         {showFilters && (
@@ -609,10 +658,13 @@ export default function AuditLogs() {
             </div>
           )}
         </DetailSheet>
+          </TabsContent>
+        </Tabs>
       </div>
     </PlatformAppLayout>
   );
 }
+
 
 function SummaryItem({ label, children }: { label: string; children: React.ReactNode }) {
   return (
