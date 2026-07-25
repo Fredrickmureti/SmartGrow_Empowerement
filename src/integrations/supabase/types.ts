@@ -20499,6 +20499,45 @@ export type Database = {
           },
         ]
       }
+      governance_action_registry: {
+        Row: {
+          action_key: string
+          created_at: string
+          description: string
+          is_active: boolean
+          label: string
+          module: string
+          severity_default: string
+          subject_mode: string
+          subject_table: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_key: string
+          created_at?: string
+          description: string
+          is_active?: boolean
+          label: string
+          module: string
+          severity_default?: string
+          subject_mode: string
+          subject_table?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_key?: string
+          created_at?: string
+          description?: string
+          is_active?: boolean
+          label?: string
+          module?: string
+          severity_default?: string
+          subject_mode?: string
+          subject_table?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       governance_duties: {
         Row: {
           created_at: string
