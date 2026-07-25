@@ -2566,6 +2566,12 @@ serve(async (req) => {
     // force_refresh_settings flag.
     const documentData = documentType === "pos_receipt"
       ? await fetchPOSReceipt(supabase, documentId, { forceRefreshSettings })
+      : documentType === "legal_recipient_statement"
+      ? await fetchLegalRecipientStatement(supabase, documentId, {
+          periodStart: typeof body.periodStart === "string" ? body.periodStart : undefined,
+          periodEnd: typeof body.periodEnd === "string" ? body.periodEnd : undefined,
+          businessId: typeof body.businessId === "string" ? body.businessId : null,
+        })
       : await fetcher(supabase, documentId);
 
     // Fetch template
