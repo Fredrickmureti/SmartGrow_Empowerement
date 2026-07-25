@@ -13,6 +13,7 @@ import { CheckCircle, PauseCircle, PlayCircle, XCircle, Banknote, ScrollText, Wa
 import { format } from "date-fns";
 import { useEmployeeLoans, type EmployeeLoan, type LoanScheduleRow, type LoanRepayment } from "@/hooks/useEmployeeLoans";
 import { useAccounts } from "@/hooks/useAccounts";
+import { getAvailableActions, type LoanStatus } from "@/lib/hr/loanStateMachine";
 
 const STATUS_BADGE: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
