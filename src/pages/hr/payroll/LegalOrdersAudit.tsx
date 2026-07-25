@@ -101,12 +101,13 @@ function humanizeAction(a: string | null) {
 
 const MONEY_KEYS = /(amount|owed|accrued|remitted|outstanding|balance|principal|interest|fee|total)/i;
 const DATE_KEYS = /(_at|_on|date|period)/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isPlainObj(v: any): v is Record<string, any> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-function formatValue(key: string, v: any): string {
+function formatValue(key: string, v: any, labels: Map<string, string>): string {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (typeof v === "number") {
@@ -114,6 +115,10 @@ function formatValue(key: string, v: any): string {
     return String(v);
   }
   if (typeof v === "string") {
+    if (UUID_RE.test(v)) {
+      const label = labels.get(v);
+      return label ?? `#${v.slice(0, 8)}`;
+    }
     if (DATE_KEYS.test(key) && /^\d{4}-\d{2}-\d{2}/.test(v)) {
       const d = new Date(v);
       if (!isNaN(d.getTime())) {
@@ -126,7 +131,7 @@ function formatValue(key: string, v: any): string {
   return JSON.stringify(v);
 }
 
-function DetailsGrid({ details }: { details: Record<string, any> }) {
+function DetailsGrid({ details, labels }: { details: Record<string, any>; labels: Map<string, string> }) {
   const entries = Object.entries(details).filter(
     ([k]) => !/^(organization_id|legal_order_id|tenant_id)$/i.test(k),
   );
@@ -143,7 +148,7 @@ function DetailsGrid({ details }: { details: Record<string, any> }) {
                 {humanizeKey(k)}
               </dt>
               <dd className={"tabular-nums " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
-                {formatValue(k, v)}
+                {formatValue(k, v, labels)}
               </dd>
             </div>
           ))}
@@ -161,7 +166,7 @@ function DetailsGrid({ details }: { details: Record<string, any> }) {
               ))}
             </ul>
           ) : (
-            <DetailsGrid details={v as Record<string, any>} />
+            <DetailsGrid details={v as Record<string, any>} labels={labels} />
           )}
         </div>
       ))}
