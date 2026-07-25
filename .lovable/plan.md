@@ -45,7 +45,53 @@ Finance (post-payroll-gl)  ──► journal entry, principal vs interest split
 
 Single owner per responsibility: **Loans** own state, status transitions, balance and schedule progression; **Payroll** owns the deduction amount only; **Finance** owns posting and numbering (already true, per ADR 0091).
 
-## Plan
+## Status — 2026-07-25 (all five phases COMPLETE and verified)
+
+Active phase: **none open — roadmap milestone "Payroll loan repayment lifecycle" is closed.**
+Next milestone: see "Instructions for the next agent" at the bottom.
+
+**Phase 1 — One terminal status (`completed`) — DONE, verified**
+- Migration applied: `employee_loan_state_transitions` `settle` rows now yield `completed`; transitions added from `paused` and `restructured`; `employee_loan_settle()` writes `completed`.
+- Verified by query: `select count(*) from employee_loan_state_transitions where to_status='settled'` → **0**.
+- Client mirror aligned: `src/lib/hr/loanStateMachine.ts` (`LoanStatus`, `LOAN_TRANSITIONS`, `TERMINAL_STATUSES`), its unit test, and the `useEmployeeLoans` status union no longer contain `settled`.
+
+**Phase 2 — Canonical repayment-apply RPC — DONE, verified**
+- `employee_loan_apply_repayment(_loan_id, _amount, _payroll_run_id, _payslip_id, _kind, _notes)` is live (SECURITY DEFINER, `search_path=public`, EXECUTE to `authenticated`/`service_role`).
+- Behaviour confirmed against the deployed function body: row lock, repayable-status assertion (`active|in_arrears|paused|restructured`), `loan_repayments` insert, FIFO allocation over `loan_repayment_schedule`, balance/instalment recompute, arrears cleared via `employee_loan_clear_arrears`, completion via `employee_loan_settle` (state machine), never a status literal.
+- Idempotency: an existing `(loan_id, payslip_id)` repayment returns `already_applied: true` instead of raising.
+
+**Phase 3 — Payroll is a caller, not an owner — DONE, verified**
+- `process_payroll_loan_deductions` delegates every deduction to `employee_loan_apply_repayment`; verified by query that its body contains no `UPDATE employee_loans` and no `'settled'` literal.
+- `compute-payroll` keeps all-or-nothing rollback, but a replayed instalment is now a no-op rather than a run-aborting 23505/check violation.
+
+**Phase 4 — Events and audit parity — DONE, verified**
+- Every repayment emits `loan_lifecycle_events` + `business_event_outbox` (`loan.repayment_recorded`, and `loan.settle` on the final instalment) through `loan_log_event`, with the outbox idempotency key `loan:<loan_id>:<event_id>`.
+- Follow-up migration applied so the event carries full detail: `amount`, plus payload `repayment_id`, `kind`, `payroll_run_id`, `payslip_id`, `amount_repaid`, `outstanding_balance`, `unallocated` — payroll-sourced and manual repayments are now indistinguishable to downstream subscribers.
+
+**Phase 5 — Regression protection — DONE, verified**
+- `supabase/tests/loan_payroll_repayment_test.sql`: state machine ⊆ check-constraint vocabulary, payroll owns no loan state, two-instalment loan reaches `completed` with zero balance, lifecycle events present, repayment against a completed loan is refused.
+- `src/test/architecture/payroll-loan-repayment-lifecycle.test.ts` (4 tests, passing): client mirror has retired `settled`; payroll delegates and never writes `employee_loans`; no edge function or client module writes `employee_loans.status`; the RPC keeps the state-machine completion, `loan_log_event` amount and `already_applied` contract.
+- Guard caught one real offender outside the plan's original scope: `src/hooks/useMyLoans.ts` cancelled an ESS loan request with a direct `status: "cancelled"` write. It now calls `employee_loan_cancel`, so the transition is validated and audited like every other one.
+- ADR 0091 extended with the addendum "payroll-sourced repayments" (rules 9-11: one terminal status, one repayment write path, payroll records events and does not own loan state).
+- Full typecheck clean (`tsgo -p tsconfig.app.json`); loan + payroll-GL guard suites green (17 tests).
+
+**Known, pre-existing and out of scope:** the Supabase linter reports ~2.3k `Security Definer View` (0010) findings project-wide. Untouched by this work; not introduced by it.
+
+## Instructions for the next agent
+
+1. **Verify before you build.** Re-confirm, do not assume:
+   - `select count(*) from employee_loan_state_transitions where to_status='settled'` → 0.
+   - `process_payroll_loan_deductions` body contains `employee_loan_apply_repayment` and no `UPDATE public.employee_loans`.
+   - `bunx vitest run src/test/architecture/payroll-loan-repayment-lifecycle.test.ts src/test/architecture/payroll-loan-repayment-gl.test.ts src/test/architecture/employee-loan-lifecycle.test.ts src/lib/hr/__tests__/loanStateMachine.test.ts` → all green.
+   - Then run the end-to-end proof this plan could not run headlessly: confirm one payroll run whose employee is on their **final** instalment and check the loan lands in `completed`, the run does not roll back, `loan_lifecycle_events` has `repayment_recorded` + `settle` with a non-null `amount`, and `post-payroll-gl` credits loan receivable / interest income (ADR 0091 rule 8) rather than a `_payable` account.
+2. **Resume from the next logical milestone, not unrelated work.** The natural continuation of this roadmap is the remaining loan-lifecycle surface, in this order:
+   a. **Termination settlement** — `closed_on_termination` has a transition but no canonical RPC comparable to `employee_loan_apply_repayment`; `pending_termination_payouts` should settle outstanding principal through the same single write path and post through Finance.
+   b. **Arrears detection** — `employee_loan_clear_arrears` exists and is now called, but nothing puts a loan *into* `in_arrears` on a missed scheduled instalment; that belongs on a scheduled job reading `loan_repayment_schedule`.
+   c. **Repayment reversal parity** — `employee_loan_reverse_repayment` predates `employee_loan_apply_repayment`; it should be re-expressed as the exact inverse of the canonical apply path (schedule de-allocation + `loan_log_event` with amount), so apply/reverse remain symmetric.
+3. **Do not** widen or drop `employee_loans_status_check`, re-introduce `settled`, add a second repayment write path, or post GL from the loan module (Finance owns posting — ADR 0091 rules 1-2).
+
+## Plan (as executed)
+
 
 **Phase 1 — One terminal status (`completed`)**
 Migration: repoint `employee_loan_state_transitions` `settle` rows to `to_status='completed'`, and rewrite `employee_loan_settle()` to write `completed` and log `settle → completed`. `settled` is retired everywhere; the check constraint is untouched. Align `src/lib/hr/loanStateMachine.ts`, its test, and the `useEmployeeLoans` status union.
