@@ -132,9 +132,12 @@ export function useMyLoans() {
         repayment_method: input.repayment_method,
         reason: input.reason ?? null,
         idempotency_key: options?.idempotencyKey ?? null,
-        // Consent/collateral inputs are optional here; the RPC rejects the
-        // request when the loan type requires them and they are absent.
+        // The wizard collects these whenever the loan type demands them;
+        // the RPC re-checks and refuses if they are missing.
+        consent_acknowledged: input.consent_acknowledged ?? false,
+        collateral_description: input.collateral_description ?? null,
       };
+
 
       const { data, error } = await (supabase as any).rpc("request_employee_loan", {
         _input: payload,
