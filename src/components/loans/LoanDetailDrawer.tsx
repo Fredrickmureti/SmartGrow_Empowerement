@@ -216,14 +216,16 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
               <div className="space-y-2 border rounded-md p-3">
                 <Label>Pause recovery until</Label>
                 <Input type="date" value={pauseUntil} onChange={(e) => setPauseUntil(e.target.value)} />
-                <Button variant="outline" disabled={!pauseUntil || busy} onClick={() => wrap(async () => { await pauseLoan(loan.id, pauseUntil); })}>
-                  <PauseCircle className="h-4 w-4 mr-2" /> Pause
+                <Button variant="outline" disabled={!pauseUntil || busy} onClick={() => wrap("pause", async () => { await pauseLoan(loan.id, pauseUntil); })}>
+                  {isPending("pause") ? spinner : <PauseCircle className="h-4 w-4 mr-2" />}
+                  {isPending("pause") ? "Pausing…" : "Pause"}
                 </Button>
               </div>
             )}
             {loan.paused_until && (
-              <Button variant="outline" disabled={busy} onClick={() => wrap(() => resumeLoan(loan.id))}>
-                <PlayCircle className="h-4 w-4 mr-2" /> Resume recovery
+              <Button variant="outline" disabled={busy} onClick={() => wrap("resume", () => resumeLoan(loan.id))}>
+                {isPending("resume") ? spinner : <PlayCircle className="h-4 w-4 mr-2" />}
+                {isPending("resume") ? "Resuming…" : "Resume recovery"}
               </Button>
             )}
 
