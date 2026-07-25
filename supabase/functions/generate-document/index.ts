@@ -2072,6 +2072,7 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   sales_return: "credit_note",
   customer_statement: "invoice",
   vendor_statement: "invoice",
+  legal_recipient_statement: "invoice",
   bill: "invoice",
   // Wave 21 — inventory / warehouse A4 vouchers.
   // These reuse the invoice template shape (numbered header, tabular
