@@ -73506,6 +73506,22 @@ export type Database = {
         }
         Returns: undefined
       }
+      _loan_record_bank_movement: {
+        Args: {
+          _amount: number
+          _branch: string
+          _business: string
+          _description: string
+          _direction: string
+          _external_key: string
+          _gl_account_id: string
+          _je_id: string
+          _org: string
+          _reference: string
+          _value_date: string
+        }
+        Returns: string
+      }
       _loan_resolve_account: {
         Args: {
           _branch: string
@@ -73519,6 +73535,10 @@ export type Database = {
       _loan_resolve_business: {
         Args: { _employee_id: string; _org: string; _supplied: string }
         Returns: string
+      }
+      _loan_split_repayment: {
+        Args: { _amount: number; _loan_id: string }
+        Returns: Record<string, unknown>
       }
       _log_dn_event: {
         Args: {
@@ -77519,6 +77539,7 @@ export type Database = {
       employee_loan_record_manual_repayment: {
         Args: {
           _amount: number
+          _bank_account_id?: string
           _loan_id: string
           _notes?: string
           _repayment_date: string
