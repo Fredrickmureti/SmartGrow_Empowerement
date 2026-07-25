@@ -1,87 +1,68 @@
-# Legal Orders / Garnishments — Resumption Plan
+## What's happening
 
-## Phase 1 verification (independent audit of prior work)
+Three independent problems, all traceable:
 
-Verified against the live DB, migrations, edge functions, UI, and architecture test suite:
+### 1. `legal_order_build_remittance_batch` → 404 "user_has_organization_access does not exist"
 
-| Prior claim | Verified? | Evidence |
-|---|---|---|
-| R1: CHECK requires both master IDs | ✅ | Live query: 0 rows with NULL `authority_id`/`recipient_id` out of 1 order |
-| R2: UI writers stopped writing `authority_contact_id`/`recipient_contact_id` | ✅ | rg src/ shows zero writes; only type declarations in hooks remain |
-| R3: `party_upsert_*_from_form` consolidated to master-only | ✅ | Migration timeline + AuthorityPicker/LinkRecipientDialog code |
-| R4a: Edge functions resolve via `legal_recipients` with legacy fallback | ✅ | `post-payroll-gl`, `post-garnishment-payment` both join through `recipient_id` |
-| R4b-pre: `payee_*` snapshot writes eliminated in UI, arch guard extended | ✅ | 6/6 arch tests green; no snapshot writes in src/pages, src/components, src/features |
-| Overlay tables `contact_authority_profile`, `contact_recipient_profile` no longer maintained | ✅ | Present but orphaned; R3 stopped writers |
-| Compat views `legal_order_authorities_v`, `legal_recipients_v` still exist | ⚠️ pending R4b | Both present in DB |
-| Snapshot columns still on `legal_orders_records` | ⚠️ pending R4b | 1 row still carries snapshot values |
-| View dependencies on dropped columns | ⚠️ 2 dependents | `public.legal_orders` and `public.legal_recipient_outstanding` — both must be recreated first |
+The Phase 7 remittance batch RPCs (ADR-0096) were authored calling `public.user_has_organization_access(...)`, but the canonical helper in this project is `public.user_belongs_to_org(org_id uuid)`. Confirmed in:
 
-**Conclusion:** Prior engineer's R1 through R4b-pre are genuine. Resume at R4b as planned.
-The only correction to the prior plan: it enumerated one dependent view (`legal_orders`); the DB shows a second (`legal_recipient_outstanding`) that must also be rebuilt before the DROP COLUMN succeeds.
+- `supabase/migrations/20260724140949_…sql` — `legal_order_build_remittance_batch`, `legal_order_generate_remittance_bank_file`, `legal_order_settle_remittance_batch`, `legal_order_cancel_remittance_batch`
+- `supabase/migrations/20260724143004_…sql` — additional batch RPC
+- `supabase/migrations/20260724143847_…sql` — `legal_order_recipient_statement`
 
-## Phase 2 additions to the roadmap
+Because the guard call fails to resolve, PostgREST reports the entire function as "not found" (404).
 
-While reviewing, three items belong in the plan that were not explicit:
+### 2. "Run statement" red text — same root cause
 
-- **R4b.10 — RLS/grants parity check** after view recreation: reapply `security_invoker=true` where the original view carries it, and re-grant SELECT to `authenticated` to match the pre-drop grants.
-- **R6.1 — Explicit `terminated` transition evidence** (was implied): require a `document_artifacts` row of kind `legal_order_termination` before `apply_system_garnishment_transition` accepts `active → terminated`. Enterprise systems (SAP HCM, Workday) all require documentary evidence for early termination.
-- **R7.1 — Recipient portal read surface**: recipient statement RPC exists (ADR-0097) but has no consumer. Wire it into the Legal Order record page and add a filtered "By recipient" view in `/hr/payroll/legal-orders`. No new RPC.
+`LegalOrdersReports.tsx` calls `legal_order_recipient_statement(org, recipient, from, to)` (the 4-arg Phase R7 RPC). That RPC also references `user_has_organization_access(uuid)` and blows up on invocation. The Recipients page's `legal_recipient_statement(recipient, from, to)` (3-arg, older) works fine — that's why the network log shows it returning data — but the Reports tab uses the 4-arg wrapper which is broken.
 
-## Phase 3 — Execution roadmap
+### 3. April payroll run didn't include the 7,000 child support
 
-### R4b — Retire legacy snapshot & overlay (DB) — **NEXT**
+Not a compute-payroll bug. The order row itself is in the wrong state:
 
-Single atomic migration in this order:
+```
+id:            0dfb6e04-…-370f7f
+status:        satisfied        ← compute-payroll only loads status='active'
+total_owed:    NULL
+total_paid:    0.00
+total_accrued: 63,000
+```
 
-1. `pg_get_viewdef` for both `public.legal_orders` **and** `public.legal_recipient_outstanding`; `CREATE OR REPLACE VIEW` each with the reduced projection (drop `payee_*`, `authority_contact_id`, `recipient_contact_id` references).
-2. `DROP TRIGGER` + `DROP FUNCTION` for `payee_unmapped` maintenance on `legal_orders_records`.
-3. Idempotent backfill safety net (expected no-op — R1 CHECK holds).
-4. `ALTER TABLE public.legal_orders_records DROP COLUMN payee_name, payee_bank, payee_account, payee_reference, payee_contact_id, payee_unmapped, authority_contact_id, recipient_contact_id;`
-5. `DROP VIEW public.legal_order_authorities_v, public.legal_recipients_v;`
-6. `DROP TABLE public.contact_authority_profile, public.contact_recipient_profile;`
-7. Reapply `security_invoker=true` and `GRANT SELECT ... TO authenticated` on the recreated views.
-8. Update ADR-0092 note that `payee_unmapped` no longer exists.
+Only one 7,000 accrual exists in `garnishment_ledger`, yet `total_accrued=63,000` and `status=satisfied`. Something transitioned it to a terminal state prematurely (likely `legal_order_auto_satisfy` or a manual FSM call operating against the NULL `total_owed` — `Σ remittance ≥ total_owed` is trivially true when `total_owed` is NULL/0). Compute-payroll's filter (`.eq("status","active")`) is correct; the data is wrong.
 
-**Post-migration (same session, after `types.ts` regenerates):**
-- Trim `LegalOrderRow` (`src/hooks/useLegalOrders.ts`) and `Garnishment` (`src/hooks/useGarnishments.ts`) — remove dropped fields.
-- Delete `payee_name`/`payee_contact_id`/`payee_unmapped` fallback branches in `LegalOrderRemittanceBatch.tsx`, `post-payroll-gl/index.ts`, `post-garnishment-payment/index.ts`.
-- Promote arch test from "no-write" to "no reference" for the four `payee_*` keys.
+## Fix plan
 
-### R5 — Auto-provisioning at pack install
-- Extend `install-localization-pack` to seed jurisdiction-specific `legal_order_authorities` (contact-backed, idempotent on `(country, code)`).
-- Remove any residual country hardcoding in `payroll_gl_readiness`.
-- Verify `Garnishment Payable` liability account is auto-created on first recipient link (ADR-0092).
+### Migration — repoint guards to the real helper
 
-### R6 — FSM & event completeness
-- Test coverage for `draft → active → paused → satisfied | terminated`; every transition emits to outbox.
-- Enforce document-artifact evidence for `terminated`.
-- Backfill audit: any historical order without a matching `garnishment_lifecycle_events` row → synthesise one.
+Rewrite (CREATE OR REPLACE, same signatures) the following RPCs to call `public.user_belongs_to_org(v_org_id)` instead of `public.user_has_organization_access(...)`, preserving all other logic:
 
-### R7 — Reporting & audit surfaces (UI)
-- Legal Order record page tab: `v_legal_order_audit_timeline` + `legal_order_running_balance` + related payslips + related batches.
-- Recipient Statement page consuming ADR-0097 recipient statement RPC.
-- Legal orders index gains a "Group by recipient" view.
+- `legal_order_build_remittance_batch`
+- `legal_order_generate_remittance_bank_file`
+- `legal_order_settle_remittance_batch`
+- `legal_order_cancel_remittance_batch`
+- `legal_order_recipient_statement`
+- Any other function in those three migrations still referencing the phantom name
 
-### Non-goals (unchanged)
-No merging of Garnishment Payable with PAYE Payable; no replacement of `legal_order_remittance_batches` with AP bills; no engine math changes; no new edge functions.
+### Migration — harden `legal_order_auto_satisfy`
+
+Change the auto-satisfy predicate to require `total_owed IS NOT NULL AND total_owed > 0 AND Σ remittance ≥ total_owed`. This prevents any future order with a missing/zero cap from being auto-closed. (Leaves manual FSM transitions untouched — those already require evidence per Phase R6.)
+
+### Data repair — this specific order
+
+In the same migration, revert `0dfb6e04-…-370f7f` to `status='active'`, recompute `total_accrued` from `garnishment_ledger` (should be 7,000, not 63,000), and log a `garnishment_lifecycle_events` row with reason "R7 data repair — auto-satisfied against NULL total_owed". After the migration is approved, re-running April payroll for employee `5449cd48-…dfc9ce` will pick up the order.
+
+### Optional follow-up (not in this pass)
+
+The reason `total_owed` is NULL is that the order creation UI does not require it for kinds like child_support (which are open-ended). We should either (a) allow NULL total_owed and treat "satisfied" as manual-only, or (b) require a cap. That's an ADR-level product decision — flag it, don't decide it here.
+
+## Verification
+
+1. From the preview, click "Create batch" on Legal Orders → Batches. Expect a draft batch to appear, no 404.
+2. On the Reports tab, run a recipient statement. Expect table rows, no red error.
+3. Re-run April payroll for the affected employee. Expect a 7,000 child-support deduction line on the payslip and a matching `garnishment_ledger` accrual.
 
 ## Technical notes
 
-**Verification gate before executing R4b:**
-```
-missing_masters=0  rows_with_snapshot=1  total_orders=1
-dependents=[legal_orders (view), legal_recipient_outstanding (view)]
-overlay_tables=[contact_authority_profile, contact_recipient_profile] (both present, orphaned)
-compat_views=[legal_order_authorities_v, legal_recipients_v] (both present)
-architecture tests: 6/6 green
-```
-
-**Data-flow after R4b:**
-```text
-legal_orders_records
-   ├── authority_id  → legal_order_authorities.id → contacts.id
-   └── recipient_id  → legal_recipients.id       → contacts.id
-Payslip → garnishment_ledger → journal_entry_lines(contact_id=recipient.contact_id)
-                             → legal_order_remittance_batches → bank file → bank rec
-                             → recipient statement RPC + v_legal_order_audit_timeline
-```
+- No schema changes, only function bodies and one data row.
+- Two migrations (function fixes + data repair) or one combined — combined is fine since they're all guarded RPC/data touches.
+- Frontend code needs no changes.
