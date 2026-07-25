@@ -87,6 +87,8 @@ export function RequestLoanWizard({ open, onClose }: Props) {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
   const [repaymentMethod, setRepaymentMethod] = useState<RepaymentMethod>("fixed_installment");
+  const [consent, setConsent] = useState(false);
+  const [collateral, setCollateral] = useState("");
 
   // Stable per-wizard-session idempotency key — protects against
   // double-tap/offline-retry duplicates.
@@ -97,9 +99,15 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     [activeLoanTypes, loanTypeId],
   );
 
+  const needsConsent = !!loanType?.requires_consent;
+  const needsCollateral = !!loanType?.requires_collateral;
+
   useEffect(() => {
     if (!loanType) return;
     setRepaymentMethod(loanType.default_repayment_method);
+    // Consent is per-request authorisation — never carry it across types.
+    setConsent(false);
+    setCollateral("");
     if (loanType.default_installments && !installments) {
       setInstallments(String(loanType.default_installments));
     }
@@ -111,9 +119,12 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     setAmount("");
     setInstallments("");
     setReason("");
+    setConsent(false);
+    setCollateral("");
     setStartDate(new Date().toISOString().slice(0, 10));
     idempotencyKeyRef.current = crypto.randomUUID();
   };
+
 
   const handleClose = () => {
     if (requestLoan.isPending) return;
