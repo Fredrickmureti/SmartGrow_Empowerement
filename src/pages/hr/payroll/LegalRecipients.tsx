@@ -69,6 +69,12 @@ export default function LegalRecipients() {
   );
   const [to, setTo] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
   const { printDocument, downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  // The recipient statement is computed live (no persisted row carrying a
+  // business_id), so the active business must ride in on the request body —
+  // it is what resolves the letterhead branding AND the statement currency.
+  // Without it the server falls back to "USD" and an unbranded header.
+  const { currentBusiness } = useBusinesses();
+
 
   const totals = useMemo(() => {
     const rows = recipients ?? [];
