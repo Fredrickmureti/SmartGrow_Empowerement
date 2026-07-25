@@ -1,52 +1,74 @@
+## Verified root cause (not a constraint bug)
 
-# Loan lifecycle → Finance engine consolidation
+The failure is a **naming schism in the loan terminal status**, plus payroll owning a duplicate copy of the loan lifecycle.
 
-## What the investigation found (verified against the live database)
+Confirmed by reading the live database:
 
-The `23502 entry_number` error is a symptom of architectural drift, not a numbering bug.
+- `employee_loans_status_check` allows `completed` — it does **not** allow `settled`.
+- `employee_loan_state_transitions` says `active|in_arrears --settle--> settled`.
+- `employee_loan_settle()` writes `status='settled'` → would violate the same constraint.
+- `employee_loan_settle_early()` writes `status='completed'` → passes.
+- `src/lib/hr/loanStateMachine.ts` also treats `settled` as the terminal state.
+- `public.employee_loans` currently has **0** rows in `settled` (nothing ever reached the terminal state successfully).
+- `process_payroll_loan_deductions()` contains its own inline mutation:
+  `status = CASE WHEN _new_balance <= 0 THEN 'settled' ELSE status END`.
 
-**Canonical Finance posting path** (`post_journal_entry_atomic`) exists and is used by 20+ RPCs — invoices, credit notes, customer payments, refunds, POS statements/settlements/cash movements, deliveries, stock adjustments. It provides, in one place:
-- source-based idempotency (`source_type` + `source_id` + `source_subtype` → returns the existing entry instead of double-posting),
-- ≥2-line and debit/credit balance validation,
-- pre-computed header totals with the recompute trigger suppressed,
-- consistent org/business/branch stamping on header **and** lines.
+So the sequence is exactly what was observed: preview computes fine (pure calculation), and the mutation phase in `compute-payroll` (line 5425) calls `process_payroll_loan_deductions`, whose final instalment flips status to the non-existent value `settled`, the check constraint refuses it, and `compute-payroll` deletes the run and surfaces "Payroll rolled back: loan repayment failed".
 
-Journal numbers come from `generate_next_je_number(org, business)` — an advisory-locked, `je_number_sequences`-backed allocator with self-heal against existing maxima. There is **no** `entry_number` default and **no** trigger on `journal_entries` that assigns one (confirmed by inspecting all 17 triggers and the column definition; `entry_number` is `NOT NULL`, default `NULL`).
+The constraint is correct and stays. What is wrong is that there are **two terminal-status vocabularies** and **two implementations of loan repayment**.
 
-**`employee_loan_disburse` bypasses both.** It hand-writes `INSERT INTO journal_entries (...)` — omitting `entry_number` entirely — plus its own `journal_entry_lines` insert (lines also miss `organization_id`). So the loan module re-implemented the posting engine, badly, and the NOT NULL constraint is the first thing that notices. Only four other functions still direct-insert (`confirm_bill_atomic`, `record_multi_bill_payment` — both of which *do* call the numbering allocator — plus `void_journal_entry_atomic`, `revalue_fx_balances` and a couple of backfills, which are legitimate special cases).
+## Additional drift found in the same code path
 
-Wider gaps found in the same subsystem:
-- **No bank movement.** No loan RPC touches `bank_transactions`. Disbursement credits the bank GL account but never creates the bank-ledger row, so loan payouts can never be reconciled in the bank reconciliation workspace.
-- **Repayments and write-offs have no GL at all.** `employee_loan_record_manual_repayment` moves `amount_repaid`/`outstanding_balance` and logs a lifecycle event, but posts nothing (no Dr Bank / Cr Loan receivable). `employee_loan_write_off` flips status to `written_off` with dual control, but never posts the bad-debt entry — even though `loan_types.writeoff_account_id` and `interest_income_account_id` exist for exactly that purpose. Loan receivable in the GL therefore drifts from `employee_loans.outstanding_balance` after the first repayment.
-- **Correct parts to preserve:** the state machine (`_loan_assert_transition`), SoD/self-action guards, dual control, account resolution via `_loan_resolve_account` → `resolve_default_account`, and `loan_log_event`, which already writes the audit row **and** publishes to `business_event_outbox`. Row-level idempotency via `disbursement_journal_entry_id` is also already there.
+`process_payroll_loan_deductions` is a parallel lifecycle implementation. Compared with the canonical loan module it:
 
-## Plan — status: all phases complete
+- bypasses `_loan_assert_transition` (no state-machine validation at all),
+- never calls `loan_log_event`, so payroll repayments produce **no** loan lifecycle event and **no** `business_event_outbox` row (manual repayments do),
+- recomputes balance itself as `total_amount - amount_repaid` instead of using the loan module's helpers,
+- never clears arrears (`in_arrears` loans stay in arrears after a successful deduction; `employee_loan_clear_arrears` exists and is not called),
+- has no per-run idempotency guard of its own — it relies solely on the partial unique index `uq_loan_repayments_loan_payslip`, which raises a raw 23505 that again rolls back the whole run instead of being treated as "already applied".
 
-**Phase 1 — Repoint disbursement onto the engine — DONE**
-`employee_loan_disburse` keeps every guard and posts via
-`generate_next_je_number` → `post_journal_entry_atomic(_source_type := 'loan_disbursement', _source_id := loan.id)`, narration by loan number per ADR-0020. Dr loan receivable / Cr bank.
+GL posting for these deductions is already canonical (`post-payroll-gl` → `payroll_loan_repayment_gl_targets` → `_loan_split_repayment`), so Finance ownership is intact and is not changed by this work.
 
-**Phase 2 — Bank movement — DONE**
-`_loan_record_bank_movement` writes the `bank_transactions` row inside the same transaction, keyed `loan-disb:<id>` / `loan-repay:<id>` so retries cannot duplicate it.
+## Canonical model to converge on (SAP / Oracle HCM / Workday / Odoo)
 
-**Phase 3 — Close the GL lifecycle — DONE**
-- `employee_loan_record_manual_repayment`: Dr bank/cash, Cr loan receivable + interest income split, `source_type='loan_repayment'`, `source_id = repayment id`, plus the bank row.
-- `employee_loan_write_off`: Dr `writeoff_account_id`, Cr loan receivable, `source_type='loan_write_off'`.
-- `employee_loan_reverse_repayment`: mirrored entry through the engine, `source_type='loan_repayment_reversal'`; never updates a posted entry.
-- Payroll-driven deductions: `post-payroll-gl` used to bucket `loan_repayment` payslip lines with statutory deductions, crediting `<rule_code>_payable` — a liability — so the GL receivable drifted permanently after the first deduction. It now calls `payroll_loan_repayment_gl_targets(run)` (aggregates the run's non-reversal `loan_repayments`, splits via `_loan_split_repayment`) and credits loan receivable + interest income. `payroll_required_gl_mappings_for_run` no longer demands `_payable` for loan rule codes. No double count: the payroll leg posts inside the payroll JE, the manual RPC posts per repayment row.
+```text
+Payroll run (mutation phase)
+   └─ records a REPAYMENT EVENT only  ──► loan module
+                                            ├─ validate transition (state machine)
+                                            ├─ append loan_repayments row (idempotent per payslip)
+                                            ├─ allocate to loan_repayment_schedule (FIFO)
+                                            ├─ recompute amount_repaid / outstanding_balance
+                                            ├─ derive status (arrears cleared, completion)
+                                            └─ loan_log_event → audit + business_event_outbox
+Finance (post-payroll-gl)  ──► journal entry, principal vs interest split
+```
 
-**Phase 4 — Idempotency, concurrency, retries — DONE**
-Engine source-key lookup + `disbursement_journal_entry_id` short-circuit + `SELECT … FOR UPDATE` give at-most-once posting per loan and per repayment; fiscal-period and org write-locks now apply uniformly.
+Single owner per responsibility: **Loans** own state, status transitions, balance and schedule progression; **Payroll** owns the deduction amount only; **Finance** owns posting and numbering (already true, per ADR 0091).
 
-**Phase 5 — Guardrails and docs — DONE**
-- `src/test/architecture/loan-posting-engine-ownership.test.ts` (no private posting, distinct `source_type`, no UUIDs in narration).
-- `src/test/architecture/payroll-loan-repayment-gl.test.ts` (payroll loan lines never hit a payable).
-- `finance_loan_receivable_integrity_check` reconciles GL loan receivable against outstanding **principal** (ledger carries principal only).
-- ADR 0091 — Loans own state and events; Finance owns posting and numbering.
-- `supabase/tests/loan_gl_posting_test.sql` — RPC surface, engine usage, `entry_number` ownership, per-event `source_type`, split conservation.
+## Plan
 
+**Phase 1 — One terminal status (`completed`)**
+Migration: repoint `employee_loan_state_transitions` `settle` rows to `to_status='completed'`, and rewrite `employee_loan_settle()` to write `completed` and log `settle → completed`. `settled` is retired everywhere; the check constraint is untouched. Align `src/lib/hr/loanStateMachine.ts`, its test, and the `useEmployeeLoans` status union.
+
+**Phase 2 — One canonical repayment-apply RPC**
+Migration adding `employee_loan_apply_repayment(loan_id, amount, payroll_run_id, payslip_id, kind, notes)` that is the single write path for a payroll-sourced instalment: locks the loan, asserts the loan is in a repayable status, inserts the `loan_repayments` row, allocates FIFO against `loan_repayment_schedule`, recomputes totals, clears arrears via the canonical event when applicable, and on zero balance performs the completion transition through `_loan_assert_transition` + `loan_log_event('settle', prior, 'completed')` — so completion is validated and emitted, never inlined.
+Idempotency: an existing `loan_repayments` row for the same `(loan_id, payslip_id)` returns "already applied" instead of raising.
+
+**Phase 3 — Payroll becomes a caller, not an owner**
+Rewrite `process_payroll_loan_deductions` to loop the deduction payload and delegate each item to `employee_loan_apply_repayment` — no direct `employee_loans` UPDATE, no status literal, no schedule writes of its own. `compute-payroll` keeps its all-or-nothing rollback semantics, but a repeat of an already-applied instalment no longer aborts the run.
+
+**Phase 4 — Events and audit parity**
+Verify every payroll-sourced repayment now yields a lifecycle event and outbox row (`loan.repayment.recorded`, plus `loan.completed` on final instalment) on the same topic vocabulary the manual path uses, so downstream notification/reporting subscribers see payroll and manual repayments identically.
+
+**Phase 5 — Regression protection**
+- `supabase/tests/loan_payroll_repayment_test.sql`: final-instalment run reaches `completed`, arrears loan is cleared, replay of the same payslip is a no-op, balance never negative, event rows exist.
+- Extend `src/test/architecture/payroll-loan-repayment-gl.test.ts` (or a sibling guard) to assert no SQL outside the loan module writes `employee_loans.status`, and that no source in the repo references the retired `settled` loan status.
+- Update ADR 0091 with the status-vocabulary rule and the "payroll records events, loans own state" clause.
+
+Verification after each phase: run the relevant vitest guards, re-query the transition table/function bodies, and drive one payroll confirmation whose employee is on a final instalment to confirm it completes rather than rolls back.
 
 ## Technical notes
-- All work is in Postgres migrations (RPC bodies); the frontend hooks (`useEmployeeLoans`) keep calling the same RPC names, so no UI change is needed beyond surfacing the new bank-account/value-date semantics already present.
-- Existing loan rows with a disbursement entry are untouched; a one-shot backfill will number/repair only entries that failed to post (there should be none, since the insert aborted).
-- No `entry_number` patching, no placeholder or random numbers: numbering stays owned solely by `generate_next_je_number`.
+
+- No constraint is weakened, dropped or widened; no loan status is edited to make the error disappear.
+- `completed` is chosen as the survivor because the check constraint (the strictest, data-level contract) and `employee_loan_settle_early` already use it, and zero rows hold `settled`, so no data migration is required.
+- Finance posting stays exactly where ADR 0091 put it; this work does not add or move any GL logic.
