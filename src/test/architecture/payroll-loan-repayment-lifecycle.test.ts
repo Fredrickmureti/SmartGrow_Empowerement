@@ -45,6 +45,24 @@ describe("Payroll loan repayment — canonical lifecycle ownership", () => {
     expect(body).not.toMatch(/'settled'/);
   });
 
+  it("no edge function or client module writes employee_loans.status", () => {
+    const files = [
+      ...rgFiles("employee_loans", "supabase/functions"),
+      ...rgFiles("employee_loans", "src"),
+    ].filter(
+      (f) =>
+        !f.startsWith("src/test/") &&
+        !f.endsWith(".test.ts") &&
+        !f.endsWith(".test.tsx") &&
+        f !== "src/integrations/supabase/types.ts",
+    );
+    const offenders = files.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return /from\(\s*["']employee_loans["']\s*\)[\s\S]{0,200}?\.update\(\s*\{[^}]*status\s*:/.test(src);
+    });
+    expect(offenders).toEqual([]);
+  });
+
   it("the canonical repayment RPC exists and drives completion through the state machine", () => {
     const files = rgFiles("employee_loan_apply_repayment", "supabase/migrations").sort();
     const latest = files[files.length - 1];
@@ -53,5 +71,8 @@ describe("Payroll loan repayment — canonical lifecycle ownership", () => {
     expect(sql).toMatch(/employee_loan_settle/);
     expect(sql).toMatch(/loan_log_event/);
     expect(sql).toMatch(/already_applied/);
+    // Audit parity: the amount + source references travel with the event.
+    expect(sql).toMatch(/'repayment_recorded',\s*prior,\s*prior,\s*\n?\s*_amount/);
+    expect(sql).toMatch(/'payroll_run_id'/);
   });
 });

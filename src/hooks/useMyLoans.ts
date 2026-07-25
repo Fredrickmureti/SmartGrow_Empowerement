@@ -170,19 +170,27 @@ export function useMyLoans() {
 
   const cancelRequest = useMutation({
     mutationFn: async (loanId: string) => {
-      const { error } = await (supabase as any)
-        .from("employee_loans")
-        .update({ status: "cancelled" })
-        .eq("id", loanId)
-        .eq("status", "requested");
+      // ADR 0091 §10-§11 — loan state changes go through the lifecycle RPC,
+      // never a direct status write: the RPC validates the transition and
+      // emits the lifecycle event + outbox row.
+      const { error } = await (supabase as any).rpc("employee_loan_cancel", {
+        _loan_id: loanId,
+        _reason: "Cancelled by employee",
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Request cancelled");
       invalidate();
     },
-    onError: (err: any) => toast.error(err?.message || "Could not cancel request"),
+    onError: (err: any) => {
+      const hint = typeof err?.hint === "string" ? err.hint : "";
+      toast.error(
+        LOAN_ERROR_COPY[hint] || err?.message || "Could not cancel request",
+      );
+    },
   });
+
 
   const loans = query.data ?? [];
   return {
