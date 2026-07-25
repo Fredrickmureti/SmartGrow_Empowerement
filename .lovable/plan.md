@@ -1,5 +1,33 @@
-
 # Approval & Governance Consolidation
+
+## Execution status (living)
+
+**Active phase:** Phase 4 — module migration (start with App Access).
+**Next up:** replace `useAppAccessRequest` + `AppAccessApprovalsInbox` bespoke flow with `routeApproval` / `decideApproval` from `src/lib/governance/approvalEngine.ts`; delete the module's local approval status tracking; re-point its inbox to the shared `approval_requests` reader.
+
+### Completed
+- **Phase 0 — Inventory.** Audit at `docs/audit/approval-governance-inventory.md`.
+- **Phase 1 — Registry.** `public.governance_action_registry` (RLS, platform-admin write-gated) seeded with all 43 `SELF_ACTION_CATALOGUE` keys. Soft trigger on `approval_rules.action_name`. Hook `src/hooks/governance/useGovernanceActionRegistry.ts`. Guard `src/test/architecture/governance-action-registry-parity.test.ts`.
+- **Phase 2 — Engine schema hardening.** Workflow versioning; request snapshots + idempotency; append-only hash-chained `approval_history` with `approval_history_verify(uuid)` integrity RPC; hard FK `approval_rules.action_name → governance_action_registry(action_key)` (soft trigger dropped). Guard `src/test/architecture/approval-engine-schema.test.ts`. Doc `docs/audit/approval-governance-phase-2.md`.
+- **Phase 3 — Single entry points.** `public.approval_route(...)` and `public.approval_decide(...)` SECURITY DEFINER RPCs with `governance_assert_not_self` self-approval guard, terminal-state protection, and `business_event_outbox` emission (`approval.routed`, `approval.<terminal>`). Direct `INSERT/UPDATE/DELETE` on `approval_requests` / `approval_history` revoked from `authenticated` + `anon`. Client helper `src/lib/governance/approvalEngine.ts`. Guard `src/test/architecture/approval-engine-entrypoints.test.ts` forbids any other file from embedding the RPC names. Doc `docs/audit/approval-governance-phase-3.md`.
+
+### Pending (the roadmap section below is authoritative)
+- Phase 4 — module migration in the documented order (App Access → finance write-side → posting side → inventory → sales/procurement → HR/payroll → payroll runs).
+- Phase 5 — unified UI (Settings→Governance, Studio→Approvals, global "My Approvals" inbox, standard `<ApprovalStatusPanel />`).
+- Phase 6 — security hardening (rate limits, integrity monitor, pgTAP coverage, delegation loop detection, escalation SLAs, multi-step workflow advancement).
+- Phase 7 — retirement of bespoke hooks/pages listed in Phase 4 and duplicated `automated_actions` approval branch.
+
+### Hand-off for the next agent
+1. **Verify Phases 1–3 before writing any new code.** Run:
+   - `bunx vitest run src/test/architecture/governance-action-registry-parity.test.ts src/test/architecture/approval-engine-schema.test.ts src/test/architecture/approval-engine-entrypoints.test.ts src/test/architecture/sod-coverage.test.ts`
+   - `bun run tsgo`
+   - DB sanity: `SELECT count(*) FROM governance_action_registry;` = 43; `approval_route`/`approval_decide` present in `pg_proc`; `has_table_privilege('authenticated','public.approval_requests','INSERT')` = `false`.
+2. Read `docs/audit/approval-governance-phase-2.md` and `docs/audit/approval-governance-phase-3.md` end-to-end.
+3. **Do not** open Phase 5/6/7 early or touch unrelated modules. Phase 4 is one module at a time, in the roadmap order, with the bespoke hook fully deleted before moving on.
+4. Start Phase 4 with App Access: `useAppAccessRequest` and `AppAccessApprovalsInbox` become thin wrappers over `routeApproval` / `decideApproval`; add the `app_access.grant` action key to both `SELF_ACTION_CATALOGUE` and the registry migration (the Phase 1 parity guard will demand both). Ship a smoke test per migrated module.
+
+---
+
 
 Goal: collapse the current mix of governance-mode/self-action guards, `approval_rules` + `approval_workflows` + `approval_requests` + `approval_history` + `approval_rule_logs`, `automated_actions`, per-module approval hooks (`useApprovalGate`, `useSalesOrderApproval`, procurement recommendations, app-access approvals, payroll control center, physical count, stock adjustment, loans, expenses, bills, POs, refunds, credit notes, JEs) and the Studio "Approval Rules" surface into one canonical Approval & Governance platform that every module consumes.
 
