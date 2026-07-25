@@ -231,7 +231,7 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                   variant="outline"
                   disabled={busy || !manualAmount || !bankAccountId}
                   onClick={() => wrap(async () => {
-                    await recordManualRepayment(loan.id, Number(manualAmount), manualDate, bankAccountId, manualRef || undefined);
+                    await recordManualRepayment(loan.id, Number(manualAmount), manualDate, manualRef || undefined);
                     setManualAmount(""); setManualRef("");
                   })}
                 >
