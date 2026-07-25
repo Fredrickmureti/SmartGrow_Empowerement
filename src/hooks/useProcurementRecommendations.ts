@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
-import { useApprovalGate } from "@/hooks/useApprovalGate";
+import { routeApproval } from "@/lib/governance/approvalEngine";
 
 /**
  * Maps a raw RPC error string onto a planner-friendly message. Any SQL
@@ -123,7 +123,6 @@ export function useProcurementRecommendations() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
-  const approvalGate = useApprovalGate();
 
   const organizationId = currentOrg?.id ?? null;
   const businessId = currentBusiness?.id ?? null;
@@ -259,16 +258,16 @@ export function useProcurementRecommendations() {
   });
 
   /**
-   * Approve a recommendation via the platform's central approval subsystem.
+   * Approve a recommendation through the canonical approval engine.
    *
-   * If an `approval_rules` entry matches (entity_type='procurement_recommendation',
-   * action_name='approve'), an `approval_rule_logs` row is created and a DB
-   * trigger flips the recommendation to `in_review` with `approval_request_id`
-   * pointing at the log. Approvers act from the approvals inbox; the trigger
-   * then flips the rec to `approved` or back to `open`.
-   *
-   * When no rule matches, the rec is approved immediately — the current
-   * behaviour for tenants that haven't configured any approval policies.
+   * `routeApproval` is the single entry point: the database evaluates the
+   * active `approval_rules` for
+   * (entity_type='procurement_recommendation', action_key='procurement_recommendation.approve'),
+   * materialises the request + step approvers when a rule matches, and
+   * returns `null` when policy does not gate this event. A DB trigger
+   * mirrors the routed/decided request back onto the recommendation
+   * (`in_review` → `approved` / back to `open`). No threshold evaluation
+   * happens in the browser — that was bypassable.
    */
   const approveOrRequest = useMutation({
     mutationFn: async (args: {
@@ -276,29 +275,22 @@ export function useProcurementRecommendations() {
       suggestedQty: number;
       estimatedCost?: number;
     }): Promise<{ approved: boolean; ruleName?: string }> => {
-      const check = await approvalGate.checkApproval(
-        "procurement_recommendation",
-        "approve",
-        args.id,
-        { suggested_qty: args.suggestedQty, estimated_cost: args.estimatedCost ?? 0 },
-      );
-      if (check.blocked) {
-        // Pending request already exists — nothing to do; drawer will render
-        // the pending state from `approval_request_id`.
-        if (check.status === "pending") {
-          return { approved: false, ruleName: check.ruleName };
-        }
-        if (!check.ruleId) throw new Error(check.message || "Approval required.");
-        const logId = await approvalGate.requestApproval(
-          "procurement_recommendation",
-          "approve",
-          args.id,
-          check.ruleId,
-        );
-        if (!logId) throw new Error("Could not raise the approval request.");
-        // Trigger `_mirror_approval_to_procurement_rec` sets status/approval_request_id.
-        return { approved: false, ruleName: check.ruleName };
-      }
+      const request = await routeApproval({
+        actionKey: "procurement_recommendation.approve",
+        entityType: "procurement_recommendation",
+        entityId: args.id,
+        payload: {
+          suggested_qty: args.suggestedQty,
+          estimated_cost: args.estimatedCost ?? 0,
+        },
+        context: organizationId ? { organization_id: organizationId } : {},
+        businessId: businessId,
+      });
+
+      // A request row means policy gated this approval — the trigger has
+      // already moved the rec to `in_review`.
+      if (request?.id) return { approved: false };
+
       const { error } = await (supabase as any)
         .from("procurement_recommendations")
         .update({ status: "approved" })
