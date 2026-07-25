@@ -76995,6 +76995,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      employee_loan_apply_repayment: {
+        Args: {
+          _amount: number
+          _kind?: string
+          _loan_id: string
+          _notes?: string
+          _payroll_run_id?: string
+          _payslip_id?: string
+        }
+        Returns: Json
+      }
       employee_loan_authorize_disbursement: {
         Args: { _loan_id: string }
         Returns: {
