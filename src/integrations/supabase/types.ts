@@ -20704,6 +20704,7 @@ export type Database = {
           is_active: boolean
           label: string
           module: string
+          requires_approval_always: boolean
           severity_default: string
           subject_mode: string
           subject_table: string | null
@@ -20716,6 +20717,7 @@ export type Database = {
           is_active?: boolean
           label: string
           module: string
+          requires_approval_always?: boolean
           severity_default?: string
           subject_mode: string
           subject_table?: string | null
@@ -20728,6 +20730,7 @@ export type Database = {
           is_active?: boolean
           label?: string
           module?: string
+          requires_approval_always?: boolean
           severity_default?: string
           subject_mode?: string
           subject_table?: string | null
@@ -74040,10 +74043,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      approve_app_access_request: {
-        Args: { p_request_id: string }
-        Returns: Json
-      }
       approve_bill: {
         Args: { p_bill_id: string }
         Returns: {
@@ -76662,10 +76661,6 @@ export type Database = {
       }
       delete_warehouse_safely: {
         Args: { p_warehouse_id: string }
-        Returns: Json
-      }
-      deny_app_access_request: {
-        Args: { p_reason?: string; p_request_id: string }
         Returns: Json
       }
       depart_trailer: {
