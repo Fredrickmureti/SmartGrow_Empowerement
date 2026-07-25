@@ -31,6 +31,7 @@ const PERSIST_ALLOWLIST = new Set<string>([
   "statement",
   "customer_statement",
   "vendor_statement",
+  "legal_recipient_statement",
   "payslip",
   "payment",
   "sales_return",
