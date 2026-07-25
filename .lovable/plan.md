@@ -88,3 +88,25 @@ Phase 6 → Phase 8 → Phase 7 (termination and reversal both feed the arrears 
 - `pending_termination_payouts.consumed_run_id` is the idempotency key for termination recovery from final pay; Phase 6 relies on it and does not add a second one.
 - The arrears sweep only reads `loan_repayment_schedule` and calls the state machine — it never touches balances, keeping single-writer discipline intact.
 - Reverse-repayment's schedule de-allocation must be transactional with the negative `loan_repayments` insert; both live inside one RPC.
+
+---
+
+## Execution log — 2026-07-25 (this turn)
+
+**Phase 6 — Termination settlement — LANDED.**
+
+Two migrations applied:
+
+1. `loan_repayments.kind` extended to include `termination_recovery` and `termination_writeoff`; state-machine view gains `restructured → close_on_termination`; `employee_loan_apply_repayment` extended to an 8-arg overload with `_terminal_event` / `_terminal_end_date` so balance-zero completion can route to `close_on_termination`. Legacy 6-arg overload preserved as a thin wrapper — every existing caller (including `process_payroll_loan_deductions`) keeps working unchanged. New canonical 7-arg RPC `employee_loan_close_on_termination(loan, termination_date, reason, payroll_run_id, payslip_id, recovered_amount, writeoff_remaining)` orchestrates recovery → write-off through the single write path.
+
+2. Retired the pre-existing 3-arg `employee_loan_close_on_termination(loan_id, final_settlement_amount, reason)` overload — it was a parallel writer (direct `UPDATE employee_loans` on balance and status, no state-machine assertion). Replaced with a thin wrapper delegating to the canonical 7-arg RPC. No DB or client caller referenced the old body, so no downstream wiring changes were needed.
+
+Regression guard: `src/test/architecture/loan-termination-single-writer.test.ts` — fails if any code outside the loan module writes `status='closed_on_termination'` or inserts a termination-kind repayment, and fails if a future migration deletes the canonical 7-arg RPC.
+
+**Not yet done — still open for the next agent:**
+
+- **Wiring `consume_pending_termination_payouts` / `compute-payroll` termination branch** to call the new RPC. Right now the RPC is defined but no scheduler-level entrypoint invokes it for a final-settlement payroll run. Add it inside `consume_pending_termination_payouts` (compute the recovery amount from the payslip's loan-deduction line, then call `employee_loan_close_on_termination` per loan the terminated employee still owes), and extend `payroll_loan_repayment_gl_targets` / `_loan_split_repayment` so `termination_writeoff` posts through a bad-debt / write-off account rather than loan-clearing.
+- **Phase 7 — Arrears detection sweep.** `employee_loan_mark_missed_installments(_as_of date)` + daily `pg_cron` job hitting `/api/public/hooks/loans-arrears-sweep` with `apikey` header; state-machine `enter_arrears` transition is already legal, so this is purely additive.
+- **Phase 8 — Reverse-repayment parity.** `employee_loan_reverse_repayment` still writes `employee_loans.amount_repaid / outstanding_balance / installments_paid` directly and rewrites `loan_repayment_schedule` inline. It also inserts `loan_repayments.amount = -orig.amount` even though the current CHECK constraint requires `amount > 0` — so the reversal path is latent-broken today; a real reversal cannot commit. Rewrite as the strict inverse of `employee_loan_apply_repayment` (positive amount, `kind='reversal'` with `reversal_of_id`, schedule de-allocation helper, aggregate-based balance recompute, `_loan_assert_transition('reopen')` when the original entry had settled the loan). Bump the `amount > 0` CHECK to `amount <> 0` or store reversals as positive rows and net by kind — plan the choice; do not just widen the constraint. Add pgTAP asserting apply → reverse → apply is a fixed point.
+
+Order stays: 6 (done) → 8 → 7. Termination and reversal both feed the arrears watcher's fixed-point tests.
