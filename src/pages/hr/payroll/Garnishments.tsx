@@ -113,6 +113,10 @@ export default function GarnishmentsPage() {
   const [ledgerFor, setLedgerFor] = useState<Garnishment | null>(null);
   const [lifecycleFor, setLifecycleFor] = useState<Garnishment | null>(null);
   const [linkContactFor, setLinkContactFor] = useState<Garnishment | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { g: Garnishment; action: GarnishmentTransitionAction }
+    | null
+  >(null);
   const qc = useQueryClient();
 
   const useAuthorityAsRecipient = async (orderId: string) => {
