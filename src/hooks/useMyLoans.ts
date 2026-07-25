@@ -160,8 +160,12 @@ export function useMyLoans() {
       invalidate();
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Could not submit loan request");
+      const hint = typeof err?.hint === "string" ? err.hint : "";
+      toast.error(
+        LOAN_ERROR_COPY[hint] || err?.message || "Could not submit loan request",
+      );
     },
+
   });
 
   const cancelRequest = useMutation({
