@@ -6,10 +6,6 @@
  *      (`legal_order_statutory_report_definitions`, platform + tenant scope).
  *   2. On-demand recipient statement runner powered by the
  *      `legal_order_recipient_statement(org, recipient, from, to)` RPC.
- *      Renders a period-scoped totals band + per-order and per-batch
- *      breakdowns, with a CSV export of the batch lines for handoff
- *      to the recipient (courts/agencies typically require a paper
- *      trail alongside the transfer).
  *
  * Read-only by design — this surface does not mutate any legal-order
  * state. All writes flow through the FSM RPCs on the Orders tab.
@@ -19,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useLegalRecipients } from "@/hooks/useLegalRecipients";
+import { useEmployees } from "@/hooks/useEmployees";
 import {
   Card, CardHeader, CardTitle, CardDescription, CardContent,
 } from "@/components/ui/card";
@@ -46,36 +43,46 @@ type StatutoryDef = {
   is_active: boolean;
 };
 
+type StatementOrder = {
+  legal_order_id: string;
+  order_reference: string | null;
+  status: string;
+  employee_id: string;
+  total_owed: number | null;
+  accrued_period: number | null;
+  paid_period: number | null;
+  accrued_to_date: number | null;
+  paid_to_date: number | null;
+  outstanding: number | null;
+};
+
+type StatementBatch = {
+  batch_id: string;
+  batch_number: string | null;
+  status: string;
+  period_from: string;
+  period_to: string;
+  planned_total: number | null;
+  settled_at: string | null;
+  settled_payment_date: string | null;
+  settled_reference: string | null;
+  bank_file_format: string | null;
+  bank_file_checksum: string | null;
+};
+
 type RecipientStatement = {
   recipient: Record<string, any> | null;
-  period: { from: string; to: string };
+  period_from: string;
+  period_to: string;
   totals: {
-    order_count?: number;
-    total_owed?: number;
-    total_accrued?: number;
-    total_remitted?: number;
+    accrued_period?: number;
+    paid_period?: number;
     outstanding?: number;
+    accrued_to_date?: number;
+    paid_to_date?: number;
   };
-  orders: Array<{
-    legal_order_id: string;
-    order_reference: string | null;
-    status: string;
-    employee_id: string;
-    total_owed: number | null;
-    accrued: number | null;
-    remitted: number | null;
-    outstanding: number | null;
-  }>;
-  batches: Array<{
-    batch_id: string;
-    batch_number: string | null;
-    status: string;
-    remittance_date: string | null;
-    amount: number;
-    payment_method: string | null;
-    reference: string | null;
-    legal_order_id: string | null;
-  }>;
+  orders: StatementOrder[];
+  batches: StatementBatch[];
 };
 
 const fmt = (n: number | null | undefined) =>
@@ -117,6 +124,17 @@ export default function LegalOrdersReports() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id ?? null;
   const { data: recipients = [] } = useLegalRecipients();
+  const { employees } = useEmployees();
+  const employeeById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of employees ?? []) {
+      const label =
+        [(e as any).first_name, (e as any).last_name].filter(Boolean).join(" ").trim() ||
+        (e as any).full_name || (e as any).employee_number || "Employee";
+      m.set(e.id, label);
+    }
+    return m;
+  }, [employees]);
 
   const [recipientId, setRecipientId] = useState<string>("");
   const [from, setFrom] = useState<string>(todayIso(-30));
@@ -172,8 +190,7 @@ export default function LegalOrdersReports() {
           </CardTitle>
           <CardDescription>
             Jurisdiction-specific report definitions available for this tenant.
-            Platform defaults (jurisdiction <code>*</code>) apply everywhere;
-            tenant-scoped overrides take precedence.
+            Platform defaults apply everywhere; tenant-scoped overrides take precedence.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -288,16 +305,36 @@ export default function LegalOrdersReports() {
           {statement.data && (
             <StatementResult
               data={statement.data}
+              employeeById={employeeById}
               onExportOrders={() =>
                 downloadCsv(
                   `recipient-statement-orders-${from}_${to}.csv`,
-                  statement.data!.orders ?? [],
+                  (statement.data!.orders ?? []).map((o) => ({
+                    order_reference: o.order_reference ?? "",
+                    employee: employeeById.get(o.employee_id) ?? o.employee_id,
+                    status: o.status,
+                    total_owed: o.total_owed ?? 0,
+                    accrued_in_period: o.accrued_period ?? 0,
+                    paid_in_period: o.paid_period ?? 0,
+                    accrued_to_date: o.accrued_to_date ?? 0,
+                    paid_to_date: o.paid_to_date ?? 0,
+                    outstanding: o.outstanding ?? 0,
+                  })),
                 )
               }
               onExportBatches={() =>
                 downloadCsv(
                   `recipient-statement-batches-${from}_${to}.csv`,
-                  statement.data!.batches ?? [],
+                  (statement.data!.batches ?? []).map((b) => ({
+                    batch_number: b.batch_number ?? "",
+                    period_from: b.period_from,
+                    period_to: b.period_to,
+                    status: b.status,
+                    planned_total: b.planned_total ?? 0,
+                    settled_payment_date: b.settled_payment_date ?? "",
+                    settled_reference: b.settled_reference ?? "",
+                    bank_file_format: b.bank_file_format ?? "",
+                  })),
                 )
               }
             />
@@ -310,10 +347,12 @@ export default function LegalOrdersReports() {
 
 function StatementResult({
   data,
+  employeeById,
   onExportOrders,
   onExportBatches,
 }: {
   data: RecipientStatement;
+  employeeById: Map<string, string>;
   onExportOrders: () => void;
   onExportBatches: () => void;
 }) {
@@ -321,10 +360,10 @@ function StatementResult({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <TotalTile label="Orders" value={String(t.order_count ?? 0)} />
-        <TotalTile label="Owed" value={fmt(t.total_owed)} />
-        <TotalTile label="Accrued" value={fmt(t.total_accrued)} />
-        <TotalTile label="Remitted" value={fmt(t.total_remitted)} />
+        <TotalTile label="Orders" value={String((data.orders ?? []).length)} />
+        <TotalTile label="Accrued in period" value={fmt(t.accrued_period)} />
+        <TotalTile label="Paid in period" value={fmt(t.paid_period)} />
+        <TotalTile label="Paid to date" value={fmt(t.paid_to_date)} />
         <TotalTile label="Outstanding" value={fmt(t.outstanding)} accent />
       </div>
 
@@ -338,33 +377,37 @@ function StatementResult({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Reference</TableHead>
+              <TableHead>Case reference</TableHead>
+              <TableHead>Employee</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Owed</TableHead>
-              <TableHead className="text-right">Accrued</TableHead>
-              <TableHead className="text-right">Remitted</TableHead>
+              <TableHead className="text-right">Accrued (period)</TableHead>
+              <TableHead className="text-right">Paid (period)</TableHead>
               <TableHead className="text-right">Outstanding</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(data.orders ?? []).map((o) => (
               <TableRow key={o.legal_order_id}>
-                <TableCell className="font-mono text-xs">
-                  {o.order_reference ?? o.legal_order_id.slice(0, 8)}
+                <TableCell className="font-medium">
+                  {o.order_reference ?? <span className="text-muted-foreground italic">No case reference</span>}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{o.status}</Badge>
+                  {employeeById.get(o.employee_id) ?? <span className="text-muted-foreground italic">Unknown employee</span>}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="capitalize">{o.status.replace(/_/g, " ")}</Badge>
                 </TableCell>
                 <TableCell className="text-right">{fmt(o.total_owed)}</TableCell>
-                <TableCell className="text-right">{fmt(o.accrued)}</TableCell>
-                <TableCell className="text-right">{fmt(o.remitted)}</TableCell>
+                <TableCell className="text-right">{fmt(o.accrued_period)}</TableCell>
+                <TableCell className="text-right">{fmt(o.paid_period)}</TableCell>
                 <TableCell className="text-right font-medium">{fmt(o.outstanding)}</TableCell>
               </TableRow>
             ))}
             {(data.orders ?? []).length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground text-sm">
-                  No orders in period
+                <TableCell colSpan={7} className="text-center text-muted-foreground text-sm">
+                  No orders for this recipient
                 </TableCell>
               </TableRow>
             )}
@@ -383,32 +426,36 @@ function StatementResult({
           <TableHeader>
             <TableRow>
               <TableHead>Batch</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Method</TableHead>
-              <TableHead>Reference</TableHead>
+              <TableHead>Period</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Bank reference</TableHead>
+              <TableHead>Settled on</TableHead>
               <TableHead className="text-right">Amount</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {(data.batches ?? []).map((b) => (
-              <TableRow key={`${b.batch_id}-${b.legal_order_id ?? "agg"}`}>
-                <TableCell className="font-mono text-xs">
-                  {b.batch_number ?? b.batch_id.slice(0, 8)}
+              <TableRow key={b.batch_id}>
+                <TableCell className="font-medium">
+                  {b.batch_number ?? <span className="text-muted-foreground italic">Unnumbered</span>}
                 </TableCell>
-                <TableCell>{b.remittance_date ?? "—"}</TableCell>
-                <TableCell>{b.payment_method ?? "—"}</TableCell>
-                <TableCell className="font-mono text-xs">{b.reference ?? "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {b.period_from} → {b.period_to}
+                </TableCell>
                 <TableCell>
-                  <Badge variant="outline">{b.status}</Badge>
+                  <Badge variant="outline" className="capitalize">{b.status}</Badge>
                 </TableCell>
-                <TableCell className="text-right font-medium">{fmt(b.amount)}</TableCell>
+                <TableCell>
+                  {b.settled_reference ?? <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell>{b.settled_payment_date ?? "—"}</TableCell>
+                <TableCell className="text-right font-medium">{fmt(b.planned_total)}</TableCell>
               </TableRow>
             ))}
             {(data.batches ?? []).length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground text-sm">
-                  No remittances in period
+                  No remittance batches in period
                 </TableCell>
               </TableRow>
             )}

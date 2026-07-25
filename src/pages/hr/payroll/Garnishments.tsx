@@ -36,6 +36,10 @@ import {
   WorkflowField,
 } from "@/components/workflow/WorkflowSheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } from "lucide-react";
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
@@ -113,6 +117,10 @@ export default function GarnishmentsPage() {
   const [ledgerFor, setLedgerFor] = useState<Garnishment | null>(null);
   const [lifecycleFor, setLifecycleFor] = useState<Garnishment | null>(null);
   const [linkContactFor, setLinkContactFor] = useState<Garnishment | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { g: Garnishment; action: GarnishmentTransitionAction }
+    | null
+  >(null);
   const qc = useQueryClient();
 
   const useAuthorityAsRecipient = async (orderId: string) => {
@@ -271,24 +279,20 @@ export default function GarnishmentsPage() {
     setOpen(false);
   }
 
+  // Actions that require a formal confirmation dialog (with typed
+  // confirmation for terminal states). Benign transitions execute
+  // immediately.
+  const CONFIRM_ACTIONS: GarnishmentTransitionAction[] = [
+    "suspend", "resume", "reject", "release", "mark_satisfied",
+    "expire", "terminate_unsatisfied",
+  ];
+
   async function runAction(g: Garnishment, action: GarnishmentTransitionAction) {
-    let reason: string | undefined;
-    let evidence: string | undefined;
-    if (action === "release") {
-      if (!g.document_url) {
-        evidence = window.prompt("Releasing an order requires evidence. Paste the release document URL:") || undefined;
-        if (!evidence) return;
-      }
-      reason = window.prompt("Reason (e.g. 'court release 2026-06-10'):") || undefined;
-    } else if (["suspend", "reject", "terminate_unsatisfied"].includes(action)) {
-      reason = window.prompt(`Reason for ${action.replace(/_/g, " ")}:`) || undefined;
+    if (CONFIRM_ACTIONS.includes(action)) {
+      setPendingAction({ g, action });
+      return;
     }
-    await transitionGarnishment.mutateAsync({
-      id: g.id,
-      action,
-      reason_text: reason,
-      evidence_url: evidence,
-    });
+    await transitionGarnishment.mutateAsync({ id: g.id, action });
   }
 
   return (
@@ -673,6 +677,21 @@ export default function GarnishmentsPage() {
         onClose={() => setLifecycleFor(null)}
         onAction={(action) => lifecycleFor && runAction(lifecycleFor, action)}
       />
+      <TransitionConfirmDialog
+        pending={pendingAction}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async ({ reason, evidence, evidence_document_id }) => {
+          if (!pendingAction) return;
+          await transitionGarnishment.mutateAsync({
+            id: pendingAction.g.id,
+            action: pendingAction.action,
+            reason_text: reason,
+            evidence_url: evidence,
+            evidence_document_id,
+          });
+          setPendingAction(null);
+        }}
+      />
       <LinkRecipientDialog
         open={!!linkContactFor}
         onOpenChange={(o) => !o && setLinkContactFor(null)}
@@ -873,5 +892,148 @@ function HistorySheet({ g, onClose }: { g: Garnishment | null; onClose: () => vo
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * Confirmation dialog for FSM transitions.
+ *
+ * Terminal actions (release / mark_satisfied / expire / terminate_unsatisfied)
+ * require the operator to type the action name to confirm — this prevents
+ * accidental permanent state changes. Suspend/resume/reject only need a
+ * reason. Release also requires an evidence URL if the order has no
+ * document attached yet.
+ */
+const TERMINAL_ACTIONS = new Set<GarnishmentTransitionAction>([
+  "release", "mark_satisfied", "expire", "terminate_unsatisfied",
+]);
+
+const ACTION_BLURB: Partial<Record<GarnishmentTransitionAction, string>> = {
+  suspend: "Temporarily pauses the order. Deductions stop until you resume. No permanent effect on the balance.",
+  resume: "Reactivates a suspended order. Deductions will resume on the next payroll run.",
+  reject: "Reject the pending approval and send it back to draft.",
+  release: "The issuing authority has released this order. This is a permanent, terminal state — no further deductions will be taken.",
+  mark_satisfied: "The full amount owed has been paid. This closes the order permanently.",
+  expire: "The order has reached its end date. Permanent closure.",
+  terminate_unsatisfied: "End the order early even though the full amount was not collected (e.g. employee left). Permanent closure.",
+};
+
+function TransitionConfirmDialog({
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  pending: { g: Garnishment; action: GarnishmentTransitionAction } | null;
+  onClose: () => void;
+  onConfirm: (args: { reason?: string; evidence?: string; evidence_document_id?: string }) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [evidence, setEvidence] = useState("");
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const action = pending?.action;
+  const isTerminal = !!action && TERMINAL_ACTIONS.has(action);
+  const needsEvidence = action === "release" && !pending?.g.document_url;
+  const label = action ? ACTION_LABELS[action] : "";
+  const confirmWord = action ? action.replace(/_/g, " ").toUpperCase() : "";
+
+  const canConfirm =
+    !!action &&
+    reason.trim().length > 3 &&
+    (!needsEvidence || evidence.trim().length > 5) &&
+    (!isTerminal || typed.trim().toUpperCase() === confirmWord);
+
+  // Reset when a new pending action arrives.
+  const key = pending ? `${pending.g.id}:${pending.action}` : "";
+  const [lastKey, setLastKey] = useState("");
+  if (key !== lastKey) {
+    setLastKey(key);
+    setReason("");
+    setEvidence("");
+    setTyped("");
+  }
+
+  return (
+    <AlertDialog open={!!pending} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {label ?? "Confirm action"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {action ? ACTION_BLURB[action] : ""}
+            {isTerminal && (
+              <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-destructive text-xs">
+                This is a <strong>terminal</strong> state. It cannot be undone from the app — you would need to open a new order.
+              </div>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Reason <span className="text-destructive">*</span></Label>
+            <Textarea
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Court release notice dated 2026-06-10"
+            />
+          </div>
+
+          {needsEvidence && (
+            <div className="space-y-1">
+              <Label className="text-xs">Evidence document URL <span className="text-destructive">*</span></Label>
+              <Input
+                value={evidence}
+                onChange={(e) => setEvidence(e.target.value)}
+                placeholder="https://…"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Attach the release notice or supporting document. For a permanent record,
+                use the Evidence section on the order first.
+              </p>
+            </div>
+          )}
+
+          {isTerminal && (
+            <div className="space-y-1">
+              <Label className="text-xs">
+                Type <code className="rounded bg-muted px-1">{confirmWord}</code> to confirm
+              </Label>
+              <Input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={confirmWord}
+                autoComplete="off"
+              />
+            </div>
+          )}
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!canConfirm || busy}
+            onClick={async (e) => {
+              e.preventDefault();
+              if (!canConfirm) return;
+              try {
+                setBusy(true);
+                await onConfirm({
+                  reason: reason.trim(),
+                  evidence: needsEvidence ? evidence.trim() : undefined,
+                });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Working…" : (label || "Confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

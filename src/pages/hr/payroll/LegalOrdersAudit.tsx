@@ -16,6 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useLegalOrders } from "@/hooks/useLegalOrders";
+import { useLegalRecipients } from "@/hooks/useLegalRecipients";
+import { useEmployees } from "@/hooks/useEmployees";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -99,12 +101,13 @@ function humanizeAction(a: string | null) {
 
 const MONEY_KEYS = /(amount|owed|accrued|remitted|outstanding|balance|principal|interest|fee|total)/i;
 const DATE_KEYS = /(_at|_on|date|period)/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isPlainObj(v: any): v is Record<string, any> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-function formatValue(key: string, v: any): string {
+function formatValue(key: string, v: any, labels: Map<string, string>): string {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (typeof v === "number") {
@@ -112,6 +115,10 @@ function formatValue(key: string, v: any): string {
     return String(v);
   }
   if (typeof v === "string") {
+    if (UUID_RE.test(v)) {
+      const label = labels.get(v);
+      return label ?? `#${v.slice(0, 8)}`;
+    }
     if (DATE_KEYS.test(key) && /^\d{4}-\d{2}-\d{2}/.test(v)) {
       const d = new Date(v);
       if (!isNaN(d.getTime())) {
@@ -124,7 +131,7 @@ function formatValue(key: string, v: any): string {
   return JSON.stringify(v);
 }
 
-function DetailsGrid({ details }: { details: Record<string, any> }) {
+function DetailsGrid({ details, labels }: { details: Record<string, any>; labels: Map<string, string> }) {
   const entries = Object.entries(details).filter(
     ([k]) => !/^(organization_id|legal_order_id|tenant_id)$/i.test(k),
   );
@@ -141,7 +148,7 @@ function DetailsGrid({ details }: { details: Record<string, any> }) {
                 {humanizeKey(k)}
               </dt>
               <dd className={"tabular-nums " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
-                {formatValue(k, v)}
+                {formatValue(k, v, labels)}
               </dd>
             </div>
           ))}
@@ -159,7 +166,7 @@ function DetailsGrid({ details }: { details: Record<string, any> }) {
               ))}
             </ul>
           ) : (
-            <DetailsGrid details={v as Record<string, any>} />
+            <DetailsGrid details={v as Record<string, any>} labels={labels} />
           )}
         </div>
       ))}
@@ -167,7 +174,7 @@ function DetailsGrid({ details }: { details: Record<string, any> }) {
   );
 }
 
-function TimelineEntry({ row, index }: { row: TimelineRow; index: number }) {
+function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number; labels: Map<string, string> }) {
   const [showRaw, setShowRaw] = useState(false);
   const hasDetails = row.details && Object.keys(row.details).length > 0;
   return (
@@ -184,7 +191,7 @@ function TimelineEntry({ row, index }: { row: TimelineRow; index: number }) {
           {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
         </span>
       </div>
-      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} />}
+      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
       <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <ArrowUpRight className="h-3 w-3" /> {row.source_table}
@@ -215,11 +222,34 @@ export default function LegalOrdersAudit() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id ?? null;
   const { data: orders = [] } = useLegalOrders();
+  const { data: recipients = [] } = useLegalRecipients();
+  const { employees } = useEmployees();
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | "">("");
   const [asOf, setAsOf] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const activeOrderId = selectedOrderId || (orders[0]?.id ?? "");
+
+  const labels = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of employees ?? []) {
+      const label =
+        [(e as any).first_name, (e as any).last_name].filter(Boolean).join(" ").trim() ||
+        (e as any).full_name || (e as any).employee_number || "Employee";
+      m.set(e.id, label);
+    }
+    for (const r of recipients ?? []) {
+      m.set(r.id, r.display_name);
+      if (r.authority_id && (r as any).authority_name) m.set(r.authority_id, (r as any).authority_name);
+    }
+    for (const o of orders ?? []) {
+      const anyO = o as any;
+      const label = anyO.case_reference || anyO.order_reference || anyO.kind_code || null;
+      if (label) m.set(o.id, label);
+    }
+    return m;
+  }, [employees, recipients, orders]);
+
 
   const timelineQ = useQuery<TimelineRow[]>({
     queryKey: ["legal-order-audit-timeline", orgId, activeOrderId],
@@ -323,6 +353,7 @@ export default function LegalOrdersAudit() {
                   key={`${row.source_table}:${row.source_row_id}:${idx}`}
                   row={row}
                   index={idx}
+                  labels={labels}
                 />
               ))}
             </ol>
