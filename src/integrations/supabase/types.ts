@@ -16055,6 +16055,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -16062,6 +16064,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -16107,6 +16110,8 @@ export type Database = {
           approved_by?: string | null
           arrears_amount?: number
           arrears_since?: string | null
+          authorized_at?: string | null
+          authorized_by?: string | null
           business_id: string
           consent_captured_at?: string | null
           consent_captured_by?: string | null
@@ -16114,6 +16119,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           disbursed_at?: string | null
+          disbursement_bank_account_id?: string | null
           disbursement_journal_entry_id?: string | null
           employee_id: string
           end_date?: string | null
@@ -16159,6 +16165,8 @@ export type Database = {
           approved_by?: string | null
           arrears_amount?: number
           arrears_since?: string | null
+          authorized_at?: string | null
+          authorized_by?: string | null
           business_id?: string
           consent_captured_at?: string | null
           consent_captured_by?: string | null
@@ -16166,6 +16174,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           disbursed_at?: string | null
+          disbursement_bank_account_id?: string | null
           disbursement_journal_entry_id?: string | null
           employee_id?: string
           end_date?: string | null
@@ -67122,6 +67131,14 @@ export type Database = {
           },
         ]
       }
+      employee_loan_state_transitions: {
+        Row: {
+          event: string | null
+          from_status: string | null
+          to_status: string | null
+        }
+        Relationships: []
+      }
       employees_active: {
         Row: {
           address_line1: string | null
@@ -73412,6 +73429,70 @@ export type Database = {
         | { Args: { _job_id: string; _org_id: string }; Returns: undefined }
         | { Args: { p_org_id: string }; Returns: Json }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
+      _loan_assert_transition: {
+        Args: { _event: string; _loan_id: string }
+        Returns: {
+          amount_repaid: number
+          approved_at: string | null
+          approved_by: string | null
+          arrears_amount: number
+          arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
+          business_id: string
+          consent_captured_at: string | null
+          consent_captured_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          disbursed_at: string | null
+          disbursement_bank_account_id: string | null
+          disbursement_journal_entry_id: string | null
+          employee_id: string
+          end_date: string | null
+          id: string
+          idempotency_key: string | null
+          installments_paid: number
+          interest_rate: number
+          loan_number: string
+          loan_type: string
+          loan_type_id: string | null
+          max_pct_of_net: number | null
+          min_net_pay_floor: number | null
+          monthly_deduction: number
+          notes: string | null
+          organization_id: string
+          outstanding_balance: number
+          parent_loan_id: string | null
+          paused_until: string | null
+          principal_amount: number
+          refinance_kind: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          repayment_method: string
+          repayment_percent: number | null
+          requested_at: string | null
+          requested_by: string | null
+          settlement_journal_entry_id: string | null
+          start_date: string
+          status: string
+          total_amount: number
+          total_installments: number
+          updated_at: string
+          writeoff_at: string | null
+          writeoff_by: string | null
+          writeoff_cosigner_id: string | null
+          writeoff_journal_entry_id: string | null
+          writeoff_reason: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_loans"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _loan_close_approval_request: {
         Args: { _action: string; _loan_id: string; _notes: string }
         Returns: undefined
@@ -76902,6 +76983,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -76909,6 +76992,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -76963,6 +77047,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -76970,6 +77056,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77041,6 +77128,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77048,6 +77137,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77110,6 +77200,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77117,6 +77209,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77171,6 +77264,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77178,6 +77273,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77236,6 +77332,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77243,6 +77341,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77297,6 +77396,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77304,6 +77405,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77358,6 +77460,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77365,6 +77469,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77436,6 +77541,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77443,6 +77550,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77497,6 +77605,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77504,6 +77614,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77562,6 +77673,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77569,6 +77682,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77623,6 +77737,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77630,6 +77746,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77688,6 +77805,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77695,6 +77814,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77749,6 +77869,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77756,6 +77878,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -77810,6 +77933,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -77817,6 +77942,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
@@ -78186,6 +78312,14 @@ export type Database = {
           p_transaction_id: string
         }
         Returns: Json
+      }
+      finance_loan_receivable_integrity_check: {
+        Args: { _org: string }
+        Returns: {
+          drift: number
+          gl_balance: number
+          loans_outstanding: number
+        }[]
       }
       finance_post_gr_journal: {
         Args: { _actor: string; _gr_id: string }
@@ -83807,6 +83941,8 @@ export type Database = {
           approved_by: string | null
           arrears_amount: number
           arrears_since: string | null
+          authorized_at: string | null
+          authorized_by: string | null
           business_id: string
           consent_captured_at: string | null
           consent_captured_by: string | null
@@ -83814,6 +83950,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           disbursed_at: string | null
+          disbursement_bank_account_id: string | null
           disbursement_journal_entry_id: string | null
           employee_id: string
           end_date: string | null
