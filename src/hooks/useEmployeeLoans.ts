@@ -300,7 +300,7 @@ export function useEmployeeLoans() {
 
   const pauseLoan = async (id: string, until: string, reason?: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { error } = await (supabase as any).rpc("employee_loan_pause_recovery", {
+    const { error } = await (supabase as any).rpc("employee_loan_pause", {
       _loan_id: id, _until: until, _reason: reason ?? null,
     });
     if (error) throw error;
@@ -310,11 +310,12 @@ export function useEmployeeLoans() {
 
   const resumeLoan = async (id: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { error } = await (supabase as any).rpc("employee_loan_resume_recovery", { _loan_id: id });
+    const { error } = await (supabase as any).rpc("employee_loan_resume", { _loan_id: id });
     if (error) throw error;
     toast.success("Loan resumed");
     await fetchLoans();
   };
+
 
   /**
    * Disburse — moves status to 'disbursed' on success. The lifecycle RPC
