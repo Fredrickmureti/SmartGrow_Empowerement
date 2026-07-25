@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { downloadCsv } from "@/lib/exports/csv";
 import { PlatformAppLayout } from "@/apps/platform";
 import { useAuditLogsPaginated, AuditLogFilters } from "@/hooks/useAuditLogsPaginated";
@@ -6,8 +7,12 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { supabase } from "@/integrations/supabase/client";
+import { SettingsAuditLogPanel } from "@/components/settings/SettingsAuditLogPanel";
+import LegalOrdersAudit from "@/pages/hr/payroll/LegalOrdersAudit";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
