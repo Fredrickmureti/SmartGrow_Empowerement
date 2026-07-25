@@ -386,12 +386,18 @@ export function useEmployeeLoans() {
     await fetchLoans();
   };
 
-  /** Record an off-payroll repayment (cash/bank/external). */
+  /**
+   * Record an off-payroll repayment (cash/bank/external).
+   * The RPC posts Dr Bank / Cr Loan receivable (+ interest income when the
+   * loan type charges interest) through the canonical Finance engine and
+   * writes the matching bank-ledger line.
+   */
   const recordManualRepayment = async (
     id: string,
     amount: number,
     paymentDate: string,
     notes?: string,
+    bankAccountId?: string,
   ) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
     const { error } = await (supabase as any).rpc("employee_loan_record_manual_repayment", {
@@ -399,11 +405,13 @@ export function useEmployeeLoans() {
       _amount: amount,
       _repayment_date: paymentDate,
       _notes: notes ?? null,
+      _bank_account_id: bankAccountId ?? null,
     });
     if (error) throw error;
-    toast.success("Manual repayment recorded");
+    toast.success("Manual repayment recorded and posted to GL");
     await fetchLoans();
   };
+
 
 
 
