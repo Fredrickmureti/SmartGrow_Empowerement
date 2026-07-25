@@ -5,7 +5,7 @@ import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import type { DocumentCommunicationContext } from "@/components/communications/DocumentCommunicationBar";
 import { normalizeError } from "@/services/resilience";
 
-type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "receipt" | "pos_receipt" | "sales_order" | "delivery_note" | "sales_return" | "customer_statement" | "vendor_statement" | "bill";
+type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "receipt" | "pos_receipt" | "sales_order" | "delivery_note" | "sales_return" | "customer_statement" | "vendor_statement" | "legal_recipient_statement" | "bill";
 
 /**
  * Stage P3 (ADR-0008): paper override accepted by every consumer.
