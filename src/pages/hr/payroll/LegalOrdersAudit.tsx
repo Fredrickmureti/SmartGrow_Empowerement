@@ -139,28 +139,30 @@ function DetailsGrid({ details, labels }: { details: Record<string, any>; labels
   const scalars = entries.filter(([, v]) => !isPlainObj(v) && !Array.isArray(v));
   const nested = entries.filter(([, v]) => isPlainObj(v) || Array.isArray(v));
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 space-y-2 min-w-0">
       {scalars.length > 0 && (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm rounded-md border bg-muted/30 p-3">
-          {scalars.map(([k, v]) => (
-            <div key={k} className="flex flex-col">
-              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {humanizeKey(k)}
-              </dt>
-              <dd className={"tabular-nums " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
-                {formatValue(k, v, labels)}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="overflow-x-auto rounded-md border bg-muted/30">
+          <dl className="grid grid-flow-col auto-cols-[minmax(9rem,1fr)] grid-rows-4 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm p-3 min-w-max sm:min-w-0">
+            {scalars.map(([k, v]) => (
+              <div key={k} className="flex flex-col min-w-0">
+                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  {humanizeKey(k)}
+                </dt>
+                <dd className={"tabular-nums break-words " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
+                  {formatValue(k, v, labels)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       )}
       {nested.map(([k, v]) => (
-        <div key={k} className="rounded-md border bg-muted/30 p-3">
+        <div key={k} className="rounded-md border bg-muted/30 p-3 min-w-0">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
             {humanizeKey(k)}
           </div>
           {Array.isArray(v) ? (
-            <ul className="text-sm space-y-1 list-disc pl-4">
+            <ul className="text-sm space-y-1 list-disc pl-4 break-words">
               {v.map((item, i) => (
                 <li key={i}>{isPlainObj(item) || Array.isArray(item) ? JSON.stringify(item) : String(item)}</li>
               ))}
@@ -176,27 +178,37 @@ function DetailsGrid({ details, labels }: { details: Record<string, any>; labels
 
 function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number; labels: Map<string, string> }) {
   const [showRaw, setShowRaw] = useState(false);
+  const [open, setOpen] = useState(false);
   const hasDetails = row.details && Object.keys(row.details).length > 0;
   return (
-    <li key={`${row.source_table}:${row.source_row_id}:${index}`} className="relative">
+    <li key={`${row.source_table}:${row.source_row_id}:${index}`} className="relative min-w-0">
       <span className="absolute -left-[29px] top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border bg-background">
         <KindIcon kind={row.entry_kind} />
       </span>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="outline" className={KIND_TONE[row.entry_kind]}>
+      <button
+        type="button"
+        onClick={() => hasDetails && setOpen((o) => !o)}
+        className="w-full text-left flex flex-wrap items-center gap-x-2 gap-y-1 text-sm min-w-0"
+      >
+        {hasDetails && (
+          open
+            ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <Badge variant="outline" className={KIND_TONE[row.entry_kind] + " shrink-0"}>
           {KIND_LABEL[row.entry_kind]}
         </Badge>
-        <span className="font-medium">{humanizeAction(row.action)}</span>
-        <span className="text-muted-foreground">
+        <span className="font-medium break-words">{humanizeAction(row.action)}</span>
+        <span className="text-muted-foreground text-xs w-full sm:w-auto">
           {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
         </span>
-      </div>
-      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
-      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <ArrowUpRight className="h-3 w-3" /> {row.source_table}
+      </button>
+      {open && hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 break-all">
+          <ArrowUpRight className="h-3 w-3 shrink-0" /> {row.source_table}
         </span>
-        {hasDetails && (
+        {open && hasDetails && (
           <Button
             type="button"
             variant="ghost"
@@ -209,8 +221,8 @@ function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number
           </Button>
         )}
       </div>
-      {showRaw && hasDetails && (
-        <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto">
+      {open && showRaw && hasDetails && (
+        <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto max-w-full">
           {JSON.stringify(row.details, null, 2)}
         </pre>
       )}
@@ -341,13 +353,13 @@ export default function LegalOrdersAudit() {
             . Read-only projection — all writes still route through the FSM.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 overflow-hidden">
           {timelineQ.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading timeline…</div>
           ) : (timelineQ.data ?? []).length === 0 ? (
             <div className="text-sm text-muted-foreground">No events recorded for this order yet.</div>
           ) : (
-            <ol className="relative border-l pl-6 space-y-5">
+            <ol className="relative border-l pl-6 space-y-5 min-w-0">
               {(timelineQ.data ?? []).map((row, idx) => (
                 <TimelineEntry
                   key={`${row.source_table}:${row.source_row_id}:${idx}`}
