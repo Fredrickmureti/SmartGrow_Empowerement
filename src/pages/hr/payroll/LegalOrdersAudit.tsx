@@ -353,6 +353,7 @@ export default function LegalOrdersAudit() {
                   key={`${row.source_table}:${row.source_row_id}:${idx}`}
                   row={row}
                   index={idx}
+                  labels={labels}
                 />
               ))}
             </ol>
