@@ -45,6 +45,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { useBusinesses } from "@/contexts/BusinessContext";
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat(undefined, {
