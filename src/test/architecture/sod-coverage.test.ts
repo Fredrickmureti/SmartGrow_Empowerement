@@ -60,7 +60,11 @@ const ACTION_TO_TABLE: Record<string, string> = {
   "inventory.approve_transfer": "stock_transfers",
   "expense.approve": "expenses",
   "expense.approve_self_benefit": "expenses",
+  "scrap.approve": "stock_adjustments",
+  "scrap.post": "stock_adjustments",
+  "scrap.reverse": "stock_adjustments",
   "bank_account.sensitive_change": "bank_accounts",
+
 };
 
 /**
