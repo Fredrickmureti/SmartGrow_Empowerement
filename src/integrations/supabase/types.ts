@@ -1592,28 +1592,49 @@ export type Database = {
       approval_history: {
         Row: {
           action: string
+          actor_user_id: string | null
           approved_at: string | null
           approved_by: string | null
           comments: string | null
+          event_hash: string | null
+          event_seq: number | null
+          event_type: string
           id: string
+          payload: Json
+          prev_hash: string | null
+          recorded_at: string
           request_id: string
           step_number: number
         }
         Insert: {
           action: string
+          actor_user_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           comments?: string | null
+          event_hash?: string | null
+          event_seq?: number | null
+          event_type?: string
           id?: string
+          payload?: Json
+          prev_hash?: string | null
+          recorded_at?: string
           request_id: string
           step_number: number
         }
         Update: {
           action?: string
+          actor_user_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           comments?: string | null
+          event_hash?: string | null
+          event_seq?: number | null
+          event_type?: string
           id?: string
+          payload?: Json
+          prev_hash?: string | null
+          recorded_at?: string
           request_id?: string
           step_number?: number
         }
@@ -1629,54 +1650,85 @@ export type Database = {
       }
       approval_requests: {
         Row: {
+          action_key: string | null
           business_id: string | null
           completed_at: string | null
+          context_snapshot: Json
           created_at: string
           current_step: number | null
+          dedupe_hash: string | null
           entity_id: string
           entity_reference: string | null
           entity_type: string
           id: string
+          idempotency_key: string | null
           notes: string | null
           organization_id: string
+          payload_snapshot: Json
+          policy_version: number | null
           requested_at: string | null
           requested_by: string | null
           status: string | null
+          updated_at: string
           workflow_id: string | null
+          workflow_version: number | null
         }
         Insert: {
+          action_key?: string | null
           business_id?: string | null
           completed_at?: string | null
+          context_snapshot?: Json
           created_at?: string
           current_step?: number | null
+          dedupe_hash?: string | null
           entity_id: string
           entity_reference?: string | null
           entity_type: string
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           organization_id: string
+          payload_snapshot?: Json
+          policy_version?: number | null
           requested_at?: string | null
           requested_by?: string | null
           status?: string | null
+          updated_at?: string
           workflow_id?: string | null
+          workflow_version?: number | null
         }
         Update: {
+          action_key?: string | null
           business_id?: string | null
           completed_at?: string | null
+          context_snapshot?: Json
           created_at?: string
           current_step?: number | null
+          dedupe_hash?: string | null
           entity_id?: string
           entity_reference?: string | null
           entity_type?: string
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           organization_id?: string
+          payload_snapshot?: Json
+          policy_version?: number | null
           requested_at?: string | null
           requested_by?: string | null
           status?: string | null
+          updated_at?: string
           workflow_id?: string | null
+          workflow_version?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_requests_action_key_fkey"
+            columns: ["action_key"]
+            isOneToOne: false
+            referencedRelation: "governance_action_registry"
+            referencedColumns: ["action_key"]
+          },
           {
             foreignKeyName: "approval_requests_business_id_fkey"
             columns: ["business_id"]
@@ -1901,6 +1953,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "approval_rules_action_name_fk"
+            columns: ["action_name"]
+            isOneToOne: false
+            referencedRelation: "governance_action_registry"
+            referencedColumns: ["action_key"]
+          },
+          {
             foreignKeyName: "approval_rules_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
@@ -1946,6 +2005,7 @@ export type Database = {
       }
       approval_workflow_steps: {
         Row: {
+          action_key: string | null
           approver_id: string | null
           created_at: string
           id: string
@@ -1955,6 +2015,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          action_key?: string | null
           approver_id?: string | null
           created_at?: string
           id?: string
@@ -1964,6 +2025,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          action_key?: string | null
           approver_id?: string | null
           created_at?: string
           id?: string
@@ -1973,6 +2035,13 @@ export type Database = {
           workflow_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "approval_workflow_steps_action_key_fkey"
+            columns: ["action_key"]
+            isOneToOne: false
+            referencedRelation: "governance_action_registry"
+            referencedColumns: ["action_key"]
+          },
           {
             foreignKeyName: "approval_workflow_steps_workflow_id_fkey"
             columns: ["workflow_id"]
@@ -1987,37 +2056,55 @@ export type Database = {
           business_id: string | null
           conditions: Json | null
           created_at: string
+          definition_hash: string | null
           description: string | null
           entity_type: string
           id: string
           is_active: boolean | null
+          is_published: boolean
           name: string
           organization_id: string
+          published_at: string | null
+          published_by: string | null
+          superseded_by: string | null
           updated_at: string
+          version: number
         }
         Insert: {
           business_id?: string | null
           conditions?: Json | null
           created_at?: string
+          definition_hash?: string | null
           description?: string | null
           entity_type: string
           id?: string
           is_active?: boolean | null
+          is_published?: boolean
           name: string
           organization_id: string
+          published_at?: string | null
+          published_by?: string | null
+          superseded_by?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
           business_id?: string | null
           conditions?: Json | null
           created_at?: string
+          definition_hash?: string | null
           description?: string | null
           entity_type?: string
           id?: string
           is_active?: boolean | null
+          is_published?: boolean
           name?: string
           organization_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          superseded_by?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -2060,6 +2147,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_workflows_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "approval_workflows"
             referencedColumns: ["id"]
           },
         ]
@@ -73703,6 +73797,14 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      approval_history_verify: {
+        Args: { _request_id: string }
+        Returns: {
+          event_seq: number
+          ok: boolean
+          reason: string
+        }[]
       }
       approve_app_access_request: {
         Args: { p_request_id: string }
