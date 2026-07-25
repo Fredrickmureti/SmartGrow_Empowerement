@@ -174,7 +174,7 @@ function DetailsGrid({ details, labels }: { details: Record<string, any>; labels
   );
 }
 
-function TimelineEntry({ row, index }: { row: TimelineRow; index: number }) {
+function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number; labels: Map<string, string> }) {
   const [showRaw, setShowRaw] = useState(false);
   const hasDetails = row.details && Object.keys(row.details).length > 0;
   return (
@@ -191,7 +191,7 @@ function TimelineEntry({ row, index }: { row: TimelineRow; index: number }) {
           {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
         </span>
       </div>
-      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} />}
+      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
       <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <ArrowUpRight className="h-3 w-3" /> {row.source_table}
