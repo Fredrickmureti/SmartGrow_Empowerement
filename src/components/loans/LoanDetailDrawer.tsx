@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, PauseCircle, PlayCircle, XCircle, Banknote, ScrollText, Wallet } from "lucide-react";
+import { CheckCircle, PauseCircle, PlayCircle, XCircle, Banknote, ScrollText, Wallet, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useEmployeeLoans, type EmployeeLoan, type LoanScheduleRow, type LoanRepayment } from "@/hooks/useEmployeeLoans";
 import { useAccounts } from "@/hooks/useAccounts";
