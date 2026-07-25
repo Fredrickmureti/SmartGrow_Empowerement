@@ -274,9 +274,8 @@ function CompanySettingsInner() {
             <InventorySettings />
           </TabsContent>
 
-          <TabsContent value="audit-log">
-            <SettingsAuditLogPanel />
-          </TabsContent>
+
+
         </Tabs>
       </div>
     </PlatformAppLayout>
