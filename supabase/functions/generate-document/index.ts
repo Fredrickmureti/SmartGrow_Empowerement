@@ -3492,6 +3492,9 @@ async function getOrganizationId(supabase: any, docType: string, docId: string):
 async function getBusinessId(supabase: any, docType: string, docId: string): Promise<string | null> {
   const table = TABLE_MAP[docType];
   if (!table) return null;
+  // legal_recipients has no business_id column; the caller may pass one
+  // via the request body, but the master row itself is org-scoped.
+  if (docType === "legal_recipient_statement") return null;
   const { data } = await supabase.from(table).select("business_id").eq("id", docId).single();
   return data?.business_id || null;
 }
