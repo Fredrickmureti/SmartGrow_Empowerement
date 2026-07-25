@@ -73425,6 +73425,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      _loan_resolve_account: {
+        Args: {
+          _branch: string
+          _business: string
+          _org: string
+          _override: string
+          _setting_key: string
+        }
+        Returns: string
+      }
       _loan_resolve_business: {
         Args: { _employee_id: string; _org: string; _supplied: string }
         Returns: string
@@ -77084,6 +77094,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      employee_loan_disburse: {
+        Args: {
+          _bank_account_id: string
+          _loan_id: string
+          _value_date?: string
+        }
+        Returns: Json
+      }
       employee_loan_lifecycle_approve: {
         Args: { _loan_id: string }
         Returns: {
@@ -77535,6 +77553,67 @@ export type Database = {
       employee_loan_reverse_repayment: {
         Args: { _reason: string; _repayment_id: string }
         Returns: string
+      }
+      employee_loan_settle: {
+        Args: { _loan_id: string }
+        Returns: {
+          amount_repaid: number
+          approved_at: string | null
+          approved_by: string | null
+          arrears_amount: number
+          arrears_since: string | null
+          business_id: string
+          consent_captured_at: string | null
+          consent_captured_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          disbursed_at: string | null
+          disbursement_journal_entry_id: string | null
+          employee_id: string
+          end_date: string | null
+          id: string
+          idempotency_key: string | null
+          installments_paid: number
+          interest_rate: number
+          loan_number: string
+          loan_type: string
+          loan_type_id: string | null
+          max_pct_of_net: number | null
+          min_net_pay_floor: number | null
+          monthly_deduction: number
+          notes: string | null
+          organization_id: string
+          outstanding_balance: number
+          parent_loan_id: string | null
+          paused_until: string | null
+          principal_amount: number
+          refinance_kind: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          repayment_method: string
+          repayment_percent: number | null
+          requested_at: string | null
+          requested_by: string | null
+          settlement_journal_entry_id: string | null
+          start_date: string
+          status: string
+          total_amount: number
+          total_installments: number
+          updated_at: string
+          writeoff_at: string | null
+          writeoff_by: string | null
+          writeoff_cosigner_id: string | null
+          writeoff_journal_entry_id: string | null
+          writeoff_reason: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employee_loans"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       employee_loan_settle_early: {
         Args: { _loan_id: string }

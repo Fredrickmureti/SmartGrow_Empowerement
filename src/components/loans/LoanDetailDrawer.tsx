@@ -60,10 +60,15 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
   const cashAccounts = accounts.filter((a) => a.account_type === "asset" && (a.detail_type?.toLowerCase().includes("bank") || a.detail_type?.toLowerCase().includes("cash")));
   const balance = loan.outstanding_balance;
   const paidPct = loan.total_amount > 0 ? Math.round((loan.amount_repaid / loan.total_amount) * 100) : 0;
+  // Strict, linear state machine: Approve → Authorize → Disburse.
+  // Disburse is ONLY offered after authorization has moved the loan to
+  // `awaiting_disbursement`, mirroring SAP FI-CA release/payment and
+  // Oracle HCM's two-step advance workflow. This eliminates the drift
+  // where an `approved` loan could be disbursed while skipping the
+  // Finance/Treasury control gate.
   const canApprove = loan.status === "draft" || loan.status === "pending_approval" || loan.status === "requested";
   const canAuthorize = loan.status === "approved";
-  const canDisburse = (loan.status === "approved" || loan.status === "awaiting_disbursement" || loan.status === "active")
-    && !loan.disbursement_journal_entry_id && !!loan.type?.gl_receivable_account_id;
+  const canDisburse = loan.status === "awaiting_disbursement" && !loan.disbursement_journal_entry_id;
   const canSettle = (loan.status === "active" || loan.status === "in_arrears") && balance <= 0.005;
   const canWriteOff = ["active", "in_arrears", "suspended"].includes(loan.status) && balance > 0.005;
 

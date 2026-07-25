@@ -318,17 +318,19 @@ export function useEmployeeLoans() {
 
 
   /**
-   * Disburse — moves status to 'disbursed' on success. The lifecycle RPC
-   * `employee_loan_mark_disbursed` is invoked server-side by the edge
-   * function via the bank-account posting path.
+   * Disburse — canonical DB RPC path (replaces the retired `loan-gl` edge
+   * function). Posts Dr Loan Receivable / Cr Bank atomically with the
+   * status transition and lifecycle event. Idempotent server-side via
+   * `journal_entries.source_type='loan_disbursement'`.
    */
   const disburseLoan = async (id: string, bankAccountId: string, valueDate?: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { data, error } = await (supabase as any).functions.invoke("loan-gl", {
-      body: { action: "disburse", loan_id: id, bank_account_id: bankAccountId, value_date: valueDate || new Date().toISOString().slice(0, 10) },
+    const { data, error } = await (supabase as any).rpc("employee_loan_disburse", {
+      _loan_id: id,
+      _bank_account_id: bankAccountId,
+      _value_date: valueDate || new Date().toISOString().slice(0, 10),
     });
     if (error) throw error;
-    if (data?.error) throw new Error(data.error);
     toast.success("Loan disbursed and posted to GL");
     notifyLoanEvent(id, "loan.disbursed");
     await fetchLoans();
@@ -337,12 +339,10 @@ export function useEmployeeLoans() {
 
   const settleLoan = async (id: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
-    const { data, error } = await (supabase as any).functions.invoke("loan-gl", {
-      body: { action: "settle", loan_id: id },
-    });
+    const { data, error } = await (supabase as any).rpc("employee_loan_settle", { _loan_id: id });
     if (error) throw error;
-    if (data?.error) throw new Error(data.error);
     toast.success("Loan settled");
+    notifyLoanEvent(id, "loan.settled");
     await fetchLoans();
     return data;
   };
