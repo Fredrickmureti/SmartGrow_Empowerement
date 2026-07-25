@@ -55,3 +55,37 @@ Delete migrated hooks/pages, the `automated_actions` approval branch, and any ac
 - New objects: `approval_request_approvers`, `approval_can_decide(uuid, uuid)`, columns `approval_requests.rule_snapshot/workflow_snapshot`, `approval_history.event_seq/client_token`, unique index `(request_id, step_number, client_token)`. All new public tables ship with explicit GRANTs plus RLS scoped through existing membership helpers.
 - `approvalEngine.ts` gains `stepId`/`clientToken` parameters and a `not_required` result variant; it remains the only file permitted to name the RPCs.
 - Existing `governance_assert_not_self` / `_not_subject` continue to be reused verbatim — no parallel SoD implementation.
+
+## Execution log
+
+### Phase 3b — DONE (migration applied)
+`rule_snapshot` / `workflow_snapshot` / `total_steps` on `approval_requests`;
+new `approval_request_steps` + `approval_request_approvers` (RLS on, direct
+writes revoked); `approval_route` rewritten (org-membership validation,
+rule → workflow → step/approver materialisation, snapshotting, idempotency +
+dedupe hash, `approval.routed` outbox event); `approval_decide` rewritten
+(`approval_can_decide` eligibility predicate, per-step quorum advancement,
+`_client_token` replay guard). Client wrapper `decideApproval` now sends a
+client token.
+
+### Phase 4.1 — App Access — DONE
+- `governance_action_registry` gains `requires_approval_always`; actions
+  flagged with it are routed even when no threshold rule matches (the
+  "no rule = not gated" default is wrong for mandatory-approval actions).
+- `app_access.grant` registered (module `Platform`). Deliberately NOT added
+  to `SELF_ACTION_CATALOGUE` — that catalogue drives the self-approval
+  override picker and is a subset of the registry, not a mirror.
+- `request_app_access` now delegates to `approval_route` with a deterministic
+  per-(user, app) `entity_id`, so repeat clicks collapse onto one request.
+- Grant execution moved to trigger `trg_exec_app_access_grant`, fired by the
+  terminal `approved` transition, writing `executed` / `execution_skipped`
+  into the hash-chained history.
+- Bespoke `approve_app_access_request` / `deny_app_access_request` dropped;
+  `AppAccessApprovalsInbox` decides through `decideApproval`.
+- Note: all three legacy app-access RPCs referenced columns that no longer
+  exist (`request_type`, `request_data`, `approval_history.actor_id`), i.e.
+  the surface was already broken at runtime before this migration.
+
+### Next
+Phase 4.2 — retire `approval_rule_logs` + delete `useApprovalGate`, then
+Expenses/Bills/POs onto `routeApproval`.

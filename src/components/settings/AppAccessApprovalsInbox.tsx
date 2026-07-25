@@ -2,10 +2,11 @@
  * AppAccessApprovalsInbox — tenant-admin queue of pending app-access requests.
  *
  * Reads `approval_requests` rows where `entity_type='app_access'` and
- * `status='pending'` for the active organization. Uses the SECURITY DEFINER
- * RPCs `approve_app_access_request` / `deny_app_access_request` which
- * (a) verify the caller is owner/admin, (b) auto-grant the matching system
- * permission group on approval, and (c) write an entry to `approval_history`.
+ * `status='pending'` for the active organization. Decisions go through the canonical
+ * approval engine (`decideApproval` → `approval_decide`), which enforces
+ * approver eligibility, quorum and the append-only hash-chained history.
+ * The permission-group grant is executed by the engine-side executor
+ * trigger on terminal approval.
  *
  * No new edge function — direct RPC keeps us under the 100-function budget.
  */
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { decideApproval } from "@/lib/governance/approvalEngine";
 import { useOrganization } from "@/hooks/useOrganization";
 import { getAppById } from "@/lib/apps/registry";
 import { Button } from "@/components/ui/button";
@@ -100,11 +102,7 @@ export function AppAccessApprovalsInbox() {
 
   const approve = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).rpc(
-        "approve_app_access_request",
-        { p_request_id: id },
-      );
-      if (error) throw error;
+      await decideApproval(id, "approve");
     },
     onSuccess: () => {
       toast.success("Access granted");
@@ -118,11 +116,7 @@ export function AppAccessApprovalsInbox() {
 
   const deny = useMutation({
     mutationFn: async (args: { id: string; reason: string }) => {
-      const { error } = await (supabase as any).rpc(
-        "deny_app_access_request",
-        { p_request_id: args.id, p_reason: args.reason || null },
-      );
-      if (error) throw error;
+      await decideApproval(args.id, "reject", args.reason || undefined);
     },
     onSuccess: () => {
       toast.success("Request denied");
