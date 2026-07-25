@@ -67,3 +67,49 @@ for manual repayments, repayment reversals or write-offs — even though
   `src/test/architecture/payroll-loan-repayment-gl.test.ts` and
   `supabase/tests/loan_gl_posting_test.sql`.
 
+
+## Addendum (2026-07-25) — payroll-sourced repayments
+
+`compute-payroll` rolled back every run that contained a final loan
+instalment:
+
+```
+loan repayment failed — new row for relation "employee_loans"
+violates check constraint "employee_loans_status_check"
+```
+
+The constraint was correct. There were **two terminal-status vocabularies**:
+`employee_loans_status_check` (and `employee_loan_settle_early`) accepted
+`completed`, while the state-machine view `employee_loan_state_transitions`,
+`employee_loan_settle` and the inline payroll update all produced `settled`
+— a value the table has never been able to store (0 rows ever held it).
+
+`process_payroll_loan_deductions` was also a second, divergent
+implementation of the loan lifecycle: it wrote `employee_loans.status`
+inline, skipped `_loan_assert_transition`, never called `loan_log_event`
+(so payroll repayments produced no audit row and no outbox event), and
+never cleared arrears.
+
+### Additional rules
+
+9. **One terminal status: `completed`.** `settled` is retired from the DB
+   view, `employee_loan_settle`, the client mirror
+   (`src/lib/hr/loanStateMachine.ts`) and the `useEmployeeLoans` union.
+   Every `to_status` in the state machine must satisfy
+   `employee_loans_status_check`.
+10. **One repayment write path.** `employee_loan_apply_repayment(loan,
+    amount, run, payslip, kind, notes)` is the only function that may
+    append a `loan_repayments` row, allocate against
+    `loan_repayment_schedule`, move `amount_repaid` /
+    `outstanding_balance`, clear arrears, or close a loan. Completion goes
+    through `employee_loan_settle` → `_loan_assert_transition` +
+    `loan_log_event`, never a status literal.
+11. **Payroll records events; it does not own loan state.**
+    `process_payroll_loan_deductions` only loops the deduction payload and
+    delegates. A repeat of an already-applied `(loan_id, payslip_id)` pair
+    returns `already_applied: true` instead of raising, so a re-run can no
+    longer abort an entire payroll run. GL posting stays where rule 8 put
+    it (`post-payroll-gl` → `payroll_loan_repayment_gl_targets`).
+
+Enforced by `src/test/architecture/payroll-loan-repayment-lifecycle.test.ts`
+and `supabase/tests/loan_payroll_repayment_test.sql`.
