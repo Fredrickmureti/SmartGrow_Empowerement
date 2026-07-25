@@ -1442,6 +1442,163 @@ async function fetchCustomerStatement(supabase: any, documentId: string): Promis
   };
 }
 
+// ── Legal Recipient Statement fetcher (ADR-0093 Phase 3) ────────────────────
+//
+// A legal-recipient statement is a reconciliation report of every accrual
+// (payroll-side) vs. every remittance (payment-side) for one third-party
+// recipient (court, agency, SACCO, creditor) over a caller-supplied
+// [from, to] window. It is NOT persisted as a row like customer_statement
+// — the data is computed live via the `legal_recipient_statement(recipient,
+// from, to)` SQL function. Dates therefore ride in on the request body
+// and are threaded in at the call site (see the `fetcher` dispatch below);
+// this fetcher signature is intentionally different from the others.
+async function fetchLegalRecipientStatement(
+  supabase: any,
+  recipientId: string,
+  opts: { periodStart?: string; periodEnd?: string; businessId?: string | null },
+): Promise<DocumentData> {
+  const periodStart = opts.periodStart;
+  const periodEnd = opts.periodEnd;
+  if (!periodStart || !periodEnd) {
+    throw new Error("legal_recipient_statement requires periodStart and periodEnd");
+  }
+
+  const { data: recipient, error: recErr } = await supabase
+    .from("legal_recipients")
+    .select(`
+      id,
+      organization_id,
+      display_name,
+      recipient_type_code,
+      jurisdiction_country,
+      jurisdiction_region,
+      tax_id,
+      contact_email,
+      contact_phone,
+      address,
+      organization:organizations(${ORG_FALLBACK_COLS})
+    `)
+    .eq("id", recipientId)
+    .single();
+
+  if (recErr || !recipient) {
+    throw new Error(`Legal recipient not found: ${recErr?.message ?? "no row"}`);
+  }
+
+  // Optional business branding — legal_recipients has no business_id column,
+  // but callers who know which paying business owns the remittance can pass
+  // it via body so the statement carries the correct letterhead.
+  let business: any = null;
+  if (opts.businessId) {
+    const { data: bizRow } = await supabase
+      .from("businesses")
+      .select(BUSINESS_BRANDING_COLS)
+      .eq("id", opts.businessId)
+      .maybeSingle();
+    business = bizRow ?? null;
+  }
+
+  const { data: entries, error: stmtErr } = await supabase.rpc(
+    "legal_recipient_statement",
+    {
+      p_recipient_id: recipientId,
+      p_from: periodStart,
+      p_to: periodEnd,
+    },
+  );
+  if (stmtErr) {
+    throw new Error(`legal_recipient_statement RPC failed: ${stmtErr.message}`);
+  }
+
+  // Accruals (+) increase balance owed to the recipient; remittances (-)
+  // decrease it. Map onto the debit/credit shape the shared statement
+  // renderer already understands so we reuse the exact PDF layout used
+  // for customer/vendor statements.
+  type Entry = {
+    entry_date: string;
+    entry_kind: "accrual" | "remittance";
+    reference: string | null;
+    amount: number;
+  };
+  const rows = ((entries ?? []) as Entry[]);
+
+  let opening = 0; // computed opening balance for the period would require a
+                   // separate rollup up to periodStart-1; leaving 0 here
+                   // keeps the report scoped to the selected window and
+                   // matches what the on-screen table shows.
+  let running = opening;
+  let totalAccrued = 0;
+  let totalRemitted = 0;
+  const statementTransactions: StatementTransaction[] = [];
+  for (const r of rows) {
+    const amount = Number(r.amount ?? 0);
+    // Accruals are positive in the RPC (money now owed), remittances are
+    // negative (money paid out). Statement uses debit=charges (increases
+    // liability from the recipient's POV) and credit=payment.
+    const debit = amount > 0 ? amount : 0;
+    const credit = amount < 0 ? -amount : 0;
+    if (r.entry_kind === "accrual") totalAccrued += debit;
+    else totalRemitted += credit;
+    running += amount;
+    statementTransactions.push({
+      date: r.entry_date,
+      type: r.entry_kind === "accrual" ? "Accrual" : "Remittance",
+      reference: r.reference ?? "—",
+      description:
+        r.entry_kind === "accrual"
+          ? "Payroll accrual"
+          : `Remittance${r.reference ? ` (${r.reference})` : ""}`,
+      charges: debit,
+      credits: credit,
+      balance: running,
+    });
+  }
+
+  const closing = running;
+  const currency =
+    (business?.base_currency as string | undefined) ||
+    (recipient.organization?.base_currency as string | undefined) ||
+    "USD";
+
+  return {
+    document_number: `Statement — ${recipient.display_name}`,
+    document_type: "legal_recipient_statement",
+    document_type_label: "RECIPIENT STATEMENT",
+    status: "issued",
+    issue_date: new Date().toISOString(),
+    subtotal: totalAccrued,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: closing,
+    amount_paid: totalRemitted,
+    currency,
+    notes: null,
+    terms: null,
+    contact: {
+      name: recipient.display_name,
+      email: recipient.contact_email,
+      phone: recipient.contact_phone,
+      address_line1: recipient.address,
+      tax_id: recipient.tax_id,
+    },
+    organization: await mapBusinessToOrg(
+      supabase,
+      business,
+      recipient.organization,
+      null,
+    ),
+    business_id: opts.businessId ?? null,
+    organization_id: recipient.organization_id,
+    items: [],
+    statement_transactions: statementTransactions,
+    statement_aging: [],
+    statement_opening_balance: opening,
+    statement_closing_balance: closing,
+    statement_period_start: periodStart,
+    statement_period_end: periodEnd,
+  } as DocumentData;
+}
+
 // ── Bill (Vendor Bill) fetcher ──────────────────────────────────────────────
 
 async function fetchBill(supabase: any, documentId: string): Promise<DocumentData> {
