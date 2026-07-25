@@ -139,28 +139,30 @@ function DetailsGrid({ details, labels }: { details: Record<string, any>; labels
   const scalars = entries.filter(([, v]) => !isPlainObj(v) && !Array.isArray(v));
   const nested = entries.filter(([, v]) => isPlainObj(v) || Array.isArray(v));
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 space-y-2 min-w-0">
       {scalars.length > 0 && (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm rounded-md border bg-muted/30 p-3">
-          {scalars.map(([k, v]) => (
-            <div key={k} className="flex flex-col">
-              <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                {humanizeKey(k)}
-              </dt>
-              <dd className={"tabular-nums " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
-                {formatValue(k, v, labels)}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <div className="overflow-x-auto rounded-md border bg-muted/30">
+          <dl className="grid grid-flow-col auto-cols-[minmax(9rem,1fr)] grid-rows-4 sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm p-3 min-w-max sm:min-w-0">
+            {scalars.map(([k, v]) => (
+              <div key={k} className="flex flex-col min-w-0">
+                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                  {humanizeKey(k)}
+                </dt>
+                <dd className={"tabular-nums break-words " + (MONEY_KEYS.test(k) ? "font-medium" : "")}>
+                  {formatValue(k, v, labels)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       )}
       {nested.map(([k, v]) => (
-        <div key={k} className="rounded-md border bg-muted/30 p-3">
+        <div key={k} className="rounded-md border bg-muted/30 p-3 min-w-0">
           <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
             {humanizeKey(k)}
           </div>
           {Array.isArray(v) ? (
-            <ul className="text-sm space-y-1 list-disc pl-4">
+            <ul className="text-sm space-y-1 list-disc pl-4 break-words">
               {v.map((item, i) => (
                 <li key={i}>{isPlainObj(item) || Array.isArray(item) ? JSON.stringify(item) : String(item)}</li>
               ))}
