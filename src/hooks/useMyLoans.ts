@@ -30,7 +30,31 @@ export interface MyLoanRequestInput {
   start_date: string;
   repayment_method: RepaymentMethod;
   reason?: string | null;
+  /**
+   * Payroll-deduction authorisation. Required by the RPC whenever the
+   * loan type has `requires_consent` — the engine stamps
+   * `consent_captured_at` / `consent_captured_by` on the loan row.
+   */
+  consent_acknowledged?: boolean;
+  /** Required by the RPC when the loan type has `requires_collateral`. */
+  collateral_description?: string | null;
 }
+
+/**
+ * Friendly copy for the policy refusals raised by
+ * `request_employee_loan` (Postgres HINT codes). Anything unmapped falls
+ * back to the RPC's own message, which is already human-readable.
+ */
+const LOAN_ERROR_COPY: Record<string, string> = {
+  LOAN_POLICY_CONSENT:
+    "Please tick the payroll deduction authorisation before submitting.",
+  LOAN_POLICY_COLLATERAL:
+    "This loan requires you to describe the collateral you are offering.",
+  LOAN_CONTEXT_AUTH: "Your session expired — sign in again to submit this request.",
+  LOAN_POLICY_TYPE: "That loan product is not available to you.",
+  LOAN_POLICY_TYPE_INACTIVE: "That loan product is no longer open for new requests.",
+};
+
 
 export interface MyLoanRequestOptions {
   /**
