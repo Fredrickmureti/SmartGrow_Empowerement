@@ -1595,6 +1595,7 @@ export type Database = {
           actor_user_id: string | null
           approved_at: string | null
           approved_by: string | null
+          client_token: string | null
           comments: string | null
           event_hash: string | null
           event_seq: number | null
@@ -1611,6 +1612,7 @@ export type Database = {
           actor_user_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          client_token?: string | null
           comments?: string | null
           event_hash?: string | null
           event_seq?: number | null
@@ -1627,6 +1629,7 @@ export type Database = {
           actor_user_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          client_token?: string | null
           comments?: string | null
           event_hash?: string | null
           event_seq?: number | null
@@ -1641,6 +1644,97 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "approval_history_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_request_approvers: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          permission_group_id: string | null
+          principal_role: string | null
+          principal_type: string
+          principal_user_id: string | null
+          request_id: string
+          step_number: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          permission_group_id?: string | null
+          principal_role?: string | null
+          principal_type: string
+          principal_user_id?: string | null
+          request_id: string
+          step_number: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          permission_group_id?: string | null
+          principal_role?: string | null
+          principal_type?: string
+          principal_user_id?: string | null
+          request_id?: string
+          step_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_request_approvers_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_request_steps: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_required: boolean
+          min_approvals: number
+          name: string | null
+          organization_id: string
+          request_id: string
+          status: string
+          step_number: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          min_approvals?: number
+          name?: string | null
+          organization_id: string
+          request_id: string
+          status?: string
+          step_number: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          min_approvals?: number
+          name?: string | null
+          organization_id?: string
+          request_id?: string
+          status?: string
+          step_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_request_steps_request_id_fkey"
             columns: ["request_id"]
             isOneToOne: false
             referencedRelation: "approval_requests"
@@ -1668,9 +1762,12 @@ export type Database = {
           policy_version: number | null
           requested_at: string | null
           requested_by: string | null
+          rule_snapshot: Json | null
           status: string | null
+          total_steps: number
           updated_at: string
           workflow_id: string | null
+          workflow_snapshot: Json | null
           workflow_version: number | null
         }
         Insert: {
@@ -1692,9 +1789,12 @@ export type Database = {
           policy_version?: number | null
           requested_at?: string | null
           requested_by?: string | null
+          rule_snapshot?: Json | null
           status?: string | null
+          total_steps?: number
           updated_at?: string
           workflow_id?: string | null
+          workflow_snapshot?: Json | null
           workflow_version?: number | null
         }
         Update: {
@@ -1716,9 +1816,12 @@ export type Database = {
           policy_version?: number | null
           requested_at?: string | null
           requested_by?: string | null
+          rule_snapshot?: Json | null
           status?: string | null
+          total_steps?: number
           updated_at?: string
           workflow_id?: string | null
+          workflow_snapshot?: Json | null
           workflow_version?: number | null
         }
         Relationships: [
@@ -73248,6 +73351,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _approval_role_matches: {
+        Args: { _org: string; _role: string; _user: string }
+        Returns: boolean
+      }
       _appt_transition: {
         Args: {
           p_appointment_id: string
@@ -73835,8 +73942,17 @@ export type Database = {
         }
         Returns: Json
       }
+      approval_can_decide: {
+        Args: { _request_id: string; _user: string }
+        Returns: boolean
+      }
       approval_decide: {
-        Args: { _comment?: string; _decision: string; _request_id: string }
+        Args: {
+          _client_token?: string
+          _comment?: string
+          _decision: string
+          _request_id: string
+        }
         Returns: {
           action_key: string | null
           business_id: string | null
@@ -73856,9 +73972,12 @@ export type Database = {
           policy_version: number | null
           requested_at: string | null
           requested_by: string | null
+          rule_snapshot: Json | null
           status: string | null
+          total_steps: number
           updated_at: string
           workflow_id: string | null
+          workflow_snapshot: Json | null
           workflow_version: number | null
         }
         SetofOptions: {
@@ -73906,9 +74025,12 @@ export type Database = {
           policy_version: number | null
           requested_at: string | null
           requested_by: string | null
+          rule_snapshot: Json | null
           status: string | null
+          total_steps: number
           updated_at: string
           workflow_id: string | null
+          workflow_snapshot: Json | null
           workflow_version: number | null
         }
         SetofOptions: {
