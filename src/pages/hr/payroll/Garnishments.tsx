@@ -673,6 +673,21 @@ export default function GarnishmentsPage() {
         onClose={() => setLifecycleFor(null)}
         onAction={(action) => lifecycleFor && runAction(lifecycleFor, action)}
       />
+      <TransitionConfirmDialog
+        pending={pendingAction}
+        onClose={() => setPendingAction(null)}
+        onConfirm={async ({ reason, evidence, evidence_document_id }) => {
+          if (!pendingAction) return;
+          await transitionGarnishment.mutateAsync({
+            id: pendingAction.g.id,
+            action: pendingAction.action,
+            reason_text: reason,
+            evidence_url: evidence,
+            evidence_document_id,
+          });
+          setPendingAction(null);
+        }}
+      />
       <LinkRecipientDialog
         open={!!linkContactFor}
         onOpenChange={(o) => !o && setLinkContactFor(null)}
