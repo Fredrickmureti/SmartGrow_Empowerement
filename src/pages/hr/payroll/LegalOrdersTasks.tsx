@@ -38,8 +38,8 @@ export default function LegalOrdersTasks() {
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Kpi
           label="Total outstanding"
           value={fmt(totalOutstanding)}
@@ -58,7 +58,7 @@ export default function LegalOrdersTasks() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-w-0">
         <TaskCard
           icon={<ClipboardCheck className="h-4 w-4" />}
           title="Orders awaiting approval"
@@ -148,14 +148,14 @@ function Kpi({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground break-words">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div
           className={cnTone(
-            "text-2xl font-semibold tabular-nums",
+            "text-xl sm:text-2xl font-semibold tabular-nums",
             tone === "warn" && "text-amber-600 dark:text-amber-500",
           )}
         >
@@ -192,7 +192,7 @@ function TaskCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-start gap-2 text-base">
           {icon}
           {title}
         </CardTitle>
@@ -204,8 +204,8 @@ function TaskCard({
         ) : (
           <ul className="divide-y">
             {items.map((it) => (
-              <li key={it.key} className="flex items-center justify-between py-2">
-                <div className="min-w-0">
+              <li key={it.key} className="flex flex-wrap items-start justify-between gap-2 py-2">
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium truncate">{it.primary}</div>
                   {it.secondary && (
                     <div className="text-xs text-muted-foreground truncate">
@@ -213,7 +213,7 @@ function TaskCard({
                     </div>
                   )}
                 </div>
-                {it.action}
+                {it.action && <div className="shrink-0">{it.action}</div>}
               </li>
             ))}
           </ul>

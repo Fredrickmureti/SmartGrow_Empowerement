@@ -319,7 +319,7 @@ export default function GarnishmentsPage() {
         </div>
       )}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2"><Scale className="h-5 w-5" /> Garnishments</CardTitle>
             <CardDescription>
@@ -762,7 +762,7 @@ function LifecycleSheet({
                 <ol className="space-y-2 text-xs">
                   {events.map((e) => (
                     <li key={e.id} className="rounded border bg-muted/30 px-3 py-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-medium">{ACTION_LABELS[e.event] ?? e.event}</span>
                         <span className="text-muted-foreground">{new Date(e.effective_at).toLocaleString()}</span>
                       </div>

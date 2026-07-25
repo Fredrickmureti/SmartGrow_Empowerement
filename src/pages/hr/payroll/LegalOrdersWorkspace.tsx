@@ -30,17 +30,17 @@ const TABS = [
 export default function LegalOrdersWorkspace() {
   const { pathname } = useLocation();
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 w-full flex-col">
       <header className="border-b bg-background">
-        <div className="px-6 pt-6">
-          <h1 className="text-2xl font-semibold">Legal Orders</h1>
-          <p className="text-sm text-muted-foreground">
+        <div className="px-4 sm:px-6 pt-4 sm:pt-6">
+          <h1 className="text-xl sm:text-2xl font-semibold">Legal Orders</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl">
             Court orders, garnishments, statutory attachments and their
             recipients — one workspace from intake to remittance.
           </p>
         </div>
         <nav
-          className="px-6 mt-4 flex gap-1 border-b -mb-px"
+          className="px-4 sm:px-6 mt-4 flex flex-nowrap gap-1 border-b -mb-px overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           aria-label="Legal orders sections"
         >
           {TABS.map(({ to, label, icon: Icon, end }) => {
@@ -53,20 +53,20 @@ export default function LegalOrdersWorkspace() {
                 to={to}
                 end={end}
                 className={cn(
-                  "inline-flex items-center gap-2 px-3 py-2 text-sm border-b-2 -mb-px transition-colors",
+                  "inline-flex shrink-0 items-center gap-2 px-3 py-2 text-sm border-b-2 -mb-px transition-colors",
                   active
                     ? "border-primary text-foreground font-medium"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 {label}
               </NavLink>
             );
           })}
         </nav>
       </header>
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <Outlet />
       </div>
     </div>
