@@ -287,8 +287,8 @@ export default function LegalOrdersAudit() {
   );
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <div className="md:col-span-2">
           <label className="text-xs font-medium text-muted-foreground">Legal order</label>
           <Select value={activeOrderId} onValueChange={setSelectedOrderId}>
@@ -315,7 +315,7 @@ export default function LegalOrdersAudit() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <BalanceKpi label="Total owed" value={fmt(balanceQ.data?.total_owed)} hint="From order header" />
         <BalanceKpi label="Accrued to date" value={fmt(balanceQ.data?.accrued)} />
         <BalanceKpi label="Remitted to date" value={fmt(balanceQ.data?.remitted)} />

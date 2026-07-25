@@ -215,7 +215,7 @@ export default function LegalOrderRemittanceBatch() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 space-y-0">
           <CardTitle className="text-base">Summary</CardTitle>
           <div className="text-sm text-muted-foreground">
             {lineCount} line{lineCount === 1 ? "" : "s"} · {buckets.length} authorit{buckets.length === 1 ? "y" : "ies"} ·{" "}

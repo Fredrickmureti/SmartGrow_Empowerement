@@ -91,7 +91,7 @@ export default function LegalRecipients() {
   }, [recipients]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
       <div>
         <h1 className="text-2xl font-semibold">Legal Recipients</h1>
         <p className="text-muted-foreground text-sm">
@@ -101,7 +101,7 @@ export default function LegalRecipients() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">

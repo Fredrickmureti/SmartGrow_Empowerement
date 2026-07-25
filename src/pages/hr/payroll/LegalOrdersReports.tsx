@@ -174,7 +174,7 @@ export default function LegalOrdersReports() {
   const canRun = !!orgId && !!recipientId && !!from && !!to && from <= to;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 min-w-0">
       {/* Statutory report catalog */}
       <Card>
         <CardHeader>
@@ -244,7 +244,7 @@ export default function LegalOrdersReports() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="md:col-span-2 space-y-1">
               <Label>Recipient</Label>
               <Select value={recipientId} onValueChange={setRecipientId}>
@@ -361,7 +361,7 @@ function StatementResult({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="font-medium text-sm">Orders in period</div>
           <Button size="sm" variant="outline" onClick={onExportOrders}>
             <Download className="h-3 w-3 mr-1" /> CSV
@@ -409,7 +409,7 @@ function StatementResult({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="font-medium text-sm">Remittance batches</div>
           <Button size="sm" variant="outline" onClick={onExportBatches}>
             <Download className="h-3 w-3 mr-1" /> CSV
