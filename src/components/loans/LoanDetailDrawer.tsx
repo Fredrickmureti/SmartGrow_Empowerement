@@ -283,8 +283,9 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
             )}
 
             {canSettle && (
-              <Button disabled={busy} onClick={() => wrap(() => settleLoan(loan.id))}>
-                <CheckCircle className="h-4 w-4 mr-2" /> Settle (zero balance)
+              <Button disabled={busy} onClick={() => wrap("settle", () => settleLoan(loan.id))}>
+                {isPending("settle") ? spinner : <CheckCircle className="h-4 w-4 mr-2" />}
+                {isPending("settle") ? "Settling…" : "Settle (zero balance)"}
               </Button>
             )}
 
@@ -295,24 +296,27 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                 <Button
                   variant="destructive"
                   disabled={busy || !writeOffReason}
-                  onClick={() => wrap(async () => {
+                  onClick={() => wrap("write_off", async () => {
                     await writeOffLoan(loan.id, writeOffReason);
                     setWriteOffReason("");
                   })}
                 >
-                  <XCircle className="h-4 w-4 mr-2" /> Write off outstanding balance
+                  {isPending("write_off") ? spinner : <XCircle className="h-4 w-4 mr-2" />}
+                  {isPending("write_off") ? "Writing off…" : "Write off outstanding balance"}
                 </Button>
               </div>
             )}
 
             {(loan.status === "active" || loan.status === "in_arrears") && (
-              <Button variant="outline" disabled={busy} onClick={() => wrap(() => suspendLoan(loan.id))}>
-                <PauseCircle className="h-4 w-4 mr-2" /> Suspend
+              <Button variant="outline" disabled={busy} onClick={() => wrap("suspend", () => suspendLoan(loan.id))}>
+                {isPending("suspend") ? spinner : <PauseCircle className="h-4 w-4 mr-2" />}
+                {isPending("suspend") ? "Suspending…" : "Suspend"}
               </Button>
             )}
             {(loan.status === "draft" || loan.status === "pending_approval" || loan.status === "requested" || loan.status === "suspended" || loan.status === "approved") && (
-              <Button variant="ghost" className="text-destructive" disabled={busy} onClick={() => wrap(() => cancelLoan(loan.id))}>
-                <XCircle className="h-4 w-4 mr-2" /> Cancel
+              <Button variant="ghost" className="text-destructive" disabled={busy} onClick={() => wrap("cancel", () => cancelLoan(loan.id))}>
+                {isPending("cancel") ? spinner : <XCircle className="h-4 w-4 mr-2" />}
+                {isPending("cancel") ? "Cancelling…" : "Cancel"}
               </Button>
             )}
           </TabsContent>
