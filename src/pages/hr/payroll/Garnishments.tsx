@@ -36,6 +36,10 @@ import {
   WorkflowField,
 } from "@/components/workflow/WorkflowSheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Scale, History, BookOpen, FileText, Workflow } from "lucide-react";
 import { GarnishmentDashboard } from "@/components/payroll/GarnishmentDashboard";
 import { AuthorityPicker } from "@/components/payroll/AuthorityPicker";
