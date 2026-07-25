@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import { buildCsv, buildCsvFromMatrix, csvStringToBytes } from "./csv";
 
 const decode = (bytes: Uint8Array) =>
-  new TextDecoder("utf-8", { ignoreBOM: false }).decode(bytes);
+  new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes);
 
 describe("buildCsv", () => {
   it("emits a UTF-8 BOM as the first bytes", () => {
