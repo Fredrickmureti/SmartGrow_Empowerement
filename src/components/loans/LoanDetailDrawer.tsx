@@ -77,10 +77,13 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
   const canSettle = actions.has("settle");
   const canWriteOff = actions.has("write_off");
 
-  const wrap = async (fn: () => Promise<void>) => {
-    setBusy(true);
-    try { await fn(); } finally { setBusy(false); }
+  const wrap = async (action: string, fn: () => Promise<void>) => {
+    if (pendingAction) return; // guard against double-clicks / concurrent actions
+    setPendingAction(action);
+    try { await fn(); } finally { setPendingAction(null); }
   };
+  const isPending = (a: string) => pendingAction === a;
+  const spinner = <Loader2 className="h-4 w-4 mr-2 animate-spin" />;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
