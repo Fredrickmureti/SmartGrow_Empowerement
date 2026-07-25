@@ -73136,18 +73136,6 @@ export type Database = {
         Args: { _action: string; _loan_id: string; _notes: string }
         Returns: undefined
       }
-      _loan_ensure_account: {
-        Args: {
-          _biz: string
-          _code: string
-          _detail: string
-          _name: string
-          _org: string
-          _role: string
-          _type: string
-        }
-        Returns: string
-      }
       _loan_lifecycle_emit: {
         Args: {
           _actor: string

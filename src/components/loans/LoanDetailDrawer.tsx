@@ -231,7 +231,7 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                   variant="outline"
                   disabled={busy || !manualAmount || !bankAccountId}
                   onClick={() => wrap(async () => {
-                    await recordManualRepayment(loan.id, Number(manualAmount), manualDate, bankAccountId, manualRef || undefined);
+                    await recordManualRepayment(loan.id, Number(manualAmount), manualDate, manualRef || undefined);
                     setManualAmount(""); setManualRef("");
                   })}
                 >
@@ -250,9 +250,10 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                   disabled={busy || !restructureReason}
                   onClick={() => wrap(async () => {
                     await restructureLoan(loan.id, {
-                      new_term_months: restructureTerm ? Number(restructureTerm) : undefined,
+                      new_installments: restructureTerm ? Number(restructureTerm) : undefined,
                       reason: restructureReason,
                     });
+
                     setRestructureReason(""); setRestructureTerm("");
                   })}
                 >
