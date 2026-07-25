@@ -24,7 +24,7 @@ export type LoanStatus =
   | "suspended"
   | "rejected"
   | "cancelled"
-  | "settled"
+  | "completed"
   | "written_off"
   | "restructured"
   | "closed_on_termination";
@@ -69,26 +69,28 @@ export const LOAN_TRANSITIONS: readonly Transition[] = [
   { from: "active", event: "enter_arrears", to: "in_arrears" },
   { from: "active", event: "pause", to: "paused" },
   { from: "active", event: "suspend", to: "suspended" },
-  { from: "active", event: "settle", to: "settled" },
+  { from: "active", event: "settle", to: "completed" },
   { from: "active", event: "write_off", to: "written_off" },
   { from: "active", event: "restructure", to: "restructured" },
   { from: "active", event: "close_on_termination", to: "closed_on_termination" },
   { from: "in_arrears", event: "exit_arrears", to: "active" },
   { from: "in_arrears", event: "pause", to: "paused" },
-  { from: "in_arrears", event: "settle", to: "settled" },
+  { from: "in_arrears", event: "settle", to: "completed" },
   { from: "in_arrears", event: "write_off", to: "written_off" },
   { from: "in_arrears", event: "restructure", to: "restructured" },
   { from: "in_arrears", event: "close_on_termination", to: "closed_on_termination" },
   { from: "paused", event: "resume", to: "active" },
+  { from: "paused", event: "settle", to: "completed" },
   { from: "paused", event: "write_off", to: "written_off" },
   { from: "paused", event: "restructure", to: "restructured" },
   { from: "paused", event: "close_on_termination", to: "closed_on_termination" },
+  { from: "restructured", event: "settle", to: "completed" },
   { from: "suspended", event: "resume", to: "active" },
   { from: "suspended", event: "cancel", to: "cancelled" },
 ];
 
 export const TERMINAL_STATUSES: readonly LoanStatus[] = [
-  "settled",
+  "completed",
   "written_off",
   "cancelled",
   "rejected",

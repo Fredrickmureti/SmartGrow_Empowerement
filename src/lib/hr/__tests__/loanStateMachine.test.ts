@@ -26,7 +26,7 @@ describe("loanStateMachine", () => {
   });
 
   it("recognises terminal states", () => {
-    expect(isTerminal("settled")).toBe(true);
+    expect(isTerminal("completed")).toBe(true);
     expect(isTerminal("written_off")).toBe(true);
     expect(isTerminal("cancelled")).toBe(true);
     expect(isTerminal("active")).toBe(false);
