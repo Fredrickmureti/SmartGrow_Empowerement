@@ -6,6 +6,7 @@
  * Single-source-of-truth for the customer's balance, statement, and aging.
  */
 import { useMemo, useState } from "react";
+import { downloadCsv } from "@/lib/exports/csv";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useCustomerLedger } from "@/hooks/useCustomerLedger";
 import { useCurrency } from "@/hooks/useCurrency";

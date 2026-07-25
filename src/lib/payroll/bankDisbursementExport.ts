@@ -18,6 +18,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv } from "@/lib/exports/csv";
 
 /**
  * Free-form format code resolved at runtime from

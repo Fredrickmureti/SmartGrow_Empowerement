@@ -10,6 +10,7 @@
  *  3. Device trust roster — pending devices HR can approve / revoke.
  */
 import { useMemo, useState } from "react";
+import { downloadCsv } from "@/lib/exports/csv";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";

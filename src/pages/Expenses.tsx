@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { downloadCsv } from "@/lib/exports/csv";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv } from "@/lib/exports/csv";
 import { format } from "date-fns";
 
 export async function exportMovementsToCSV(
