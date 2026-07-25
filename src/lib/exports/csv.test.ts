@@ -28,7 +28,7 @@ describe("buildCsv", () => {
       [{ v: 'he said "hi", then\nleft' }, { v: " leading" }, { v: "trailing " }],
       ["v"],
     ));
-    expect(text).toContain('"he said ""hi"", then\r\nleft"');
+    expect(text).toContain('"he said ""hi"", then\nleft"');
     expect(text).toContain('" leading"');
     expect(text).toContain('"trailing "');
   });
