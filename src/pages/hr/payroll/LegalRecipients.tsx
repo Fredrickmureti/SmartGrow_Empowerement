@@ -252,7 +252,7 @@ export default function LegalRecipients() {
                       `recipient-statement-${selected.display_name}-${from}-${to}`,
                       undefined,
                       undefined,
-                      { periodStart: from, periodEnd: to },
+                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
                     )
                   }
                 >
@@ -268,7 +268,7 @@ export default function LegalRecipients() {
                       `Recipient Statement — ${selected.display_name}`,
                       undefined,
                       undefined,
-                      { periodStart: from, periodEnd: to },
+                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
                     )
                   }
                 >
