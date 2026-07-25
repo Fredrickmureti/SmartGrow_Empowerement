@@ -73136,6 +73136,18 @@ export type Database = {
         Args: { _action: string; _loan_id: string; _notes: string }
         Returns: undefined
       }
+      _loan_ensure_account: {
+        Args: {
+          _biz: string
+          _code: string
+          _detail: string
+          _name: string
+          _org: string
+          _role: string
+          _type: string
+        }
+        Returns: string
+      }
       _loan_lifecycle_emit: {
         Args: {
           _actor: string
@@ -77541,6 +77553,10 @@ export type Database = {
           revaluation_account_id: string
           shrinkage_account_id: string
         }[]
+      }
+      ensure_loan_gl_accounts: {
+        Args: { _biz: string; _org: string }
+        Returns: Json
       }
       ensure_opening_balance_equity_account: {
         Args: { _business_id: string; _org_id: string }
