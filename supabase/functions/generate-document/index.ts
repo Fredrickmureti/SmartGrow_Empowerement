@@ -2103,6 +2103,13 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   sales_return: fetchSalesReturn,
   customer_statement: fetchCustomerStatement,
   vendor_statement: fetchVendorStatement,
+  // Sentinel — the real dispatch for legal_recipient_statement is
+  // special-cased at the call site so it can receive periodStart/periodEnd
+  // from the request body. Registered here only so the "Unsupported
+  // document type" gate lets the request through.
+  legal_recipient_statement: (async () => {
+    throw new Error("legal_recipient_statement must be dispatched via the special-case call site");
+  }) as unknown as (supabase: any, id: string) => Promise<DocumentData>,
   bill: fetchBill,
   // Wave 12 C2 — alias both naming conventions; UI uses `goods_received_note`.
   goods_received_note: fetchGoodsReceivedNote,
