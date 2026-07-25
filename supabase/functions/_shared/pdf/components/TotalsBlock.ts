@@ -116,8 +116,15 @@ export function drawTotalsBlock(
   // Reserve enough vertical space (lines + grand total + optional paid/balance)
   const extraRows = (config.amountPaid !== undefined ? 1 : 0)
     + (config.balanceDue !== undefined ? 1 : 0);
-  const totalHeight = lines.length * lineHeight + 6 + 18 + extraRows * lineHeight + 8;
+  // When there are NO summary lines above the grand total, the double rule
+  // (drawn at builder.y + 12 / + 10 below) lands on top of whatever the caller
+  // rendered immediately before this block — on statements that is the
+  // "Closing Balance" row, producing a strike-through across its amount.
+  // Reserve one line of clearance so the rule always sits in empty space.
+  const leadGap = lines.length === 0 ? lineHeight : 0;
+  const totalHeight = lines.length * lineHeight + leadGap + 6 + 18 + extraRows * lineHeight + 8;
   builder.ensureSpace(totalHeight);
+  builder.y -= leadGap;
 
   // Subtotal / discount / tax lines
   for (const line of lines) {
