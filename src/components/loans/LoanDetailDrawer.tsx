@@ -267,7 +267,7 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                 <Button
                   variant="outline"
                   disabled={busy || !restructureReason}
-                  onClick={() => wrap(async () => {
+                  onClick={() => wrap("restructure", async () => {
                     await restructureLoan(loan.id, {
                       new_installments: restructureTerm ? Number(restructureTerm) : undefined,
                       reason: restructureReason,
@@ -276,7 +276,8 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                     setRestructureReason(""); setRestructureTerm("");
                   })}
                 >
-                  <ScrollText className="h-4 w-4 mr-2" /> Restructure
+                  {isPending("restructure") ? spinner : <ScrollText className="h-4 w-4 mr-2" />}
+                  {isPending("restructure") ? "Restructuring…" : "Restructure"}
                 </Button>
               </div>
             )}
