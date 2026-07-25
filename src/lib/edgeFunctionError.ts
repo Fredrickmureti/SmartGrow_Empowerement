@@ -105,7 +105,36 @@ Object.assign(HINT_MESSAGES, {
     "You don't have permission to convert applications into employees.",
   RECRUITMENT_STAGE_INVALID:
     "Move the application to the offer or hired stage before converting it to an employee.",
+
+  // ---- Employee loans -------------------------------------------------
+  LOAN_POLICY_MIN_INSTALLMENTS: "The minimum number of installments must be at least 1.",
+  LOAN_POLICY_MAX_INSTALLMENTS: "The maximum number of installments must be at least 1.",
+  LOAN_POLICY_INSTALLMENT_RANGE:
+    "The minimum number of installments cannot be greater than the maximum.",
+  LOAN_POLICY_MIN_PRINCIPAL: "The minimum loan amount cannot be negative.",
+  LOAN_POLICY_MAX_PRINCIPAL: "The maximum loan amount cannot be negative.",
+  LOAN_POLICY_PRINCIPAL_RANGE:
+    "The minimum loan amount cannot be greater than the maximum loan amount.",
+  LOAN_POLICY_MIN_TENURE: "The minimum loan term must be at least 1 month.",
+  LOAN_POLICY_MAX_TENURE: "The maximum loan term must be at least 1 month.",
+  LOAN_POLICY_TENURE_RANGE: "The minimum loan term cannot be longer than the maximum term.",
+  LOAN_POLICY_MAX_PCT_OF_NET:
+    "The maximum deduction percentage of net pay must be between 0 and 100.",
+  LOAN_POLICY_NET_PAY_FLOOR: "The minimum take-home pay floor cannot be negative.",
+  LOAN_POLICY_DEDUCTION_PRIORITY: "The deduction priority must be between 1 and 10000.",
+  LOAN_POLICY_SALARY_RULE_CODE:
+    "The salary rule code must be lowercase letters, numbers and underscores only, starting with a letter.",
+  LOAN_POLICY_MAX_SKIPS_PER_LOAN: "The number of allowed skips per loan cannot be negative.",
+  LOAN_POLICY_MAX_SKIPS_PER_YEAR: "The number of allowed skips per year cannot be negative.",
+  LOAN_POLICY_SKIP_GAP: "The minimum gap between skipped repayments cannot be negative.",
+  LOAN_POLICY_REPAYMENT_METHOD: "Choose a valid repayment method for this loan product.",
+  LOAN_POLICY_INTEREST_METHOD: "Choose a valid interest method for this loan product.",
+  LOAN_POLICY_SKIP_INTEREST:
+    "Choose how interest is treated when a repayment is skipped (accrue, waive, or capitalise).",
+  LOAN_POLICY_SKIP_SCHEDULE:
+    "Choose how the schedule adjusts when a repayment is skipped (push end, rebalance, or shorten).",
 });
+
 
 const OFFLINE_MESSAGE =
   "It looks like your internet connection dropped while running payroll, so we couldn't reach the server. No changes were saved — reconnect and run it again. If the connection is stable and this keeps happening, contact support.";

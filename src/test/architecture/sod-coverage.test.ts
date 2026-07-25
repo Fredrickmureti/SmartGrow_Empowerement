@@ -39,6 +39,11 @@ const ACTION_TO_TABLE: Record<string, string> = {
   "employee_loan.restructure": "employee_loans",
   "employee_loan.refinance": "employee_loans",
   "employee_loan.record_manual_repayment": "employee_loans",
+  "payroll.loan_skip_override.approve": "payroll_run_loan_skip_overrides",
+  "payroll.loan_skip_override.reject": "payroll_run_loan_skip_overrides",
+  "payroll.loan_skip_override.cancel": "payroll_run_loan_skip_overrides",
+
+
   "compensation.approve": "employee_compensation_history",
   "compensation.approve_self_benefit": "employee_compensation_history",
   "contract.approve": "employee_contracts",
@@ -55,8 +60,25 @@ const ACTION_TO_TABLE: Record<string, string> = {
   "inventory.approve_transfer": "stock_transfers",
   "expense.approve": "expenses",
   "expense.approve_self_benefit": "expenses",
+  "scrap.approve": "stock_adjustments",
+  "scrap.post": "stock_adjustments",
+  "scrap.reverse": "stock_adjustments",
   "bank_account.sensitive_change": "bank_accounts",
+
 };
+
+/**
+ * Actions enforced inside a SECURITY DEFINER RPC rather than by a row trigger.
+ * The physical-count lifecycle only transitions through
+ * physical_count_submit / _approve / _post, so the self-action check lives in
+ * those functions instead of a table guard.
+ */
+const RPC_ENFORCED_ACTIONS: Record<string, string> = {
+  "inventory.submit_count": "physical_count_submit",
+  "inventory.approve_count": "physical_count_approve",
+  "inventory.post_count": "physical_count_post",
+};
+
 
 function readMigrations(): string {
   const dir = join(process.cwd(), "supabase", "migrations");
@@ -67,11 +89,23 @@ function readMigrations(): string {
 }
 
 describe("SoD self-action coverage", () => {
-  it("every catalogue action maps to a known table", () => {
+  it("every catalogue action maps to a known table or enforcing RPC", () => {
     for (const entry of SELF_ACTION_CATALOGUE) {
-      expect(ACTION_TO_TABLE[entry.key], `missing table mapping for ${entry.key}`).toBeTruthy();
+      expect(
+        ACTION_TO_TABLE[entry.key] ?? RPC_ENFORCED_ACTIONS[entry.key],
+        `missing table mapping for ${entry.key}`,
+      ).toBeTruthy();
     }
   });
+
+  it("RPC-enforced actions assert the self-action guard", () => {
+    const sql = readMigrations();
+    for (const [key, fn] of Object.entries(RPC_ENFORCED_ACTIONS)) {
+      const re = new RegExp(`governance_assert_not_self[\\s\\S]{0,400}?${key.replace(".", "\\.")}`, "i");
+      expect(re.test(sql), `${fn} must call governance_assert_not_self for ${key}`).toBe(true);
+    }
+  });
+
 
   it("every guarded table has a sod_*_guard trigger in migrations", () => {
     const sql = readMigrations();
