@@ -37,6 +37,7 @@ const LegalOrdersTasks = lazy(() => import("@/pages/hr/payroll/LegalOrdersTasks"
 const LegalOrderPacks = lazy(() => import("@/pages/hr/payroll/LegalOrderPacks"));
 const LegalOrderRemittanceBatches = lazy(() => import("@/pages/hr/payroll/LegalOrderRemittanceBatches"));
 const LegalOrdersAudit = lazy(() => import("@/pages/hr/payroll/LegalOrdersAudit"));
+const LegalOrdersReports = lazy(() => import("@/pages/hr/payroll/LegalOrdersReports"));
 
 interface PayrollAppProps {
   surface: "payroll" | "remittances";
@@ -131,6 +132,7 @@ export function PayrollApp({ surface }: PayrollAppProps) {
             <Route path="recipients" element={<LazyRoute module="Legal Recipients"><LegalRecipients /></LazyRoute>} />
             <Route path="remittance-batch" element={<LazyRoute module="Legal Order Remittance Batches"><LegalOrderRemittanceBatch /></LazyRoute>} />
             <Route path="batches" element={<LazyRoute module="Legal Order Batches"><LegalOrderRemittanceBatches /></LazyRoute>} />
+            <Route path="reports" element={<LazyRoute module="Legal Orders Reports"><LegalOrdersReports /></LazyRoute>} />
             <Route path="audit" element={<LazyRoute module="Legal Orders Audit"><LegalOrdersAudit /></LazyRoute>} />
           </Route>
           {/* Legacy path kept for existing bookmarks. */}
