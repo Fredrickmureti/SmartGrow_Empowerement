@@ -275,24 +275,20 @@ export default function GarnishmentsPage() {
     setOpen(false);
   }
 
+  // Actions that require a formal confirmation dialog (with typed
+  // confirmation for terminal states). Benign transitions execute
+  // immediately.
+  const CONFIRM_ACTIONS: GarnishmentTransitionAction[] = [
+    "suspend", "resume", "reject", "release", "mark_satisfied",
+    "expire", "terminate_unsatisfied",
+  ];
+
   async function runAction(g: Garnishment, action: GarnishmentTransitionAction) {
-    let reason: string | undefined;
-    let evidence: string | undefined;
-    if (action === "release") {
-      if (!g.document_url) {
-        evidence = window.prompt("Releasing an order requires evidence. Paste the release document URL:") || undefined;
-        if (!evidence) return;
-      }
-      reason = window.prompt("Reason (e.g. 'court release 2026-06-10'):") || undefined;
-    } else if (["suspend", "reject", "terminate_unsatisfied"].includes(action)) {
-      reason = window.prompt(`Reason for ${action.replace(/_/g, " ")}:`) || undefined;
+    if (CONFIRM_ACTIONS.includes(action)) {
+      setPendingAction({ g, action });
+      return;
     }
-    await transitionGarnishment.mutateAsync({
-      id: g.id,
-      action,
-      reason_text: reason,
-      evidence_url: evidence,
-    });
+    await transitionGarnishment.mutateAsync({ id: g.id, action });
   }
 
   return (
