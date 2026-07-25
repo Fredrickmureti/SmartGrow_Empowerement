@@ -178,27 +178,37 @@ function DetailsGrid({ details, labels }: { details: Record<string, any>; labels
 
 function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number; labels: Map<string, string> }) {
   const [showRaw, setShowRaw] = useState(false);
+  const [open, setOpen] = useState(false);
   const hasDetails = row.details && Object.keys(row.details).length > 0;
   return (
-    <li key={`${row.source_table}:${row.source_row_id}:${index}`} className="relative">
+    <li key={`${row.source_table}:${row.source_row_id}:${index}`} className="relative min-w-0">
       <span className="absolute -left-[29px] top-1 inline-flex h-6 w-6 items-center justify-center rounded-full border bg-background">
         <KindIcon kind={row.entry_kind} />
       </span>
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant="outline" className={KIND_TONE[row.entry_kind]}>
+      <button
+        type="button"
+        onClick={() => hasDetails && setOpen((o) => !o)}
+        className="w-full text-left flex flex-wrap items-center gap-x-2 gap-y-1 text-sm min-w-0"
+      >
+        {hasDetails && (
+          open
+            ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <Badge variant="outline" className={KIND_TONE[row.entry_kind] + " shrink-0"}>
           {KIND_LABEL[row.entry_kind]}
         </Badge>
-        <span className="font-medium">{humanizeAction(row.action)}</span>
-        <span className="text-muted-foreground">
+        <span className="font-medium break-words">{humanizeAction(row.action)}</span>
+        <span className="text-muted-foreground text-xs w-full sm:w-auto">
           {row.occurred_at ? new Date(row.occurred_at).toLocaleString() : ""}
         </span>
-      </div>
-      {hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
-      <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <ArrowUpRight className="h-3 w-3" /> {row.source_table}
+      </button>
+      {open && hasDetails && <DetailsGrid details={row.details as Record<string, any>} labels={labels} />}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1 break-all">
+          <ArrowUpRight className="h-3 w-3 shrink-0" /> {row.source_table}
         </span>
-        {hasDetails && (
+        {open && hasDetails && (
           <Button
             type="button"
             variant="ghost"
@@ -211,8 +221,8 @@ function TimelineEntry({ row, index, labels }: { row: TimelineRow; index: number
           </Button>
         )}
       </div>
-      {showRaw && hasDetails && (
-        <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto">
+      {open && showRaw && hasDetails && (
+        <pre className="mt-1 text-xs bg-muted/40 rounded p-2 overflow-x-auto max-w-full">
           {JSON.stringify(row.details, null, 2)}
         </pre>
       )}
