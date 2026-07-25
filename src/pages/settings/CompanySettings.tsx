@@ -47,9 +47,8 @@ import {
   ArrowLeft,
   Mail as MailIcon,
   Package,
-  History,
 } from "lucide-react";
-import { SettingsAuditLogPanel } from "@/components/settings/SettingsAuditLogPanel";
+
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
 import { TaxSettings } from "@/components/settings/TaxSettings";
 import { PaymentGatewaySettings } from "@/components/settings/PaymentGatewaySettings";
