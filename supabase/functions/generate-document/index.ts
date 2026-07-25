@@ -1604,7 +1604,7 @@ async function fetchLegalRecipientStatement(
       recipient.organization,
       null,
     ),
-    business_id: opts.businessId ?? null,
+    business_id: (business?.id as string | undefined) ?? opts.businessId ?? null,
     organization_id: recipient.organization_id,
     items: [],
     statement_transactions: statementTransactions,
