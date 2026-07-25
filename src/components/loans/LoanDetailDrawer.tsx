@@ -178,21 +178,23 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
 
           <TabsContent value="actions" className="space-y-4">
             {canApprove && (
-              <Button disabled={busy} onClick={() => wrap(() => approveLoan(loan.id))}>
-                <CheckCircle className="h-4 w-4 mr-2" /> Approve
+              <Button disabled={busy} onClick={() => wrap("approve", () => approveLoan(loan.id))}>
+                {isPending("approve") ? spinner : <CheckCircle className="h-4 w-4 mr-2" />}
+                {isPending("approve") ? "Approving…" : "Approve"}
               </Button>
             )}
 
             {canAuthorize && (
-              <Button disabled={busy} onClick={() => wrap(() => authorizeDisbursement(loan.id))}>
-                <CheckCircle className="h-4 w-4 mr-2" /> Authorize for disbursement
+              <Button disabled={busy} onClick={() => wrap("authorize", () => authorizeDisbursement(loan.id))}>
+                {isPending("authorize") ? spinner : <CheckCircle className="h-4 w-4 mr-2" />}
+                {isPending("authorize") ? "Authorizing…" : "Authorize for disbursement"}
               </Button>
             )}
 
             {canDisburse && (
               <div className="space-y-2 border rounded-md p-3">
                 <Label>Disburse from</Label>
-                <Select value={bankAccountId} onValueChange={setBankAccountId}>
+                <Select value={bankAccountId} onValueChange={setBankAccountId} disabled={busy}>
                   <SelectTrigger><SelectValue placeholder="Select bank/cash account" /></SelectTrigger>
                   <SelectContent>
                     {cashAccounts.map((a) => (
@@ -202,9 +204,10 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                 </Select>
                 <Button
                   disabled={!bankAccountId || busy}
-                  onClick={() => wrap(async () => { await disburseLoan(loan.id, bankAccountId); })}
+                  onClick={() => wrap("disburse", async () => { await disburseLoan(loan.id, bankAccountId); })}
                 >
-                  <Banknote className="h-4 w-4 mr-2" /> Disburse & post journal
+                  {isPending("disburse") ? spinner : <Banknote className="h-4 w-4 mr-2" />}
+                  {isPending("disburse") ? "Posting journal…" : "Disburse & post journal"}
                 </Button>
               </div>
             )}
