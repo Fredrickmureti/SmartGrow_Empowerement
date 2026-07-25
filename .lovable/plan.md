@@ -1,38 +1,65 @@
-## What's actually happening
 
-The toast is not a governance/approval problem — it's a missing field in the employee-facing request form.
+## What's happening
 
-Verified:
+Approving a loan calls `employee_loan_lifecycle_approve(uuid)`. That function's body contains:
 
-- `loan_types` rows in this org all have `requires_consent = true`, including **Salary Advance** (`SAL_ADV`).
-- The RPC `request_employee_loan` raises exactly this error at the consent check:
-  `IF v_lt.requires_consent AND NOT v_consent_ack THEN RAISE ... 'requires you to accept the payroll deduction consent before submitting'` (HINT `LOAN_POLICY_CONSENT`), reading `_input->>'consent_acknowledged'`.
-- `src/hooks/useMyLoans.ts` builds the RPC payload and **never sends `consent_acknowledged` or `collateral_description`** — there's even a comment admitting they're "optional here".
-- `src/components/loans/RequestLoanWizard.tsx` has no consent checkbox and no collateral field at all (zero matches for either).
+```sql
+PERFORM public.governance_assert_not_self('loan.approve','employee_loan',_loan_id, r.created_by);
+PERFORM public.governance_assert_not_subject('loan.approve_self_benefit','employee_loan',_loan_id);
+```
 
-So the employee can never satisfy a server-side rule the UI never asks about. Same for `requires_collateral` (currently false everywhere, but the same dead end).
+Both use an old 4-arg / 3-arg call shape. The functions that actually exist in the database today are:
 
-The consent gate itself is correct and should stay: `employee_loans` has `consent_captured_at` / `consent_captured_by`, i.e. the deduction authorisation is meant to be recorded per request. The bug is that the UI doesn't collect it.
+```
+governance_assert_not_self(p_actor uuid, p_subject uuid, p_action text, p_org uuid, p_entity_type text, p_entity_id uuid)
+governance_assert_not_subject(p_actor uuid, p_subject uuid, p_action text, p_org uuid, p_entity_type text, p_entity_id uuid)
+```
+
+So Postgres raises `42883 undefined_function`, which PostgREST surfaces as a **404** with the "does not exist" message. Nothing to do with governance mode being Solo — the call never reaches the evaluator.
+
+Confirmed by inspection, the same stale call shape exists in four more loan RPCs, all currently dead on arrival:
+
+- `employee_loan_lifecycle_approve`
+- `employee_loan_authorize_disbursement`
+- `employee_loan_record_manual_repayment`
+- `employee_loan_write_off`
+- `employee_loan_restructure`
+
+Every other caller in the database (the ~20 `sod_*` / `guard_*` triggers) already uses the correct 6-arg shape, so this is an isolated pocket of drift in the loans module.
 
 ## Fix
 
-Frontend only — no schema or RPC change.
+One migration that recreates the five functions with correct governance calls. Bodies are otherwise unchanged.
 
-1. **`RequestLoanWizard.tsx`**
-   - When the selected loan type has `requires_consent`, render a required checkbox in the review section: "I authorise <Org> to deduct the agreed instalment from my salary until this <loan type> is fully repaid." Show the estimated monthly deduction next to it so the acknowledgement is informed.
-   - When the selected type has `requires_collateral`, render a required "Collateral offered" textarea.
-   - Include both in the existing `canSubmit` guard so the submit button stays disabled until they're satisfied (fail in the UI, not via a server 400).
-   - Reset both in `reset()` and whenever the loan type changes.
+For each, the call becomes:
 
-2. **`useLoanTypes.ts`** — surface `requires_consent` / `requires_collateral` on the `LoanType` type and in the select list if not already selected (the settings page already toggles `requires_consent`, so the column is read somewhere; confirm the ESS query returns it).
+```sql
+PERFORM public.governance_assert_not_self(
+  auth.uid(),                                    -- actor: whoever is approving
+  COALESCE(r.requested_by, r.created_by),        -- subject: who raised the loan
+  'loan.approve',                                -- registered action key
+  r.organization_id,
+  'employee_loan',
+  _loan_id
+);
+```
 
-3. **`useMyLoans.ts`**
-   - Add `consent_acknowledged?: boolean` and `collateral_description?: string | null` to `MyLoanRequestInput`.
-   - Pass them into the RPC payload; drop the stale "optional here" comment.
+with the appropriate action key per function (`employee_loan.authorize_disbursement`, `employee_loan.record_manual_repayment`, `employee_loan.write_off`, `employee_loan.restructure`). `employee_loans` carries `organization_id`, `created_by`, `requested_by`, `approved_by`, so all arguments resolve from the already-locked row.
 
-4. **Error copy** — map the RPC `HINT` codes (`LOAN_POLICY_CONSENT`, `LOAN_POLICY_COLLATERAL`, and the bound violations) to friendlier toast text in the mutation's `onError`, so a future server-side refusal reads as guidance rather than a raw Postgres message.
+`governance_assert_not_subject` in the approve path gets the same 6-arg treatment — it resolves the loan's beneficiary employee internally, so it stays a separate call guarding the "approver is the loan beneficiary" case.
 
-## Out of scope / noted
+## Expected behaviour after the fix
 
-- The admin-side loan wizard uses the same RPC; I'll check it sends consent too and fix it the same way if it doesn't (HR capturing consent on the employee's behalf must still be recorded).
-- Approval routing after submission is unchanged — `requires_approval` is true on all four types, so requests continue to land with HR as designed.
+With the org in **Solo** mode and one active member, `governance_assert_not_self` auto-allows and writes a `sod.self_action_auto_allowed` audit event, so an owner approving a portal user's loan succeeds. In `standard`/`strict` the normal tiering applies, and the error surfaces as `42501` / `GOV_SELF_ACTION`, which the UI already renders via `parseGovernanceError` — a readable "Self-approval blocked" toast instead of a 404.
+
+Note the `guard_employee_loan_self_approval` BEFORE UPDATE trigger on `employee_loans` already calls the correct 6-arg helper for `loan.approve`, so the in-RPC call is belt-and-braces on the same action key; both paths are consistent once the signature is fixed.
+
+## Verification
+
+1. Re-run the query that enumerates `governance_assert_not_self(` call sites and confirm zero remaining legacy-shape calls.
+2. Approve the pending salary-advance request from the admin side and confirm a 200 plus `status = 'approved'`.
+3. Check `audit_logs` for the `sod.self_action_auto_allowed` row proving the evaluator ran rather than being skipped.
+
+## Out of scope
+
+Phase 4.3 (Inventory `create_stock_adjustment` → `approval_route` migration and retiring `approval_rule_logs`) stays queued; this is a targeted signature fix so loan approvals work now.
