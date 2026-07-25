@@ -70,20 +70,12 @@ function fmtMoney(n: number): string {
   return new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
+import { buildCsv, downloadCsv as canonicalDownloadCsv } from "@/lib/exports/csv";
+
 function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
   if (!rows.length) { toast.error("No rows to export"); return; }
   const cols = Object.keys(rows[0]);
-  const esc = (v: unknown) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  canonicalDownloadCsv(filename, buildCsv(rows, cols));
 }
 
 export default function LegalOrderRemittanceBatch() {

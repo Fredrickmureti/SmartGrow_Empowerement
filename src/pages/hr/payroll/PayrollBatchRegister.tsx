@@ -101,22 +101,10 @@ export default function PayrollBatchRegister() {
       "payroll_number", "run_status", "run_type", "pay_period_start", "pay_period_end", "payment_date",
       "employee_count", "total_gross", "total_net", "total_other_deductions", "total_employer_contributions", "is_reversal",
     ];
-    const csvRows = [
-      headers.join(","),
-      ...rows.map((r) => headers.map((h) => {
-        const v = (r as any)[h];
-        if (v == null) return "";
-        const s = String(v).replace(/"/g, '""');
-        return /[",\n]/.test(s) ? `"${s}"` : s;
-      }).join(",")),
-    ];
-    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `payroll-batch-register-${format(periodStart, "yyyy-MM")}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(
+      `payroll-batch-register-${format(periodStart, "yyyy-MM")}.csv`,
+      buildCsv(rows as Record<string, unknown>[], headers),
+    );
   };
 
   if (!scopeReady) {

@@ -1,5 +1,7 @@
 import { useCallback } from "react";
 import { rolesFromContact } from "@/lib/contactRoles";
+import { downloadCsv, csvBlob } from "@/lib/exports/csv";
+
 
 interface ExportOptions {
   filename: string;
@@ -30,8 +32,9 @@ export function useExport() {
         csvRows.push(values.join(","));
       }
 
-      const csvContent = csvRows.join("\n");
-      downloadFile(csvContent, `${options.filename}.csv`, "text/csv");
+      // Route through the canonical CSV writer so we get UTF-8 BOM +
+      // CRLF + a `text/csv;charset=utf-8` Blob (Excel-safe).
+      downloadCsv(`${options.filename}.csv`, csvRows.join("\r\n"));
     },
     []
   );
@@ -610,6 +613,12 @@ function formatValue(value: any): string {
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
+  // CSV goes through the canonical writer (BOM + CRLF); other MIME
+  // types (JSON, plaintext) still use a raw Blob download.
+  if (mimeType.startsWith("text/csv")) {
+    downloadCsv(filename, content);
+    return;
+  }
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -620,3 +629,5 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+// Silence "unused import" if `csvBlob` isn't referenced yet elsewhere.
+void csvBlob;
