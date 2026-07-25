@@ -1487,7 +1487,9 @@ async function fetchLegalRecipientStatement(
 
   // Optional business branding — legal_recipients has no business_id column,
   // but callers who know which paying business owns the remittance can pass
-  // it via body so the statement carries the correct letterhead.
+  // it via body so the statement carries the correct letterhead. The business
+  // is ALSO what resolves the statement currency; without it we would emit an
+  // unbranded USD document even for a KES tenant.
   let business: any = null;
   if (opts.businessId) {
     const { data: bizRow } = await supabase
@@ -1497,6 +1499,21 @@ async function fetchLegalRecipientStatement(
       .maybeSingle();
     business = bizRow ?? null;
   }
+  if (!business) {
+    // Graceful fallback for callers that omit businessId (scripts, older
+    // clients): if the organization owns exactly ONE business, it is
+    // unambiguously the paying entity — use its branding/currency. With two
+    // or more we cannot guess, so we fall back to organization defaults.
+    const { data: bizRows } = await supabase
+      .from("businesses")
+      .select(BUSINESS_BRANDING_COLS)
+      .eq("organization_id", recipient.organization_id)
+      .limit(2);
+    if (Array.isArray(bizRows) && bizRows.length === 1) {
+      business = bizRows[0];
+    }
+  }
+
 
   const { data: entries, error: stmtErr } = await supabase.rpc(
     "legal_recipient_statement",
