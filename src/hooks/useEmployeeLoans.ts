@@ -348,10 +348,10 @@ export function useEmployeeLoans() {
   };
 
   /** Write-off (Phase L-D). Dual-control enforced by SoD trigger. */
-  const writeOffLoan = async (id: string, reason: string, journalDate?: string) => {
+  const writeOffLoan = async (id: string, reason: string, cosignerUserId?: string) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
     const { error } = await (supabase as any).rpc("employee_loan_write_off", {
-      _loan_id: id, _reason: reason, _journal_date: journalDate ?? new Date().toISOString().slice(0, 10),
+      _loan_id: id, _reason: reason, _cosigner: cosignerUserId ?? null,
     });
     if (error) throw error;
     toast.success("Loan written off");
@@ -362,14 +362,23 @@ export function useEmployeeLoans() {
   /** Restructure / top-up / consolidate (Phase L-I). */
   const restructureLoan = async (
     id: string,
-    params: { new_principal?: number; new_term_months?: number; new_interest_rate?: number; reason: string },
+    params: {
+      kind?: "restructure" | "refinance" | "topup" | "consolidation";
+      new_principal?: number;
+      new_installments?: number;
+      new_start_date?: string;
+      new_monthly?: number;
+      reason: string;
+    },
   ) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
     const { error } = await (supabase as any).rpc("employee_loan_restructure", {
       _loan_id: id,
+      _kind: params.kind ?? "restructure",
       _new_principal: params.new_principal ?? null,
-      _new_term_months: params.new_term_months ?? null,
-      _new_interest_rate: params.new_interest_rate ?? null,
+      _new_installments: params.new_installments ?? null,
+      _new_start_date: params.new_start_date ?? null,
+      _new_monthly: params.new_monthly ?? null,
       _reason: params.reason,
     });
     if (error) throw error;
@@ -382,21 +391,20 @@ export function useEmployeeLoans() {
     id: string,
     amount: number,
     paymentDate: string,
-    bankAccountId: string,
-    reference?: string,
+    notes?: string,
   ) => {
     if (!can("manageEmployeeLoans")) throw new Error("Permission denied");
     const { error } = await (supabase as any).rpc("employee_loan_record_manual_repayment", {
       _loan_id: id,
       _amount: amount,
-      _payment_date: paymentDate,
-      _bank_account_id: bankAccountId,
-      _reference: reference ?? null,
+      _repayment_date: paymentDate,
+      _notes: notes ?? null,
     });
     if (error) throw error;
     toast.success("Manual repayment recorded");
     await fetchLoans();
   };
+
 
 
   const previewSchedule = async (loanId: string): Promise<LoanScheduleRow[]> => {
