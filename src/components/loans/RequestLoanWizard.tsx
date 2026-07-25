@@ -342,7 +342,60 @@ export function RequestLoanWizard({ open, onClose }: Props) {
               rows={4}
             />
           </WorkflowField>
+
+          {needsCollateral && (
+            <WorkflowField
+              label="Collateral offered"
+              required
+              hint="Describe the security you are offering against this loan."
+            >
+              <Textarea
+                value={collateral}
+                onChange={(e) => setCollateral(e.target.value)}
+                placeholder="e.g. Motor vehicle, logbook no. …"
+                rows={3}
+                maxLength={500}
+              />
+            </WorkflowField>
+          )}
+
+          {needsCollateral && collateral.trim().length === 0 && (
+            <p className="text-xs text-destructive">
+              A collateral description is required for {loanType?.name}.
+            </p>
+          )}
+
+          {needsConsent && (
+            <Card className="border-primary/30">
+              <CardContent className="py-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={consent}
+                    onCheckedChange={(v) => setConsent(v === true)}
+                    className="mt-0.5"
+                    aria-label="Payroll deduction authorisation"
+                  />
+                  <span className="text-xs leading-relaxed text-muted-foreground">
+                    I authorise my employer to recover this {loanType?.name}
+                    {estimatedMonthly !== null && errors.length === 0 ? (
+                      <>
+                        {" "}
+                        at approximately{" "}
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatCurrency(estimatedMonthly)}
+                        </span>{" "}
+                        {isOneOff ? "from my next payroll" : "per payroll period"}
+                      </>
+                    ) : null}{" "}
+                    by deduction from my salary until it is fully repaid, in line with
+                    the loan policy shown above.
+                  </span>
+                </label>
+              </CardContent>
+            </Card>
+          )}
         </WorkflowSheetSection>
+
       </WorkflowSheetGrid>
     </WorkflowSheet>
   );
