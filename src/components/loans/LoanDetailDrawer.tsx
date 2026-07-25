@@ -248,12 +248,13 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
                 <Button
                   variant="outline"
                   disabled={busy || !manualAmount || !bankAccountId}
-                  onClick={() => wrap(async () => {
+                  onClick={() => wrap("manual_repay", async () => {
                     await recordManualRepayment(loan.id, Number(manualAmount), manualDate, manualRef || undefined);
                     setManualAmount(""); setManualRef("");
                   })}
                 >
-                  <Wallet className="h-4 w-4 mr-2" /> Record manual repayment
+                  {isPending("manual_repay") ? spinner : <Wallet className="h-4 w-4 mr-2" />}
+                  {isPending("manual_repay") ? "Recording…" : "Record manual repayment"}
                 </Button>
               </div>
             )}
