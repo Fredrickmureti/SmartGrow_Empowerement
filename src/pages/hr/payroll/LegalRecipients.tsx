@@ -44,7 +44,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { supabase } from "@/integrations/supabase/client";
+import { useDocumentPrint } from "@/hooks/useDocumentPrint";
 
 function fmtMoney(n: number): string {
   return new Intl.NumberFormat(undefined, {
@@ -53,80 +53,11 @@ function fmtMoney(n: number): string {
   }).format(n);
 }
 
-/**
- * Opens a printable recipient statement in a new window.
- * The user's browser Print dialog can Save as PDF — no server-side
- * PDF generation is needed for a text-only reconciliation report.
- */
-async function printRecipientStatement(args: {
-  recipient: LegalRecipientOutstanding;
-  from: string;
-  to: string;
-}) {
-  const { recipient, from, to } = args;
-  const { data, error } = await (supabase as any).rpc("legal_recipient_statement", {
-    p_recipient_id: recipient.recipient_id,
-    p_from: from,
-    p_to: to,
-  });
-  if (error) {
-    // eslint-disable-next-line no-alert
-    alert(`Could not load statement: ${error.message}`);
-    return;
-  }
-  const rows = (data ?? []) as Array<{
-    entry_date: string;
-    entry_kind: "accrual" | "remittance";
-    reference: string | null;
-    amount: number;
-  }>;
-  let running = 0;
-  const bodyRows = rows
-    .map((r) => {
-      running += Number(r.amount ?? 0);
-      return `<tr>
-        <td>${r.entry_date}</td>
-        <td>${r.entry_kind}</td>
-        <td>${(r.reference ?? "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as Record<string, string>)[c])}</td>
-        <td style="text-align:right">${fmtMoney(Number(r.amount ?? 0))}</td>
-        <td style="text-align:right"><strong>${fmtMoney(running)}</strong></td>
-      </tr>`;
-    })
-    .join("");
-  const html = `<!doctype html><html><head><meta charset="utf-8"/>
-    <title>Recipient Statement — ${recipient.display_name}</title>
-    <style>
-      body{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;padding:32px;color:#111}
-      h1{font-size:18px;margin:0 0 4px}
-      h2{font-size:12px;color:#555;margin:0 0 24px;font-weight:normal}
-      table{width:100%;border-collapse:collapse;font-size:12px}
-      th,td{border-bottom:1px solid #e5e5e5;padding:6px 8px;text-align:left}
-      th{background:#fafafa;font-weight:600;text-transform:uppercase;font-size:10px;letter-spacing:.05em}
-      .totals{margin-top:24px;display:flex;justify-content:flex-end;gap:24px;font-size:12px}
-      .totals strong{font-size:14px}
-      .footer{margin-top:32px;font-size:10px;color:#888}
-      @media print { .no-print{display:none} }
-    </style></head><body>
-    <h1>Recipient Statement — ${recipient.display_name}</h1>
-    <h2>Period ${from} → ${to} · Generated ${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC</h2>
-    <table>
-      <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th style="text-align:right">Amount</th><th style="text-align:right">Running</th></tr></thead>
-      <tbody>${bodyRows || `<tr><td colspan="5" style="text-align:center;color:#888;padding:24px">No activity in this period.</td></tr>`}</tbody>
-    </table>
-    <div class="totals"><span>Outstanding balance:</span> <strong>${fmtMoney(Number(recipient.outstanding_balance ?? 0))}</strong></div>
-    <div class="footer">Garnishment Payable is unrelated to PAYE (income tax withholding). See ADR-0092.</div>
-    <script>window.onload=()=>{window.focus();window.print();}</script>
-    </body></html>`;
-  const win = window.open("", "_blank", "width=900,height=1000");
-  if (!win) {
-    // eslint-disable-next-line no-alert
-    alert("Please allow pop-ups to print the statement.");
-    return;
-  }
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-}
+// Client-side HTML → new-tab printing was retired in favour of the shared
+// server-side document engine (`supabase/functions/generate-document`) so
+// recipient statements now carry the same letterhead, branding, and
+// audit-artifact trail as customer and vendor statements. See
+// `useDocumentPrint` for the transport contract.
 
 export default function LegalRecipients() {
   const { data: recipients, isLoading } = useLegalRecipientOutstanding();
@@ -136,6 +67,7 @@ export default function LegalRecipients() {
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
   );
   const [to, setTo] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const { printDocument, downloadPdf, isGeneratingPdf } = useDocumentPrint();
 
   const totals = useMemo(() => {
     const rows = recipients ?? [];
@@ -284,7 +216,8 @@ export default function LegalRecipients() {
             <SheetTitle>{selected?.display_name}</SheetTitle>
             <SheetDescription>
               Reconciliation statement — accruals from payroll vs. remittances
-              to this recipient. Unrelated to PAYE tax (see ADR-0092).
+              to this recipient. This is a creditor account and is unrelated
+              to income-tax withholding (PAYE).
             </SheetDescription>
           </SheetHeader>
 
@@ -300,19 +233,39 @@ export default function LegalRecipients() {
                   <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={isGeneratingPdf}
                   onClick={() =>
-                    printRecipientStatement({
-                      recipient: selected,
-                      from,
-                      to,
-                    })
+                    downloadPdf(
+                      "legal_recipient_statement",
+                      selected.recipient_id,
+                      `recipient-statement-${selected.display_name}-${from}-${to}`,
+                      undefined,
+                      undefined,
+                      { periodStart: from, periodEnd: to },
+                    )
                   }
                 >
-                  Print / Save PDF
+                  Download PDF
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={isGeneratingPdf}
+                  onClick={() =>
+                    printDocument(
+                      "legal_recipient_statement",
+                      selected.recipient_id,
+                      `Recipient Statement — ${selected.display_name}`,
+                      undefined,
+                      undefined,
+                      { periodStart: from, periodEnd: to },
+                    )
+                  }
+                >
+                  {isGeneratingPdf ? "Preparing…" : "Print"}
                 </Button>
               </div>
               <StatementTable
@@ -324,6 +277,7 @@ export default function LegalRecipients() {
           )}
         </SheetContent>
       </Sheet>
+
 
       <LinkRecipientDialog
         open={!!linkTarget}

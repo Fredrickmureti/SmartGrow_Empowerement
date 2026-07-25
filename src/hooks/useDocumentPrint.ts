@@ -5,7 +5,7 @@ import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import type { DocumentCommunicationContext } from "@/components/communications/DocumentCommunicationBar";
 import { normalizeError } from "@/services/resilience";
 
-type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "receipt" | "pos_receipt" | "sales_order" | "delivery_note" | "sales_return" | "customer_statement" | "vendor_statement" | "bill";
+type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "receipt" | "pos_receipt" | "sales_order" | "delivery_note" | "sales_return" | "customer_statement" | "vendor_statement" | "legal_recipient_statement" | "bill";
 
 /**
  * Stage P3 (ADR-0008): paper override accepted by every consumer.
@@ -59,6 +59,7 @@ export function useDocumentPrint() {
     filename: string,
     paperFormat?: PaperFormatOption,
     renderMode?: "pdf" | "escpos",
+    extraBody?: Record<string, unknown>,
   ) => {
     setIsGeneratingPdf(true);
     try {
@@ -72,6 +73,7 @@ export function useDocumentPrint() {
         documentType,
         documentId,
         format: renderMode ?? "pdf",
+        ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
       const { data, error } = await supabase.functions.invoke("generate-document", { body });
@@ -121,6 +123,7 @@ export function useDocumentPrint() {
     title: string,
     paperFormat?: PaperFormatOption,
     renderMode?: "pdf" | "escpos",
+    extraBody?: Record<string, unknown>,
   ) => {
     setIsGeneratingPdf(true);
     try {
@@ -130,6 +133,7 @@ export function useDocumentPrint() {
         documentType,
         documentId,
         format: renderMode ?? "pdf",
+        ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
       const { data, error } = await supabase.functions.invoke("generate-document", { body });
