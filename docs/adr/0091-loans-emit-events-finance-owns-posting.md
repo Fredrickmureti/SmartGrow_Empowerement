@@ -48,10 +48,22 @@ for manual repayments, repayment reversals or write-offs — even though
    `finance_loan_receivable_integrity_check` compares on a principal basis.
 7. **Posted entries are immutable.** Reversing a repayment posts a mirrored
    entry; it never updates the original.
+8. **Payroll-deducted instalments settle the asset, not a liability.**
+   `post-payroll-gl` no longer buckets `loan_repayment` payslip lines with
+   statutory deductions (which credited `<rule_code>_payable`). It calls
+   `payroll_loan_repayment_gl_targets(run)`, which aggregates that run's
+   `loan_repayments` rows (excluding reversals) and splits them through
+   `_loan_split_repayment`, so payroll credits loan receivable / interest
+   income on exactly the basis the integrity check reconciles against.
+   Consequently `payroll_required_gl_mappings_for_run` no longer demands a
+   `_payable` mapping for loan rule codes.
+
 
 ## Consequences
 
 - Fiscal-period locks, org write-locks, SoD guards and balance enforcement
   now apply to loan postings automatically, because there is one path.
-- Enforced by `src/test/architecture/loan-posting-engine-ownership.test.ts`
-  and `supabase/tests/loan_gl_posting_test.sql`.
+- Enforced by `src/test/architecture/loan-posting-engine-ownership.test.ts`,
+  `src/test/architecture/payroll-loan-repayment-gl.test.ts` and
+  `supabase/tests/loan_gl_posting_test.sql`.
+

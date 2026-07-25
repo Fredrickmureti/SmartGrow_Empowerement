@@ -293,6 +293,16 @@ Deno.serve(async (req) => {
     }
     const deductionMap = new Map<string, DeductionAgg>();
 
+    // ADR 0091 (payroll leg) — loan repayment lines are NOT a payable.
+    // A payroll-deducted instalment settles an asset: it relieves the loan
+    // receivable (and recognises interest income). Posting them to
+    // `<rule_code>_payable` parked the money in a liability and made the GL
+    // loan receivable drift from `employee_loans.outstanding_balance` forever.
+    // They are aggregated here and posted from
+    // `payroll_loan_repayment_gl_targets` below.
+    let loanRepaymentTotal = 0;
+
+
     // Phase C — split labour cost by accounting_tag when the compute layer
     // stamped one. `null` bucket is the legacy "post to generic
     // salary_expense" path; when every earning is untagged the split
@@ -423,7 +433,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // ─── Loan repayment lines: routed to the loan accounts, not a payable ───
+      if (cat === "loan_repayment" && empAmt > 0) {
+        loanRepaymentTotal += empAmt;
+        continue;
+      }
+
       if (!key) continue;
+
       const bucket = classifyPayslipLine(line as any);
       const isDed = bucket === "deduction" && empAmt > 0;
       const isEr = bucket === "employer_contribution" && erAmt > 0;
@@ -641,6 +658,88 @@ Deno.serve(async (req) => {
           });
       }
     }
+
+    // ─── CR: Loan repayments — relieve the loan receivable (ADR 0091) ───
+    // The split between principal and interest income comes from the loan
+    // module (`payroll_loan_repayment_gl_targets` → `_loan_split_repayment`),
+    // so payroll and the manual-repayment RPC agree on the same basis the
+    // `finance_loan_receivable_integrity_check` reconciles against.
+    if (loanRepaymentTotal > 0.005) {
+      const { data: loanTargets, error: loanTargetError } = await supabaseAdmin.rpc(
+        "payroll_loan_repayment_gl_targets",
+        { p_run_id: payroll_run_id },
+      );
+      if (loanTargetError) {
+        return new Response(JSON.stringify({
+          error: `Could not resolve loan repayment GL accounts: ${loanTargetError.message}`,
+        }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const targets = (loanTargets || []) as Array<{
+        loan_id: string;
+        loan_number: string | null;
+        receivable_account_id: string | null;
+        interest_account_id: string | null;
+        principal_amount: number | null;
+        interest_amount: number | null;
+      }>;
+
+      const unmapped = targets.filter((t) => !t.receivable_account_id);
+      if (targets.length === 0 || unmapped.length > 0) {
+        return new Response(JSON.stringify({
+          error: "missing_mappings",
+          message: targets.length === 0
+            ? "This run deducts loan instalments but no loan repayment records were found for it. Re-run payroll computation before posting."
+            : "Loan Receivable account is not mapped for one or more loan types. Map it on the loan type (or as the org default) before posting a run with loan deductions.",
+          missing: [{
+            setting_key: "loan_receivable",
+            label: "Loan Receivable",
+            rule_code: null,
+            kind: "core",
+          }],
+          action: { label: "Open Loan Types", to: "/hr/loans/configuration" },
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Keep the JE balanced against the payslip lines: the loan-side split is
+      // authoritative for the interest/principal ratio, the payslip total is
+      // authoritative for the amount. Any rounding residual lands on principal.
+      const splitTotal = targets.reduce(
+        (s, t) => s + Number(t.principal_amount || 0) + Number(t.interest_amount || 0),
+        0,
+      );
+      const residual = Math.round((loanRepaymentTotal - splitTotal) * 100) / 100;
+
+      targets.forEach((t, idx) => {
+        const label = t.loan_number ? `Loan ${t.loan_number}` : "Loan repayment";
+        const principal =
+          Math.round((Number(t.principal_amount || 0) + (idx === 0 ? residual : 0)) * 100) / 100;
+        const interest = Math.round(Number(t.interest_amount || 0) * 100) / 100;
+        if (principal > 0.005 || (principal !== 0 && interest === 0)) {
+          lines.push({
+            account_id: t.receivable_account_id!,
+            debit: 0,
+            credit: principal,
+            description: `${runLabel} - ${label} principal recovery`,
+            contact_id: null,
+          });
+        }
+        if (interest > 0.005 && t.interest_account_id) {
+          lines.push({
+            account_id: t.interest_account_id,
+            debit: 0,
+            credit: interest,
+            description: `${runLabel} - ${label} interest income`,
+            contact_id: null,
+          });
+        }
+      });
+    }
+
+
 
     // CR: Garnishment Payable (one line per order — payee tracked via liability row).
     // Account mapping is the single `garnishment_payable` role; per-payee
