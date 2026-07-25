@@ -189,7 +189,10 @@ export function RequestLoanWizard({ open, onClose }: Props) {
           start_date: startDate,
           repayment_method: repaymentMethod,
           reason: reason || null,
+          consent_acknowledged: needsConsent ? consent : undefined,
+          collateral_description: needsCollateral ? collateral.trim() : undefined,
         },
+
         options: { idempotencyKey: idempotencyKeyRef.current },
       });
       handleClose();
