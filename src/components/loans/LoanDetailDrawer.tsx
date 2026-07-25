@@ -47,7 +47,8 @@ export function LoanDetailDrawer({ loan, open, onClose }: Props) {
   const [manualRef, setManualRef] = useState("");
   const [restructureReason, setRestructureReason] = useState("");
   const [restructureTerm, setRestructureTerm] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const busy = pendingAction !== null;
 
   useEffect(() => {
     if (!loan || !open) return;
