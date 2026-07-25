@@ -16,6 +16,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useLegalOrders } from "@/hooks/useLegalOrders";
+import { useLegalRecipients } from "@/hooks/useLegalRecipients";
+import { useEmployees } from "@/hooks/useEmployees";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
