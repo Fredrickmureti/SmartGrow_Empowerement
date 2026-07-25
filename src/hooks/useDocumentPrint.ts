@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeWithAuth } from "@/integrations/supabase/invokeWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import type { DocumentCommunicationContext } from "@/components/communications/DocumentCommunicationBar";
@@ -76,7 +76,10 @@ export function useDocumentPrint() {
         ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
-      const { data, error } = await supabase.functions.invoke("generate-document", { body });
+      const { data, error } = await invokeWithAuth<Blob | ArrayBuffer | Uint8Array | string, Record<string, unknown>>(
+        "generate-document",
+        { body },
+      );
 
       if (error) throw error;
 
@@ -136,7 +139,10 @@ export function useDocumentPrint() {
         ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
-      const { data, error } = await supabase.functions.invoke("generate-document", { body });
+      const { data, error } = await invokeWithAuth<Blob | ArrayBuffer | Uint8Array | string, Record<string, unknown>>(
+        "generate-document",
+        { body },
+      );
 
       if (error) throw error;
 
@@ -182,9 +188,12 @@ export function useDocumentPrint() {
   ): Promise<Uint8Array | null> => {
     setIsGeneratingPdf(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-document", {
+      const { data, error } = await invokeWithAuth<Blob | ArrayBuffer | Uint8Array | string, Record<string, unknown>>(
+        "generate-document",
+        {
         body: { documentType, documentId, format: "escpos", paperFormat, renderMode: "escpos" },
-      });
+        },
+      );
       if (error) throw error;
       const blob: Blob = data instanceof Blob ? data : new Blob([data], { type: "application/octet-stream" });
       const buf = new Uint8Array(await blob.arrayBuffer());
