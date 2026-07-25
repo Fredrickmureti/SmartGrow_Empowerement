@@ -1,38 +1,109 @@
-## Goal
 
-`/hr/payroll/legal-orders` currently forces the whole page to scroll sideways on a 393px phone. Fix it so the page itself never scrolls horizontally — only wide data tables scroll, inside their own container.
+# Approval & Governance Consolidation
 
-## What's causing it (verified in code)
+Goal: collapse the current mix of governance-mode/self-action guards, `approval_rules` + `approval_workflows` + `approval_requests` + `approval_history` + `approval_rule_logs`, `automated_actions`, per-module approval hooks (`useApprovalGate`, `useSalesOrderApproval`, procurement recommendations, app-access approvals, payroll control center, physical count, stock adjustment, loans, expenses, bills, POs, refunds, credit notes, JEs) and the Studio "Approval Rules" surface into one canonical Approval & Governance platform that every module consumes.
 
-1. `src/pages/hr/payroll/LegalOrdersWorkspace.tsx` — the tab bar renders 8 items (`Tasks … Audit`) in a plain `flex gap-1` row with no wrapping and no overflow container. At ~393px this row is far wider than the viewport and drags the whole page with it. The header also uses a fixed `px-6` while the app shell already applies `px-4` padding.
-2. Tab pages use fixed desktop padding `p-6` and KPI grids that stay `grid-cols-1` until `md:` — so cards are full-width-tall on mobile and the padding eats the narrow viewport.
-3. Toolbar rows (`flex items-center justify-between` with title + buttons) don't wrap on narrow screens.
-4. Tables themselves are fine (the shadcn `Table` primitive already wraps in `overflow-auto`), but they sit inside flex/grid parents without `min-w-0`, so the wrapper can't shrink and the overflow escapes to the page.
+Investigation so far confirms multiple co-existing surfaces:
 
-## Changes (presentation only — no data/logic changes)
+- **Governance layer (DB-native, mature):** `organizations.governance_mode` (solo/standard/strict), `self_action_policy`, `self_action_overrides`, `governance_assert_not_self` / `governance_assert_not_subject`, per-table `sod_<table>_guard` triggers, `selfActionCatalogue.ts`, `sod-coverage.test.ts`, `SelfActionOverrideDialog`, `BlockedAttemptsQueue`, `parseGovernanceError`. This is the strongest existing pillar.
+- **Rule/workflow layer:** `approval_rules` (20 cols), `approval_workflows` + `approval_workflow_steps`, `approval_requests`, `approval_history`, `approval_rule_logs`, plus `automated_actions` / `automated_action_steps` / `automated_action_logs` / `automation_execution_tracker`. Managed from `ApprovalRulesManager` in Studio.
+- **Per-module ad-hoc engines:** `useApprovalGate`, `useSalesOrderApproval`, `useProcurementRecommendations`, `AppAccessApprovalsInbox` + `useAppAccessRequest`, payroll approval paths, expense/bill/PO approval status banners.
+- **Event bus already present:** `business_event_outbox` + `business_event_subscriptions` + `business_event_topics` — the correct integration seam.
 
-### 1. Workspace shell — `LegalOrdersWorkspace.tsx`
-- Header padding: `px-6 pt-6` → `px-4 sm:px-6 pt-4 sm:pt-6`.
-- Title: `text-2xl` → `text-xl sm:text-2xl`; description gets `max-w-2xl`.
-- Tab nav: wrap in a horizontally scrollable strip — `overflow-x-auto` + `whitespace-nowrap` + `flex-nowrap`, hidden scrollbar (`[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`), each `NavLink` gets `shrink-0`, icon gets `shrink-0`. So the tabs swipe sideways instead of the page.
-- Root container gets `min-w-0 w-full` and the `<Outlet />` wrapper gets `min-w-0`.
+## Target architecture (canonical)
 
-### 2. Tasks tab — `LegalOrdersTasks.tsx`
-- `p-6 space-y-6` → `p-4 sm:p-6 space-y-4 sm:space-y-6`.
-- KPI grid: `grid-cols-1 md:grid-cols-4` → `grid-cols-2 md:grid-cols-4` (two compact KPIs per row on phones); KPI value `text-2xl` → `text-xl sm:text-2xl`, label wraps rather than overflows.
-- `TaskCard` list rows: `flex items-center justify-between` → `flex flex-wrap items-start justify-between gap-2`, text block gets `min-w-0` + `break-words`, action button `shrink-0`.
+```text
+Business Event (module)                 ← "loan.submitted", "bill.submitted", ...
+        │
+        ▼
+Approval Router (RPC: approval.route)   ← reads approval_rules for (org, event, scope)
+        │
+        ▼
+Workflow Instance = approval_requests   ← 1 row per business event needing approval
+        │  ├─ steps hydrated from approval_workflow_steps (rule snapshot, immutable)
+        │  ├─ SoD pre-check via governance_assert_not_self (existing helper)
+        │  └─ notifications enqueued via business_event_outbox
+        ▼
+Approver decision RPC (approval.decide)
+        │  ├─ SoD re-check (defense in depth)
+        │  ├─ writes approval_history (append-only, hash-chained)
+        │  └─ transitions request state (pending → approved/rejected/escalated)
+        ▼
+Terminal state → emits "<event>.approved"/"rejected" to business_event_outbox
+        │
+        ▼
+Module executors subscribe (payroll.post, bill.pay, loan.disburse, ...)
+```
 
-### 3. The seven remaining tab pages
-`Garnishments.tsx`, `LegalRecipients.tsx`, `LegalOrderPacks.tsx`, `LegalOrderRemittanceBatch.tsx`, `LegalOrderRemittanceBatches.tsx`, `LegalOrdersReports.tsx`, `LegalOrdersAudit.tsx` — apply the same consistent mobile pass:
-- `p-6` → `p-4 sm:p-6`.
-- KPI/summary grids: `grid-cols-1 md:grid-cols-N` → `grid-cols-2 md:grid-cols-N` (keep `grid-cols-1 sm:grid-cols-2` where the cell content is long text).
-- Header/toolbar rows: add `flex-wrap gap-2` and let filter `Select`/`Input` controls go `w-full sm:w-auto`.
-- Every `Card` that hosts a `Table`: ensure the card content has `min-w-0` / `p-0 sm:p-6`-style handling so the table's own `overflow-auto` is what scrolls, not the page. Wide tables keep all columns and scroll horizontally inside the card (no column hiding, no row-to-card restyle) — accountants need the full row.
-- `LegalOrdersAudit.tsx` detail `<pre>` blocks already have `overflow-x-auto`; add `break-all` on long ids/JSON values.
+Ownership:
+- **Governance workspace** owns policy: modes, self-action policy matrix, overrides, delegations, escalation SLAs, emergency-break-glass. Consumed by the engine, never bypassed.
+- **Approval engine** owns request lifecycle: rule matching, workflow instancing, step evaluation, decision recording, history.
+- **Modules** own only: emitting the business event, and executing on the terminal outbox event. No module keeps its own approval table, its own "pending approvals" list, or its own self-check.
+- **Audit** is one immutable stream: `approval_history` (per-request) + `audit_logs` (governance & override events) + `business_event_outbox` (integration). No new per-module logs.
 
-### 4. Verification
-- Playwright at 393×852: navigate each of the 8 tabs and assert `document.documentElement.scrollWidth <= clientWidth` (no page-level horizontal scroll), and capture a screenshot per tab.
-- Run the existing legal-orders architecture tests (`legal-orders-phase4-workspace`, `phase6-packs`, `phase8-audit`) plus the typecheck.
+## Phases (executed sequentially, each verified before the next)
 
-## Out of scope
-No changes to hooks, queries, RPCs, permissions, or any business logic. Purely Tailwind class / layout markup edits in the eight page files.
+### Phase 0 — Deep inventory (read-only, no code changes)
+Trace every current call site with subagents; produce internal maps (kept in `docs/audit/approval-governance-inventory.md`) of: every table, RPC, trigger, hook, page, and their overlaps. Deliverable is the truth table that drives every later phase; nothing ships without it.
+
+### Phase 1 — Canonical entity & action registry
+- Promote `selfActionCatalogue.ts` to a single `governance_action_registry` (DB table + typed TS mirror generated from it). Every approval-capable business event (loan.submit, bill.approve, po.approve, payroll.post, stock_adjustment.approve, credit_note.issue, journal.post, expense.approve, app_access.grant, refund.issue, etc.) is one row: `{ action_key, module, subject_table, severity_default, sod_rule, description }`.
+- Replace scattered enums / string literals in hooks and triggers with references to this registry. Architecture test forbids literal action codes outside the registry (extends existing `no-literal-rule-codes-in-engines`).
+
+### Phase 2 — Canonical rule + workflow schema
+- Keep `approval_rules`, `approval_workflows`, `approval_workflow_steps`, `approval_requests`, `approval_history`, `approval_rule_logs` as the canonical tables; retire `automated_actions*` for approvals (keep only for non-approval automations) or fold into the same engine with a discriminator.
+- Introduce `approval_requests.rule_snapshot jsonb` + `workflow_snapshot jsonb` so historical decisions never change when a rule is edited (policy versioning). `approval_history` becomes append-only and hash-chained (`prev_hash`, `row_hash`) for audit immutability.
+- Add missing invariants: no self-approval (uses `governance_assert_not_self`), no circular delegation, single-use overrides (already enforced), replay-protected decision RPC (idempotency key from request + step + actor).
+
+### Phase 3 — Approval engine RPCs (single entry points)
+Create `public.approval_route(event_key, subject_ref, context jsonb)` and `public.approval_decide(request_id, step_id, decision, note, override_id?)`. Both are SECURITY DEFINER, both re-check governance, both write to `business_event_outbox` on terminal state. All modules move to these two RPCs; direct writes to `approval_requests` / `approval_history` are revoked from `authenticated` and `anon`.
+
+### Phase 4 — Module migration (in dependency order)
+Replace per-module gates with the engine. One module per PR, each verified via existing architecture tests + a new e2e smoke:
+1. App Access (smallest, self-contained) — retire `AppAccessApprovalsInbox` bespoke flow onto engine.
+2. Expenses, Bills, POs, Credit Notes, Refunds (finance write side).
+3. Journal Entries, Payments (finance posting side).
+4. Stock Adjustments, Physical Counts, Stock Transfers (inventory).
+5. Sales Orders (retire `useSalesOrderApproval`), Procurement recommendations.
+6. Loans, Advances, Compensation Changes, Contracts, Timesheets, Leave (HR/payroll).
+7. Payroll runs — last, because the control center is the most entangled.
+
+After each module: delete the bespoke hook + inbox page and re-point UI to the single "My Approvals" inbox.
+
+### Phase 5 — Unified UI surfaces
+Two workspaces, no others:
+- **Settings → Governance** (extends existing `GovernanceSoD.tsx`): Mode card, action-policy matrix (driven by registry), delegations, override log, blocked-attempts queue. No rule authoring here.
+- **Studio → Approvals** (extends `ApprovalRulesManager`): rule authoring, workflow designer, escalation SLAs, rule simulation ("what would happen if…"), rule change audit. No policy toggles here.
+- One **"My Approvals" inbox** (top-level nav) replaces every module's pending list; it queries `approval_requests` filtered by current approver and shows subject-record peek via existing `useSalesDocumentRecord`-style generic fetcher.
+- Every module's object page gains a standard `<ApprovalStatusPanel />` that reads from `approval_requests` for that subject; the bespoke `ApprovalStatusBanner` is retired to it.
+
+### Phase 6 — Security hardening
+- Revoke direct `INSERT/UPDATE/DELETE` on `approval_*` from `authenticated`; only the two RPCs may write.
+- Rate-limit `approval_decide` per actor; reject decisions on terminal requests.
+- Enforce hash-chain continuity in a nightly integrity job (extends the existing `finance_integrity_issues` pattern into `governance_integrity_issues`).
+- Add pgTAP coverage for: self-approval refusal, override single-use, replay rejection, escalation on SLA breach, delegation loops, cross-org isolation.
+
+### Phase 7 — Retirement & cleanup
+Delete: bespoke approval hooks/pages listed in Phase 4, duplicated `automated_actions` approval branch, any migration seed that hard-codes action keys outside the registry. Architecture tests block regressions.
+
+## Verification gates (per phase)
+
+- `bun run tsgo` clean.
+- `bunx vitest run` for `src/test/architecture/*` (existing SoD coverage + new registry/engine tests).
+- `supabase--linter` clean; new pgTAP suites green.
+- Manual smoke via Playwright on the migrated module's approve/reject/override path before moving on.
+
+## Out of scope (explicitly)
+
+- No UI redesign beyond consolidation; keep existing tokens/components.
+- No new notification channel; use existing `business_event_outbox` subscribers.
+- No changes to non-approval automations in `automated_actions`.
+- No migration of historical `approval_history` rows — new hash chain starts at engine cut-over, old rows preserved read-only.
+
+## Technical notes
+
+- Registry table: `governance_action_registry(action_key pk, module, subject_table, severity_default, sod_rule, description, created_at)`. TS mirror generated at build time (script in `scripts/`) so `selfActionCatalogue.ts` becomes generated, not hand-edited.
+- Hash chain: `row_hash = sha256(prev_hash || request_id || step_id || decision || actor || decided_at)`.
+- Idempotency: `approval_decide` accepts `client_token uuid`; unique index on `(request_id, step_id, client_token)`.
+- Outbox topics registered in `business_event_topics` per action_key; subscribers in `business_event_subscriptions` route to module executors.
+- Existing `governance_assert_not_self` / `_not_subject` are reused verbatim inside the engine RPCs — no parallel implementation.
