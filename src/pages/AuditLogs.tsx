@@ -658,10 +658,13 @@ export default function AuditLogs() {
             </div>
           )}
         </DetailSheet>
+          </TabsContent>
+        </Tabs>
       </div>
     </PlatformAppLayout>
   );
 }
+
 
 function SummaryItem({ label, children }: { label: string; children: React.ReactNode }) {
   return (
