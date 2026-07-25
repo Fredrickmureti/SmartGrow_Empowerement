@@ -73211,6 +73211,43 @@ export type Database = {
         Args: { _proposal_id: string }
         Returns: Json
       }
+      _approval_match_rule: {
+        Args: {
+          _action_key: string
+          _business: string
+          _entity_type: string
+          _org: string
+          _payload: Json
+        }
+        Returns: {
+          action_name: string
+          approval_mode: string
+          approver_role: string | null
+          approver_type: string
+          approver_user_id: string | null
+          business_id: string | null
+          condition: Json | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          entity_type: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          requires_review: boolean
+          requires_review_reason: string | null
+          threshold_field: string | null
+          threshold_operator: string | null
+          threshold_value: number | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "approval_rules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _appt_transition: {
         Args: {
           p_appointment_id: string
@@ -73798,6 +73835,39 @@ export type Database = {
         }
         Returns: Json
       }
+      approval_decide: {
+        Args: { _comment?: string; _decision: string; _request_id: string }
+        Returns: {
+          action_key: string | null
+          business_id: string | null
+          completed_at: string | null
+          context_snapshot: Json
+          created_at: string
+          current_step: number | null
+          dedupe_hash: string | null
+          entity_id: string
+          entity_reference: string | null
+          entity_type: string
+          id: string
+          idempotency_key: string | null
+          notes: string | null
+          organization_id: string
+          payload_snapshot: Json
+          policy_version: number | null
+          requested_at: string | null
+          requested_by: string | null
+          status: string | null
+          updated_at: string
+          workflow_id: string | null
+          workflow_version: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "approval_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       approval_history_verify: {
         Args: { _request_id: string }
         Returns: {
@@ -73805,6 +73875,48 @@ export type Database = {
           ok: boolean
           reason: string
         }[]
+      }
+      approval_route: {
+        Args: {
+          _action_key: string
+          _business_id?: string
+          _context?: Json
+          _entity_id: string
+          _entity_reference?: string
+          _entity_type: string
+          _idempotency_key?: string
+          _payload?: Json
+        }
+        Returns: {
+          action_key: string | null
+          business_id: string | null
+          completed_at: string | null
+          context_snapshot: Json
+          created_at: string
+          current_step: number | null
+          dedupe_hash: string | null
+          entity_id: string
+          entity_reference: string | null
+          entity_type: string
+          id: string
+          idempotency_key: string | null
+          notes: string | null
+          organization_id: string
+          payload_snapshot: Json
+          policy_version: number | null
+          requested_at: string | null
+          requested_by: string | null
+          status: string | null
+          updated_at: string
+          workflow_id: string | null
+          workflow_version: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "approval_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       approve_app_access_request: {
         Args: { p_request_id: string }
