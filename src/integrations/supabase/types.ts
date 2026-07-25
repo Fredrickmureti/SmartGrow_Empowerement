@@ -81416,6 +81416,17 @@ export type Database = {
         }
         Returns: Json
       }
+      payroll_loan_repayment_gl_targets: {
+        Args: { p_run_id: string }
+        Returns: {
+          interest_account_id: string
+          interest_amount: number
+          loan_id: string
+          loan_number: string
+          principal_amount: number
+          receivable_account_id: string
+        }[]
+      }
       payroll_mark_stale_certificates: {
         Args: { p_business: string; p_fiscal_year?: number; p_org: string }
         Returns: number
