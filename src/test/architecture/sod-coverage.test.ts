@@ -85,11 +85,23 @@ function readMigrations(): string {
 }
 
 describe("SoD self-action coverage", () => {
-  it("every catalogue action maps to a known table", () => {
+  it("every catalogue action maps to a known table or enforcing RPC", () => {
     for (const entry of SELF_ACTION_CATALOGUE) {
-      expect(ACTION_TO_TABLE[entry.key], `missing table mapping for ${entry.key}`).toBeTruthy();
+      expect(
+        ACTION_TO_TABLE[entry.key] ?? RPC_ENFORCED_ACTIONS[entry.key],
+        `missing table mapping for ${entry.key}`,
+      ).toBeTruthy();
     }
   });
+
+  it("RPC-enforced actions assert the self-action guard", () => {
+    const sql = readMigrations();
+    for (const [key, fn] of Object.entries(RPC_ENFORCED_ACTIONS)) {
+      const re = new RegExp(`governance_assert_not_self[\\s\\S]{0,400}?${key.replace(".", "\\.")}`, "i");
+      expect(re.test(sql), `${fn} must call governance_assert_not_self for ${key}`).toBe(true);
+    }
+  });
+
 
   it("every guarded table has a sod_*_guard trigger in migrations", () => {
     const sql = readMigrations();
