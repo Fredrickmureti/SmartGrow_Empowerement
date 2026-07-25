@@ -2855,7 +2855,7 @@ serve(async (req) => {
       }
     }
     // Choose renderer: dedicated statement renderer or generic
-    const isStatement = documentType === 'customer_statement' || documentType === 'vendor_statement';
+    const isStatement = documentType === 'customer_statement' || documentType === 'vendor_statement' || documentType === 'legal_recipient_statement';
 
     // Stage P4 (ADR-0008): resolve effective print policy. Caller overrides
     // win; otherwise consult document_print_policies; otherwise A4/PDF.
