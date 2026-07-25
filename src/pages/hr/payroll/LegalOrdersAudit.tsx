@@ -222,11 +222,34 @@ export default function LegalOrdersAudit() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id ?? null;
   const { data: orders = [] } = useLegalOrders();
+  const { data: recipients = [] } = useLegalRecipients();
+  const { employees } = useEmployees();
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | "">("");
   const [asOf, setAsOf] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const activeOrderId = selectedOrderId || (orders[0]?.id ?? "");
+
+  const labels = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of employees ?? []) {
+      const label =
+        [(e as any).first_name, (e as any).last_name].filter(Boolean).join(" ").trim() ||
+        (e as any).full_name || (e as any).employee_number || "Employee";
+      m.set(e.id, label);
+    }
+    for (const r of recipients ?? []) {
+      m.set(r.id, r.display_name);
+      if (r.authority_id && (r as any).authority_name) m.set(r.authority_id, (r as any).authority_name);
+    }
+    for (const o of orders ?? []) {
+      const anyO = o as any;
+      const label = anyO.case_reference || anyO.order_reference || anyO.kind_code || null;
+      if (label) m.set(o.id, label);
+    }
+    return m;
+  }, [employees, recipients, orders]);
+
 
   const timelineQ = useQuery<TimelineRow[]>({
     queryKey: ["legal-order-audit-timeline", orgId, activeOrderId],
