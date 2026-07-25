@@ -67,6 +67,7 @@ export default function LegalRecipients() {
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
   );
   const [to, setTo] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const { printDocument, downloadPdf, isGeneratingPdf } = useDocumentPrint();
 
   const totals = useMemo(() => {
     const rows = recipients ?? [];
