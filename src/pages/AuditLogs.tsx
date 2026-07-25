@@ -58,7 +58,11 @@ import {
   Filter,
   Trash2,
   Copy,
+  Settings as SettingsIcon,
+  Scale,
+  Activity,
 } from "lucide-react";
+
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
