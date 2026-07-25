@@ -121,6 +121,7 @@ export function useDocumentPrint() {
     title: string,
     paperFormat?: PaperFormatOption,
     renderMode?: "pdf" | "escpos",
+    extraBody?: Record<string, unknown>,
   ) => {
     setIsGeneratingPdf(true);
     try {
@@ -130,6 +131,7 @@ export function useDocumentPrint() {
         documentType,
         documentId,
         format: renderMode ?? "pdf",
+        ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
       const { data, error } = await supabase.functions.invoke("generate-document", { body });
