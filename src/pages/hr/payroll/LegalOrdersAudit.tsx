@@ -353,13 +353,13 @@ export default function LegalOrdersAudit() {
             . Read-only projection — all writes still route through the FSM.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0 overflow-hidden">
           {timelineQ.isLoading ? (
             <div className="text-sm text-muted-foreground">Loading timeline…</div>
           ) : (timelineQ.data ?? []).length === 0 ? (
             <div className="text-sm text-muted-foreground">No events recorded for this order yet.</div>
           ) : (
-            <ol className="relative border-l pl-6 space-y-5">
+            <ol className="relative border-l pl-6 space-y-5 min-w-0">
               {(timelineQ.data ?? []).map((row, idx) => (
                 <TimelineEntry
                   key={`${row.source_table}:${row.source_row_id}:${idx}`}
