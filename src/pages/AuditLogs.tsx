@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { downloadCsv } from "@/lib/exports/csv";
 import { PlatformAppLayout } from "@/apps/platform";
 import { useAuditLogsPaginated, AuditLogFilters } from "@/hooks/useAuditLogsPaginated";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
@@ -168,13 +169,8 @@ export default function AuditLogs() {
     ]);
     const csv = [headers, ...rows]
       .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `audit-logs-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    a.click();
+      .join("\r\n");
+    downloadCsv(`audit-logs-${format(new Date(), "yyyy-MM-dd")}.csv`, csv);
   };
 
   const copyToClipboard = async (text: string, label: string) => {

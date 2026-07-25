@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv } from "@/lib/exports/csv";
 import { format } from "date-fns";
 
 export async function exportMovementsToCSV(
@@ -57,15 +58,9 @@ export async function exportMovementsToCSV(
   const csvContent = [
     headers.join(","),
     ...rows.map((r) => r.map((v: any) => `"${v}"`).join(",")),
-  ].join("\n");
+  ].join("\r\n");
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `stock-movements-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(`stock-movements-${format(new Date(), "yyyy-MM-dd")}.csv`, csvContent);
 
   return allRows.length;
 }

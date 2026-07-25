@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { downloadCsv } from "@/lib/exports/csv";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
@@ -718,14 +719,10 @@ export default function Expenses() {
           e.is_billable ? "Yes" : "No",
         ].join(",")
       ),
-    ].join("\n");
+    ].join("\r\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `expenses_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    link.click();
-    
+    downloadCsv(`expenses_${format(new Date(), "yyyy-MM-dd")}.csv`, csvContent);
+
     toast({ title: `Exported ${expensesToExport.length} expenses` });
   };
 

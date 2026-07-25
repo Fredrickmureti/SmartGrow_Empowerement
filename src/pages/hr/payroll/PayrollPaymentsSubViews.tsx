@@ -16,20 +16,12 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { usePayrollPayments } from "@/hooks/payroll/usePayrollPayments";
 
+import { buildCsv, downloadCsv as canonicalDownloadCsv } from "@/lib/exports/csv";
+
 function downloadCsv(filename: string, rows: Record<string, any>[]) {
   if (!rows.length) { toast.error("No rows to export"); return; }
   const cols = Object.keys(rows[0]);
-  const esc = (v: any) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  canonicalDownloadCsv(filename, buildCsv(rows, cols));
 }
 
 // ────────────────────────────────────────────────────────────────────────

@@ -1,68 +1,126 @@
-## What's happening
 
-Three independent problems, all traceable:
+## Root cause
 
-### 1. `legal_order_build_remittance_batch` → 404 "user_has_organization_access does not exist"
+CSV files open as "Chinese"/gibberish in Excel because our client-side CSV writers emit raw UTF-8 **without a BOM**. On Windows, Excel opens `.csv` in the OS's ANSI codepage (CP1252/CP936/etc.) unless a UTF-8 BOM (`\uFEFF`) is present. Any non-ASCII byte (accented names, currency symbols, KES/€/Kes payslip text, Arabic/Swahili, em-dash from formatters) is then mis-decoded — on CJK Windows locales this shows as Chinese characters.
 
-The Phase 7 remittance batch RPCs (ADR-0096) were authored calling `public.user_has_organization_access(...)`, but the canonical helper in this project is `public.user_belongs_to_org(org_id uuid)`. Confirmed in:
+Server-side we already do it correctly:
+- `supabase/functions/_shared/exports/reportCsv.ts` and `statementCsv.ts` prepend `\uFEFF`, use CRLF, and are RFC 4180 compliant.
+- `render-report`, `generate-document`, `generate-payroll-document`, `generate-statutory-return` go through those builders.
 
-- `supabase/migrations/20260724140949_…sql` — `legal_order_build_remittance_batch`, `legal_order_generate_remittance_bank_file`, `legal_order_settle_remittance_batch`, `legal_order_cancel_remittance_batch`
-- `supabase/migrations/20260724143004_…sql` — additional batch RPC
-- `supabase/migrations/20260724143847_…sql` — `legal_order_recipient_statement`
+The defect is in the **client-side ad-hoc CSV writers** that were never migrated. Every one of them builds a string with `join(",") + "\n"`, wraps it in `new Blob([csv], { type: "text/csv;charset=utf-8" })`, and downloads — no BOM, LF instead of CRLF, inconsistent escaping. That is the exact fingerprint that produces gibberish in Excel.
 
-Because the guard call fails to resolve, PostgREST reports the entire function as "not found" (404).
+Confirmed offenders (grep verified):
+- `src/hooks/useExport.ts` — hub used by Contacts, Invoices, Bills, Payments, Products, Estimates, Credit Notes, Sales Orders, Purchase Orders, Delivery Notes, Accounts, Recurring Invoices, and more.
+- `src/lib/exportMovements.ts` (Inventory stock movements)
+- `src/lib/migration/csvTemplates.ts` (Import templates)
+- `src/lib/payroll/bankDisbursementExport.ts`
+- `src/pages/Expenses.tsx`
+- `src/pages/AuditLogs.tsx`
+- `src/pages/hr/AttendanceAudit.tsx`
+- `src/pages/hr/payroll/PayrollPaymentsSubViews.tsx`
+- `src/pages/hr/payroll/PayrollBatchRegister.tsx`
+- `src/pages/hr/payroll/LegalOrdersReports.tsx`
+- `src/pages/hr/payroll/LegalOrderRemittanceBatch.tsx`
+- `src/pages/sales/CustomerLedger.tsx`
+- `src/components/accounts/DeleteAllAccountsDialog.tsx`
+- `src/components/payroll/PayrollRunDetailsDialog.tsx`
 
-### 2. "Run statement" red text — same root cause
+`ReportExportService.exportToCSV` already delegates to the server (correct); it does not need to change.
 
-`LegalOrdersReports.tsx` calls `legal_order_recipient_statement(org, recipient, from, to)` (the 4-arg Phase R7 RPC). That RPC also references `user_has_organization_access(uuid)` and blows up on invocation. The Recipients page's `legal_recipient_statement(recipient, from, to)` (3-arg, older) works fine — that's why the network log shows it returning data — but the Reports tab uses the 4-arg wrapper which is broken.
+## Solution — one canonical client CSV writer
 
-### 3. April payroll run didn't include the 7,000 child support
+Introduce a single Excel-safe CSV service and migrate every client-side exporter to it. Mirror the existing server contract (`_shared/exports/reportCsv.ts`) so client- and server-emitted CSVs are byte-shape identical.
 
-Not a compute-payroll bug. The order row itself is in the wrong state:
+### 1. New module: `src/lib/exports/csv.ts`
 
+Pure functions + one download helper. No React, no Supabase.
+
+```ts
+// RFC 4180 + Excel-safe:
+//   • UTF-8 with BOM (\uFEFF)
+//   • CRLF row separator
+//   • quote a cell iff it contains " , ; \r \n or leading/trailing space
+//   • escape " as ""
+//   • numbers formatted with "." decimal separator, no thousands
+//   • booleans → "Yes"/"No" by convention (matches useExport today)
+//   • Date/ISO passthrough; Date objects → ISO date (YYYY-MM-DD)
+//   • null/undefined → ""
+//   • BOM added exactly once at the top of the file
+
+export type CsvColumn<T> = {
+  key: keyof T & string;
+  header: string;
+  format?: (v: unknown, row: T) => string | number | boolean | null | undefined;
+};
+
+export type CsvBuildOptions = {
+  delimiter?: "," | ";" | "\t";     // default ","
+  eol?: "\r\n" | "\n";              // default "\r\n"
+  bom?: boolean;                    // default true
+};
+
+export function buildCsv<T>(
+  rows: T[],
+  columns: CsvColumn<T>[] | string[],  // string[] = plain header-driven mode
+  opts?: CsvBuildOptions,
+): Uint8Array;
+
+export function downloadCsv(
+  filenameWithoutExt: string,
+  bytes: Uint8Array | string,
+): void;   // sets mime "text/csv;charset=utf-8", appends `.csv`, revokes URL
 ```
-id:            0dfb6e04-…-370f7f
-status:        satisfied        ← compute-payroll only loads status='active'
-total_owed:    NULL
-total_paid:    0.00
-total_accrued: 63,000
-```
 
-Only one 7,000 accrual exists in `garnishment_ledger`, yet `total_accrued=63,000` and `status=satisfied`. Something transitioned it to a terminal state prematurely (likely `legal_order_auto_satisfy` or a manual FSM call operating against the NULL `total_owed` — `Σ remittance ≥ total_owed` is trivially true when `total_owed` is NULL/0). Compute-payroll's filter (`.eq("status","active")`) is correct; the data is wrong.
+Notes:
+- Output is always `Uint8Array` (via `TextEncoder`) so Blob construction never re-encodes.
+- Blob is `new Blob([bytes], { type: "text/csv;charset=utf-8" })` — the charset parameter is retained for HTTP contexts but the BOM is what actually protects Excel.
+- Filename sanitizer strips path separators and non-`[A-Za-z0-9._-]` runs; caller appends the date if desired.
 
-## Fix plan
+### 2. Migrate all client callers
 
-### Migration — repoint guards to the real helper
+Replace every hand-rolled CSV block with `buildCsv` + `downloadCsv`. In particular:
 
-Rewrite (CREATE OR REPLACE, same signatures) the following RPCs to call `public.user_belongs_to_org(v_org_id)` instead of `public.user_has_organization_access(...)`, preserving all other logic:
+- **`src/hooks/useExport.ts`** — rewrite the internal `exportToCSV` primitive to call `buildCsv({rows,columns})` + `downloadCsv`. All 15+ domain exporters (`exportInvoices`, `exportBills`, `exportContacts`, `exportPayments`, `exportProducts`, `exportEstimates`, `exportCreditNotes`, `exportPurchaseOrders`, `exportSalesOrders`, `exportDeliveryNotes`, `exportAccounts`, `exportRecurringInvoices`, …) inherit the fix for free — no per-caller edits needed beyond re-exporting through the new primitive.
+- **Payroll / HR pages** (`PayrollPaymentsSubViews`, `PayrollBatchRegister`, `LegalOrdersReports`, `LegalOrderRemittanceBatch`, `PayrollRunDetailsDialog`, `AttendanceAudit`) — replace inline Blob construction with `downloadCsv(name, buildCsv(rows, cols))`.
+- **Inventory / Migration / Sales / Finance / Audit** (`exportMovements.ts`, `csvTemplates.ts`, `bankDisbursementExport.ts`, `Expenses.tsx`, `AuditLogs.tsx`, `CustomerLedger.tsx`, `DeleteAllAccountsDialog.tsx`) — same pattern.
 
-- `legal_order_build_remittance_batch`
-- `legal_order_generate_remittance_bank_file`
-- `legal_order_settle_remittance_batch`
-- `legal_order_cancel_remittance_batch`
-- `legal_order_recipient_statement`
-- Any other function in those three migrations still referencing the phantom name
+Business logic (which rows, which columns, filenames) is untouched — only serialization/encoding/download.
 
-### Migration — harden `legal_order_auto_satisfy`
+### 3. Guardrails so this cannot regress
 
-Change the auto-satisfy predicate to require `total_owed IS NOT NULL AND total_owed > 0 AND Σ remittance ≥ total_owed`. This prevents any future order with a missing/zero cap from being auto-closed. (Leaves manual FSM transitions untouched — those already require evidence per Phase R6.)
+- New ESLint rule `no-raw-csv-blob` (in `eslint-rules/`, matching the style of `no-raw-xlsx-in-app.js`): flag `new Blob([...], { type: /^text\/csv/ })` outside `src/lib/exports/csv.ts`. This mirrors ADR-0085's "single-owner rendering" pattern for CSV.
+- Vitest architecture test `src/__tests__/architecture.csv-single-writer.test.ts`: scan `src/` for the offending Blob pattern, allowlist `src/lib/exports/csv.ts`.
+- Vitest unit tests for `buildCsv`:
+  - starts with `\uFEFF`
+  - CRLF between rows and terminal CRLF
+  - quotes and escapes `,` `"` `\r` `\n` and leading/trailing spaces
+  - non-ASCII round-trip (é, ñ, €, 中文, ش) decodes correctly with `TextDecoder("utf-8")`
+  - null/undefined → empty cell
+  - custom delimiter (`;`) and disabled BOM options
 
-### Data repair — this specific order
+### 4. Server side — verification only
 
-In the same migration, revert `0dfb6e04-…-370f7f` to `status='active'`, recompute `total_accrued` from `garnishment_ledger` (should be 7,000, not 63,000), and log a `garnishment_lifecycle_events` row with reason "R7 data repair — auto-satisfied against NULL total_owed". After the migration is approved, re-running April payroll for employee `5449cd48-…dfc9ce` will pick up the order.
+Confirm the existing server exports already emit BOM+CRLF and are the only writers on that side. Test coverage already exists (`reportCsv_test.ts`, `statementCsv_test.ts`). Add a mirrored arch guard `csv-single-writer.server.test.ts` in `supabase/functions/_shared/exports/` asserting no other Deno file synthesizes `text/csv` bytes (allowlist: `reportCsv.ts`, `statementCsv.ts`, `govFileWriter.ts`, `persistArtifact.ts` pass-throughs).
 
-### Optional follow-up (not in this pass)
+### 5. ADR
 
-The reason `total_owed` is NULL is that the order creation UI does not require it for kinds like child_support (which are open-ended). We should either (a) allow NULL total_owed and treat "satisfied" as manual-only, or (b) require a cap. That's an ADR-level product decision — flag it, don't decide it here.
+Add `docs/adr/00xx-csv-export-ownership.md` (peer of ADR-0085) declaring:
+- Client CSV bytes are owned by `src/lib/exports/csv.ts`.
+- Server CSV bytes are owned by `supabase/functions/_shared/exports/*`.
+- Both must emit UTF-8 with BOM, CRLF, RFC 4180 quoting.
+- Modules never construct `text/csv` Blobs directly.
 
 ## Verification
 
-1. From the preview, click "Create batch" on Legal Orders → Batches. Expect a draft batch to appear, no 404.
-2. On the Reports tab, run a recipient statement. Expect table rows, no red error.
-3. Re-run April payroll for the affected employee. Expect a 7,000 child-support deduction line on the payslip and a matching `garnishment_ledger` accrual.
+- Manually export from Payroll, Contacts, Invoices, Stock Movements, Audit Logs, Customer Ledger; open in Excel (Windows), LibreOffice Calc, Numbers, Google Sheets. All must render UTF-8 correctly without an import wizard.
+- Byte-level: hex-dump first 3 bytes of every exported file — must be `EF BB BF`.
+- Vitest + ESLint arch guards green.
+- Grep after migration: zero `new Blob(...text/csv...)` occurrences outside `src/lib/exports/csv.ts`.
 
-## Technical notes
+## Technical details
 
-- No schema changes, only function bodies and one data row.
-- Two migrations (function fixes + data repair) or one combined — combined is fine since they're all guarded RPC/data touches.
-- Frontend code needs no changes.
+- No new dependencies; `TextEncoder`, `Blob`, `URL.createObjectURL` are enough.
+- Delimiter stays `,` by default; localized `;` is opt-in (some EU Excel locales prefer it, but BOM + `,` is universally accepted — matches SAP/Odoo/NetSuite default).
+- CRLF chosen over LF: RFC 4180 §2.1 and required for reliable multi-line cell handling in Excel for Mac.
+- BOM is added exactly once by `buildCsv`; callers never concat CSVs. Streaming/large exports (>50MB) are out of scope — they already go through server render pipelines.
+- No user-visible UX change: same button, same filename convention, same columns. The only difference is bytes on disk.

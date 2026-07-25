@@ -18,6 +18,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv } from "@/lib/exports/csv";
 
 /**
  * Free-form format code resolved at runtime from
@@ -299,17 +300,9 @@ export async function fetchBankExportRows(batchId: string): Promise<{
   };
 }
 
-/** Browser-only: trigger a CSV download. */
+/** Browser-only: trigger a CSV download via the canonical writer (UTF-8 BOM + CRLF, Excel-safe). */
 export function triggerCsvDownload(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadCsv(filename, csv);
 }
 
 async function sha256Hex(input: string): Promise<string | null> {

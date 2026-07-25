@@ -102,22 +102,15 @@ function csvEscape(v: unknown): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+import { buildCsv, downloadCsv as canonicalDownloadCsv } from "@/lib/exports/csv";
+
 function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) {
     toast.info("No rows to export");
     return;
   }
   const headers = Object.keys(rows[0]);
-  const body = rows
-    .map((r) => headers.map((h) => csvEscape(r[h])).join(","))
-    .join("\n");
-  const blob = new Blob([headers.join(",") + "\n" + body], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  canonicalDownloadCsv(filename, buildCsv(rows, headers));
 }
 
 export default function LegalOrdersReports() {

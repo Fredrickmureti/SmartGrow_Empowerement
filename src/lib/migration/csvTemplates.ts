@@ -2,6 +2,9 @@
  * CSV template generators for migration import steps.
  * Each returns a CSV string with headers and example rows.
  */
+import { downloadCsv } from "@/lib/exports/csv";
+
+
 
 export const CSV_TEMPLATES = {
   accounts: {
@@ -80,11 +83,5 @@ Petty Cash,,500.00
 
 export function downloadTemplate(key: keyof typeof CSV_TEMPLATES) {
   const template = CSV_TEMPLATES[key];
-  const blob = new Blob([template.content], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = template.filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(template.filename, template.content);
 }
