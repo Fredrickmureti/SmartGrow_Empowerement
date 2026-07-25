@@ -161,7 +161,10 @@ export function RequestLoanWizard({ open, onClose }: Props) {
     principalNum > 0 &&
     !!startDate &&
     (isOneOff || installmentsNum > 0) &&
+    (!needsConsent || consent) &&
+    (!needsCollateral || collateral.trim().length > 0) &&
     errors.length === 0;
+
 
   // Live estimated monthly deduction — same formula the hook will persist.
   const estimatedMonthly =
