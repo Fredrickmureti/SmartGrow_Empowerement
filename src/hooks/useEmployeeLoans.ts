@@ -48,7 +48,7 @@ export interface EmployeeLoan {
     | "cancelled"
     | "suspended"
     | "written_off"
-    | "settled";
+    | "archived";
   approved_by: string | null;
   approved_at: string | null;
   notes: string | null;
