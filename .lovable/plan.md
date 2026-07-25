@@ -1,57 +1,52 @@
-## What I confirmed
+## Confirmed: same engine, different inputs
 
-- The payroll route mounts `LegalRecipients` under `/hr/payroll/legal-orders/recipients`.
-- The page uses `useDocumentPrint()` and sends this body when the user clicks **Download PDF** or **Print**:
+Both statements go through the **same** renderer — `generateStatementPdf` in `supabase/functions/_shared/pdfGenerator.ts` (via `generate-document`). Nothing in the payroll path forks templates. What differs is the **fetcher input** and one **table-rule** styling issue.
 
-```ts
-{
-  documentType: "legal_recipient_statement",
-  documentId: selected.recipient_id,
-  format: "pdf",
-  periodStart: from,
-  periodEnd: to
-}
+Evidence (from parsing both PDFs):
+- Customer statement (Fredrick Mureti): header shows "Joshua Holdings / KE", amounts formatted as `KES 0.00`, aging buckets rendered.
+- Recipient statement (Nairobi Civil Court): no company name / country in header, amounts formatted as `$8,000.00`, and a horizontal double-rule sits over the Closing-Balance amount reading visually as a strike-through.
+
+## Root causes
+
+### 1. Wrong currency (USD instead of workspace KES)
+`fetchLegalRecipientStatement` (index.ts:1558-1561) resolves currency as:
 ```
+business?.base_currency  ||  recipient.organization?.base_currency  ||  "USD"
+```
+The `LegalRecipients.tsx` page never passes `businessId` in the request body, so `business` is `null`. The org row's `base_currency` is either unset or already USD for this workspace, so it falls through to the hard-coded `"USD"`. `customer_statement` doesn't hit this because the persisted `customer_statements` row carries `business_id` and the fetcher reads `stmt.business.base_currency` directly.
 
-- Current source for `generate-document` already contains a special-case fetcher for `legal_recipient_statement` that requires `periodStart` and `periodEnd`, reads `legal_recipients`, calls the SQL RPC `legal_recipient_statement`, and renders through the shared statement PDF renderer.
-- The live database has both relevant RPCs:
-  - `public.legal_recipient_statement(p_recipient_id uuid, p_from date, p_to date)`
-  - `public.legal_order_recipient_statement(_organization_id uuid, _recipient_id uuid, _from date, _to date)`
-- The live database currently has at least one recipient row in `legal_recipient_outstanding`, so the page has a real recipient id to pass.
+### 2. Missing letterhead branding
+Same root cause: with `businessId` missing, `mapBusinessToOrg(supabase, null, org, null)` produces a header without the business name / country / branding block that the customer statement shows.
 
-## Most likely root cause to verify before fixing
+### 3. Rule strikes through the closing-balance amount
+`DataTable` (`supabase/functions/_shared/pdf/components/DataTable.ts:462-472`) draws the grand-total double-rule at `y+2` / `y+4` — i.e. **inside the row's own top edge** rather than clearly above it. On tight row heights that pair of 1pt lines visually cuts across the "$8,000.00" figure. The customer statement rarely shows it because its grand-total row typically has more vertical breathing room from the aging summary above.
 
-The reported HTTP status is **400 Bad Request**, not 500. In the current `generate-document` source, the relevant 400 path for this request is the **unsupported document type** guard. That means the deployed `generate-document` function that handled your click may not include the newer `legal_recipient_statement` registration, even though the repo source now does.
+## Changes
 
-I will not treat that as final until I reproduce the function response with an authenticated request or inspect the exact deployed function logs/body.
+**A. `src/pages/hr/payroll/LegalRecipients.tsx`**
+- Pull `currentBusinessId` from `useBusinesses()` (already used elsewhere in payroll).
+- Pass `{ periodStart: from, periodEnd: to, businessId: currentBusinessId }` to both `downloadPdf(...)` and `printDocument(...)` invocations (lines 242-266).
 
-## Implementation plan
+**B. `supabase/functions/generate-document/index.ts` — `fetchLegalRecipientStatement`**
+- When `opts.businessId` is not supplied, attempt a graceful fallback: pick the caller's **single** active business for that org (e.g. via a `businesses` lookup filtered by `organization_id = recipient.organization_id` limit 2 — only use it if exactly one row exists) so admins who invoke the RPC without a body still get correct branding + currency.
+- Keep the explicit `opts.businessId` path as the primary source.
 
-1. **Reproduce the failing request with the exact payload**
-   - Use the known recipient id from the live data.
-   - Invoke `generate-document` with `documentType: "legal_recipient_statement"`, `format: "pdf"`, and the same period fields.
-   - Capture the actual JSON response body, not just the browser stack trace.
+**C. `supabase/functions/_shared/pdf/components/DataTable.ts` — grand-total rule**
+- Move the grand-total double-rule from `y+2` / `y+4` to sit clearly **above** the row (e.g. `y + rowHeight - 1` and `y + rowHeight - 3`, matching the "top double rule / bottom of preceding row" accounting convention) so it never overlaps the amount glyphs on tight rows.
+- This is a shared component; it also cleans up the customer statement's grand-total rendering when it appears without an aging block below it.
 
-2. **Confirm the deployed backend version**
-   - Check whether the deployed function response says `Unsupported document type: legal_recipient_statement`.
-   - If logs are sparse, add/inspect narrow logging around document-type dispatch only if needed.
+**D. Regression test**
+- Extend `supabase/functions/generate-document/legal-recipient-statement-registered_test.ts` (or add a sibling `*_currency_test.ts`) asserting that when `businessId` is provided the fetcher's returned `currency` equals the business's `base_currency` and that `organization.name` is populated from the business branding.
 
-3. **Fix the root cause depending on confirmed response**
-   - If deployed code is stale: deploy the current `generate-document` function so the existing `legal_recipient_statement` fetcher is live.
-   - If the deployed code is current but the response is a different 400: fix the exact failing contract path only, based on the response body/logs.
+## Non-goals
 
-4. **Add a regression guard**
-   - Add an edge-function architecture/unit test proving `legal_recipient_statement` is registered in `FETCHER_MAP`, included in `TEMPLATE_TYPE_MAP`, included in statement rendering, and dispatched through `fetchLegalRecipientStatement` with `periodStart`/`periodEnd`.
-   - This prevents the payroll recipient statement from silently falling out of the document engine again.
+- No change to the `legal_recipient_statement` SQL RPC or the transaction shape.
+- No change to the customer-statement fetcher.
+- Not touching the duplicate "Payroll accrual" rows visible in the sample — those reflect the actual data returned by the RPC and are outside the print-engine question.
+- No change to `useDocumentPrint` (recent auth fix stays as-is).
 
-5. **Verify end-to-end**
-   - Re-run the exact edge-function request.
-   - Confirm it returns `application/pdf` and starts with `%PDF`.
-   - Then verify the page buttons no longer hit the 400 path.
+## Verification
 
-## Files likely involved
-
-- `src/pages/hr/payroll/LegalRecipients.tsx`
-- `src/hooks/useDocumentPrint.ts`
-- `supabase/functions/generate-document/index.ts`
-- `supabase/functions/generate-document/*_test.ts`
+1. Regenerate the recipient statement for Nairobi Civil Court with the same period → header shows the business name/country, amounts render as `KES …`, grand-total rule sits above the Closing Balance value, not across it.
+2. Regenerate Fredrick Mureti's customer statement → still `KES`, still branded; grand-total rule now sits above the row cleanly.
+3. New unit test passes; existing `legal-recipient-statement-registered_test.ts` still passes.
