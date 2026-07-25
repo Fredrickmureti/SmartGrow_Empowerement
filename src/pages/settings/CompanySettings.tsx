@@ -203,12 +203,8 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Inventory</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canManageBusiness && (
-                <TabsTrigger value="audit-log" className="gap-1.5 text-xs sm:text-sm">
-                  <History className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Audit Log</span>
-                </TabsTrigger>
-              )}
+              {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
+
             </TabsList>
           </div>
 
