@@ -216,7 +216,8 @@ export default function LegalRecipients() {
             <SheetTitle>{selected?.display_name}</SheetTitle>
             <SheetDescription>
               Reconciliation statement — accruals from payroll vs. remittances
-              to this recipient. Unrelated to PAYE tax (see ADR-0092).
+              to this recipient. This is a creditor account and is unrelated
+              to income-tax withholding (PAYE).
             </SheetDescription>
           </SheetHeader>
 
@@ -232,19 +233,39 @@ export default function LegalRecipients() {
                   <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
                   variant="outline"
+                  disabled={isGeneratingPdf}
                   onClick={() =>
-                    printRecipientStatement({
-                      recipient: selected,
-                      from,
-                      to,
-                    })
+                    downloadPdf(
+                      "legal_recipient_statement",
+                      selected.recipient_id,
+                      `recipient-statement-${selected.display_name}-${from}-${to}`,
+                      undefined,
+                      undefined,
+                      { periodStart: from, periodEnd: to },
+                    )
                   }
                 >
-                  Print / Save PDF
+                  Download PDF
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={isGeneratingPdf}
+                  onClick={() =>
+                    printDocument(
+                      "legal_recipient_statement",
+                      selected.recipient_id,
+                      `Recipient Statement — ${selected.display_name}`,
+                      undefined,
+                      undefined,
+                      { periodStart: from, periodEnd: to },
+                    )
+                  }
+                >
+                  {isGeneratingPdf ? "Preparing…" : "Print"}
                 </Button>
               </div>
               <StatementTable
@@ -256,6 +277,7 @@ export default function LegalRecipients() {
           )}
         </SheetContent>
       </Sheet>
+
 
       <LinkRecipientDialog
         open={!!linkTarget}
