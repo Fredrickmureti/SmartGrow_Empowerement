@@ -183,6 +183,12 @@ export function useGarnishments(employeeId?: string) {
       reason_code?: string;
       reason_text?: string;
       evidence_url?: string;
+      /**
+       * ADR-0093 R6: required for terminal transitions (release,
+       * mark_satisfied, terminate_unsatisfied). Must reference a row in
+       * legal_order_documents whose document_kind matches the action.
+       */
+      evidence_document_id?: string;
       payload?: Record<string, unknown>;
     }) => {
       const { data, error } = await supabase.rpc("garnishment_transition" as any, {
@@ -192,10 +198,12 @@ export function useGarnishments(employeeId?: string) {
         p_reason_text: args.reason_text ?? null,
         p_evidence_url: args.evidence_url ?? null,
         p_payload: args.payload ?? {},
+        p_evidence_document_id: args.evidence_document_id ?? null,
       });
       if (error) throw error;
       return data;
     },
+
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["garnishments"] });
       qc.invalidateQueries({ queryKey: ["garnishment-lifecycle", vars.id] });
