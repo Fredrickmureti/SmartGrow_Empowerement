@@ -28,8 +28,9 @@ describe("Employee Loan lifecycle wiring", () => {
       "employee_loan_authorize_disbursement",
       "employee_loan_suspend",
       "employee_loan_cancel",
-      "employee_loan_pause_recovery",
-      "employee_loan_resume_recovery",
+      "employee_loan_pause",
+      "employee_loan_resume",
+
       "employee_loan_write_off",
       "employee_loan_restructure",
       "employee_loan_record_manual_repayment",

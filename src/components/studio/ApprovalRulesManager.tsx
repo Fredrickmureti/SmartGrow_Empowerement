@@ -80,7 +80,14 @@ const ENTITY_ACTIONS: Record<string, { value: string; label: string }[]> = {
   stock_adjustment: [
     { value: "apply", label: "Apply Stock Adjustment" },
   ],
+  employee_loan: [
+    { value: "approve", label: "Approve Employee Loan" },
+    { value: "authorize_disbursement", label: "Authorise Loan Disbursement" },
+    { value: "restructure", label: "Restructure Loan" },
+    { value: "write_off", label: "Write Off Loan" },
+  ],
 };
+
 
 const THRESHOLD_OPERATORS = [
   { value: ">", label: "Greater than" },

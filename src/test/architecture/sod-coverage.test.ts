@@ -39,6 +39,11 @@ const ACTION_TO_TABLE: Record<string, string> = {
   "employee_loan.restructure": "employee_loans",
   "employee_loan.refinance": "employee_loans",
   "employee_loan.record_manual_repayment": "employee_loans",
+  "payroll.loan_skip_override.approve": "payroll_run_loan_skip_overrides",
+  "payroll.loan_skip_override.reject": "payroll_run_loan_skip_overrides",
+  "payroll.loan_skip_override.cancel": "payroll_run_loan_skip_overrides",
+
+
   "compensation.approve": "employee_compensation_history",
   "compensation.approve_self_benefit": "employee_compensation_history",
   "contract.approve": "employee_contracts",

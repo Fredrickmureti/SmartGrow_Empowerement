@@ -42,6 +42,52 @@ export async function authenticate(req: Request): Promise<
   return { ok: true, userId: who.user.id };
 }
 
+/**
+ * Resolve a loan GL account with a three-tier fallback:
+ *   1. explicit override on the loan type
+ *   2. `default_account_settings` mapping for the business (then organization)
+ *   3. the provisioned system-role account on the chart of accounts
+ * Returns null only when the workspace has never been provisioned.
+ */
+export async function resolveLoanAccount(
+  admin: any,
+  loan: { organization_id: string; business_id: string | null },
+  settingKey: string,
+  loanTypeOverride?: string | null,
+): Promise<string | null> {
+  if (loanTypeOverride) return loanTypeOverride;
+
+  let q = admin
+    .from("default_account_settings")
+    .select("account_id, business_id")
+    .eq("organization_id", loan.organization_id)
+    .eq("setting_key", settingKey);
+  if (loan.business_id) q = q.or(`business_id.eq.${loan.business_id},business_id.is.null`);
+  const { data: mappings } = await q;
+  if (mappings?.length) {
+    const exact = mappings.find((m: any) => m.business_id === loan.business_id);
+    return (exact ?? mappings[0]).account_id;
+  }
+
+  let aq = admin
+    .from("accounts")
+    .select("id, business_id")
+    .eq("organization_id", loan.organization_id)
+    .eq("system_role", settingKey)
+    .eq("is_active", true);
+  if (loan.business_id) aq = aq.or(`business_id.eq.${loan.business_id},business_id.is.null`);
+  const { data: accounts } = await aq.limit(5);
+  if (accounts?.length) {
+    const exact = accounts.find((a: any) => a.business_id === loan.business_id);
+    return (exact ?? accounts[0]).id;
+  }
+  return null;
+}
+
+const SETUP_HINT =
+  "Open Finance → Settings → Default Mappings (or Payroll → Setup → Loan Types) to map it.";
+
+
 // ---------- disburse ----------
 export interface DisburseInput {
   loan_id: string;
@@ -74,9 +120,13 @@ export async function handleDisburse(input: DisburseInput, ctx: HandlerCtx) {
   if (loanErr || !loan) return err(404, "Loan not found");
 
   const lt: any = loan.loan_types;
-  if (!lt?.gl_receivable_account_id || !lt?.gl_disbursement_clearing_account_id) {
-    return err(400, "Loan type is missing GL account mappings (loan receivable and/or disbursement clearing). Configure them under Payroll → Setup → Loan Types.");
-  }
+  const receivableId = await resolveLoanAccount(admin, loan, "loan_receivable", lt?.gl_receivable_account_id);
+  const clearingId = await resolveLoanAccount(
+    admin, loan, "loan_disbursement_clearing", lt?.gl_disbursement_clearing_account_id,
+  );
+  if (!receivableId) return err(400, `No loan receivable account is mapped. ${SETUP_HINT}`);
+  if (!clearingId) return err(400, `No loan disbursement clearing account is mapped. ${SETUP_HINT}`);
+
 
   const amount = Number(loan.principal_amount || 0);
   if (amount <= 0) return err(400, "Loan principal must be > 0");
@@ -105,10 +155,11 @@ export async function handleDisburse(input: DisburseInput, ctx: HandlerCtx) {
   if (jeErr) return err(500, jeErr.message);
 
   const { error: linesErr } = await admin.from("journal_entry_lines").insert([
-    { journal_entry_id: je.id, account_id: lt.gl_receivable_account_id, debit: amount, credit: 0,
+    { journal_entry_id: je.id, account_id: receivableId, debit: amount, credit: 0,
       description: `Loan receivable — ${loan.loan_number}`, sort_order: 1,
       business_id: loan.business_id, branch_id: loan.branch_id },
-    { journal_entry_id: je.id, account_id: lt.gl_disbursement_clearing_account_id, debit: 0, credit: amount,
+    { journal_entry_id: je.id, account_id: clearingId, debit: 0, credit: amount,
+
       description: `Disbursement clearing — ${loan.loan_number}`, sort_order: 2,
       business_id: loan.business_id, branch_id: loan.branch_id },
   ]);
@@ -168,8 +219,13 @@ export async function handleAccrue(input: AccrueInput, ctx: HandlerCtx) {
 
   const lt: any = loan.loan_types;
   if (lt?.requires_interest !== true) return err(400, "Loan type does not carry interest (requires_interest = false).");
-  if (!lt?.gl_receivable_account_id) return err(400, "Loan type missing receivable account. Configure under Payroll → Loan Types.");
-  if (!lt?.interest_income_account_id) return err(400, "Loan type missing interest income account. Configure under Payroll → Loan Types.");
+  const receivableId = await resolveLoanAccount(admin, loan, "loan_receivable", lt?.gl_receivable_account_id);
+  const interestIncomeId = await resolveLoanAccount(
+    admin, loan, "loan_interest_income", lt?.interest_income_account_id,
+  );
+  if (!receivableId) return err(400, `No loan receivable account is mapped. ${SETUP_HINT}`);
+  if (!interestIncomeId) return err(400, `No loan interest income account is mapped. ${SETUP_HINT}`);
+
 
   const entryDate = input.entry_date || new Date().toISOString().slice(0, 10);
   const description = `Loan interest accrual — ${loan.loan_number} (${input.period_key})`;
@@ -197,9 +253,10 @@ export async function handleAccrue(input: AccrueInput, ctx: HandlerCtx) {
   if (jeErr) return err(500, jeErr.message);
 
   const { error: linesErr } = await admin.from("journal_entry_lines").insert([
-    { journal_entry_id: je.id, account_id: lt.gl_receivable_account_id, debit: amount, credit: 0,
+    { journal_entry_id: je.id, account_id: receivableId, debit: amount, credit: 0,
       description, sort_order: 1, business_id: loan.business_id, branch_id: loan.branch_id },
-    { journal_entry_id: je.id, account_id: lt.interest_income_account_id, debit: 0, credit: amount,
+    { journal_entry_id: je.id, account_id: interestIncomeId, debit: 0, credit: amount,
+
       description: `Interest income — ${loan.loan_number} (${input.period_key})`,
       sort_order: 2, business_id: loan.business_id, branch_id: loan.branch_id },
   ]);
@@ -266,9 +323,8 @@ export async function handleSettle(input: SettleInput, ctx: HandlerCtx) {
   if (loanErr || !loan) return err(404, "Loan not found");
 
   const lt: any = loan.loan_types;
-  if (!lt?.gl_receivable_account_id) {
-    return err(400, "Loan type missing receivable account mapping. Configure under Payroll → Setup → Loan Types.");
-  }
+  const receivableId = await resolveLoanAccount(admin, loan, "loan_receivable", lt?.gl_receivable_account_id);
+  if (!receivableId) return err(400, `No loan receivable account is mapped. ${SETUP_HINT}`);
 
   const amount = Number(input.settlement_amount ?? loan.outstanding_balance ?? 0);
   if (amount <= 0) return err(400, "Nothing to settle (outstanding balance is 0)");
@@ -284,27 +340,15 @@ export async function handleSettle(input: SettleInput, ctx: HandlerCtx) {
     if (!adminRole && !mgrRole) return err(403, "Second approver must hold admin or manager role.");
   }
 
-  let counterAccountId = lt.gl_disbursement_clearing_account_id as string | null;
-  if (input.write_off) {
-    if (lt?.writeoff_account_id) {
-      counterAccountId = lt.writeoff_account_id;
-    } else {
-      const { data: mapping } = await admin
-        .from("default_account_settings")
-        .select("account_id")
-        .eq("organization_id", loan.organization_id)
-        .in("setting_key", ["loan_writeoff_expense", "salary_expense"])
-        .order("setting_key", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      counterAccountId = mapping?.account_id ?? counterAccountId;
-    }
-  }
+  const counterAccountId = input.write_off
+    ? await resolveLoanAccount(admin, loan, "loan_writeoff_expense", lt?.writeoff_account_id)
+    : await resolveLoanAccount(admin, loan, "loan_disbursement_clearing", lt?.gl_disbursement_clearing_account_id);
   if (!counterAccountId) {
     return err(400, input.write_off
-      ? "No write-off account resolvable. Set loan type write-off account, or map loan_writeoff_expense / salary_expense under Finance → Settings → Default Mappings."
-      : "Loan type missing disbursement clearing account. Configure under Payroll → Setup → Loan Types.");
+      ? `No loan write-off expense account is mapped. ${SETUP_HINT}`
+      : `No loan disbursement clearing account is mapped. ${SETUP_HINT}`);
   }
+
 
   const entryDate = input.entry_date || new Date().toISOString().slice(0, 10);
   const description = input.write_off
@@ -336,7 +380,7 @@ export async function handleSettle(input: SettleInput, ctx: HandlerCtx) {
   const { error: linesErr } = await admin.from("journal_entry_lines").insert([
     { journal_entry_id: je.id, account_id: counterAccountId, debit: amount, credit: 0,
       description, sort_order: 1, business_id: loan.business_id, branch_id: loan.branch_id },
-    { journal_entry_id: je.id, account_id: lt.gl_receivable_account_id, debit: 0, credit: amount,
+    { journal_entry_id: je.id, account_id: receivableId, debit: 0, credit: amount,
       description: `Loan receivable cleared — ${loan.loan_number}`, sort_order: 2,
       business_id: loan.business_id, branch_id: loan.branch_id },
   ]);
