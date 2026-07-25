@@ -3469,6 +3469,9 @@ const TABLE_MAP: Record<string, string> = {
   sales_return: "sales_returns",
   customer_statement: "customer_statements",
   vendor_statement: "vendor_statements",
+  // documentId for legal_recipient_statement is a legal_recipients.id;
+  // period window rides in on the request body.
+  legal_recipient_statement: "legal_recipients",
   bill: "bills",
   // Wave 21 — inventory / warehouse A4 vouchers.
   stock_adjustment: "stock_adjustments",
