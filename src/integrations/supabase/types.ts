@@ -77878,6 +77878,7 @@ export type Database = {
       garnishment_transition: {
         Args: {
           p_action: string
+          p_evidence_document_id?: string
           p_evidence_url?: string
           p_garnishment_id: string
           p_payload?: Json
