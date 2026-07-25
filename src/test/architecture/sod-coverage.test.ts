@@ -63,6 +63,19 @@ const ACTION_TO_TABLE: Record<string, string> = {
   "bank_account.sensitive_change": "bank_accounts",
 };
 
+/**
+ * Actions enforced inside a SECURITY DEFINER RPC rather than by a row trigger.
+ * The physical-count lifecycle only transitions through
+ * physical_count_submit / _approve / _post, so the self-action check lives in
+ * those functions instead of a table guard.
+ */
+const RPC_ENFORCED_ACTIONS: Record<string, string> = {
+  "inventory.submit_count": "physical_count_submit",
+  "inventory.approve_count": "physical_count_approve",
+  "inventory.post_count": "physical_count_post",
+};
+
+
 function readMigrations(): string {
   const dir = join(process.cwd(), "supabase", "migrations");
   return readdirSync(dir)
