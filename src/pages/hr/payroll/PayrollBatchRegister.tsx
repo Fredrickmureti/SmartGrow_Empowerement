@@ -19,6 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { buildCsv, downloadCsv } from "@/lib/exports/csv";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useCurrency } from "@/hooks/useCurrency";

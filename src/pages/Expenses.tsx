@@ -718,14 +718,10 @@ export default function Expenses() {
           e.is_billable ? "Yes" : "No",
         ].join(",")
       ),
-    ].join("\n");
+    ].join("\r\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `expenses_${format(new Date(), "yyyy-MM-dd")}.csv`;
-    link.click();
-    
+    downloadCsv(`expenses_${format(new Date(), "yyyy-MM-dd")}.csv`, csvContent);
+
     toast({ title: `Exported ${expensesToExport.length} expenses` });
   };
 

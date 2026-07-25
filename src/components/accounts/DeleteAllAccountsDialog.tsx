@@ -68,15 +68,12 @@ export function DeleteAllAccountsDialog({
 
     const csv = [headers, ...rows]
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
+      .join("\r\n");
 
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `chart-of-accounts-${organizationName.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(
+      `chart-of-accounts-${organizationName.replace(/\s+/g, "-").toLowerCase()}-${new Date().toISOString().split("T")[0]}.csv`,
+      csv,
+    );
     setExportDone(true);
     toast({ title: "Export complete", description: `${accounts.length} accounts exported to CSV.` });
   };

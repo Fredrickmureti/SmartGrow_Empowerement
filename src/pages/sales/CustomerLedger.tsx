@@ -101,14 +101,11 @@ export default function CustomerLedgerPage() {
     ]);
     const csv = [header, ...rows]
       .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `customer-ledger-${contact?.name ?? id}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      .join("\r\n");
+    downloadCsv(
+      `customer-ledger-${contact?.name ?? id}-${new Date().toISOString().slice(0, 10)}.csv`,
+      csv,
+    );
   };
 
   return (

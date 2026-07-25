@@ -211,18 +211,7 @@ function downloadBankSchedule(payslips: Payslip[], payrollNumber: string): void 
     csvRows.push([name, empNum, bankName, branch, account, netPay, ref].join(","));
   }
 
-  const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `Bank_Transfer_Schedule_${payrollNumber}.csv`;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  setTimeout(() => {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, 100);
+  downloadCsv(`Bank_Transfer_Schedule_${payrollNumber}.csv`, csvRows.join("\r\n"));
 }
 
 // Statutory report routing is metadata-driven: the dialog reads installed
