@@ -57,15 +57,26 @@ export async function routeApproval(args: RouteApprovalArgs): Promise<ApprovalRe
   return data as ApprovalRequestRow;
 }
 
+/**
+ * Record an approver decision.
+ *
+ * `clientToken` is the replay guard: the engine stores it on the
+ * `approval_history` event, so a double-submit (retry, double click,
+ * offline replay) collapses onto the first decision instead of
+ * consuming a second quorum slot. Callers that don't pass one get a
+ * fresh token per invocation.
+ */
 export async function decideApproval(
   requestId: string,
   decision: ApprovalDecision,
   comment?: string,
+  clientToken?: string,
 ): Promise<ApprovalRequestRow> {
   const { data, error } = await (supabase as any).rpc("approval_decide", {
     _request_id: requestId,
     _decision: decision,
     _comment: comment ?? null,
+    _client_token: clientToken ?? crypto.randomUUID(),
   });
   if (error) throw error;
   return data as ApprovalRequestRow;
