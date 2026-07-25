@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeWithAuth } from "@/integrations/supabase/invokeWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import type { DocumentCommunicationContext } from "@/components/communications/DocumentCommunicationBar";
 import { normalizeError } from "@/services/resilience";
 
 type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "receipt" | "pos_receipt" | "sales_order" | "delivery_note" | "sales_return" | "customer_statement" | "vendor_statement" | "legal_recipient_statement" | "bill";
+type EdgeFunctionBinary = Blob | ArrayBuffer | string;
 
 /**
  * Stage P3 (ADR-0008): paper override accepted by every consumer.
@@ -76,9 +77,13 @@ export function useDocumentPrint() {
         ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
-      const { data, error } = await supabase.functions.invoke("generate-document", { body });
+      const { data, error } = await invokeWithAuth<EdgeFunctionBinary, Record<string, unknown>>(
+        "generate-document",
+        { body },
+      );
 
       if (error) throw error;
+      if (data === null) throw new Error("No PDF data returned by the document service.");
 
       const raw: Blob = data instanceof Blob ? data : new Blob([data]);
       // Defense in depth: validate %PDF magic bytes before saving so a
@@ -136,9 +141,13 @@ export function useDocumentPrint() {
         ...(extraBody ?? {}),
       };
       if (paperFormat) body.paperFormat = paperFormat;
-      const { data, error } = await supabase.functions.invoke("generate-document", { body });
+      const { data, error } = await invokeWithAuth<EdgeFunctionBinary, Record<string, unknown>>(
+        "generate-document",
+        { body },
+      );
 
       if (error) throw error;
+      if (data === null) throw new Error("No PDF data returned by the document service.");
 
       const raw: Blob = data instanceof Blob ? data : new Blob([data]);
       let head = "";
@@ -182,10 +191,14 @@ export function useDocumentPrint() {
   ): Promise<Uint8Array | null> => {
     setIsGeneratingPdf(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-document", {
+      const { data, error } = await invokeWithAuth<EdgeFunctionBinary, Record<string, unknown>>(
+        "generate-document",
+        {
         body: { documentType, documentId, format: "escpos", paperFormat, renderMode: "escpos" },
-      });
+        },
+      );
       if (error) throw error;
+      if (data === null) throw new Error("No ESC/POS data returned by the document service.");
       const blob: Blob = data instanceof Blob ? data : new Blob([data], { type: "application/octet-stream" });
       const buf = new Uint8Array(await blob.arrayBuffer());
       // Save as .bin so the user can verify or hand off to a printer service.

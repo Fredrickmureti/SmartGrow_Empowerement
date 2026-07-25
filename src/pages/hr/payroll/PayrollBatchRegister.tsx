@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { buildCsv, downloadCsv } from "@/lib/exports/csv";
+import { buildCsv, downloadCsv as saveCsv } from "@/lib/exports/csv";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -102,9 +102,9 @@ export default function PayrollBatchRegister() {
       "payroll_number", "run_status", "run_type", "pay_period_start", "pay_period_end", "payment_date",
       "employee_count", "total_gross", "total_net", "total_other_deductions", "total_employer_contributions", "is_reversal",
     ];
-    downloadCsv(
+    saveCsv(
       `payroll-batch-register-${format(periodStart, "yyyy-MM")}.csv`,
-      buildCsv(rows as Record<string, unknown>[], headers),
+      buildCsv(rows as unknown as Record<string, unknown>[], headers),
     );
   };
 
