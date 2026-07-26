@@ -72,11 +72,18 @@ export function usePrintOrPreview() {
     async (req: PrintOrPreviewRequest) => {
       const businessId = currentBusiness?.id ?? null;
 
-      // Fast path: no business context yet — the resolver would 400 anyway.
+      // No business context yet — can't resolve a policy; surface a toast.
       if (!businessId) {
-        openPreview(req.documentType, req.documentId, req.title, req.communication);
+        toast.error("No company selected", {
+          description: "Pick a company before printing documents.",
+        });
         return;
       }
+
+      const clickIdempotencyKey =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
       try {
         const result = await printClient.print({
@@ -88,27 +95,33 @@ export function usePrintOrPreview() {
           branchId: req.branchId ?? null,
           // Plan P3 Step 1 — one UUID per user click, becomes the ledger
           // collapse key on `(business_id, correlation_id)`.
-          idempotencyKey:
-            typeof crypto !== "undefined" && "randomUUID" in crypto
-              ? crypto.randomUUID()
-              : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          idempotencyKey: clickIdempotencyKey,
         });
 
         if (result.success && result.transport !== "ask_user" && result.transport !== "none") {
-          if (result.policy?.autoPrint) {
-            toast.success(`Sent ${req.title} to ${result.policy.paperFormat.toUpperCase()} printer`);
-          }
+          toast.success(
+            result.transport === "thermal"
+              ? `Sent ${req.title} to the receipt printer`
+              : `${req.title} sent to printer`,
+          );
           return;
         }
-        // Fall through to preview dialog for ask_user / failed transports.
-      } catch (err) {
-        // Never surface as an error; the dialog is a safe fallback.
-        console.warn("[printOrPreview] falling back to preview dialog:", err);
-      }
 
-      openPreview(req.documentType, req.documentId, req.title, req.communication);
+        // Parity with Product Labels: never silently fall back to a dialog.
+        // The explicit Preview action opens the dialog when the user wants it.
+        toast.error("Print failed", {
+          description:
+            result.transport === "ask_user"
+              ? "Print policy is set to ask before printing. Change the policy to auto-print, or use the Preview action explicitly."
+              : result.error ?? "The printer did not accept this print job.",
+        });
+      } catch (err) {
+        toast.error("Print failed", {
+          description: err instanceof Error ? err.message : "Unexpected print error.",
+        });
+      }
     },
-    [currentBusiness?.id, openPreview],
+    [currentBusiness?.id],
   );
 
   /**
