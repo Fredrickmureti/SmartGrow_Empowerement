@@ -1,110 +1,87 @@
-# AccrualFlow Print Pipeline — Architectural Report
+# AccrualFlow Print Pipeline — Implementation Roadmap
 
-Read-only investigation, no code changed. Every claim below is anchored to a file:line read this turn.
+Living document. Updated after each phase completes.
 
-## TL;DR
+## Status snapshot
 
-There are **two distinct print pipelines** in the ERP, and they behave differently on rapid clicks for structural, not incidental, reasons:
+| Phase | Scope | State |
+| --- | --- | --- |
+| **Investigation** | Two-pipeline audit, root cause | ✅ Done (report preserved in git history) |
+| **P1** | FIFO queue + non-blocking button in the A4/PDF branch; Invoices canary | ✅ Done, verified |
+| **P2 Step 1** | Ledger-cover interactive prints fired from `PrintPreviewDialog` | ✅ Done, verified |
+| **P2 Step 2** | Retire remaining `useDocumentPrint` direct consumers (Statements, POS, Vendor peek/record) | ⏳ Next |
+| **P2 Step 3** | Delete `useDocumentPrint`; shrink ESLint allowlist to empty | ⏳ Pending Step 2 |
+| **P3** | Unify job identity (correlation-id → idempotency-key) across raw-bytes + PDF; Platform → Print Queue admin view | ⏳ Pending P2 |
 
-- **Labels / thermal / raw-bytes path** (Products, shelf/product labels, ESC-POS receipts) is protected by **two real serialization layers** — a client-side per-endpoint mutex in `AgentClient` and a server-side per-endpoint FIFO queue in the local agent. Rapid jobs are queued and delivered in order.
-- **A4 / PDF document path** (Sales, Purchases, HR docs) never reaches either queue. It ends at a hidden `<iframe>` + native browser `window.print()` dialog. Rapid clicks are silently absorbed by a React `disabled={isPrinting}` boolean, so clicks 2..N never fire `onClick` and no job is ever created.
+## Root cause (original finding — kept for context)
 
-Symptom: "first invoice prints, next 3 disappear, no errors" is not a bug in a queue — **there is no queue on that path**. It is React's `disabled` attribute masking the fact that no dispatch layer exists.
+Two pipelines, materially different concurrency guarantees:
 
-## Verified pipelines
+- **Labels / raw-bytes** — client mutex in `AgentClient._withEndpointLock` + server FIFO in `agent/src/routes/print.ts`. Rapid clicks survive.
+- **A4 / PDF** — hidden `<iframe>` + `window.print()`; button disabled while `isPrinting`, so React dropped clicks 2..N at the DOM. No queue existed on this path.
 
-### A. Product label (survives rapid clicks)
+## What is shipped and verified
 
-```
-Products.tsx:912 menu item / PrintLabelButton.tsx:37 (no disable guard)
-  → useLabelPrint.print()                     src/hooks/inventory/useLabelPrint.ts:78
-  → printLabelByTemplate()                    src/services/printing/labelDispatch.ts:266
-  → hardwareClient.exec({op:'print_label', idempotencyKey})  HardwareClient.ts:128
-  → AgentClient._withEndpointLock             src/services/hardware/local-agent/AgentClient.ts:87
-      (per-endpoint mutex; documents the prior "burst of invoices stopped after the first" fix at :143)
-  → POST /print on local agent
-  → endpointQueues FIFO                       agent/src/routes/print.ts:20-47
-  → TCP 9100 → printer
-```
+### P1 — FIFO queue on the PDF branch (`ADR-0026 · Wave B3 · Plan P1`)
+- `src/services/printing/pdfUtils.ts` — module-scoped `pdfPrintQueue` promise chain wraps every `printPdfInPage(blob)` call. Overlapping browser print dialogs are structurally impossible. A failed job doesn't poison the chain. `__printPdfInPageQueueDrained()` exported for tests.
+- `src/components/common/PrintPreviewDialog.tsx` — Print button no longer `disabled` while a job is in flight. `pendingPrints` counter increments per click; label reads `Print (N queued)` when the backlog is > 1. Rapid clicks enqueue instead of vanishing.
+- `src/test/printing/print-pdf-fifo-queue.test.ts` — locks the invariant: 5 concurrent calls → 5 sequential iframes/dialogs, none coalesced, none dropped; failing job doesn't block the next.
+- **Blast radius** — all 11 sales/purchase pages (Invoices, Bills, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, PurchaseOrders, PurchaseReturns, SalesOrders, SalesReturns, CustomerPayments) already route through `usePrintOrPreview` and fall back to `PrintPreviewDialog` for `ask_user`, so all inherit the fix without per-page changes.
 
-Two independent queues; each click carries its own `idempotencyKey` (`labelDispatch.ts:387`).
+### P2 Step 1 — Interactive-print ledger coverage (`ADR-0026 · Wave B3 · Plan P2 Step 1`)
+- `src/services/printing/PrintClient.ts` — new public `recordInteractivePrint({documentType, documentId, intent, format, businessId, branchId, printerProfileId?}) → {jobId, markSent, markFailed}`. Reuses the same `insertLedgerRow / markLedgerSent / markLedgerFailed` helpers as the auto_print path, so both branches now write the same rows to `print_jobs` under the same 2-second `correlation_id` bucket. Returns a no-op handle (never throws) when `businessId` is null or the RPC fails.
+- `src/components/common/PrintPreviewDialog.tsx` — `handlePrint` now bookends the thermal (`printRawBytes`) and PDF (`printPdfInPage`) branches with `recordInteractivePrint → markSent/markFailed`. Dialog pulls `currentBusiness` via `useBusinesses` and `currentBranch` via existing `useBranch`.
+- `src/test/printing/interactive-print-ledger.test.ts` — locks: insert-then-mark contract, no-op when `businessId` is null, never throws when the RPC errors.
+- **Net effect** — every A4/PDF and interactive-thermal print now appears in `print_jobs`, closing the audit hole for the `ask_user` policy branch and every legacy shadow-path surface. Auto-print rows and interactive rows share the same schema and correlation-id bucketing, so a rapid double-click that crosses branches still collapses on `(business_id, correlation_id)` uniqueness in the RPC.
 
-### B. Sales invoice / A4 documents (drops rapid clicks)
+## Active phase
 
-```
-InvoiceListTable.tsx:162 → Invoices.tsx:284 handleDownloadPDF
-  → usePrintOrPreview.generateDocument         src/hooks/usePrintOrPreview.ts:64
-  → PrintClient.print({intent:'a4_document'})  src/services/printing/PrintClient.ts:177
-     (correlationId at :251 is a 2s-bucketed ledger key, NOT a dedup cache)
-  → fallback: useDocumentPrint opens <PrintPreviewDialog>  useDocumentPrint.ts:38
-  → PrintPreviewDialog Print button            PrintPreviewDialog.tsx:698
-       disabled={isPrinting || showLoading}    ← swallows clicks 2..N
-       handlePrint sets isPrinting=true        :321
-  → printPdfInPage(blob)                       src/services/printing/pdfUtils.ts:41
-       new hidden <iframe>, iframe.contentWindow.print()
-       promise resolves only on 'afterprint' or 60s timeout  :96-114
-  → native browser print dialog → OS spooler → printer
-```
+**P2 Step 1 — Complete.** No open follow-ups on this step.
 
-Never touches `hardwareClient`, `AgentClient`, or the agent FIFO queue for `render_mode: pdf` (the default). Only reaches the raw-bytes queue when the resolved policy is `escpos`/`zpl` (`PrintClient.ts:209`).
+## Next up — P2 Step 2
 
-Same shape for Bills, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, PurchaseOrders, PurchaseReturns, SalesOrders, SalesReturns, CustomerPayments — all on the `useDocumentPrint` allowlist in `eslint-rules/no-document-print-shadow-path.js:29-44`.
+Retire the last direct callers of `useDocumentPrint` that are NOT the 11 sales/purchase pages (those already flow through `usePrintOrPreview`). Current allowlist residents to migrate:
 
-## Root cause (verified)
+- `src/pages/CustomerStatements.tsx`
+- `src/pages/VendorStatements.tsx`
+- `src/features/purchases/statements/VendorStatementPeekSheet.tsx`
+- `src/features/purchases/statements/VendorStatementRecordPage.tsx`
+- `src/pages/pos/POSReports.tsx`
+- `src/pages/pos/POSSettings.tsx`
+- `src/pages/pos/POSTerminal.tsx` (verify — receipt printing already uses `PrintClient.print({intent:'receipt'})`; only the preview fallback should remain)
+- `src/components/pos/TransactionHistoryDialog.tsx`
 
-`PrintPreviewDialog.tsx:320-390` + `pdfUtils.ts:41-114`:
-1. Click 1 sets `isPrinting=true`, opens a hidden iframe, calls `iframe.contentWindow.print()`.
-2. The returned promise only settles on `afterprint` (dialog dismissed) or the 60s safety timeout.
-3. While it is pending, the Print button is `disabled` — React drops all further `onClick` events at the DOM level. No job is created, no error is thrown.
-4. No client- or service-level queue exists on this path to hold them; `PrintClient`'s ledger is audit-only, not a dispatch queue.
+**Migration recipe (mirror the 11 sales/purchase pages):**
+1. Swap `useDocumentPrint()` → `usePrintOrPreview()` (identical field surface — `generateDocument`, `downloadPdf`, `printPreviewOpen`, `setPrintPreviewOpen`, `printPreviewTitle`, `printDocumentType`, `printDocumentId`, `printCommunication`, `isGeneratingPdf`).
+2. Rename any local `generateDocument(...)` invocations left untouched — the signature is identical, so most files are a two-line diff.
+3. Remove the file from `eslint-rules/no-document-print-shadow-path.js` allowlist.
+4. Run `bunx vitest run src/test/printing` and `bunx tsgo --noEmit -p tsconfig.app.json` after each file.
 
-Labels don't hit this because `PrintLabelButton.tsx:37-64` has no `disabled` guard AND every click is caught downstream by two real per-endpoint queues.
+**Do not touch** `src/hooks/useDocumentPrint.ts`, `src/hooks/useDocumentPrintPolicies.ts`, `src/hooks/usePrinterProfiles.ts`, `src/hooks/usePrintOrPreview.ts`, `src/components/settings/PrinterProfilesCard.tsx`, `src/components/settings/PrintingSettings.tsx` — these are legitimate infrastructure allowlist entries, not shadow-path consumers.
 
-Rejected hypotheses (checked, not the cause):
-- Iframe reuse / src overwrite — each `printPdfInPage` call builds a fresh iframe (`pdfUtils.ts:61-69`).
-- Shared in-flight promise / dedup map in `useDocumentPrint` or `generate-document` — no such map exists.
+## Then — P2 Step 3
 
-Open (unverified) contributor: whether the browser's own modal `window.print()` swallows a click racing with dialog open. Not needed to explain the symptom; the React guard alone is sufficient.
+After Step 2 leaves only infrastructure entries in the allowlist:
+- Delete `useDocumentPrint` (fold `downloadPdf` into `PrintClient.download()`).
+- Remove `usePrintOrPreview`'s fallback branch — no need once no page can reach the shadow path.
+- Reduce `no-document-print-shadow-path.js` allowlist to `usePrintOrPreview.ts` only (or delete the rule).
 
-## Architectural drift
+## Then — P3
 
-- Two pipelines with materially different concurrency guarantees exist because the raw-bytes/agent path was hardened during the label + ESC-POS work (see AgentClient's own comment at `:143` and agent `print.ts:16-19`) while the A4 path was left on the legacy `useDocumentPrint` → `printPdfInPage` iframe pattern.
-- The `no-document-print-shadow-path` ESLint rule explicitly calls `useDocumentPrint` the "legacy shadow path" and freezes the consumer list — signalling intended-but-unfinished migration to `PrintClient`.
-- `PrintClient` has a print-job ledger (`print_job_insert`/`_mark_sent`/`_failed`) but no dispatch queue and no in-flight coalescing keyed by `(documentType, documentId)`.
+- Promote `correlation_id` to a true idempotency key (per-click UUID) rather than a 2-second bucket, propagated from every UI submit through `PrintClient.print` and `recordInteractivePrint`.
+- Chain raw-bytes and PDF ledger rows via `parent_job_id` when a policy fans out copies across transports.
+- Ship a Platform → Print Queue admin view backed by the existing `print_jobs` table + status machine (`queued → sent → acked | failed`).
 
-## Canonical direction (proposed, no code yet)
+## Instructions for the next agent
 
-Adopt one canonical print submission pipeline for **every** printable artifact, modelled on what already works for labels:
+1. **Verify P2 Step 1 before continuing.** Read `src/services/printing/PrintClient.ts` lines ~510-570 and `src/components/common/PrintPreviewDialog.tsx` lines ~327-425. Confirm:
+   - `recordInteractivePrint` returns a no-op handle when `businessId` is null and never throws on RPC failure.
+   - Both thermal and PDF branches in `handlePrint` bookend the transport call with `ledger.markSent()` / `ledger.markFailed(err.message)`.
+   - Tests pass: `bunx vitest run src/test/printing/interactive-print-ledger.test.ts src/test/printing/print-pdf-fifo-queue.test.ts`.
+   - No new items appear in `bunx tsgo --noEmit -p tsconfig.app.json` for the touched files.
+2. **Only then** begin P2 Step 2 (list above). Migrate ONE file at a time, run the same two verification commands after each file, and update this plan's Status snapshot as each file lands.
+3. **Do not** open P3 work while any P2 Step 2 file remains on the allowlist. Do not add debounce/throttle/setTimeout to any print path — the queue is the answer, not click-guards.
+4. **Do not** modify `pdfUtils.ts`'s queue, `PrintClient.recordInteractivePrint`, or `PrintPreviewDialog.handlePrint` while doing Step 2 — those are the load-bearing invariants for both auto-print and interactive-print correctness and are covered by tests.
 
-```
-UI submit(job)  →  PrintClient (single-flight + queue)  →  Transport selector
-                                                             ├─ raw-bytes → AgentClient mutex → agent FIFO
-                                                             └─ pdf       → single-flight iframe dispatcher
-                     ↓
-              print_jobs ledger (state machine: queued→sent→ack|failed)
-```
-
-Concretely, the target invariants the codebase should enforce (mirroring what labels already have):
-
-1. **Every UI print action is a fire-and-forget submit** returning a `jobId`. No component owns "am I currently printing?" — that is queue state, queried by `jobId`.
-2. **Single-flight + FIFO in `PrintClient`** keyed by `(documentType, documentId, destinationId)` for the PDF branch, exactly analogous to `AgentClient._withEndpointLock` for the raw-bytes branch. Rapid clicks either coalesce (return existing `jobId`) or enqueue (new `jobId`) — never silently no-op.
-3. **Idempotency key per submission** (already exists for labels via `labelDispatch.ts:387`; extend to `PrintClient.print()`).
-4. **Ledger becomes the source of truth for button state**: `disabled` is driven by `jobId` status, not a local `isPrinting` boolean.
-5. **`useDocumentPrint` is removed from the allowlist one module at a time**, each migration switching the module to `PrintClient` and deleting its local `isPrinting` flag.
-6. **Architecture test** locking rapid-click behavior: submitting N prints for the same document in <100ms produces N ledger rows (or 1 coalesced row with N requestors), never 1 dispatched + N-1 lost.
-
-## Deliverables of this plan
-
-This plan is the report. No code changes are proposed in it. Implementation, if approved, would be sequenced as separate plans:
-
-- **Plan P1** — Add single-flight + FIFO queue and idempotency to `PrintClient.print()` for the `pdf` render mode; drive `PrintPreviewDialog`'s Print button off ledger state instead of `isPrinting`. Add the rapid-click architecture test. Migrate `Invoices` first as canary.
-- **Plan P2** — Migrate remaining `useDocumentPrint` consumers (Bills, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, PurchaseOrders, PurchaseReturns, SalesOrders, SalesReturns, CustomerPayments, HR docs) to `PrintClient`; shrink the ESLint allowlist to empty; delete `useDocumentPrint`.
-- **Plan P3** — Unify job identity (correlation-id → idempotency-key) across raw-bytes and PDF branches; expose `print_jobs` in a Platform → Print Queue admin view for observability.
-
-## What this plan explicitly does NOT do
-
-- No debounce, throttle, `setTimeout`, or arbitrary click-guards.
-- No patch to the invoice printing screen in isolation.
-- No change to the agent or the label path — they are the reference implementation.
-
-Approve to move to Plan P1 (queue + single-flight in `PrintClient` for the PDF branch, canary on Invoices), or request revisions to the architecture direction above.
+## Pre-existing, unrelated
+- `src/test/printing/print-client-policy.test.ts > caches resolved policies …` fails counting all `supabase.rpc` calls but did not account for `print_job_insert` added in ADR-0090. Not caused by P1/P2 work. Fix while doing P2 Step 2 if it aids the migration; otherwise leave for its own micro-plan.
