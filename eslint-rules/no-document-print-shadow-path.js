@@ -1,37 +1,20 @@
 /**
- * ESLint rule: forbid importing `useDocumentPrint` in NEW files.
+ * ESLint rule: forbid importing the legacy `useDocumentPrint` hook.
  *
- * `useDocumentPrint` is the legacy "shadow" print path that pre-dates
- * `PrintClient` (ADR-0026). It is still wired into the surfaces listed
- * in the allowlist below while Wave B1 Step 3+ migrates them to
- * `printClient.print()`. Any new file importing the hook reopens the
- * shadow path and undoes the chokepoint guarantee.
+ * Plan phase C (Print Pipeline Continuation) deleted the hook: every
+ * document-print entry point now goes through `printClient.print()` /
+ * `printClient.download()` / `printClient.printDocument()`, or through
+ * `usePrintOrPreview` for surfaces that still need a preview dialog
+ * fallback. Any new import of `useDocumentPrint` re-introduces the
+ * shadow path and undoes the single-chokepoint guarantee.
  *
- * When migrating a surface, remove its entry from `ALLOWED_FILES`.
- *
- * Scope: src/**. Tests, the hook implementation itself, and the hooks
- * that compose it are exempt.
+ * Scope: src/**. Tests are exempt.
  */
 
-// Snapshot taken 2026-07-26 (Print Pipeline P2 Step 2 complete). Sales /
-// purchase pages (Invoices, Bills, Estimates, etc.) reach useDocumentPrint
-// only transitively through usePrintOrPreview — they are NOT direct
-// consumers and must not be added here. The list below is now infra-only.
-const ALLOWED_FILES = [
-  'src/components/common/PrintSettingsPopover.tsx',
-  'src/components/finance/CreditNoteDetailDialog.tsx',
-  'src/components/settings/PrinterProfilesCard.tsx',
-  'src/components/settings/PrintingSettings.tsx',
-  'src/hooks/useDocumentPrint.ts',
-  'src/hooks/useDocumentPrintPolicies.ts',
-  'src/hooks/usePrinterProfiles.ts',
-  // Shared migration helper; wraps useDocumentPrint as the ask_user /
-  // failure fallback for pages routed through PrintClient.
-  'src/hooks/usePrintOrPreview.ts',
-  // Uses useDocumentPrint.printDocument (not covered by usePrintOrPreview
-  // surface). Out of scope for the Print Pipeline P2 migration.
-  'src/pages/hr/payroll/LegalRecipients.tsx',
-];
+// The allowlist is intentionally empty — the hook file no longer exists.
+// If a future refactor genuinely needs a new document-print helper, add it
+// to `PrintClient`, not a new hook, and leave this list empty.
+const ALLOWED_FILES = [];
 
 /** @type {import('eslint').Rule.RuleModule} */
 export default {
