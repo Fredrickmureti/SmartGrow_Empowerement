@@ -234,13 +234,13 @@ class PrintClient {
             copyResult = { success: true, transport: pdfTransport, policy };
           } else if (fmt === 'escpos') {
             const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
-            const res = await hardwareClient.printRawBytes(bytes);
+            const res = await this.dispatchThermalBytes(bytes, req, 'receipt_printer');
             copyResult = res.success
               ? { success: true, transport: 'thermal', policy }
               : { success: false, transport: 'thermal', error: res.error ?? 'thermal driver reported failure', policy };
           } else if (fmt === 'zpl') {
             const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
-            const res = await hardwareClient.printLabelBytes(bytes);
+            const res = await this.dispatchThermalBytes(bytes, req, 'label_printer');
             copyResult = res.success
               ? { success: true, transport: 'thermal', policy }
               : { success: false, transport: 'thermal', error: res.error ?? 'label driver reported failure', policy };
