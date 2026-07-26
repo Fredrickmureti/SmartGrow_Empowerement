@@ -93,6 +93,16 @@ class AgentClientImpl {
    */
   private _endpointLocks = new Map<string, Promise<unknown>>();
 
+  /**
+   * Phase 2 relay transport. When configured (via `enableRelay()`), the
+   * client routes mutating operations through Supabase edge_jobs first
+   * and falls back to loopback HTTP only if the relay dispatch fails or
+   * times out. This is what unblocks production `https://` origins where
+   * mixed-content rules forbid a direct fetch to `http://127.0.0.1`.
+   */
+  private _relay: RelayTransport | null = null;
+  private _relayConfig: RelayConfig | null = null;
+
   /** Normalize a network endpoint key. Lowercases host, strips default ports. */
   private _netKey(ipAddress: string, port: number): string {
     const host = (ipAddress ?? '').trim().toLowerCase();
