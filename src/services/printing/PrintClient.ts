@@ -45,6 +45,14 @@ export interface PrintRequest {
    */
   businessId?: string | null;
   branchId?: string | null;
+  /**
+   * Plan P3 Step 1 — per-click idempotency key. UI mints a UUID at the
+   * submit boundary (button click, hotkey, programmatic dispatch) and
+   * passes it here. When set, it replaces the legacy 2-second
+   * `(docType:docId:intent:bucket)` correlation-id fallback and becomes
+   * the collapse key on `(business_id, correlation_id)` in the ledger.
+   */
+  idempotencyKey?: string;
 }
 
 export interface PrintResult {
