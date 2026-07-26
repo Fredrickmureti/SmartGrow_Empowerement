@@ -85,8 +85,13 @@ Recommendation: proceed to P3 first, then do Step 3 on top of the new identity c
 
 ## Then — P3 (unified job identity + admin visibility)
 
-1. **Per-click idempotency key.** Replace the 2-second `correlation_id` bucket with a UUID minted at the UI submit boundary. Propagate through `PrintClient.print`, `recordInteractivePrint`, the `print_job_insert` RPC, and agent request headers. Add DB uniqueness on `(business_id, idempotency_key)`.
-2. **Parent/child chaining.** `parent_job_id` on `print_jobs` when a policy fans out copies across transports.
+1. **Per-click idempotency key. ✅ Shipped 2026-07-26.**
+   - `PrintRequest.idempotencyKey` added; `PrintClient.correlationId` prefers it and falls back to the legacy 2s bucket for un-migrated callers.
+   - Minted at both UI submit boundaries: `usePrintOrPreview.printOrPreview` and `PrintPreviewDialog.handlePrint` (single UUID shared by thermal + PDF branches within one click).
+   - `recordInteractivePrint({ ... idempotencyKey })` threads it into `print_job_insert`.
+   - DB already enforces `UNIQUE (public.print_jobs.business_id, correlation_id)` (index `print_jobs_business_id_correlation_id_key`), so the key is fully load-bearing — no schema migration needed.
+   - Contract test: `src/test/printing/print-client-idempotency-key.test.ts` (4 tests).
+2. **Parent/child chaining.** `print_jobs.parent_job_id` column already exists. Remaining work: extend `PrintClient.print` fan-out branches (multi-copy policy, multi-transport policy) to set `p_parent_job_id` on children after the parent insert. Currently always `null`.
 3. **Admin surface.** Platform → Print Queue view backed by `print_jobs` with `queued → sent → acked | failed`; filter by business, branch, document type, correlation, state. Read-only.
 4. **Ledger completion signal.** Wire agent's job-complete callback to write `acked_at` so the admin view distinguishes "sent to agent" from "printed".
 
