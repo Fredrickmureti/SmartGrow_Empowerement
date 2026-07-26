@@ -79,3 +79,34 @@ Code sweep:
 - Migrations follow CREATE → GRANT → RLS ENABLE → POLICY order. Phase 6 is pure DROP so ordering only follows dependencies (functions → bindings → tables → column).
 - `PrintIntent` enum frozen: `sales_invoice | sales_estimate | sales_delivery_note | sales_statement | purchase_order | vendor_bill | pos_receipt | kitchen_ticket | label | a4_document`. `INTENT_TO_ROLE` remains the sole bridge; Deno twin lives in `supabase/functions/_shared/printing/intentToRole.ts`.
 - `device_assignments.transport ∈ {electron, local_agent, webusb, webhid}` with legacy aliases `usb|serial|network → local_agent` normalized inside `TransportRouter` only.
+
+## Progress log — 2026-07-26 (Phase 5 Step B — useHardwareProxy on execAssignment)
+
+**Verified first (Phase 0):**
+- Hardware plan guards green pre-change: `generate-document-resolver`, `pos-receipt-resolver`, `intent-to-role-parity`, `role-vocabulary`, `legacy-printer-profile-field-parity`, `transport-router-matrix`, `print-policies-canonical-home` — 27/27.
+- `rg 'supabase\.rpc\(.resolve_device.)' src supabase/functions` → hits limited to `useDeviceForIntent.ts` only. `useHardwareProxy` calls it via `resolveDeviceForIntent` (indirect), and `generate-document/index.ts` was already migrated in Phase 3C. Correct.
+- `execAny(` — 11 hits, all inside `HardwareClient.ts`. No external consumers, safe to migrate at the driver seam without ripple.
+
+**Changed this turn:**
+- `src/hooks/hardware/useHardwareProxy.ts`: primary dispatch for both `printReceipt` and `printKitchenOrder` now goes through `hardwareClient.execAssignment({ assignment: {id, role, transport, enabled}, op: 'print_receipt', payload })`. `TransportRouter` therefore sees the winning row's persisted `transport` (electron | local_agent | webusb | webhid) instead of a role-based fan-out at the driver seam. Resolver outage still falls back to legacy `hardwareClient.printReceipt/printKitchenOrder` so a shop never bricks on a transient RPC failure — this is the last remaining use of role-only dispatch and it is gated behind a caught error path only.
+- `src/test/architecture/useHardwareProxy-execAssignment.test.ts` (NEW): 4-test source-inspection guard pins the Step B contract: both intents route through `execAssignment`, `assignment.transport` + `assignment.id` are forwarded, and exactly one fallback call per intent remains (any future refactor that reintroduces role-only as the primary path trips the guard).
+
+**Verification:**
+- Hardware guards green post-change: 25/25 across the 6 guards touched by this work (new suite + regression set).
+- Not run this turn: full `bunx vitest run src/test/architecture` (79 unrelated architecture test files across the repo are currently red for reasons outside the hardware plan — Forecast.tsx, HR routes, warehouse_stock reads, etc.). Targeted hardware guards are the source of truth for this phase.
+
+## Phase status (2026-07-26 · after Step B primary-path migration)
+
+- [x] Phase 1, 2, 3 — complete.
+- [x] Phase 4 — UI consolidation.
+- [~] Phase 5 — Transport consolidation. **Step A + Step B primary path complete**. Remaining Step B: peel ~20 remaining `ipcAvailable()` sites inside `HardwareClient.ts` behind `hostRouter.*` (they already import from HostRouter — pure semantic tidy). Add arch guard restricting `window.pos.hardware.exec` / `navigator.usb` / `navigator.hid` direct reads to `HostRouter.ts` + `TransportRouter.ts` + `HardwareClient.ts` only.
+- [ ] Phase 5 Step C — delete `LocalAgentTransport.ts` + legacy `TransportAdapter.resolveTransport()` branch + `execAny` (once no callers remain).
+- [ ] Phase 6 — legacy DB drop + code sweep (unchanged from prior plan).
+
+## Handoff — next agent
+
+1. Run the guard set above; confirm green before editing.
+2. Grep `rg -n 'hardwareClient\.printReceipt\(|hardwareClient\.printKitchenOrder\(' src` — must show exactly 2 hits in `useHardwareProxy.ts` (fallback path) + test file hits. Anything else = someone reintroduced role-only dispatch.
+3. Migrate the inventory label-printer hook (`src/hooks/inventory/useInventoryLabelPrinter.ts:83`) from `hardwareClient.printLabelBytes` → `hardwareClient.execAssignment` using the same pattern; add a matching guard entry.
+4. Then start Phase 5 Step C: convert `execAny` into a private helper of `execAssignment` (currently the reverse), then delete `execAny` + `LocalAgentTransport.ts`.
+5. Phase 6 is a single migration + type regen — do NOT interleave with Step C.
