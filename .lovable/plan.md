@@ -66,22 +66,38 @@ Also fixed `src/test/printing/print-client-policy.test.ts > caches resolved poli
 
 Verification: `bunx vitest run src/test/printing` → 22 files / 146 tests all pass.
 
-## Next up — P2 Step 3 (collapse the shadow path)
+## Active phase — Guardrails (architecture invariants)
 
-Prerequisites: none blocking; `PrintSettingsPopover`, `CreditNoteDetailDialog`, settings pages, and `LegalRecipients` still consume `useDocumentPrint` directly. Two options:
+Prereqs: P3 complete end-to-end (idempotency key → parent/child chaining → admin view → `acked_at` signal). P2 Step 3 (fold `downloadPdf`/`printDocument` into `PrintClient` and delete `useDocumentPrint`) is still queued — schedule it AFTER guardrails ship so the guardrail tests lock the current chokepoint shape before the last few infra consumers get migrated onto it.
 
-**Option A — Fold `downloadPdf` and `printDocument` into `PrintClient`.**
-- Extend `PrintClient` with a `.download(documentType, documentId, filename)` method that mirrors the existing invoke-`generate-document` path currently owned by `useDocumentPrint`, sharing the `print_jobs` ledger insert.
-- Add a `.printDocument(...)` companion (only needed by `LegalRecipients`).
-- Migrate the four infra callers above onto the new `PrintClient` methods.
-- Delete `useDocumentPrint.ts`.
+### Next agent — verification checklist before writing new code
+
+1. Read `src/services/printing/PrintClient.ts` (especially `print()`, `insertLedgerRow`, `markLedgerAcked`, `recordInteractivePrint`) and confirm the P3 Step 4 shape matches the plan: thermal driver failure paths call `mark_failed`, successes chain `mark_sent → mark_acked_by_id`, and the parent container mirrors the child terminal state.
+2. Run `bunx vitest run src/test/printing` — expect 25 files / 158 tests green. Any red = stop and repair before proceeding.
+3. Read `src/apps/platform/hardware/HardwarePrintQueue.tsx` and confirm it renders `acked_at` and the parent/child tree correctly against a live `print_jobs` sample (query the table via `supabase--read_query` if unsure).
+4. Confirm the `print_job_mark_acked_by_id` RPC exists in the DB (`SELECT * FROM pg_proc WHERE proname='print_job_mark_acked_by_id'`) and its EXECUTE grants match plan intent.
+5. Only after all four checks pass, start on Guardrails below.
+
+### Guardrails — deliverables
+
+- Architecture test: `no page-level component calls window.print()` or mounts a print `<iframe>` outside `src/services/printing/pdfUtils.ts`. Implement as a vitest suite that greps `src/{pages,components,features,apps}/**/*.tsx` and fails on offending patterns (mirror the existing `src/test/architecture/*` scaffolding).
+- Architecture test: every UI print entry point goes through `printClient.print` OR `usePrintOrPreview.generateDocument`/`printOrPreview` — no direct `hardwareClient.printRawBytes` / `printLabelBytes` calls outside `src/services/printing/*`.
+- Extend `print-pdf-fifo-queue.test.ts` with a parity test for the raw-bytes path via mocked `AgentClient` — locks both pipelines to identical FIFO semantics under 5 rapid concurrent calls.
+- Once guardrails land, schedule P2 Step 3 (shadow-path collapse) as the next milestone.
+
+## Deferred — P2 Step 3 (collapse the shadow path, run AFTER guardrails)
+
+Remaining direct `useDocumentPrint` consumers: `PrintSettingsPopover`, `CreditNoteDetailDialog`, `PrintingSettings`, `PrinterProfilesCard`, `LegalRecipients`.
+
+**Plan.** Fold `downloadPdf` and `printDocument` into `PrintClient`:
+- Add `PrintClient.download(documentType, documentId, filename)` mirroring the current `useDocumentPrint` invoke-`generate-document` path, sharing the `print_jobs` ledger insert (+ acked signal).
+- Add `PrintClient.printDocument(...)` companion (only needed by `LegalRecipients`).
+- Migrate the five infra callers above onto the new methods.
+- Delete `src/hooks/useDocumentPrint.ts`.
 - Simplify `usePrintOrPreview` to no longer wrap `useDocumentPrint`.
-- Reduce allowlist to `useDocumentPrintPolicies.ts` / `usePrinterProfiles.ts` / `usePrintOrPreview.ts` (or delete rule if no consumers remain).
+- Reduce ESLint allowlist to `useDocumentPrintPolicies.ts` / `usePrinterProfiles.ts` / `usePrintOrPreview.ts`, or delete the rule if no consumers remain.
 
-**Option B — Ship P3 first, then Step 3.**
-Idempotency-key work in P3 changes the ledger schema and `PrintClient` insert path; folding downloads in first, then reworking the identity model, means two passes over the same code. Prefer A only if there is appetite to touch it twice.
 
-Recommendation: proceed to P3 first, then do Step 3 on top of the new identity contract.
 
 ## Then — P3 (unified job identity + admin visibility)
 
