@@ -138,6 +138,7 @@ function buildHandler(getTlsInfo: () => LoopbackTls | null) {
 
     try {
       if (method === 'GET' && path === '/status') return json(res, 200, handleStatus(), req);
+      const tlsInfo = getTlsInfo();
       if (method === 'GET' && path === '/health') return json(res, 200, handleHealth(tlsInfo), req);
       if (method === 'GET' && path === '/tls-info') {
         return json(res, 200, tlsInfo
