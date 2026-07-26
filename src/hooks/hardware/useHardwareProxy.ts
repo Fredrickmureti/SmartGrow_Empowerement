@@ -287,13 +287,11 @@ export function useHardwareProxy(
   // ═══════════════════════════════════════════
 
   const printReceipt = useCallback(async (receiptData: ReceiptData): Promise<DriverResult> => {
-    // Phase 3 (Step A) — POS receipt dispatch is now server-authoritative:
-    // we resolve which physical `device_assignments` row wins via the same
-    // `resolve_device` RPC every other surface uses (labels, kitchen, edge
-    // functions). Role-only routing inside the driver layer stays as the
-    // physical exec, but a receipt cannot ship without a resolved winner —
-    // this closes the "which printer did it actually land on?" gap that the
-    // audit called out for cross-branch POS sessions.
+    // Phase 5 Step B — POS receipt dispatch is now server-authoritative
+    // AND per-assignment. `resolve_device` picks the winning
+    // `device_assignments` row; we then dispatch through
+    // `hardwareClient.execAssignment` so `TransportRouter` sees the row's
+    // `transport` value (instead of the driver seam guessing via role).
     if (organization?.id) {
       try {
         const resolved = await resolveDeviceForIntent({
@@ -308,8 +306,6 @@ export function useHardwareProxy(
             error: 'No receipt printer is assigned for this register/business. Bind one in Platform → Hardware.',
           };
         }
-        // Structured decision log — verifiable in dev tools + covered by the
-        // hardware.route.decision Phase 6 DoD check.
         // eslint-disable-next-line no-console
         console.info('[hardware.route.decision]', {
           intent: 'receipt',
@@ -318,13 +314,33 @@ export function useHardwareProxy(
           scope: registerId ? { kind: 'register', id: registerId } : null,
           businessId: currentBusiness?.id ?? null,
         });
+        const result = await hardwareClient.execAssignment({
+          assignment: {
+            id: resolved.id,
+            role: resolved.role as DeviceRole,
+            transport: resolved.transport,
+            enabled: resolved.enabled,
+          },
+          op: 'print_receipt',
+          payload: {
+            lines: receiptData.lines?.map((l) => ({
+              text: typeof l === 'string' ? l : l.text || '',
+              align: l.align,
+              bold: l.bold,
+            })) || [],
+            header: receiptData.header,
+            footer: receiptData.footer,
+            cut: receiptData.cut !== false,
+          },
+        });
+        void refreshStatuses();
+        return result;
       } catch (err) {
-        // Resolver outage must not brick the register — fall through to
-        // legacy role dispatch so the shop keeps trading.
         // eslint-disable-next-line no-console
         console.warn('[hardware.route.decision] resolve_device failed, falling back to role dispatch', err);
       }
     }
+    // Fallback (no org context or resolver outage) — role-based dispatch.
     const result = await hardwareClient.printReceipt({
       receiptData: {
         lines: receiptData.lines?.map((l) => ({
@@ -353,10 +369,7 @@ export function useHardwareProxy(
   }, [refreshStatuses]);
 
   const printKitchenOrder = useCallback(async (orderData: ReceiptData): Promise<DriverResult> => {
-    // Phase 3 (Step B) — kitchen tickets share the same resolver contract
-    // as receipts and labels. Station-level scope isn't threaded through
-    // `useHardwareProxy` yet; register scope + business tie-break is the
-    // closest signal we have here and still improves on role-only lookup.
+    // Phase 5 Step B — same per-assignment dispatch as receipts.
     if (organization?.id) {
       try {
         const resolved = await resolveDeviceForIntent({
@@ -379,6 +392,26 @@ export function useHardwareProxy(
           scope: registerId ? { kind: 'register', id: registerId } : null,
           businessId: currentBusiness?.id ?? null,
         });
+        const result = await hardwareClient.execAssignment({
+          assignment: {
+            id: resolved.id,
+            role: resolved.role as DeviceRole,
+            transport: resolved.transport,
+            enabled: resolved.enabled,
+          },
+          op: 'print_receipt',
+          payload: {
+            lines: orderData.lines?.map((l) => ({
+              text: typeof l === 'string' ? l : l.text || '',
+              align: l.align,
+              bold: l.bold,
+            })) || [],
+            header: orderData.header,
+            cut: true,
+          },
+        });
+        void refreshStatuses();
+        return result;
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn('[hardware.route.decision] resolve_device failed (kitchen), falling back to role dispatch', err);
