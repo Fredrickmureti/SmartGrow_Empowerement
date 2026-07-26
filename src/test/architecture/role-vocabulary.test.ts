@@ -19,10 +19,15 @@ import { describe, it, expect } from 'vitest';
 
 const ROOT = resolve(__dirname, '..', '..', '..');
 
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+}
+
 function extractHardwareRoles(): string[] {
-  const src = readFileSync(
-    resolve(ROOT, 'electron/hardware/types.ts'),
-    'utf8',
+  const src = stripComments(
+    readFileSync(resolve(ROOT, 'electron/hardware/types.ts'), 'utf8'),
   );
   const m = src.match(
     /export const HARDWARE_ROLES\s*=\s*\[([\s\S]*?)\]\s*as const/,
@@ -32,9 +37,8 @@ function extractHardwareRoles(): string[] {
 }
 
 function extractRendererDeviceRole(): string[] {
-  const src = readFileSync(
-    resolve(ROOT, 'src/services/hardware/drivers/DriverInterface.ts'),
-    'utf8',
+  const src = stripComments(
+    readFileSync(resolve(ROOT, 'src/services/hardware/drivers/DriverInterface.ts'), 'utf8'),
   );
   const m = src.match(/export type DeviceRole\s*=\s*([\s\S]*?);/);
   if (!m) throw new Error('DeviceRole union not found in DriverInterface.ts');
