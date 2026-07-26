@@ -125,6 +125,8 @@ export function Auth({ workstation, onChanged }: Props) {
           <button className="btn danger" onClick={signOutWorkstation}>Remove workstation.json</button>
         </div>
       </div>
+
+      <BrowserPairing />
     </>
   );
 }
