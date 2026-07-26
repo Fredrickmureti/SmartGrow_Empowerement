@@ -200,6 +200,8 @@ function createTray() {
 }
 
 function stopAgent() {
+  agentDesired = false;
+  if (agentRestartTimer) { clearTimeout(agentRestartTimer); agentRestartTimer = null; }
   if (agentProc && !agentProc.killed) {
     try { agentProc.kill('SIGTERM'); } catch { /* ignore */ }
   }
@@ -207,9 +209,12 @@ function stopAgent() {
 }
 
 function agentRoot() {
-  return process.env.ACCRUALFLOW_AGENT_ROOT
-    ? path.resolve(process.env.ACCRUALFLOW_AGENT_ROOT)
-    : path.resolve(__dirname, '..', '..', '..', 'agent');
+  if (process.env.ACCRUALFLOW_AGENT_ROOT) return path.resolve(process.env.ACCRUALFLOW_AGENT_ROOT);
+  // Packaged: the agent tree ships as an extra resource next to app.asar.
+  const packaged = path.join(process.resourcesPath || '', 'agent');
+  if (app.isPackaged && fs.existsSync(packaged)) return packaged;
+  // Dev: the monorepo sibling.
+  return path.resolve(__dirname, '..', '..', '..', 'agent');
 }
 
 function findAgentLaunch() {
@@ -224,41 +229,105 @@ function findAgentLaunch() {
 }
 
 /**
- * Launch the bundled agent (`../../agent`) with the workstation config path
- * pre-injected. In production the agent binary is embedded in the app
- * resources; here we just spawn Node against the source tree for dev use.
+ * Spawn the runtime child. Stdio is piped into the ring buffer so a failed
+ * boot is diagnosable from the Logs tab instead of a terminal.
  */
-async function startAgent() {
-  stopAgent();
-  const already = await probeAgentHealth();
-  if (already.running) return { ok: true, pid: already.pid, external: already.source === 'loopback' };
-  const launch = findAgentLaunch();
-  if (!launch) return { ok: false, error: 'agent_not_bundled' };
-  try {
-    const env = { ...process.env, ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON };
-    let command = process.execPath;
-    let args = [];
-    if (launch.mode === 'node') {
-      env.ELECTRON_RUN_AS_NODE = '1';
-      args = ['--enable-source-maps', launch.entry];
-    } else if (launch.mode === 'tsx') {
-      env.ELECTRON_RUN_AS_NODE = '1';
-      args = [launch.tsxCli, launch.entry];
-    } else {
-      command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-      args = ['run', 'dev'];
-    }
-    agentProc = spawn(command, args, {
-      cwd: launch.cwd,
-      env,
-      stdio: 'ignore',
-      detached: false,
-    });
-    agentProc.on('exit', () => { agentProc = null; });
-    return { ok: true, pid: agentProc.pid };
-  } catch (err) {
-    return { ok: false, error: String(err) };
+function spawnAgentChild(launch) {
+  const env = { ...process.env, ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON };
+  let command = process.execPath;
+  let args = [];
+  if (launch.mode === 'node') {
+    env.ELECTRON_RUN_AS_NODE = '1';
+    args = ['--enable-source-maps', launch.entry];
+  } else if (launch.mode === 'tsx') {
+    env.ELECTRON_RUN_AS_NODE = '1';
+    args = [launch.tsxCli, launch.entry];
+  } else {
+    command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    args = ['run', 'dev'];
   }
+  pushAgentLog('stdout', `[desktop] launching runtime (${launch.mode}): ${launch.entry}`);
+  const child = spawn(command, args, {
+    cwd: launch.cwd,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    shell: launch.mode === 'npm-dev' && process.platform === 'win32',
+  });
+  child.stdout?.on('data', (b) => pushAgentLog('stdout', b));
+  child.stderr?.on('data', (b) => pushAgentLog('stderr', b));
+  child.on('error', (err) => {
+    agentLastError = String(err && err.message ? err.message : err);
+    pushAgentLog('stderr', `[desktop] spawn error: ${agentLastError}`);
+  });
+  child.on('exit', (code, signal) => {
+    if (child !== agentProc) return;
+    agentProc = null;
+    pushAgentLog('stderr', `[desktop] runtime exited (code=${code} signal=${signal ?? 'none'})`);
+    if (agentDesired) scheduleAgentRestart();
+  });
+  return child;
+}
+
+/** Exponential backoff, capped, with a 5-per-60s circuit breaker. */
+function scheduleAgentRestart() {
+  const now = Date.now();
+  agentRestarts = agentRestarts.filter((t) => now - t < 60_000);
+  if (agentRestarts.length >= 5) {
+    agentDesired = false;
+    agentLastError = 'restart_limit_reached';
+    pushAgentLog('stderr', '[desktop] runtime crashed 5 times in 60s — supervision paused. Start it manually to retry.');
+    return;
+  }
+  const delay = [1000, 2000, 5000, 10_000, 30_000][agentRestarts.length] ?? 30_000;
+  agentRestarts.push(now);
+  pushAgentLog('stdout', `[desktop] restarting runtime in ${delay}ms`);
+  if (agentRestartTimer) clearTimeout(agentRestartTimer);
+  agentRestartTimer = setTimeout(() => {
+    agentRestartTimer = null;
+    if (!agentDesired) return;
+    const launch = findAgentLaunch();
+    if (launch) agentProc = spawnAgentChild(launch);
+  }, delay);
+}
+
+/**
+ * Start the runtime and WAIT until `/health` answers (or the attempt fails).
+ * Returns the real reason on failure plus the tail of the child's output.
+ */
+async function startAgent({ auto = false } = {}) {
+  const already = await probeAgentHealth();
+  if (already.running) {
+    // Something already owns port 8043 (service supervisor or a manual
+    // `npm run dev`). Do not fight it.
+    return { ok: true, pid: already.pid, external: already.source === 'loopback', source: already.source };
+  }
+  if (agentProc) stopAgent();
+  const launch = findAgentLaunch();
+  if (!launch) {
+    agentLastError = 'agent_not_bundled';
+    return { ok: false, error: 'agent_not_bundled', detail: `no runtime found under ${agentRoot()}`, log: AGENT_LOG.slice(-40) };
+  }
+  agentLastError = null;
+  agentDesired = true;
+  agentRestarts = [];
+  try {
+    agentProc = spawnAgentChild(launch);
+  } catch (err) {
+    agentDesired = false;
+    agentLastError = String(err);
+    return { ok: false, error: String(err), log: AGENT_LOG.slice(-40) };
+  }
+  // Poll /health for up to 15s.
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    await sleep(500);
+    if (!agentProc && !agentRestartTimer) break; // died and gave up
+    const h = await probeAgentHealth();
+    if (h.running) return { ok: true, pid: h.pid ?? agentProc?.pid ?? null, mode: launch.mode, auto };
+  }
+  const error = agentLastError || 'agent_did_not_become_healthy';
+  return { ok: false, error, mode: launch.mode, log: AGENT_LOG.slice(-40) };
 }
 
 // ── IPC surface ──────────────────────────────────────────────────────────
