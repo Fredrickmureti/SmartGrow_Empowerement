@@ -122,9 +122,11 @@ describe("printPdfInPage global FIFO queue (Plan P1)", () => {
       printPdfInPage(blob),
     ];
 
-    // Allow the queue to start the first job.
-    await Promise.resolve();
-    await Promise.resolve();
+    // Flush enough microtasks for: (1) the queue tail to advance,
+    // (2) runPrintPdfInPage's executor to synchronously append the
+    // iframe and set src, (3) the FakeIframe src setter's
+    // queueMicrotask onload() to fire and call cw.print().
+    for (let i = 0; i < 10; i++) await Promise.resolve();
 
     // Exactly one iframe exists — the queue is holding calls 2..5.
     expect(FakeIframe.instances.length).toBe(1);
@@ -134,11 +136,8 @@ describe("printPdfInPage global FIFO queue (Plan P1)", () => {
     // to the next iframe/dialog — never skip, never coalesce.
     for (let i = 0; i < 5; i++) {
       FakeIframe.instances[i].finishPrintDialog();
-      // Await the settled job so the next one starts.
       await promises[i];
-      // Give the queue chain a microtask to spawn the next iframe.
-      await Promise.resolve();
-      await Promise.resolve();
+      for (let j = 0; j < 10; j++) await Promise.resolve();
     }
 
     // All 5 jobs ran to completion in order.
@@ -158,21 +157,17 @@ describe("printPdfInPage global FIFO queue (Plan P1)", () => {
     const p1 = printPdfInPage(blob);
     const p2 = printPdfInPage(blob);
 
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
 
     expect(FakeIframe.instances.length).toBe(1);
-    // Simulate the browser's iframe raising an error (blocked, CSP,
-    // renderer destroyed). The current implementation resolves rather
-    // than rejects on this path, but the invariant is: p2 runs.
     FakeIframe.instances[0].onerror?.();
     await p1;
 
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
     expect(FakeIframe.instances.length).toBe(2);
     FakeIframe.instances[1].finishPrintDialog();
     await p2;
     expect(FakeIframe.instances[1].printCalled).toBe(true);
   });
 });
+
