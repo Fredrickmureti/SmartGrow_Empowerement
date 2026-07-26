@@ -194,7 +194,7 @@ class PrintClient {
   private async dispatchThermalBytes(
     bytes: Uint8Array | number[],
     req: PrintRequest,
-    role: 'receipt_printer' | 'label_printer',
+    role: 'receipt_printer' | 'label_printer' | 'kitchen_printer',
   ): Promise<{ success: boolean; error?: string }> {
     const legacy = () =>
       role === 'label_printer'
@@ -221,7 +221,7 @@ class PrintClient {
       return await hardwareClient.execAssignment({
         assignment: {
           id: resolved.id,
-          role: resolved.role as 'receipt_printer' | 'label_printer',
+          role: resolved.role as 'receipt_printer' | 'label_printer' | 'kitchen_printer',
           transport: resolved.transport,
           enabled: resolved.enabled,
         },
