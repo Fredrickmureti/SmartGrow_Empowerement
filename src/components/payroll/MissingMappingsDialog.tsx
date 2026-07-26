@@ -126,6 +126,8 @@ function MappingsBody({
         required_account_type:
           m.kind === "employer_expense" ? "expense" :
           m.kind === "core" && m.setting_key === "salary_expense" ? "expense" :
+          m.kind === "loan_receivable" ? "asset" :
+          m.kind === "interest_income" ? "income" :
           "liability",
         is_mapped: false,
         suggested_account_id: m.suggested_account_id ?? null,
@@ -133,8 +135,19 @@ function MappingsBody({
       })) as PayrollGlReadinessRow[]
     : setupMissing;
 
+  // Loan-type-scoped rows live in Loan Types settings, not the generic GL
+  // Mapping surface. They're segregated so the generic "one-click setup" /
+  // "apply all suggested" flows never try to upsert them into
+  // default_account_settings (which would silently fail — those keys aren't
+  // in that table's vocabulary).
+  const isLoanRow = (r: PayrollGlReadinessRow) =>
+    r.kind === "loan_receivable" || r.kind === "interest_income" ||
+    r.setting_key.startsWith("loan_type:");
+  const loanRows = effectiveMissing.filter(isLoanRow);
+  const genericMissing = effectiveMissing.filter((r) => !isLoanRow(r));
+
   const effectiveSuggestedPairs = useEventList
-    ? effectiveMissing
+    ? genericMissing
         .filter((r) => !!r.suggested_account_id)
         .map((r) => ({ setting_key: r.setting_key, account_id: r.suggested_account_id! }))
     : setupSuggestedPairs;
@@ -149,17 +162,19 @@ function MappingsBody({
    * user gets a precise error if any single row fails.
    */
   const runOneClickSetup = async () => {
-    if (effectiveMissing.length === 0) return;
+    // Only the generic default_account_settings-shaped rows can be one-click
+    // provisioned. Loan-type rows must be resolved in Loan Types settings
+    // because their accounts live on `loan_types`, not `default_account_settings`.
+    if (genericMissing.length === 0) return;
     setAutoRunning(true);
     let applied = 0;
     let created = 0;
     try {
-      // Apply all suggested first in a single RPC round-trip
       if (effectiveSuggestedPairs.length > 0) {
         await applyAll.mutateAsync(effectiveSuggestedPairs);
         applied = effectiveSuggestedPairs.length;
       }
-      const needsCreate = effectiveMissing.filter((r) => !r.suggested_account_id);
+      const needsCreate = genericMissing.filter((r) => !r.suggested_account_id);
       for (const r of needsCreate) {
         await createAndMap.mutateAsync({
           setting_key: r.setting_key,
@@ -171,7 +186,7 @@ function MappingsBody({
       toast.success(
         `Payroll GL ready — ${applied} mapped, ${created} account${created === 1 ? "" : "s"} created`,
       );
-      onClose();
+      if (loanRows.length === 0) onClose();
     } catch (e: any) {
       toast.error(e?.message || "One-click setup failed — fix the failing row and retry");
     } finally {
@@ -199,12 +214,12 @@ function MappingsBody({
 
   const grouped = useMemo(() => {
     return {
-      core: effectiveMissing.filter((r) => r.kind === "core"),
-      employee: effectiveMissing.filter((r) => r.kind === "employee_payable"),
-      employerExpense: effectiveMissing.filter((r) => r.kind === "employer_expense"),
-      employerPayable: effectiveMissing.filter((r) => r.kind === "employer_payable"),
+      core: genericMissing.filter((r) => r.kind === "core"),
+      employee: genericMissing.filter((r) => r.kind === "employee_payable"),
+      employerExpense: genericMissing.filter((r) => r.kind === "employer_expense"),
+      employerPayable: genericMissing.filter((r) => r.kind === "employer_payable"),
     };
-  }, [effectiveMissing]);
+  }, [genericMissing]);
 
   if (isLoading && !useEventList) {
     return (
@@ -271,6 +286,9 @@ function MappingsBody({
 
       <ScrollArea className="max-h-[55vh] sm:max-h-[50vh] -mx-1 px-1 pr-2">
         <div className="space-y-4">
+          {loanRows.length > 0 && (
+            <LoanTypesSection rows={loanRows} onNavigate={() => { navigate("/hr/payroll/loan-types"); onClose(); }} />
+          )}
           {grouped.core.length > 0 && (
             <Section title="Core payroll accounts" rows={grouped.core} accounts={accounts} applyOne={applyOne} createAndMap={createAndMap} />
           )}
@@ -289,6 +307,52 @@ function MappingsBody({
       <DialogFooter>
         <Button variant="ghost" className="w-full sm:w-auto" onClick={onClose}>Close</Button>
       </DialogFooter>
+    </div>
+  );
+}
+
+/**
+ * Loan-type-scoped mappings — `loan_types.gl_receivable_account_id` and
+ * `interest_income_account_id`. These are NOT `default_account_settings`
+ * keys; the account is owned by the loan type row itself, so the remediation
+ * is to open Loan Types settings. Rendering a picker here would be
+ * misleading because `payroll_apply_proposed_mappings` cannot resolve these
+ * keys.
+ */
+function LoanTypesSection({
+  rows,
+  onNavigate,
+}: {
+  rows: PayrollGlReadinessRow[];
+  onNavigate: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold text-muted-foreground">Loan types</h4>
+      <div className="rounded-md border p-3 space-y-3 bg-muted/20">
+        <div className="text-xs text-muted-foreground">
+          These accounts live on the loan type, not on the generic GL Mapping
+          table. Payroll posts loan repayments directly against the loan
+          receivable owned by the loan type — set it once in Loan Types settings
+          and every future run for this type is covered.
+        </div>
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div key={r.setting_key} className="flex flex-wrap items-center justify-between gap-2 rounded border bg-background p-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium break-words">{r.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  Needs {r.required_account_type} account · {r.kind === "loan_receivable" ? "Loan receivable" : "Interest income"}
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">Loan type</Badge>
+            </div>
+          ))}
+        </div>
+        <Button size="sm" className="w-full sm:w-auto" onClick={onNavigate}>
+          Open Loan Types settings <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

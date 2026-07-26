@@ -1,175 +1,68 @@
-## Verification of the previous engineer's work
 
-I re-ran every proof named in `.lovable/plan.md` against the live database and the current source. All five phases hold — no rework needed, no superficial patch.
+## Root cause (verified against the live DB and code)
 
-- **Phase 1 — one terminal status (`completed`).**
-  `SELECT count(*) FROM employee_loan_state_transitions WHERE to_status='settled'` → 0.
-  `SELECT count(*) FROM employee_loans WHERE status='settled'` → 0.
-  `employee_loan_settle()` writes `status='completed'`, calls `_loan_assert_transition('settle')`, and emits `loan_log_event('settle', prior, 'completed')`.
-  Client mirror in `src/lib/hr/loanStateMachine.ts` no longer uses `settled`. The only remaining `'settled'` literals in `src/` belong to the unrelated `legal_order_remittance_batch_status` enum and the auto-generated `types.ts` — not the loan domain.
+The blocker `GL_MAPPING_MISSING — loan_repayment_sal_adv_payable` is a **phantom requirement** produced by the readiness/gate function. Nothing in the posting pipeline ever reads or writes that key.
 
-- **Phase 2 — canonical repayment-apply RPC.**
-  `employee_loan_apply_repayment(loan_id, amount, payroll_run_id, payslip_id, kind, notes)` exists (SECURITY DEFINER, `search_path=public`, EXECUTE granted to `authenticated`/`service_role`) and is the sole write path for a payroll instalment.
+Two resolvers exist for loan repayments, and they disagree on what is required:
 
-- **Phase 3 — payroll is a caller, not an owner.**
-  Live body of `process_payroll_loan_deductions` is exactly a loop that delegates to `employee_loan_apply_repayment`; zero `UPDATE public.employee_loans` and zero status literals inside it.
+1. **Posting resolver (authoritative).** `post-payroll-gl` posts loan-repayment legs through `public.payroll_loan_repayment_gl_targets(run)`. That function resolves the credit leg via `loan_types.gl_receivable_account_id` (with a fallback to the `loan_receivable` role via `_loan_resolve_account`) and the interest leg via `loan_types.interest_income_account_id`. It never touches `default_account_settings['loan_repayment_*_payable']`. This is the enterprise-correct pattern: a repayment reduces a receivable, it does not credit a payable.
 
-- **Phase 4 — events and audit parity.**
-  `loan_log_event` is called on every repayment; the outbox key/payload shape is present in the migration and the SQL guard checks it.
+2. **Readiness/gate resolver (phantom).** `public.payroll_required_gl_mappings_for_run` aggregates `payslip_lines` by `rule_code` and emits a required `<rule_code>_payable` key for every line that looks like an employee-side deduction. It tries to skip loan lines with `category NOT IN ('earning','loan_repayment')` — but the compute engine actually writes loan-repayment payslip lines with `category = 'deduction'` (verified: `SELECT DISTINCT category, rule_code FROM payslip_lines WHERE rule_code LIKE 'loan_repayment%'` → `deduction / loan_repayment_sal_adv`). So the filter silently misses them, and the gate demands a `_payable` key that the posting engine will never consume.
 
-- **Phase 5 — regression protection.**
-  `supabase/tests/loan_payroll_repayment_test.sql`, `src/test/architecture/payroll-loan-repayment-lifecycle.test.ts`, `.../employee-loan-lifecycle.test.ts`, `.../payroll-loan-repayment-gl.test.ts`, and `src/lib/hr/__tests__/loanStateMachine.test.ts` all exist. `useMyLoans.ts` now uses `employee_loan_cancel` (no direct status write).
+Result — the exact contradiction the user reported:
+- `compute-payroll` writes a `payroll_run_issues` row for `loan_repayment_sal_adv_payable` at severity `blocker`, so approval is refused.
+- The Payroll → GL Account Mapping screen only lists canonical mapping keys (core + statutory + custom deductions), and loan-repayment keys are correctly absent from that surface, so it looks "fully configured".
+- The user has no remediation path because the demanded key is not real.
 
-The end-to-end proof the previous plan couldn't run headlessly (drive a real final-instalment payroll run and observe `completed` + lifecycle events + GL posting) is still worth doing once as part of milestone (a) below; nothing in the code suggests it will fail, but it hasn't been observed on a live tenant yet.
+There is no data-fix here. Seeding a `loan_repayment_sal_adv_payable` account would just paper over a broken contract between two resolvers; the account would be inert at post time because `payroll_loan_repayment_gl_targets` doesn't read it.
 
-## Continuation — remaining lifecycle surface
+## Enterprise-alignment note
 
-The previous plan explicitly named the next milestones. Reading the current DB functions confirms each is still real work, not already done:
+SAP, Oracle Fusion, Workday, and Dynamics all treat employee loans/advances as receivable subledgers owned by the loan/advance module. Payroll deductions reduce that receivable directly; they do not create a parallel payroll payable per loan type. Our posting side already implements this pattern (ADR 0091 — "Loans emit events, finance owns posting"; `loan_types.gl_receivable_account_id`). The gate function is the only place that still speaks the wrong vocabulary.
 
-- `employee_loan_reverse_repayment` still mutates `employee_loans.amount_repaid`, `outstanding_balance`, `installments_paid` directly and rewrites `loan_repayment_schedule` inline. That is exactly the parallel-writer pattern Phase 2/3 removed for payroll — it is the last surviving second write path into loan state.
-- There is no canonical settle-on-termination RPC. `pending_termination_payouts` is consumed as a payroll input by `compute-payroll`, and `close_on_termination` is a legal state transition, but no function closes an outstanding loan through the same single write path Finance already trusts.
-- `employee_loan_clear_arrears` is called on repayment, but nothing puts a loan **into** `in_arrears` when a scheduled instalment is missed. `loan_repayment_schedule.status` is the source of truth and has no watcher.
+## Plan
 
-### Phase 6 — Termination settlement (canonical single path)
+**Phase 1 — Fix the gate's vocabulary (make readiness agree with posting).**
 
-- New RPC `employee_loan_close_on_termination(_loan_id, _termination_date, _reason, _payroll_run_id, _payslip_id)`:
-  - Locks the loan, asserts status ∈ repayable set, runs `_loan_assert_transition('close_on_termination')`.
-  - If `outstanding_balance > 0`, delegates to `employee_loan_apply_repayment` with `kind='termination_writeoff'` (or `termination_recovery` when the balance is being deducted from final pay via `pending_termination_payouts`) so the balance is zeroed through the same code path Phase 2 established. No direct `UPDATE employee_loans`.
-  - After apply, transitions to `closed_on_termination` (or `completed` if balance was fully recovered from final pay) via the state machine, and emits `loan_log_event('close_on_termination', …)`.
-- `consume_pending_termination_payouts` (or `compute-payroll` termination branch) calls the new RPC instead of inlining any balance math.
-- `loan_repayments.kind` gets the new value(s) added via migration; Finance posting registry (`payroll_loan_repayment_gl_targets` / `_loan_split_repayment`) is extended so write-off flows through a bad-debt / termination-writeoff GL account (ADR 0091 rules 1–2 preserved — Finance still owns posting; the loan module only records the event).
-- Regression: `supabase/tests/loan_termination_settlement_test.sql` (terminated employee with outstanding balance → single canonical apply, terminal status, one JE, one outbox event) + `src/test/architecture/loan-termination-single-writer.test.ts` (asserts no code writes `employee_loans.status='closed_on_termination'` outside the new RPC).
+Migration replacing `public.payroll_required_gl_mappings_for_run`:
+- Exclude any payslip line whose `rule_code` starts with `loan_repayment` from the `_payable` / `_employer_expense` aggregation. This is the load-bearing predicate — categories are unreliable (compute-payroll tags these as `deduction`), rule_code is deterministic.
+- Belt-and-braces: also exclude lines where `source->>'kind' = 'loan_repayment'` or `source->'input_ref'->>'code'` starts with `loan_repayment`, so a future compute-payroll refactor that changes the rule_code shape still can't reintroduce the phantom.
+- Leave core keys (`salary_expense`, `net_salary_payable`), statutory `_payable`/`_employer_expense`, and custom-deduction keys untouched — this is a surgical exclusion, not a rewrite.
 
-### Phase 7 — Arrears detection (scheduled)
+**Phase 2 — Positive loan-side readiness (real remediation path).**
 
-- New RPC `employee_loan_mark_missed_installments(_as_of date)` (SECURITY DEFINER, idempotent):
-  - Selects `loan_repayment_schedule` rows with `due_date < _as_of AND status='pending'` whose loan is in `active`.
-  - For each affected loan, transitions via `_loan_assert_transition('enter_arrears')` and calls `loan_log_event('enter_arrears', …)` with the missed instalment ids on the payload.
-- Schedule via `pg_cron` daily job (`select cron.schedule(...)`) or a TanStack server route under `src/routes/api/public/loans-arrears-sweep.tsx` protected by an HMAC header, whichever matches this repo's existing scheduler pattern (I'll follow whichever is used by `payroll_readiness_eval_rule_core` / the fx-revaluation job to stay consistent).
-- Clearing already exists (`employee_loan_clear_arrears`); no changes needed there.
-- Regression: pgTAP that an overdue pending row promotes the loan to `in_arrears` exactly once, and that clearing on the next successful repayment restores `active`.
+Extend the same function to emit *the mappings loans actually need*, so if a `loan_type` used in the run is missing its receivable account the user is told the truth:
+- For each distinct `loan_id` present in this run's payslip lines (or in `loan_repayments` for the run), join to `loan_types` and emit a virtual readiness row per unmapped loan type:
+  - `setting_key = 'loan_type:<loan_type_id>:receivable'`, `kind = 'loan_receivable'`, `required_account_type = 'asset'`, `is_mapped = (loan_types.gl_receivable_account_id IS NOT NULL)`, label = `"<Loan type name> — Receivable"`.
+  - Same shape for `interest_income` when the loan type charges interest (`interest_rate > 0`) and `interest_income_account_id IS NULL`, `required_account_type = 'income'`.
+- These rows carry a `kind` the UI can route to the Loan Types settings page (`/hr/payroll/loan-types`), not to the generic GL Mapping screen — because that's where these accounts genuinely live.
 
-### Phase 8 — Reverse-repayment parity (kill the last parallel writer)
+**Phase 3 — UI: route loan-shaped blockers to the correct remediation surface.**
 
-- Rewrite `employee_loan_reverse_repayment` as the strict inverse of `employee_loan_apply_repayment`:
-  - Lock loan → assert reversible (original not already reversed, loan not `archived`).
-  - Insert the negative-amount `loan_repayments` row (kept — this is the audit trail).
-  - De-allocate the affected `loan_repayment_schedule` rows through a new helper `_loan_deallocate_schedule(_repayment_id)` that mirrors the FIFO allocator.
-  - Recompute `amount_repaid`, `outstanding_balance`, `installments_paid` from `loan_repayments` aggregates (no drift-prone in-place arithmetic).
-  - If the loan was previously `completed` because of the original repayment, transition back via `_loan_assert_transition('reopen')` (add that transition if not already present).
-  - Emit `loan_log_event('reverse_repayment', prior, new, amount, reason, payload)` — payload keeps `repayment_id`, `reversal_id`, `journal_entry_id`.
-  - Finance mirror-JE logic stays where it is (already canonical via `post_journal_entry_atomic`).
-- Regression: pgTAP asserting apply → reverse → apply is a fixed point (balances, schedule, and events return to the pre-apply state), plus a client-side architecture test that no code outside the loan module reads or writes `loan_repayment_schedule`.
+- In the payroll run blocker list / `MissingMappingsDialog`, when a row's `kind` is `loan_receivable` or `interest_income` (or `setting_key` starts with `loan_type:`), render a "Fix in Loan Types" CTA that deep-links to the loan-types row instead of the GL Mapping table. The generic "Apply suggested" path stays for the canonical keys.
+- No change to Payroll → GL Account Mapping's contents — it stays authoritative for the keys it already owns.
 
-### Cross-cutting
+**Phase 4 — Clean up existing phantom blockers.**
 
-- Add the three new event names (`loan.termination_settled`, `loan.entered_arrears`, `loan.repayment_reversed`) to `business_event_topics` if not already there, and to the outbox key convention `loan:<loan_id>:<event_id>`.
-- Update ADR 0091 with rules 12–14 codifying: (12) termination settlement uses the canonical apply path, (13) arrears is derived from `loan_repayment_schedule`, not stored by hand, (14) reversal is the exact inverse of apply and uses no direct table writes.
-- Update `mem://index.md` with a Core rule: *loan state (status, balance, schedule, arrears) is written only by the loan module through `employee_loan_apply_repayment` / `employee_loan_reverse_repayment` / lifecycle RPCs — no other module updates `employee_loans` or `loan_repayment_schedule`*.
-- Before starting Phase 6, run the deferred end-to-end proof from the previous plan (one payroll run whose employee is on their final instalment) and record the observed outcome in the plan log.
+One-shot SQL in the same migration: delete `payroll_run_issues` rows where `code = 'GL_MAPPING_MISSING'` and `details->>'setting_key'` matches `^loan_repayment_.*_payable$` (and the analogous `_employer_expense` shape, defensively). These were never real. Runs currently stuck in the contradictory "missing but everything configured" state will unblock on the next readiness re-evaluation.
 
-### Order & verification gates
+**Phase 5 — Architecture guards (regression protection).**
 
-Phase 6 → Phase 8 → Phase 7 (termination and reversal both feed the arrears watcher's fixed-point tests). After each phase:
+- `src/test/architecture/payroll-readiness-excludes-loan-repayment.test.ts` — asserts the current `payroll_required_gl_mappings_for_run` body contains the `rule_code NOT ILIKE 'loan_repayment%'` predicate (or equivalent) so a future migration cannot silently reintroduce the phantom.
+- `supabase/tests/payroll_readiness_loan_repayment_test.sql` (pgTAP) — seeds a payslip line with `category='deduction'`, `rule_code='loan_repayment_x'`, calls the readiness RPC, and asserts no `_payable` requirement row is returned for it; asserts the loan-side `loan_type:<id>:receivable` row IS returned and is `is_mapped=false` when the loan type has no receivable account.
+- `src/test/architecture/loan-repayment-gate-posting-parity.test.ts` — greps `post-payroll-gl` to confirm it still routes loan legs exclusively through `payroll_loan_repayment_gl_targets` and never resolves any `loan_repayment_*_payable` key, keeping the gate and the poster in permanent lock-step.
 
-- `bunx vitest run src/test/architecture/employee-loan-lifecycle.test.ts src/test/architecture/payroll-loan-repayment-lifecycle.test.ts src/test/architecture/loan-*.test.ts src/lib/hr/__tests__/loanStateMachine.test.ts`
-- Re-query DB: no `UPDATE public.employee_loans` outside the loan module, no `UPDATE public.loan_repayment_schedule` outside the loan module, terminal statuses still `completed | cancelled | archived | closed_on_termination | defaulted` (with `defaulted` only reachable via the state machine).
-- `tsgo -p tsconfig.app.json` clean.
+## Technical details
 
-### Non-goals (unchanged from the previous plan)
+- `public.payroll_required_gl_mappings_for_run` is `STABLE SECURITY DEFINER`; the migration is a `CREATE OR REPLACE FUNCTION` — no signature change, no downstream call-site edits.
+- `compute-payroll`'s mapping short-circuit (`supabase/functions/compute-payroll/index.ts` ~line 5590) is unchanged; it will simply stop receiving the phantom row.
+- `post-payroll-gl` is unchanged (already correct).
+- The one-shot delete is scoped to `severity='blocker'` `GL_MAPPING_MISSING` rows whose `setting_key` matches the loan-repayment pattern; no other issue rows are touched.
+- No changes to `default_account_settings`, `default_account_setting_bindings`, `loan_types`, or the resolver `_loan_resolve_account` — those are already the canonical single source of truth for the loan side.
 
-- Do not widen or drop `employee_loans_status_check`.
-- Do not re-introduce `settled`.
-- Do not add a second repayment write path.
-- Do not post GL from the loan module — Finance owns posting (ADR 0091 rules 1–2).
+## Definition of done
 
-## Technical notes
-
-- `pending_termination_payouts.consumed_run_id` is the idempotency key for termination recovery from final pay; Phase 6 relies on it and does not add a second one.
-- The arrears sweep only reads `loan_repayment_schedule` and calls the state machine — it never touches balances, keeping single-writer discipline intact.
-- Reverse-repayment's schedule de-allocation must be transactional with the negative `loan_repayments` insert; both live inside one RPC.
-
----
-
-## Execution log — 2026-07-25 (this turn)
-
-**Phase 6 — Termination settlement — LANDED.**
-
-Two migrations applied:
-
-1. `loan_repayments.kind` extended to include `termination_recovery` and `termination_writeoff`; state-machine view gains `restructured → close_on_termination`; `employee_loan_apply_repayment` extended to an 8-arg overload with `_terminal_event` / `_terminal_end_date` so balance-zero completion can route to `close_on_termination`. Legacy 6-arg overload preserved as a thin wrapper — every existing caller (including `process_payroll_loan_deductions`) keeps working unchanged. New canonical 7-arg RPC `employee_loan_close_on_termination(loan, termination_date, reason, payroll_run_id, payslip_id, recovered_amount, writeoff_remaining)` orchestrates recovery → write-off through the single write path.
-
-2. Retired the pre-existing 3-arg `employee_loan_close_on_termination(loan_id, final_settlement_amount, reason)` overload — it was a parallel writer (direct `UPDATE employee_loans` on balance and status, no state-machine assertion). Replaced with a thin wrapper delegating to the canonical 7-arg RPC. No DB or client caller referenced the old body, so no downstream wiring changes were needed.
-
-Regression guard: `src/test/architecture/loan-termination-single-writer.test.ts` — fails if any code outside the loan module writes `status='closed_on_termination'` or inserts a termination-kind repayment, and fails if a future migration deletes the canonical 7-arg RPC.
-
-**Not yet done — still open for the next agent:**
-
-- **Wiring `consume_pending_termination_payouts` / `compute-payroll` termination branch** to call the new RPC. Right now the RPC is defined but no scheduler-level entrypoint invokes it for a final-settlement payroll run. Add it inside `consume_pending_termination_payouts` (compute the recovery amount from the payslip's loan-deduction line, then call `employee_loan_close_on_termination` per loan the terminated employee still owes), and extend `payroll_loan_repayment_gl_targets` / `_loan_split_repayment` so `termination_writeoff` posts through a bad-debt / write-off account rather than loan-clearing.
-- **Phase 7 — Arrears detection sweep.** `employee_loan_mark_missed_installments(_as_of date)` + daily `pg_cron` job hitting `/api/public/hooks/loans-arrears-sweep` with `apikey` header; state-machine `enter_arrears` transition is already legal, so this is purely additive.
-- **Phase 8 — Reverse-repayment parity.** `employee_loan_reverse_repayment` still writes `employee_loans.amount_repaid / outstanding_balance / installments_paid` directly and rewrites `loan_repayment_schedule` inline. It also inserts `loan_repayments.amount = -orig.amount` even though the current CHECK constraint requires `amount > 0` — so the reversal path is latent-broken today; a real reversal cannot commit. Rewrite as the strict inverse of `employee_loan_apply_repayment` (positive amount, `kind='reversal'` with `reversal_of_id`, schedule de-allocation helper, aggregate-based balance recompute, `_loan_assert_transition('reopen')` when the original entry had settled the loan). Bump the `amount > 0` CHECK to `amount <> 0` or store reversals as positive rows and net by kind — plan the choice; do not just widen the constraint. Add pgTAP asserting apply → reverse → apply is a fixed point.
-
-Order stays: 6 (done) → 8 → 7. Termination and reversal both feed the arrears watcher's fixed-point tests.
-
-## Execution log — 2026-07-26 (this turn)
-
-**Phase 8 — Reverse-repayment parity — LANDED.**
-**Phase 7 — Arrears detection — LANDED.**
-
-Single migration:
-- Relaxed `loan_repayments.amount` CHECK from `> 0` to `<> 0` so the negative
-  reversal ledger row is legal (`employee_loan_apply_repayment` still refuses
-  a non-positive `_amount`, so no new write path can produce a zero row).
-- Added `completed → reopen → active` to `employee_loan_state_transitions`.
-- New helper `public._loan_deallocate_schedule(_repayment_id)` — the strict
-  inverse of the FIFO allocator inside `employee_loan_apply_repayment`.
-- Rewrote `public.employee_loan_reverse_repayment(_repayment_id, _reason)`:
-  locks the loan; refuses double-reversal (via `reversal_of_id` check) and
-  reversal against an archived loan; inserts the negative-amount audit row;
-  builds the mirror JE exactly as before (Finance still owns posting);
-  de-allocates schedule via the new helper; recomputes
-  `amount_repaid` / `outstanding_balance` / `installments_paid` from
-  `SUM(amount)` over `loan_repayments` (no in-place drift); if the prior
-  status was `completed` and the recomputed balance is now positive,
-  transitions to `active` via `_loan_assert_transition('reopen')`; emits a
-  single `reverse_repayment` lifecycle event carrying `repayment_id`,
-  `reversal_id`, `journal_entry_id`, new balances, and `reopened` flag.
-- New RPC `public.employee_loan_mark_missed_installments(_as_of date)` —
-  idempotent, SECURITY DEFINER, service_role only. Scans `active` loans with
-  overdue `pending`/`partial` schedule rows, routes each through
-  `_loan_assert_transition('enter_arrears')`, updates status +
-  `arrears_since`, and logs `enter_arrears` with the missed schedule ids on
-  the payload. Returns `{scanned, promoted, as_of}`.
-- Scheduled the sweep via `pg_cron` (`employee-loan-arrears-sweep`, daily
-  02:15 UTC) — the DB function is called directly (no HTTP hop, no per-project
-  secrets), and the DO block re-schedules idempotently.
-
-Regression:
-- `supabase/tests/loan_reverse_repayment_test.sql` — end-to-end fixed-point:
-  apply → reverse → apply is a no-op on balances/schedule/events; double
-  reversal is refused.
-- `supabase/tests/loan_arrears_sweep_test.sql` — an overdue `active` loan is
-  promoted exactly once, a `paused` loan with overdue instalments is left
-  alone, a successful repayment clears arrears.
-- `src/test/architecture/loan-reverse-repayment-single-writer.test.ts` —
-  no code outside the loan module writes `loan_repayment_schedule` or
-  inserts `kind='reversal'`; the canonical reversal RPC recomputes from the
-  ledger via `SUM(amount)` and never uses `amount_repaid - orig.amount`
-  drift arithmetic; the arrears RPC exists and is scheduled via `pg_cron`.
-- Tightened `payroll-loan-repayment-lifecycle.test.ts` to look up the
-  migration that *defines* `employee_loan_apply_repayment` (Phase 8
-  migrations mention it only in comments, which fooled the older glob).
-
-All 22 loan-domain architecture tests green (5 files):
-`employee-loan-lifecycle`, `payroll-loan-repayment-lifecycle`,
-`loan-termination-single-writer`, `loan-reverse-repayment-single-writer`,
-`loanStateMachine`.
-
-Follow-ups worth doing (not blocking, not silently deferred):
-- Update ADR 0091 with rules 12–14 (termination canonical, arrears
-  derived, reversal is strict inverse).
-- Extend `mem://index.md` with the loan single-writer Core rule.
-- One-shot backfill sweep against production (`SELECT
-  employee_loan_mark_missed_installments(CURRENT_DATE);`) so historical
-  overdue `active` loans get promoted on day one instead of drifting
-  until the next scheduled tick.
+- Approval of a run containing loan/advance deductions is not blocked by a `loan_repayment_*_payable` key.
+- If a `loan_type` used in the run has no `gl_receivable_account_id`, the run is blocked with a message that names the loan type and deep-links to Loan Types settings.
+- Payroll → GL Account Mapping and Payroll Readiness agree on the set of required keys (verified by pgTAP round-trip).
+- Architecture guards make the drift non-recurrable.

@@ -24,7 +24,22 @@ export interface PayrollGlReadinessRow {
   setting_key: string;
   label: string;
   rule_code: string | null;
-  kind: "core" | "employee_payable" | "employer_expense" | "employer_payable";
+  /**
+   * Semantic bucket for the required account.
+   *   `core` / `employee_payable` / `employer_expense` / `employer_payable`
+   *     — flat `default_account_settings` keys (Payroll GL Mapping surface).
+   *   `loan_receivable` / `interest_income`
+   *     — loan-type-scoped mappings owned by Loan Types settings. Not part of
+   *       `default_account_settings`; the UI must route these to the Loan
+   *       Types page rather than the generic mapping fixer.
+   */
+  kind:
+    | "core"
+    | "employee_payable"
+    | "employer_expense"
+    | "employer_payable"
+    | "loan_receivable"
+    | "interest_income";
   required_account_type: "asset" | "liability" | "equity" | "income" | "expense";
   is_mapped: boolean;
   suggested_account_id: string | null;
