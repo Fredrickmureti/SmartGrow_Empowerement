@@ -286,6 +286,63 @@ export function useHardwareProxy(
   //  Abstract action methods (what POS UI calls)
   // ═══════════════════════════════════════════
 
+  /**
+   * Phase 5 Step B — shared per-assignment dispatch for non-print roles
+   * (drawer, scale, customer display, payment terminal). Same contract as
+   * the printReceipt / printKitchenOrder paths: resolve the winning
+   * `device_assignments` row via `resolve_device`, then execute against
+   * that row so `TransportRouter` sees the row's persisted `transport`.
+   * Falls back to the legacy role-only method on resolver outage or
+   * missing org context — a shop must never brick on a transient RPC
+   * failure.
+   */
+  const dispatchViaAssignment = useCallback(
+    async <T,>(
+      role: DeviceRole,
+      op: string,
+      payload: unknown,
+      legacy: () => Promise<T>,
+      intent?: string,
+    ): Promise<T | DriverResult> => {
+      if (!organization?.id) return legacy();
+      try {
+        const resolved = await resolveDeviceForIntent({
+          organizationId: organization.id,
+          intentOrRole: intent ?? role,
+          businessId: currentBusiness?.id ?? null,
+          scope: registerId ? { kind: 'register', id: registerId } : undefined,
+        });
+        if (!resolved) return legacy();
+        // eslint-disable-next-line no-console
+        console.info('[hardware.route.decision]', {
+          intent: intent ?? role,
+          role,
+          op,
+          assignmentId: resolved.id,
+          scope: registerId ? { kind: 'register', id: registerId } : null,
+          businessId: currentBusiness?.id ?? null,
+        });
+        return await hardwareClient.execAssignment({
+          assignment: {
+            id: resolved.id,
+            role: resolved.role as DeviceRole,
+            transport: resolved.transport,
+            enabled: resolved.enabled,
+          },
+          op,
+          payload,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[hardware.route.decision] resolve_device failed, falling back to role dispatch', err);
+        return legacy();
+      }
+    },
+    [organization?.id, currentBusiness?.id, registerId],
+  );
+
+
+
   const printReceipt = useCallback(async (receiptData: ReceiptData): Promise<DriverResult> => {
     // Phase 5 Step B — POS receipt dispatch is now server-authoritative
     // AND per-assignment. `resolve_device` picks the winning
