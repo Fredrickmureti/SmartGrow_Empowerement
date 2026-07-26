@@ -44,7 +44,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { printClient } from "@/services/printing/PrintClient";
+import { useState as useLocalState } from "react";
 import { useBusinesses } from "@/contexts/BusinessContext";
 
 function fmtMoney(n: number): string {
