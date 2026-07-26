@@ -1,6 +1,6 @@
 # AccrualFlow Edge — Hardware Runtime
 
-**Status:** Phase 1 (hardened localhost runtime). Formerly `pos-hardware-agent`.
+**Status:** Phase 2 (relay transport + hardened localhost runtime). Formerly `pos-hardware-agent`.
 See `.lovable/plan.md` for the full architecture roadmap.
 
 A signed, loopback-bound runtime that bridges the AccrualFlow ERP to
