@@ -100,7 +100,7 @@ export default function VendorStatements() {
     format(endOfMonth(subMonths(new Date(), 1)), "yyyy-MM-dd")
   );
   const [isGenerating, setIsGenerating] = useState(false);
-  const { downloadPdf } = useDocumentPrint();
+  const { downloadPdf } = usePrintOrPreview();
   const [consolidate, setConsolidate] = useState(false);
   const [loadingStatementId, setLoadingStatementId] = useState<string | null>(null);
   const [selectedStatementIds, setSelectedStatementIds] = useState<Set<string>>(new Set());
