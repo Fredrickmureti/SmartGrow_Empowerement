@@ -225,12 +225,16 @@ class PrintClient {
             copyResult = { success: true, transport: pdfTransport, policy };
           } else if (fmt === 'escpos') {
             const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
-            await hardwareClient.printRawBytes(bytes);
-            copyResult = { success: true, transport: 'thermal', policy };
+            const res = await hardwareClient.printRawBytes(bytes);
+            copyResult = res.success
+              ? { success: true, transport: 'thermal', policy }
+              : { success: false, transport: 'thermal', error: res.error ?? 'thermal driver reported failure', policy };
           } else if (fmt === 'zpl') {
             const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
-            await hardwareClient.printLabelBytes(bytes);
-            copyResult = { success: true, transport: 'thermal', policy };
+            const res = await hardwareClient.printLabelBytes(bytes);
+            copyResult = res.success
+              ? { success: true, transport: 'thermal', policy }
+              : { success: false, transport: 'thermal', error: res.error ?? 'label driver reported failure', policy };
           } else {
             copyResult = { success: false, transport: 'none', error: `Unsupported format ${fmt}`, policy };
           }
