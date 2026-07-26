@@ -35,13 +35,32 @@ describe('useHardwareProxy — Phase 5 Step B per-assignment dispatch', () => {
   });
 
   it('keeps the role-only fallback strictly gated behind resolver outage / no-org', () => {
-    // The two remaining printReceipt / printKitchenOrder call sites are the
-    // fallback path — they live after the try/catch. Assert there are
-    // exactly two such calls (one per intent) so a future refactor cannot
-    // silently reintroduce role-based dispatch as the primary path.
-    const receiptHits = SRC.match(/hardwareClient\.printReceipt\(/g) ?? [];
-    const kitchenHits = SRC.match(/hardwareClient\.printKitchenOrder\(/g) ?? [];
-    expect(receiptHits.length).toBe(1);
-    expect(kitchenHits.length).toBe(1);
+    // The remaining role-only call sites are the fallback path — they live
+    // inside a `dispatchViaAssignment` `legacy` closure. Assert there is
+    // exactly one call per legacy shim so a refactor cannot silently
+    // reintroduce role-based dispatch as the primary path.
+    for (const method of [
+      'printReceipt',
+      'printKitchenOrder',
+      'openDrawer',
+      'readScale',
+      'tareScale',
+      'updateCustomerDisplay',
+      'initiatePayment',
+      'cancelPayment',
+    ]) {
+      const hits = SRC.match(new RegExp(`hardwareClient\\.${method}\\(`, 'g')) ?? [];
+      expect(hits.length, `${method} legacy shim call count`).toBe(1);
+    }
+  });
+
+  it('non-print roles (drawer, scale, display, payment) route through dispatchViaAssignment', () => {
+    // Every non-print action method uses the shared helper as its primary
+    // path — direct `hardwareClient.<method>()` calls at module scope are
+    // reserved for the `legacy` fallback closure passed to the helper.
+    expect(SRC).toMatch(/const dispatchViaAssignment = useCallback/);
+    for (const role of ['cash_drawer', 'scale', 'customer_display', 'payment_terminal']) {
+      expect(SRC, `dispatchViaAssignment should route the ${role} role`).toContain(`'${role}'`);
+    }
   });
 });
