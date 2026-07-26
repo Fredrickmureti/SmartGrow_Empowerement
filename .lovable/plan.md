@@ -119,3 +119,53 @@ Next: route `useHardwareProxy.printReceipt` and the kitchen-ticket dispatch path
 - Typecheck: green.
 
 Next: migrate the four external `printLabelByTemplate` call sites (Products, FixedAssets, HardwareDevices, BusinessSagaMount) to `printClient.printLabel`, then route `useHardwareProxy.printReceipt` / kitchen dispatch through `resolve_device`.
+
+## Progress log — 2026-07-26 (Phase 3 label call-site migration)
+
+- All external `printLabelByTemplate` call sites now go through the `printClient.printLabel` façade:
+  - `src/pages/Products.tsx` — product_label + shelf_label handlers.
+  - `src/apps/platform/hardware/HardwareDevices.tsx` — label-printer "Test print" path.
+  - `src/components/events/BusinessSagaMount.tsx` — GRN summary, per-lot shelf-edge, delivery-note shipping, and stock-transfer manifest saga handlers.
+  - `src/services/printing/reprintClient.ts` — `dispatchLabelReprint`.
+  - `src/hooks/inventory/useLabelPrint.ts` — the generic `useLabelPrint()` hook (drives every remaining page-level label button through the façade).
+- `src/test/hardware/products-label-print.test.ts` (Wave B2.2 seam) upgraded: now asserts `printClient.printLabel` is the seam AND explicitly forbids reaching back into `printLabelByTemplate` / `labelDispatch` from Products. 7/7 green.
+- All affected suites green: `products-label-print`, `role-vocabulary`, `intent-to-role-parity`, `customer-display-saga` (verifies the `labelDispatch` vi.mock still fires through the lazy `import()` inside `PrintClient.printLabel`).
+- Only in-tree `printLabelByTemplate` references now sit inside `src/services/printing/{labelDispatch,PrintClient}.ts` (definition + façade), tests that assert-negatively on the primitive, and one doc comment in `useDeviceForWorkflow.ts` (which Phase 6 deletes). The single-chokepoint ESLint allow-list can now safely shrink to `src/services/printing/**` in Phase 6.
+
+## Phase status (2026-07-26)
+
+- [x] Phase 1 — Freeze.
+- [x] Phase 2a/2b — Unify registration onto `device_assignments`.
+- [x] Phase 2c — Server-side registry unification (`workstation-manifest`, `generate-document`, role-vocabulary CI guard).
+- [x] Phase 3 (opener) — `resolve_device` RPC live.
+- [x] Phase 3 (client façade) — `useDeviceForIntent` + `INTENT_TO_ROLE` + parity CI guard.
+- [x] Phase 3 (label chokepoint) — `printClient.printLabel` shipped and every consumer migrated.
+- [ ] Phase 3 (remaining) — Route `useHardwareProxy.printReceipt` and the kitchen-ticket dispatch through `useDeviceForIntent` / `resolve_device` so POS + kitchen share the same resolver. Also swap `document_print_policies`-driven policy resolution in `generate-document` to prefer `resolve_device` for policies that pin a role rather than a specific device id.
+- [ ] Phase 4 — UI consolidation (Platform → Hardware becomes single admin home; delete PrinterProfilesCard / WorkflowBindingsCard / PrintingSettings; DeviceWizard = sole registration surface).
+- [ ] Phase 5 — Transport consolidation (`TransportRouter` collapses ~15 `isElectron()` branches inside `HardwareClient`; delete `LocalAgentTransport.ts` + legacy `TransportAdapter.resolveTransport` branch).
+- [ ] Phase 6 — Legacy removal (DROP `printer_profiles`, `printer_workflow_bindings`, `workstation_devices`, `resolve_workflow_printer`; drop `device_assignments.source_config_id`; delete `useDeviceForWorkflow.ts`; shrink ESLint allow-list).
+
+## Handoff — next agent
+
+**Verify first (don't trust the log — actually check):**
+1. `rg -n 'printLabelByTemplate\s*\(' src` should return matches ONLY in `src/services/printing/{labelDispatch,PrintClient}.ts` and in test files that assert-negatively (`no-product-id-as-barcode`, `products-label-print`, `customer-display-saga` mock, `useDeviceForWorkflow.ts` doc comment). Any consumer hit is a regression.
+2. `bunx vitest run src/test/hardware/products-label-print.test.ts src/test/architecture/intent-to-role-parity.test.ts src/test/architecture/role-vocabulary.test.ts src/test/pos/customer-display-saga.test.ts` — all four suites must be green.
+3. Confirm the `resolve_device` RPC exists in the live schema (previous turn shipped the migration); `supabase.rpc('resolve_device', ...)` from `src/hooks/useDeviceForIntent.ts` must type-resolve.
+4. `rg -n 'workstation_devices|printer_profiles' supabase/functions src` should show only comments / migration history — no runtime writes/reads.
+
+**Then resume Phase 3 (final leg) — chronological, do not skip:**
+
+Step A: Route POS receipt dispatch through `resolve_device`.
+- `src/hooks/hardware/useHardwareProxy.ts` (`printReceipt` around L270–320) currently resolves the receipt printer via ad-hoc logic / `hardwareClient` role targeting. Rewrite it to call `useDeviceForIntent({ intent: 'receipt', businessId, scopeKind: 'register', scopeId: registerId })` and dispatch to the resolved `DeviceAssignment.id`. Keep the existing missing-device toast path.
+- Add a unit test asserting POS receipt dispatch calls `resolve_device` (mock supabase.rpc) with the correct (role='receipt_printer', scope='register') arguments.
+
+Step B: Route kitchen-ticket dispatch through the same path.
+- Find kitchen-ticket dispatch call site (grep `kitchen_ticket` + `kitchen_printer`). Convert to `useDeviceForIntent({ intent: 'kitchen_ticket', businessId, scopeKind: 'station', scopeId: kitchenStationId })`.
+- Ensure `device_workflow_bindings` scoping (station-level pin) still wins the tie-break — the `resolve_device` RPC already implements this.
+
+Step C: Migrate policy-driven `generate-document` reads that pin a *role* (not an id).
+- Audit both `printer_profiles`/`device_assignments` reads in `supabase/functions/generate-document/index.ts` (lines ~2388 and ~3023 after the Phase 2c patch). Where `document_print_policies` pins `role_hint` without a specific device id, call `public.resolve_device(...)` instead of the `.or('id.eq.<x>,source_config_id.eq.<x>')` join. Preview overrides and explicit-id pins stay ID-driven.
+
+Step D: Update `.lovable/plan.md` marking Phase 3 fully complete, then open Phase 4 by writing an inventory of every `PrinterProfilesCard` / `WorkflowBindingsCard` / `PrintingSettings.tsx` consumer BEFORE deleting anything (Phase 4 opener).
+
+**Do not** start Phase 4 UI deletions until Step A–C are green with new tests. Do not attempt Phase 5 (`TransportRouter`) or Phase 6 (DROP TABLE) out of order — they depend on Phase 4 having removed the last UI writers of the legacy tables.

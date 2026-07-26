@@ -75,7 +75,7 @@ import {
   Printer,
 } from "lucide-react";
 import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
-import { printLabelByTemplate } from "@/services/printing/labelDispatch";
+import { printClient } from "@/services/printing/PrintClient";
 import { resolveLabelBarcode, LABEL_BARCODE_REFUSAL } from "@/services/printing/labelBarcode";
 import {
   DropdownMenu,
@@ -231,7 +231,7 @@ export default function Products() {
       });
       return;
     }
-    const result = await printLabelByTemplate({
+    const result = await printClient.printLabel({
       orgId: currentOrg.id,
       branchId: currentBranch?.id ?? null,
       templateKey: "product_label",
@@ -276,7 +276,7 @@ export default function Products() {
       });
       return;
     }
-    const result = await printLabelByTemplate({
+    const result = await printClient.printLabel({
       orgId: currentOrg.id,
       branchId: currentBranch?.id ?? null,
       templateKey: "shelf_label",

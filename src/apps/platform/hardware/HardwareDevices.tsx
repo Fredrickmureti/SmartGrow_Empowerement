@@ -47,7 +47,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap, Route } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
-import { printLabelByTemplate } from "@/services/printing/labelDispatch";
+import { printClient } from "@/services/printing/PrintClient";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   receipt_printer: { label: "Receipt printer", description: "Customer receipt slips at sale commit." },
@@ -252,14 +252,15 @@ export function HardwareDevicesPage() {
     setTesting(key);
     try {
       // Label printers exercise the whole workflow-binding + media
-      // resolution pipeline via printLabelByTemplate, so a "Test print"
-      // here matches what the app actually dispatches at runtime.
+      // resolution pipeline via printClient.printLabel (single chokepoint,
+      // delegates to labelDispatch), so a "Test print" here matches what
+      // the app actually dispatches at runtime.
       if ((role as string) === "label_printer") {
         if (!currentOrg?.id) {
           toast.error("Select an organization before test-printing a label.");
           return;
         }
-        const res = await printLabelByTemplate({
+        const res = await printClient.printLabel({
           orgId: currentOrg.id,
           branchId: currentBranch?.id ?? null,
           templateKey: "product_label",
