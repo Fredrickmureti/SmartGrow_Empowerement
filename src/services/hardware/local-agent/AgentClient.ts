@@ -633,7 +633,14 @@ class AgentClientImpl {
   //  Private helpers
   // ═══════════════════════════════════════════
 
-  /** Probe a protected endpoint to confirm the token is accepted. */
+  /**
+   * Probe a protected endpoint to confirm the token is accepted, and record
+   * WHY it failed. "Online but rejected" and "online but the browser blocked
+   * the request" look identical from a boolean, and operators cannot act on
+   * either without the distinction: a 401 means the wrong secret was pasted
+   * (typically the cloud workstation secret instead of `~/.pos-agent-token`),
+   * whereas a network-level failure means CORS / mixed content.
+   */
   private async _checkAuthorized(): Promise<boolean> {
     try {
       const controller = new AbortController();
@@ -644,8 +651,16 @@ class AgentClientImpl {
         signal: controller.signal,
       });
       clearTimeout(timeout);
-      return res.status !== 401;
+      if (res.status === 401 || res.status === 403) {
+        this._authReason = this._token ? 'unauthorized' : 'missing_token';
+        return false;
+      }
+      this._authReason = 'ok';
+      return true;
     } catch {
+      // The status probe already succeeded, so the listener is up; a throw here
+      // is the browser refusing the cross-origin/mixed-content request.
+      this._authReason = 'blocked';
       return false;
     }
   }
