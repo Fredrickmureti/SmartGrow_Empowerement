@@ -44,6 +44,12 @@ export interface DispatchArgs {
   payload?: Record<string, unknown>;
   idempotencyKey?: string;
   deadlineMs?: number;
+  /**
+   * Extend the deadline by the number of jobs already waiting for this
+   * workstation. Without it, invoice 4 of a burst is judged against invoice
+   * 1's clock and gets expired before the agent ever reaches it.
+   */
+  queueAware?: boolean;
 }
 
 export interface DispatchResult<T = unknown> {
@@ -56,6 +62,10 @@ export interface DispatchResult<T = unknown> {
 
 const DEFAULT_DEADLINE_MS = 30_000;
 const POLL_INTERVAL_MS = 1_500;
+/** Extra allowance per job already queued ahead of this one. */
+const QUEUE_ALLOWANCE_MS = 4_000;
+/** Cap on the queue-aware extension so a wedged queue can't stall the UI. */
+const MAX_QUEUE_ALLOWANCE_MS = 40_000;
 /**
  * The agent polls every 1.5 s and stamps `workstations.last_seen_at` on each
  * poll. If the newest stamp is older than this, the workstation is not
@@ -89,9 +99,6 @@ export class RelayTransport {
 
   /** Enqueue a job and wait for the agent to complete it. */
   async dispatch<T = unknown>(args: DispatchArgs): Promise<DispatchResult<T>> {
-    const deadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
-    const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
-
     const liveness = await this._liveness();
     if (!liveness.alive) {
       const seen = liveness.lastSeenAt
@@ -104,6 +111,11 @@ export class RelayTransport {
         error: `agent_offline: this workstation is not polling AccrualFlow (${seen}). Open the AccrualFlow Edge desktop app on that machine — if it is already running, re-issue its workstation secret from Identity so the relay can re-authorise.`,
       };
     }
+
+    const baseDeadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
+    const allowance = args.queueAware ? await this._queueAllowanceMs() : 0;
+    const deadlineMs = baseDeadlineMs + allowance;
+    const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
 
     const insertRow = {
       organization_id: this.config.organizationId,
@@ -162,6 +174,21 @@ export class RelayTransport {
 
   private _finalize<T>(jobId: string, status: DispatchResult['status'], result: T | null, error: string | null): DispatchResult<T> {
     return { jobId, status, result, error };
+  }
+
+  /**
+   * How much extra time this job needs because of work already ahead of it.
+   * Counts live (queued / in-progress) rows for this workstation.
+   */
+  private async _queueAllowanceMs(): Promise<number> {
+    const { count, error } = await this.supabase
+      .from('edge_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('workstation_id', this.config.workstationId)
+      .in('status', ['queued', 'in_progress'])
+      .gt('deadline_at', new Date().toISOString());
+    if (error || !count) return 0;
+    return Math.min(count * QUEUE_ALLOWANCE_MS, MAX_QUEUE_ALLOWANCE_MS);
   }
 
   private async _await<T>(jobId: string, deadlineMs: number): Promise<DispatchResult<T>> {

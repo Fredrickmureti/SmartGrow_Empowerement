@@ -142,8 +142,18 @@ class AgentClientImpl {
   private async _withEndpointLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const prev = this._endpointLocks.get(key) ?? Promise.resolve();
     // Swallow any rejection from prev — we only need ordering, not propagation.
-    const gate = prev.catch(() => undefined);
-    const run = gate.then(fn);
+    //
+    // Wave B4.3: the gate itself is time-capped. A never-settling predecessor
+    // (e.g. a mixed-content fetch that hangs forever) used to park every later
+    // job for the same printer behind it with no error at all — that is what
+    // made a burst of invoices stop printing after the first one.
+    const gate = Promise.race([
+      prev.catch(() => undefined),
+      new Promise<'lock_timeout'>((resolve) =>
+        setTimeout(() => resolve('lock_timeout'), AgentClientImpl.LOCK_WAIT_MS),
+      ),
+    ]);
+    const run = gate.then(() => fn());
     this._endpointLocks.set(key, run);
     try {
       return await run;
@@ -152,6 +162,27 @@ class AgentClientImpl {
       if (this._endpointLocks.get(key) === run) {
         this._endpointLocks.delete(key);
       }
+    }
+  }
+
+  /** Max time a caller waits for the per-endpoint mutex before proceeding anyway. */
+  private static readonly LOCK_WAIT_MS = 20_000;
+  /** Hard ceiling on any direct (loopback) agent request. */
+  private static readonly DIRECT_PRINT_TIMEOUT_MS = 8_000;
+  private static readonly DIRECT_TEST_TIMEOUT_MS = 6_000;
+
+  /**
+   * `fetch` with a hard abort. Every direct agent call must be bounded: on an
+   * HTTPS origin a plaintext loopback request can stay pending indefinitely,
+   * which turns one bad job into a permanently stalled print queue.
+   */
+  private async _fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -522,10 +553,10 @@ class AgentClientImpl {
   private _loopbackUsable(): boolean {
     if (typeof window === 'undefined') return false;
     if (window.location.protocol !== 'https:') return true;
-    try {
-      const host = new URL(this._baseUrl).hostname.toLowerCase();
-      if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') return true;
-    } catch { /* keep conservative fallback below */ }
+    // On an HTTPS document a plaintext http://localhost request is mixed
+    // content — Chrome/Edge either block it outright or leave it pending
+    // (Private Network Access). Treating it as "usable" is what produced the
+    // silent, unbounded stall. Only the trusted loopback TLS listener counts.
     return this._baseUrl.startsWith('https:');
   }
 
@@ -536,11 +567,15 @@ class AgentClientImpl {
 
   private async _printNetworkDirect(ipAddress: string, port: number, data: number[]): Promise<AgentPrintResponse> {
     try {
-      const res = await fetch(`${this._baseUrl}/print`, {
-        method: 'POST',
-        headers: this._mutatingHeaders(),
-        body: JSON.stringify({ ipAddress, port, data }),
-      });
+      const res = await this._fetchWithTimeout(
+        `${this._baseUrl}/print`,
+        {
+          method: 'POST',
+          headers: this._mutatingHeaders(),
+          body: JSON.stringify({ ipAddress, port, data }),
+        },
+        AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS,
+      );
       const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
       if (res.status === 401) {
         return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
@@ -548,18 +583,28 @@ class AgentClientImpl {
       if (body && typeof body.success === 'boolean') return body;
       if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
       return { success: false, error: 'Agent returned an empty response' };
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return {
+          success: false,
+          error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS / 1000}s while printing to ${ipAddress}:${port}. This job was dropped so the next one can go through.`,
+        };
+      }
       return { success: false, error: `Local agent unreachable at ${this._baseUrl}. Cannot print to ${ipAddress}:${port}.` };
     }
   }
 
   private async _testConnectionDirect(ipAddress: string, port: number): Promise<AgentTestResponse> {
     try {
-      const res = await fetch(`${this._baseUrl}/test`, {
-        method: 'POST',
-        headers: this._mutatingHeaders(),
-        body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
-      });
+      const res = await this._fetchWithTimeout(
+        `${this._baseUrl}/test`,
+        {
+          method: 'POST',
+          headers: this._mutatingHeaders(),
+          body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
+        },
+        AgentClientImpl.DIRECT_TEST_TIMEOUT_MS,
+      );
       const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
       if (res.status === 401) {
         return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
@@ -567,7 +612,13 @@ class AgentClientImpl {
       if (body && typeof body.success === 'boolean') return body;
       if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
       return { success: false, error: 'Agent returned an empty response' };
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return {
+          success: false,
+          error: `agent_request_timeout: the local agent at ${this._baseUrl} did not answer within ${AgentClientImpl.DIRECT_TEST_TIMEOUT_MS / 1000}s.`,
+        };
+      }
       return {
         success: false,
         error: `Local agent unreachable at ${this._baseUrl}. Is the print agent running?`,
@@ -595,10 +646,17 @@ class AgentClientImpl {
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
           deadlineMs: 15_000,
+          queueAware: true,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
-        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
+        if (!this._loopbackUsable()) {
+          return {
+            success: false,
+            error: r.error
+              ?? 'relay dispatch failed and no direct transport is available (plaintext loopback is blocked on an HTTPS page — enable the agent TLS listener).',
+          };
+        }
         // fall through to loopback (LAN / dev origins only)
       }
       return this._printNetworkDirect(ipAddress, port, data);
@@ -622,7 +680,13 @@ class AgentClientImpl {
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
-        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
+        if (!this._loopbackUsable()) {
+          return {
+            success: false,
+            error: r.error
+              ?? 'relay dispatch failed and no direct transport is available (plaintext loopback is blocked on an HTTPS page — enable the agent TLS listener).',
+          };
+        }
       }
       return this._testConnectionDirect(ipAddress, port);
     });
@@ -646,23 +710,31 @@ class AgentClientImpl {
           payload: { vendorId, productId, data },
           idempotencyKey: idem,
           deadlineMs: 15_000,
+          queueAware: true,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
         if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
       try {
-        const res = await fetch(`${this._baseUrl}/usb/print`, {
-          method: 'POST',
-          headers: this._mutatingHeaders(),
-          body: JSON.stringify({ vendorId, productId, data }),
-        });
+        const res = await this._fetchWithTimeout(
+          `${this._baseUrl}/usb/print`,
+          {
+            method: 'POST',
+            headers: this._mutatingHeaders(),
+            body: JSON.stringify({ vendorId, productId, data }),
+          },
+          AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS,
+        );
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
         if (res.status === 401) return { success: false, error: 'Agent rejected request: missing or invalid token.' };
         if (body && typeof body.success === 'boolean') return body;
         if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
         return { success: false, error: 'Agent returned an empty response' };
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return { success: false, error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS / 1000}s.` };
+        }
         return { success: false, error: 'Local agent unreachable for USB printing.' };
       }
     });
