@@ -353,6 +353,7 @@ ipcMain.handle('updates:check', async (_e, opts) => {
     currentVersion: app.getVersion(),
     installId: ws.workstation_id || 'unassigned',
     channel: (opts && opts.channel) || settings.update_channel || 'stable',
+    channelUrl: (opts && opts.channelUrl) || settings.update_channel_url || null,
   });
 });
 
