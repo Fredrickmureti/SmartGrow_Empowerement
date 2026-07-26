@@ -43,6 +43,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AgentChangeCallback = (available: boolean, status: AgentStatusResponse | null) => void;
 
+/** Outcome of the last protected-endpoint authorization check. */
+export type AgentAuthReason = 'ok' | 'missing_token' | 'unauthorized' | 'blocked' | 'unreachable';
+
 const TOKEN_STORAGE_KEY = 'pos.agent.token';
 const URL_STORAGE_KEY = 'pos.agent.url';
 const RELAY_STORAGE_KEY = 'pos.agent.relay';
