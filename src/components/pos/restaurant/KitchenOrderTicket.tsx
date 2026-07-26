@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { printClient } from "@/services/printing/PrintClient";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 
 interface KitchenOrderTicketProps {
