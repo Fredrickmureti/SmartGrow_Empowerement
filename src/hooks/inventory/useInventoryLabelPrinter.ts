@@ -15,7 +15,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
-import type { DeviceRole } from '@/services/hardware/types';
+import type { DeviceRole } from '@/services/hardware/drivers/DriverInterface';
 
 export interface MissingLabelPrinterCta {
   message: string;
