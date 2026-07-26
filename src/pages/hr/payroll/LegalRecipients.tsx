@@ -44,7 +44,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { printClient } from "@/services/printing/PrintClient";
+import { useState as useLocalState } from "react";
 import { useBusinesses } from "@/contexts/BusinessContext";
 
 function fmtMoney(n: number): string {
@@ -68,7 +69,7 @@ export default function LegalRecipients() {
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
   );
   const [to, setTo] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const { printDocument, downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useLocalState(false);
   // The recipient statement is computed live (no persisted row carrying a
   // business_id), so the active business must ride in on the request body —
   // it is what resolves the letterhead branding AND the statement currency.
@@ -245,32 +246,60 @@ export default function LegalRecipients() {
                   size="sm"
                   variant="outline"
                   disabled={isGeneratingPdf}
-                  onClick={() =>
-                    downloadPdf(
-                      "legal_recipient_statement",
-                      selected.recipient_id,
-                      `recipient-statement-${selected.display_name}-${from}-${to}`,
-                      undefined,
-                      undefined,
-                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
-                    )
-                  }
+                  onClick={async () => {
+                    if (!selected) return;
+                    setIsGeneratingPdf(true);
+                    try {
+                      await printClient.download(
+                        {
+                          intent: "a4_document",
+                          documentType: "legal_recipient_statement",
+                          documentId: selected.recipient_id,
+                          businessId: currentBusiness?.id ?? null,
+                        },
+                        `recipient-statement-${selected.display_name}-${from}-${to}`,
+                        {
+                          extraBody: {
+                            periodStart: from,
+                            periodEnd: to,
+                            businessId: currentBusiness?.id,
+                          },
+                        },
+                      );
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
                 >
                   Download PDF
                 </Button>
                 <Button
                   size="sm"
                   disabled={isGeneratingPdf}
-                  onClick={() =>
-                    printDocument(
-                      "legal_recipient_statement",
-                      selected.recipient_id,
-                      `Recipient Statement — ${selected.display_name}`,
-                      undefined,
-                      undefined,
-                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
-                    )
-                  }
+                  onClick={async () => {
+                    if (!selected) return;
+                    setIsGeneratingPdf(true);
+                    try {
+                      await printClient.printDocument(
+                        {
+                          intent: "a4_document",
+                          documentType: "legal_recipient_statement",
+                          documentId: selected.recipient_id,
+                          title: `Recipient Statement — ${selected.display_name}`,
+                          businessId: currentBusiness?.id ?? null,
+                        },
+                        {
+                          extraBody: {
+                            periodStart: from,
+                            periodEnd: to,
+                            businessId: currentBusiness?.id,
+                          },
+                        },
+                      );
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
                 >
                   {isGeneratingPdf ? "Preparing…" : "Print"}
                 </Button>
