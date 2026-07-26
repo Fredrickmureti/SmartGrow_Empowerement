@@ -31,7 +31,7 @@ export function Auth({ workstation, onChanged }: Props) {
         await signInWithPassword(email, password);
       }
       const res = await invoke<{ workstation_id: string; secret: string; supabase_url: string }>(
-        'edge-workstation-rotate-secret',
+        'edge/workstation/rotate-secret',
         { workstation_id: workstation.workstation_id },
       );
       const write = await window.edge.workstation.write({

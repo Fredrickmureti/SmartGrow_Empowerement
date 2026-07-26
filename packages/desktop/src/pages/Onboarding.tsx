@@ -54,7 +54,7 @@ export function Onboarding({ onEnrolled }: Props) {
     setError(null); setBusy(true); setStep('writing');
     try {
       const res = await invoke<{ workstation: { id: string }; secret: string; supabase_url: string }>(
-        'edge-workstation-register',
+        'edge/workstation/register',
         { organization_id: orgId, name: name.trim() },
       );
       const write = await window.edge.workstation.write({
