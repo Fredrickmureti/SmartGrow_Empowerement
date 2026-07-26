@@ -169,3 +169,54 @@ Step C: Migrate policy-driven `generate-document` reads that pin a *role* (not a
 Step D: Update `.lovable/plan.md` marking Phase 3 fully complete, then open Phase 4 by writing an inventory of every `PrinterProfilesCard` / `WorkflowBindingsCard` / `PrintingSettings.tsx` consumer BEFORE deleting anything (Phase 4 opener).
 
 **Do not** start Phase 4 UI deletions until Step A–C are green with new tests. Do not attempt Phase 5 (`TransportRouter`) or Phase 6 (DROP TABLE) out of order — they depend on Phase 4 having removed the last UI writers of the legacy tables.
+
+## Progress log — 2026-07-26 (Phase 3 Step A + B — POS/kitchen resolver wiring)
+
+- `src/hooks/useDeviceForIntent.ts`: added `resolveDeviceForIntent()` — an imperative twin of the React hook that calls the same `resolve_device` RPC with the same tie-break. Non-React hot lanes (dispatch callbacks, saga handlers, edge-adjacent code) can now share the exact same routing decision as the UI.
+- `src/hooks/hardware/useHardwareProxy.ts`:
+  - `printReceipt` now resolves `intent=receipt` via `resolveDeviceForIntent` before dispatch, using `{ scope: register, businessId: currentBusiness }`. No resolved winner → short-circuit with `{ success: false, error: 'No receipt printer …' }`. Resolver-outage → warn-and-fall-through so the register keeps trading during a transient Postgres blip.
+  - `printKitchenOrder` mirrors the same contract for `intent=kitchen_ticket`.
+  - Both emit a structured `console.info('[hardware.route.decision]', { intent, role, assignmentId, scope, businessId })` — satisfies the Phase 6 DoD "one registry, one resolver, one transport per print" grep across sales / POS.
+- `src/test/architecture/pos-receipt-resolver.test.ts`: 4-test source-inspection guard locking (a) import of `resolveDeviceForIntent`, (b) both hot lanes call it with correct intent literals, (c) missing-device short-circuit exists, (d) `hardware.route.decision` log is emitted from both lanes. 4/4 green alongside the earlier parity + vocabulary + Products-seam guards.
+- Typecheck: clean.
+
+### Deliberate scope choices
+
+- The physical driver hop still routes by `role` (`execAny('receipt_printer', …)`). That's intentional for this milestone: the *decision* is now unified, the driver-layer targeting-by-assignment-id refactor is a Phase 5 concern (bundled with `TransportRouter`).
+- Station-level scope for kitchen tickets is not threaded through `useHardwareProxy` yet — register scope + business tie-break already improves over role-only routing. Threading station scope belongs with the KDS refactor (out of scope for Phase 3).
+
+## Phase status (2026-07-26 — end of turn)
+
+- [x] Phase 1, 2a/2b/2c — done.
+- [x] Phase 3 (opener) — `resolve_device` RPC live.
+- [x] Phase 3 (client façade) — `useDeviceForIntent` + `INTENT_TO_ROLE` + parity guard.
+- [x] Phase 3 (label chokepoint) — `printClient.printLabel` shipped, every external caller migrated.
+- [x] Phase 3 (Step A) — POS receipt dispatch resolved server-side.
+- [x] Phase 3 (Step B) — Kitchen ticket dispatch resolved server-side.
+- [ ] Phase 3 (Step C — final) — `generate-document` policy paths that pin a *role* (not a specific device id) call `public.resolve_device(...)` instead of the current `.or('id.eq.<x>,source_config_id.eq.<x>')` fan-out. Preview / explicit-id pins stay ID-driven.
+- [ ] Phase 4 — UI consolidation.
+- [ ] Phase 5 — Transport consolidation (`TransportRouter`, driver-layer targeting-by-assignment-id).
+- [ ] Phase 6 — Legacy removal (DROP legacy tables, drop `source_config_id`, delete `useDeviceForWorkflow.ts`, shrink ESLint allow-list).
+
+## Handoff — next agent
+
+**Verify first (do not trust this log — check):**
+1. `bunx tsgo --noEmit` → clean.
+2. `bunx vitest run src/test/architecture/pos-receipt-resolver.test.ts src/test/architecture/intent-to-role-parity.test.ts src/test/architecture/role-vocabulary.test.ts src/test/hardware/products-label-print.test.ts` → all green.
+3. `rg -n 'resolveDeviceForIntent|resolve_device' src` — should be limited to `useDeviceForIntent.ts`, `useHardwareProxy.ts`, tests, and (after Step C) `generate-document/index.ts`. Any other consumer means someone bypassed the façade.
+4. Inspect the two `device_assignments` reads in `supabase/functions/generate-document/index.ts` (previously at ~L2388 and ~L3023 after Phase 2c) and identify which are ID-pinned (preview override, policy pinning a specific `printer_profile_id` / `source_config_id`) vs. role-pinned (policy carrying only a `role_hint` / `device_role`). ONLY the role-pinned branches migrate to `resolve_device`.
+
+**Then resume with Phase 3 Step C (do not skip to Phase 4):**
+
+Step C: `generate-document` role-pinned reads → `resolve_device`.
+- For each policy path that carries only a role hint (no explicit assignment id), replace the ad-hoc select with `supabase.rpc('resolve_device', { _organization_id, _role, _business_id, _scope_kind: null, _scope_id: null })` and pick the first row.
+- Preserve the ID-pinned branch verbatim — that path exists precisely to let admins pin a specific physical printer for a document policy.
+- Emit a structured server-side `hardware.route.decision` log (via `console.info` / edge-function logger) at the resolver call site for the Phase 6 DoD.
+- Add an edge-function Deno test (`supabase/functions/generate-document/index_test.ts`) that stubs `supabase.rpc('resolve_device', …)` and asserts a role-pinned policy causes exactly one RPC call with the right args; and that an ID-pinned policy does NOT call the resolver.
+
+Step D (closes Phase 3): Update `.lovable/plan.md` marking Phase 3 fully complete, then open Phase 4 with an inventory step BEFORE any deletion. Phase 4 opener must:
+- Enumerate every current consumer of `PrinterProfilesCard`, `WorkflowBindingsCard`, `PrintingSettings.tsx`, `/pos/hardware-devices`, `/pos/hardware-diagnostics` (grep import paths + route registrations).
+- Confirm `DeviceWizard` covers every field these older surfaces expose (role, workflow bindings, workstation FK, capability flags). If gaps exist, close them BEFORE deleting the old surfaces.
+- Only then start the deletion sweep + redirect stubs.
+
+**Do not** open Phase 4 / 5 / 6 until Step C is done and green. **Do not** touch driver-layer targeting-by-assignment-id (that is bundled with Phase 5's `TransportRouter`). **Do not** DROP TABLE anything before Phase 6 — Phase 4 UI removal must land first so the legacy tables have zero readers.
