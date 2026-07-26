@@ -497,7 +497,7 @@ class PrintClient {
         businessId: opts?.businessId ?? null,
         branchId: opts?.branchId ?? null,
       };
-      const res = await this.dispatchThermalBytes(bytes, req, 'receipt_printer');
+      const res = await this.dispatchThermalBytes(bytes, req, 'kitchen_printer');
       return res.success
         ? { success: true, transport: 'thermal' }
         : { success: false, transport: 'thermal', error: res.error ?? 'kitchen driver reported failure' };
