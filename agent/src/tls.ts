@@ -30,6 +30,8 @@ export interface LoopbackTls {
   key: string;
   fingerprintSha256: string;
   generatedAt: string;
+  /** Workstation-secret rotation stamp this cert was minted against. */
+  secretRotatedAt: string | null;
   path: string;
 }
 
