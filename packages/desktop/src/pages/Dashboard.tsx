@@ -4,6 +4,8 @@ import { select } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtime';
 import { CertificatePanel } from '../components/CertificatePanel';
 import { UpdatesPanel } from '../components/UpdatesPanel';
+import { IdChip } from '../components/IdChip';
+import { clockTime, relativeTime, uptimeLabel } from '../lib/identity';
 
 interface Props { workstation: WorkstationRead }
 
@@ -103,64 +105,63 @@ export function Dashboard({ workstation }: Props) {
 
   return (
     <>
-      <div className="row-between" style={{ marginBottom: 20 }}>
+      <div className="page-head row-between">
         <div>
-          <h1 style={{ margin: 0, fontSize: 20 }}>{workstation.name}</h1>
-          <div className="muted mono" style={{ fontSize: 12 }}>{workstation.workstation_id}</div>
+          <div className="page-eyebrow">Workstation</div>
+          <h1 className="page-title">{workstation.name ?? 'Unnamed workstation'}</h1>
+          <div className="identity-row">
+            <IdChip kind="workstation" value={workstation.workstation_id} />
+            <span className="muted" style={{ fontSize: 12 }}>in</span>
+            <IdChip kind="organization" value={workstation.organization_id} />
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="page-head-actions">
           {agentRunning
-            ? <span className="pill ok"><span className="pill-dot" />Agent running · pid {agentPid}</span>
-            : <span className="pill err"><span className="pill-dot" />Agent stopped</span>}
+            ? <span className="pill ok"><span className="pill-dot" />Runtime online</span>
+            : <span className="pill err"><span className="pill-dot" />Runtime offline</span>}
           {relayFresh
-            ? <span className="pill ok"><span className="pill-dot" />Relay fresh</span>
-            : <span className="pill warn"><span className="pill-dot" />Relay stale</span>}
+            ? <span className="pill ok"><span className="pill-dot" />Cloud link healthy</span>
+            : <span className="pill warn"><span className="pill-dot" />Cloud link stale</span>}
         </div>
       </div>
 
       <div className="panel">
         <h2>Connection</h2>
-        <p className="panel-sub">Live status of the two transports that connect this workstation to AccrualFlow.</p>
-        <div className="grid-2">
+        <p className="panel-sub">How this workstation reaches AccrualFlow, and how the browser reaches it.</p>
+        <div className="grid-3">
           <div className="stat">
-            <div className="stat-label">Relay heartbeat</div>
-            <div className="stat-value">{row?.last_seen_at ? new Date(row.last_seen_at).toLocaleTimeString() : '—'}</div>
+            <div className="stat-label">Last cloud heartbeat</div>
+            <div className="stat-value">{relativeTime(row?.last_seen_at)}</div>
+            <div className="stat-hint">{clockTime(row?.last_seen_at) || 'No heartbeat received yet'}</div>
           </div>
           <div className="stat">
-            <div className="stat-label">Agent version</div>
+            <div className="stat-label">Runtime version</div>
             <div className="stat-value mono">{row?.version ?? '—'}</div>
+            <div className="stat-hint">{agentRunning ? `Process ${agentPid ?? '—'}` : 'Not running on this device'}</div>
           </div>
           <div className="stat">
-            <div className="stat-label">Local loopback</div>
-            <div className="stat-value">
-              {tls?.enabled
-                ? `https://127.0.0.1:${tls.port ?? 8443}`
-                : 'http://127.0.0.1:8043'}
+            <div className="stat-label">Local address</div>
+            <div className="stat-value mono">
+              {tls?.enabled ? `127.0.0.1:${tls.port ?? 8443}` : '127.0.0.1:8043'}
             </div>
-            {tls?.enabled && tls.fingerprint_sha256 && (
-              <div className="muted mono" style={{ fontSize: 10, wordBreak: 'break-all', marginTop: 4 }}>
-                fp: {tls.fingerprint_sha256}
-              </div>
-            )}
-          </div>
-          <div className="stat">
-            <div className="stat-label">Organization</div>
-            <div className="stat-value mono">{workstation.organization_id}</div>
+            <div className="stat-hint">
+              {tls?.enabled ? 'Encrypted (HTTPS)' : 'Unencrypted (HTTP) — issue a certificate below'}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="panel">
-        <h2>Agent runtime</h2>
+        <h2>Runtime control</h2>
         <p className="panel-sub">Start, stop, or restart the AccrualFlow Edge runtime on this device.</p>
         <div className="button-row">
           <button className="btn" disabled={agentBusy} onClick={startAgent}>
-            {agentBusy ? 'Starting…' : agentRunning ? 'Restart agent' : 'Start agent'}
+            {agentBusy ? 'Starting…' : agentRunning ? 'Restart runtime' : 'Start runtime'}
           </button>
           <button className="btn secondary" disabled={!agentRunning}
-            onClick={() => window.edge.agent.stop().then(refresh)}>Stop agent</button>
+            onClick={() => window.edge.agent.stop().then(refresh)}>Stop runtime</button>
         </div>
-        {agentMsg && <div className="muted mono" style={{ marginTop: 8, fontSize: 12 }}>{agentMsg}</div>}
+        {agentMsg && <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>{agentMsg}</div>}
       </div>
 
       <CertificatePanel onChanged={refresh} />
@@ -179,22 +180,23 @@ export function Dashboard({ workstation }: Props) {
           reboot, logout, and laptop-lid-close. The tray app connects to it
           over a local named pipe / unix socket.
         </p>
-        <div className="grid-2">
+        <div className="grid-4">
           <div className="stat">
             <div className="stat-label">Supervisor</div>
             <div className="stat-value">
               {supStatus?.ok
-                ? <span className="pill ok"><span className="pill-dot" />online · pid {supStatus.pid}</span>
+                ? <span className="pill ok"><span className="pill-dot" />Running</span>
                 : <span className="pill warn"><span className="pill-dot" />
                     {svc && svc.installerAvailable === false
-                      ? 'service tooling not bundled'
+                      ? 'Not available'
                       : svc && !svc.ok
-                        ? 'not installed'
+                        ? 'Not installed'
                         : supStatus?.error === 'supervisor_not_running'
-                          ? 'installed · not running'
-                          : supStatus?.error ?? 'offline'}
+                          ? 'Installed · stopped'
+                          : supStatus?.error ?? 'Offline'}
                   </span>}
             </div>
+            {supStatus?.ok && <div className="stat-hint">Process {supStatus.pid}</div>}
             {svc?.installerAvailable === false && (
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
                 This build was packaged without the Edge runtime. Repackage with the agent bundled as an extra resource.
@@ -203,11 +205,7 @@ export function Dashboard({ workstation }: Props) {
           </div>
           <div className="stat">
             <div className="stat-label">Uptime</div>
-            <div className="stat-value mono">
-              {supStatus?.ok && typeof supStatus.uptime_s === 'number'
-                ? `${Math.floor(supStatus.uptime_s / 60)}m ${supStatus.uptime_s % 60}s`
-                : '—'}
-            </div>
+            <div className="stat-value">{supStatus?.ok ? uptimeLabel(supStatus.uptime_s) : '—'}</div>
           </div>
           <div className="stat">
             <div className="stat-label">Runtime</div>
@@ -230,7 +228,7 @@ export function Dashboard({ workstation }: Props) {
           <button className="btn secondary" disabled={supBusy !== null}
             onClick={() => runSup('uninstall')}>Uninstall</button>
         </div>
-        {supMsg && <div className="muted mono" style={{ marginTop: 8, fontSize: 12 }}>{supMsg}</div>}
+        {supMsg && <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>{supMsg}</div>}
       </div>
     </>
   );

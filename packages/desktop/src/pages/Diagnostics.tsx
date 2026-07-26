@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ProbeOp, ProbeRequest, ProbeResponse, WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
 import { SUPABASE_ANON_KEY } from '../lib/config';
+import { roleLabel, shortId } from '../lib/identity';
 
 interface Props { workstation: WorkstationRead }
 
@@ -46,7 +47,7 @@ export function Diagnostics({ workstation }: Props) {
     // 1. workstation.json readable
     const ws = await window.edge.workstation.read();
     next[0] = ws.exists && ws.has_secret
-      ? { name: next[0].name, status: 'ok', detail: `id=${ws.workstation_id}` }
+      ? { name: next[0].name, status: 'ok', detail: shortId('workstation', ws.workstation_id) }
       : { name: next[0].name, status: 'fail', detail: ws.error ?? 'file missing' };
     setResults([...next]);
 
@@ -96,8 +97,12 @@ export function Diagnostics({ workstation }: Props) {
 
   return (
     <>
-      <div className="row-between" style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>Diagnostics</h1>
+      <div className="page-head row-between">
+        <div>
+          <div className="page-eyebrow">Support</div>
+          <h1 className="page-title">Diagnostics</h1>
+          <p className="page-sub">Check the local prerequisites and send test jobs to attached hardware.</p>
+        </div>
         <button className="btn" onClick={runAll} disabled={running}>
           {running ? 'Running…' : 'Run self-test'}
         </button>
@@ -145,8 +150,11 @@ export function Diagnostics({ workstation }: Props) {
                 const ops = availableOps(d);
                 return (
                   <tr key={d.id}>
-                    <td>{d.name ?? <span className="muted mono">{d.id.slice(0, 8)}</span>}</td>
-                    <td>{d.role}</td>
+                    <td>
+                      <div className="cell-primary">{d.name ?? roleLabel(d.role)}</div>
+                      <div className="cell-secondary">{shortId('device', d.id)}</div>
+                    </td>
+                    <td><span className="tag">{roleLabel(d.role)}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {ops.length === 0 && <span className="muted">—</span>}

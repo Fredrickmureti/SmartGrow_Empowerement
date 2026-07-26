@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { WorkstationRead } from '../types';
 import { invoke, signInWithPassword, currentSession } from '../lib/supabase';
+import { IdChip } from '../components/IdChip';
 
 interface Props { workstation: WorkstationRead; onChanged: () => void }
 
@@ -60,14 +61,26 @@ export function Auth({ workstation, onChanged }: Props) {
 
   return (
     <>
-      <h1 style={{ marginTop: 0, fontSize: 20 }}>Auth</h1>
+      <div className="page-head">
+        <div className="page-eyebrow">Security</div>
+        <h1 className="page-title">Identity &amp; credentials</h1>
+        <p className="page-sub">Who this device is, and the secret it uses to talk to AccrualFlow.</p>
+      </div>
 
       <div className="panel">
         <h2>Workstation identity</h2>
-        <p className="panel-sub">Immutable — issued by AccrualFlow at enrolment.</p>
+        <p className="panel-sub">Issued once at enrolment and never changes. Quote the reference code to support.</p>
         <div className="grid-2">
-          <div className="stat"><div className="stat-label">Workstation ID</div><div className="stat-value mono">{workstation.workstation_id}</div></div>
-          <div className="stat"><div className="stat-label">Organization ID</div><div className="stat-value mono">{workstation.organization_id}</div></div>
+          <div className="stat">
+            <div className="stat-label">Workstation</div>
+            <div className="stat-value">{workstation.name ?? 'Unnamed workstation'}</div>
+            <div className="stat-hint"><IdChip kind="workstation" value={workstation.workstation_id} expandable /></div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Organization</div>
+            <div className="stat-value">Linked</div>
+            <div className="stat-hint"><IdChip kind="organization" value={workstation.organization_id} expandable /></div>
+          </div>
         </div>
       </div>
 
