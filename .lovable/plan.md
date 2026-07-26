@@ -100,3 +100,10 @@ Next: retire the last `workstation_devices` consumers (agent status endpoints + 
 - Confirmed no runtime consumers of `workstation_devices` remain in the codebase; only doc/comment references survive, so Phase 6 can drop the table without a code sweep.
 
 Next: swap `generate-document` and any POS printer/kitchen dispatch to call `resolve_device` instead of ad-hoc `SELECT ... FROM device_assignments`, then build the client `useDeviceForIntent` façade over the same tie-break contract.
+
+## Progress log — 2026-07-26 (Phase 3 client façade)
+
+- `src/hooks/useDeviceForIntent.ts`: new server-authoritative façade over the `resolve_device` RPC. Exports a canonical `INTENT_TO_ROLE` map (`receipt→receipt_printer`, `kitchen_ticket→kitchen_printer`, `label→label_printer`, `a4_document|packing_slip→a4_printer`) so PrintClient, edge functions, and UI all agree on the intent→role bridge. Query is keyed by `(org, role, businessId, scopeKind, scopeId)` with a 15 s stale window — the resolver is cheap but hot lanes call it once per print. Tie-break lives 100 % on the server; the hook has no local sort.
+- `generate-document`'s two ad-hoc `device_assignments` reads intentionally stay ID-driven (policy or preview pins a specific profile) — `resolve_device` is not the right primitive there. The intent-driven swap targets POS dispatch (`useHardwareProxy.printReceipt`) and kitchen-ticket dispatch, planned for the next turn.
+
+Next: route `useHardwareProxy.printReceipt` and the kitchen-ticket dispatch path through `useDeviceForIntent` / `resolve_device`, then start Phase 3's `PrintClient` label intent so `labelDispatch` becomes a thin adapter.
