@@ -6,13 +6,13 @@
 Agent bumped to `v1.4.0-edge.p4.2`. Typecheck (`bunx tsgo --project agent/tsconfig.json`) is clean on all new/edited files; pre-existing errors in `agent/src/routes/biometric.test.ts` and `packages/desktop/src/lib/config.ts` are unrelated. Runtime end-to-end verification still needs an enrolled workstation on a developer machine.
 
 Shipped:
+- **4.2.4 Device probes in Diagnostics** — new `POST /probe` on the agent (`agent/src/routes/probe.ts`) dispatches `printer.test_page` (ESC/POS test slip), `drawer.kick` (ESC p 0 pulse), `network.ping`, and `usb.list` against network or USB targets with a 5 s per-(deviceId, op) server-side cooldown that returns 429 + cached result on repeat clicks. Bearer injection moved to `main.cjs` (`agent:probe` IPC reads `~/.pos-agent-token` and proxies to loopback with an 8 s timeout) so the token never enters the renderer. Diagnostics page now lists live `workstation_devices` rows with role-appropriate buttons and per-device last-result feedback.
 - **4.2.1 Local TLS on loopback** — `agent/src/tls.ts` load-or-generate per-install RSA-2048 self-signed cert at `~/.accrualflow/edge/tls/{cert.pem,key.pem,meta.json}`; SHA-256 fingerprint recorded and re-derived on load; SANs cover `localhost`+`127.0.0.1`+`::1`; auto-regenerate <30 d from expiry. New listener at `https://127.0.0.1:8443` alongside legacy `http://127.0.0.1:8043` (`AGENT_TLS_DISABLED=1` opts out). New unauthenticated `GET /tls-info` (fingerprint + port + expiry) and `/health` includes TLS metadata so the ERP can pin without a bearer.
 - **4.2.2 Realtime subscriptions** — `packages/desktop/src/lib/realtime.ts` is a zero-dep Phoenix v2 client over `WebSocket` with `postgres_changes`, 25 s heartbeat, 3 s reconnect backoff. Dashboard subscribes to `workstations` UPDATE (30 s poll safety net); Devices subscribes to `workstation_devices` `*` (45 s safety net).
 - **4.2.3 SSE log tail** — `GET /logs/stream` on the agent: auth + Host pin + Origin allowlist + 3-stream cap + 15 s heartbeat. `logger.ts` grew `subscribeLogs()` fan-out. `Logs.tsx` swapped to `EventSource` with auto-reconnect and a Live/Reconnecting pill; support-bundle download preserved.
 - **Dashboard TLS surface** — "Local loopback" stat polls `/tls-info` and shows the live `https://127.0.0.1:8443` URL plus fingerprint.
 
 Deferred to the next loop (nothing user-visible in the ERP yet):
-- **4.2.4** Real device probes in Diagnostics (idempotency-keyed, 5 s client rate-limit).
 - **4.2.5** `edge-workstation-origins` edge fn + 15 min cache in `workstation.json`.
 - **4.2.6** Windows Service supervisor (macOS LaunchAgent / Linux systemd user unit).
 - **4.2.7** Trust-store install helper + cert-rotation-on-secret-rotation. Only after this lands should `AgentClient` prefer `https:8443` in the browser (self-signed today fails WebCrypto validation).
