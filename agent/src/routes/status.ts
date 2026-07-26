@@ -1,6 +1,7 @@
 import { getUptime } from '../server.js';
 import { handleDiscover } from './discover.js';
 import { loadUsbRuntime } from '../usb-runtime.js';
+import { getRelayHealth, type RelayHealth } from '../relay-state.js';
 
 interface DeviceInfo {
   type: 'network' | 'usb' | 'serial';
@@ -17,6 +18,11 @@ interface AgentStatusResponse {
   version: string;
   devices: DeviceInfo[];
   uptime: number;
+  /**
+   * Relay liveness. `state: 'ok'` is the only value that means jobs queued
+   * from an HTTPS browser will actually be picked up by this workstation.
+   */
+  relay: RelayHealth;
 }
 
 // Cached discovered devices — refreshed periodically
@@ -80,5 +86,6 @@ export function handleStatus(): AgentStatusResponse {
     version: '1.3.0-edge.p3',
     devices: cachedDevices,
     uptime: getUptime(),
+    relay: getRelayHealth(),
   };
 }
