@@ -46,6 +46,14 @@ type AgentChangeCallback = (available: boolean, status: AgentStatusResponse | nu
 const TOKEN_STORAGE_KEY = 'pos.agent.token';
 const URL_STORAGE_KEY = 'pos.agent.url';
 const RELAY_STORAGE_KEY = 'pos.agent.relay';
+/**
+ * Set once the operator (or an admin) has explicitly pinned a base URL.
+ * When present, the automatic HTTPS upgrade below must not override it —
+ * a deliberate choice always beats an inference.
+ */
+const URL_PINNED_KEY = 'pos.agent.url.pinned';
+/** Fingerprint the browser last successfully reached over loopback TLS. */
+const TLS_FINGERPRINT_KEY = 'pos.agent.tls.fingerprint';
 
 // Circuit-breaker tuning. Optional hardware MUST NOT spam the console or the
 // network with retries when the local agent is absent. We start at the
