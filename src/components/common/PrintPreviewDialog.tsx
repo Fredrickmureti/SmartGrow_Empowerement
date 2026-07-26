@@ -22,10 +22,13 @@ import { useActiveOrDefaultRegister } from "@/hooks/pos/useActiveOrDefaultRegist
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
+import { printClient } from "@/services/printing/PrintClient";
 import { isElectron as runtimeIsElectron, openPdfPreview } from "@/services/printing/previewSurface";
 import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 import { SafeHtmlPreview } from "@/components/common/SafeHtmlPreview";
 import { useBranch } from "@/contexts/BranchContext";
+import { useBusinesses } from "@/contexts/BusinessContext";
+
 import {
   DocumentCommunicationBar,
   type DocumentCommunicationContext,
