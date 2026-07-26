@@ -17,6 +17,7 @@
 
 import { logger } from './logger.js';
 import { AGENT_VERSION, loadConfig, type RelayConfig } from './relay.js';
+import { loadUsbRuntime } from './usb-runtime.js';
 import { handleDiscover } from './routes/discover.js';
 import { handleTest } from './routes/test.js';
 
