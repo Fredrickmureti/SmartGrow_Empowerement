@@ -28,6 +28,7 @@ import { browserHardwareAdapter, type DeviceAssignment } from "./BrowserHardware
 import { hardwareEventBus, type HardwareEvent, type HardwareEventType } from "./HardwareEventBus";
 import type { DeviceRole, DriverCommand, DriverResult } from "./drivers/DriverInterface";
 import { agentClient } from "./local-agent/AgentClient";
+import type { RelayConfig } from "./local-agent/RelayTransport";
 import { customerDisplayClient, type CustomerDisplayData, type CustomerDisplayConfig } from "./local-display/CustomerDisplayClient";
 import type { AgentStatusResponse, AgentDeviceInfo } from "./local-agent/protocol";
 import { recordHardwareExec, getHardwareExecContext, getRecentExecLog } from "./HardwareExecLog";
@@ -551,6 +552,19 @@ const agent = {
   },
   setToken(token: string | null): void {
     agentClient.setToken(token);
+  },
+  enableRelay(config: RelayConfig): void {
+    if (isElectronMode()) return;
+    agentClient.enableRelay(supabase, config);
+  },
+  disableRelay(): void {
+    agentClient.disableRelay();
+  },
+  isRelayEnabled(): boolean {
+    return agentClient.isRelayEnabled();
+  },
+  getRelayConfig(): RelayConfig | null {
+    return agentClient.getRelayConfig();
   },
   async probe(): Promise<AgentStatusResponse | null> {
     if (isElectronMode()) return null;

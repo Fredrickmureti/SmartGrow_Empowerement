@@ -58,9 +58,11 @@ export function Diagnostics({ workstation }: Props) {
     setResults([...next]);
 
     // 3. Supabase REST reachability. /auth/v1/health can return 401 on
-    // hosted Supabase; PostgREST with the anon key proves the gateway is up.
+    // hosted Supabase; an OPTIONS preflight against PostgREST proves the
+    // gateway is reachable without requiring a table-specific request.
     try {
       const res = await fetch(`${workstation.supabase_url}/rest/v1/`, {
+        method: 'OPTIONS',
         headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
       });
       next[2] = res.ok

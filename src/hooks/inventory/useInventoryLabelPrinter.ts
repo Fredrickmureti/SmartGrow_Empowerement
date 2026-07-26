@@ -23,7 +23,10 @@
  *                          `hasDevice` is false.
  */
 import { useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useDeviceForRole } from '@/hooks/useDeviceForRole';
+import { useOrganization } from '@/hooks/useOrganization';
+import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
 
@@ -48,16 +51,36 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
   // `business_id` automatically (multi-branch tie-break), so two branches
   // each binding their own `label_printer` no longer collide.
   const { device, isLoading } = useDeviceForRole('label_printer');
-  const hasDevice = Boolean(device);
+  const { currentOrg } = useOrganization();
+  const relayLabelPrinter = useQuery({
+    queryKey: ['edge-relay-label-printer', currentOrg?.id ?? null],
+    enabled: Boolean(currentOrg?.id),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<boolean> => {
+      if (!currentOrg?.id) return false;
+      const { data, error } = await supabase
+        .from('workstation_devices')
+        .select('id')
+        .eq('organization_id', currentOrg.id)
+        .eq('role', 'label_printer')
+        .in('health', ['ok', 'unknown'])
+        .limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+  const hasDevice = Boolean(device) || Boolean(relayLabelPrinter.data);
+  const loadingAny = isLoading || relayLabelPrinter.isLoading;
 
   const missingDeviceCta = useMemo<MissingLabelPrinterCta | null>(() => {
-    if (isLoading || hasDevice) return null;
+    if (loadingAny || hasDevice) return null;
     return {
       message:
         'No label printer is assigned to this workspace. Bind one in Platform → Hardware to enable label printing.',
       href: PLATFORM_HARDWARE_HREF,
     };
-  }, [isLoading, hasDevice]);
+  }, [loadingAny, hasDevice]);
 
   const printLabelBytes = useCallback(
     async (bytes: Uint8Array | number[]): Promise<DriverResult> => {
@@ -80,7 +103,7 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
   return {
     device,
     hasDevice,
-    isLoading,
+    isLoading: loadingAny,
     missingDeviceCta,
     printLabelBytes,
   };
