@@ -497,7 +497,29 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
         }
         return;
       }
-      toast.success(`Agent v${status.version} authorized (${status.devices?.length || 0} devices discovered)`);
+      // "Authorized" only describes the *browser → agent* hop. On an HTTPS
+      // origin every print actually travels agent ← cloud relay, so report
+      // that hop too instead of implying the whole path is healthy.
+      const relay = status.relay;
+      const devicesMsg = `Agent v${status.version} authorized (${status.devices?.length || 0} devices discovered)`;
+      if (!relay || relay.state === 'ok') {
+        toast.success(devicesMsg);
+      } else if (relay.state === 'unauthorized') {
+        toast.warning(
+          `${devicesMsg}, but the cloud relay is rejecting this workstation's secret — printing from this page will fail. Re-issue the workstation secret in AccrualFlow Edge → Identity.`,
+          { duration: 12000 },
+        );
+      } else if (relay.state === 'inactive') {
+        toast.warning(
+          `${devicesMsg}, but this workstation is not enrolled with AccrualFlow. Enrol it in AccrualFlow Edge → Identity so cloud print jobs can reach it.`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.warning(
+          `${devicesMsg}, but the cloud relay is not healthy yet (${relay.state}${relay.lastError ? `: ${relay.lastError}` : ''}).`,
+          { duration: 12000 },
+        );
+      }
     } catch {
       toast.error(`Agent not reachable at ${agentUrl}`);
     } finally {
