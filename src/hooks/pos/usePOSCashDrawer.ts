@@ -119,6 +119,7 @@ export function usePOSCashDrawer(shiftId?: string) {
           documentType: "drawer_slip",
           documentId: movementId,
           title: `Drawer slip ${variables.movement_type}`,
+          organizationId: variables.organization_id,
           businessId,
           branchId: null,
         }).catch((err) => {
