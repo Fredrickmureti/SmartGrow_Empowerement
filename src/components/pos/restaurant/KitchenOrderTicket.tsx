@@ -59,6 +59,8 @@ export function KitchenOrderTicket({
 }: KitchenOrderTicketProps) {
   const allOrders = groupedOrders || [order];
   const itemCount = allOrders.length;
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   // Wave 10 — opt-in physical print to the kitchen_printer device. Uses the
   // station from pos_kitchen_orders.printer_category so a single transaction
   // can fan out across stations (kitchen / bar / grill / dessert).
