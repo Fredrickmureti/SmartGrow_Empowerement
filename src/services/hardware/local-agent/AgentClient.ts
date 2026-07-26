@@ -254,6 +254,21 @@ class AgentClientImpl {
     return this._lastAuthorized;
   }
 
+  /**
+   * Why the last authorization check landed where it did. Drives actionable
+   * copy in the hardware settings UI instead of one generic failure toast.
+   *
+   * - `ok`            — protected routes accept the token (or auth is off)
+   * - `missing_token` — no token configured and the agent requires one
+   * - `unauthorized`  — agent answered 401/403; wrong token pasted
+   * - `blocked`       — browser refused the request (CORS / mixed content)
+   * - `unreachable`   — the agent itself did not answer
+   */
+  getAuthReason(): AgentAuthReason {
+    if (!this._lastAvailable && !this._relay) return 'unreachable';
+    return this._authReason;
+  }
+
   // ═══════════════════════════════════════════
   //  Phase 2 relay transport (Supabase edge_jobs)
   // ═══════════════════════════════════════════
