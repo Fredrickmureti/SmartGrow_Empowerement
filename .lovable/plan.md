@@ -93,3 +93,10 @@ The prior plan (`.lovable/plan.md`) declared Phases 1 and 2a/2b complete. Direct
 - Typecheck: green. Architecture suite: only pre-existing failures (`no-english-regex-on-readiness-reasons`, `no-printservice-shim` — `PrintPreviewDialog.tsx`) unrelated to this turn.
 
 Next: retire the last `workstation_devices` consumers (agent status endpoints + any remaining edge reads), then land the `resolve_device` RPC (Phase 3 opening).
+
+## Progress log — 2026-07-26 (Phase 3 opening)
+
+- `public.resolve_device(_organization_id, _role, _business_id?, _scope_kind?, _scope_id?)` shipped as `SETOF device_assignments`, `STABLE`, `SECURITY INVOKER`. Mirrors `useDeviceForRole` tie-break exactly (explicit scope > active business > `is_default` > earliest created). Granted `EXECUTE` to `authenticated` + `service_role`. Migration linter surfaced only pre-existing warnings — none introduced by this function.
+- Confirmed no runtime consumers of `workstation_devices` remain in the codebase; only doc/comment references survive, so Phase 6 can drop the table without a code sweep.
+
+Next: swap `generate-document` and any POS printer/kitchen dispatch to call `resolve_device` instead of ad-hoc `SELECT ... FROM device_assignments`, then build the client `useDeviceForIntent` façade over the same tie-break contract.
