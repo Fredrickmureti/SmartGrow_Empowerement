@@ -602,9 +602,15 @@ class PrintClient {
   }): Promise<{
     jobId: string | null;
     markSent: () => Promise<void>;
+    markAcked: () => Promise<void>;
     markFailed: (error: string) => Promise<void>;
   }> {
-    const noop = { jobId: null, markSent: async () => undefined, markFailed: async () => undefined };
+    const noop = {
+      jobId: null,
+      markSent: async () => undefined,
+      markAcked: async () => undefined,
+      markFailed: async () => undefined,
+    };
     if (!args.businessId) return noop;
     const req: PrintRequest = {
       intent: args.intent,
@@ -623,6 +629,7 @@ class PrintClient {
     return {
       jobId,
       markSent: () => this.markLedgerSent(jobId),
+      markAcked: () => this.markLedgerAcked(jobId),
       markFailed: (error: string) => this.markLedgerFailed(jobId, error),
     };
   }
