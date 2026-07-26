@@ -48,10 +48,18 @@ describe('PrintClient — Phase 5 Step B per-assignment dispatch', () => {
   it('bounds the legacy role-only shims to the helper fallback (single call site each)', () => {
     const rawHits = SRC.match(/hardwareClient\.printRawBytes\(/g) ?? [];
     const labelHits = SRC.match(/hardwareClient\.printLabelBytes\(/g) ?? [];
-    // 1 remaining `printRawBytes` inside `dispatchThermalBytes` fallback +
-    // 1 in the legacy `printKitchenTicket` helper (line ~483) that is not
-    // yet migrated. Track that number so a regression trips this guard.
-    expect(rawHits.length).toBeLessThanOrEqual(2);
+    // Exactly 1 each — inside the `legacy()` closure of `dispatchThermalBytes`.
+    // Any additional occurrence means someone reintroduced a direct
+    // role-only dispatch outside the resolver-outage fallback.
+    expect(rawHits.length).toBe(1);
     expect(labelHits.length).toBe(1);
+  });
+
+  it('printKitchenTicket delegates to dispatchThermalBytes (no direct role-only shim)', () => {
+    const idx = SRC.indexOf('async printKitchenTicket(');
+    const end = SRC.indexOf('\n  async ', idx + 1);
+    const block = SRC.slice(idx, end > 0 ? end : SRC.length);
+    expect(block).toMatch(/this\.dispatchThermalBytes\(bytes,\s*req,\s*'kitchen_printer'\)/);
+    expect(block).not.toMatch(/hardwareClient\.printRawBytes\(/);
   });
 });
