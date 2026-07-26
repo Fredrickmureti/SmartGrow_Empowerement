@@ -524,10 +524,12 @@ class AgentClientImpl {
           role: 'print',
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
+          deadlineMs: 15_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
-        // fall through to loopback
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
+        // fall through to loopback (LAN / dev origins only)
       }
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
@@ -558,9 +560,11 @@ class AgentClientImpl {
         const r = await this._relay.dispatch<AgentTestResponse>({
           role: 'test',
           payload: { ipAddress, port, timeout: 5000 },
+          deadlineMs: 10_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
@@ -601,9 +605,11 @@ class AgentClientImpl {
           role: 'usb_print',
           payload: { vendorId, productId, data },
           idempotencyKey: idem,
+          deadlineMs: 15_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {
