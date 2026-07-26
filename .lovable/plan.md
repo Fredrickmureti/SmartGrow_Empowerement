@@ -1,144 +1,75 @@
-# AccrualFlow Print Pipeline — Implementation Roadmap
 
-Living document. Updated after each phase completes.
+# Print Pipeline — Continuation Plan
 
-## Status snapshot
+## Verification of previous engineer's claims (independently confirmed)
 
-| Phase | Scope | State |
-| --- | --- | --- |
-| **Investigation** | Two-pipeline audit, root cause | ✅ Done |
-| **P1** | FIFO queue + non-blocking button in the A4/PDF branch | ✅ Done, verified |
-| **P2 Step 1** | Interactive-print ledger via `recordInteractivePrint` | ✅ Done, verified |
-| **P2 Step 2** | Retire remaining `useDocumentPrint` direct consumers + reconcile allowlist | ✅ Done (2026-07-26) |
-| **P2 Step 3** | Fold `downloadPdf` into `PrintClient`, delete `useDocumentPrint` | ⏳ Pending |
-| **P3 Step 1** | Per-click idempotency key at UI submit boundaries | ✅ Done (2026-07-26) |
-| **P3 Step 2** | Parent/child chaining on `print_jobs` (fan-out copies) | ✅ Done (2026-07-26) |
-| **P3 Step 3** | Platform → Print Queue admin view | ✅ Done (2026-07-26) |
-| **P3 Step 4** | Agent job-complete callback → `acked_at` | ✅ Done (2026-07-26) |
-| **Guardrails** | Architecture tests locking single-pipeline invariant | ⏭ Next |
+| Claim | Evidence |
+| --- | --- |
+| P1 FIFO queue on PDF branch | `pdfPrintQueue` present in `src/services/printing/pdfUtils.ts`; test file exists |
+| P2 Step 1 interactive-print ledger | `PrintClient.recordInteractivePrint`; `interactive-print-ledger.test.ts` green |
+| P2 Step 2 direct-consumer migration + allowlist reconcile | ESLint allowlist trimmed; migrated files present |
+| P3 Step 1 idempotency key | `PrintRequest.idempotencyKey`; `print-client-idempotency-key.test.ts` green |
+| P3 Step 2 parent/child chaining | `print-client-parent-child-chaining.test.ts` green; RPC signature includes `p_parent_job_id` |
+| P3 Step 3 admin surface | `src/apps/platform/hardware/HardwarePrintQueue.tsx` + route + nav wired |
+| P3 Step 4 acked signal | `print_job_mark_acked_by_id` RPC exists in DB; `print-client-acked-signal.test.ts` green |
+| Full print suite | `bunx vitest run src/test/printing` → 25 files / 158 tests pass |
 
-## Root cause (kept for context)
+**Conclusion:** the plan's status snapshot is accurate. No rework of shipped phases needed. Resume from **Guardrails** — the milestone the previous engineer marked "⏭ Next".
 
-Two pipelines with materially different concurrency guarantees:
-- **Labels / raw-bytes** — client mutex in `AgentClient._withEndpointLock` + server FIFO in `agent/src/routes/print.ts`. Rapid clicks survive.
-- **A4 / PDF** — hidden `<iframe>` + `window.print()`; button disabled while `isPrinting`, so React dropped clicks 2..N at the DOM. No queue existed.
+Pending work is **not** UI, business logic, or new pipelines — it is architecture lock-in and dead-code removal. This is exactly what the parent prompt asks for: one canonical pipeline, no drift.
 
-P1 replaced the disable with `pdfPrintQueue` (module-scoped promise chain). P2 wired every A4/PDF and interactive-thermal print into the same `print_jobs` ledger the auto-print path already used.
+## Phase G — Guardrails (architecture invariants)
 
-## What is shipped and verified
+Locks the single-pipeline invariant so a future refactor cannot silently reintroduce the drift that caused the original Sales-vs-Labels asymmetry.
 
-### P1 — FIFO queue on the PDF branch
-- `src/services/printing/pdfUtils.ts` — module-scoped `pdfPrintQueue` (line ~58); `__printPdfInPageQueueDrained()` exported for tests.
-- `src/components/common/PrintPreviewDialog.tsx` — Print button no longer disabled during in-flight jobs; label reads `Print (N queued)` when backlog > 1.
-- `src/test/printing/print-pdf-fifo-queue.test.ts` — 5 concurrent calls → 5 sequential iframes, none coalesced, failing job doesn't poison chain.
+### G1. No page-level `window.print()` / hidden print `<iframe>`
 
-### P2 Step 1 — Interactive-print ledger
-- `PrintClient.recordInteractivePrint(...)` returns `{jobId, markSent, markFailed}`; no-op handle when `businessId` is null; never throws.
-- `PrintPreviewDialog.handlePrint` bookends thermal (`printRawBytes`) and PDF (`printPdfInPage`) branches.
-- `src/test/printing/interactive-print-ledger.test.ts`.
+New test `src/test/architecture/no-page-level-window-print.test.ts`:
+- Scans `src/{pages,components,features,apps}/**/*.{ts,tsx}` with fast-glob.
+- Fails on `window.print(` or `.contentWindow?.print(` outside `src/services/printing/pdfUtils.ts`.
+- Fails on any `document.createElement('iframe')` whose sibling code references `print`, outside `pdfUtils.ts`.
+- Mirrors scaffolding from an existing `src/__tests__/architecture.*.test.ts` file.
 
-### P2 Step 2 — Direct-consumer migration + allowlist reconcile (2026-07-26)
-Migrated from `useDocumentPrint` → `usePrintOrPreview` (drop-in `downloadPdf`/`isGeneratingPdf`):
-- `src/pages/CustomerStatements.tsx`
-- `src/pages/VendorStatements.tsx`
-- `src/features/purchases/statements/VendorStatementPeekSheet.tsx`
-- `src/features/purchases/statements/VendorStatementRecordPage.tsx`
+### G2. Every UI print entry goes through the chokepoint
 
-Cleaned `eslint-rules/no-document-print-shadow-path.js` allowlist:
-- Dropped all 11 sales/purchase pages (they reach `useDocumentPrint` only transitively through `usePrintOrPreview`).
-- Dropped stale entries `POSTerminal.tsx`, `POSReports.tsx`, `POSSettings.tsx`, `TransactionHistoryDialog.tsx` (no direct import; TransactionHistoryDialog file no longer exists).
-- Added `src/pages/hr/payroll/LegalRecipients.tsx` (uses `printDocument`, not covered by `usePrintOrPreview` surface — out of scope for the print-pipeline audit).
+New test `src/test/architecture/print-single-chokepoint.test.ts`:
+- Direct `hardwareClient.printRawBytes(` / `hardwareClient.printLabelBytes(` allowed only inside `src/services/printing/**` and `src/services/hardware/**`.
+- Direct `pos.print.pdfBytes` / `generateDocumentPdf` / `generateDocumentEscPosBytes` allowed only inside `src/services/printing/**`.
+- Every other caller must reach the pipeline via `PrintClient.print`, `usePrintOrPreview`, or `useDocumentPrint` (the remaining infra hook).
 
-Remaining direct consumers (all infra / non-shadow-path):
-```
-src/components/common/PrintSettingsPopover.tsx
-src/components/finance/CreditNoteDetailDialog.tsx
-src/components/settings/PrinterProfilesCard.tsx
-src/components/settings/PrintingSettings.tsx
-src/hooks/useDocumentPrint.ts
-src/hooks/useDocumentPrintPolicies.ts
-src/hooks/usePrinterProfiles.ts
-src/hooks/usePrintOrPreview.ts             (fallback wrapper)
-src/pages/hr/payroll/LegalRecipients.tsx   (uses printDocument)
-```
+### G3. FIFO parity between the two transports
 
-Also fixed `src/test/printing/print-client-policy.test.ts > caches resolved policies` to filter `rpcMock` calls to `print_policies_resolve` only (was counting the ADR-0090 `print_job_insert` RPCs too).
+Extend `src/test/printing/print-pdf-fifo-queue.test.ts` (or a sibling `print-thermal-fifo-queue.test.ts`) with a raw-bytes parity case: 5 concurrent `PrintClient.print` calls with a mocked `hardwareClient.printRawBytes` observing per-endpoint FIFO — same assertion shape as the PDF test (5 sequential dispatches, no coalescing, failing job does not poison the chain). Pins both pipelines to identical semantics.
 
-Verification: `bunx vitest run src/test/printing` → 22 files / 146 tests all pass.
+**Exit criteria:** `bunx vitest run src/test/printing src/test/architecture` all green; the three new tests fail if their invariant is violated (verified by a scratch mutation and revert).
 
-## Active phase — Guardrails (architecture invariants)
+## Phase C — Collapse the shadow path (P2 Step 3)
 
-Prereqs: P3 complete end-to-end (idempotency key → parent/child chaining → admin view → `acked_at` signal). P2 Step 3 (fold `downloadPdf`/`printDocument` into `PrintClient` and delete `useDocumentPrint`) is still queued — schedule it AFTER guardrails ship so the guardrail tests lock the current chokepoint shape before the last few infra consumers get migrated onto it.
+After guardrails ship, the remaining direct `useDocumentPrint` consumers are the only path that still bypasses `PrintClient`. They are all infra / settings, not business documents, but leaving them means the print-jobs ledger has blind spots.
 
-### Next agent — verification checklist before writing new code
+Remaining consumers: `PrintSettingsPopover`, `CreditNoteDetailDialog`, `PrintingSettings`, `PrinterProfilesCard`, `LegalRecipients`.
 
-1. Read `src/services/printing/PrintClient.ts` (especially `print()`, `insertLedgerRow`, `markLedgerAcked`, `recordInteractivePrint`) and confirm the P3 Step 4 shape matches the plan: thermal driver failure paths call `mark_failed`, successes chain `mark_sent → mark_acked_by_id`, and the parent container mirrors the child terminal state.
-2. Run `bunx vitest run src/test/printing` — expect 25 files / 158 tests green. Any red = stop and repair before proceeding.
-3. Read `src/apps/platform/hardware/HardwarePrintQueue.tsx` and confirm it renders `acked_at` and the parent/child tree correctly against a live `print_jobs` sample (query the table via `supabase--read_query` if unsure).
-4. Confirm the `print_job_mark_acked_by_id` RPC exists in the DB (`SELECT * FROM pg_proc WHERE proname='print_job_mark_acked_by_id'`) and its EXECUTE grants match plan intent.
-5. Only after all four checks pass, start on Guardrails below.
+Steps:
+1. Add `PrintClient.download(documentType, documentId, filename?)` — same `generate-document` edge call as `useDocumentPrint.downloadPdf`, sharing the `print_jobs` insert + `markAcked` after the blob is delivered to the browser.
+2. Add `PrintClient.printDocument(...)` companion for `LegalRecipients` (its `printDocument` shape).
+3. Migrate the five callers onto the new methods. UI behavior unchanged; the ledger now records these too.
+4. Simplify `src/hooks/usePrintOrPreview.ts` so it no longer wraps `useDocumentPrint`.
+5. Delete `src/hooks/useDocumentPrint.ts`.
+6. Prune `eslint-rules/no-document-print-shadow-path.js` allowlist to the two policy/profile hooks (or delete the rule if the allowlist empties).
+7. Re-run the full print + architecture suite.
 
-### Guardrails — deliverables
+**Exit criteria:** `rg -n "from ['\"]@/hooks/useDocumentPrint" src` returns zero results; suite still green.
 
-- Architecture test: `no page-level component calls window.print()` or mounts a print `<iframe>` outside `src/services/printing/pdfUtils.ts`. Implement as a vitest suite that greps `src/{pages,components,features,apps}/**/*.tsx` and fails on offending patterns (mirror the existing `src/test/architecture/*` scaffolding).
-- Architecture test: every UI print entry point goes through `printClient.print` OR `usePrintOrPreview.generateDocument`/`printOrPreview` — no direct `hardwareClient.printRawBytes` / `printLabelBytes` calls outside `src/services/printing/*`.
-- Extend `print-pdf-fifo-queue.test.ts` with a parity test for the raw-bytes path via mocked `AgentClient` — locks both pipelines to identical FIFO semantics under 5 rapid concurrent calls.
-- Once guardrails land, schedule P2 Step 3 (shadow-path collapse) as the next milestone.
-
-## Deferred — P2 Step 3 (collapse the shadow path, run AFTER guardrails)
-
-Remaining direct `useDocumentPrint` consumers: `PrintSettingsPopover`, `CreditNoteDetailDialog`, `PrintingSettings`, `PrinterProfilesCard`, `LegalRecipients`.
-
-**Plan.** Fold `downloadPdf` and `printDocument` into `PrintClient`:
-- Add `PrintClient.download(documentType, documentId, filename)` mirroring the current `useDocumentPrint` invoke-`generate-document` path, sharing the `print_jobs` ledger insert (+ acked signal).
-- Add `PrintClient.printDocument(...)` companion (only needed by `LegalRecipients`).
-- Migrate the five infra callers above onto the new methods.
-- Delete `src/hooks/useDocumentPrint.ts`.
-- Simplify `usePrintOrPreview` to no longer wrap `useDocumentPrint`.
-- Reduce ESLint allowlist to `useDocumentPrintPolicies.ts` / `usePrinterProfiles.ts` / `usePrintOrPreview.ts`, or delete the rule if no consumers remain.
-
-
-
-## Then — P3 (unified job identity + admin visibility)
-
-1. **Per-click idempotency key. ✅ Shipped 2026-07-26.**
-   - `PrintRequest.idempotencyKey` added; `PrintClient.correlationId` prefers it and falls back to the legacy 2s bucket for un-migrated callers.
-   - Minted at both UI submit boundaries: `usePrintOrPreview.printOrPreview` and `PrintPreviewDialog.handlePrint` (single UUID shared by thermal + PDF branches within one click).
-   - `recordInteractivePrint({ ... idempotencyKey })` threads it into `print_job_insert`.
-   - DB already enforces `UNIQUE (public.print_jobs.business_id, correlation_id)` (index `print_jobs_business_id_correlation_id_key`), so the key is fully load-bearing — no schema migration needed.
-   - Contract test: `src/test/printing/print-client-idempotency-key.test.ts` (4 tests).
-2. **Parent/child chaining. ✅ Shipped 2026-07-26.**
-   - `PrintClient.print` now inserts a parent container row up-front, then per-copy child rows with `p_parent_job_id` set. Single-copy jobs keep the legacy single-row shape (no redundant child).
-   - Children get suffixed correlation ids `${key}:copy:${i}` so the `(business_id, correlation_id)` unique index still admits N copies while a rapid double-click regenerates identical child keys and collapses at the DB.
-   - Per-copy lifecycle: each child is marked sent/acked/failed independently; the parent mirrors the terminal state so admin filters surface either level coherently.
-   - Contract test: `src/test/printing/print-client-parent-child-chaining.test.ts` (3 tests). Full print suite: 150/150 pass.
-3. **Admin surface. ✅ Shipped 2026-07-26.**
-   - New route `/platform/hardware/print-queue` (`src/apps/platform/hardware/HardwarePrintQueue.tsx`), wired into `routes.tsx` and the Insights group in `nav.ts`.
-   - Reads `public.print_jobs` directly (RLS `print_jobs_read_own_business` scopes rows to the caller's businesses via `user_business_access`); no new RPC.
-   - Filters: status, document type, free-text search over doc id / correlation id / error / intent / transport. Status-count cards for `queued|sent|acked|failed`. Latest 500 rows.
-   - Fan-out visualization: children (P3 Step 2) group under their parent with an `↳` indent + tinted row, so multi-copy jobs render as a tree.
-   - Read-only: no retry, cancel, or ack-backfill controls — those stay in the RPC / agent layer.
-4. **Ledger completion signal. ✅ Shipped 2026-07-26.**
-   - New RPC `public.print_job_mark_acked_by_id(p_id uuid)` (SECURITY DEFINER, `EXECUTE` granted to `authenticated` + `service_role`). Flips a row to `acked` and stamps `acked_at`; also auto-promotes a parent container row to `acked` once every child copy is acked (idempotent, only advances rows in `queued`/`sent`).
-   - `PrintClient.print` now inspects the `DriverResult` from `hardwareClient.printRawBytes` / `printLabelBytes` — a real `{ success: false }` return no longer masquerades as a successful thermal print. On success, each copy (child or single-row) is marked sent → acked; on failure the ledger records `mark_failed` with the driver error. Parent container row mirrors the terminal state for admin filters.
-   - `PrintClient.recordInteractivePrint` handle gained `markAcked()`; `PrintPreviewDialog.handlePrint` now calls `markSent() + markAcked()` after successful thermal driver return and after the PDF print dialog resolves (P1's `pdfPrintQueue` guarantees the dialog opened for the current blob before `await` unblocks — that IS the browser ack).
-   - Queue-mediated thermal jobs continue to be acked by `SharedCommandQueueWorker` via `print_job_mark_acked(p_hw_command_id)` — this step only closes the direct-dispatch (interactive) gap.
-   - Contract test: `src/test/printing/print-client-acked-signal.test.ts` (5 tests: thermal-success acks, thermal-failure records failure and no ack, PDF single-copy acks after dialog, multi-copy fan-out acks every child + parent, `recordInteractivePrint().markAcked()` handle exercises the by-id RPC). Full suite: 158/158 pass.
-   - Collateral fix: `src/test/printing/print-client-policy.test.ts` mocks now return `{success:true}` from thermal drivers to match the real `DriverResult` shape the tightened check requires.
-
-## Then — Guardrails
-
-
-- Architecture test: no page-level component calls `window.print()` or mounts a print `<iframe>` outside `pdfUtils`.
-- Architecture test: every UI print entry point goes through `PrintClient.print` OR `usePrintOrPreview.generateDocument`.
-- Extend `print-pdf-fifo-queue.test.ts` with parity test for raw-bytes path via mocked `AgentClient` — locks both pipelines to identical FIFO semantics.
-
-## Non-goals (do not violate)
+## Non-goals (unchanged from parent prompt)
 
 - No debounce, throttle, `setTimeout`, retry-until-it-works, or permanent button-disable on any print path.
-- No new transport, no new edge-agent endpoint, no changes to `agent/src/routes/print.ts` queue semantics.
-- No changes to statutory-paper-pinned generators (see ADR-0008).
+- No new transport, no new edge-agent endpoint, no changes to `agent/src/routes/print.ts` FIFO.
+- No changes to statutory-paper-pinned generators (ADR-0008).
 
-## Load-bearing invariants — do not modify while doing routine work
+## Load-bearing invariants
 
-`pdfUtils.pdfPrintQueue`, `PrintClient.recordInteractivePrint`, `PrintPreviewDialog.handlePrint`, `AgentClient._withEndpointLock`, `agent/src/routes/print.ts` FIFO.
+`pdfUtils.pdfPrintQueue`, `PrintClient.recordInteractivePrint`, `PrintPreviewDialog.handlePrint`, `AgentClient._withEndpointLock`, `agent/src/routes/print.ts` FIFO, `print_job_mark_acked_by_id` RPC.
+
+## Update `.lovable/plan.md`
+
+After each phase lands, flip its row in the status snapshot and append a short "shipped" note beneath, matching the existing document conventions.
