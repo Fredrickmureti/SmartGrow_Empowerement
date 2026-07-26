@@ -101,11 +101,19 @@ function signingArgs(platform) {
 
 async function packageFor(key) {
   const platform = TARGETS[key];
+  // The Edge runtime + service installer must ship inside the app; without
+  // it the tray app reports `agent_not_bundled` / `installer_not_bundled`.
+  const AGENT_DIR = resolve(PKG_DIR, '..', '..', 'agent');
+  if (!existsSync(join(AGENT_DIR, 'dist', 'index.js'))) {
+    await run('npm', ['--prefix', AGENT_DIR, 'install', '--no-audit', '--no-fund']);
+    await run('npm', ['--prefix', AGENT_DIR, 'run', 'build']);
+  }
   await run('npx', [
     '@electron/packager', '.', 'AccrualFlowEdge',
     `--platform=${platform}`, `--arch=${arch}`,
     `--app-version=${version}`,
     `--out=${OUT_DIR}`, '--overwrite',
+    `--extra-resource=${AGENT_DIR}`,
     "--ignore=^/src", "--ignore=^/release", "--ignore=^/dist-desktop", "--ignore=^/scripts",
     ...signingArgs(platform),
   ]);
