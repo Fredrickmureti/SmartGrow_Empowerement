@@ -359,6 +359,72 @@ ipcMain.handle('updates:check', async (_e, opts) => {
 
 ipcMain.handle('agent:start', () => startAgent());
 ipcMain.handle('agent:stop', () => { stopAgent(); return { ok: true }; });
+
+/**
+ * Browser pairing material.
+ *
+ * This is the LOOPBACK token (`~/.pos-agent-token`) that a browser must send
+ * as `Authorization: Bearer …` to reach protected agent routes. It is NOT the
+ * workstation secret in `workstation.json` — that one authenticates this
+ * device to AccrualFlow's cloud and is useless to the local agent. Operators
+ * confused the two, so the two credentials now live in visually distinct
+ * panels with distinct copy.
+ *
+ * When auth is disabled we deliberately return no token: there is nothing to
+ * paste and the UI must say so instead of handing out a stale secret.
+ */
+function agentAuthDisabled() {
+  const v = process.env.AGENT_AUTH_DISABLED;
+  return v === '1' || v === 'true';
+}
+ipcMain.handle('agent:pairing', () => {
+  const authDisabled = agentAuthDisabled();
+  const tlsPort = parseInt(process.env.AGENT_TLS_PORT || '8443', 10);
+  if (authDisabled) {
+    return {
+      ok: true,
+      authDisabled: true,
+      token: null,
+      tokenPath: AGENT_TOKEN_FILE,
+      baseUrl: `http://127.0.0.1:${AGENT_PORT}`,
+      tlsUrl: `https://127.0.0.1:${tlsPort}`,
+    };
+  }
+  const token = readAgentToken();
+  return {
+    ok: true,
+    authDisabled: false,
+    token: token || null,
+    tokenPath: AGENT_TOKEN_FILE,
+    baseUrl: `http://127.0.0.1:${AGENT_PORT}`,
+    tlsUrl: `https://127.0.0.1:${tlsPort}`,
+    error: token ? undefined : 'token_not_generated',
+  };
+});
+
+/**
+ * Rotate the loopback token: delete the file and bounce the runtime so it
+ * mints a fresh one on boot. Every previously paired browser must re-pair.
+ */
+ipcMain.handle('agent:rotateToken', async () => {
+  if (agentAuthDisabled()) return { ok: false, error: 'auth_disabled' };
+  try { fs.rmSync(AGENT_TOKEN_FILE, { force: true }); }
+  catch (err) { return { ok: false, error: String(err && err.message ? err.message : err) }; }
+  stopAgent();
+  // Give the listener a moment to release the port before the restart probe.
+  await sleep(500);
+  const started = await startAgent();
+  const token = readAgentToken();
+  if (!token) {
+    return {
+      ok: false,
+      error: started.ok ? 'token_not_generated' : (started.error || 'agent_restart_failed'),
+      detail: started.detail,
+    };
+  }
+  return { ok: true, token };
+});
+
 ipcMain.handle('agent:status', async () => {
   const h = await probeAgentHealth();
   return {
