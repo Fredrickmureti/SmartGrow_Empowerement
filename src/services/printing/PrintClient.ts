@@ -207,7 +207,6 @@ class PrintClient {
         organizationId: req.organizationId,
         intentOrRole: req.intent,
         businessId: req.businessId,
-        scope: req.branchId ? { kind: 'branch', id: req.branchId } : undefined,
       });
       if (!resolved) return legacy();
       // eslint-disable-next-line no-console
