@@ -30311,6 +30311,7 @@ export type Database = {
           deletion_requested_by: string | null
           deletion_scheduled_at: string | null
           deletion_status: string
+          edge_allowed_origins: string[]
           external_customer_id: string | null
           external_subscription_id: string | null
           fiscalyear_lock_date: string | null
@@ -30344,6 +30345,7 @@ export type Database = {
           deletion_requested_by?: string | null
           deletion_scheduled_at?: string | null
           deletion_status?: string
+          edge_allowed_origins?: string[]
           external_customer_id?: string | null
           external_subscription_id?: string | null
           fiscalyear_lock_date?: string | null
@@ -30377,6 +30379,7 @@ export type Database = {
           deletion_requested_by?: string | null
           deletion_scheduled_at?: string | null
           deletion_status?: string
+          edge_allowed_origins?: string[]
           external_customer_id?: string | null
           external_subscription_id?: string | null
           fiscalyear_lock_date?: string | null
