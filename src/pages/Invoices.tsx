@@ -43,7 +43,7 @@ import {
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { printClient } from "@/services/printing/PrintClient";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
@@ -182,8 +182,16 @@ export default function Invoices() {
   const allFilteredSelected = invoices.length > 0 && invoices.every((inv) => selectedIds.has(inv.id));
   const draftSelectedCount = selectedInvoices.filter((inv) => inv.status === "draft").length;
 
-  // Print
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = usePrintOrPreview();
+  // Print / preview. Primary invoice Print intentionally bypasses the
+  // preview-fallback hook: that hook opens PrintPreviewDialog on ask_user/error,
+  // which caused rapid Sales prints to switch away from the raw FIFO hardware
+  // path while Product Labels kept queueing deterministically.
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] = useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
+  const isGeneratingPdf = false;
 
   // Import
   const contactResolverRef = useRef<ContactResolver | null>(null);
@@ -281,21 +289,61 @@ export default function Invoices() {
     }
   };
 
-  const handleDownloadPDF = async (invoice: Invoice) => {
+  const openDocumentPreview = (
+    documentType: string,
+    documentId: string,
+    title: string,
+    communication?: Parameters<typeof PrintPreviewDialog>[0]["communication"],
+  ) => {
+    setPrintPreviewTitle(title);
+    setPrintDocumentType(documentType);
+    setPrintDocumentId(documentId);
+    setPrintCommunication(communication);
+    setPrintPreviewOpen(true);
+  };
+
+  const handlePrintInvoice = async (invoice: Invoice) => {
     setSelectedInvoice(invoice);
-    await generateDocument("invoice", invoice.id, `Invoice ${invoice.invoice_number}`, {
-      entityType: "invoice",
-      entityId: invoice.id,
-      businessId: currentBusiness?.id,
-      recipientPhone: invoice.contact?.phone ?? null,
-      recipientName: invoice.contact?.name ?? null,
-      variables: {
-        invoice_number: invoice.invoice_number,
-        amount: String(invoice.total ?? 0),
-        due_date: invoice.due_date ?? "",
-        balance: String((invoice.total ?? 0) - (invoice.amount_paid ?? 0)),
-        customer_name: invoice.contact?.name ?? "",
-      },
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing invoices.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const clickIdempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `invoice-print:${invoice.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+
+    const result = await printClient.print({
+      intent: "a4_document",
+      documentType: "invoice",
+      documentId: invoice.id,
+      title: `Invoice ${invoice.invoice_number}`,
+      businessId: currentBusiness.id,
+      branchId: currentBranch?.id ?? null,
+      idempotencyKey: clickIdempotencyKey,
+    });
+
+    if (result.success) {
+      toast({
+        title: result.transport === "thermal" ? "Sent to printer" : "Print dispatched",
+        description: result.transport === "thermal"
+          ? `Invoice ${invoice.invoice_number} was queued for the receipt printer.`
+          : `Invoice ${invoice.invoice_number} was sent through ${result.transport}.`,
+      });
+      return;
+    }
+
+    toast({
+      title: "Print failed",
+      description: result.transport === "ask_user"
+        ? "Invoice print policy is set to ask before printing. Change the policy to auto-print, or use the preview action explicitly."
+        : result.error ?? "The printer did not accept this invoice print job.",
+      variant: "destructive",
     });
   };
 
@@ -547,13 +595,13 @@ export default function Invoices() {
                   onToggleSelectAll={toggleSelectAll}
                   allSelected={allFilteredSelected}
                   onViewDetails={(inv) => { setSelectedInvoice(inv); setPeek(inv.id); }}
-                  onPrint={handleDownloadPDF}
+                  onPrint={handlePrintInvoice}
                   onEmail={handleSendEmail}
                   onEdit={handleEditInvoice}
                   onStatusChange={handleStatusChange}
                   onRecordPayment={(inv) => { setSelectedInvoice(inv); setShowPaymentDialog(true); }}
                   onViewPaymentHistory={(inv) => { setSelectedInvoice(inv); setShowPaymentHistory(true); }}
-                  onViewReceipt={(inv) => { setSelectedInvoice(inv); generateDocument("receipt", inv.id, `Receipt — ${inv.invoice_number}`); }}
+                  onViewReceipt={(inv) => { setSelectedInvoice(inv); openDocumentPreview("receipt", inv.id, `Receipt — ${inv.invoice_number}`); }}
                   onCreateCreditNote={(inv) => navigate(`/sales/credit-notes?action=create&contact_id=${inv.contact_id}&invoice_id=${inv.id}`)}
                   onCreateReturn={(inv) => navigate(`/sales/returns?action=create&contact_id=${inv.contact_id}&invoice_id=${inv.id}`)}
                   onVoid={(inv) => { setSelectedInvoice(inv); setShowVoidDialog(true); }}
