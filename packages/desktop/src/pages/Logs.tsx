@@ -47,12 +47,16 @@ export function Logs() {
 
   return (
     <>
-      <div className="row-between" style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-          <h1 style={{ margin: 0, fontSize: 20 }}>Logs</h1>
-          <span className={`pill ${connected ? 'ok' : 'warn'}`}>
-            <span className="pill-dot" />{connected ? 'Live' : 'Polling'}
-          </span>
+      <div className="page-head row-between">
+        <div>
+          <div className="page-eyebrow">Support</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 className="page-title">Activity log</h1>
+            <span className={`pill ${connected ? 'ok' : 'warn'}`}>
+              <span className="pill-dot" />{connected ? 'Live' : 'Reconnecting'}
+            </span>
+          </div>
+          <p className="page-sub">The runtime's most recent {CAP} events on this workstation.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn secondary" onClick={() => setEntries([])}>Clear</button>
