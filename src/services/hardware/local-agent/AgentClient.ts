@@ -476,6 +476,16 @@ class AgentClientImpl {
     data: number[],
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._usbKey(vendorId, productId), async () => {
+      if (this._relay) {
+        const idem = `usb_print:${this._usbKey(vendorId, productId)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const r = await this._relay.dispatch<AgentPrintResponse>({
+          role: 'usb_print',
+          payload: { vendorId, productId, data },
+          idempotencyKey: idem,
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+      }
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {
           method: 'POST',
