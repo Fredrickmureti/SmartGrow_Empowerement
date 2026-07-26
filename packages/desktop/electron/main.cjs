@@ -35,6 +35,24 @@ let mainWindow = null;
 let tray = null;
 /** @type {import('child_process').ChildProcess | null} */
 let agentProc = null;
+/** Ring buffer of the child runtime's stdout/stderr, for the Logs tab. */
+const AGENT_LOG = [];
+const AGENT_LOG_MAX = 200;
+/** Supervision state for the managed child. */
+let agentDesired = false;        // operator/autostart wants the child alive
+let agentRestarts = [];          // timestamps of recent auto-restarts
+let agentRestartTimer = null;
+let agentLastError = null;
+
+function pushAgentLog(stream, chunk) {
+  for (const line of String(chunk).split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    AGENT_LOG.push({ ts: new Date().toISOString(), level: stream === 'stderr' ? 'error' : 'info', msg: line });
+    if (AGENT_LOG.length > AGENT_LOG_MAX) AGENT_LOG.shift();
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function readAgentToken() {
   try { return fs.readFileSync(AGENT_TOKEN_FILE, 'utf-8').trim(); } catch { return null; }
