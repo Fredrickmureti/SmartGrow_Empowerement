@@ -27,13 +27,20 @@ describe('PrintClient — Phase 5 Step B per-assignment dispatch', () => {
   });
 
   it('routes both escpos and zpl branches through dispatchThermalBytes, not role-only shims', () => {
-    // Both format branches must call the per-assignment dispatcher and
-    // must NOT call the legacy role-only shims directly at the printsite.
-    const printBlock = SRC.slice(SRC.indexOf('async print('));
+    // The escpos/zpl format branches inside `async print()` must delegate
+    // to the per-assignment helper. Narrow the search window so the
+    // legacy-fallback closure inside `dispatchThermalBytes` (which still
+    // references the shim names) does not pollute this assertion.
+    const printStart = SRC.indexOf('async print(');
+    const printEnd = SRC.indexOf('private async dispatchThermalBytes', printStart);
+    // `dispatchThermalBytes` is defined ABOVE `print()` in this file, so
+    // once we find `print()` we walk forward to the next class method.
+    const nextMethod = SRC.indexOf('\n  private ', printStart + 1);
+    const end = nextMethod > 0 ? nextMethod : SRC.length;
+    const printBlock = SRC.slice(printStart, end);
+    void printEnd;
     expect(printBlock).toMatch(/this\.dispatchThermalBytes\(bytes,\s*req,\s*'receipt_printer'\)/);
     expect(printBlock).toMatch(/this\.dispatchThermalBytes\(bytes,\s*req,\s*'label_printer'\)/);
-    // Legacy shims only appear inside the `legacy` closure of the helper,
-    // not at the escpos/zpl format branches themselves.
     expect(printBlock).not.toMatch(/hardwareClient\.printRawBytes\(bytes\)/);
     expect(printBlock).not.toMatch(/hardwareClient\.printLabelBytes\(bytes\)/);
   });
