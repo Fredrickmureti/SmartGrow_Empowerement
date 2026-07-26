@@ -102,6 +102,8 @@ export function PrintPreviewDialog({
   const [zoom, setZoom] = useState(() => window.innerWidth < 640 ? 70 : 100);
   const isMobile = window.innerWidth < 640;
   const { currentBranch } = useBranch();
+  const { currentBusiness } = useBusinesses();
+
 
   // PDF blob state — the actual PDF that will be previewed, printed, and saved.
   // ADR-0015 (Phase F): blob URL lifecycle now lives inside <SafePdfViewer>;
