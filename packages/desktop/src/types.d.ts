@@ -73,8 +73,30 @@ export interface EdgeBridge {
     uninstall(): Promise<InstallerResult>;
     start(): Promise<InstallerResult>;
     stop(): Promise<InstallerResult>;
+    certStatus(): Promise<CertStatus>;
+    rotateCert(): Promise<{ ok: boolean; fingerprint_sha256?: string | null; error?: string }>;
+    installCert(): Promise<TrustResult>;
+    uninstallCert(): Promise<TrustResult>;
   };
   shell: { openExternal(url: string): Promise<void> };
+}
+
+export interface CertStatus {
+  ok: boolean;
+  /** `null` when the platform can't be queried reliably — treat as untrusted. */
+  trusted?: boolean | null;
+  detail?: string;
+  /** Exact commands `installCert()` will run, for operator review. */
+  commands?: Array<{ command: string; explain: string; elevates: boolean }>;
+  error?: string;
+}
+
+export interface TrustResult {
+  ok: boolean;
+  platform?: string;
+  certPath?: string;
+  steps?: Array<{ command: string; ok: boolean; output: string }>;
+  error?: string;
 }
 
 export interface SupervisorStatus {
@@ -87,6 +109,7 @@ export interface SupervisorStatus {
   workstation_id?: string | null;
   tls?: { enabled: boolean; fingerprint_sha256: string | null; port: number | null };
 }
+
 
 export interface InstallerResult {
   ok: boolean;
