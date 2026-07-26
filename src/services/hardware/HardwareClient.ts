@@ -27,7 +27,7 @@
 import { browserHardwareAdapter, type DeviceAssignment } from "./BrowserHardwareAdapter";
 import { hardwareEventBus, type HardwareEvent, type HardwareEventType } from "./HardwareEventBus";
 import type { DeviceRole, DriverCommand, DriverResult } from "./drivers/DriverInterface";
-import { agentClient } from "./local-agent/AgentClient";
+import { agentClient, type AgentAuthReason } from "./local-agent/AgentClient";
 import type { RelayConfig } from "./local-agent/RelayTransport";
 import { customerDisplayClient, type CustomerDisplayData, type CustomerDisplayConfig } from "./local-display/CustomerDisplayClient";
 import type { AgentStatusResponse, AgentDeviceInfo } from "./local-agent/protocol";
