@@ -522,7 +522,57 @@ class AgentClientImpl {
   private _loopbackUsable(): boolean {
     if (typeof window === 'undefined') return false;
     if (window.location.protocol !== 'https:') return true;
+    try {
+      const host = new URL(this._baseUrl).hostname.toLowerCase();
+      if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1') return true;
+    } catch { /* keep conservative fallback below */ }
     return this._baseUrl.startsWith('https:');
+  }
+
+  private _isLoopbackTarget(host: string): boolean {
+    const normalized = host.trim().toLowerCase();
+    return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]';
+  }
+
+  private async _printNetworkDirect(ipAddress: string, port: number, data: number[]): Promise<AgentPrintResponse> {
+    try {
+      const res = await fetch(`${this._baseUrl}/print`, {
+        method: 'POST',
+        headers: this._mutatingHeaders(),
+        body: JSON.stringify({ ipAddress, port, data }),
+      });
+      const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
+      if (res.status === 401) {
+        return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
+      }
+      if (body && typeof body.success === 'boolean') return body;
+      if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
+      return { success: false, error: 'Agent returned an empty response' };
+    } catch {
+      return { success: false, error: `Local agent unreachable at ${this._baseUrl}. Cannot print to ${ipAddress}:${port}.` };
+    }
+  }
+
+  private async _testConnectionDirect(ipAddress: string, port: number): Promise<AgentTestResponse> {
+    try {
+      const res = await fetch(`${this._baseUrl}/test`, {
+        method: 'POST',
+        headers: this._mutatingHeaders(),
+        body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
+      });
+      const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
+      if (res.status === 401) {
+        return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
+      }
+      if (body && typeof body.success === 'boolean') return body;
+      if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
+      return { success: false, error: 'Agent returned an empty response' };
+    } catch {
+      return {
+        success: false,
+        error: `Local agent unreachable at ${this._baseUrl}. Is the print agent running?`,
+      };
+    }
   }
 
   /** Send raw bytes to a network printer via the agent (serialized per endpoint). */
@@ -532,6 +582,9 @@ class AgentClientImpl {
     data: number[],
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      if (this._isLoopbackTarget(ipAddress) && this._loopbackUsable()) {
+        return this._printNetworkDirect(ipAddress, port, data);
+      }
       // Phase 2: prefer relay when configured. On any relay failure (timeout,
       // insert error, agent not consuming) fall through to the loopback path
       // so LAN / dev workflows keep working.
@@ -548,22 +601,7 @@ class AgentClientImpl {
         if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
         // fall through to loopback (LAN / dev origins only)
       }
-      try {
-        const res = await fetch(`${this._baseUrl}/print`, {
-          method: 'POST',
-          headers: this._mutatingHeaders(),
-          body: JSON.stringify({ ipAddress, port, data }),
-        });
-        const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
-        if (res.status === 401) {
-          return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
-        }
-        if (body && typeof body.success === 'boolean') return body;
-        if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
-        return { success: false, error: 'Agent returned an empty response' };
-      } catch {
-        return { success: false, error: `Local agent unreachable at ${this._baseUrl}. Cannot print to ${ipAddress}:${port}.` };
-      }
+      return this._printNetworkDirect(ipAddress, port, data);
     });
   }
 
@@ -573,6 +611,9 @@ class AgentClientImpl {
     port: number,
   ): Promise<AgentTestResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      if (this._isLoopbackTarget(ipAddress) && this._loopbackUsable()) {
+        return this._testConnectionDirect(ipAddress, port);
+      }
       if (this._relay) {
         const r = await this._relay.dispatch<AgentTestResponse>({
           role: 'test',
@@ -583,25 +624,7 @@ class AgentClientImpl {
         if (r.status === 'error' && r.result) return r.result;
         if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
-      try {
-        const res = await fetch(`${this._baseUrl}/test`, {
-          method: 'POST',
-          headers: this._mutatingHeaders(),
-          body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
-        });
-        const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
-        if (res.status === 401) {
-          return { success: false, error: 'Agent rejected request: missing or invalid token. Paste the agent token in Hardware settings, or run the agent with AGENT_AUTH_DISABLED=1.' };
-        }
-        if (body && typeof body.success === 'boolean') return body;
-        if (!res.ok) return { success: false, error: `Agent ${res.status}${body?.error ? `: ${body.error}` : ''}` };
-        return { success: false, error: 'Agent returned an empty response' };
-      } catch {
-        return {
-          success: false,
-          error: `Local agent unreachable at ${this._baseUrl}. Is the print agent running?`,
-        };
-      }
+      return this._testConnectionDirect(ipAddress, port);
     });
   }
 

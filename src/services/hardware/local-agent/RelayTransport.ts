@@ -51,6 +51,7 @@ export interface DispatchResult<T = unknown> {
   status: 'done' | 'error' | 'expired';
   result: T | null;
   error: string | null;
+  lastKnownJobStatus?: string | null;
 }
 
 const DEFAULT_DEADLINE_MS = 30_000;
@@ -169,6 +170,7 @@ export class RelayTransport {
     // each poll from the agent, so we allow a small grace period).
     return new Promise<DispatchResult<T>>((resolve) => {
       let settled = false;
+      let lastKnownJobStatus: string | null = null;
       const finish = (r: DispatchResult<T>) => {
         if (settled) return;
         settled = true;
@@ -180,6 +182,7 @@ export class RelayTransport {
 
       const check = (row: { id: string; status: string; result: unknown; error: string | null }) => {
         if (row.id !== jobId) return;
+        lastKnownJobStatus = row.status;
         if (row.status === 'done' || row.status === 'error' || row.status === 'expired') {
           finish(this._finalize<T>(jobId, row.status as DispatchResult['status'], row.result as T | null, row.error));
         }
@@ -211,11 +214,16 @@ export class RelayTransport {
           .update({ status: 'expired', error: 'relay_timeout: no agent response', updated_at: new Date().toISOString() })
           .eq('id', jobId)
           .in('status', ['queued', 'in_progress']);
+        const state = lastKnownJobStatus ?? 'queued';
+        const reason = state === 'queued'
+          ? 'relay_timeout_unclaimed: the desktop agent is authorized but its cloud poll loop did not claim this job before the deadline.'
+          : 'relay_timeout_in_progress: the desktop agent claimed this job but did not post a result before the deadline.';
         finish({
           jobId,
           status: 'error',
           result: null,
-          error: 'relay_timeout: the agent claimed no result before the deadline. Verify the AccrualFlow Edge desktop app is running and that the printer is reachable from that machine.',
+          lastKnownJobStatus: state,
+          error: `${reason} Check AccrualFlow Edge logs; if this is a local simulator on 127.0.0.1:9100, use the direct loopback test path.`,
         });
       }, deadlineMs + 2_000);
     });
