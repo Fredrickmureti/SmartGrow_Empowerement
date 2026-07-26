@@ -38,8 +38,9 @@ const PIPELINE_ALLOWED = new Set<string>([
   "services/printing/reprintClient.ts",
   "services/printing/previewSurface.ts",
 
-  // Legacy hooks — Plan phase C deletes these.
-  "hooks/useDocumentPrint.ts",
+  // Legacy hook — Plan phase C removed `useDocumentPrint`; the single
+  // remaining preview-dialog opener is `usePrintOrPreview` which routes
+  // through printClient.print()/download()/printDocument() internally.
   "hooks/usePrintOrPreview.ts",
 
   // POS printer status probe (uses PDF path for A4 fallback).
