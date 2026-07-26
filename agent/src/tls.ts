@@ -53,7 +53,7 @@ function fingerprintFromCertPem(pem: string): string {
   return cert.fingerprint256.replace(/:/g, '').toLowerCase();
 }
 
-function generateNew(): LoopbackTls {
+function generateNew(secretRotatedAt: string | null): LoopbackTls {
   logger.info('tls_cert_generating', { path: CONFIG_ROOT });
   const attrs = [
     { name: 'commonName', value: 'AccrualFlow Edge' },
