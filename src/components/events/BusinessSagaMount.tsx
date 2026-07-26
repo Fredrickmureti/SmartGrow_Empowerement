@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from 'react';
 import { BusinessSaga } from '@/services/events/BusinessSaga';
-import { printLabelByTemplate } from '@/services/printing/labelDispatch';
+import { printClient } from '@/services/printing/PrintClient';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { domainEventBus, type DomainEvent } from '@/services/events/domainEventBus';
 import { customerDisplayClient, type CustomerDisplayData } from '@/services/hardware/local-display/CustomerDisplayClient';
@@ -126,7 +126,7 @@ export function BusinessSagaMount({ orgId }: Props) {
 
     saga.register('goods_receipt.posted', async (e: DomainEvent) => {
       // Print one summary label for the receipt itself …
-      await printLabelByTemplate({
+      await printClient.printLabel({
         orgId: e.orgId,
         templateKey: 'grn_summary',
         workflow: 'receiving',
@@ -153,7 +153,7 @@ export function BusinessSagaMount({ orgId }: Props) {
           lot_number: string | null;
         }>) {
           if (!item.product_id) continue;
-          await printLabelByTemplate({
+          await printClient.printLabel({
             orgId: e.orgId,
             templateKey: 'shelf_edge',
             workflow: 'shelf_edge',
@@ -178,7 +178,7 @@ export function BusinessSagaMount({ orgId }: Props) {
     });
 
     saga.register('delivery_note.dispatched', async (e: DomainEvent) => {
-      await printLabelByTemplate({
+      await printClient.printLabel({
         orgId: e.orgId,
         templateKey: 'shipping_label',
         workflow: 'shipping',
@@ -193,7 +193,7 @@ export function BusinessSagaMount({ orgId }: Props) {
     });
 
     saga.register('stock_transfer.dispatched', async (e: DomainEvent) => {
-      await printLabelByTemplate({
+      await printClient.printLabel({
         orgId: e.orgId,
         templateKey: 'transfer_manifest',
         workflow: 'shipping',

@@ -16,7 +16,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
-import { printLabelByTemplate, type LabelDispatchInput } from '@/services/printing/labelDispatch';
+import { printClient } from '@/services/printing/PrintClient';
+import type { LabelDispatchInput } from '@/services/printing/labelDispatch';
 import { generateDocumentEscPosBytes } from '@/services/printing/pdfUtils';
 
 export interface RequestReprintInput {
@@ -55,7 +56,7 @@ export async function dispatchLabelReprint(
   reprintRequestId: string,
   input: Omit<LabelDispatchInput, 'idempotencyKey'>,
 ) {
-  return printLabelByTemplate({
+  return printClient.printLabel({
     ...input,
     idempotencyKey: `reprint:${reprintRequestId}`,
   });
