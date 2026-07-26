@@ -51,14 +51,20 @@ export interface LabelDispatchInput {
   manufactureDate?: string | null;
   /**
    * ADR-0087 — explicit media profile override. When absent, media is
-   * resolved from the workflow-bound printer profile
-   * (`printer_profiles.supported_media_ids[0]`).
+   * resolved from the workflow-bound device
+   * (`device_assignments.supported_media_ids[0]`).
+   *
+   * Phase 2b: `printer_profiles` was consolidated into
+   * `device_assignments`; the "printer" columns (dpi, supported_media_ids,
+   * paper_size, command_language …) now live directly on the assignment
+   * row selected by `resolve_device_for_workflow`.
    */
   mediaProfileId?: string | null;
 }
 
 export interface LabelDispatchResult extends DriverResult {
   templateResolved?: { engine: LabelEngine; version: number; scope: string };
+  /** `profileId` == `device_assignments.id` of the resolved printer. */
   printerResolved?: { profileId: string; scope: string };
   mediaResolved?: { profileId: string; widthMm: number; heightMm: number | null; dpi: number };
 }
@@ -152,7 +158,8 @@ async function resolveTemplate(
   return row as ResolvedTemplate;
 }
 
-interface ResolvedPrinter { printer_profile_id: string; binding_id: string; scope: string }
+/** Post Phase 2b: the resolved id IS the device_assignments.id. */
+interface ResolvedPrinter { device_assignment_id: string; binding_id: string; scope: string }
 
 interface ResolvedMedia {
   id: string;
@@ -164,41 +171,40 @@ interface ResolvedMedia {
 /**
  * Resolve media geometry for a print job.
  *
- * Robust fallback chain (ADR-0087 addendum — 2026-07-21):
- *   1. Explicit override (`overrideMediaId`) — caller-supplied.
- *   2. Printer's `supported_media_ids[0]` — operator-pinned on the printer.
- *   3. Org-scoped default media (`is_default = true`) — the "house default".
- *   4. Any active media row for the org (oldest first) — last-resort so a
- *      correctly-configured org never fails just because an operator forgot
- *      to tick a checkbox on the printer profile.
+ * Phase 2b — `dpi` and `supported_media_ids` now come from the
+ * `device_assignments` row selected by the workflow resolver (they used
+ * to live on the standalone `printer_profiles` table, which the Phase 2a
+ * migration consolidated into `device_assignments`). The fallback chain
+ * is unchanged so orgs with a default `media_profiles` row keep
+ * printing even when a device has no pinned media list.
  *
- * Rationale: previously we returned null whenever the printer profile had an
- * empty `supported_media_ids` array, even when the org clearly had media
- * configured. That produced loud failures on rigs that had media set up
- * correctly and only lacked the (redundant) per-printer pin.
+ * Fallback chain:
+ *   1. Explicit override (`overrideMediaId`).
+ *   2. Device's `supported_media_ids[0]` — operator-pinned on the device.
+ *   3. Org-scoped default media (`is_default = true`).
+ *   4. Any active media row for the org (oldest first).
  */
 async function resolvePrinterMedia(
-  printerProfileId: string | null,
+  deviceAssignmentId: string | null,
   orgId: string,
   overrideMediaId?: string | null,
 ): Promise<ResolvedMedia | null> {
   let dpi = 203;
   let candidateMediaId: string | null = overrideMediaId ?? null;
 
-  if (printerProfileId) {
-    const { data: printer } = await supabase
-      .from('printer_profiles')
+  if (deviceAssignmentId) {
+    const { data: device } = await supabase
+      .from('device_assignments')
       .select('id, dpi, supported_media_ids')
-      .eq('id', printerProfileId)
+      .eq('id', deviceAssignmentId)
       .maybeSingle();
-    const p = printer as { dpi?: number | null; supported_media_ids?: string[] | null } | null;
+    const p = device as { dpi?: number | null; supported_media_ids?: string[] | null } | null;
     dpi = Number(p?.dpi) || 203;
     if (!candidateMediaId && Array.isArray(p?.supported_media_ids) && p!.supported_media_ids!.length > 0) {
       candidateMediaId = p!.supported_media_ids![0];
     }
   }
 
-  // Helper to hydrate a media row by id.
   const loadById = async (id: string): Promise<ResolvedMedia | null> => {
     const { data } = await supabase
       .from('media_profiles')
@@ -215,33 +221,16 @@ async function resolvePrinterMedia(
     if (hit) return hit;
   }
 
-  // Fallback 3: org's default media profile.
-  {
-    const { data } = await supabase
-      .from('media_profiles')
-      .select('id, width_mm, height_mm')
-      .eq('org_id', orgId)
-      .eq('active', true)
-      .eq('is_default', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    const m = data as { id?: string; width_mm?: number; height_mm?: number | null } | null;
-    if (m?.id && typeof m.width_mm === 'number') {
-      return { id: m.id, widthMm: Number(m.width_mm), heightMm: m.height_mm == null ? null : Number(m.height_mm), dpi };
-    }
-  }
-
-  // Fallback 4: any active media profile in the org.
-  {
-    const { data } = await supabase
+  for (const flag of [true, false]) {
+    let q = supabase
       .from('media_profiles')
       .select('id, width_mm, height_mm')
       .eq('org_id', orgId)
       .eq('active', true)
       .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    if (flag) q = q.eq('is_default', true);
+    const { data } = await q.maybeSingle();
     const m = data as { id?: string; width_mm?: number; height_mm?: number | null } | null;
     if (m?.id && typeof m.width_mm === 'number') {
       return { id: m.id, widthMm: Number(m.width_mm), heightMm: m.height_mm == null ? null : Number(m.height_mm), dpi };
@@ -252,7 +241,8 @@ async function resolvePrinterMedia(
 }
 
 async function resolvePrinter(orgId: string, workflow: PrinterWorkflow, branchId?: string | null, warehouseId?: string | null): Promise<ResolvedPrinter | null> {
-  const { data, error } = await supabase.rpc('resolve_workflow_printer', {
+  // Phase 2b — canonical resolver returns a device_assignments.id.
+  const { data, error } = await supabase.rpc('resolve_device_for_workflow', {
     p_org_id: orgId,
     p_workflow: workflow,
     p_branch_id: branchId ?? null,
@@ -276,7 +266,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   // envelope. The `printer` arg is optional; when null we skip straight
   // to the org-default fallback chain.
   let media: ResolvedMedia | null = await resolvePrinterMedia(
-    printer?.printer_profile_id ?? null,
+    printer?.device_assignment_id ?? null,
     input.orgId,
     input.mediaProfileId ?? null,
   );
@@ -370,7 +360,11 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   // promoted to top-level fields so HardwareClient writes them to
   // hardware_exec_log.source_doc_*.
   if (printer) {
-    payload.printerProfileId = printer.printer_profile_id;
+    // `printerProfileId` name retained on the payload for backwards
+    // compatibility with drivers/log consumers — the value is now the
+    // resolved `device_assignments.id`.
+    payload.printerProfileId = printer.device_assignment_id;
+    payload.deviceAssignmentId = printer.device_assignment_id;
     payload.printerScope = printer.scope;
   }
 
@@ -403,7 +397,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   return {
     ...res,
     templateResolved: { engine: tpl.engine, version: tpl.version, scope: tpl.scope },
-    printerResolved: printer ? { profileId: printer.printer_profile_id, scope: printer.scope } : undefined,
+    printerResolved: printer ? { profileId: printer.device_assignment_id, scope: printer.scope } : undefined,
     mediaResolved: media ? { profileId: media.id, widthMm: media.widthMm, heightMm: media.heightMm, dpi: media.dpi } : undefined,
   };
 }

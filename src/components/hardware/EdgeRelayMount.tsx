@@ -15,17 +15,20 @@ interface WorkstationRow {
   last_seen_at: string | null;
 }
 
-interface WorkstationDeviceRow {
+// Phase 2b — reads from the unified `device_assignments` registry (rows
+// scoped to a workstation by `workstation_id`) instead of the legacy
+// `workstation_devices` table.
+interface EdgeDeviceRow {
   id: string;
   workstation_id: string;
-  device_key: string;
+  device_key: string | null;
   role: string;
   transport: string;
   driver: string | null;
-  name: string | null;
+  display_name: string;
   capabilities: Record<string, unknown> | null;
-  health: string;
-  metadata: Record<string, unknown> | null;
+  status: string;
+  config: Record<string, unknown> | null;
   last_seen_at: string | null;
 }
 
@@ -73,8 +76,9 @@ const DRIVER_TYPES = new Set<DriverType>([
  * On https://accrualflow.systems the browser cannot call the local agent's
  * plaintext loopback listener. This mount selects the freshest enrolled Edge
  * workstation, enables Supabase relay dispatch, and loads the published
- * `workstation_devices` into the renderer adapter so existing label/receipt
- * flows keep using `hardwareClient` unchanged.
+ * `device_assignments` rows (scoped to that workstation) into the renderer
+ * adapter so existing label/receipt flows keep using `hardwareClient`
+ * unchanged.
  */
 export function EdgeRelayMount() {
   const { currentOrg } = useOrganization();
@@ -110,18 +114,19 @@ export function EdgeRelayMount() {
     enabled: Boolean(orgId && workstation?.id) && !hardwareClient.devices.isElectron(),
     staleTime: 10_000,
     refetchInterval: 15_000,
-    queryFn: async (): Promise<WorkstationDeviceRow[]> => {
+    queryFn: async (): Promise<EdgeDeviceRow[]> => {
       if (!orgId || !workstation?.id) return [];
       const { data, error } = await supabase
-        .from('workstation_devices')
-        .select('id,workstation_id,device_key,role,transport,driver,name,capabilities,health,metadata,last_seen_at')
+        .from('device_assignments')
+        .select('id,workstation_id,device_key,role,transport,driver,display_name,capabilities,status,config,last_seen_at')
         .eq('organization_id', orgId)
         .eq('workstation_id', workstation.id)
-        .in('health', ['ok', 'unknown'])
+        .eq('enabled', true)
+        .in('status', ['ok', 'unknown'])
         .order('role', { ascending: true })
         .order('last_seen_at', { ascending: false, nullsFirst: false });
       if (error) throw error;
-      return (data ?? []) as WorkstationDeviceRow[];
+      return (data ?? []) as unknown as EdgeDeviceRow[];
     },
   });
 
@@ -151,7 +156,7 @@ export function EdgeRelayMount() {
   return null;
 }
 
-function toAssignment(row: WorkstationDeviceRow, businessId: string | null): DeviceAssignment | null {
+function toAssignment(row: EdgeDeviceRow, businessId: string | null): DeviceAssignment | null {
   const role = normalizeRole(row.role);
   if (!role) return null;
 
@@ -165,11 +170,11 @@ function toAssignment(row: WorkstationDeviceRow, businessId: string | null): Dev
     connectionParams: {
       ...connectionParams,
       business_id: businessId,
-      edge_device_key: row.device_key,
+      edge_device_key: row.device_key ?? row.id,
       edge_workstation_id: row.workstation_id,
     },
-    displayName: row.name ?? row.device_key,
-    isActive: row.health !== 'offline' && row.health !== 'error',
+    displayName: row.display_name ?? row.device_key ?? row.id,
+    isActive: row.status !== 'offline' && row.status !== 'error',
   };
 }
 
@@ -182,8 +187,6 @@ function normalizeRole(role: string): DeviceRole | null {
 }
 
 function normalizeDriver(driver: string | null, role: DeviceRole): DriverType {
-  // The browser fallback only needs a raw-byte pass-through for ZPL/EPL labels;
-  // EscPosPrinterDriver supplies that transport without transforming bytes.
   if (driver === 'zpl' || driver === 'epl') return 'escpos';
   if (driver && DRIVER_TYPES.has(driver as DriverType)) return driver as DriverType;
   if (role === 'cash_drawer') return 'escpos_drawer';
@@ -193,9 +196,9 @@ function normalizeDriver(driver: string | null, role: DeviceRole): DriverType {
   return 'escpos';
 }
 
-function buildConnectionParams(row: WorkstationDeviceRow): Record<string, unknown> | null {
-  const meta = row.metadata ?? {};
-  const parsedTcp = parseTcpKey(row.device_key);
+function buildConnectionParams(row: EdgeDeviceRow): Record<string, unknown> | null {
+  const meta = row.config ?? {};
+  const parsedTcp = parseTcpKey(row.device_key ?? '');
   if (row.transport === 'tcp' || row.transport === 'network') {
     const ipAddress = stringValue(meta.ipAddress) ?? stringValue(meta.host) ?? parsedTcp?.ipAddress;
     const port = numberValue(meta.port) ?? parsedTcp?.port ?? 9100;

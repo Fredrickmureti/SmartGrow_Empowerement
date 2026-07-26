@@ -1,37 +1,43 @@
 /**
- * Phase 5 — verifies the silent mis-config alert that fires when the
- * POS receipt paper_size differs from (or is missing on) the active
- * register's bound `printer_profiles.paper_size`. See
- * src/components/pos/PrinterProfilePaperMismatchAlert.tsx.
+ * Phase 5 (Phase 2b registry consolidation edition) — verifies the
+ * silent mis-config alert that fires when the POS receipt paper_size
+ * differs from (or is missing on) the register's bound printer. Post
+ * Phase 2a the printer row lives on `device_assignments`; the alert
+ * accepts either the assignment id or a legacy printer_profiles id
+ * (matched via `source_config_id`).
+ * See src/components/pos/PrinterProfilePaperMismatchAlert.tsx.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-let profilePaper: "40mm" | "58mm" | "80mm" | null = "80mm";
+let devicePaper: "40mm" | "58mm" | "80mm" | null = "80mm";
 const updateSpy = vi.fn((_patch: { paper_size: "40mm" | "58mm" | "80mm" | null }) => undefined);
 
 vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {
       from: (table: string) => {
-        if (table !== "printer_profiles") throw new Error(`Unexpected table ${table}`);
+        if (table !== "device_assignments") throw new Error(`Unexpected table ${table}`);
         return {
           select: () => ({
-            eq: () => ({
+            or: () => ({
               maybeSingle: async () => ({
-                data: { paper_size: profilePaper, label: "Front Counter" },
+                data: {
+                  id: "da-1",
+                  paper_size: devicePaper,
+                  display_name: "Front Counter",
+                  source_config_id: "prof-1",
+                },
                 error: null,
               }),
             }),
           }),
-          update: (patch: { paper_size: typeof profilePaper }) => {
+          update: (patch: { paper_size: typeof devicePaper }) => {
             updateSpy(patch);
-            profilePaper = patch.paper_size;
-            return {
-              eq: async () => ({ error: null }),
-            };
+            devicePaper = patch.paper_size;
+            return { eq: async () => ({ error: null }) };
           },
         };
       },
@@ -52,11 +58,11 @@ function wrap(ui: React.ReactElement) {
 
 describe("PrinterProfilePaperMismatchAlert", () => {
   beforeEach(() => {
-    profilePaper = "80mm";
+    devicePaper = "80mm";
     updateSpy.mockClear();
   });
 
-  it("renders nothing when no profile is bound", () => {
+  it("renders nothing when no device is bound", () => {
     const { container } = wrap(
       <PrinterProfilePaperMismatchAlert profileId={null} selectedPaper="58mm" />,
     );
@@ -64,7 +70,7 @@ describe("PrinterProfilePaperMismatchAlert", () => {
   });
 
   it("renders nothing when paper sizes match", async () => {
-    profilePaper = "58mm";
+    devicePaper = "58mm";
     const { container } = wrap(
       <PrinterProfilePaperMismatchAlert profileId="prof-1" selectedPaper="58mm" />,
     );
@@ -74,34 +80,34 @@ describe("PrinterProfilePaperMismatchAlert", () => {
   });
 
   it("renders destructive mismatch alert when widths differ", async () => {
-    profilePaper = "80mm";
+    devicePaper = "80mm";
     wrap(
       <PrinterProfilePaperMismatchAlert profileId="prof-1" selectedPaper="58mm" />,
     );
     await waitFor(() => {
-      expect(screen.getByText(/Printer profile mismatch/i)).toBeInTheDocument();
+      expect(screen.getByText(/Printer paper mismatch/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/configured for/i).textContent).toMatch(/80mm/);
-    expect(screen.getByRole("button", { name: /Update profile to 58mm/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Update printer to 58mm/i })).toBeInTheDocument();
   });
 
-  it("renders unset alert when profile.paper_size is null", async () => {
-    profilePaper = null;
+  it("renders unset alert when the device has no paper_size", async () => {
+    devicePaper = null;
     wrap(
       <PrinterProfilePaperMismatchAlert profileId="prof-1" selectedPaper="58mm" />,
     );
     await waitFor(() => {
       expect(screen.getByText(/no paper width set/i)).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: /Bind profile to 58mm/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Bind printer to 58mm/i })).toBeInTheDocument();
   });
 
-  it("clicking the action writes the selected paper to printer_profiles", async () => {
-    profilePaper = "80mm";
+  it("clicking the action writes the selected paper to device_assignments", async () => {
+    devicePaper = "80mm";
     wrap(
       <PrinterProfilePaperMismatchAlert profileId="prof-1" selectedPaper="58mm" />,
     );
-    const btn = await screen.findByRole("button", { name: /Update profile to 58mm/i });
+    const btn = await screen.findByRole("button", { name: /Update printer to 58mm/i });
     fireEvent.click(btn);
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalledWith({ paper_size: "58mm" });

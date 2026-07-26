@@ -1,14 +1,12 @@
 /**
- * useDeviceForWorkflow — workflow-aware sibling of useDeviceForRole.
+ * useDeviceForWorkflow — resolves the device_assignments row bound to a
+ * printer_workflow at the current org/branch/warehouse scope.
  *
- * Resolves the printer (via printer_workflow_bindings → printer_profiles
- * → device_assignments) that should serve a given workflow at the current
- * scope. Use this in admin/binding UI to render "which printer prints
- * what" — runtime printing goes through `printLabelByTemplate`, which
- * calls the same resolver server-side.
- *
- * Returns `device: null` when no binding exists or the resolver could
- * not match a profile to an assignment.
+ * Phase 2b: switched from `resolve_workflow_printer` (which returned a
+ * legacy `printer_profile_id`) to `resolve_device_for_workflow`, which
+ * returns the canonical `device_assignment_id`. This is the runtime that
+ * powers `printLabelByTemplate` and every UI surface that answers "which
+ * device is bound to this workflow?".
  */
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +15,7 @@ import { useDeviceAssignments, type DeviceAssignment } from '@/hooks/useDeviceAs
 import type { PrinterWorkflow } from '@/services/printing/labelDispatch';
 
 interface Resolved {
-  printer_profile_id: string;
+  device_assignment_id: string;
   binding_id: string;
   scope: string;
 }
@@ -52,7 +50,7 @@ export function useDeviceForWorkflow(
     setIsLoading(true);
     setError(null);
     void (async () => {
-      const { data, error: rpcErr } = await supabase.rpc('resolve_workflow_printer', {
+      const { data, error: rpcErr } = await supabase.rpc('resolve_device_for_workflow', {
         p_org_id: orgId,
         p_workflow: workflow,
         p_branch_id: opts.branchId ?? null,
@@ -69,15 +67,8 @@ export function useDeviceForWorkflow(
     return () => { cancelled = true; };
   }, [orgId, workflow, opts.branchId, opts.warehouseId]);
 
-  // Map printer_profile_id → DeviceAssignment via `source_config_id`
-  // (the field that links an assignment back to its printer-config row).
-  // The actual print dispatch is server-side via printLabelByTemplate,
-  // which uses the resolver RPC directly — this hook is for UI surfaces
-  // ("which device is bound to this workflow?"). Returns null when no
-  // assignment row mirrors the resolved profile id.
   const device =
-    (resolved && assignments.find((a) => a.source_config_id === resolved.printer_profile_id)) ||
-    null;
+    (resolved && assignments.find((a) => a.id === resolved.device_assignment_id)) || null;
 
   return { device, resolved, isLoading: isLoading || assignmentsLoading, error };
 }
