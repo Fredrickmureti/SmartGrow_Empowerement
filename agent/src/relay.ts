@@ -205,6 +205,19 @@ export function startRelay(handler: RelayHandler): () => void {
           continue;
         }
         log('info', 'relay.job.received', { jobId: job.id, role: job.role, op: job.op });
+        // Never execute a job whose deadline already passed. The browser has
+        // long since given up, so physically printing it now would be a
+        // "ghost print" arriving minutes after the operator asked for it.
+        const deadlineMs = Date.parse(job.deadline_at);
+        if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
+          const lateBy = Math.round((Date.now() - deadlineMs) / 1000);
+          log('warn', 'relay.job.expired_before_run', { jobId: job.id, op: job.op, lateBySeconds: lateBy });
+          await complete(active, job.id, {
+            success: false,
+            error: `expired_before_run: deadline passed ${lateBy}s ago`,
+          });
+          continue;
+        }
         let outcome: { success: boolean; result?: unknown; error?: string };
         try {
           outcome = await handler(job);
