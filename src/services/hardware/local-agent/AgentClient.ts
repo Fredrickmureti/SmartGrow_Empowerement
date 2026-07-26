@@ -166,6 +166,25 @@ class AgentClientImpl {
     return this._token ? { Authorization: `Bearer ${this._token}` } : {};
   }
 
+  /**
+   * Headers for mutating requests (`/print`, `/test`, `/usb/print`).
+   * AccrualFlow Edge Phase 1 requires a fresh single-use `X-Edge-Nonce`
+   * to defeat replay of a captured request. Falls back to a timestamp+
+   * random string on runtimes without `crypto.randomUUID`.
+   */
+  private _mutatingHeaders(): Record<string, string> {
+    const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+    const nonce = cryptoObj?.randomUUID
+      ? cryptoObj.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    return {
+      'Content-Type': 'application/json',
+      'X-Edge-Nonce': nonce,
+      ...this._authHeaders(),
+    };
+  }
+
+
   /** Parse JSON body even when res.ok is false — agent errors carry useful detail. */
   private async _readJson<T>(res: Response): Promise<T | null> {
     try {
@@ -324,7 +343,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, data }),
         });
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
@@ -349,7 +368,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
         });
         const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
@@ -382,7 +401,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ vendorId, productId, data }),
         });
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);

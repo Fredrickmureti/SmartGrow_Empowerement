@@ -1,8 +1,38 @@
-# POS Hardware Agent
+# AccrualFlow Edge — Hardware Runtime
 
-A standalone local service that bridges your browser-based POS to USB and network printers. This is the "IoT Box" equivalent — it runs on the same machine or LAN as the POS browser and exposes an HTTP API that the web app's `IoTBoxClient` already speaks.
+**Status:** Phase 1 (hardened localhost runtime). Formerly `pos-hardware-agent`.
+See `.lovable/plan.md` for the full architecture roadmap.
 
-## Quick Start
+A signed, loopback-bound runtime that bridges the AccrualFlow ERP to
+local hardware: receipt printers (ESC/POS), label printers (ZPL), USB
+devices, biometrics, and — in later phases — scales, drawers, EFT
+terminals, scanners, customer displays, RFID, cameras.
+
+## What Phase 1 adds
+
+- **Product identity**: reports as `accrualflow-edge` on `/health`.
+- **DNS-rebinding defense**: rejects requests whose `Host` header is
+  not `127.0.0.1:<port>` / `localhost:<port>` / `[::1]:<port>`.
+- **Private Network Access**: emits `Access-Control-Allow-Private-Network: true`
+  on preflight so `https://www.accrualflow.systems` can reach the
+  loopback listener under Chrome's PNA rules.
+- **Production origin allowlisted**: `https://www.accrualflow.systems`
+  (+ apex) baked into the default `AGENT_ALLOWED_ORIGINS`.
+- **Loopback bind**: the listener binds `127.0.0.1` explicitly instead
+  of `0.0.0.0`; the agent is not reachable from the LAN.
+- **Nonce replay cache**: `/print`, `/test`, `/usb/print` require a
+  fresh `X-Edge-Nonce` header. Nonces are single-use for 5 minutes.
+- **Structured logging**: NDJSON to stdout + in-memory ring buffer
+  used by `/support-bundle`.
+- **/health**: distinct from `/status`; returns product, version,
+  uptime, node/platform/arch, PID, RSS, recent-error count.
+- **/support-bundle**: authenticated diagnostic snapshot (health +
+  status + redacted config + last 500 log lines).
+
+Nothing removed — `/status`, `/print`, `/test`, `/discover`,
+`/usb/devices`, `/usb/print`, `/biometric/*` keep their contracts.
+
+## Quick start
 
 ```bash
 cd agent
@@ -10,127 +40,45 @@ npm install
 npm run dev
 ```
 
-The agent starts on `http://localhost:8043`. Your POS web app will automatically detect it and show "Online" status.
+Listens on `http://127.0.0.1:8043`.
 
-## Connecting Your Virtual Printer
+## API surface
 
-If you have a virtual printer running on `localhost:8000`:
+| Method | Path              | Auth | Description                                   |
+|--------|-------------------|------|-----------------------------------------------|
+| GET    | `/status`         | no   | Discovered devices (inventory for the ERP)    |
+| GET    | `/health`         | no   | Runtime health (product, version, resources)  |
+| GET    | `/support-bundle` | yes  | Diagnostic snapshot for support               |
+| POST   | `/print`          | yes  | Network print (raw TCP) — needs `X-Edge-Nonce`|
+| POST   | `/test`           | yes  | TCP connectivity test — needs `X-Edge-Nonce`  |
+| GET    | `/discover`       | yes  | LAN discovery on port 9100                    |
+| GET    | `/usb/devices`    | yes  | USB device enumeration                        |
+| POST   | `/usb/print`      | yes  | USB print — needs `X-Edge-Nonce`              |
+| any    | `/biometric/*`    | yes  | Biometric vendor bridge                       |
 
-1. **Test connectivity** (agent must be running):
-   ```bash
-   curl -X POST http://localhost:8043/test \
-     -H "Content-Type: application/json" \
-     -d '{"ipAddress":"127.0.0.1","port":8000,"timeout":3000}'
-   ```
-
-2. **Send a test print**:
-   ```bash
-   curl -X POST http://localhost:8043/print \
-     -H "Content-Type: application/json" \
-     -d '{"ipAddress":"127.0.0.1","port":8000,"data":[27,64,72,101,108,108,111,10,29,86,0]}'
-   ```
-   This sends: ESC/POS init → "Hello" → line feed → cut paper.
-
-3. **In the POS UI**: Go to Settings → Hardware → Add Device → Network Printer → IP `127.0.0.1`, Port `8000`.
-
-## API Endpoints
-
-All endpoints match the contract defined in `src/services/hardware/local-agent/protocol.ts`.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/status` | Agent health check — returns version, uptime, discovered devices |
-| `POST` | `/print` | Send raw bytes to a network printer via TCP |
-| `POST` | `/test` | Test TCP connectivity to a printer |
-| `GET` | `/discover?subnet=auto` | Scan LAN for printers on port 9100 |
-| `GET` | `/usb/devices` | List connected USB devices |
-| `POST` | `/usb/print` | Send raw bytes to a USB printer |
-
-### POST /print
-
-```json
-{
-  "ipAddress": "192.168.1.100",
-  "port": 9100,
-  "data": [27, 64, 72, 101, 108, 108, 111],
-  "timeout": 5000
-}
-```
-
-### POST /test
-
-```json
-{
-  "ipAddress": "192.168.1.100",
-  "port": 9100,
-  "timeout": 3000
-}
-```
-
-### POST /usb/print
-
-```json
-{
-  "vendorId": 1208,
-  "productId": 514,
-  "data": [27, 64, 72, 101, 108, 108, 111]
-}
-```
+Mutating routes require a `X-Edge-Nonce: <uuid>` header. Any 128-bit
+opaque string ≥8 chars works; a fresh `crypto.randomUUID()` per request
+is recommended.
 
 ## Authentication
 
-The agent generates a shared secret on first run, saved to `~/.pos-agent-token`. All endpoints except `/status` require an `Authorization: Bearer <token>` header.
-
-To disable auth for development:
-```bash
-AGENT_AUTH_DISABLED=1 npm run dev
-```
-
-## Device Discovery
-
-The agent automatically scans the local subnet for printers on port 9100 on startup, and re-scans every 2 minutes. Discovered devices appear in `GET /status` response and in the POS UI.
-
-## How It Works
-
-```
-Browser POS (cloud/local)
-    │
-    │  HTTP POST /print
-    ▼
-┌──────────────────────┐
-│  POS Hardware Agent   │  ← this service (localhost:8043)
-│  Node.js HTTP server  │
-└──────┬───────────────┘
-       │
-       ├── Network printer: raw TCP to ip:9100
-       └── USB printer: libusb via `usb` npm package
-```
+Bearer token generated on first run, stored in `~/.pos-agent-token`
+(mode 0600). Set `AGENT_AUTH_DISABLED=1` for dev only.
 
 ## Configuration
 
-| Env Variable | Default | Description |
-|---|---|---|
-| `AGENT_PORT` | `8043` | Port the agent listens on |
-| `AGENT_AUTH_DISABLED` | `false` | Set to `1` to skip auth (dev mode) |
+| Env var                  | Default    | Description                              |
+|--------------------------|------------|------------------------------------------|
+| `AGENT_PORT`             | `8043`     | Loopback port                            |
+| `AGENT_AUTH_DISABLED`    | (unset)    | `1` skips auth. Dev only.                |
+| `AGENT_ALLOWED_ORIGINS`  | (unset)    | Comma-separated extra allowed origins    |
 
-## Production Deployment
+## Roadmap
 
-For production, build and run:
+- Phase 2 — Outbound WebSocket relay to `wss://edge-relay.accrualflow.systems`.
+- Phase 3 — Capability manifest published by the agent.
+- Phase 4 — Electron desktop shell (tray, diagnostics, updates).
+- Phase 5 — Plugin drivers (`@accrualflow/edge-drivers-*`).
+- Phase 6 — Observability + admin console.
 
-```bash
-npm run build
-npm start
-```
-
-To run as a system service, create a systemd unit (Linux), launchd plist (macOS), or Windows service wrapper pointing to `node dist/index.js`.
-
-## USB Support
-
-USB printing requires the `usb` npm package which uses native bindings. If it fails to compile on your platform, the agent still works for network printers — USB routes will return a graceful error.
-
-On Linux, you may need udev rules for USB printer access without root:
-
-```bash
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="04b8", MODE="0666"' | sudo tee /etc/udev/rules.d/99-printer.rules
-sudo udevadm control --reload-rules
-```
+See `.lovable/plan.md` for full detail.
