@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { WorkstationRead } from '../types';
 import { invoke, signInWithPassword, currentSession } from '../lib/supabase';
 import { IdChip } from '../components/IdChip';
+import { BrowserPairing } from '../components/BrowserPairing';
 
 interface Props { workstation: WorkstationRead; onChanged: () => void }
 
