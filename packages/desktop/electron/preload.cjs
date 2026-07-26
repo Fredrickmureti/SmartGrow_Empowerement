@@ -36,6 +36,9 @@ const api = {
     uninstall: () => ipcRenderer.invoke('supervisor:uninstall'),
     start: () => ipcRenderer.invoke('supervisor:start'),
     stop: () => ipcRenderer.invoke('supervisor:stop'),
+    // Reports whether a platform service is installed/running, and whether
+    // the installer script shipped with this build at all.
+    serviceStatus: () => ipcRenderer.invoke('supervisor:serviceStatus'),
     // Phase 4.2.7 — loopback certificate lifecycle. The renderer only ever
     // asks; the privileged trust-store commands run inside the agent.
     certStatus: () => ipcRenderer.invoke('supervisor:certStatus'),
