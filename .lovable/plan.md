@@ -96,7 +96,12 @@ Recommendation: proceed to P3 first, then do Step 3 on top of the new identity c
    - Children get suffixed correlation ids `${key}:copy:${i}` so the `(business_id, correlation_id)` unique index still admits N copies while a rapid double-click regenerates identical child keys and collapses at the DB.
    - Per-copy lifecycle: each child is marked sent/acked/failed independently; the parent mirrors the terminal state so admin filters surface either level coherently.
    - Contract test: `src/test/printing/print-client-parent-child-chaining.test.ts` (3 tests). Full print suite: 150/150 pass.
-3. **Admin surface.** Platform → Print Queue view backed by `print_jobs` with `queued → sent → acked | failed`; filter by business, branch, document type, correlation, state. Read-only.
+3. **Admin surface. ✅ Shipped 2026-07-26.**
+   - New route `/platform/hardware/print-queue` (`src/apps/platform/hardware/HardwarePrintQueue.tsx`), wired into `routes.tsx` and the Insights group in `nav.ts`.
+   - Reads `public.print_jobs` directly (RLS `print_jobs_read_own_business` scopes rows to the caller's businesses via `user_business_access`); no new RPC.
+   - Filters: status, document type, free-text search over doc id / correlation id / error / intent / transport. Status-count cards for `queued|sent|acked|failed`. Latest 500 rows.
+   - Fan-out visualization: children (P3 Step 2) group under their parent with an `↳` indent + tinted row, so multi-copy jobs render as a tree.
+   - Read-only: no retry, cancel, or ack-backfill controls — those stay in the RPC / agent layer.
 4. **Ledger completion signal.** Wire agent's job-complete callback to write `acked_at` so the admin view distinguishes "sent to agent" from "printed".
 
 ## Then — Guardrails
