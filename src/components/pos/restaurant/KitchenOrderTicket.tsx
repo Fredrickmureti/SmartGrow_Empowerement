@@ -76,6 +76,8 @@ export function KitchenOrderTicket({
       const result = await printClient.printKitchenTicket(txnId, {
         station: order.printer_category,
         table: order.table_number ? String(order.table_number) : null,
+        organizationId: currentOrg?.id ?? null,
+        businessId: currentBusiness?.id ?? null,
       });
       if (result.success) {
         toast.success(`Sent to ${order.printer_category} printer`);
