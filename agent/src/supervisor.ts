@@ -125,7 +125,7 @@ export function startSupervisor(hooks: SupervisorHooks): () => void {
               uptime_s: Math.floor((Date.now() - startedAt) / 1000),
               tls: {
                 enabled: hooks.tlsEnabled,
-                fingerprint_sha256: hooks.tlsFingerprint ?? null,
+                fingerprint_sha256: hooks.tlsFingerprint?.() ?? null,
                 port: hooks.tlsPort ?? null,
               },
               workstation_id: hooks.workstationId ?? null,
@@ -136,6 +136,31 @@ export function startSupervisor(hooks: SupervisorHooks): () => void {
             await hooks.onReloadOrigins?.();
             sock.write(JSON.stringify({ ok: true }) + '\n');
             break;
+          case 'rotate_cert': {
+            const fp = await hooks.onRotateCert?.();
+            sock.write(JSON.stringify({ ok: Boolean(fp), fingerprint_sha256: fp ?? null }) + '\n');
+            break;
+          }
+          case 'cert_status': {
+            const q = await queryTrustStore();
+            sock.write(JSON.stringify({
+              ok: true,
+              trusted: q.trusted,
+              detail: q.detail,
+              // Surfaced so the tray app can show the operator exactly
+              // what `install_cert` will run before they consent.
+              commands: describeTrustCommands('install', process.platform)
+                .map((c) => ({ command: `${c.file} ${c.args.join(' ')}`, explain: c.explain, elevates: c.elevates })),
+            }) + '\n');
+            break;
+          }
+          case 'install_cert':
+          case 'uninstall_cert': {
+            const res = await applyTrustStore(op === 'install_cert' ? 'install' : 'uninstall');
+            sock.write(JSON.stringify(res) + '\n');
+            break;
+          }
+
           case 'shutdown':
             sock.write(JSON.stringify({ ok: true }) + '\n');
             setTimeout(() => process.exit(0), 200);
