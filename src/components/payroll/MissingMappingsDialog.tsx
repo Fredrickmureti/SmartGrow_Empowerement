@@ -162,17 +162,19 @@ function MappingsBody({
    * user gets a precise error if any single row fails.
    */
   const runOneClickSetup = async () => {
-    if (effectiveMissing.length === 0) return;
+    // Only the generic default_account_settings-shaped rows can be one-click
+    // provisioned. Loan-type rows must be resolved in Loan Types settings
+    // because their accounts live on `loan_types`, not `default_account_settings`.
+    if (genericMissing.length === 0) return;
     setAutoRunning(true);
     let applied = 0;
     let created = 0;
     try {
-      // Apply all suggested first in a single RPC round-trip
       if (effectiveSuggestedPairs.length > 0) {
         await applyAll.mutateAsync(effectiveSuggestedPairs);
         applied = effectiveSuggestedPairs.length;
       }
-      const needsCreate = effectiveMissing.filter((r) => !r.suggested_account_id);
+      const needsCreate = genericMissing.filter((r) => !r.suggested_account_id);
       for (const r of needsCreate) {
         await createAndMap.mutateAsync({
           setting_key: r.setting_key,
@@ -184,7 +186,7 @@ function MappingsBody({
       toast.success(
         `Payroll GL ready — ${applied} mapped, ${created} account${created === 1 ? "" : "s"} created`,
       );
-      onClose();
+      if (loanRows.length === 0) onClose();
     } catch (e: any) {
       toast.error(e?.message || "One-click setup failed — fix the failing row and retry");
     } finally {
