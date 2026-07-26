@@ -696,13 +696,18 @@ export function PrintPreviewDialog({
 
           <Button
             onClick={handlePrint}
-            disabled={isPrinting || showLoading}
+            // Wave B3 (Plan P1) — button stays live during in-flight
+            // prints so rapid clicks enqueue instead of being swallowed
+            // by the DOM. `showLoading` still gates during initial PDF
+            // fetch because there is literally nothing to enqueue yet.
+            disabled={showLoading}
             variant={isMobile ? "outline" : "default"}
             className="w-full sm:w-auto h-9 text-sm"
           >
             {isPrinting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
-            Print
+            {pendingPrints > 1 ? `Print (${pendingPrints} queued)` : isPrinting ? "Printing…" : "Print"}
           </Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>
