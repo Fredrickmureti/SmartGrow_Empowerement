@@ -110,3 +110,66 @@ Regression guard: `src/test/architecture/loan-termination-single-writer.test.ts`
 - **Phase 8 — Reverse-repayment parity.** `employee_loan_reverse_repayment` still writes `employee_loans.amount_repaid / outstanding_balance / installments_paid` directly and rewrites `loan_repayment_schedule` inline. It also inserts `loan_repayments.amount = -orig.amount` even though the current CHECK constraint requires `amount > 0` — so the reversal path is latent-broken today; a real reversal cannot commit. Rewrite as the strict inverse of `employee_loan_apply_repayment` (positive amount, `kind='reversal'` with `reversal_of_id`, schedule de-allocation helper, aggregate-based balance recompute, `_loan_assert_transition('reopen')` when the original entry had settled the loan). Bump the `amount > 0` CHECK to `amount <> 0` or store reversals as positive rows and net by kind — plan the choice; do not just widen the constraint. Add pgTAP asserting apply → reverse → apply is a fixed point.
 
 Order stays: 6 (done) → 8 → 7. Termination and reversal both feed the arrears watcher's fixed-point tests.
+
+## Execution log — 2026-07-26 (this turn)
+
+**Phase 8 — Reverse-repayment parity — LANDED.**
+**Phase 7 — Arrears detection — LANDED.**
+
+Single migration:
+- Relaxed `loan_repayments.amount` CHECK from `> 0` to `<> 0` so the negative
+  reversal ledger row is legal (`employee_loan_apply_repayment` still refuses
+  a non-positive `_amount`, so no new write path can produce a zero row).
+- Added `completed → reopen → active` to `employee_loan_state_transitions`.
+- New helper `public._loan_deallocate_schedule(_repayment_id)` — the strict
+  inverse of the FIFO allocator inside `employee_loan_apply_repayment`.
+- Rewrote `public.employee_loan_reverse_repayment(_repayment_id, _reason)`:
+  locks the loan; refuses double-reversal (via `reversal_of_id` check) and
+  reversal against an archived loan; inserts the negative-amount audit row;
+  builds the mirror JE exactly as before (Finance still owns posting);
+  de-allocates schedule via the new helper; recomputes
+  `amount_repaid` / `outstanding_balance` / `installments_paid` from
+  `SUM(amount)` over `loan_repayments` (no in-place drift); if the prior
+  status was `completed` and the recomputed balance is now positive,
+  transitions to `active` via `_loan_assert_transition('reopen')`; emits a
+  single `reverse_repayment` lifecycle event carrying `repayment_id`,
+  `reversal_id`, `journal_entry_id`, new balances, and `reopened` flag.
+- New RPC `public.employee_loan_mark_missed_installments(_as_of date)` —
+  idempotent, SECURITY DEFINER, service_role only. Scans `active` loans with
+  overdue `pending`/`partial` schedule rows, routes each through
+  `_loan_assert_transition('enter_arrears')`, updates status +
+  `arrears_since`, and logs `enter_arrears` with the missed schedule ids on
+  the payload. Returns `{scanned, promoted, as_of}`.
+- Scheduled the sweep via `pg_cron` (`employee-loan-arrears-sweep`, daily
+  02:15 UTC) — the DB function is called directly (no HTTP hop, no per-project
+  secrets), and the DO block re-schedules idempotently.
+
+Regression:
+- `supabase/tests/loan_reverse_repayment_test.sql` — end-to-end fixed-point:
+  apply → reverse → apply is a no-op on balances/schedule/events; double
+  reversal is refused.
+- `supabase/tests/loan_arrears_sweep_test.sql` — an overdue `active` loan is
+  promoted exactly once, a `paused` loan with overdue instalments is left
+  alone, a successful repayment clears arrears.
+- `src/test/architecture/loan-reverse-repayment-single-writer.test.ts` —
+  no code outside the loan module writes `loan_repayment_schedule` or
+  inserts `kind='reversal'`; the canonical reversal RPC recomputes from the
+  ledger via `SUM(amount)` and never uses `amount_repaid - orig.amount`
+  drift arithmetic; the arrears RPC exists and is scheduled via `pg_cron`.
+- Tightened `payroll-loan-repayment-lifecycle.test.ts` to look up the
+  migration that *defines* `employee_loan_apply_repayment` (Phase 8
+  migrations mention it only in comments, which fooled the older glob).
+
+All 22 loan-domain architecture tests green (5 files):
+`employee-loan-lifecycle`, `payroll-loan-repayment-lifecycle`,
+`loan-termination-single-writer`, `loan-reverse-repayment-single-writer`,
+`loanStateMachine`.
+
+Follow-ups worth doing (not blocking, not silently deferred):
+- Update ADR 0091 with rules 12–14 (termination canonical, arrears
+  derived, reversal is strict inverse).
+- Extend `mem://index.md` with the loan single-writer Core rule.
+- One-shot backfill sweep against production (`SELECT
+  employee_loan_mark_missed_installments(CURRENT_DATE);`) so historical
+  overdue `active` loans get promoted on day one instead of drifting
+  until the next scheduled tick.
