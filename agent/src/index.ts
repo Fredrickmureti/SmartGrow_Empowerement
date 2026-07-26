@@ -1,6 +1,6 @@
 import { createServer } from './server.js';
 import { createTlsServer } from './server.js';
-import { loadOrGenerateLoopbackTls } from './tls.js';
+import { loadOrGenerateLoopbackTls, loopbackTlsNeedsRotation, rotateLoopbackTls, type LoopbackTls } from './tls.js';
 import { getAuthToken } from './auth.js';
 import { logger } from './logger.js';
 import { startRelay } from './relay.js';
@@ -22,7 +22,13 @@ const TLS_DISABLED = process.env.AGENT_TLS_DISABLED === '1' || process.env.AGENT
 // Phase 4.2 item 1 — load-or-generate the per-install loopback cert
 // before the http listener boots so both listeners share the same
 // startPeriodicDiscovery() bookkeeping (createServer is idempotent).
-const tlsInfo = TLS_DISABLED ? null : (() => {
+//
+// Phase 4.2.7a — `tlsInfo` is mutable: the cert can be re-minted at
+// runtime (workstation-secret rotation, or an explicit `rotate_cert`
+// supervisor op) and hot-swapped into the live listener via
+// `tls.Server#setSecureContext`, so trusted operators never have to
+// restart the service to recover a compromised loopback key.
+let tlsInfo: LoopbackTls | null = TLS_DISABLED ? null : (() => {
   try { return loadOrGenerateLoopbackTls(); }
   catch (err) {
     logger.error('tls_init_failed', { error: err instanceof Error ? err.message : String(err) });
@@ -32,6 +38,29 @@ const tlsInfo = TLS_DISABLED ? null : (() => {
 
 const server = createServer(tlsInfo);
 const tlsServer = tlsInfo ? createTlsServer(tlsInfo) : null;
+
+/**
+ * Re-mint the loopback certificate and push it into the running TLS
+ * listener. Returns the new fingerprint, or null when TLS is disabled or
+ * generation failed. Safe to call repeatedly.
+ */
+function rotateCert(secretRotatedAt: string | null): string | null {
+  if (!tlsServer) return null;
+  try {
+    const next = rotateLoopbackTls(secretRotatedAt);
+    tlsServer.setSecureContext({ cert: next.cert, key: next.key });
+    tlsInfo = next;
+    logger.warn('tls_cert_rotated', {
+      fingerprint: next.fingerprintSha256,
+      secret_rotated_at: secretRotatedAt,
+    });
+    return next.fingerprintSha256;
+  } catch (err) {
+    logger.error('tls_cert_rotate_failed', { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 
 server.listen(PORT, '127.0.0.1', () => {
   const token = getAuthToken();
