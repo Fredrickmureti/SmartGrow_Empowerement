@@ -325,27 +325,22 @@ export function PrintPreviewDialog({
   };
 
   const handlePrint = async () => {
-    setIsPrinting(true);
+    // Wave B3 (Plan P1) — enqueue rather than block. The Print button
+    // stays live; every click bumps `pendingPrints` and hands another
+    // job to the underlying transport. `printPdfInPage` serialises PDF
+    // jobs in a module-scoped FIFO so overlapping browser print dialogs
+    // are impossible. Thermal jobs go through `printRawBytes`, itself
+    // serialised per-endpoint by `AgentClient._withEndpointLock` and
+    // the agent-side `endpointQueues` in `agent/src/routes/print.ts`.
+    setPendingPrints((n) => n + 1);
     try {
-      // UX-3: thermal path triggers when EITHER the resolved policy is
-      // ESC/POS OR the user explicitly picked a connected thermal
-      // destination in the dropdown. Without the second clause, picking
-      // a thermal printer for an invoice (whose policy is A4 PDF) would
-      // silently fall back to browser PDF — the exact bug users hit
-      // when their POS printer is configured and online but Sales/
-      // Purchases "Print" does nothing on the printer.
       const wantsThermal = isEscposMode || policyIsEscpos || selectedIsThermal;
       let bytes = escposBytes;
       if (wantsThermal && !bytes && selectedIsThermal) {
-        // Lazy-fetch on demand for the policy-was-PDF case.
         bytes = await fetchEscposBytes();
       }
       let canStream = wantsThermal && !!bytes && selectedIsThermal;
 
-      // UX-2: if policy is thermal but no thermal destination is
-      // currently connected, try ONE auto-reconnect before degrading to
-      // the PDF fallback. Rescues the "agent came online after mount"
-      // race that otherwise made Print silently print the PDF.
       if (wantsThermal && !canStream && !selectedIsThermal) {
         const offlineThermal = destinations.find((d) => d.kind === "thermal" && !d.connected);
         if (offlineThermal) {
@@ -373,9 +368,6 @@ export function PrintPreviewDialog({
           });
         }
       } else if (wantsThermal && !selectedIsThermal) {
-        // UX-2: don't silently substitute browser PDF when the user
-        // explicitly configured a thermal printer. Make the failure
-        // visible and actionable.
         toast({
           title: "Thermal printer unavailable",
           description:
@@ -394,9 +386,10 @@ export function PrintPreviewDialog({
       console.error("Print error:", error);
       toast({ title: "Print failed", description: "An error occurred while printing", variant: "destructive" });
     } finally {
-      setIsPrinting(false);
+      setPendingPrints((n) => Math.max(0, n - 1));
     }
   };
+
 
   const handleReconnectPrinter = async () => {
     const res = await reconnectRole("receipt_printer");
