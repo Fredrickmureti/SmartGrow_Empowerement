@@ -222,11 +222,23 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (mErr) return json(500, { error: mErr.message });
 
-  // Heartbeat
+  // Heartbeat + TLS identity. `secret_rotated_at` goes back in the
+  // response so the agent can detect that its loopback cert was minted
+  // against a secret that has since been rotated and re-mint on the spot.
+  const tls = validateTls((body as Record<string, unknown> | null)?.tls);
   await admin
     .from('workstations')
-    .update({ last_seen_at: nowIso, version: v.agentVersion })
+    .update({
+      last_seen_at: nowIso,
+      version: v.agentVersion,
+      ...(tls ?? {}),
+    })
     .eq('id', auth.workstationId);
 
-  return json(200, { ok: true, devices: v.devices.length, manifest_id: manifest?.id });
+  return json(200, {
+    ok: true,
+    devices: v.devices.length,
+    manifest_id: manifest?.id,
+    secret_rotated_at: auth.secretRotatedAt ?? null,
+  });
 });
