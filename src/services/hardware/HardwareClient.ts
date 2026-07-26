@@ -33,17 +33,23 @@ import { customerDisplayClient, type CustomerDisplayData, type CustomerDisplayCo
 import type { AgentStatusResponse, AgentDeviceInfo } from "./local-agent/protocol";
 import { recordHardwareExec, getHardwareExecContext, getRecentExecLog } from "./HardwareExecLog";
 import { supabase } from "@/integrations/supabase/client";
+import { hostRouter, ipcAvailable, isElectronHost } from "./transport/HostRouter";
+import { route as routeTransport, sniffHost, type RoutableAssignment, type RouteDecision } from "./transport/TransportRouter";
 
 export { getRecentExecLog, setHardwareExecContext } from "./HardwareExecLog";
 export type { HardwareExecLogEntry } from "./HardwareExecLog";
 
-function ipcAvailable(): boolean {
-  return typeof window !== "undefined" && Boolean((window as unknown as { pos?: { hardware?: { exec?: unknown } } }).pos?.hardware?.exec);
+/**
+ * @deprecated Phase 5 Step B — kept as a local alias so the in-file
+ * call sites still read naturally. Prefer `isElectronHost()` from
+ * `./transport/HostRouter` in new code; the guard test allows only
+ * this file, HostRouter, TransportRouter, and environment.ts to
+ * touch the raw `window.pos` bridge.
+ */
+function isElectronMode(): boolean {
+  return isElectronHost();
 }
 
-function isElectronMode(): boolean {
-  return typeof window !== "undefined" && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron);
-}
 
 function newKey(): string {
   try {
