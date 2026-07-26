@@ -83,6 +83,12 @@ export function usePrintOrPreview() {
           title: req.title,
           businessId,
           branchId: req.branchId ?? null,
+          // Plan P3 Step 1 — one UUID per user click, becomes the ledger
+          // collapse key on `(business_id, correlation_id)`.
+          idempotencyKey:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         });
 
         if (result.success && result.transport !== "ask_user" && result.transport !== "none") {
