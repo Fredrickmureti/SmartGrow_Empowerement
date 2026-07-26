@@ -37,6 +37,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { logger } from './logger.js';
+import { applyTrustStore, describeTrustCommands, queryTrustStore } from './trustStore.js';
 
 const EDGE_HOME = path.join(os.homedir(), '.accrualflow', 'edge');
 const TOKEN_PATH = path.join(EDGE_HOME, 'supervisor.token');
@@ -46,12 +47,20 @@ const SOCK_PATH = process.platform === 'win32'
 
 export interface SupervisorHooks {
   version: string;
-  tlsFingerprint?: string | null;
+  /**
+   * Read lazily — the fingerprint changes when `rotate_cert` re-mints the
+   * loopback certificate, and `status` must report the live value rather
+   * than whatever was true at process start.
+   */
+  tlsFingerprint?: () => string | null;
   tlsEnabled: boolean;
   tlsPort?: number | null;
   workstationId?: string | null;
   onReloadOrigins?: () => Promise<void> | void;
+  /** Re-mint the loopback cert and hot-swap it into the live listener. */
+  onRotateCert?: () => Promise<string | null> | string | null;
 }
+
 
 function ensureToken(): string {
   fs.mkdirSync(EDGE_HOME, { recursive: true, mode: 0o700 });
