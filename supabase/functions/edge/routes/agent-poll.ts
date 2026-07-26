@@ -25,7 +25,13 @@ export async function handle(req: Request): Promise<Response> {
     console.warn('agent_poll.expire_stale_failed', expireErr.message);
   }
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  // Batch drain: a burst of invoices used to be claimed one job per 1.5s poll
+  // round-trip, so the last job in the burst expired before the agent reached
+  // it. Claim up to BATCH_SIZE live jobs in one response instead.
+  const BATCH_SIZE = 5;
+  const jobs: unknown[] = [];
+
+  for (let attempt = 0; attempt < BATCH_SIZE * 2 && jobs.length < BATCH_SIZE; attempt += 1) {
     const { data: candidate, error: candidateErr } = await admin
       .from('edge_jobs')
       .select('id')
@@ -36,7 +42,7 @@ export async function handle(req: Request): Promise<Response> {
       .limit(1)
       .maybeSingle();
     if (candidateErr) return json(500, { error: `candidate_failed: ${candidateErr.message}` });
-    if (!candidate) return json(200, { job: null });
+    if (!candidate) break;
 
     const claimIso = new Date().toISOString();
     const { data: claimed, error: claimErr } = await admin
@@ -48,7 +54,9 @@ export async function handle(req: Request): Promise<Response> {
       .select('id, role, op, payload, idempotency_key, deadline_at, created_at')
       .maybeSingle();
     if (claimErr) return json(500, { error: `claim_failed: ${claimErr.message}` });
-    if (claimed) return json(200, { job: claimed });
+    if (claimed) jobs.push(claimed);
   }
-  return json(200, { job: null });
+
+  // `job` is kept for older agents that read a single job per poll.
+  return json(200, { job: jobs[0] ?? null, jobs });
 }
