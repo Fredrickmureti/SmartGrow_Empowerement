@@ -60,7 +60,7 @@ describe("payroll_required_gl_mappings_for_run — loan repayment exclusion", ()
     // The positive counterpart — loan types get their own readiness rows so
     // an unmapped receivable is still blocked, but with a real remediation
     // path (Loan Types settings).
-    expect(sql).toMatch(/loan_type:[^']*receivable/);
+    expect(sql).toMatch(/'loan_type:'\s*\|\|/);
     expect(sql).toMatch(/loan_receivable/);
   });
 });
