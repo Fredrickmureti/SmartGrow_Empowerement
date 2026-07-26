@@ -124,7 +124,7 @@ export function usePrintOrPreview() {
         });
       }
     },
-    [currentBusiness?.id],
+    [currentBusiness?.id, currentOrg?.id],
   );
 
   /**
