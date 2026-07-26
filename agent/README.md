@@ -78,15 +78,15 @@ Browser (https://…)
        ↓ Realtime UPDATE observed by the browser when the agent completes
 
 Agent (this runtime, on the customer workstation)
-  └─ POST /functions/v1/edge-agent-poll     (Bearer <workstation_secret>)
-     POST /functions/v1/edge-agent-complete (Bearer <workstation_secret>)
+  └─ POST /functions/v1/edge/agent/poll     (Bearer <workstation_secret>)
+     POST /functions/v1/edge/agent/complete (Bearer <workstation_secret>)
        ↑ hash-verified against workstations.secret_hash server-side
 ```
 
 ### Enrolment (one-time, per workstation)
 
 1. From the ERP admin console, an org member calls the
-   `edge-workstation-register` edge function with a friendly
+   `edge/workstation/register` edge function with a friendly
    `name`. The response contains a UUID `id` and a raw
    `secret` shown **once**.
 2. Drop the following into
@@ -102,8 +102,8 @@ Agent (this runtime, on the customer workstation)
    ```
 
 3. Restart the runtime. On start, if the config file is present the
-   agent begins polling `edge-agent-poll` every ~1.5 s and posting
-   results back to `edge-agent-complete`. If the file is missing,
+   agent begins polling `edge/agent/poll` every ~1.5 s and posting
+   results back to `edge/agent/complete`. If the file is missing,
    the runtime logs `relay.inactive.no_config` and only serves the
    loopback listener (existing dev flow — unchanged).
 

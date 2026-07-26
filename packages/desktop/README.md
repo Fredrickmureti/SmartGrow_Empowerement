@@ -27,7 +27,7 @@ packages/desktop/
 
 - **Renderer is sandboxed.** `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`. The only surface it can reach is `window.edge.*` defined in `preload.cjs`.
 - **Durable credential lives on disk, not localStorage.** The workstation secret is written to `~/.accrualflow/edge/workstation.json` at mode 0600 by the main process. The renderer never sees the raw secret after the enrolment moment.
-- **Supabase session is in-memory only.** We sign in with the operator's email/password just long enough to invoke `edge-workstation-register` / `edge-workstation-rotate-secret`; the durable credential is the workstation secret, not the user's session.
+- **Supabase session is in-memory only.** We sign in with the operator's email/password just long enough to invoke `edge/workstation/register` / `edge/workstation/rotate-secret`; the durable credential is the workstation secret, not the user's session.
 - **Zero-dependency Supabase client** (`src/lib/supabase.ts`). We call PostgREST + edge functions with `fetch`. Keeps the packaged installer lean and avoids pinning to a specific `@supabase/supabase-js` major.
 - **Tray-first.** Closing the window keeps the app alive in the tray. The child agent runtime is supervised by the main process and stopped on `before-quit`.
 
@@ -60,12 +60,12 @@ npm run package:mac     # cross-compiles; a real release requires notarization o
 
 Shipped in this commit:
 
-- Enrolment wizard end-to-end (sign-in → org pick → name → `edge-workstation-register` → 0600 file write → agent auto-start).
+- Enrolment wizard end-to-end (sign-in → org pick → name → `edge/workstation/register` → 0600 file write → agent auto-start).
 - Dashboard with agent supervisor + relay-heartbeat freshness pill.
 - Devices tab reading `public.workstation_devices` live.
 - Diagnostics self-test scaffold.
-- Logs viewer against agent `/status` ring buffer.
-- Auth tab: rotate credential (`edge-workstation-rotate-secret`), sign-out workstation.
+- Logs viewer against agent `/support-bundle` ring buffer.
+- Auth tab: rotate credential (`edge/workstation/rotate-secret`), sign-out workstation.
 
 Deferred to Phase 4.2 (documented as such inside Diagnostics):
 

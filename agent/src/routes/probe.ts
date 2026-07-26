@@ -33,6 +33,7 @@ export type ProbeOp =
 
 export interface ProbeTarget {
   transport?: 'network' | 'usb';
+  driver?: string;
   ipAddress?: string;
   port?: number;
   vendorId?: number;
@@ -82,6 +83,20 @@ function buildTestPageBytes(): number[] {
   bytes.push(0x0a, 0x0a, 0x0a);
   bytes.push(GS, 0x56, 0x00); // full cut
   return bytes;
+}
+
+function buildZplTestPageBytes(): number[] {
+  return str(
+    '^XA\n' +
+    '^PW812\n' +
+    '^LL406\n' +
+    '^FO40,40^A0N,36,36^FDAccrualFlow Edge^FS\n' +
+    '^FO40,90^A0N,28,28^FDZPL diagnostic label^FS\n' +
+    `^FO40,140^A0N,22,22^FD${new Date().toISOString()}^FS\n` +
+    '^FO40,190^GB720,3,3^FS\n' +
+    '^FO40,230^A0N,24,24^FDTransport working^FS\n' +
+    '^XZ\n',
+  );
 }
 
 /** ESC p 0 <t1> <t2> — pin 2 drawer kick (~50ms). */
@@ -148,7 +163,12 @@ async function dispatch(req: ProbeRequest): Promise<ProbeResult> {
     case 'printer.test_page':
     case 'drawer.kick': {
       const t = req.target ?? {};
-      const bytes = req.op === 'drawer.kick' ? buildDrawerKickBytes() : buildTestPageBytes();
+      const isZpl = req.role === 'label_printer' || t.driver === 'zpl';
+      const bytes = req.op === 'drawer.kick'
+        ? buildDrawerKickBytes()
+        : isZpl
+          ? buildZplTestPageBytes()
+          : buildTestPageBytes();
       const transport = t.transport
         ?? (t.ipAddress ? 'network' : t.vendorId != null ? 'usb' : undefined);
 

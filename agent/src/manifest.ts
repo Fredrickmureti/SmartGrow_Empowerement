@@ -18,6 +18,7 @@
 import { logger } from './logger.js';
 import { AGENT_VERSION, loadConfig, type RelayConfig } from './relay.js';
 import { handleDiscover } from './routes/discover.js';
+import { handleTest } from './routes/test.js';
 
 const MANIFEST_INTERVAL_MS = 60_000;
 
@@ -83,9 +84,26 @@ async function collectDevices(): Promise<ManifestDevice[]> {
 
   // 2) Network — reuse the existing discover routine (port 9100 raw TCP).
   try {
+    // Local simulators / local USB-to-TCP bridges commonly bind only
+    // 127.0.0.1:9100, which a LAN subnet scan will never see.
+    const local = await handleTest({ ipAddress: '127.0.0.1', port: 9100, timeout: 300 });
+    if (local.success) {
+      out.push({
+        device_key: 'tcp:127.0.0.1:9100',
+        role: 'label_printer',
+        transport: 'tcp',
+        driver: 'zpl',
+        name: 'Local ZPL printer',
+        capabilities: { language: 'zpl', width_mm: 104, port: 9100 },
+        health: 'ok',
+        metadata: { identifier: '127.0.0.1:9100', ipAddress: '127.0.0.1', port: 9100 },
+      });
+    }
+
     const net = await handleDiscover('auto');
     for (const d of net.devices) {
       if (!d.ipAddress) continue;
+      if (d.ipAddress === '127.0.0.1') continue;
       out.push({
         device_key: `tcp:${d.ipAddress}:${d.port ?? 9100}`,
         role: 'receipt_printer',
@@ -94,7 +112,7 @@ async function collectDevices(): Promise<ManifestDevice[]> {
         name: d.name ?? d.identifier,
         capabilities: { width_mm: 80, port: d.port ?? 9100 },
         health: 'ok',
-        metadata: { identifier: d.identifier },
+        metadata: { identifier: d.identifier, ipAddress: d.ipAddress, port: d.port ?? 9100 },
       });
     }
   } catch (err) {

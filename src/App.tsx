@@ -39,6 +39,7 @@ import { OnboardingGate } from "@/components/auth/OnboardingGate";
 import { CommandPaletteProvider } from "@/providers/CommandPaletteProvider";
 import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
 import { ElectronHydratorMount } from "@/components/hardware/ElectronHydratorMount";
+import { EdgeRelayMount } from "@/components/hardware/EdgeRelayMount";
 import { HardwareExecContextMount } from "@/components/hardware/HardwareExecContextMount";
 import { BusinessSagaContextMount } from "@/components/events/BusinessSagaContextMount";
 import { ConnectivityBanner } from "@/components/system/ConnectivityBanner";
@@ -279,6 +280,8 @@ const App = () => (
                               <ConnectivityBanner />
                               {/* Phase 2 hardware platform: mirror device_assignments → Electron SQLite cache. No-op in browser. */}
                               <ElectronHydratorMount />
+                              {/* AccrualFlow Edge: hydrate browser runtime from workstation_devices and route HTTPS-origin jobs through Supabase. */}
+                              <EdgeRelayMount />
                               {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
                               <HardwareExecContextMount />
                               {/* Track 1 event fabric: drain business_event_outbox → BusinessSaga handlers (labels, GRN, transfers, shipping). */}

@@ -22,6 +22,7 @@ export interface WorkstationWritePayload {
 
 export interface ProbeTarget {
   transport?: 'network' | 'usb';
+  driver?: string;
   ipAddress?: string;
   port?: number;
   vendorId?: number;
@@ -59,9 +60,10 @@ export interface EdgeBridge {
     write(next: Record<string, unknown>): Promise<{ ok: boolean; error?: string }>;
   };
   agent: {
-    start(): Promise<{ ok: boolean; pid?: number; error?: string }>;
+    start(): Promise<{ ok: boolean; pid?: number | null; error?: string; external?: boolean }>;
     stop(): Promise<{ ok: boolean }>;
-    status(): Promise<{ running: boolean; pid: number | null }>;
+    status(): Promise<{ running: boolean; pid: number | null; source?: string; version?: string | null; error?: string }>;
+    logs(): Promise<{ ok: boolean; status?: number; error?: string; generated_at?: string; entries: Array<{ ts: string; level: string; msg: string; [k: string]: unknown }> }>;
     probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
   supervisor: {

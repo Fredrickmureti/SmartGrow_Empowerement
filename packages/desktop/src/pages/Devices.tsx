@@ -15,6 +15,7 @@ interface DeviceRow {
   health: string;
   last_seen_at: string | null;
   capabilities: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
 }
 
 /**
@@ -35,7 +36,7 @@ export function Devices({ workstation }: Props) {
       const rows = await select<DeviceRow>(
         'workstation_devices',
         `workstation_id=eq.${workstation.workstation_id}` +
-        `&select=id,device_key,role,transport,driver,name,health,last_seen_at,capabilities` +
+        `&select=id,device_key,role,transport,driver,name,health,last_seen_at,capabilities,metadata` +
         `&order=role.asc,name.asc`,
       );
       setDevices(rows);

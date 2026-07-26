@@ -416,6 +416,11 @@ class AgentClientImpl {
 
   /** Is the agent currently available? (cached, no I/O) */
   isAvailable(): boolean {
+    // Production HTTPS origins cannot reach the loopback HTTP listener, but
+    // they can still execute hardware jobs once the Supabase relay is enabled.
+    // Treat relay configuration as an available transport so driver preflight
+    // does not fail before `printNetwork()` has a chance to enqueue the job.
+    if (this._relay) return true;
     return this._lastAvailable;
   }
 

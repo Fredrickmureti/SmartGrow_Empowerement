@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
 import type { ProbeOp, ProbeRequest, ProbeResponse, WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
+import { SUPABASE_ANON_KEY } from '../lib/config';
 
 interface Props { workstation: WorkstationRead }
 
 interface DeviceRow {
   id: string;
+  device_key: string;
   role: string;
   transport: string;
+  driver: string | null;
   name: string | null;
   capabilities: Record<string, unknown> | null;
-  connection: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
 }
 
 /**
@@ -54,9 +57,14 @@ export function Diagnostics({ workstation }: Props) {
       : { name: next[1].name, status: 'fail', detail: 'agent not running — start it from the Dashboard' };
     setResults([...next]);
 
-    // 3. Supabase HEAD
+    // 3. Supabase REST reachability. /auth/v1/health can return 401 on
+    // hosted Supabase; an OPTIONS preflight against PostgREST proves the
+    // gateway is reachable without requiring a table-specific request.
     try {
-      const res = await fetch(`${workstation.supabase_url}/auth/v1/health`);
+      const res = await fetch(`${workstation.supabase_url}/rest/v1/`, {
+        method: 'OPTIONS',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      });
       next[2] = res.ok
         ? { name: next[2].name, status: 'ok', detail: `HTTP ${res.status}` }
         : { name: next[2].name, status: 'fail', detail: `HTTP ${res.status}` };
@@ -73,7 +81,7 @@ export function Diagnostics({ workstation }: Props) {
     select<DeviceRow>(
       'workstation_devices',
       `workstation_id=eq.${workstation.workstation_id}` +
-      `&select=id,role,transport,name,capabilities,connection` +
+      `&select=id,device_key,role,transport,driver,name,capabilities,metadata` +
       `&order=role.asc,name.asc`,
     ).then(setDevices).catch(() => setDevices([]));
   }, [workstation.workstation_id]);
@@ -187,21 +195,33 @@ function availableOps(d: DeviceRow): ProbeOp[] {
     ops.push('printer.test_page');
   }
   if (d.role === 'cash_drawer') ops.push('drawer.kick');
-  if (d.transport === 'network') ops.push('network.ping');
+  if (d.transport === 'network' || d.transport === 'tcp') ops.push('network.ping');
   if (d.transport === 'usb') ops.push('usb.list');
   return ops;
 }
 
 function buildTarget(d: DeviceRow): ProbeRequest['target'] {
-  const c = (d.connection ?? {}) as Record<string, unknown>;
-  const transport = d.transport === 'network' || d.transport === 'usb' ? d.transport : undefined;
+  const c = (d.metadata ?? {}) as Record<string, unknown>;
+  const parsed = parseTcpKey(d.device_key);
+  const transport = d.transport === 'tcp' || d.transport === 'network'
+    ? 'network'
+    : d.transport === 'usb'
+      ? 'usb'
+      : undefined;
   return {
     transport,
-    ipAddress: typeof c.ipAddress === 'string' ? c.ipAddress : typeof c.host === 'string' ? c.host : undefined,
-    port: typeof c.port === 'number' ? c.port : undefined,
+    driver: d.driver ?? undefined,
+    ipAddress: typeof c.ipAddress === 'string' ? c.ipAddress : typeof c.host === 'string' ? c.host : parsed?.ipAddress,
+    port: typeof c.port === 'number' ? c.port : parsed?.port,
     vendorId: typeof c.vendorId === 'number' ? c.vendorId : undefined,
     productId: typeof c.productId === 'number' ? c.productId : undefined,
   };
+}
+
+function parseTcpKey(key: string): { ipAddress: string; port: number } | null {
+  const m = /^tcp:(.+):(\d+)$/.exec(key);
+  if (!m) return null;
+  return { ipAddress: m[1], port: Number(m[2]) };
 }
 
 function renderLast(state: Record<string, { running: boolean; last?: ProbeResponse }>, d: DeviceRow): string {
