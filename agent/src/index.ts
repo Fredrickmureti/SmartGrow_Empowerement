@@ -142,7 +142,7 @@ server.listen(PORT, '127.0.0.1', () => {
       generated_at: tlsInfo?.generatedAt ?? null,
     }),
     onSecretRotatedAt: (stamp) => {
-      if (loopbackTlsNeedsRotation(tlsInfo, stamp)) rotateCert(stamp);
+      if (loopbackTlsNeedsRotation(tlsInfo?.secretRotatedAt ?? null, stamp)) rotateCert(stamp);
     },
   });
 
