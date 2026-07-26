@@ -194,3 +194,21 @@ OpenTelemetry hooks; Sentry-compatible crash reporter; admin console page (works
 - Adding a new device category is a new `edge-drivers-*` package + capability entry, not a runtime change.
 - Support engineers can retrieve logs, health, and version for any workstation from the admin console without shell access to the customer machine.
 - Every credential is short-lived, workstation-bound, tenant-bound, and revocable.
+
+## 8. Handoff — Instructions for the Next Agent
+
+**Before writing new code, verify Phase 3 is enterprise-grade complete:**
+
+1. **Migration integrity** — Confirm `public.workstation_devices` and `public.workstation_manifests` exist with org-scoped RLS, the (workstation_id, device_key) unique index, `updated_at` triggers, and Realtime enabled. Run `supabase--read_query` against `pg_policies` + `pg_publication_tables`.
+2. **Edge function `edge-workstation-manifest`** — Manually exercise via `supabase--curl_edge_functions` with a real `X-Workstation-Id` + workstation secret; confirm (a) unknown workstations return 404, (b) mismatched secret returns 401, (c) role/transport validation rejects garbage, (d) devices absent from a subsequent publish flip to `health='offline'`.
+3. **Agent manifest publisher** — Confirm `agent/src/manifest.ts` runs only when `workstation.json` is present, publishes on start + every 60 s, and never crashes when the `usb` module is missing.
+4. **Client resolver** — Confirm `CapabilityResolver.resolve` ranks by capability-match then health then recency and returns `null` on negative-score winners (regression risk: don't silently pick a wrong-capability device).
+5. **No orphaned surface** — There is no UI wired to `workstation_devices` yet. That's intentional: it belongs to Phase 4. Do not add ad-hoc pages under `src/pages/` for it; build them inside the Electron shell.
+
+**Once verification is green, start Phase 4 — Desktop shell:**
+
+- Scaffold `packages/desktop/` Electron app; follow the `<electron-desktop-app>` rules (`base: './'` in `vite.config.ts`, `.cjs` main, `@electron/packager`).
+- First deliverable = **onboarding wizard**: signs in via existing Supabase auth, calls `edge-workstation-register`, writes `~/.accrualflow/edge/workstation.json` with mode 0600. This unblocks every subsequent Phase 4 milestone.
+- Then Dashboard → Devices → Diagnostics → Logs → Auth, in that order, so each tab lands atop a stable data path.
+
+**Do not** jump ahead to Phase 5 (plugin drivers) or Phase 6 (observability) — the desktop shell is the operator-visible surface the plan promised and everything downstream assumes it exists.
