@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtime';
 
 interface Props { workstation: WorkstationRead }
 
@@ -46,8 +47,18 @@ export function Devices({ workstation }: Props) {
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 15_000);
-    return () => clearInterval(t);
+    // Phase 4.2 item 2 — Realtime-first; poll every 45s as a safety net.
+    let sub: { close(): void } | null = null;
+    if (workstation.workstation_id) {
+      sub = subscribeTable({
+        table: 'workstation_devices',
+        event: '*',
+        filter: `workstation_id=eq.${workstation.workstation_id}`,
+        onChange: () => refresh(),
+      });
+    }
+    const t = setInterval(refresh, 45_000);
+    return () => { clearInterval(t); sub?.close(); };
   }, [workstation.workstation_id]);
 
   return (

@@ -1,37 +1,59 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Logs viewer — thin follower for the agent's structured NDJSON stream.
+ * Logs viewer — live SSE tail of the agent's ring buffer.
  *
- * The agent already ships an in-memory ring buffer (`agent/src/logger.ts`)
- * exposed via `/support-bundle`; a follow-up will publish a Server-Sent
- * Events stream so this viewer can tail live. For now we fetch the ring
- * buffer on demand and pretty-print it.
+ * Phase 4.2 item 3. The agent exposes `GET /logs/stream` as
+ * text/event-stream; each `log` event carries a structured NDJSON entry.
+ * The ring buffer is replayed on connect so operators always see
+ * immediate context, then live entries stream in.
  */
 interface LogEntry { ts: string; level: string; msg: string; [k: string]: unknown }
+
+// EventSource cannot carry Authorization headers, so we deliberately
+// keep /logs/stream on the loopback listener (Host-pinned + origin-
+// allowlisted). A signed installer will inject a bearer via a preload-
+// mediated bridge once trust-store install lands (Phase 4.2 item 7).
+const LOGS_STREAM_URL = 'http://127.0.0.1:8043/logs/stream';
+const CAP = 500;
 
 export function Logs() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
   const viewRef = useRef<HTMLDivElement>(null);
 
-  async function refresh() {
-    setErr(null);
-    try {
-      // Loopback endpoint the agent exposes for authenticated diagnostic
-      // pulls. In dev we call it unauthenticated against localhost; a
-      // signed installer will inject a per-install bearer.
-      const res = await fetch('http://127.0.0.1:8043/status');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json();
-      const log = Array.isArray(body.log) ? body.log as LogEntry[] : [];
-      setEntries(log);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  }
+  useEffect(() => {
+    let es: EventSource | null = null;
+    let closed = false;
+    const connect = () => {
+      try {
+        es = new EventSource(LOGS_STREAM_URL);
+        es.onopen = () => { setConnected(true); setErr(null); };
+        es.addEventListener('log', (ev) => {
+          try {
+            const entry = JSON.parse((ev as MessageEvent).data) as LogEntry;
+            setEntries((prev) => {
+              const next = prev.concat(entry);
+              return next.length > CAP ? next.slice(next.length - CAP) : next;
+            });
+          } catch { /* skip malformed */ }
+        });
+        es.onerror = () => {
+          setConnected(false);
+          setErr('Log stream disconnected — retrying…');
+          es?.close();
+          if (!closed) setTimeout(connect, 3_000);
+        };
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+        if (!closed) setTimeout(connect, 3_000);
+      }
+    };
+    connect();
+    return () => { closed = true; es?.close(); };
+  }, []);
 
-  useEffect(() => { refresh(); }, []);
   useEffect(() => {
     if (viewRef.current) viewRef.current.scrollTop = viewRef.current.scrollHeight;
   }, [entries]);
@@ -39,9 +61,14 @@ export function Logs() {
   return (
     <>
       <div className="row-between" style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 20 }}>Logs</h1>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h1 style={{ margin: 0, fontSize: 20 }}>Logs</h1>
+          <span className={`pill ${connected ? 'ok' : 'warn'}`}>
+            <span className="pill-dot" />{connected ? 'Live' : 'Reconnecting'}
+          </span>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn secondary" onClick={refresh}>Refresh</button>
+          <button className="btn secondary" onClick={() => setEntries([])}>Clear</button>
           <button className="btn" onClick={() => downloadBundle(entries)}>Download support bundle</button>
         </div>
       </div>

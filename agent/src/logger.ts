@@ -22,6 +22,10 @@ export interface LogEntry {
 const RING_CAPACITY = 500;
 const ring: LogEntry[] = [];
 
+// Live-tail subscribers (Phase 4.2 item 3 — SSE /logs/stream).
+type Listener = (e: LogEntry) => void;
+const listeners = new Set<Listener>();
+
 function emit(entry: LogEntry) {
   ring.push(entry);
   if (ring.length > RING_CAPACITY) ring.shift();
@@ -30,6 +34,10 @@ function emit(entry: LogEntry) {
     process.stdout.write(JSON.stringify(entry) + '\n');
   } catch {
     // best-effort
+  }
+  // Fan out to any /logs/stream subscribers.
+  for (const l of listeners) {
+    try { l(entry); } catch { /* swallow — one bad listener must not stop others */ }
   }
 }
 
@@ -47,4 +55,15 @@ export const logger = {
 /** Snapshot the recent-log ring buffer (newest last). */
 export function recentLogs(): LogEntry[] {
   return ring.slice();
+}
+
+/** Subscribe to live log entries. Returns an unsubscribe fn. */
+export function subscribeLogs(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => { listeners.delete(fn); };
+}
+
+/** Internal — for backpressure diagnostics in /health. */
+export function activeLogSubscriberCount(): number {
+  return listeners.size;
 }

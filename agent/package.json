@@ -11,6 +11,7 @@
     "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "selfsigned": "^2.4.1",
     "usb": "^2.14.0"
   },
   "devDependencies": {
