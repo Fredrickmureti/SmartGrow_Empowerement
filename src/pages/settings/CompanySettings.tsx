@@ -61,7 +61,7 @@ import { ReceiptSettings } from "@/components/settings/ReceiptSettings";
 import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 import { DocumentTemplateSettings } from "@/components/settings/DocumentTemplateSettings";
-import { PrintingSettings } from "@/components/settings/PrintingSettings";
+// PrintingSettings moved to /platform/hardware/policies (Wave 9d Phase 4).
 import { PaymentMethodsSettings } from "@/components/settings/PaymentMethodsSettings";
 import { InventorySettings } from "@/components/settings/InventorySettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
