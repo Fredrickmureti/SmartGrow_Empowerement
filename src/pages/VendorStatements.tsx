@@ -4,7 +4,7 @@ import { usePeekParam } from "@/design-system";
 import { VendorStatementPeekSheet } from "@/features/purchases/statements/VendorStatementPeekSheet";
 
 import { useVendorStatements, VendorStatementData } from "@/hooks/useVendorStatements";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
