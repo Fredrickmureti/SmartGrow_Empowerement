@@ -99,3 +99,43 @@ Code sweep:
 - `PrintIntent` enum stays `sales_invoice | sales_estimate | sales_delivery_note | sales_statement | purchase_order | vendor_bill | pos_receipt | kitchen_ticket | label | a4_document`. `INTENT_TO_ROLE` map is the only bridge.
 - Transport enum on `device_assignments`: `'electron' | 'local_agent' | 'webusb' | 'webhid'`. `TransportRouter` is a pure function of that + host detection.
 
+
+## Progress log — 2026-07-26 (Phase 3C — generate-document canonical resolver)
+
+- `supabase/functions/_shared/printing/resolvePolicy.ts`: `ResolvedPolicy` now surfaces `device_assignment_id` and `intent` from `document_print_policies`. SYSTEM_DEFAULT + override branch return `null` for both; SELECT widened accordingly. Additive change — `send-document-email`, `renderReport`, and the client `PrintingSettings.tsx` UI consume only paper/render fields so no downstream break.
+- `supabase/functions/_shared/printing/intentToRole.ts` (NEW): Deno twin of the client `INTENT_TO_ROLE` map (`receipt→receipt_printer`, `kitchen_ticket→kitchen_printer`, `label→label_printer`, `a4_document|packing_slip→a4_printer`) + `roleForIntent()` helper. Kept minimal so the parity guard in `intent-to-role-parity.test.ts` continues to describe one canonical mapping.
+- `supabase/functions/generate-document/index.ts` (policy block, was L3027): rewritten to the canonical chain:
+    1. `policy.device_assignment_id` → direct pin (source = `device_pin`).
+    2. `policy.printer_profile_id` → legacy pin (source = `profile_pin`, keeps the `.or(id, source_config_id)` fan-out during the Phase 6 mirror window).
+    3. `policy.intent` → `supabase.rpc('resolve_device', { _organization_id, _role, _business_id, _scope_kind: null, _scope_id: null })` (source = `intent_role`). Server-authoritative tie-break — identical to `useHardwareProxy.printReceipt` / `useDeviceForIntent`.
+  Emits one `console.info('[hardware.route.decision]', { surface: 'generate-document', documentType, source, assignmentId, intent })` per resolved policy → the Phase 6 DoD grep now succeeds across sales / purchases / POS / inventory / WMS.
+- Preview-override branch (L2388) intentionally left ID-driven: preview pins a specific `printer_profile_id`; that is not routing.
+- Pre-existing tsgo errors from the last turn (`useOrganization().organization` — the hook actually returns `currentOrg`) fixed in `src/hooks/useDeviceForIntent.ts` and `src/hooks/hardware/useHardwareProxy.ts`. These blocked build:dev.
+- `src/test/architecture/generate-document-resolver.test.ts` (NEW): 5-test source-inspection guard — device_pin > profile_pin ordering, `resolve_device`/`roleForIntent` presence, `hardware.route.decision` emission, `.or(...)` fan-out gated behind `profile_pin` only, no `resolve_device` in the preview-override neighbourhood. 5/5 green alongside `pos-receipt-resolver`, `role-vocabulary`, `intent-to-role-parity` (13/13 total).
+
+## Phase status (2026-07-26 · end of Phase 3)
+
+- [x] Phase 1, 2a/2b/2c — done.
+- [x] Phase 3 (opener + client façade + label chokepoint + Steps A/B/C) — **COMPLETE**. Every printable intent — labels, POS receipts, kitchen tickets, and every policy-driven PDF/ESC-POS document — now routes through one server-authoritative `resolve_device` chain and emits one `hardware.route.decision` log line per print.
+- [ ] Phase 4 — UI consolidation.
+- [ ] Phase 5 — Transport consolidation.
+- [ ] Phase 6 — Legacy removal.
+
+## Handoff — next agent (Phase 4)
+
+**Verify first (do not trust this log — check):**
+1. `bunx vitest run src/test/architecture/generate-document-resolver.test.ts src/test/architecture/pos-receipt-resolver.test.ts src/test/architecture/intent-to-role-parity.test.ts src/test/architecture/role-vocabulary.test.ts` → all green (13 tests).
+2. `bunx tsgo --noEmit` → clean (Phase 3C also unblocked the pre-existing `useOrganization().organization` errors).
+3. `rg -n "supabase\.rpc\(\s*['\"]resolve_device['\"]" src supabase/functions` — hits limited to `useDeviceForIntent.ts`, `useHardwareProxy.ts`, and `generate-document/index.ts`. Any other hit means someone bypassed the façade.
+
+**Then open Phase 4 with an INVENTORY step (do NOT delete before mapping):**
+
+Step 1 (inventory): grep every consumer of the three legacy admin surfaces:
+- `rg -n "PrinterProfilesCard|WorkflowBindingsCard|PrintingSettings" src` — record every importer and every route that mounts them.
+- For each field these surfaces expose (role, workflow bindings, workstation FK, capability flags, media, policies), confirm the new home under `/platform/hardware/*` covers it: `DeviceWizard`, `HardwareDevices`, `HardwareCapability`, `HardwareMedia`, `HardwareLabelTemplates`. If gaps exist, CLOSE them BEFORE deleting the old surfaces.
+
+Step 2 (policies tab): move the `document_print_policies` editor from `src/components/settings/PrintingSettings.tsx` into a new `src/apps/platform/hardware/HardwarePolicies.tsx` tab. Add `{ to: "/platform/hardware/policies", label: "Print policies", icon: FileText }` under the "Insights" (or a new "Policy") group in `HARDWARE_NAV`. Register the route in `src/apps/platform/hardware/routes.tsx`.
+
+Step 3 (redirect + delete): `Settings → Company → Printing` becomes a one-line redirect to `/platform/hardware/policies` (`<Navigate to="/platform/hardware/policies" replace />`). Delete `PrinterProfilesCard.tsx` and `WorkflowBindingsCard.tsx` (their content already lives in `DeviceWizard` + Devices tab). Delete the body of `PrintingSettings.tsx`; keep only the redirect shim until Phase 6 removes the shim itself.
+
+**Do not** touch `HardwareClient`'s `isElectron()` branches (Phase 5) or DROP legacy tables (Phase 6) until Phase 4 has removed the last UI writers.
