@@ -83249,6 +83249,7 @@ export type Database = {
         Args: { p_hw_command_id: number }
         Returns: number
       }
+      print_job_mark_acked_by_id: { Args: { p_id: string }; Returns: number }
       print_job_mark_failed: {
         Args: { p_error: string; p_id: string }
         Returns: undefined

@@ -382,6 +382,7 @@ export function PrintPreviewDialog({
           const result = await printRawBytes(bytes);
           if (result.success) {
             await ledger.markSent();
+            await ledger.markAcked();
             toast({
               title: "Sent to printer",
               description: `${selectedDestination?.label ?? "Thermal printer"} · ${bytes.length} bytes`,
@@ -424,6 +425,7 @@ export function PrintPreviewDialog({
         try {
           await printPdfInPage(pdfBlob);
           await ledger.markSent();
+          await ledger.markAcked();
           toast({ title: "Print dialog opened" });
         } catch (err) {
           await ledger.markFailed((err as Error).message);

@@ -225,12 +225,16 @@ class PrintClient {
             copyResult = { success: true, transport: pdfTransport, policy };
           } else if (fmt === 'escpos') {
             const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
-            await hardwareClient.printRawBytes(bytes);
-            copyResult = { success: true, transport: 'thermal', policy };
+            const res = await hardwareClient.printRawBytes(bytes);
+            copyResult = res.success
+              ? { success: true, transport: 'thermal', policy }
+              : { success: false, transport: 'thermal', error: res.error ?? 'thermal driver reported failure', policy };
           } else if (fmt === 'zpl') {
             const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
-            await hardwareClient.printLabelBytes(bytes);
-            copyResult = { success: true, transport: 'thermal', policy };
+            const res = await hardwareClient.printLabelBytes(bytes);
+            copyResult = res.success
+              ? { success: true, transport: 'thermal', policy }
+              : { success: false, transport: 'thermal', error: res.error ?? 'label driver reported failure', policy };
           } else {
             copyResult = { success: false, transport: 'none', error: `Unsupported format ${fmt}`, policy };
           }
@@ -240,12 +244,12 @@ class PrintClient {
 
         if (childJobId) {
           if (copyResult.success) {
-            if (copyResult.transport === 'thermal') {
-              await this.markLedgerSent(childJobId);
-            } else {
-              await this.markLedgerSent(childJobId);
-              await this.markLedgerAckedForNonThermal(childJobId);
-            }
+            // Both thermal (driver returned success) and PDF (browser
+            // print dialog resolved) count as ack'd delivery. Mark sent
+            // then acked so the admin view can distinguish "dispatched"
+            // from "confirmed" via timestamps while status lands terminal.
+            await this.markLedgerSent(childJobId);
+            await this.markLedgerAcked(childJobId);
           } else if (copyResult.error) {
             await this.markLedgerFailed(childJobId, copyResult.error).catch(() => undefined);
           }
@@ -256,11 +260,14 @@ class PrintClient {
 
       // Mirror the terminal state onto the parent container row when we
       // fanned out to child rows, so admin filters like "show failed jobs"
-      // surface either the parent or the copies coherently.
+      // surface either the parent or the copies coherently. The new
+      // `print_job_mark_acked_by_id` RPC also auto-promotes the parent
+      // when every child is acked, but we call it explicitly here to
+      // cover the single-copy path and any race with child updates.
       if (parentJobId && copies > 1) {
         if (lastResult.success) {
           await this.markLedgerSent(parentJobId);
-          await this.markLedgerAckedForNonThermal(parentJobId);
+          await this.markLedgerAcked(parentJobId);
         } else if (lastResult.error) {
           await this.markLedgerFailed(parentJobId, lastResult.error).catch(() => undefined);
         }
@@ -350,23 +357,25 @@ class PrintClient {
   }
 
   /**
-   * PDF/browser transports have no async ack — the browser print dialog
-   * accepting the blob IS the ack. We call mark_sent then flip status to
-   * 'acked' via a direct update through the SECURITY DEFINER path. To
-   * avoid a second RPC, we reuse mark_sent (status='sent') and let the
-   * SLO monitor treat pdf-browser rows as terminal via transport check.
+   * Plan P3 Step 4 — flip a ledger row to `acked` by job id.
    *
-   * For strict acked semantics on PDF, we chain a mark_sent → mark_acked
-   * flow. There's no hw_command_id for PDF, so we use a dedicated RPC
-   * variant that acks by job id.
+   * Two callers share this path:
+   *   - PDF/browser transports: the print dialog resolving is the ack.
+   *   - Thermal (direct-dispatch): `hardwareClient.printRawBytes` /
+   *     `printLabelBytes` returning success means the Electron main
+   *     process or local-agent driver confirmed the write. That is the
+   *     ack for the interactive path (queue-mediated thermal jobs are
+   *     acked by `SharedCommandQueueWorker` via `print_job_mark_acked`
+   *     keyed on `hw_command_id`).
+   *
+   * Backed by `public.print_job_mark_acked_by_id(uuid)` which also
+   * auto-promotes a parent container row once every child copy is acked.
+   * Ledger failures never block printing.
    */
-  private async markLedgerAckedForNonThermal(jobId: string): Promise<void> {
+  private async markLedgerAcked(jobId: string): Promise<void> {
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      // Reuse mark_sent for now; add a by-id ack RPC in D2 if needed.
-      // The SLO monitor (D4) filters out non-thermal transports from
-      // "stalled" alerts, so leaving these at 'sent' is safe.
-      await supabase.rpc('print_job_mark_sent', { p_id: jobId, p_hw_command_id: null });
+      await supabase.rpc('print_job_mark_acked_by_id', { p_id: jobId });
     } catch { /* noop */ }
   }
 
@@ -593,9 +602,15 @@ class PrintClient {
   }): Promise<{
     jobId: string | null;
     markSent: () => Promise<void>;
+    markAcked: () => Promise<void>;
     markFailed: (error: string) => Promise<void>;
   }> {
-    const noop = { jobId: null, markSent: async () => undefined, markFailed: async () => undefined };
+    const noop = {
+      jobId: null,
+      markSent: async () => undefined,
+      markAcked: async () => undefined,
+      markFailed: async () => undefined,
+    };
     if (!args.businessId) return noop;
     const req: PrintRequest = {
       intent: args.intent,
@@ -614,6 +629,7 @@ class PrintClient {
     return {
       jobId,
       markSent: () => this.markLedgerSent(jobId),
+      markAcked: () => this.markLedgerAcked(jobId),
       markFailed: (error: string) => this.markLedgerFailed(jobId, error),
     };
   }
