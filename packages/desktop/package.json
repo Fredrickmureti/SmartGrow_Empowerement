@@ -8,10 +8,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "agent:build": "node scripts/build-agent.mjs",
+    "prestart": "npm run agent:build",
     "start": "electron .",
-    "package:linux": "vite build && electron-packager . AccrualFlowEdge --platform=linux --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release' --ignore='node_modules/(?!(better-sqlite3))'",
-    "package:win": "vite build && electron-packager . AccrualFlowEdge --platform=win32 --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release'",
-    "package:mac": "vite build && electron-packager . AccrualFlowEdge --platform=darwin --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release'",
+    "package:linux": "npm run agent:build && vite build && electron-packager . AccrualFlowEdge --platform=linux --arch=x64 --out=release --overwrite --extra-resource=../../agent --ignore='^/src' --ignore='^/release' --ignore='node_modules/(?!(better-sqlite3))'",
+    "package:win": "npm run agent:build && vite build && electron-packager . AccrualFlowEdge --platform=win32 --arch=x64 --out=release --overwrite --extra-resource=../../agent --ignore='^/src' --ignore='^/release'",
+    "package:mac": "npm run agent:build && vite build && electron-packager . AccrualFlowEdge --platform=darwin --arch=x64 --out=release --overwrite --extra-resource=../../agent --ignore='^/src' --ignore='^/release'",
     "package:signed": "node scripts/build-installers.mjs"
   },
   "devDependencies": {

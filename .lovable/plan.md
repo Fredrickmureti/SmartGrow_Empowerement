@@ -1,64 +1,53 @@
-# Consolidate AccrualFlow Edge functions into one router
+# AccrualFlow Edge Desktop — runtime supervision fixes
 
-## Why
-The project is at Supabase's Edge Function ceiling (`SUPABASE_MAX_FUNCTIONS_REACHED`). The six agent/workstation functions have never deployed, so enrolment 404s. Folding them into one router removes 5 slots of pressure and lets enrolment ship without a plan upgrade or churning the 100 unrelated functions.
+Three defects, all in `packages/desktop/electron/*` plus packaging. Verified by reading the code.
 
-## Target shape
+## 1. Agent never starts (auto or on "Start agent")
 
-One deployed function, `edge`, that dispatches on the trailing path segment:
+Confirmed causes in `electron/main.cjs`:
 
-```text
-POST /functions/v1/edge/workstation/register        (was edge-workstation-register)
-POST /functions/v1/edge/workstation/rotate-secret   (was edge-workstation-rotate-secret)
-POST /functions/v1/edge/workstation/manifest        (was edge-workstation-manifest)
-GET  /functions/v1/edge/workstation/origins         (was edge-workstation-origins)
-POST /functions/v1/edge/agent/poll                  (was edge-agent-poll)
-POST /functions/v1/edge/agent/complete              (was edge-agent-complete)
-```
+- `app.whenReady()` (line 355) only creates tray + window. **`startAgent()` is never called**, so nothing auto-starts.
+- `startAgent()` (line 213) spawns with `stdio: 'ignore'` and returns `{ ok: true }` **immediately after spawn**, without waiting for a health probe. If the child dies a second later (missing deps, TS loader failure, port in use) the UI silently reports "not running" and there is no error anywhere.
+- Launch resolution (`findAgentLaunch`, line 197) prefers `agent/dist/index.js`, which does not exist because the agent is never built; it then falls back to running `tsx src/index.ts` through `process.execPath` with `ELECTRON_RUN_AS_NODE=1`, or to `npm run dev` (npm is not guaranteed to be on PATH of a GUI-launched app on Windows/macOS).
+- `agentRoot()` resolves `../../../agent` relative to `electron/`. Inside a packaged app that path does not exist → `agent_not_bundled`.
 
-Each old `index.ts` handler body becomes a route module imported by `supabase/functions/edge/index.ts`. Auth model, request/response shapes, CORS behaviour, and DB access stay byte-identical — this is a transport rename, not a redesign.
+### Fix
 
-## Changes
+- Add a real supervisor in main: `startAgent()` spawns with piped stdio, records the last ~200 stderr/stdout lines in a ring buffer, then polls `/health` for up to ~15 s and only resolves `{ ok: true }` when the runtime answers. On failure it returns `{ ok: false, error, log }` so the Dashboard can show the actual reason.
+- Add crash supervision: on unexpected child `exit`, restart with backoff (1s, 2s, 5s, 10s, cap 30s, max 5 in 60 s), surfacing state via `agent:status`.
+- Auto-start on `app.whenReady()` (after `ensureEdgeHome`), unless settings has `agent_autostart: false` or a service supervisor already owns the runtime (health probe answers).
+- Interpreter resolution, in order: packaged agent bundle → `agent/dist/index.js` with `ELECTRON_RUN_AS_NODE=1` → `agent/src/index.ts` via tsx → `npm run dev` last resort. Add a `prestart`/dev script so the agent is compiled (`npm --prefix agent run build`) before Electron launches, making the `dist` path the normal one.
+- Expose the captured child log through `agent:logs` when the HTTP `/support-bundle` is unreachable, so a failed start is diagnosable in the Logs tab instead of VS Code.
 
-### 1. New router function
-- Create `supabase/functions/edge/index.ts`. It:
-  - Handles `OPTIONS` with the shared `corsHeaders`.
-  - Parses `new URL(req.url).pathname`, strips the `/edge` prefix, matches against a small route table.
-  - Delegates to `./routes/workstation-register.ts`, `workstation-rotate-secret.ts`, `workstation-manifest.ts`, `workstation-origins.ts`, `agent-poll.ts`, `agent-complete.ts`.
-  - Returns `404 { code: "NOT_FOUND" }` for unknown subpaths and `405` for wrong methods.
-- Move each existing handler's logic into its route module (one export: `handle(req: Request): Promise<Response>`). No behaviour change.
+## 2. Service supervisor: `installer_not_bundled`
 
-### 2. Delete the six old function folders
-Remove `supabase/functions/edge-workstation-register`, `edge-workstation-rotate-secret`, `edge-workstation-manifest`, `edge-workstation-origins`, `edge-agent-poll`, `edge-agent-complete`. They're undeployed, so nothing breaks; keeping them invites drift.
+`runInstaller()` (line 327) resolves `../../../agent/scripts/install-service.cjs`. That file exists in the repo but is absent from any packaged build, and the packaging scripts in `packages/desktop/package.json` never include the `agent/` tree.
 
-### 3. Update desktop callers (`packages/desktop/src/pages/`)
-Both currently use `supabase.functions.invoke('edge-workstation-…')`. That helper hits `/functions/v1/<name>` and can't reach a subpath. Switch these two to a direct `fetch` against `${SUPABASE_URL}/functions/v1/edge/workstation/<action>` with the same headers `functions.invoke` was setting (`apikey`, `Authorization: Bearer <session token>`, `Content-Type: application/json`). Preserve current error handling and returned shape.
+### Fix
 
-- `Onboarding.tsx` → `POST /edge/workstation/register`
-- `Auth.tsx` → `POST /edge/workstation/rotate-secret`
+- Path resolution becomes `app.isPackaged ? path.join(process.resourcesPath, 'agent', 'scripts', 'install-service.cjs') : <repo path>`, with the dev path as fallback.
+- Add `--extra-resource=../../agent` (and the same in `scripts/build-installers.mjs`) so the built runtime + installer ship inside the app, pruned to `dist/`, `scripts/`, `package.json`, and production `node_modules`.
+- `runInstaller` also passes `ACCRUALFLOW_AGENT_ROOT` and returns `stderr` in the error message instead of a bare code, so "install failed" states the real reason (e.g. missing `node-windows` on Windows).
+- After a successful `install`/`start`, main stops its own child agent to avoid two runtimes fighting over port 8043, and `supervisor:status` becomes the source of truth in the Dashboard.
+- `supervisor_not_running` when no service is installed is expected; the Dashboard copy will distinguish "not installed" from "installed but down" using the installer's `status` subcommand.
 
-### 4. Update agent callers (`agent/src/`)
-Already use raw `fetch(`${cfg.supabase_url}/functions/v1/edge-…`)`. Rewrite the URLs only:
+## 3. Updates always "check failed"
 
-- `manifest.ts` → `/functions/v1/edge/workstation/manifest`
-- `origins.ts` → `/functions/v1/edge/workstation/origins`
-- `relay.ts` → `/functions/v1/edge/agent/poll` and `/functions/v1/edge/agent/complete`
-- `index.ts` + `server.ts` + `README.md`: update log strings/comments to the new paths.
+`electron/updater.cjs` fetches `https://updates.accrualflow.app/edge/{channel}.json`, a host that does not serve a manifest, so every check ends in the `catch` branch.
 
-### 5. Docs / migration comment
-- `packages/desktop/README.md` and `agent/README.md`: replace old function names with new paths in the endpoint tables.
-- `supabase/migrations/20260726025651_*.sql` contains only comments referencing the old names — update those comments in a new migration (or leave; comments don't affect runtime). Recommend: leave the historical migration untouched; add nothing new.
+### Fix
 
-### 6. Deploy
-After the edits, deploy just `edge`. That's a net **+1** function; the six deletes free 6 slots when the old ones eventually get cleaned up (they aren't deployed today, so no immediate slot pressure). Enrolment, rotate, manifest, origins, poll, complete all become reachable.
+- Treat "no channel configured / manifest unreachable" as a distinct, non-error state: the panel shows "Update channel not configured" (or "Could not reach the update channel — retrying later") instead of "Check failed".
+- Make the channel URL configurable from Settings (`update_channel_url`) and from `EDGE_UPDATE_URL`, defaulting to unset → the panel renders the current version and an explicit "not configured" note.
+- Distinguish DNS/timeout, HTTP 404, and malformed manifest in the returned payload; `UpdatesPanel.tsx` renders each with the right tone and only shows a red failure for a configured-but-broken channel.
+
+## Verification
+
+- Build the agent, launch Electron from source: agent auto-starts, Dashboard shows Running with a PID, killing the child shows a restart.
+- Force a failure (occupy port 8043): Start reports the real error and the child log is visible in Logs.
+- Packaged linux build: `resources/agent` present; `supervisor:install` runs the installer and reports systemd output.
+- Updates panel with no channel configured shows the "not configured" state, not "Check failed".
 
 ## Out of scope
-- No changes to auth model, DB schema, RLS, or payload shapes.
-- No audit of the other ~95 functions for cleanup (can be a follow-up if slot pressure returns).
-- No production URL / CORS / HTTPS-loopback work — that's the parent Edge architecture initiative, unaffected by this consolidation.
 
-## Verification after build-mode switch
-1. `supabase functions deploy edge` succeeds.
-2. `curl -sS -X POST $URL/functions/v1/edge/workstation/register …` returns the same JSON as the old function did in local dev (401 without auth, 200 with).
-3. Rebuild the Electron desktop app; enrolment completes without a 404.
-4. Agent logs on next start show manifest publish + origins refresh hitting the new paths with 200.
+No changes to the agent's HTTP contract, relay transport, TLS, or the web ERP.

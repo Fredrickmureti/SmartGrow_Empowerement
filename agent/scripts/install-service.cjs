@@ -30,7 +30,9 @@ const { spawnSync } = require('node:child_process');
 
 const SERVICE_NAME = 'AccrualFlowEdge';
 const SERVICE_DESC = 'AccrualFlow Edge - hardware runtime for the AccrualFlow ERP.';
-const AGENT_ROOT = path.resolve(__dirname, '..');
+const AGENT_ROOT = process.env.ACCRUALFLOW_AGENT_ROOT
+  ? path.resolve(process.env.ACCRUALFLOW_AGENT_ROOT)
+  : path.resolve(__dirname, '..');
 const ENTRY = fs.existsSync(path.join(AGENT_ROOT, 'dist', 'index.js'))
   ? path.join(AGENT_ROOT, 'dist', 'index.js')
   : path.join(AGENT_ROOT, 'src', 'index.ts');

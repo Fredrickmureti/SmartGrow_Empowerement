@@ -25,15 +25,31 @@ export function UpdatesPanel() {
 
   const state = !check
     ? 'Checking…'
-    : !check.ok
-      ? `Check failed: ${check.error}`
-      : check.unsupported_platform
-        ? `No artifact published for ${check.platform}`
-        : !check.update_available
-          ? 'Up to date'
-          : check.applies_to_this_device
-            ? (check.mandatory ? 'Required update available' : 'Update available')
-            : 'Update staged — not yet released to this device';
+    : check.state === 'not_configured'
+      ? 'Update channel not configured'
+      : check.state === 'no_release'
+        ? 'No release published on this channel'
+        : check.state === 'unreachable'
+          ? 'Update channel unreachable — will retry'
+          : !check.ok
+            ? `Check failed: ${check.error}`
+            : check.unsupported_platform
+              ? `No artifact published for ${check.platform}`
+              : !check.update_available
+                ? 'Up to date'
+                : check.applies_to_this_device
+                  ? (check.mandatory ? 'Required update available' : 'Update available')
+                  : 'Update staged — not yet released to this device';
+
+  const tone = !check
+    ? 'pill'
+    : check.ok && check.applies_to_this_device
+      ? (check.mandatory ? 'pill err' : 'pill warn')
+      : !check.ok
+        ? 'pill err'
+        : check.state === 'not_configured' || check.state === 'no_release' || check.state === 'unreachable'
+          ? 'pill warn'
+          : 'pill ok';
 
   return (
     <div className="panel">
@@ -48,10 +64,13 @@ export function UpdatesPanel() {
         <div className="stat">
           <div className="stat-label">Status</div>
           <div className="stat-value">
-            {check?.ok && check.applies_to_this_device
-              ? <span className={check.mandatory ? 'pill err' : 'pill warn'}><span className="pill-dot" />{state}</span>
-              : <span className="pill ok"><span className="pill-dot" />{state}</span>}
+            <span className={tone}><span className="pill-dot" />{state}</span>
           </div>
+          {check?.state === 'not_configured' && (
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              Set a channel manifest URL (EDGE_UPDATE_URL or the update_channel_url setting) to enable checks.
+            </div>
+          )}
         </div>
         <div className="stat">
           <div className="stat-label">Installed / latest</div>
