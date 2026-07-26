@@ -142,9 +142,40 @@ The platform is not one system. It carries **three device registries**, **two re
 - **Migration ordering:** Phase 2 data migration ships in one migration file with schema + backfill + GRANT + RLS in that order (per project rules). Reversible view provided for one release.
 - **CI additions:** `role-vocabulary.test.ts`, `no-hardware-client-outside-printclient` ESLint rule, `single-print-pipeline.test.ts` (already partially covered by `print-single-chokepoint.test.ts` — extend to labels + POS), integration tests listed in §4.
 
-## 7. Out of scope
+## 7. Out of scope (to be handles later  last)
 
 - Driver rewrites. Byte-level driver code stays as-is.
 - Edge-function relay protocol changes beyond adding `resolve_device`.
 - Any change to `document_templates` / `label_templates` schema beyond the FK re-point.
 - Any change to biometric / attendance clock-terminal flows beyond restoring role parity.
+
+===============================================================
+===================PROGRESS=================================
+
+Clean typecheck across the codebase. Phase 2b is in.
+
+Phase 2b done this turn (unified device_assignments as the single printer registry across the frontend):
+
+usePrinterProfiles — now reads/writes device_assignments filtered by printer roles, preserves the PrinterProfile shape so all downstream UI keeps working.
+useDeviceForWorkflow — swapped to resolve_device_for_workflow RPC.
+useResolvedDeviceForDocument — resolves by DA id or legacy source_config_id, no more heuristic matching.
+WorkflowBindingsCard — writes to device_workflow_bindings, picks devices from device_assignments.
+HardwareCapability — command language / DPI / margins / supported media edited directly on device_assignments.
+PrinterProfilePaperMismatchAlert — writes paper_size on device_assignments.
+CapabilityResolver (local-agent) — reads workstation-scoped rows from device_assignments.
+EdgeRelayMount — hydrates the browser hardware runtime from device_assignments rows keyed by workstation_id.
+useInventoryLabelPrinter — role-based lookup runs entirely against device_assignments.
+labelDispatch — canonical resolver + capability reads (dpi, supported_media_ids) now come from device_assignments; device_assignment_id flows through to printerResolved and the driver payload.
+Architectural guardrail test rewritten to lock down the new invariant (dispatch reads from device_assignments, never from printer_profiles or assignment.config).
+POS mismatch alert test rewritten against the unified registry.
+Full tsgo --noEmit passes with 0 errors.
+
+Deferred to Phase 2c (next turn):
+
+Rewrite supabase/functions/edge/routes/workstation-manifest.ts to upsert into device_assignments (needs a matching unique index migration on (workstation_id, device_key)).
+Rewrite supabase/functions/generate-document/index.ts to read the ESC/POS builder profile from device_assignments instead of printer_profiles.
+Migration: drop printer_profiles, printer_workflow_bindings, workstation_devices, and the compat shim RPC resolve_workflow_printer.
+Refresh pos-receipt-renderer-contract.test.ts assertions still mentioning printer_profiles.
+
+===============what to execute next =================
+I'll do Phase 2c end-to-end.
