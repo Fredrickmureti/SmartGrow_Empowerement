@@ -21,6 +21,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
 const http = require('node:http');
+const supervisor = require('./supervisor-client.cjs');
 
 const EDGE_HOME = path.join(os.homedir(), '.accrualflow', 'edge');
 const WORKSTATION_JSON = path.join(EDGE_HOME, 'workstation.json');
@@ -220,6 +221,31 @@ ipcMain.handle('agent:probe', async (_e, payload) => {
 });
 
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(String(url)));
+
+// Phase 4.2.6 — supervisor IPC surface. The tray app becomes a client of the
+// platform-native service that hosts the runtime. Install/uninstall shell
+// out to `agent/scripts/install-service.cjs`; the other ops go over the
+// supervisor pipe/socket.
+const { spawn: spawnP } = require('node:child_process');
+function runInstaller(subcmd) {
+  return new Promise((resolve) => {
+    const script = path.resolve(__dirname, '..', '..', '..', 'agent', 'scripts', 'install-service.cjs');
+    if (!fs.existsSync(script)) return resolve({ ok: false, error: 'installer_not_bundled' });
+    const child = spawnP(process.execPath, [script, subcmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '', err = '';
+    child.stdout.on('data', (b) => { out += b.toString('utf-8'); });
+    child.stderr.on('data', (b) => { err += b.toString('utf-8'); });
+    child.on('close', (code) => resolve({ ok: code === 0, code, stdout: out, stderr: err }));
+  });
+}
+ipcMain.handle('supervisor:status',  () => supervisor.send('status'));
+ipcMain.handle('supervisor:ping',    () => supervisor.send('ping'));
+ipcMain.handle('supervisor:reload',  () => supervisor.send('reload_origins'));
+ipcMain.handle('supervisor:shutdown', () => supervisor.send('shutdown'));
+ipcMain.handle('supervisor:install',   () => runInstaller('install'));
+ipcMain.handle('supervisor:uninstall', () => runInstaller('uninstall'));
+ipcMain.handle('supervisor:start',     () => runInstaller('start'));
+ipcMain.handle('supervisor:stop',      () => runInstaller('stop'));
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
