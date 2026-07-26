@@ -46,7 +46,7 @@ export function Diagnostics({ workstation }: Props) {
     // 1. workstation.json readable
     const ws = await window.edge.workstation.read();
     next[0] = ws.exists && ws.has_secret
-      ? { name: next[0].name, status: 'ok', detail: `id=${ws.workstation_id}` }
+      ? { name: next[0].name, status: 'ok', detail: shortId('workstation', ws.workstation_id) }
       : { name: next[0].name, status: 'fail', detail: ws.error ?? 'file missing' };
     setResults([...next]);
 
