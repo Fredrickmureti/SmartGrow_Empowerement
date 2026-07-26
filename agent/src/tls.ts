@@ -91,7 +91,20 @@ function generateNew(): LoopbackTls {
   fs.writeFileSync(path.join(CONFIG_ROOT, KEY_FILE), pems.private, { mode: 0o600 });
   fs.writeFileSync(
     path.join(CONFIG_ROOT, META_FILE),
-    JSON.stringify({ fingerprintSha256, generatedAt, product: 'accrualflow-edge' }, null, 2),
+    JSON.stringify(
+      {
+        fingerprintSha256,
+        generatedAt,
+        // The workstation-secret rotation stamp this cert was minted
+        // against. When the ERP rotates the secret, `secret_rotated_at`
+        // moves forward and the next manifest publish notices the drift
+        // and re-mints — see `loopbackTlsNeedsRotation`.
+        secretRotatedAt: secretRotatedAt ?? null,
+        product: 'accrualflow-edge',
+      },
+      null,
+      2,
+    ),
     { mode: 0o600 },
   );
 
@@ -100,8 +113,23 @@ function generateNew(): LoopbackTls {
     key: pems.private,
     fingerprintSha256,
     generatedAt,
+    secretRotatedAt: secretRotatedAt ?? null,
     path: CONFIG_ROOT,
   };
+}
+
+interface CertMeta {
+  generatedAt?: string;
+  secretRotatedAt?: string | null;
+}
+
+function readMeta(): CertMeta {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(CONFIG_ROOT, META_FILE), 'utf8'));
+    return (meta && typeof meta === 'object') ? meta as CertMeta : {};
+  } catch {
+    return {};
+  }
 }
 
 function tryLoadExisting(): LoopbackTls | null {
@@ -116,16 +144,13 @@ function tryLoadExisting(): LoopbackTls | null {
       logger.warn('tls_cert_near_expiry', { validTo: x.validTo });
       return null;
     }
-    let generatedAt = new Date().toISOString();
-    try {
-      const meta = JSON.parse(fs.readFileSync(path.join(CONFIG_ROOT, META_FILE), 'utf8'));
-      if (typeof meta?.generatedAt === 'string') generatedAt = meta.generatedAt;
-    } catch { /* meta optional */ }
+    const meta = readMeta();
     return {
       cert,
       key,
       fingerprintSha256: fingerprintFromCertPem(cert),
-      generatedAt,
+      generatedAt: typeof meta.generatedAt === 'string' ? meta.generatedAt : new Date().toISOString(),
+      secretRotatedAt: typeof meta.secretRotatedAt === 'string' ? meta.secretRotatedAt : null,
       path: CONFIG_ROOT,
     };
   } catch {
@@ -140,13 +165,45 @@ function tryLoadExisting(): LoopbackTls | null {
 export function loadOrGenerateLoopbackTls(): LoopbackTls {
   const existing = tryLoadExisting();
   if (existing) return existing;
-  return generateNew();
+  return generateNew(null);
 }
 
 /**
- * Force a fresh cert (invoked by the desktop shell when the workstation
- * secret is rotated — matches Phase 4.2 item 7).
+ * Pure decision function — exported for unit tests.
+ *
+ * The loopback cert is bound to the workstation identity. When an
+ * operator rotates the workstation secret (a credential-compromise
+ * response), the old cert must not keep vouching for the new identity:
+ * anyone who captured the previous key could otherwise keep terminating
+ * loopback TLS. We therefore re-mint whenever the server-side
+ * `secret_rotated_at` is newer than the stamp recorded in `meta.json`.
+ *
+ * `null` on the server side means "never rotated" — nothing to do.
+ * `null` locally with a non-null server stamp means the cert predates
+ * the first rotation, so it must be replaced.
  */
-export function rotateLoopbackTls(): LoopbackTls {
-  return generateNew();
+export function loopbackTlsNeedsRotation(
+  localSecretRotatedAt: string | null | undefined,
+  serverSecretRotatedAt: string | null | undefined,
+): boolean {
+  if (!serverSecretRotatedAt) return false;
+  const server = Date.parse(serverSecretRotatedAt);
+  if (!Number.isFinite(server)) return false;
+  if (!localSecretRotatedAt) return true;
+  const local = Date.parse(localSecretRotatedAt);
+  if (!Number.isFinite(local)) return true;
+  return server > local;
 }
+
+/**
+ * Force a fresh cert. Called when the workstation secret has rotated
+ * (Phase 4.2.7a) or on an explicit `rotate_cert` supervisor op. The
+ * caller is responsible for pushing the new context into the live TLS
+ * listener via `tls.Server#setSecureContext` — no restart required.
+ */
+export function rotateLoopbackTls(secretRotatedAt?: string | null): LoopbackTls {
+  return generateNew(secretRotatedAt ?? new Date().toISOString());
+}
+
+/** Absolute path to the PEM the OS trust-store helpers install. */
+export const LOOPBACK_CERT_PATH = path.join(CONFIG_ROOT, CERT_FILE);
