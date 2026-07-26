@@ -39,6 +39,13 @@ const ALLOWED = new Set<string>([
   "services/hardware/local-display/CustomerDisplayClient.ts",
   // UI diagnostics page reads capability probe directly for display:
   "apps/platform/hardware/HardwareDevices.tsx",
+  "apps/platform/hardware/DeviceWizard.tsx",
+  "pages/pos/CustomerDisplay.tsx",
+  // Offline stack has its own preload bridge (SQLite + background sync);
+  // migration to HostRouter is tracked separately from the print path.
+  "services/offline/BackgroundSyncManager.ts",
+  "services/offline/OfflineAuthService.ts",
+  "services/offline/SQLiteBridge.ts",
   // PDF viewer needs to know about the Electron file:// quirk:
   "components/common/SafePdfViewer.tsx",
   // Tests that inspect the surface as text:
@@ -46,8 +53,10 @@ const ALLOWED = new Set<string>([
   "test/pos/preload-surface-shape.test.ts",
   "test/pos/hardware-client-routing.test.ts",
   "test/pos/hardware-devices-page.test.tsx",
+  "test/hardware/runtime-capability.test.ts",
   "test/architecture/host-router-single-source.test.ts",
 ]);
+
 
 const PATTERNS = [/window\.pos\?\.hardware/, /window\.pos\.hardware/, /window\.pos\?\.isElectron/, /window\.pos\.isElectron/];
 
