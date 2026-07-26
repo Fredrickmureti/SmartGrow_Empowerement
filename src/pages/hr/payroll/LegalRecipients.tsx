@@ -246,32 +246,60 @@ export default function LegalRecipients() {
                   size="sm"
                   variant="outline"
                   disabled={isGeneratingPdf}
-                  onClick={() =>
-                    downloadPdf(
-                      "legal_recipient_statement",
-                      selected.recipient_id,
-                      `recipient-statement-${selected.display_name}-${from}-${to}`,
-                      undefined,
-                      undefined,
-                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
-                    )
-                  }
+                  onClick={async () => {
+                    if (!selected) return;
+                    setIsGeneratingPdf(true);
+                    try {
+                      await printClient.download(
+                        {
+                          intent: "a4_document",
+                          documentType: "legal_recipient_statement",
+                          documentId: selected.recipient_id,
+                          businessId: currentBusiness?.id ?? null,
+                        },
+                        `recipient-statement-${selected.display_name}-${from}-${to}`,
+                        {
+                          extraBody: {
+                            periodStart: from,
+                            periodEnd: to,
+                            businessId: currentBusiness?.id,
+                          },
+                        },
+                      );
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
                 >
                   Download PDF
                 </Button>
                 <Button
                   size="sm"
                   disabled={isGeneratingPdf}
-                  onClick={() =>
-                    printDocument(
-                      "legal_recipient_statement",
-                      selected.recipient_id,
-                      `Recipient Statement — ${selected.display_name}`,
-                      undefined,
-                      undefined,
-                      { periodStart: from, periodEnd: to, businessId: currentBusiness?.id },
-                    )
-                  }
+                  onClick={async () => {
+                    if (!selected) return;
+                    setIsGeneratingPdf(true);
+                    try {
+                      await printClient.printDocument(
+                        {
+                          intent: "a4_document",
+                          documentType: "legal_recipient_statement",
+                          documentId: selected.recipient_id,
+                          title: `Recipient Statement — ${selected.display_name}`,
+                          businessId: currentBusiness?.id ?? null,
+                        },
+                        {
+                          extraBody: {
+                            periodStart: from,
+                            periodEnd: to,
+                            businessId: currentBusiness?.id,
+                          },
+                        },
+                      );
+                    } finally {
+                      setIsGeneratingPdf(false);
+                    }
+                  }}
                 >
                   {isGeneratingPdf ? "Preparing…" : "Print"}
                 </Button>
