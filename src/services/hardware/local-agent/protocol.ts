@@ -32,6 +32,18 @@ export interface AgentStatusResponse {
   version: string;
   devices: AgentDeviceInfo[];
   uptime?: number;
+  /**
+   * Cloud relay liveness reported by the agent itself. Only `state: 'ok'`
+   * means jobs queued from an HTTPS origin will actually be picked up —
+   * a reachable agent with an unauthorised relay prints nothing.
+   */
+  relay?: {
+    state: 'inactive' | 'starting' | 'ok' | 'unauthorized' | 'error';
+    workstationId: string | null;
+    lastPollOkAt: string | null;
+    lastError: string | null;
+    credentialReloads?: number;
+  };
 }
 
 // ── Network printing ──
