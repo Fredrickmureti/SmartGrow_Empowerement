@@ -22,6 +22,7 @@ export interface WorkstationWritePayload {
 
 export interface ProbeTarget {
   transport?: 'network' | 'usb';
+  driver?: string;
   ipAddress?: string;
   port?: number;
   vendorId?: number;
