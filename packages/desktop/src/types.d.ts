@@ -49,6 +49,21 @@ export interface ProbeResponse {
   cooldownMs?: number;
 }
 
+/**
+ * Loopback pairing material for browsers on this machine. `token` is the
+ * `~/.pos-agent-token` shared secret; it is never returned when the runtime
+ * is started with `AGENT_AUTH_DISABLED=1`.
+ */
+export interface AgentPairing {
+  ok: boolean;
+  authDisabled: boolean;
+  token: string | null;
+  tokenPath: string;
+  baseUrl: string;
+  tlsUrl: string;
+  error?: string;
+}
+
 export interface EdgeBridge {
   /** Loopback pairing material — NOT the cloud workstation secret. */
   workstation: {
