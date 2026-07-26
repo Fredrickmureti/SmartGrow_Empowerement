@@ -22,6 +22,15 @@ function defer<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
+/**
+ * Flush pending microtasks AND the macrotask queue. The endpoint gate races the
+ * predecessor against a timer, so acquiring it costs more than a couple of
+ * microtask ticks.
+ */
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 interface Recorded { url: string; body: string; settledAt: number | null }
 
 function installFetchRecorder(): {
@@ -66,14 +75,14 @@ describe('AgentClient per-endpoint mutex (Wave B4.2)', () => {
 
     // Microtask drain: only the FIRST fetch should have been issued, because the
     // second is queued behind the endpoint lock.
-    await Promise.resolve();
-    await Promise.resolve();
+    await tick();
     expect(harness.records).toHaveLength(1);
     expect(harness.records[0].body).toContain('"data":[27,64,65]');
 
     // Release the first request; only now should the second fetch fire.
     harness.pending[0].resolve(okResponse({ success: true }));
     await p1;
+    await tick();
     expect(harness.records).toHaveLength(2);
     expect(harness.records[1].body).toContain('"data":[27,64,66]');
 
@@ -85,8 +94,7 @@ describe('AgentClient per-endpoint mutex (Wave B4.2)', () => {
     const p1 = agentClient.printNetwork('192.168.1.50', 9100, [0x01]);
     const p2 = agentClient.printNetwork('192.168.1.51', 9100, [0x02]);
 
-    await Promise.resolve();
-    await Promise.resolve();
+    await tick();
     // Both fetches should have been issued before either response settles.
     expect(harness.records).toHaveLength(2);
 
@@ -99,11 +107,11 @@ describe('AgentClient per-endpoint mutex (Wave B4.2)', () => {
     // Internally both calls should key to `net:192.168.1.60` (port stripped).
     const p1 = agentClient.printNetwork('192.168.1.60', 9100, [0x01]);
     const p2 = agentClient.printNetwork('192.168.1.60', 9100, [0x02]);
-    await Promise.resolve();
-    await Promise.resolve();
+    await tick();
     expect(harness.records).toHaveLength(1);
     harness.pending[0].resolve(okResponse({ success: true }));
     await p1;
+    await tick();
     expect(harness.records).toHaveLength(2);
     harness.pending[1].resolve(okResponse({ success: true }));
     await p2;
@@ -112,17 +120,16 @@ describe('AgentClient per-endpoint mutex (Wave B4.2)', () => {
   it('does not deadlock the endpoint after a failed request', async () => {
     const p1 = agentClient.printNetwork('192.168.1.70', 9100, [0x01]);
     // Wait for the fetch to be issued, then simulate a network failure.
-    await Promise.resolve();
-    await Promise.resolve();
+    await tick();
     harness.pending[0].reject(new Error('boom'));
     const r1 = await p1;
+    await tick();
     // printNetwork swallows fetch errors and returns { success: false }
     expect(r1.success).toBe(false);
 
     // A subsequent call must still acquire the lock and fire a new fetch.
     const p2 = agentClient.printNetwork('192.168.1.70', 9100, [0x02]);
-    await Promise.resolve();
-    await Promise.resolve();
+    await tick();
     expect(harness.records).toHaveLength(2);
     harness.pending[1].resolve(okResponse({ success: true }));
     const r2 = await p2;
