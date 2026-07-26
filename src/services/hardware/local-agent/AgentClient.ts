@@ -158,7 +158,74 @@ class AgentClientImpl {
       }
     } catch { /* ignore storage errors */ }
     this._baseUrl = baseUrl;
+    try {
+      this._urlPinned = typeof localStorage !== 'undefined'
+        && localStorage.getItem(URL_PINNED_KEY) === '1';
+    } catch { /* ignore */ }
   }
+
+  /**
+   * Phase 4.2.7d — prefer the loopback TLS listener.
+   *
+   * Plaintext `http://localhost:8043` is a dead end on a production HTTPS
+   * origin: the browser blocks it as mixed content, which is exactly why
+   * the relay exists. When the agent has a trusted loopback certificate,
+   * `https://127.0.0.1:8443` is *not* mixed content and gives us a direct,
+   * sub-millisecond path again.
+   *
+   * The upgrade is attempted once per probe cycle and is strictly
+   * opportunistic:
+   *  - skipped when the operator pinned a URL by hand;
+   *  - skipped when we're already on https;
+   *  - a failed handshake (cert not yet trusted) silently leaves the
+   *    existing transport in place — never a downgrade in reliability.
+   *
+   * We use `127.0.0.1` rather than `localhost` because the certificate is
+   * minted for the IP SAN and some resolvers map `localhost` to `::1`.
+   */
+  private async _tryUpgradeToTls(): Promise<void> {
+    if (this._urlPinned) return;
+    if (this._baseUrl.startsWith('https:')) return;
+    if (this._tlsUpgradeAttempted) return;
+    this._tlsUpgradeAttempted = true;
+
+    try {
+      const infoRes = await fetch(`${this._baseUrl}/tls-info`, {
+        signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      });
+      if (!infoRes.ok) return;
+      const info = (await infoRes.json()) as AgentTlsInfoResponse;
+      if (!info?.enabled || !info.fingerprint_sha256) return;
+
+      const port = info.port ?? DEFAULT_AGENT_TLS_PORT;
+      const httpsUrl = `https://127.0.0.1:${port}`;
+
+      // A successful fetch here means the OS/browser already trusts the
+      // certificate — the trust-store install ran. If it throws, the cert
+      // isn't trusted yet and we simply stay on the current transport.
+      const check = await fetch(`${httpsUrl}/tls-info`, {
+        signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      });
+      if (!check.ok) return;
+      const served = (await check.json()) as AgentTlsInfoResponse;
+
+      // Pin check: the fingerprint served over TLS must match the one the
+      // plaintext listener advertised. A mismatch means something other
+      // than our agent is answering on 8443 — refuse the upgrade.
+      if (served?.fingerprint_sha256 !== info.fingerprint_sha256) return;
+
+      this._baseUrl = httpsUrl;
+      this._lastProbeTime = 0;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(TLS_FINGERPRINT_KEY, info.fingerprint_sha256);
+        }
+      } catch { /* ignore */ }
+    } catch {
+      // Not trusted / not listening — keep the existing transport.
+    }
+  }
+
 
   /** Set/clear the agent shared-secret token. Persisted to localStorage. */
   setToken(token: string | null): void {
