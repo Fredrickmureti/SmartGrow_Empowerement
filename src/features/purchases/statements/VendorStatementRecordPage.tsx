@@ -47,7 +47,7 @@ export default function VendorStatementRecordPage() {
   const { formatCurrency } = useCurrency();
   const { currentBusiness } = useBusinesses();
   const { record, loading, error } = useVendorStatementRecord(id);
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
   const [emailOpen, setEmailOpen] = useState(false);
 
   const back = () => navigate("/purchases/statements");
