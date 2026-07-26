@@ -50,6 +50,7 @@ export interface ProbeResponse {
 }
 
 export interface EdgeBridge {
+  /** Loopback pairing material — NOT the cloud workstation secret. */
   workstation: {
     read(): Promise<WorkstationRead>;
     write(p: WorkstationWritePayload): Promise<{ ok: boolean; error?: string }>;
@@ -64,6 +65,8 @@ export interface EdgeBridge {
     stop(): Promise<{ ok: boolean }>;
     status(): Promise<{ running: boolean; pid: number | null; source?: string; version?: string | null; error?: string; supervised?: boolean; restarting?: boolean }>;
     logs(): Promise<{ ok: boolean; status?: number; error?: string; source?: string; generated_at?: string; entries: Array<{ ts: string; level: string; msg: string; [k: string]: unknown }> }>;
+    pairing(): Promise<AgentPairing>;
+    rotateToken(): Promise<{ ok: boolean; token?: string; error?: string; detail?: string }>;
     probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
   supervisor: {
