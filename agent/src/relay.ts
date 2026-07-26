@@ -28,7 +28,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { log } from './logger.js';
+import { logger } from './logger.js';
+
+const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, ctx: Record<string, unknown>) =>
+  logger[level](msg, ctx);
 
 interface RelayConfig {
   supabase_url: string;
