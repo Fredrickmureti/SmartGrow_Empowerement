@@ -189,3 +189,47 @@ Code sweep:
 2. Grep `printClient.print(` consumers; add `organizationId: currentOrg?.id` to each call site so the new path activates in production. Every call site is a one-liner add.
 3. Migrate `labelDispatch.ts` and `reprintClient.ts` next (small, self-contained; documents carry `businessId`), then `SharedCommandQueueWorker.ts` (needs schema change: add `assignment_id` column to the queue table so drain doesn't re-resolve).
 4. Only when every non-fallback role-only call outside `HardwareClient.ts` is gone should you invert `execAssignment` / `execAny` and start deleting legacy transport files (Step C).
+
+## Progress log — 2026-07-26 (Phase 5 Step B — activation + kitchen ticket migration)
+
+**Changed:**
+- **Activation** — added `organizationId` to every `printClient.print()` caller with org context:
+  - `src/pages/Invoices.tsx:321` — passes `currentOrg?.id`.
+  - `src/apps/pos/terminal/history/HistoryWorkspace.tsx:166` — passes `currentOrg?.id` (already imported).
+  - `src/hooks/usePrintOrPreview.ts` — imported `useOrganization`, added `organizationId` to `printClient.print()` args, dep on `currentOrg?.id`. This activates per-assignment routing for every consumer of the hook (Sales, HR, Finance PDFs).
+  - `src/hooks/pos/usePOSCashDrawer.ts:117` — passes `variables.organization_id` (already in mutation input).
+- **Kitchen ticket migration** — `printClient.printKitchenTicket()` no longer calls `hardwareClient.printRawBytes` directly. Widened `dispatchThermalBytes` role param to include `'kitchen_printer'`; kitchen ticket now delegates through the same per-assignment path as receipts and labels. Added optional `organizationId`/`businessId`/`branchId` opts to the method; `src/components/pos/restaurant/KitchenOrderTicket.tsx` now imports `useOrganization` + `useBusinesses` and passes both.
+- **Guard tightening** — `src/test/architecture/print-client-execAssignment.test.ts` now pins exact counts (1 each) for `printRawBytes` + `printLabelBytes` legacy shims in PrintClient — any regression that adds a direct role-only dispatch trips the guard. New test asserts `printKitchenTicket` delegates to `dispatchThermalBytes` with the `kitchen_printer` role and contains no direct shim call.
+
+**Verified:** 39/39 across all 9 hardware guards. `tsgo` clean on every file touched this turn.
+
+## Phase status (2026-07-26 · after activation + kitchen migration)
+
+- [x] Phase 5 Step B — primary POS + Inventory + PrintClient consumers on `execAssignment`; `printKitchenTicket` migrated; activation propagated to all `printClient.print()` callers with org context. The per-assignment path is now live in production for every consumer that already had `businessId`.
+- [~] Phase 5 Step B — remaining migrations (fastest → highest leverage):
+  1. **`src/services/printing/PrintClient.ts:499` `printReceiptThermal`** — still uses a caller-supplied `printRawBytes` callback (register-scoped from `useHardwareProxy(registerId)`). Cleanest kill: delete the method and have `PostPaymentSurface.tsx:208` call `printClient.print({ intent: 'receipt', organizationId, businessId, ... })` — `useHardwareProxy.printReceipt` already handles register-scoped resolution via `execAssignment`, so the receipt path collapses to one chokepoint call. **DO THIS NEXT.**
+  2. `src/services/printing/labelDispatch.ts:387` — label helper; wrap `hardwareClient.exec` in `execAssignment`.
+  3. `src/services/printing/reprintClient.ts:78,89` — reprint uses `exec({role,op,...})`; documents already carry `businessId`. Straight rewrite.
+  4. `src/services/hardware/SharedCommandQueueWorker.ts:180` — needs schema change (`assignment_id` column on queue) so drain doesn't re-resolve. Include the migration.
+  5. `src/components/events/BusinessSagaMount.tsx:273` — `businessId` on the event; direct rewrite.
+- [ ] Phase 5 Step C — invert `execAssignment` / `execAny` primacy inside `HardwareClient.ts`, then delete `LocalAgentTransport.ts` + `TransportAdapter.resolveTransport()` + the legacy shims (`printReceipt`, `printKitchenOrder`, `printRawBytes`, `printLabelBytes`, `openDrawer`, `readScale`, `tareScale`, `updateCustomerDisplay`, `initiatePayment`, `cancelPayment`, `exec`). NOTE: caller mandate is no legacy retention — Step C deletions are mandatory once all consumers off the shims.
+- [ ] Phase 6 — legacy DB drop (`printer_profiles`, `source_config_id`, etc.). Single migration.
+
+## Handoff — next agent
+
+**MUST verify first before continuing:**
+1. Run all 9 guards:
+   ```
+   bunx vitest run src/test/architecture/print-client-execAssignment src/test/architecture/useHardwareProxy-execAssignment src/test/architecture/useInventoryLabelPrinter-execAssignment src/test/hardware/inventory-label-printer-binding src/test/architecture/pos-receipt-resolver src/test/architecture/intent-to-role-parity src/test/architecture/transport-router-matrix src/test/architecture/role-vocabulary src/test/architecture/generate-document-resolver
+   ```
+   Expect: 39/39 pass. Anything red → someone regressed the primary path; fix before adding new work.
+2. `bunx tsgo --noEmit -p tsconfig.app.json` — must be clean on the files this phase touched (grep for `PrintClient|useHardwareProxy|useInventoryLabelPrinter|KitchenOrderTicket|usePrintOrPreview|Invoices\.tsx|HistoryWorkspace|usePOSCashDrawer`).
+3. Confirm the mandate is being upheld: `rg -n "hardwareClient\.(printReceipt|printKitchenOrder|printRawBytes|printLabelBytes|openDrawer|readScale|tareScale|updateCustomerDisplay|initiatePayment|cancelPayment)\(" src --glob '!src/test/**'` — every hit must be inside a resolver-outage fallback closure (`legacy()` helpers inside `useHardwareProxy` / `PrintClient` / `useInventoryLabelPrinter`). Any hit outside those closures = legacy leaking back in — remove it.
+
+**Then continue chronologically:**
+4. **Kill `printReceiptThermal`** (item 1 above). Recipe: delete the method from `PrintClient.ts`, migrate `PostPaymentSurface.tsx:208` to `printClient.print({ intent: 'receipt', organizationId: currentOrg?.id, businessId: currentBusiness?.id, ... })` — the receipt path is already covered by the `dispatchThermalBytes` chokepoint. Add a guard that `PrintClient.ts` no longer contains `printReceiptThermal`.
+5. Items 2–5 in order.
+6. Only when items 1–5 are clean, promote primary/fallback ordering inside `HardwareClient.ts` and start Step C deletions (`LocalAgentTransport.ts`, `TransportAdapter.resolveTransport()`, all 11 legacy shims). The user's mandate is explicit: no legacy retention — Step C is not optional.
+7. Phase 6 DB drop last, as a single migration.
+
+**Do NOT skip ahead** to Step C deletions before item 1–5 consumers are migrated; the legacy shims are still the fallback for resolver outages until every consumer passes org context.

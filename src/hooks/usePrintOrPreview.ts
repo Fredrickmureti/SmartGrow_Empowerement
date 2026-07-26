@@ -21,6 +21,7 @@
 import { useCallback, useState } from "react";
 import { printClient, type PrintIntent } from "@/services/printing/PrintClient";
 import { useBusinesses } from "@/contexts/BusinessContext";
+import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";
 import type { DocumentCommunicationContext } from "@/components/communications/DocumentCommunicationBar";
 
@@ -41,6 +42,7 @@ export interface PrintOrPreviewRequest {
 
 export function usePrintOrPreview() {
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
 
   // Preview dialog state, owned by this hook (previously in useDocumentPrint).
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
@@ -91,6 +93,7 @@ export function usePrintOrPreview() {
           documentType: req.documentType,
           documentId: req.documentId,
           title: req.title,
+          organizationId: currentOrg?.id ?? null,
           businessId,
           branchId: req.branchId ?? null,
           // Plan P3 Step 1 — one UUID per user click, becomes the ledger
@@ -121,7 +124,7 @@ export function usePrintOrPreview() {
         });
       }
     },
-    [currentBusiness?.id],
+    [currentBusiness?.id, currentOrg?.id],
   );
 
   /**

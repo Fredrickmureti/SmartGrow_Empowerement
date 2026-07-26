@@ -323,6 +323,7 @@ export default function Invoices() {
       documentType: "invoice",
       documentId: invoice.id,
       title: `Invoice ${invoice.invoice_number}`,
+      organizationId: currentOrg?.id ?? null,
       businessId: currentBusiness.id,
       branchId: currentBranch?.id ?? null,
       idempotencyKey: clickIdempotencyKey,

@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { printClient } from "@/services/printing/PrintClient";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 
 interface KitchenOrderTicketProps {
@@ -57,6 +59,8 @@ export function KitchenOrderTicket({
 }: KitchenOrderTicketProps) {
   const allOrders = groupedOrders || [order];
   const itemCount = allOrders.length;
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   // Wave 10 — opt-in physical print to the kitchen_printer device. Uses the
   // station from pos_kitchen_orders.printer_category so a single transaction
   // can fan out across stations (kitchen / bar / grill / dessert).
@@ -72,6 +76,8 @@ export function KitchenOrderTicket({
       const result = await printClient.printKitchenTicket(txnId, {
         station: order.printer_category,
         table: order.table_number ? String(order.table_number) : null,
+        organizationId: currentOrg?.id ?? null,
+        businessId: currentBusiness?.id ?? null,
       });
       if (result.success) {
         toast.success(`Sent to ${order.printer_category} printer`);
