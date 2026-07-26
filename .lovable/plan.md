@@ -110,3 +110,25 @@ Code sweep:
 3. Migrate the inventory label-printer hook (`src/hooks/inventory/useInventoryLabelPrinter.ts:83`) from `hardwareClient.printLabelBytes` → `hardwareClient.execAssignment` using the same pattern; add a matching guard entry.
 4. Then start Phase 5 Step C: convert `execAny` into a private helper of `execAssignment` (currently the reverse), then delete `execAny` + `LocalAgentTransport.ts`.
 5. Phase 6 is a single migration + type regen — do NOT interleave with Step C.
+
+## Progress log — 2026-07-26 (Phase 5 Step B — Inventory label printer on execAssignment)
+
+**Changed:**
+- `src/hooks/inventory/useInventoryLabelPrinter.ts`: primary dispatch now goes through `hardwareClient.execAssignment({ assignment: {id, role, transport, enabled}, op: 'print_raw', payload })` when `useDeviceForRole` surfaced a concrete row. Legacy `hardwareClient.printLabelBytes` is retained only for the workstation-relay fallback (device found by the RPC probe but not by the role selector).
+- `src/test/architecture/useInventoryLabelPrinter-execAssignment.test.ts` (NEW): 3-test source-inspection guard — primary path is `execAssignment`, `assignment.id`/`assignment.transport` are forwarded, exactly one fallback call remains.
+- `src/test/hardware/inventory-label-printer-binding.test.ts`: relaxed the "dispatches through hardwareClient" assertion from a hardcoded `printRawBytes` to `execAssignment | printLabelBytes`. Direct-driver bans (`browserHardwareAdapter`, `agentClient`) unchanged.
+
+**Verified:** 33/33 across all 8 hardware guards touched by Phase 5 Step B (2 new + 6 regression). No unrelated files edited.
+
+## Phase status (2026-07-26 · after Inventory label-printer migration)
+
+- [~] Phase 5 Step B — POS + Inventory now on `execAssignment`. Remaining consumers to audit: Warehouse (label + pick tickets), HR (biometric), Manufacturing (scales). Grep next: `rg -n "hardwareClient\.(printReceipt|printKitchenOrder|printLabelBytes|printRawBytes|openDrawer|readScale|updateCustomerDisplay|initiatePayment)\(" src` — any hit outside `useHardwareProxy.ts`, `useInventoryLabelPrinter.ts`, and `HardwareClient.ts` itself is a next-turn migration candidate.
+- [ ] Phase 5 Step B tidy — peel ~20 `ipcAvailable()` sites in `HardwareClient.ts` behind `hostRouter.*` (pure semantic; import already present).
+- [ ] Phase 5 Step C — invert the `execAssignment` → `execAny` relationship (execAssignment becomes primary, execAny becomes a private role-only convenience) then delete `LocalAgentTransport.ts` + `TransportAdapter.resolveTransport()`.
+- [ ] Phase 6 — legacy DB drop (`printer_profiles`, `source_config_id`, etc.) — single migration, do NOT interleave with Step C.
+
+## Handoff — next agent
+
+1. Run all 8 guards: `bunx vitest run src/test/architecture/useHardwareProxy-execAssignment src/test/architecture/useInventoryLabelPrinter-execAssignment src/test/hardware/inventory-label-printer-binding src/test/architecture/pos-receipt-resolver src/test/architecture/intent-to-role-parity src/test/architecture/transport-router-matrix src/test/architecture/role-vocabulary src/test/architecture/generate-document-resolver` — must be green before editing.
+2. Enumerate remaining role-only call sites with the grep above; migrate each using the same 3-part recipe: (a) accept the resolved `device` from `useDeviceForRole`, (b) call `execAssignment({ assignment: {id, role, transport, enabled}, op, payload })`, (c) add a matching arch guard in `src/test/architecture/`.
+3. When zero non-fallback role-only calls remain, promote the primary/fallback ordering: `execAssignment` becomes the only public method, `execAny`/legacy shims move to a `@deprecated` block inside `HardwareClient.ts` — then Phase 5 Step C deletions are safe.
