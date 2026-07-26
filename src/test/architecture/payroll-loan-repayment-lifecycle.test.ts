@@ -64,7 +64,12 @@ describe("Payroll loan repayment — canonical lifecycle ownership", () => {
   });
 
   it("the canonical repayment RPC exists and drives completion through the state machine", () => {
-    const files = rgFiles("employee_loan_apply_repayment", "supabase/migrations").sort();
+    // Find the migration that DEFINES employee_loan_apply_repayment, not
+    // merely references it (Phase 8 migrations mention it in comments).
+    const files = rgFiles(
+      "CREATE OR REPLACE FUNCTION public\\.employee_loan_apply_repayment",
+      "supabase/migrations",
+    ).sort();
     const latest = files[files.length - 1];
     expect(latest).toBeTruthy();
     const sql = readFileSync(latest, "utf8");
@@ -75,4 +80,5 @@ describe("Payroll loan repayment — canonical lifecycle ownership", () => {
     expect(sql).toMatch(/'repayment_recorded',\s*prior,\s*prior,\s*\n?\s*_amount/);
     expect(sql).toMatch(/'payroll_run_id'/);
   });
+
 });
