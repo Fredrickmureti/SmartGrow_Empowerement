@@ -466,6 +466,16 @@ class PrintClient {
       course?: string | null;
       table?: string | null;
       paperFormat?: '40mm' | '58mm' | '80mm' | null;
+      /**
+       * Phase 5 Step B — when supplied, dispatch runs through
+       * `dispatchThermalBytes` (per-assignment via `resolve_device`)
+       * instead of the role-only shim. Callers with org context MUST
+       * pass these so the winning `device_assignments` row picks the
+       * correct kitchen printer per branch.
+       */
+      organizationId?: string | null;
+      businessId?: string | null;
+      branchId?: string | null;
     },
   ): Promise<PrintResult> {
     try {
@@ -479,8 +489,18 @@ class PrintClient {
           paperFormat: opts?.paperFormat ?? null,
         },
       );
-      await hardwareClient.printRawBytes(bytes);
-      return { success: true, transport: 'thermal' };
+      const req: PrintRequest = {
+        intent: 'kitchen_ticket',
+        documentType: 'kitchen_ticket',
+        documentId: transactionId,
+        organizationId: opts?.organizationId ?? null,
+        businessId: opts?.businessId ?? null,
+        branchId: opts?.branchId ?? null,
+      };
+      const res = await this.dispatchThermalBytes(bytes, req, 'receipt_printer');
+      return res.success
+        ? { success: true, transport: 'thermal' }
+        : { success: false, transport: 'thermal', error: res.error ?? 'kitchen driver reported failure' };
     } catch (err) {
       return { success: false, transport: 'none', error: (err as Error).message };
     }
