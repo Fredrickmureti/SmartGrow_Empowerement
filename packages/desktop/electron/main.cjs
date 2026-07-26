@@ -494,8 +494,12 @@ ipcMain.handle('supervisor:start',     async () => {
   return r;
 });
 ipcMain.handle('supervisor:stop',      () => runInstaller('stop'));
-ipcMain.handle('supervisor:installed', () => ({ installed: Boolean(installerPath()) ? undefined : false, installerAvailable: Boolean(installerPath()) }));
-ipcMain.handle('supervisor:serviceStatus', () => runInstaller('status'));
+ipcMain.handle('supervisor:serviceStatus', async () => {
+  const script = installerPath();
+  if (!script) return { ok: false, installerAvailable: false, error: 'installer_not_bundled' };
+  const r = await runInstaller('status');
+  return { ...r, installerAvailable: true };
+});
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
