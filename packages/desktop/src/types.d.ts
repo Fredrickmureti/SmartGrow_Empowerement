@@ -60,10 +60,10 @@ export interface EdgeBridge {
     write(next: Record<string, unknown>): Promise<{ ok: boolean; error?: string }>;
   };
   agent: {
-    start(): Promise<{ ok: boolean; pid?: number | null; error?: string; external?: boolean }>;
+    start(): Promise<{ ok: boolean; pid?: number | null; error?: string; detail?: string; external?: boolean; mode?: string; log?: Array<{ ts: string; level: string; msg: string }> }>;
     stop(): Promise<{ ok: boolean }>;
-    status(): Promise<{ running: boolean; pid: number | null; source?: string; version?: string | null; error?: string }>;
-    logs(): Promise<{ ok: boolean; status?: number; error?: string; generated_at?: string; entries: Array<{ ts: string; level: string; msg: string; [k: string]: unknown }> }>;
+    status(): Promise<{ running: boolean; pid: number | null; source?: string; version?: string | null; error?: string; supervised?: boolean; restarting?: boolean }>;
+    logs(): Promise<{ ok: boolean; status?: number; error?: string; source?: string; generated_at?: string; entries: Array<{ ts: string; level: string; msg: string; [k: string]: unknown }> }>;
     probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
   supervisor: {
@@ -75,13 +75,14 @@ export interface EdgeBridge {
     uninstall(): Promise<InstallerResult>;
     start(): Promise<InstallerResult>;
     stop(): Promise<InstallerResult>;
+    serviceStatus(): Promise<InstallerResult & { installerAvailable?: boolean }>;
     certStatus(): Promise<CertStatus>;
     rotateCert(): Promise<{ ok: boolean; fingerprint_sha256?: string | null; error?: string }>;
     installCert(): Promise<TrustResult>;
     uninstallCert(): Promise<TrustResult>;
   };
   updates: {
-    check(opts?: { channel?: string }): Promise<UpdateCheck>;
+    check(opts?: { channel?: string; channelUrl?: string }): Promise<UpdateCheck>;
   };
   shell: { openExternal(url: string): Promise<void> };
 }
@@ -89,6 +90,10 @@ export interface EdgeBridge {
 export interface UpdateCheck {
   ok: boolean;
   error?: string;
+  /** False when no release channel URL is configured for this install. */
+  configured?: boolean;
+  state?: 'not_configured' | 'no_release' | 'unreachable' | 'malformed_manifest' | 'channel_error' | 'checked';
+  url?: string;
   channel?: string;
   current_version?: string;
   latest_version?: string | null;
@@ -144,6 +149,7 @@ export interface InstallerResult {
   stdout?: string;
   stderr?: string;
   error?: string;
+  detail?: string;
 }
 
 declare global {
