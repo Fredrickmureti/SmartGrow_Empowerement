@@ -1,6 +1,6 @@
 import { createServer } from './server.js';
 import { createTlsServer } from './server.js';
-import { loadOrGenerateLoopbackTls } from './tls.js';
+import { loadOrGenerateLoopbackTls, loopbackTlsNeedsRotation, rotateLoopbackTls, type LoopbackTls } from './tls.js';
 import { getAuthToken } from './auth.js';
 import { logger } from './logger.js';
 import { startRelay } from './relay.js';
@@ -22,7 +22,13 @@ const TLS_DISABLED = process.env.AGENT_TLS_DISABLED === '1' || process.env.AGENT
 // Phase 4.2 item 1 — load-or-generate the per-install loopback cert
 // before the http listener boots so both listeners share the same
 // startPeriodicDiscovery() bookkeeping (createServer is idempotent).
-const tlsInfo = TLS_DISABLED ? null : (() => {
+//
+// Phase 4.2.7a — `tlsInfo` is mutable: the cert can be re-minted at
+// runtime (workstation-secret rotation, or an explicit `rotate_cert`
+// supervisor op) and hot-swapped into the live listener via
+// `tls.Server#setSecureContext`, so trusted operators never have to
+// restart the service to recover a compromised loopback key.
+let tlsInfo: LoopbackTls | null = TLS_DISABLED ? null : (() => {
   try { return loadOrGenerateLoopbackTls(); }
   catch (err) {
     logger.error('tls_init_failed', { error: err instanceof Error ? err.message : String(err) });
@@ -30,8 +36,32 @@ const tlsInfo = TLS_DISABLED ? null : (() => {
   }
 })();
 
-const server = createServer(tlsInfo);
-const tlsServer = tlsInfo ? createTlsServer(tlsInfo) : null;
+const getTls = () => tlsInfo;
+const server = createServer(getTls);
+const tlsServer = tlsInfo ? createTlsServer(tlsInfo, getTls) : null;
+
+/**
+ * Re-mint the loopback certificate and push it into the running TLS
+ * listener. Returns the new fingerprint, or null when TLS is disabled or
+ * generation failed. Safe to call repeatedly.
+ */
+function rotateCert(secretRotatedAt: string | null): string | null {
+  if (!tlsServer) return null;
+  try {
+    const next = rotateLoopbackTls(secretRotatedAt);
+    tlsServer.setSecureContext({ cert: next.cert, key: next.key });
+    tlsInfo = next;
+    logger.warn('tls_cert_rotated', {
+      fingerprint: next.fingerprintSha256,
+      secret_rotated_at: secretRotatedAt,
+    });
+    return next.fingerprintSha256;
+  } catch (err) {
+    logger.error('tls_cert_rotate_failed', { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
 
 server.listen(PORT, '127.0.0.1', () => {
   const token = getAuthToken();
@@ -99,7 +129,22 @@ server.listen(PORT, '127.0.0.1', () => {
   });
 
   // Phase 3 — publish device capability manifest on start and periodically.
-  const stopManifest = startManifestPublisher();
+  // Phase 4.2.7 — the same publish carries the live TLS fingerprint up to
+  // the ERP, and carries the workstation's `secret_rotated_at` back down.
+  // When that stamp moves past the one the cert was minted against, the
+  // secret has been rotated (likely because it leaked) and the loopback
+  // key that shared its trust boundary is re-minted on the spot.
+  const stopManifest = startManifestPublisher({
+    getTls: () => ({
+      enabled: Boolean(tlsInfo),
+      fingerprint_sha256: tlsInfo?.fingerprintSha256 ?? null,
+      port: tlsInfo ? TLS_PORT : null,
+      generated_at: tlsInfo?.generatedAt ?? null,
+    }),
+    onSecretRotatedAt: (stamp) => {
+      if (loopbackTlsNeedsRotation(tlsInfo?.secretRotatedAt ?? null, stamp)) rotateCert(stamp);
+    },
+  });
 
   // Phase 4.2.5 — refresh tenant CORS allowlist from edge-workstation-origins.
   const stopOrigins = startOriginsRefresh();
@@ -110,13 +155,15 @@ server.listen(PORT, '127.0.0.1', () => {
   // client. See `agent/scripts/install-service.cjs`.
   const wsCfg = loadConfig();
   const stopSupervisor = startSupervisor({
-    version: 'v1.4.0-edge.p4.2.6',
+    version: 'v1.4.0-edge.p4.2.7',
     tlsEnabled: Boolean(tlsInfo),
-    tlsFingerprint: tlsInfo?.fingerprintSha256 ?? null,
+    tlsFingerprint: () => tlsInfo?.fingerprintSha256 ?? null,
     tlsPort: tlsInfo ? TLS_PORT : null,
     workstationId: wsCfg?.workstation_id ?? null,
     onReloadOrigins: () => { void refreshOriginsOnce(); },
+    onRotateCert: () => rotateCert(tlsInfo?.secretRotatedAt ?? null),
   });
+
 
   process.on('SIGINT', () => {
     stopRelay();

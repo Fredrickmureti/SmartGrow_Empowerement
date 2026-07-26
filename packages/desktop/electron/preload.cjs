@@ -35,6 +35,12 @@ const api = {
     uninstall: () => ipcRenderer.invoke('supervisor:uninstall'),
     start: () => ipcRenderer.invoke('supervisor:start'),
     stop: () => ipcRenderer.invoke('supervisor:stop'),
+    // Phase 4.2.7 — loopback certificate lifecycle. The renderer only ever
+    // asks; the privileged trust-store commands run inside the agent.
+    certStatus: () => ipcRenderer.invoke('supervisor:certStatus'),
+    rotateCert: () => ipcRenderer.invoke('supervisor:rotateCert'),
+    installCert: () => ipcRenderer.invoke('supervisor:installCert'),
+    uninstallCert: () => ipcRenderer.invoke('supervisor:uninstallCert'),
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

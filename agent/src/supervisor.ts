@@ -25,6 +25,10 @@
  *                                              tls: { enabled, fingerprint },
  *                                              workstation_id }
  *   { op: 'reload_origins' }             -> { ok }        (kicks getAllowedOrigins refetch)
+ *   { op: 'rotate_cert' }                -> { ok, fingerprint_sha256 }
+ *   { op: 'cert_status' }                -> { ok, trusted, detail, commands }
+ *   { op: 'install_cert' }               -> { ok, steps[] }   (OS trust store)
+ *   { op: 'uninstall_cert' }             -> { ok, steps[] }
  *   { op: 'shutdown' }                   -> { ok }        (process.exit(0) after 200ms)
  */
 import net from 'node:net';
@@ -33,6 +37,7 @@ import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { logger } from './logger.js';
+import { applyTrustStore, describeTrustCommands, queryTrustStore } from './trustStore.js';
 
 const EDGE_HOME = path.join(os.homedir(), '.accrualflow', 'edge');
 const TOKEN_PATH = path.join(EDGE_HOME, 'supervisor.token');
@@ -42,12 +47,20 @@ const SOCK_PATH = process.platform === 'win32'
 
 export interface SupervisorHooks {
   version: string;
-  tlsFingerprint?: string | null;
+  /**
+   * Read lazily — the fingerprint changes when `rotate_cert` re-mints the
+   * loopback certificate, and `status` must report the live value rather
+   * than whatever was true at process start.
+   */
+  tlsFingerprint?: () => string | null;
   tlsEnabled: boolean;
   tlsPort?: number | null;
   workstationId?: string | null;
   onReloadOrigins?: () => Promise<void> | void;
+  /** Re-mint the loopback cert and hot-swap it into the live listener. */
+  onRotateCert?: () => Promise<string | null> | string | null;
 }
+
 
 function ensureToken(): string {
   fs.mkdirSync(EDGE_HOME, { recursive: true, mode: 0o700 });
@@ -112,7 +125,7 @@ export function startSupervisor(hooks: SupervisorHooks): () => void {
               uptime_s: Math.floor((Date.now() - startedAt) / 1000),
               tls: {
                 enabled: hooks.tlsEnabled,
-                fingerprint_sha256: hooks.tlsFingerprint ?? null,
+                fingerprint_sha256: hooks.tlsFingerprint?.() ?? null,
                 port: hooks.tlsPort ?? null,
               },
               workstation_id: hooks.workstationId ?? null,
@@ -123,6 +136,31 @@ export function startSupervisor(hooks: SupervisorHooks): () => void {
             await hooks.onReloadOrigins?.();
             sock.write(JSON.stringify({ ok: true }) + '\n');
             break;
+          case 'rotate_cert': {
+            const fp = await hooks.onRotateCert?.();
+            sock.write(JSON.stringify({ ok: Boolean(fp), fingerprint_sha256: fp ?? null }) + '\n');
+            break;
+          }
+          case 'cert_status': {
+            const q = await queryTrustStore();
+            sock.write(JSON.stringify({
+              ok: true,
+              trusted: q.trusted,
+              detail: q.detail,
+              // Surfaced so the tray app can show the operator exactly
+              // what `install_cert` will run before they consent.
+              commands: describeTrustCommands('install', process.platform)
+                .map((c) => ({ command: `${c.file} ${c.args.join(' ')}`, explain: c.explain, elevates: c.elevates })),
+            }) + '\n');
+            break;
+          }
+          case 'install_cert':
+          case 'uninstall_cert': {
+            const res = await applyTrustStore(op === 'install_cert' ? 'install' : 'uninstall');
+            sock.write(JSON.stringify(res) + '\n');
+            break;
+          }
+
           case 'shutdown':
             sock.write(JSON.stringify({ ok: true }) + '\n');
             setTimeout(() => process.exit(0), 200);

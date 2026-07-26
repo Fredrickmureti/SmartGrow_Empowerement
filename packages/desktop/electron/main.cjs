@@ -242,6 +242,13 @@ ipcMain.handle('supervisor:status',  () => supervisor.send('status'));
 ipcMain.handle('supervisor:ping',    () => supervisor.send('ping'));
 ipcMain.handle('supervisor:reload',  () => supervisor.send('reload_origins'));
 ipcMain.handle('supervisor:shutdown', () => supervisor.send('shutdown'));
+// Phase 4.2.7 — certificate lifecycle. `certStatus` is read-only and safe
+// to poll; `rotate` / `installCert` / `uninstallCert` are operator-
+// initiated only and may trigger an OS elevation prompt in the agent.
+ipcMain.handle('supervisor:certStatus',     () => supervisor.send('cert_status', {}, 15000));
+ipcMain.handle('supervisor:rotateCert',     () => supervisor.send('rotate_cert', {}, 15000));
+ipcMain.handle('supervisor:installCert',    () => supervisor.send('install_cert', {}, 120000));
+ipcMain.handle('supervisor:uninstallCert',  () => supervisor.send('uninstall_cert', {}, 120000));
 ipcMain.handle('supervisor:install',   () => runInstaller('install'));
 ipcMain.handle('supervisor:uninstall', () => runInstaller('uninstall'));
 ipcMain.handle('supervisor:start',     () => runInstaller('start'));

@@ -96,7 +96,12 @@ function validateHost(req: http.IncomingMessage): boolean {
 }
 
 // Shared request handler used by both the http and https listeners.
-function buildHandler(tlsInfo: LoopbackTls | null) {
+//
+// The TLS material is read through a getter, not captured by value: the
+// loopback cert can be re-minted at runtime (Phase 4.2.7a) and
+// `/tls-info` must always report the fingerprint the listener is
+// currently presenting, or the ERP would pin a cert that no longer exists.
+function buildHandler(getTlsInfo: () => LoopbackTls | null) {
   return async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const path = url.pathname;
@@ -133,6 +138,7 @@ function buildHandler(tlsInfo: LoopbackTls | null) {
 
     try {
       if (method === 'GET' && path === '/status') return json(res, 200, handleStatus(), req);
+      const tlsInfo = getTlsInfo();
       if (method === 'GET' && path === '/health') return json(res, 200, handleHealth(tlsInfo), req);
       if (method === 'GET' && path === '/tls-info') {
         return json(res, 200, tlsInfo
@@ -189,14 +195,20 @@ function buildHandler(tlsInfo: LoopbackTls | null) {
   };
 }
 
-export function createServer(tlsInfo: LoopbackTls | null = null) {
+type TlsSource = LoopbackTls | null | (() => LoopbackTls | null);
+
+const asGetter = (src: TlsSource) =>
+  typeof src === 'function' ? src : () => src;
+
+export function createServer(tls: TlsSource = null) {
   startPeriodicDiscovery();
-  return http.createServer(buildHandler(tlsInfo));
+  return http.createServer(buildHandler(asGetter(tls)));
 }
 
-export function createTlsServer(tlsInfo: LoopbackTls) {
+export function createTlsServer(tls: LoopbackTls, getTls?: () => LoopbackTls | null) {
   return https.createServer(
-    { cert: tlsInfo.cert, key: tlsInfo.key, minVersion: 'TLSv1.2' },
-    buildHandler(tlsInfo),
+    { cert: tls.cert, key: tls.key, minVersion: 'TLSv1.2' },
+    buildHandler(getTls ?? (() => tls)),
   );
 }
+

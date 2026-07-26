@@ -91,8 +91,24 @@ export interface AgentUsbDevicesResponse {
 /** Default port for the local print agent */
 export const DEFAULT_AGENT_PORT = 8043;
 
+/** Default port for the agent's loopback TLS listener (Phase 4.2.7). */
+export const DEFAULT_AGENT_TLS_PORT = 8443;
+
 /** Default base URL */
 export const DEFAULT_AGENT_URL = `http://localhost:${DEFAULT_AGENT_PORT}`;
+
+/**
+ * `GET /tls-info` — unauthenticated. Publishes only the certificate's
+ * SHA-256 fingerprint so a caller can decide whether to upgrade to the
+ * loopback HTTPS listener. No private key material is ever exposed.
+ */
+export interface AgentTlsInfoResponse {
+  enabled: boolean;
+  fingerprint_sha256?: string | null;
+  generated_at?: string | null;
+  port?: number | null;
+}
+
 
 // ── Track 5 — Biometric attendance (phase 1: protocol only) ──
 //

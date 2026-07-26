@@ -66544,6 +66544,10 @@ export type Database = {
           organization_id: string
           secret_hash: string
           secret_rotated_at: string | null
+          tls_fingerprint_sha256: string | null
+          tls_generated_at: string | null
+          tls_port: number | null
+          tls_trusted: boolean
           updated_at: string
           version: string | null
         }
@@ -66555,6 +66559,10 @@ export type Database = {
           organization_id: string
           secret_hash: string
           secret_rotated_at?: string | null
+          tls_fingerprint_sha256?: string | null
+          tls_generated_at?: string | null
+          tls_port?: number | null
+          tls_trusted?: boolean
           updated_at?: string
           version?: string | null
         }
@@ -66566,6 +66574,10 @@ export type Database = {
           organization_id?: string
           secret_hash?: string
           secret_rotated_at?: string | null
+          tls_fingerprint_sha256?: string | null
+          tls_generated_at?: string | null
+          tls_port?: number | null
+          tls_trusted?: boolean
           updated_at?: string
           version?: string | null
         }

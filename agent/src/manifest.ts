@@ -104,8 +104,34 @@ async function collectDevices(): Promise<ManifestDevice[]> {
   return out;
 }
 
-async function publishOnce(cfg: RelayConfig): Promise<void> {
+/**
+ * Phase 4.2.7b — the manifest is also how the loopback TLS identity
+ * reaches the ERP. Publishing the fingerprint here (rather than adding
+ * another endpoint) means the value the browser pins is always the value
+ * the running agent is actually presenting: they are written by the same
+ * process, in the same request, on the same 60 s cadence.
+ */
+export interface ManifestTlsInfo {
+  enabled: boolean;
+  fingerprint_sha256: string | null;
+  port: number | null;
+  generated_at: string | null;
+}
+
+export interface ManifestPublisherHooks {
+  /** Read lazily so a mid-flight cert rotation is published immediately. */
+  getTls?: () => ManifestTlsInfo;
+  /**
+   * Invoked with the server's `secret_rotated_at` on every successful
+   * publish. The runtime compares it against the stamp recorded in the
+   * cert metadata and re-mints when the secret has moved on.
+   */
+  onSecretRotatedAt?: (stamp: string | null) => Promise<void> | void;
+}
+
+async function publishOnce(cfg: RelayConfig, hooks: ManifestPublisherHooks): Promise<void> {
   const devices = await collectDevices();
+  const tls = hooks.getTls?.();
   const res = await fetch(`${cfg.supabase_url}/functions/v1/edge-workstation-manifest`, {
     method: 'POST',
     headers: {
@@ -113,20 +139,22 @@ async function publishOnce(cfg: RelayConfig): Promise<void> {
       Authorization: `Bearer ${cfg.workstation_secret}`,
       'X-Workstation-Id': cfg.workstation_id,
     },
-    body: JSON.stringify({ agent_version: AGENT_VERSION, devices }),
+    body: JSON.stringify({ agent_version: AGENT_VERSION, devices, tls }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`manifest_http_${res.status}: ${body.slice(0, 200)}`);
   }
-  logger.info('manifest.published', { count: devices.length });
+  const json = await res.json().catch(() => null) as { secret_rotated_at?: string | null } | null;
+  await hooks.onSecretRotatedAt?.(json?.secret_rotated_at ?? null);
+  logger.info('manifest.published', { count: devices.length, tls: Boolean(tls?.enabled) });
 }
 
 /**
  * Start periodic manifest publishing. No-op if the relay isn't configured —
  * without a workstation identity there's nowhere to publish to.
  */
-export function startManifestPublisher(): () => void {
+export function startManifestPublisher(hooks: ManifestPublisherHooks = {}): () => void {
   const cfg = loadConfig();
   if (!cfg) {
     logger.info('manifest.inactive.no_config', {});
@@ -136,7 +164,7 @@ export function startManifestPublisher(): () => void {
   let stopped = false;
   const tick = async () => {
     if (stopped) return;
-    try { await publishOnce(cfg); }
+    try { await publishOnce(cfg, hooks); }
     catch (err) { logger.warn('manifest.publish_failed', { error: err instanceof Error ? err.message : String(err) }); }
     if (!stopped) setTimeout(tick, MANIFEST_INTERVAL_MS);
   };
@@ -144,3 +172,4 @@ export function startManifestPublisher(): () => void {
   setTimeout(tick, 5_000);
   return () => { stopped = true; };
 }
+
