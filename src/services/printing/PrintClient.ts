@@ -464,6 +464,29 @@ class PrintClient {
   }
 
   /**
+   * Phase 3 label chokepoint — canonical entry for template-driven label
+   * printing.
+   *
+   * Today this delegates to `printLabelByTemplate` (which owns template
+   * resolve → media resolve → ZPL/EPL compile → device dispatch). The
+   * indirection exists so call sites migrate to `printClient.printLabel`
+   * now, then Phase 6 can collapse `labelDispatch` into an internal impl
+   * of PrintClient without touching any consumer again. Do NOT add
+   * label-specific business logic here — that stays in `labelDispatch`
+   * until the collapse.
+   *
+   * Prefer this method over importing `printLabelByTemplate` directly:
+   * every new label call site should reach for `printClient.printLabel`
+   * so the single-chokepoint guard can shrink the allow-list over time.
+   */
+  async printLabel(input: import('./labelDispatch').LabelDispatchInput):
+    Promise<import('./labelDispatch').LabelDispatchResult> {
+    const { printLabelByTemplate } = await import('./labelDispatch');
+    return printLabelByTemplate(input);
+  }
+
+
+  /**
    * Milestone C.1 — tabular export via the platform.
    *
    * Fetches a server-rendered CSV/XLSX blob from `generate-document`

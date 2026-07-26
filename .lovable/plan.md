@@ -112,3 +112,10 @@ Next: route `useHardwareProxy.printReceipt` and the kitchen-ticket dispatch path
 
 - `src/test/architecture/intent-to-role-parity.test.ts`: locks three invariants on `INTENT_TO_ROLE` — coverage of every `PrintIntent` union member, mapping only into canonical `DeviceRole` values, and no stale entries. Parses the two source files directly (regex over union types with comment stripping) so a drift in either union fails CI immediately. 3/3 tests green.
 - Contract now enforced end-to-end: `PrintIntent` ⇢ `INTENT_TO_ROLE` ⇢ `DeviceRole` (also asserted parity with Electron `HARDWARE_ROLES` in the earlier `role-vocabulary.test.ts`), so a new intent cannot ship without a role, and a typo'd role cannot ship at all.
+
+## Progress log — 2026-07-26 (Phase 3 label chokepoint)
+
+- `src/services/printing/PrintClient.ts`: added `printClient.printLabel(input)` — thin façade delegating to `printLabelByTemplate`. Existing consumers (Products, FixedAssets, HardwareDevices, BusinessSagaMount) keep working; new label call sites should reach for `printClient.printLabel` so the single-chokepoint ESLint allow-list can shrink to `src/services/printing/**` in Phase 6 without any per-caller migration. Lazy `import()` of `labelDispatch` avoids circular imports since labelDispatch itself uses `hardwareClient` today.
+- Typecheck: green.
+
+Next: migrate the four external `printLabelByTemplate` call sites (Products, FixedAssets, HardwareDevices, BusinessSagaMount) to `printClient.printLabel`, then route `useHardwareProxy.printReceipt` / kitchen dispatch through `resolve_device`.
