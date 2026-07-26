@@ -358,12 +358,30 @@ ipcMain.handle('updates:check', async (_e, opts) => {
 
 ipcMain.handle('agent:start', () => startAgent());
 ipcMain.handle('agent:stop', () => { stopAgent(); return { ok: true }; });
-ipcMain.handle('agent:status', async () => probeAgentHealth());
+ipcMain.handle('agent:status', async () => {
+  const h = await probeAgentHealth();
+  return {
+    ...h,
+    supervised: agentDesired,
+    restarting: Boolean(agentRestartTimer),
+    error: h.running ? undefined : (agentLastError || h.error),
+  };
+});
 ipcMain.handle('agent:logs', async () => {
   const r = await requestAgentJson('/support-bundle', { timeout: 5000, auth: true });
-  if (!r.ok) return { ok: false, status: r.status, error: r.error || r.body?.error || `HTTP ${r.status}`, entries: [] };
+  if (!r.ok) {
+    // Runtime unreachable → fall back to whatever the child printed before
+    // it died, so a failed boot is diagnosable inside the app.
+    return {
+      ok: AGENT_LOG.length > 0,
+      status: r.status,
+      source: 'desktop_child',
+      error: r.error || r.body?.error || `HTTP ${r.status}`,
+      entries: AGENT_LOG.slice(),
+    };
+  }
   const entries = Array.isArray(r.body?.logs) ? r.body.logs : [];
-  return { ok: true, status: r.status, entries, generated_at: r.body?.generated_at };
+  return { ok: true, status: r.status, source: 'agent', entries, generated_at: r.body?.generated_at };
 });
 
 /**
