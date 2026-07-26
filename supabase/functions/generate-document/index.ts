@@ -3024,25 +3024,79 @@ serve(async (req) => {
             is_calibrated: boolean | null;
           }
         | null = null;
-      if (policy.printer_profile_id) {
+      // Phase 3C — canonical device resolution. Preference order:
+      //   1. policy.device_assignment_id  → direct pin (new canonical column).
+      //   2. policy.printer_profile_id     → legacy pin (Phase 6 drops it).
+      //   3. policy.intent                 → role-only routing via `resolve_device`
+      //      (server-authoritative tie-break, identical to the client UI).
+      // Emits one `hardware.route.decision` per resolved policy so the DoD
+      // grep across sales / purchases / POS / inventory / WMS shows the
+      // single canonical resolver on every printable intent.
+      let resolvedAssignmentId: string | null = null;
+      let routeDecisionSource: "device_pin" | "profile_pin" | "intent_role" | "none" = "none";
+      if (policy.device_assignment_id) {
+        resolvedAssignmentId = policy.device_assignment_id;
+        routeDecisionSource = "device_pin";
+      } else if (policy.printer_profile_id) {
+        resolvedAssignmentId = policy.printer_profile_id;
+        routeDecisionSource = "profile_pin";
+      } else if (policy.intent) {
         try {
-          // Phase 2c: read the physical printer profile from the canonical
-          // device_assignments registry. `policy.printer_profile_id` still
-          // references the legacy printer_profiles.id in the DB schema; the
-          // matching device_assignments row is joined via source_config_id
-          // (Phase 2b mirror). Phase 6 will re-point the FK and drop the OR.
-          const { data: profileRow } = await supabase
+          const { roleForIntent } = await import("../_shared/printing/intentToRole.ts");
+          const role = roleForIntent(policy.intent);
+          if (role) {
+            const { data: resolvedRows, error: resolveErr } = await supabase.rpc(
+              "resolve_device",
+              {
+                _organization_id: orgId,
+                _role: role,
+                _business_id: bizId,
+                _scope_kind: null,
+                _scope_id: null,
+              },
+            );
+            if (!resolveErr) {
+              const first = Array.isArray(resolvedRows) ? resolvedRows[0] : resolvedRows;
+              if (first && typeof (first as { id?: unknown }).id === "string") {
+                resolvedAssignmentId = (first as { id: string }).id;
+                routeDecisionSource = "intent_role";
+              }
+            }
+          }
+        } catch (_err) {
+          // Best-effort — role-based resolution failures fall through to defaults.
+        }
+      }
+      if (resolvedAssignmentId) {
+        try {
+          // Prefer the canonical `id` match; fall back to `source_config_id`
+          // only for the profile_pin case where the id references the legacy
+          // `printer_profiles.id` (Phase 2b mirror, dropped in Phase 6).
+          const query = supabase
             .from("device_assignments")
             .select(
               "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
-            )
-            .or(`id.eq.${policy.printer_profile_id},source_config_id.eq.${policy.printer_profile_id}`)
-            .maybeSingle();
+            );
+          const filtered =
+            routeDecisionSource === "profile_pin"
+              ? query.or(`id.eq.${resolvedAssignmentId},source_config_id.eq.${resolvedAssignmentId}`)
+              : query.eq("id", resolvedAssignmentId);
+          const { data: profileRow } = await filtered.maybeSingle();
           if (profileRow) physicalProfile = profileRow as typeof physicalProfile;
         } catch (_err) {
           // Profile load is best-effort. The builder defaults are safe.
         }
       }
+      console.info("[hardware.route.decision]", {
+        surface: "generate-document",
+        documentType,
+        organizationId: orgId,
+        businessId: bizId,
+        source: routeDecisionSource,
+        assignmentId: resolvedAssignmentId,
+        intent: policy.intent ?? null,
+      });
+
 
       // pos_registers.printer_profile JSON (set by the register editor)
       // overrides the policy profile for that register only — operators
