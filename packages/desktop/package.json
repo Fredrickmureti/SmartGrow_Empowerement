@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "agent:build": "npm --prefix ../../agent install --no-audit --no-fund && npm --prefix ../../agent run build",
+    "agent:build": "node scripts/build-agent.mjs",
     "prestart": "npm run agent:build",
     "start": "electron .",
     "package:linux": "npm run agent:build && vite build && electron-packager . AccrualFlowEdge --platform=linux --arch=x64 --out=release --overwrite --extra-resource=../../agent --ignore='^/src' --ignore='^/release' --ignore='node_modules/(?!(better-sqlite3))'",
