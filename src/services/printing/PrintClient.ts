@@ -193,68 +193,88 @@ class PrintClient {
     const fmt = req.format ?? (policy ? renderModeToFormat(policy.renderMode, req.intent) : intentToFormat(req.intent));
     const copies = policy && policy.copies > 0 ? policy.copies : 1;
 
-    // ADR-0090 · Phase D1 — insert ledger row before dispatch so a crash
-    // between "queued" and "sent" still leaves an audit trail. Ledger
-    // insert failures never block printing.
-    const jobId = await this.insertLedgerRow(req, policy, fmt).catch(() => null);
+    // ADR-0090 · Phase D1 — insert a parent ledger row before dispatch so
+    // a crash between "queued" and "sent" still leaves an audit trail.
+    // Plan P3 Step 2 — when copies > 1 the parent is a container; each
+    // copy gets its own child row via `parent_job_id` so the admin view
+    // can render the fan-out tree and mark individual copies acked/failed
+    // independently. Ledger insert failures never block printing.
+    const parentJobId = await this.insertLedgerRow(req, policy, fmt).catch(() => null);
 
     try {
-      let result: PrintResult;
-      if (fmt === 'pdf') {
-        // Receipt intent rendering to PDF means no thermal printer is
-        // bound (or the policy explicitly asked for PDF). The document
-        // shape must follow the destination device: hand Chrome's native
-        // print dialog an A4/Letter sheet, never a tall thermal strip.
-        const paperOverride = req.intent === 'receipt' || req.intent === 'kitchen_ticket'
-          ? ('a4' as const)
-          : undefined;
-        const blob = await generateDocumentPdf(req.documentType, req.documentId, paperOverride ? { paperFormat: paperOverride } : undefined);
-        for (let i = 0; i < copies; i++) {
-          await printPdfInPage(blob);
+      const isElectron = typeof window !== 'undefined' && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron);
+      const pdfTransport: PrintResult['transport'] = isElectron ? 'pdf-electron' : 'pdf-browser';
+
+      let lastResult: PrintResult = { success: false, transport: 'none', policy };
+      for (let i = 0; i < copies; i++) {
+        // For a single-copy request the parent row IS the copy row —
+        // don't insert a redundant child. For multi-copy, mint a child
+        // row per copy so each has its own lifecycle in the ledger.
+        const childJobId = copies === 1
+          ? parentJobId
+          : await this.insertLedgerRow(req, policy, fmt, { parentJobId, childIndex: i + 1 }).catch(() => null);
+
+        let copyResult: PrintResult;
+        try {
+          if (fmt === 'pdf') {
+            const paperOverride = req.intent === 'receipt' || req.intent === 'kitchen_ticket'
+              ? ('a4' as const)
+              : undefined;
+            const blob = await generateDocumentPdf(req.documentType, req.documentId, paperOverride ? { paperFormat: paperOverride } : undefined);
+            await printPdfInPage(blob);
+            copyResult = { success: true, transport: pdfTransport, policy };
+          } else if (fmt === 'escpos') {
+            const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
+            await hardwareClient.printRawBytes(bytes);
+            copyResult = { success: true, transport: 'thermal', policy };
+          } else if (fmt === 'zpl') {
+            const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
+            await hardwareClient.printLabelBytes(bytes);
+            copyResult = { success: true, transport: 'thermal', policy };
+          } else {
+            copyResult = { success: false, transport: 'none', error: `Unsupported format ${fmt}`, policy };
+          }
+        } catch (err) {
+          copyResult = { success: false, transport: 'none', error: (err as Error).message, policy };
         }
-        const electron = typeof window !== 'undefined' && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron);
-        result = { success: true, transport: electron ? 'pdf-electron' : 'pdf-browser', policy };
-      } else if (fmt === 'escpos') {
-        const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
-        for (let i = 0; i < copies; i++) {
-          await hardwareClient.printRawBytes(bytes);
+
+        if (childJobId) {
+          if (copyResult.success) {
+            if (copyResult.transport === 'thermal') {
+              await this.markLedgerSent(childJobId);
+            } else {
+              await this.markLedgerSent(childJobId);
+              await this.markLedgerAckedForNonThermal(childJobId);
+            }
+          } else if (copyResult.error) {
+            await this.markLedgerFailed(childJobId, copyResult.error).catch(() => undefined);
+          }
         }
-        result = { success: true, transport: 'thermal', policy };
-      } else if (fmt === 'zpl') {
-        const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
-        for (let i = 0; i < copies; i++) {
-          await hardwareClient.printLabelBytes(bytes);
-        }
-        result = { success: true, transport: 'thermal', policy };
-      } else {
-        result = { success: false, transport: 'none', error: `Unsupported format ${fmt}`, policy };
+        lastResult = copyResult;
+        if (!copyResult.success) break;
       }
 
-      // Mark sent (PDF/browser transports have no async ack — the print
-      // dialog handed off successfully is our ack; mark acked immediately
-      // for those. Thermal transports stay in 'sent' until the hardware
-      // bridge writes the ack via print_job_mark_acked (Phase D2).
-      if (jobId) {
-        if (result.success) {
-          if (result.transport === 'thermal') {
-            await this.markLedgerSent(jobId);
-          } else {
-            await this.markLedgerSent(jobId);
-            await this.markLedgerAckedForNonThermal(jobId);
-          }
-        } else if (result.error) {
-          await this.markLedgerFailed(jobId, result.error);
+      // Mirror the terminal state onto the parent container row when we
+      // fanned out to child rows, so admin filters like "show failed jobs"
+      // surface either the parent or the copies coherently.
+      if (parentJobId && copies > 1) {
+        if (lastResult.success) {
+          await this.markLedgerSent(parentJobId);
+          await this.markLedgerAckedForNonThermal(parentJobId);
+        } else if (lastResult.error) {
+          await this.markLedgerFailed(parentJobId, lastResult.error).catch(() => undefined);
         }
       }
-      return result;
+      return lastResult;
     } catch (err) {
       const errorMsg = (err as Error).message;
-      if (jobId) {
-        await this.markLedgerFailed(jobId, errorMsg).catch(() => undefined);
+      if (parentJobId) {
+        await this.markLedgerFailed(parentJobId, errorMsg).catch(() => undefined);
       }
       return { success: false, transport: 'none', error: errorMsg, policy };
     }
   }
+
 
   /**
    * ADR-0090 + Plan P3 Step 1 · derive a correlation id.
@@ -267,11 +287,20 @@ class PrintClient {
     return `${req.documentType}:${req.documentId}:${req.intent}:${bucket}`;
   }
 
-  /** ADR-0090 · insert queued row via SECURITY DEFINER RPC. */
+  /**
+   * ADR-0090 · insert queued row via SECURITY DEFINER RPC.
+   * Plan P3 Step 2 — `opts.parentJobId` links a fan-out copy back to its
+   * parent container row; `opts.childIndex` suffixes the correlation id
+   * so children of a multi-copy job satisfy the
+   * `(business_id, correlation_id)` unique index while still collapsing
+   * on rapid double-click (the second click regenerates identical child
+   * keys and the DB rejects them).
+   */
   private async insertLedgerRow(
     req: PrintRequest,
     policy: ResolvedPrintPolicy | null,
     fmt: 'pdf' | 'escpos' | 'zpl',
+    opts?: { parentJobId?: string | null; childIndex?: number },
   ): Promise<string | null> {
     if (!req.businessId) return null;
     try {
@@ -279,6 +308,10 @@ class PrintClient {
       const transport = fmt === 'pdf'
         ? (typeof window !== 'undefined' && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron) ? 'pdf-electron' : 'pdf-browser')
         : 'thermal';
+      const baseCorrelation = this.correlationId(req);
+      const correlation = opts?.childIndex
+        ? `${baseCorrelation}:copy:${opts.childIndex}`
+        : baseCorrelation;
       const { data, error } = await supabase.rpc('print_job_insert', {
         p_business_id: req.businessId,
         p_branch_id: req.branchId ?? null,
@@ -288,9 +321,9 @@ class PrintClient {
         p_format: fmt,
         p_printer_profile_id: policy?.printerProfileId ?? null,
         p_media_profile_id: null,
-        p_correlation_id: this.correlationId(req),
+        p_correlation_id: correlation,
         p_transport: transport,
-        p_parent_job_id: null,
+        p_parent_job_id: opts?.parentJobId ?? null,
       });
       if (error) return null;
       return typeof data === 'string' ? data : null;
@@ -298,6 +331,7 @@ class PrintClient {
       return null;
     }
   }
+
 
   private async markLedgerSent(jobId: string): Promise<void> {
     try {
