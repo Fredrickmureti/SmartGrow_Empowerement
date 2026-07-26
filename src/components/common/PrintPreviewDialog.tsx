@@ -70,7 +70,14 @@ export function PrintPreviewDialog({
 }: PrintPreviewDialogProps) {
   const { toast } = useToast();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isPrinting, setIsPrinting] = useState(false);
+  // Wave B3 (Plan P1) — `pendingPrints` replaces the legacy `isPrinting`
+  // boolean. Each Print click enqueues a job on `printPdfInPage`'s FIFO
+  // queue (module-scoped in `pdfUtils.ts`) and increments this counter;
+  // the counter decrements when that specific job resolves. Rapid clicks
+  // no longer no-op — they queue behind the in-flight dialog and print
+  // in order, matching the label-path FIFO guarantees.
+  const [pendingPrints, setPendingPrints] = useState(0);
+  const isPrinting = pendingPrints > 0;
   const [isSavingPDF, setIsSavingPDF] = useState(false);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("__browser__");
   // Stage W6 (ADR-0008): destinations come from the unified device
@@ -318,27 +325,22 @@ export function PrintPreviewDialog({
   };
 
   const handlePrint = async () => {
-    setIsPrinting(true);
+    // Wave B3 (Plan P1) — enqueue rather than block. The Print button
+    // stays live; every click bumps `pendingPrints` and hands another
+    // job to the underlying transport. `printPdfInPage` serialises PDF
+    // jobs in a module-scoped FIFO so overlapping browser print dialogs
+    // are impossible. Thermal jobs go through `printRawBytes`, itself
+    // serialised per-endpoint by `AgentClient._withEndpointLock` and
+    // the agent-side `endpointQueues` in `agent/src/routes/print.ts`.
+    setPendingPrints((n) => n + 1);
     try {
-      // UX-3: thermal path triggers when EITHER the resolved policy is
-      // ESC/POS OR the user explicitly picked a connected thermal
-      // destination in the dropdown. Without the second clause, picking
-      // a thermal printer for an invoice (whose policy is A4 PDF) would
-      // silently fall back to browser PDF — the exact bug users hit
-      // when their POS printer is configured and online but Sales/
-      // Purchases "Print" does nothing on the printer.
       const wantsThermal = isEscposMode || policyIsEscpos || selectedIsThermal;
       let bytes = escposBytes;
       if (wantsThermal && !bytes && selectedIsThermal) {
-        // Lazy-fetch on demand for the policy-was-PDF case.
         bytes = await fetchEscposBytes();
       }
       let canStream = wantsThermal && !!bytes && selectedIsThermal;
 
-      // UX-2: if policy is thermal but no thermal destination is
-      // currently connected, try ONE auto-reconnect before degrading to
-      // the PDF fallback. Rescues the "agent came online after mount"
-      // race that otherwise made Print silently print the PDF.
       if (wantsThermal && !canStream && !selectedIsThermal) {
         const offlineThermal = destinations.find((d) => d.kind === "thermal" && !d.connected);
         if (offlineThermal) {
@@ -366,9 +368,6 @@ export function PrintPreviewDialog({
           });
         }
       } else if (wantsThermal && !selectedIsThermal) {
-        // UX-2: don't silently substitute browser PDF when the user
-        // explicitly configured a thermal printer. Make the failure
-        // visible and actionable.
         toast({
           title: "Thermal printer unavailable",
           description:
@@ -387,9 +386,10 @@ export function PrintPreviewDialog({
       console.error("Print error:", error);
       toast({ title: "Print failed", description: "An error occurred while printing", variant: "destructive" });
     } finally {
-      setIsPrinting(false);
+      setPendingPrints((n) => Math.max(0, n - 1));
     }
   };
+
 
   const handleReconnectPrinter = async () => {
     const res = await reconnectRole("receipt_printer");
@@ -696,13 +696,18 @@ export function PrintPreviewDialog({
 
           <Button
             onClick={handlePrint}
-            disabled={isPrinting || showLoading}
+            // Wave B3 (Plan P1) — button stays live during in-flight
+            // prints so rapid clicks enqueue instead of being swallowed
+            // by the DOM. `showLoading` still gates during initial PDF
+            // fetch because there is literally nothing to enqueue yet.
+            disabled={showLoading}
             variant={isMobile ? "outline" : "default"}
             className="w-full sm:w-auto h-9 text-sm"
           >
             {isPrinting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Printer className="h-4 w-4 mr-2" />}
-            Print
+            {pendingPrints > 1 ? `Print (${pendingPrints} queued)` : isPrinting ? "Printing…" : "Print"}
           </Button>
+
         </DialogFooter>
       </DialogContent>
     </Dialog>

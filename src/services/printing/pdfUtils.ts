@@ -39,12 +39,37 @@ export function openPdfInNewTab(blob: Blob, title?: string): void {
  *     native print dialog still sees the source.
  */
 export async function printPdfInPage(blob: Blob): Promise<void> {
+  // Wave B3 (Plan P1) — global FIFO queue for the PDF/iframe transport.
+  //
+  // Prior behaviour: two overlapping printPdfInPage calls each spawned
+  // their own hidden iframe + native print dialog. In practice the
+  // second dialog either stacked on top of the first (blocking the
+  // page) or, more commonly, callers guarded the button with a local
+  // `isPrinting` boolean that discarded the second click at the DOM
+  // level — so rapid Print-Invoice clicks silently lost jobs 2..N.
+  //
+  // Fix: chain every call onto a module-scoped promise so the second
+  // call's iframe/print dialog does not open until the first resolves
+  // (via `afterprint` or the 60 s safety timeout). Different documents
+  // share the queue because a browser can only host one native print
+  // dialog at a time; per-document keys would not help. This mirrors
+  // the label path's per-endpoint FIFO in `agent/src/routes/print.ts`
+  // and `AgentClient._withEndpointLock`.
+  const next = pdfPrintQueue
+    .catch(() => undefined)
+    .then(() => runPrintPdfInPage(blob));
+  pdfPrintQueue = next;
+  return next;
+}
+
+// Module-scoped FIFO tail. Never rejects — errors from an individual
+// job are caught before being chained, so a failing job never poisons
+// the queue for subsequent jobs.
+let pdfPrintQueue: Promise<void> = Promise.resolve();
+
+async function runPrintPdfInPage(blob: Blob): Promise<void> {
   // Electron path — defer to the main-process lifecycle-supervised
   // hidden window so renderer unmount can never race the print job.
-  // ADR-0015 re-audit (step D): do NOT fall through to the renderer
-  // iframe on Electron — that is the exact path that produced
-  // `TypeError: Object has been destroyed`. Surface the error so the
-  // caller can show a recovery affordance instead.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bridge: any = typeof window !== "undefined" ? (window as any).pos : undefined;
   if (bridge?.isElectron && bridge.print?.pdfBytes) {
@@ -55,7 +80,6 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
     }
     return;
   }
-
 
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
@@ -88,11 +112,6 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
           cleanup();
           return;
         }
-        // Schedule cleanup on afterprint when supported, otherwise a
-        // safety timeout. We deliberately do NOT call removeChild
-        // before the print dialog has had a chance to capture the
-        // source — that was the original cause of the destroyed-object
-        // races in Electron and intermittent blank prints in browsers.
         const onAfterPrint = () => {
           try { cw.removeEventListener("afterprint", onAfterPrint); } catch { /* ignore */ }
           cleanup();
@@ -102,9 +121,6 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
         cw.focus();
         cw.print();
       } catch (e) {
-        // Do NOT fall back to a new browser tab — that defeats the
-        // "print stays on this page" UX contract. Surface the failure
-        // so callers can show a toast and the user stays in context.
         console.error("In-page print failed:", e);
         cleanup();
         return;
@@ -118,6 +134,17 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
     iframe.src = url;
   });
 }
+
+/**
+ * Test-only. Returns a promise that resolves when the current PDF
+ * print queue is fully drained. Do NOT rely on this in production
+ * code — it is exposed so architecture tests can assert FIFO
+ * behaviour without racing the queue.
+ */
+export function __printPdfInPageQueueDrained(): Promise<void> {
+  return pdfPrintQueue.catch(() => undefined);
+}
+
 
 /**
  * Download a PDF blob as a file.
