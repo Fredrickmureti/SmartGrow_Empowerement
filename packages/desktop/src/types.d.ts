@@ -78,7 +78,32 @@ export interface EdgeBridge {
     installCert(): Promise<TrustResult>;
     uninstallCert(): Promise<TrustResult>;
   };
+  updates: {
+    check(opts?: { channel?: string }): Promise<UpdateCheck>;
+  };
   shell: { openExternal(url: string): Promise<void> };
+}
+
+export interface UpdateCheck {
+  ok: boolean;
+  error?: string;
+  channel?: string;
+  current_version?: string;
+  latest_version?: string | null;
+  /** A newer build exists for this platform. */
+  update_available?: boolean;
+  /** True when this device is inside the staged-rollout slice. */
+  applies_to_this_device?: boolean;
+  /** Below `minimum_version` — rollout gating is bypassed. */
+  mandatory?: boolean;
+  rollout?: number;
+  rollout_bucket?: number;
+  platform?: string;
+  notes?: string | null;
+  pub_date?: string | null;
+  download_url?: string | null;
+  sha256?: string | null;
+  unsupported_platform?: boolean;
 }
 
 export interface CertStatus {
