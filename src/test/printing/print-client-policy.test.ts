@@ -167,10 +167,14 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
     await printClient.print(req);
     await printClient.print({ ...req, documentId: 'tx-cache-2' });
     await printClient.print({ ...req, documentId: 'tx-cache-3' });
-    expect(rpcMock).toHaveBeenCalledTimes(1);
+    // Count only policy-resolve RPCs; print_job_insert/mark_sent are called
+    // per print and are not what this test is measuring (ADR-0090).
+    const resolveCalls = () =>
+      rpcMock.mock.calls.filter((c) => c[0] === 'print_policies_resolve').length;
+    expect(resolveCalls()).toBe(1);
     printClient.invalidatePolicyCache();
     await printClient.print({ ...req, documentId: 'tx-cache-4' });
-    expect(rpcMock).toHaveBeenCalledTimes(2);
+    expect(resolveCalls()).toBe(2);
   });
 });
 
