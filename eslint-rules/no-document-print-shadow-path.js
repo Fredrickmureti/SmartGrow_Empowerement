@@ -28,6 +28,9 @@ const ALLOWED_FILES = [
   // Shared migration helper; wraps useDocumentPrint as the ask_user /
   // failure fallback for pages routed through PrintClient.
   'src/hooks/usePrintOrPreview.ts',
+  // Uses useDocumentPrint.printDocument (not covered by usePrintOrPreview
+  // surface). Out of scope for the Print Pipeline P2 migration.
+  'src/pages/hr/payroll/LegalRecipients.tsx',
 ];
 
 /** @type {import('eslint').Rule.RuleModule} */
