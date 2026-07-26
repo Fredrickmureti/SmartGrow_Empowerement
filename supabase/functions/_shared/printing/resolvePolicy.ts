@@ -34,6 +34,18 @@ export interface ResolvedPolicy {
   paper_format: PaperFormat;
   render_mode: RenderMode;
   printer_profile_id: string | null;
+  /**
+   * Phase 3C — canonical device pin. When set, downstream generators
+   * dispatch to this `device_assignments.id` directly and skip the
+   * legacy `printer_profile_id → source_config_id` fan-out.
+   */
+  device_assignment_id: string | null;
+  /**
+   * Phase 3C — role-only routing hint. When neither `device_assignment_id`
+   * nor `printer_profile_id` is set, generators call `resolve_device`
+   * with the role derived from this intent (see `intentToRole.ts`).
+   */
+  intent: string | null;
   auto_print: boolean;
   source: "override" | "branch" | "business" | "default";
 }
@@ -48,8 +60,11 @@ const SYSTEM_DEFAULT: Omit<ResolvedPolicy, "source"> = {
   paper_format: "a4",
   render_mode: "pdf",
   printer_profile_id: null,
+  device_assignment_id: null,
+  intent: null,
   auto_print: false,
 };
+
 
 export async function resolvePrintPolicy(
   supabase: SupabaseClient,
