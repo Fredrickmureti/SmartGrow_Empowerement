@@ -338,6 +338,13 @@ export function PrintPreviewDialog({
     // serialised per-endpoint by `AgentClient._withEndpointLock` and
     // the agent-side `endpointQueues` in `agent/src/routes/print.ts`.
     setPendingPrints((n) => n + 1);
+    // Plan P3 Step 1 — one UUID per Print click; passed to both thermal
+    // and PDF branches so a rapid double-click collapses on the ledger's
+    // `(business_id, correlation_id)` uniqueness instead of racing.
+    const clickIdempotencyKey =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
       const wantsThermal = isEscposMode || policyIsEscpos || selectedIsThermal;
       let bytes = escposBytes;
@@ -369,6 +376,7 @@ export function PrintPreviewDialog({
           format: "escpos",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
+          idempotencyKey: clickIdempotencyKey,
         });
         try {
           const result = await printRawBytes(bytes);
@@ -411,6 +419,7 @@ export function PrintPreviewDialog({
           format: "pdf",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
+          idempotencyKey: clickIdempotencyKey,
         });
         try {
           await printPdfInPage(pdfBlob);
