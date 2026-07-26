@@ -518,14 +518,90 @@ class PrintClient {
     }
   }
 
-  /** Save the document as a PDF to the user's downloads folder. */
-  async download(req: PrintRequest, filename: string): Promise<PrintResult> {
+  /**
+   * Save the document as a PDF to the user's downloads folder.
+   *
+   * Phase C (plan) — every download flows through PrintClient so the
+   * `print_jobs` ledger records the intent, not just the on-device print.
+   * Ledger insertion never blocks the download itself.
+   */
+  async download(
+    req: PrintRequest,
+    filename: string,
+    opts?: {
+      paperFormat?: import('./pdfUtils').PaperFormatOption;
+      extraBody?: Record<string, unknown>;
+    },
+  ): Promise<PrintResult> {
+    const handle = req.businessId
+      ? await this.recordInteractivePrint({
+          documentType: req.documentType,
+          documentId: req.documentId,
+          intent: req.intent,
+          format: 'pdf',
+          businessId: req.businessId,
+          branchId: req.branchId ?? null,
+          idempotencyKey: req.idempotencyKey,
+        }).catch(() => null)
+      : null;
     try {
-      const blob = await generateDocumentPdf(req.documentType, req.documentId);
+      const blob = await generateDocumentPdf(req.documentType, req.documentId, {
+        paperFormat: opts?.paperFormat,
+        extraBody: opts?.extraBody,
+      });
       downloadPdfBlob(blob, filename.endsWith('.pdf') ? filename : `${filename}.pdf`);
+      if (handle) {
+        await handle.markSent().catch(() => undefined);
+        await handle.markAcked().catch(() => undefined);
+      }
       return { success: true, transport: 'download' };
     } catch (err) {
-      return { success: false, transport: 'none', error: (err as Error).message };
+      const msg = (err as Error).message;
+      if (handle) await handle.markFailed(msg).catch(() => undefined);
+      return { success: false, transport: 'none', error: msg };
+    }
+  }
+
+  /**
+   * Generate a PDF via `generate-document` and print it in-page (no new
+   * tab). Same policy-deferral behaviour as `download` — the server
+   * decides the render mode, PrintClient records the ledger row.
+   */
+  async printDocument(
+    req: PrintRequest,
+    opts?: {
+      paperFormat?: import('./pdfUtils').PaperFormatOption;
+      extraBody?: Record<string, unknown>;
+    },
+  ): Promise<PrintResult> {
+    const handle = req.businessId
+      ? await this.recordInteractivePrint({
+          documentType: req.documentType,
+          documentId: req.documentId,
+          intent: req.intent,
+          format: 'pdf',
+          businessId: req.businessId,
+          branchId: req.branchId ?? null,
+          idempotencyKey: req.idempotencyKey,
+        }).catch(() => null)
+      : null;
+    try {
+      const blob = await generateDocumentPdf(req.documentType, req.documentId, {
+        paperFormat: opts?.paperFormat,
+        extraBody: opts?.extraBody,
+      });
+      await printPdfInPage(blob);
+      const isElectron = typeof window !== 'undefined' && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron);
+      const transport: PrintResult['transport'] = isElectron ? 'pdf-electron' : 'pdf-browser';
+      if (handle) {
+        await handle.markSent().catch(() => undefined);
+        await handle.markAcked().catch(() => undefined);
+      }
+      return { success: true, transport };
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (handle) await handle.markFailed(msg).catch(() => undefined);
+      return { success: false, transport: 'none', error: msg };
     }
   }
 
