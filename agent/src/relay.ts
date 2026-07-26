@@ -97,7 +97,7 @@ function isAuthError(err: unknown): boolean {
   return msg.includes('poll_http_401') || msg.includes('poll_http_404');
 }
 
-async function pollOnce(cfg: RelayConfig): Promise<RelayJob | null> {
+async function pollOnce(cfg: RelayConfig): Promise<RelayJob[]> {
   const res = await fetch(`${cfg.supabase_url}/functions/v1/edge/agent/poll`, {
     method: 'POST',
     headers: {
@@ -111,8 +111,10 @@ async function pollOnce(cfg: RelayConfig): Promise<RelayJob | null> {
     const body = await res.text().catch(() => '');
     throw new Error(`poll_http_${res.status}: ${body.slice(0, 200)}`);
   }
-  const data = await res.json() as { job: RelayJob | null };
-  return data.job ?? null;
+  const data = await res.json() as { job?: RelayJob | null; jobs?: RelayJob[] };
+  // Batch-capable server returns `jobs`; fall back to the single-job shape.
+  if (Array.isArray(data.jobs) && data.jobs.length > 0) return data.jobs;
+  return data.job ? [data.job] : [];
 }
 
 async function complete(
