@@ -160,3 +160,32 @@ Code sweep:
 2. Migrate `PrintClient.print()` (highest leverage — chokepoint). Recipe: at the top of the format-specific branches (`escpos`, `zpl`), if `req.businessId` is set, `resolveDeviceForIntent({ organizationId, intentOrRole: req.intent, businessId })` and `execAssignment` with the ESC/POS or ZPL bytes. Keep the existing `printRawBytes`/`printLabelBytes` calls as the resolver-outage fallback. Add a matching guard in `src/test/architecture/`.
 3. Then migrate `labelDispatch.ts`, `reprintClient.ts`, `SharedCommandQueueWorker.ts`, `BusinessSagaMount.tsx` — same recipe, same guard style.
 4. When zero non-fallback role-only calls remain outside `HardwareClient.ts`, promote primary/fallback ordering inside `HardwareClient.ts` and proceed to Step C.
+
+## Progress log — 2026-07-26 (Phase 5 Step B — PrintClient chokepoint on execAssignment)
+
+**Changed:**
+- `src/services/printing/PrintClient.ts`: added optional `organizationId` to `PrintRequest`; added `private async dispatchThermalBytes(bytes, req, role)` that resolves the winning `device_assignments` row via `resolveDeviceForIntent` when both `organizationId` and `businessId` are present, then dispatches via `hardwareClient.execAssignment` with `op: 'print_raw'`. Both the `escpos` and `zpl` format branches inside `print()` now delegate to it. Legacy `hardwareClient.printRawBytes`/`printLabelBytes` calls survive only inside the helper's `legacy()` closure and inside the not-yet-migrated `printKitchenTicket` convenience method.
+- `src/hooks/inventory/useInventoryLabelPrinter.ts`: fixed the `DeviceRole` type import to route through `drivers/DriverInterface` (previous typecheck flagged the missing re-export from `@/services/hardware/types`).
+- `src/test/architecture/print-client-execAssignment.test.ts` (NEW): 4-test source-inspection guard — pins `organizationId` on the request type, pins the private dispatcher, asserts both format branches delegate (window-scoped so the helper's own legacy closure doesn't pollute the negative match), and bounds legacy-shim call counts.
+
+**Verified:** 38/38 across all 9 hardware guards. `tsgo` clean on all files touched this turn.
+
+## Phase status (2026-07-26 · after PrintClient chokepoint migration)
+
+- [~] Phase 5 Step B — All primary consumers migrated: `useHardwareProxy` (all 8 ops), `useInventoryLabelPrinter`, and `PrintClient` (the chokepoint every module goes through). Callers that don't yet pass `organizationId` still fall back correctly; the migration is additive.
+- [ ] Phase 5 Step B — remaining smaller-surface migrations (fastest→highest-leverage):
+  - `src/services/printing/labelDispatch.ts:387` — label dispatch helper, likely has business context already.
+  - `src/services/printing/reprintClient.ts:78,89` — reprint uses `exec({role,op})`; direct rewrite to `execAssignment` since documents already carry `businessId`.
+  - `src/services/hardware/SharedCommandQueueWorker.ts:180` — queue worker; needs per-queued-job assignment. Persist `assignment_id` on the job when enqueuing so drain doesn't re-resolve.
+  - `src/components/events/BusinessSagaMount.tsx:273` — saga-driven hardware; `businessId` is on the event.
+  - `src/services/printing/PrintClient.ts:435` (`printReceiptThermal`) and `~483` (`printKitchenTicket`) — legacy per-op convenience methods; migrate or deprecate. Callers should be pushed to `print({ intent, businessId, organizationId })` anyway.
+- [ ] Caller-side follow-up: audit consumers of `printClient.print()` and pass `organizationId` (they already pass `businessId`). Grep: `rg -n "printClient\.print\(" src`.
+- [ ] Phase 5 Step C — invert `execAssignment` / `execAny` primacy, delete `LocalAgentTransport.ts` + `TransportAdapter.resolveTransport()`.
+- [ ] Phase 6 — legacy DB drop.
+
+## Handoff — next agent
+
+1. Run all 9 guards: `bunx vitest run src/test/architecture/print-client-execAssignment src/test/architecture/useHardwareProxy-execAssignment src/test/architecture/useInventoryLabelPrinter-execAssignment src/test/hardware/inventory-label-printer-binding src/test/architecture/pos-receipt-resolver src/test/architecture/intent-to-role-parity src/test/architecture/transport-router-matrix src/test/architecture/role-vocabulary src/test/architecture/generate-document-resolver`. Must be green before editing.
+2. Grep `printClient.print(` consumers; add `organizationId: currentOrg?.id` to each call site so the new path activates in production. Every call site is a one-liner add.
+3. Migrate `labelDispatch.ts` and `reprintClient.ts` next (small, self-contained; documents carry `businessId`), then `SharedCommandQueueWorker.ts` (needs schema change: add `assignment_id` column to the queue table so drain doesn't re-resolve).
+4. Only when every non-fallback role-only call outside `HardwareClient.ts` is gone should you invert `execAssignment` / `execAny` and start deleting legacy transport files (Step C).
