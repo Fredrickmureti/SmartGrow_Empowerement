@@ -42,6 +42,7 @@ export interface PrintOrPreviewRequest {
 
 export function usePrintOrPreview() {
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
 
   // Preview dialog state, owned by this hook (previously in useDocumentPrint).
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
