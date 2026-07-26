@@ -195,14 +195,20 @@ function buildHandler(getTlsInfo: () => LoopbackTls | null) {
   };
 }
 
-export function createServer(tlsInfo: LoopbackTls | null = null) {
+type TlsSource = LoopbackTls | null | (() => LoopbackTls | null);
+
+const asGetter = (src: TlsSource) =>
+  typeof src === 'function' ? src : () => src;
+
+export function createServer(tls: TlsSource = null) {
   startPeriodicDiscovery();
-  return http.createServer(buildHandler(tlsInfo));
+  return http.createServer(buildHandler(asGetter(tls)));
 }
 
-export function createTlsServer(tlsInfo: LoopbackTls) {
+export function createTlsServer(tls: LoopbackTls, getTls?: () => LoopbackTls | null) {
   return https.createServer(
-    { cert: tlsInfo.cert, key: tlsInfo.key, minVersion: 'TLSv1.2' },
-    buildHandler(tlsInfo),
+    { cert: tls.cert, key: tls.key, minVersion: 'TLSv1.2' },
+    buildHandler(getTls ?? (() => tls)),
   );
 }
+
