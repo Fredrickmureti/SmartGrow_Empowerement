@@ -84583,6 +84583,61 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_device: {
+        Args: {
+          _business_id?: string
+          _organization_id: string
+          _role: string
+          _scope_id?: string
+          _scope_kind?: string
+        }
+        Returns: {
+          address: string | null
+          business_id: string | null
+          capabilities: Json
+          code128_native: boolean | null
+          columns_override: number | null
+          command_language: string | null
+          config: Json
+          created_at: string
+          created_by: string | null
+          cutter: string | null
+          device_key: string | null
+          display_name: string
+          dpi: number | null
+          driver: string
+          enabled: boolean
+          escpos_codepage: string | null
+          font: string | null
+          id: string
+          is_calibrated: boolean
+          is_default: boolean
+          last_error: string | null
+          last_seen_at: string | null
+          margin_cols: number | null
+          margins_mm: Json
+          notes: string | null
+          organization_id: string
+          paper_format: string | null
+          paper_size: string | null
+          qr_native: boolean | null
+          role: string
+          scope_id: string | null
+          scope_kind: string
+          source_config_id: string | null
+          status: string
+          supported_media_ids: string[]
+          transport: string
+          updated_at: string
+          workstation_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "device_assignments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       resolve_device_for_workflow: {
         Args: {
           p_branch_id?: string
