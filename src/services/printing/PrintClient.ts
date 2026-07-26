@@ -46,6 +46,15 @@ export interface PrintRequest {
   businessId?: string | null;
   branchId?: string | null;
   /**
+   * Phase 5 Step B — when supplied together with `businessId`, the print
+   * client resolves the winning `device_assignments` row via
+   * `resolve_device` and dispatches thermal/label bytes through
+   * `hardwareClient.execAssignment` so `TransportRouter` sees the row's
+   * persisted `transport` instead of a role-only fan-out. Omit either
+   * value to fall back to legacy role-based dispatch.
+   */
+  organizationId?: string | null;
+  /**
    * Plan P3 Step 1 — per-click idempotency key. UI mints a UUID at the
    * submit boundary (button click, hotkey, programmatic dispatch) and
    * passes it here. When set, it replaces the legacy 2-second
