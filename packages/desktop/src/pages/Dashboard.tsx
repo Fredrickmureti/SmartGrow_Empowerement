@@ -3,6 +3,7 @@ import type { WorkstationRead, SupervisorStatus } from '../types';
 import { select } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtime';
 import { CertificatePanel } from '../components/CertificatePanel';
+import { UpdatesPanel } from '../components/UpdatesPanel';
 
 interface Props { workstation: WorkstationRead }
 
@@ -147,6 +148,8 @@ export function Dashboard({ workstation }: Props) {
       </div>
 
       <CertificatePanel onChanged={refresh} />
+
+      <UpdatesPanel />
 
       {err && <div className="panel" style={{ borderColor: 'var(--edge-err)' }}>
         <div className="error-inline">{err}</div>
