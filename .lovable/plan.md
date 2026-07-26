@@ -179,28 +179,43 @@ Deferred to Phase 4 Step 3b / Phase 6:
 
 - [x] Phase 1, 2, 3 — complete.
 - [x] Phase 4 — UI consolidation (canonical home for print policies is `/platform/hardware/policies`; guard-locked).
-- [~] Phase 5 — Transport consolidation. **Step A complete** (pure TransportRouter + decision matrix). **Step B pending** (rewrite `HardwareClient` to consult `TransportRouter.route()` exactly once per call, collapsing the ~15 scattered `isElectronMode()` branches). **Step C pending** (delete the legacy `resolveTransport()` in `transport/index.ts` and `LocalAgentTransport` renderer shim once callers migrate).
+- [~] Phase 5 — Transport consolidation. **Step A complete** (pure TransportRouter + decision matrix). **Step B in progress — foundation shipped** (HostRouter single-source-of-truth + `hardwareClient.execAssignment` blessed per-assignment entrypoint + arch guard). **Step B finish pending** (migrate `useHardwareProxy` + `printClient` call sites off `execAny(role, …)` onto `execAssignment({assignment, …})`, then peel the remaining ~30 `ipcAvailable()` sites in `HardwareClient.ts` namespaces off inline reads onto `hostRouter.*`). **Step C pending** (delete `LocalAgentTransport.ts` + `transport/index.ts::resolveTransport`).
 - [ ] Phase 6 — Legacy schema removal (green-lit by the field-parity map, but blocked on Phase 5 Step C).
 
-## Handoff — next agent (Phase 5 Step B)
+## Phase 5 Step B — this turn (2026-07-26)
+
+**Shipped:**
+- `src/services/hardware/transport/HostRouter.ts` (NEW) — single-source-of-truth for the Electron preload bridge. Exports `ipcAvailable()`, `isElectronHost()`, `hasStalePreload()`, and `hostRouter.snapshot()`. This is the file every hardware caller should consult; direct `window.pos.*` reads are guarded against.
+- `src/services/hardware/HardwareClient.ts` — inline `ipcAvailable()` / `isElectronMode()` deleted; both now imported from HostRouter (`isElectronMode` retained as a private thin alias for one loop to avoid touching 30 call sites in the same edit — Step B finish will inline it).
+- `hardwareClient.execAssignment({ assignment, op, payload, ... })` (NEW) — blessed per-assignment execution path. Consults `TransportRouter.route(assignment, sniffHost())`, emits a `[hardware.route.decision]` structured log with `stage: "client"` (mirroring the resolver's tag so a single grep traces intent → assignment → transport), short-circuits on `kind === "unavailable"` before touching the driver, then dispatches through `execAny` for the concrete IO. Step B finish will collapse the dispatch into a `switch (decision.kind)`.
+- `src/test/architecture/host-router-single-source.test.ts` (NEW · 3 tests) — repository-wide guard that only whitelisted files (`HostRouter`, `TransportRouter`, `environment`, `HardwareClient` [temporary allow-listed until Step B finish], the browser adapter shell, `CustomerDisplayClient`, offline stack, PDF viewer, diagnostics UI, and text-inspection tests) may read `window.pos.hardware` / `window.pos.isElectron`. Removing `HardwareClient.ts` from the allow-list is the Definition-of-Done marker for Step B finish.
+
+**Verification this turn:** `bunx vitest run` across all 5 Phase 4/5 architecture suites — **22/22 green**:
+- `generate-document-resolver` (5)
+- `transport-router-matrix` (8)
+- `legacy-printer-profile-field-parity` (2)
+- `print-policies-canonical-home` (4)
+- `host-router-single-source` (3)
+
+## Handoff — next agent (Phase 5 Step B — finish)
 
 **Verify first (do not trust this log — check):**
-1. `bunx vitest run src/test/architecture/transport-router-matrix.test.ts src/test/architecture/legacy-printer-profile-field-parity.test.ts src/test/architecture/print-policies-canonical-home.test.ts src/test/architecture/generate-document-resolver.test.ts` → 21 tests green.
+1. `bunx vitest run src/test/architecture/host-router-single-source.test.ts src/test/architecture/transport-router-matrix.test.ts src/test/architecture/legacy-printer-profile-field-parity.test.ts src/test/architecture/print-policies-canonical-home.test.ts src/test/architecture/generate-document-resolver.test.ts` → **22 tests green**.
 2. `bunx tsgo --noEmit` → clean.
-3. `rg -n "isElectronMode|isElectron\(\)" src/services/hardware/` — confirm the audit surface is still exactly what the plan describes (14 `isElectronMode()` hits in `HardwareClient.ts` + `isElectron()` in `transport/index.ts` + `CustomerDisplayClient`). No new sites should have appeared.
-4. `rg -n "LEGACY_PRINTER_PROFILE_FIELD_MAP|legacyPrinterProfileFieldMap" src/` — hits limited to the mapping file itself and its arch test. If any runtime module imports it, the field-parity guard should already be failing.
+3. `rg -n "window\\.pos\\.(isElectron|hardware)" src/services/hardware/HardwareClient.ts | wc -l` — expect the count to drop as you migrate namespaces onto `hostRouter.*`. Target: **0**.
+4. `rg -n "ipcAvailable|isElectronMode" src/services/hardware/HardwareClient.ts` — every remaining hit should be either the local `isElectronMode` alias (delete it) or an `ipcAvailable()` call that Step B finish converts to `hostRouter.ipcAvailable()`.
 
-**Then open Phase 5 Step B:**
+**Then finish Step B:**
 
-Step B (HardwareClient rewrite — the invasive bit):
-1. Rewrite `HardwareClient.ts` so every code path that currently branches on `isElectronMode()` instead consults `TransportRouter.route(assignment, sniffHost())` on the resolved `device_assignments` row and switches on `decision.kind`. This requires threading the `assignment` object (not just a role string) into `HardwareClient.exec` — today `execAny(role, op, ...)` fires blind. Introduce a `hardwareClient.exec(assignment, op, payload)` overload that takes the resolved assignment and treat the legacy `execAny(role, …)` as a thin wrapper that first calls `resolveDeviceForIntent` internally.
-2. Update `useHardwareProxy.printReceipt` / `printKitchenOrder` and `printClient.print()` to pass the assignment they already resolved (they call `resolveDeviceForIntent` today and then discard the row).
-3. Add architectural guard `hardware-transport-single-router.test.ts` asserting that `isElectronMode` / `isElectron()` may be referenced only in: `src/lib/environment.ts`, `src/services/hardware/transport/TransportRouter.ts` (`sniffHost`), and the CustomerDisplay module (`local-display/*` — that surface has its own audit track and is out of scope for this consolidation). Any other hit fails the guard.
-4. Do NOT delete `LocalAgentTransport.ts` yet — Step C.
+1. **Migrate execAny → execAssignment at the call sites.** In `src/hooks/hardware/useHardwareProxy.ts` and `src/services/printing/PrintClient.ts`, the resolver returns a `device_assignments` row and today discards it (calls `execAny(role, ...)` blind). Change these to call `hardwareClient.execAssignment({ assignment, op, payload, sourceDoc*, businessEventId, isReprint })`. This puts the transport decision on the exact row the resolver picked, closing the last "two assignments with the same role diverge silently" loophole.
+2. **Collapse `execAssignment`'s dispatch** — replace the temporary `execAny` fallthrough with an explicit `switch (decision.kind)` that calls `execElectron` for `electron_native` and `browserHardwareAdapter.exec` for `local_agent | webusb | webhid`. The `execAny` symbol can then be marked `@deprecated` and left only for pre-migration callers.
+3. **Peel the remaining namespace inline reads.** Replace every `ipcAvailable()` / `isElectronMode()` inside the `devices`, `customerDisplay`, `agent`, and `bluetooth` namespaces with `hostRouter.ipcAvailable()` / `hostRouter.isElectronHost()`. Delete the local `isElectronMode` alias. Then **remove `"services/hardware/HardwareClient.ts"` from the allow-list in `host-router-single-source.test.ts`** — that removal is the DoD signal for Step B finish.
+4. **Do not** delete `LocalAgentTransport.ts` yet — Step C.
 
 Step C (post-B cleanup):
-- Delete the legacy `resolveTransport()` in `src/services/hardware/transport/index.ts` (superseded by TransportRouter).
+- Delete legacy `resolveTransport()` in `src/services/hardware/transport/index.ts` (superseded by `TransportRouter`).
 - Delete `LocalAgentTransport.ts` renderer shim only after `rg` confirms zero importers.
 - Retain `AgentClient.ts` (ADR-0037).
 
 **Do not** touch Phase 6 (DROP TABLE) until Step C removes the last renderer reader of the legacy transport shim. The field-parity map is the Phase 6 green-light checklist; use it when writing the drop migration to confirm every column already has a new home.
+
