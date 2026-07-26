@@ -2979,10 +2979,29 @@ serve(async (req) => {
       // POS receipts: title comes from resolveReceiptTitle() (already on
       // documentData.document_type_label) — never let an A4 invoice
       // template's "INVOICE" title override a fully-paid cash sale.
+      //
+      // Non-POS docs (proforma, estimate, delivery note, credit note, PO,
+      // bill, sales order, statement, return, …): the template's
+      // `document_title_format` defaults to the literal string "INVOICE"
+      // for every tenant that never customised it, which would stamp
+      // "INVOICE" on top of a proforma / DN / credit note on the ESC/POS
+      // wire path while the PDF path (pdfGenerator.ts) already ignores
+      // that default. Mirror the PDF rule: only honour the template
+      // title when it has been customised away from the default. Fall
+      // back to the fetcher-provided `document_type_label`, then let
+      // `documentToInput.ts::TITLE_BY_TYPE` resolve the correct label.
       const isPosReceipt = documentType === "pos_receipt";
+      const templateTitleRaw =
+        typeof (template as any)?.document_title_format === "string"
+          ? ((template as any).document_title_format as string).trim()
+          : "";
+      const customTemplateTitle =
+        templateTitleRaw && templateTitleRaw.toUpperCase() !== "INVOICE"
+          ? templateTitleRaw
+          : undefined;
       const titleOverride = isPosReceipt
         ? (documentData as any).document_type_label
-        : ((template as any)?.document_title_format ?? undefined);
+        : (customTemplateTitle ?? (documentData as any).document_type_label ?? undefined);
       // Phase A.2 — load the resolved printer_profiles row (if any) so the
       // builder uses real per-printer columns/margins/font instead of the
       // engine's defaults. This is what stops 80mm receipts from overflowing
