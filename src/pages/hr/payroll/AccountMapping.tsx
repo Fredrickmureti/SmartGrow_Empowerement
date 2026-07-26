@@ -126,6 +126,16 @@ const KIND_META: Record<
     description:
       "Employer liability side of statutory contributions until remitted.",
   },
+  interest_income: {
+    title: "Interest income",
+    description:
+      "Interest income recognised on employee advances and loan repayments.",
+  },
+  loan_receivable: {
+    title: "Loan receivable",
+    description:
+      "Outstanding principal owed by employees on advances and loans.",
+  },
 };
 
 export function PayrollAccountMappingPage() {
