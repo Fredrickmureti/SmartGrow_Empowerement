@@ -256,9 +256,14 @@ class PrintClient {
     }
   }
 
-  /** ADR-0090 · derive a correlation id that dedupes double-clicks. */
+  /**
+   * ADR-0090 + Plan P3 Step 1 · derive a correlation id.
+   * Prefers a UI-minted `idempotencyKey` (one per user click). Falls back
+   * to the legacy 2-second bucket when callers haven't been migrated.
+   */
   private correlationId(req: PrintRequest): string {
-    const bucket = Math.floor(Date.now() / 2000); // 2s idempotency window
+    if (req.idempotencyKey) return req.idempotencyKey;
+    const bucket = Math.floor(Date.now() / 2000); // legacy 2s window
     return `${req.documentType}:${req.documentId}:${req.intent}:${bucket}`;
   }
 
