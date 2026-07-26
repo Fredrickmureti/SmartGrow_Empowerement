@@ -92,6 +92,26 @@ export function getAllowedOrigins(): string[] {
   return cachedMerged;
 }
 
+/**
+ * Force an immediate refetch of the tenant origin allowlist. Wired to the
+ * supervisor `reload_origins` IPC so operators can push a new origin from
+ * the ERP without waiting for the 15-minute poll cycle.
+ */
+export async function refreshOriginsOnce(): Promise<{ ok: boolean; version?: string }> {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false };
+  const result = await fetchOnce(cfg);
+  if (!result) return { ok: false };
+  if (result.version !== lastVersion) {
+    tenantOrigins = result.origins;
+    cachedMerged = mergeOrigins(tenantOrigins);
+    lastVersion = result.version;
+    writeCache({ origins: result.origins, version: result.version, fetched_at: new Date().toISOString() });
+    logger.info('origins.refreshed_ondemand', { tenant_count: result.origins.length, version: result.version.slice(0, 12) });
+  }
+  return { ok: true, version: result.version };
+}
+
 async function fetchOnce(cfg: RelayConfig): Promise<{ origins: string[]; version: string } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
