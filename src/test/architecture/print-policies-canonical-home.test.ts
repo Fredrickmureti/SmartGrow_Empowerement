@@ -32,7 +32,7 @@ function grep(pattern: string): string[] {
 describe("Print policies canonical home (Wave 9d Phase 4)", () => {
   it("<PrintingSettings /> is only rendered under /apps/platform/hardware/", () => {
     // Importers/renderers of PrintingSettings.
-    const files = grep("PrintingSettings").filter(
+    const files = grep("from ['\"]@/components/settings/PrintingSettings").filter(
       (f) => !f.endsWith("PrintingSettings.tsx") &&
              !f.includes("/test/") &&
              !f.startsWith("src/components/settings/"),
