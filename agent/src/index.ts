@@ -2,6 +2,7 @@ import { createServer } from './server.js';
 import { getAuthToken } from './auth.js';
 import { logger } from './logger.js';
 import { startRelay } from './relay.js';
+import { startManifestPublisher } from './manifest.js';
 import { handlePrint } from './routes/print.js';
 import { handleTest } from './routes/test.js';
 import { handleUsbDevices, handleUsbPrint } from './routes/usb.js';
