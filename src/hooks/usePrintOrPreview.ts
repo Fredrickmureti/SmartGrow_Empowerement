@@ -93,6 +93,7 @@ export function usePrintOrPreview() {
           documentType: req.documentType,
           documentId: req.documentId,
           title: req.title,
+          organizationId: currentOrg?.id ?? null,
           businessId,
           branchId: req.branchId ?? null,
           // Plan P3 Step 1 — one UUID per user click, becomes the ledger
