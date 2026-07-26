@@ -59,8 +59,9 @@ async function collectDevices(): Promise<ManifestDevice[]> {
 
   // 1) USB — best-effort, module optional.
   try {
-    const usbMod = await import('usb');
-    for (const dev of usbMod.getDeviceList()) {
+    const usbMod = await loadUsbRuntime();
+    if (!usbMod) throw new Error('usb_unavailable');
+    for (const dev of usbMod.getDeviceList() as any[]) {
       const vid = dev.deviceDescriptor.idVendor;
       const pid = dev.deviceDescriptor.idProduct;
       const vidHex = vid.toString(16).padStart(4, '0');
