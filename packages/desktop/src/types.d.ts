@@ -61,7 +61,8 @@ export interface EdgeBridge {
   agent: {
     start(): Promise<{ ok: boolean; pid?: number; error?: string }>;
     stop(): Promise<{ ok: boolean }>;
-    status(): Promise<{ running: boolean; pid: number | null }>;
+    status(): Promise<{ running: boolean; pid: number | null; source?: string; version?: string | null; error?: string }>;
+    logs(): Promise<{ ok: boolean; status?: number; error?: string; generated_at?: string; entries: Array<{ ts: string; level: string; msg: string; [k: string]: unknown }> }>;
     probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
   supervisor: {

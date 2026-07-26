@@ -36,6 +36,53 @@ let tray = null;
 /** @type {import('child_process').ChildProcess | null} */
 let agentProc = null;
 
+function readAgentToken() {
+  try { return fs.readFileSync(AGENT_TOKEN_FILE, 'utf-8').trim(); } catch { return null; }
+}
+
+function requestAgentJson(pathname, { method = 'GET', body = null, timeout = 2500, auth = false } = {}) {
+  return new Promise((resolve) => {
+    const payload = body == null ? null : Buffer.from(JSON.stringify(body));
+    const token = auth ? readAgentToken() : null;
+    const req = http.request({
+      host: '127.0.0.1',
+      port: AGENT_PORT,
+      path: pathname,
+      method,
+      timeout,
+      headers: {
+        ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': payload.length } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf-8');
+        let json = null;
+        try { json = text ? JSON.parse(text) : null; } catch { json = { raw: text }; }
+        resolve({ ok: (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300, status: res.statusCode ?? 0, body: json });
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('agent_timeout')); });
+    req.on('error', (err) => resolve({ ok: false, status: 0, error: err.message, body: null }));
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function probeAgentHealth() {
+  const r = await requestAgentJson('/health', { timeout: 1500 });
+  if (!r.ok || !r.body) return { running: false, pid: null, source: 'none', error: r.error || (r.status ? `HTTP ${r.status}` : 'agent_unreachable') };
+  const body = r.body || {};
+  return {
+    running: true,
+    pid: typeof body.pid === 'number' ? body.pid : null,
+    source: agentProc && !agentProc.killed ? 'managed' : 'loopback',
+    version: typeof body.version === 'string' ? body.version : null,
+  };
+}
+
 function ensureEdgeHome() {
   fs.mkdirSync(EDGE_HOME, { recursive: true, mode: 0o700 });
 }
@@ -141,21 +188,55 @@ function stopAgent() {
   agentProc = null;
 }
 
+function agentRoot() {
+  return process.env.ACCRUALFLOW_AGENT_ROOT
+    ? path.resolve(process.env.ACCRUALFLOW_AGENT_ROOT)
+    : path.resolve(__dirname, '..', '..', '..', 'agent');
+}
+
+function findAgentLaunch() {
+  const root = agentRoot();
+  const distEntry = path.join(root, 'dist', 'index.js');
+  if (fs.existsSync(distEntry)) return { mode: 'node', entry: distEntry, cwd: root };
+  const srcEntry = path.join(root, 'src', 'index.ts');
+  const tsxCli = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  if (fs.existsSync(srcEntry) && fs.existsSync(tsxCli)) return { mode: 'tsx', entry: srcEntry, tsxCli, cwd: root };
+  if (fs.existsSync(srcEntry)) return { mode: 'npm-dev', entry: srcEntry, cwd: root };
+  return null;
+}
+
 /**
  * Launch the bundled agent (`../../agent`) with the workstation config path
  * pre-injected. In production the agent binary is embedded in the app
  * resources; here we just spawn Node against the source tree for dev use.
  */
-function startAgent() {
+async function startAgent() {
   stopAgent();
-  const agentEntry = path.resolve(__dirname, '..', '..', '..', 'agent', 'src', 'index.ts');
-  if (!fs.existsSync(agentEntry)) return { ok: false, error: 'agent_not_bundled' };
+  const already = await probeAgentHealth();
+  if (already.running) return { ok: true, pid: already.pid, external: already.source === 'loopback' };
+  const launch = findAgentLaunch();
+  if (!launch) return { ok: false, error: 'agent_not_bundled' };
   try {
-    agentProc = spawn(process.execPath, ['--enable-source-maps', agentEntry], {
+    const env = { ...process.env, ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON };
+    let command = process.execPath;
+    let args = [];
+    if (launch.mode === 'node') {
+      env.ELECTRON_RUN_AS_NODE = '1';
+      args = ['--enable-source-maps', launch.entry];
+    } else if (launch.mode === 'tsx') {
+      env.ELECTRON_RUN_AS_NODE = '1';
+      args = [launch.tsxCli, launch.entry];
+    } else {
+      command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      args = ['run', 'dev'];
+    }
+    agentProc = spawn(command, args, {
+      cwd: launch.cwd,
       env: { ...process.env, ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON },
       stdio: 'ignore',
       detached: false,
     });
+    agentProc.on('exit', () => { agentProc = null; });
     return { ok: true, pid: agentProc.pid };
   } catch (err) {
     return { ok: false, error: String(err) };
@@ -190,10 +271,13 @@ ipcMain.handle('updates:check', async (_e, opts) => {
 
 ipcMain.handle('agent:start', () => startAgent());
 ipcMain.handle('agent:stop', () => { stopAgent(); return { ok: true }; });
-ipcMain.handle('agent:status', () => ({
-  running: Boolean(agentProc && !agentProc.killed),
-  pid: agentProc?.pid ?? null,
-}));
+ipcMain.handle('agent:status', async () => probeAgentHealth());
+ipcMain.handle('agent:logs', async () => {
+  const r = await requestAgentJson('/support-bundle', { timeout: 5000, auth: true });
+  if (!r.ok) return { ok: false, status: r.status, error: r.error || r.body?.error || `HTTP ${r.status}`, entries: [] };
+  const entries = Array.isArray(r.body?.logs) ? r.body.logs : [];
+  return { ok: true, status: r.status, entries, generated_at: r.body?.generated_at };
+});
 
 /**
  * Proxy a probe request to the local agent over loopback. Bearer token
@@ -203,8 +287,7 @@ ipcMain.handle('agent:status', () => ({
  * storms.
  */
 ipcMain.handle('agent:probe', async (_e, payload) => {
-  let token = null;
-  try { token = fs.readFileSync(AGENT_TOKEN_FILE, 'utf-8').trim(); } catch { /* auth may be disabled */ }
+  const token = readAgentToken();
   const body = Buffer.from(JSON.stringify(payload ?? {}));
   return await new Promise((resolve) => {
     const req = http.request({

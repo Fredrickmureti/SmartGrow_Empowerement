@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ProbeOp, ProbeRequest, ProbeResponse, WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
+import { SUPABASE_ANON_KEY } from '../lib/config';
 
 interface Props { workstation: WorkstationRead }
 
@@ -54,9 +55,12 @@ export function Diagnostics({ workstation }: Props) {
       : { name: next[1].name, status: 'fail', detail: 'agent not running — start it from the Dashboard' };
     setResults([...next]);
 
-    // 3. Supabase HEAD
+    // 3. Supabase REST reachability. /auth/v1/health can return 401 on
+    // hosted Supabase; PostgREST with the anon key proves the gateway is up.
     try {
-      const res = await fetch(`${workstation.supabase_url}/auth/v1/health`);
+      const res = await fetch(`${workstation.supabase_url}/rest/v1/`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      });
       next[2] = res.ok
         ? { name: next[2].name, status: 'ok', detail: `HTTP ${res.status}` }
         : { name: next[2].name, status: 'fail', detail: `HTTP ${res.status}` };
