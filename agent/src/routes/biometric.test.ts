@@ -53,7 +53,7 @@ test('event: forwards with valid HMAC headers and canonical body', async () => {
   const secretHex = 'a'.repeat(64);
   process.env[__test.envSecretKey('DEV-2')] = secretHex;
 
-  let captured: { url: string; init: RequestInit } | null = null;
+  let captured: { url: string; init: RequestInit } | null = null as { url: string; init: RequestInit } | null;
   const origFetch = globalThis.fetch;
   globalThis.fetch = (async (url: string, init: RequestInit) => {
     captured = { url, init };
