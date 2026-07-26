@@ -40,6 +40,28 @@ npm run dev            # Vite dev server on :5180
 EDGE_DESKTOP_DEV_URL=http://localhost:5180 npm start   # Electron loads the dev URL
 ```
 
+`npm start` runs `scripts/build-agent.mjs` first, which installs the agent's
+dependencies (with `usb` as an *optional* native dep) and compiles
+`agent/dist/index.js`. The main process auto-starts that runtime on launch,
+waits for `/health`, supervises it with backoff restarts, and streams its
+stdout/stderr into the Logs tab. Set `agent_autostart: false` in the desktop
+settings file to opt out, or `ACCRUALFLOW_AGENT_ROOT` to point at another
+runtime checkout.
+
+### Packaging notes
+
+`package:*` and `package:signed` pass `--extra-resource=../../agent`, so the
+runtime and `scripts/install-service.cjs` land in `resources/agent` inside the
+app. Without that, the tray app reports `agent_not_bundled` /
+`installer_not_bundled`.
+
+### Update channel
+
+No channel URL is hardcoded. Set `EDGE_UPDATE_URL`
+(`https://…/{channel}.json`) or the `update_channel_url` desktop setting.
+With none configured the Updates panel reports "Update channel not
+configured" instead of a failed check.
+
 Build the renderer + launch Electron against the static bundle:
 
 ```bash
