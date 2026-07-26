@@ -169,6 +169,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
         documentId: details.id,
         format: "pdf",
         title: `receipt-${details.transaction_number}`,
+        organizationId: currentOrg?.id ?? null,
         businessId: currentBusiness?.id ?? null,
         branchId: (currentBusiness as unknown as { branch_id?: string | null })?.branch_id ?? null,
       });
