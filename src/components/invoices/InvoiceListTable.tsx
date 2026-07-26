@@ -159,7 +159,7 @@ export function InvoiceListTable({
                     <DropdownMenuItem onClick={() => onViewDetails(invoice)}><Eye className="mr-2 h-4 w-4" />View Details</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/sales/invoices/${invoice.id}`)}><ExternalLink className="mr-2 h-4 w-4" />Open Full Page</DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onPrint(invoice)}><Printer className="mr-2 h-4 w-4" />Print / Download</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onPrint(invoice)}><Printer className="mr-2 h-4 w-4" />Print</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onEmail(invoice)}><Mail className="mr-2 h-4 w-4" />Send via Email</DropdownMenuItem>
                     {invoice.status === "draft" && <DropdownMenuItem onClick={() => onEdit(invoice)}><Edit className="mr-2 h-4 w-4" />Edit Invoice</DropdownMenuItem>}
                     {invoice.status === "draft" && <DropdownMenuItem onClick={() => onStatusChange(invoice, "confirmed")}><CheckCircle2 className="mr-2 h-4 w-4" />Confirm &amp; Release Stock</DropdownMenuItem>}
