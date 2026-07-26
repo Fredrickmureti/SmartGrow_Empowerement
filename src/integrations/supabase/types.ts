@@ -66540,6 +66540,7 @@ export type Database = {
           name: string
           organization_id: string
           secret_hash: string
+          secret_rotated_at: string | null
           updated_at: string
           version: string | null
         }
@@ -66550,6 +66551,7 @@ export type Database = {
           name: string
           organization_id: string
           secret_hash: string
+          secret_rotated_at?: string | null
           updated_at?: string
           version?: string | null
         }
@@ -66560,6 +66562,7 @@ export type Database = {
           name?: string
           organization_id?: string
           secret_hash?: string
+          secret_rotated_at?: string | null
           updated_at?: string
           version?: string | null
         }
