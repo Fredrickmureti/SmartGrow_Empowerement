@@ -3,7 +3,7 @@
  * and topology inside PlatformShell so the page is no longer a buried
  * standalone surface without rails or sidebar.
  */
-import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge, Tag, Printer } from "lucide-react";
+import { Cpu, Activity, Network, PlusCircle, Ruler, Gauge, Tag, Printer, FileText } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const HARDWARE_NAV: WorkspaceNav = {
@@ -27,6 +27,14 @@ export const HARDWARE_NAV: WorkspaceNav = {
         // ADR-0087 · Phase 14: content-only templates. Envelope is
         // injected from the media profile at dispatch time.
         { to: "/platform/hardware/labels", label: "Label templates", icon: Tag },
+      ],
+    },
+    {
+      label: "Policies",
+      items: [
+        // Wave 9d Phase 4: canonical home for `document_print_policies`.
+        // `Settings → Company → Printing` now redirects here.
+        { to: "/platform/hardware/policies", label: "Print policies", icon: FileText },
       ],
     },
     {
