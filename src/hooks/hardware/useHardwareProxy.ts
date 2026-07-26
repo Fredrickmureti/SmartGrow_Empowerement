@@ -33,6 +33,9 @@ import {
 } from '@/hooks/useDeviceAssignments';
 import type { DeviceRole, DriverResult } from '@/services/hardware/drivers/DriverInterface';
 import type { ReceiptData } from '@/services/hardware/types/receipt';
+import { resolveDeviceForIntent } from '@/hooks/useDeviceForIntent';
+import { useOrganization } from '@/hooks/useOrganization';
+import { useBusinesses } from '@/hooks/useBusinesses';
 
 export interface ProxyDeviceStatus {
   role: DeviceRole;
@@ -116,6 +119,8 @@ export function useHardwareProxy(
   options?: { disabled?: boolean; passive?: boolean },
 ) {
   const id = useRef(`useHardwareProxy-${Date.now()}-${Math.random()}`).current;
+  const { organization } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
   // Read directly from the canonical `device_assignments` table.
   // Scope: if a registerId is supplied, ask for that register's rows plus
@@ -282,6 +287,44 @@ export function useHardwareProxy(
   // ═══════════════════════════════════════════
 
   const printReceipt = useCallback(async (receiptData: ReceiptData): Promise<DriverResult> => {
+    // Phase 3 (Step A) — POS receipt dispatch is now server-authoritative:
+    // we resolve which physical `device_assignments` row wins via the same
+    // `resolve_device` RPC every other surface uses (labels, kitchen, edge
+    // functions). Role-only routing inside the driver layer stays as the
+    // physical exec, but a receipt cannot ship without a resolved winner —
+    // this closes the "which printer did it actually land on?" gap that the
+    // audit called out for cross-branch POS sessions.
+    if (organization?.id) {
+      try {
+        const resolved = await resolveDeviceForIntent({
+          organizationId: organization.id,
+          intentOrRole: 'receipt',
+          businessId: currentBusiness?.id ?? null,
+          scope: registerId ? { kind: 'register', id: registerId } : undefined,
+        });
+        if (!resolved) {
+          return {
+            success: false,
+            error: 'No receipt printer is assigned for this register/business. Bind one in Platform → Hardware.',
+          };
+        }
+        // Structured decision log — verifiable in dev tools + covered by the
+        // hardware.route.decision Phase 6 DoD check.
+        // eslint-disable-next-line no-console
+        console.info('[hardware.route.decision]', {
+          intent: 'receipt',
+          role: 'receipt_printer',
+          assignmentId: resolved.id,
+          scope: registerId ? { kind: 'register', id: registerId } : null,
+          businessId: currentBusiness?.id ?? null,
+        });
+      } catch (err) {
+        // Resolver outage must not brick the register — fall through to
+        // legacy role dispatch so the shop keeps trading.
+        // eslint-disable-next-line no-console
+        console.warn('[hardware.route.decision] resolve_device failed, falling back to role dispatch', err);
+      }
+    }
     const result = await hardwareClient.printReceipt({
       receiptData: {
         lines: receiptData.lines?.map((l) => ({
@@ -296,7 +339,7 @@ export function useHardwareProxy(
     });
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   /**
    * W4b (ADR-0008) — stream raw ESC/POS bytes (produced server-side by
@@ -310,6 +353,37 @@ export function useHardwareProxy(
   }, [refreshStatuses]);
 
   const printKitchenOrder = useCallback(async (orderData: ReceiptData): Promise<DriverResult> => {
+    // Phase 3 (Step B) — kitchen tickets share the same resolver contract
+    // as receipts and labels. Station-level scope isn't threaded through
+    // `useHardwareProxy` yet; register scope + business tie-break is the
+    // closest signal we have here and still improves on role-only lookup.
+    if (organization?.id) {
+      try {
+        const resolved = await resolveDeviceForIntent({
+          organizationId: organization.id,
+          intentOrRole: 'kitchen_ticket',
+          businessId: currentBusiness?.id ?? null,
+          scope: registerId ? { kind: 'register', id: registerId } : undefined,
+        });
+        if (!resolved) {
+          return {
+            success: false,
+            error: 'No kitchen printer is assigned for this business. Bind one in Platform → Hardware.',
+          };
+        }
+        // eslint-disable-next-line no-console
+        console.info('[hardware.route.decision]', {
+          intent: 'kitchen_ticket',
+          role: 'kitchen_printer',
+          assignmentId: resolved.id,
+          scope: registerId ? { kind: 'register', id: registerId } : null,
+          businessId: currentBusiness?.id ?? null,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[hardware.route.decision] resolve_device failed (kitchen), falling back to role dispatch', err);
+      }
+    }
     const result = await hardwareClient.printKitchenOrder({
       receiptData: {
         lines: orderData.lines?.map((l) => ({
@@ -323,7 +397,7 @@ export function useHardwareProxy(
     });
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   const openDrawer = useCallback(async (pin?: 2 | 5): Promise<DriverResult> => {
     const result = await hardwareClient.openDrawer({ pin });

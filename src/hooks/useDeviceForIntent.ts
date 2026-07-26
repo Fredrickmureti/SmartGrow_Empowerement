@@ -103,3 +103,41 @@ export function useDeviceForIntent(
     error: (query.error as Error | null) ?? null,
   };
 }
+
+/**
+ * Imperative twin of `useDeviceForIntent` for non-React call sites (event-loop
+ * callbacks, dispatch hot lanes, edge-adjacent code). Same server-authoritative
+ * tie-break — literally the same RPC — so a `printReceipt()` inside a
+ * `useCallback` and a `useDeviceForIntent(...)` inside a component land on
+ * identical `DeviceAssignment` rows for the same (org, role, scope) inputs.
+ *
+ * Returns `null` if no assignment matches. Callers dispatch to the returned
+ * `id` (or refuse with a missing-device toast) — never to a role-only lookup.
+ */
+export interface ResolveDeviceForIntentInput {
+  organizationId: string;
+  intentOrRole: PrintIntent | string;
+  businessId?: string | null;
+  scope?: DeviceScope;
+}
+
+export async function resolveDeviceForIntent(
+  input: ResolveDeviceForIntentInput,
+): Promise<DeviceAssignment | null> {
+  const role =
+    (INTENT_TO_ROLE as Record<string, string>)[input.intentOrRole] ??
+    input.intentOrRole;
+  const scopeKind = input.scope?.kind ?? null;
+  const scopeId =
+    input.scope && input.scope.kind !== 'tenant' ? input.scope.id : null;
+  const { data, error } = await supabase.rpc('resolve_device', {
+    _organization_id: input.organizationId,
+    _role: role,
+    _business_id: input.businessId ?? null,
+    _scope_kind: scopeKind,
+    _scope_id: scopeId,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row as DeviceAssignment | undefined) ?? null;
+}
