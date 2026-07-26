@@ -9,8 +9,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const rpcMock = vi.fn();
-const printRawBytesMock = vi.fn().mockResolvedValue(undefined);
-const printLabelBytesMock = vi.fn().mockResolvedValue(undefined);
+const printRawBytesMock = vi.fn().mockResolvedValue({ success: true });
+const printLabelBytesMock = vi.fn().mockResolvedValue({ success: true });
 const generatePdfMock = vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
 const generateEscPosMock = vi.fn().mockResolvedValue(new Uint8Array([0x1b, 0x40]));
 const printPdfInPageMock = vi.fn().mockResolvedValue(undefined);
