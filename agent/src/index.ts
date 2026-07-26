@@ -1,4 +1,6 @@
 import { createServer } from './server.js';
+import { createTlsServer } from './server.js';
+import { loadOrGenerateLoopbackTls } from './tls.js';
 import { getAuthToken } from './auth.js';
 import { logger } from './logger.js';
 import { startRelay } from './relay.js';
@@ -10,14 +12,35 @@ import { handleDiscover } from './routes/discover.js';
 import { handleStatus } from './routes/status.js';
 
 const PORT = parseInt(process.env.AGENT_PORT || '8043', 10);
+const TLS_PORT = parseInt(process.env.AGENT_TLS_PORT || '8443', 10);
+const TLS_DISABLED = process.env.AGENT_TLS_DISABLED === '1' || process.env.AGENT_TLS_DISABLED === 'true';
 
-const server = createServer();
+// Phase 4.2 item 1 — load-or-generate the per-install loopback cert
+// before the http listener boots so both listeners share the same
+// startPeriodicDiscovery() bookkeeping (createServer is idempotent).
+const tlsInfo = TLS_DISABLED ? null : (() => {
+  try { return loadOrGenerateLoopbackTls(); }
+  catch (err) {
+    logger.error('tls_init_failed', { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+})();
+
+const server = createServer(tlsInfo);
+const tlsServer = tlsInfo ? createTlsServer(tlsInfo) : null;
 
 server.listen(PORT, '127.0.0.1', () => {
   const token = getAuthToken();
-  logger.info('edge_started', { port: PORT, auth: Boolean(token) });
-  console.log(`\n  AccrualFlow Edge — Hardware Runtime v1.3.0-edge.p3`);
-  console.log(`  Listening on http://127.0.0.1:${PORT} (loopback only)`);
+  logger.info('edge_started', { port: PORT, tls_port: tlsInfo ? TLS_PORT : null, auth: Boolean(token) });
+  console.log(`\n  AccrualFlow Edge — Hardware Runtime v1.4.0-edge.p4.2`);
+  console.log(`  Listening on http://127.0.0.1:${PORT} (loopback only, legacy)`);
+  if (tlsInfo) {
+    console.log(`  Listening on https://127.0.0.1:${TLS_PORT} (loopback TLS)`);
+    console.log(`  TLS fingerprint (SHA-256): ${tlsInfo.fingerprintSha256}`);
+    console.log(`  TLS cert path: ${tlsInfo.path}`);
+  } else {
+    console.log(`  TLS: DISABLED (AGENT_TLS_DISABLED=1) — loopback HTTPS unavailable`);
+  }
   if (token) {
     console.log(`  Auth token: ${token.substring(0, 8)}…  (full token in ~/.pos-agent-token)`);
   } else {
@@ -25,6 +48,7 @@ server.listen(PORT, '127.0.0.1', () => {
   }
   console.log(`  Health:  GET  /health`);
   console.log(`  Support: GET  /support-bundle  (auth required)`);
+  console.log(`  Logs:    GET  /logs/stream (SSE, auth required)`);
 
   // ─────────────────────────────────────────────
   // Phase 2 relay: if a workstation config exists we also drain jobs
@@ -88,3 +112,12 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`  Manifest: published on start + every 60s to edge-workstation-manifest`);
   console.log(`  Press Ctrl+C to stop\n`);
 });
+
+if (tlsServer) {
+  tlsServer.listen(TLS_PORT, '127.0.0.1', () => {
+    logger.info('edge_tls_listening', { port: TLS_PORT });
+  });
+  tlsServer.on('error', (err) => {
+    logger.error('edge_tls_error', { error: err instanceof Error ? err.message : String(err) });
+  });
+}
