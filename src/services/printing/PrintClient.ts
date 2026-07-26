@@ -181,6 +181,62 @@ class PrintClient {
   }
 
   /**
+   * Phase 5 Step B — per-assignment thermal/label dispatch.
+   *
+   * When the caller supplied both `organizationId` and `businessId`, ask
+   * the `resolve_device` RPC which `device_assignments` row wins for the
+   * (org, business, intent, branch) tuple, then dispatch via
+   * `hardwareClient.execAssignment` so `TransportRouter` picks the
+   * transport from that row. Falls back to the legacy role-only shim on
+   * missing context, resolver outage, or no assignment — a shop must
+   * never brick on a transient RPC failure.
+   */
+  private async dispatchThermalBytes(
+    bytes: Uint8Array | number[],
+    req: PrintRequest,
+    role: 'receipt_printer' | 'label_printer',
+  ): Promise<{ success: boolean; error?: string }> {
+    const legacy = () =>
+      role === 'label_printer'
+        ? hardwareClient.printLabelBytes(bytes)
+        : hardwareClient.printRawBytes(bytes);
+    if (!req.organizationId || !req.businessId) return legacy();
+    try {
+      const { resolveDeviceForIntent } = await import('@/hooks/useDeviceForIntent');
+      const resolved = await resolveDeviceForIntent({
+        organizationId: req.organizationId,
+        intentOrRole: req.intent,
+        businessId: req.businessId,
+        scope: req.branchId ? { kind: 'branch', id: req.branchId } : undefined,
+      });
+      if (!resolved) return legacy();
+      // eslint-disable-next-line no-console
+      console.info('[hardware.route.decision]', {
+        stage: 'print-client',
+        intent: req.intent,
+        role,
+        assignmentId: resolved.id,
+        businessId: req.businessId,
+        branchId: req.branchId ?? null,
+      });
+      return await hardwareClient.execAssignment({
+        assignment: {
+          id: resolved.id,
+          role: resolved.role as 'receipt_printer' | 'label_printer',
+          transport: resolved.transport,
+          enabled: resolved.enabled,
+        },
+        op: 'print_raw',
+        payload: Array.from(bytes),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[hardware.route.decision] resolve_device failed in PrintClient, falling back', err);
+      return legacy();
+    }
+  }
+
+  /**
    * Print a document end-to-end. Renders server-side, picks the right
    * transport based on intent, and falls back gracefully.
    *
