@@ -1,22 +1,38 @@
 /**
  * SettingsAuditLogPanel — read-only view of recent sensitive setting changes
- * for the current organization. Sourced from `settings_audit_log` (populated
- * by SECURITY DEFINER triggers, see migration 20260427).
+ * for the current organization.
+ *
+ * Renders through the shared audit-log primitives (`AuditLogTableView` +
+ * `AuditEntryDrawer`) so this tab reads identically to the Activity tab.
+ * Sourced from `settings_audit_log` (SECURITY DEFINER triggers) and
+ * settings.* rows in `audit_logs` via `useSettingsAuditLog`.
  */
-import { useState, useMemo, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { History, ShieldCheck } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { useSettingsAuditLog } from "@/hooks/useSettingsAuditLog";
+import { useMemo, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { History } from "lucide-react";
+import { format } from "date-fns";
+import { useSettingsAuditLog, type SettingsAuditEntry } from "@/hooks/useSettingsAuditLog";
 import { AuditDiff, humanizeKey } from "@/components/audit/auditFormat";
 import { ClearAuditLogsDialog } from "@/components/audit/ClearAuditLogsDialog";
+import { AuditLogTableView, type AuditEntry, type AuditActionTone } from "@/components/audit/AuditLogTableView";
+import { AuditEntryDrawer, SummaryItem } from "@/components/audit/AuditEntryDrawer";
 import { useSession } from "@/contexts/SessionContext";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-
 
 const SCOPE_LABELS: Record<string, string> = {
   business: "Business",
@@ -28,32 +44,51 @@ const SCOPE_LABELS: Record<string, string> = {
   pos: "POS",
 };
 
-// (Field-level diffing handled by <AuditDiff />)
+function classifyAction(e: SettingsAuditEntry): { label: string; tone: AuditActionTone } {
+  const hasOld = e.old_value !== null && e.old_value !== undefined;
+  const hasNew = e.new_value !== null && e.new_value !== undefined;
+  if (!hasOld && hasNew) return { label: "Created", tone: "success" };
+  if (hasOld && !hasNew) return { label: "Deleted", tone: "danger" };
+  return { label: "Updated", tone: "info" };
+}
+
+function toAuditEntry(
+  e: SettingsAuditEntry,
+  getUserName: (id?: string | null) => string,
+): AuditEntry {
+  const scopeLabel = SCOPE_LABELS[e.setting_scope] ?? e.setting_scope;
+  const settingLabel = humanizeKey(e.setting_key || e.table_name || "");
+  const action = classifyAction(e);
+  return {
+    id: e.id,
+    occurredAt: e.created_at,
+    userLabel: getUserName(e.actor_id) || null,
+    action,
+    entity: { label: scopeLabel, raw: e.setting_scope },
+    entityName: settingLabel || null,
+    summary:
+      e.reason ||
+      `${action.label} ${settingLabel || "setting"}${scopeLabel ? ` (${scopeLabel})` : ""}`,
+    raw: e,
+  };
+}
 
 export function SettingsAuditLogPanel() {
   const [scope, setScope] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 15;
-  const { entries, isLoading } = useSettingsAuditLog({ scope: scope || undefined, limit: 500 });
+  const { entries, isLoading } = useSettingsAuditLog({
+    scope: scope || undefined,
+    limit: 500,
+  });
   const { currentOrg, userRole } = useSession();
+  const { getUserName } = useOrgMembers();
   const queryClient = useQueryClient();
   const canClear = userRole === "owner" || userRole === "admin";
+  const [selected, setSelected] = useState<SettingsAuditEntry | null>(null);
 
-  useEffect(() => {
-    setPage(1);
-  }, [scope, entries.length]);
-
-  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
-  const pagedEntries = entries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const grouped = useMemo(() => {
-    const buckets: Record<string, typeof entries> = {};
-    for (const e of pagedEntries) {
-      const day = new Date(e.created_at).toISOString().slice(0, 10);
-      (buckets[day] ||= []).push(e);
-    }
-    return Object.entries(buckets).sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  }, [pagedEntries]);
+  const rows: AuditEntry[] = useMemo(
+    () => entries.map((e) => toAuditEntry(e, getUserName)),
+    [entries, getUserName],
+  );
 
   const handleClear = async (olderThanDays: number | null) => {
     if (!currentOrg?.id) throw new Error("No organization selected");
@@ -67,91 +102,90 @@ export function SettingsAuditLogPanel() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <History className="h-4 w-4 text-primary" /> Settings audit log
-          </CardTitle>
-          <CardDescription>
-            Sensitive setting changes for this organization. Inserted automatically by the database — cannot be edited from the UI.
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-2">
-          {canClear && (
-            <ClearAuditLogsDialog onConfirm={handleClear} scopeLabel="this organization's" />
-          )}
-          <Select value={scope} onValueChange={(v) => setScope(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="All scopes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All scopes</SelectItem>
-              {Object.entries(SCOPE_LABELS).map(([k, label]) => (
-                <SelectItem key={k} value={k}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading audit entries…</p>}
-        {!isLoading && entries.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-10 text-center">
-            <ShieldCheck className="h-6 w-6 text-muted-foreground mb-2" />
-            <p className="text-sm font-medium">No sensitive changes recorded yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Edits to taxes, payments, accounting defaults, branch overrides and identity will appear here.
-            </p>
+    <>
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <History className="h-4 w-4 text-primary" /> Settings audit log
+            </CardTitle>
+            <CardDescription>
+              Sensitive setting changes for this organization. Inserted automatically by the database — cannot be edited from the UI.
+            </CardDescription>
           </div>
-        )}
-        {grouped.map(([day, items]) => (
-          <div key={day} className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{day}</p>
-            <div className="space-y-2">
-              {items.map((e) => (
-                <div key={e.id} className="rounded-lg border bg-card p-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-[10px] uppercase">{SCOPE_LABELS[e.setting_scope] ?? e.setting_scope}</Badge>
-                    <span className="font-medium">{humanizeKey(e.setting_key || e.table_name || "")}</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {formatDistanceToNow(new Date(e.created_at), { addSuffix: true })}
+          <div className="flex items-center gap-2">
+            {canClear && (
+              <ClearAuditLogsDialog onConfirm={handleClear} scopeLabel="this organization's" />
+            )}
+            <Select value={scope} onValueChange={(v) => setScope(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All scopes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All scopes</SelectItem>
+                {Object.entries(SCOPE_LABELS).map(([k, label]) => (
+                  <SelectItem key={k} value={k}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <AuditLogTableView
+            entries={rows}
+            isLoading={isLoading}
+            onSelect={(entry) => setSelected(entry.raw as SettingsAuditEntry)}
+            emptyTitle="No sensitive changes recorded yet"
+            emptyHint="Edits to taxes, payments, accounting defaults, branch overrides and identity will appear here."
+          />
+        </CardContent>
+      </Card>
+
+      <AuditEntryDrawer
+        entry={
+          selected
+            ? toAuditEntry(selected, getUserName)
+            : null
+        }
+        onClose={() => setSelected(null)}
+        rawJson={
+          selected
+            ? { old_value: selected.old_value, new_value: selected.new_value }
+            : undefined
+        }
+        extraSummary={
+          selected
+            ? [
+                {
+                  label: "Setting key",
+                  value: (
+                    <span className="font-mono text-xs">
+                      {selected.setting_key || selected.table_name || "—"}
                     </span>
-                  </div>
-                  <AuditDiff oldValue={e.old_value} newValue={e.new_value} />
-                </div>
-              ))}
+                  ),
+                },
+                {
+                  label: "When",
+                  value: format(new Date(selected.created_at), "MMM d, yyyy HH:mm:ss"),
+                },
+                ...(selected.reason
+                  ? [{ label: "Reason", value: selected.reason }]
+                  : []),
+              ]
+            : undefined
+        }
+      >
+        {selected && (
+          <div>
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+              Changes
             </div>
-          </div>
-        ))}
-        {entries.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground border-t">
-            <span>
-              Showing {(page - 1) * PAGE_SIZE + 1}–
-              {Math.min(page * PAGE_SIZE, entries.length)} of {entries.length}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                Previous
-              </Button>
-              <span>Page {page} / {totalPages}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next
-              </Button>
-            </div>
+            <AuditDiff oldValue={selected.old_value} newValue={selected.new_value} />
           </div>
         )}
-      </CardContent>
-    </Card>
+      </AuditEntryDrawer>
+    </>
   );
 }
