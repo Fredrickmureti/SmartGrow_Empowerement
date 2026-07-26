@@ -32,6 +32,8 @@ const PRINT_CALL_ALLOWED = new Set<string>([
   "services/printing/pdfUtils.ts",
   "features/localization/lib/printCertificateHtml.ts",
   "features/localization/components/CertificateHtmlSurface.tsx",
+  // Comment-only mention of window.print() in the environment probe.
+  "lib/environment.ts",
 ]);
 
 function walk(dir: string, acc: string[] = []): string[] {
