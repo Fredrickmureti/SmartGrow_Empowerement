@@ -541,6 +541,11 @@ const agent = {
     if (isElectronMode()) return false;
     return agentClient.isAuthorized();
   },
+  /** Why the last authorization attempt failed — drives actionable UI copy. */
+  getAuthReason(): AgentAuthReason {
+    if (isElectronMode()) return 'ok';
+    return agentClient.getAuthReason();
+  },
   getBaseUrl(): string {
     return agentClient.getBaseUrl();
   },
