@@ -1,25 +1,12 @@
 /**
- * HardwareCapability — Phase 11 admin surface for `printer_profiles`
- * hardware-shape fields (ADR-0087).
+ * HardwareCapability — Phase 2b admin surface for printer capability fields
+ * on the unified `device_assignments` registry.
  *
- * ADR-0087 splits the ownership of a label print into three records:
- *   - `media_profiles`     — physical geometry (edited in HardwareMedia)
- *   - `printer_profiles`   — hardware capability (edited HERE)
- *   - `label_templates`    — content body (edited in the template editor)
- *
- * This page owns the "hardware capability" slice: which command language
- * the printer speaks (`command_language`), its native resolution (`dpi`),
- * its printable margins (`margins_mm`), and the set of media profiles the
- * printer supports (`supported_media_ids[]`). Drivers read these fields
- * from the resolved printer_profile — never from `device_assignments.config`
- * — so getting the row right here means every dispatch on that printer
- * scales correctly with zero code change.
- *
- * Deliberately does NOT touch `paper_format`, `columns_override`, `font`,
- * or any of the legacy A4 / thermal-receipt fields — those are still
- * managed from Settings → Printing, which the plan's D8 follow-up will
- * migrate. Keeping the surfaces split avoids a dialog that mixes label
- * media choice with receipt paper choice.
+ * Owns the "hardware capability" slice: which command language the printer
+ * speaks (`command_language`), its native resolution (`dpi`), printable
+ * margins (`margins_mm`), and the set of media profiles it supports
+ * (`supported_media_ids[]`). Drivers read these fields directly from the
+ * resolved device row.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,16 +32,17 @@ import { useOrganization } from "@/hooks/useOrganization";
 
 type CommandLanguage = "zpl" | "epl" | "escpos" | "pdf";
 
-interface PrinterRow {
+interface DeviceRow {
   id: string;
-  business_id: string;
-  label: string;
+  organization_id: string;
+  display_name: string;
   transport: string | null;
   command_language: CommandLanguage | null;
   dpi: number | null;
   margins_mm: Record<string, number> | null;
   supported_media_ids: string[] | null;
-  is_active: boolean;
+  enabled: boolean;
+  role: string;
 }
 
 interface MediaOption {
@@ -85,6 +73,7 @@ const COMMAND_LANGUAGES: Array<{ value: CommandLanguage; label: string; hint: st
 ];
 
 const DPI_OPTIONS = [203, 300, 600];
+const PRINTER_ROLES = ["receipt_printer", "a4_printer", "label_printer"];
 
 function parseMargins(m: Record<string, number> | null | undefined): {
   top: string; right: string; bottom: string; left: string;
@@ -101,7 +90,7 @@ export default function HardwareCapability() {
   const { currentOrg } = useOrganization();
   const orgId = currentOrg?.id ?? null;
 
-  const [rows, setRows] = useState<PrinterRow[]>([]);
+  const [rows, setRows] = useState<DeviceRow[]>([]);
   const [media, setMedia] = useState<MediaOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DraftForm | null>(null);
@@ -112,10 +101,11 @@ export default function HardwareCapability() {
     setLoading(true);
     const [pRes, mRes] = await Promise.all([
       supabase
-        .from("printer_profiles")
-        .select("id, business_id, label, transport, command_language, dpi, margins_mm, supported_media_ids, is_active")
-        .eq("business_id", orgId)
-        .order("label", { ascending: true }),
+        .from("device_assignments")
+        .select("id, organization_id, display_name, transport, command_language, dpi, margins_mm, supported_media_ids, enabled, role")
+        .eq("organization_id", orgId)
+        .in("role", PRINTER_ROLES)
+        .order("display_name", { ascending: true }),
       supabase
         .from("media_profiles")
         .select("id, code, name, width_mm, height_mm")
@@ -126,7 +116,7 @@ export default function HardwareCapability() {
     if (pRes.error) {
       toast.error(`Failed to load printers: ${pRes.error.message}`);
     } else {
-      setRows((pRes.data ?? []) as unknown as PrinterRow[]);
+      setRows((pRes.data ?? []) as unknown as DeviceRow[]);
     }
     if (mRes.error) {
       toast.error(`Failed to load media profiles: ${mRes.error.message}`);
@@ -146,11 +136,11 @@ export default function HardwareCapability() {
     return m;
   }, [media]);
 
-  const openEdit = useCallback((p: PrinterRow) => {
+  const openEdit = useCallback((p: DeviceRow) => {
     const margins = parseMargins(p.margins_mm);
     setEditing({
       id: p.id,
-      label: p.label,
+      label: p.display_name,
       command_language: (p.command_language ?? "pdf") as CommandLanguage,
       dpi: String(p.dpi ?? 203),
       margins_top: margins.top,
@@ -188,14 +178,22 @@ export default function HardwareCapability() {
       left: Number(editing.margins_left) || 0,
     };
     setSaving(true);
+    // Keep role coherent with command_language.
+    const newRole =
+      editing.command_language === "zpl" || editing.command_language === "epl"
+        ? "label_printer"
+        : editing.command_language === "escpos"
+          ? "receipt_printer"
+          : "a4_printer";
     const { error } = await supabase
-      .from("printer_profiles")
+      .from("device_assignments")
       .update({
         command_language: editing.command_language,
         dpi,
         margins_mm,
         supported_media_ids: editing.supported_media_ids,
-      })
+        role: newRole,
+      } as never)
       .eq("id", editing.id);
     setSaving(false);
     if (error) {
@@ -233,7 +231,7 @@ export default function HardwareCapability() {
             </div>
           ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">
-              No printer profiles yet. Add one from{" "}
+              No printers yet. Add one from{" "}
               <span className="font-medium">Settings → Printing → Printer profiles</span>,
               then return here to set its command language, DPI and supported media.
             </p>
@@ -255,8 +253,8 @@ export default function HardwareCapability() {
                   return (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">
-                        {p.label}
-                        {!p.is_active && (
+                        {p.display_name}
+                        {!p.enabled && (
                           <Badge variant="outline" className="ml-2 text-xs">inactive</Badge>
                         )}
                       </TableCell>

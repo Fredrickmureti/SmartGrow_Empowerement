@@ -1,15 +1,10 @@
 /**
- * CapabilityResolver — Phase 3 client-side capability lookup.
+ * CapabilityResolver — Phase 2b (unified device_assignments registry).
  *
  * Turns capability-shaped intents ("give me any 80mm ESC/POS receipt
- * printer with a cutter on workstation W") into a concrete device row
- * from `public.workstation_devices`. Used by higher-level services that
- * want to dispatch via `AgentClient.enqueueRelayJob` without hard-coding
- * IP addresses or vendor/product IDs.
- *
- * Kept intentionally thin: no caching, no realtime subscription — a
- * consuming hook can add those on top. The single source of truth is
- * the database view populated by the agent's manifest publisher.
+ * printer with a cutter on workstation W") into a concrete
+ * `device_assignments` row scoped to that workstation. Reads the row
+ * type inline so the agent path stays independent of React types.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -34,45 +29,72 @@ export interface ResolveNeeds {
   role: string;
   /** Every listed key/value must match on the device's capabilities. */
   needs?: Record<string, unknown>;
-  /** Only consider devices in one of these health states. Default: ['ok', 'degraded']. */
+  /** Only consider devices in one of these health states. Default: ['ok','unknown']. */
   healthIn?: string[];
 }
+
+type Row = {
+  id: string;
+  organization_id: string;
+  workstation_id: string;
+  device_key: string | null;
+  role: string;
+  transport: string;
+  driver: string | null;
+  display_name: string;
+  capabilities: Record<string, unknown> | null;
+  status: string;
+  last_seen_at: string | null;
+  config: Record<string, unknown> | null;
+};
+
+function mapRow(r: Row): WorkstationDevice {
+  return {
+    id: r.id,
+    organization_id: r.organization_id,
+    workstation_id: r.workstation_id,
+    device_key: r.device_key ?? '',
+    role: r.role,
+    transport: r.transport,
+    driver: r.driver,
+    name: r.display_name,
+    capabilities: r.capabilities ?? {},
+    health: r.status,
+    last_seen_at: r.last_seen_at,
+    metadata: r.config ?? {},
+  };
+}
+
+const COLS =
+  'id, organization_id, workstation_id, device_key, role, transport, driver, display_name, capabilities, status, last_seen_at, config';
 
 export class CapabilityResolver {
   constructor(private readonly supabase: SupabaseClient) {}
 
-  /**
-   * Return every device on a workstation matching a role (regardless of
-   * health). Useful for the ERP admin surface / device list UI.
-   */
   async listForWorkstation(workstationId: string): Promise<WorkstationDevice[]> {
     const { data, error } = await this.supabase
-      .from('workstation_devices')
-      .select('*')
+      .from('device_assignments')
+      .select(COLS)
       .eq('workstation_id', workstationId)
+      .eq('enabled', true)
       .order('role');
     if (error) throw error;
-    return (data ?? []) as WorkstationDevice[];
+    return ((data ?? []) as unknown as Row[]).map(mapRow);
   }
 
-  /**
-   * Best-match a single device for a capability need. Ranks:
-   *   1. exact capability match count (desc),
-   *   2. health (ok > degraded),
-   *   3. most-recently-seen.
-   * Returns null if nothing matches — the caller decides whether to fall
-   * back to a legacy endpoint-shaped call.
-   */
   async resolve(req: ResolveNeeds): Promise<WorkstationDevice | null> {
-    const health = req.healthIn ?? ['ok', 'degraded'];
+    // "ok" and "degraded" are legacy health values; the unified registry
+    // uses `status` which may hold either that vocabulary OR "unknown".
+    const health = req.healthIn ?? ['ok', 'degraded', 'unknown'];
     const { data, error } = await this.supabase
-      .from('workstation_devices')
-      .select('*')
+      .from('device_assignments')
+      .select(COLS)
       .eq('workstation_id', req.workstationId)
       .eq('role', req.role)
-      .in('health', health);
+      .eq('enabled', true)
+      .in('status', health);
     if (error) throw error;
-    const rows = (data ?? []) as WorkstationDevice[];
+    const rows = ((data ?? []) as unknown as Row[]).map(mapRow);
     if (rows.length === 0) return null;
 
     const needs = req.needs ?? {};
@@ -80,14 +102,13 @@ export class CapabilityResolver {
       let score = 0;
       for (const [k, v] of Object.entries(needs)) {
         if ((row.capabilities as Record<string, unknown>)[k] === v) score += 1;
-        else score -= 1; // mismatch is worse than missing
+        else score -= 1;
       }
       if (row.health === 'ok') score += 0.5;
       const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : 0;
       return { row, score, seen };
     });
     scored.sort((a, b) => (b.score - a.score) || (b.seen - a.seen));
-    // Require at least a non-negative score so obvious mismatches don't win.
     const winner = scored[0];
     return winner && winner.score >= 0 ? winner.row : null;
   }

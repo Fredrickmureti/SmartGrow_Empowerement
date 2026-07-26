@@ -1,21 +1,12 @@
 /**
- * WorkflowBindingsCard — Phase 14 step 6 (ADR-0085 · ownership matrix)
+ * WorkflowBindingsCard — Phase 2b (unified device registry).
  *
- * Admin surface for `printer_workflow_bindings`. Operators bind a
- * `printer_profile` to a `printer_workflow` at org / branch / warehouse
- * scope, so `printLabelByTemplate({ workflow: 'receiving' })` (and every
- * other caller of the same seam) resolves the right physical printer
- * without any hard-coded assumptions.
+ * Binds a `device_assignments` row (any printer) to a `printer_workflow` at
+ * org / branch / warehouse scope. Runtime resolution goes through the
+ * `resolve_device_for_workflow` RPC.
  *
- * The runtime path is `resolve_workflow_printer` (server-side SECURITY
- * DEFINER function); this card is purely the CRUD surface. Priority is
- * exposed because tenants with multiple back-office printers routinely
- * bind a "primary" (priority=100) and a "fallback" (priority=200) to the
- * same workflow — the resolver picks the lowest priority winner.
- *
- * RLS: admin/owner-only writes (see policy `pwb_admin_write`). Read is
- * gated by org membership. The UI mirrors that: non-admins see the list
- * but not the add / remove controls.
+ * RLS: admin/owner-only writes on `device_workflow_bindings`. Read is
+ * gated by org membership.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,9 +24,6 @@ import { useBranches } from "@/hooks/useBranches";
 import { normalizeError } from "@/services/resilience";
 import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 
-// Keep this list in sync with the DB enum `printer_workflow` and with
-// `PrinterWorkflow` in `labelDispatch.ts`. The "hint" copy is user-facing
-// so operators can reason about which physical printer to bind.
 const WORKFLOWS: { value: PrinterWorkflow; label: string; hint: string }[] = [
   { value: "product_tag", label: "Product tag", hint: "Small item labels (Products, POS reprint)." },
   { value: "shelf_edge", label: "Shelf edge", hint: "Price / shelf-edge labels (Inventory, price change)." },
@@ -51,37 +39,40 @@ const WORKFLOWS: { value: PrinterWorkflow; label: string; hint: string }[] = [
 
 interface Binding {
   id: string;
-  org_id: string;
+  organization_id: string;
   branch_id: string | null;
   warehouse_id: string | null;
   workflow: PrinterWorkflow;
-  printer_profile_id: string;
+  device_assignment_id: string;
   priority: number;
   active: boolean;
 }
 
-interface PrinterOption {
+interface DeviceOption {
   id: string;
-  label: string;
+  display_name: string;
   transport: string;
   command_language: string | null;
   dpi: number | null;
-  is_active: boolean;
+  enabled: boolean;
+  role: string;
 }
 
 interface DraftForm {
   workflow: PrinterWorkflow;
-  printer_profile_id: string;
+  device_assignment_id: string;
   branch_id: string;
   priority: string;
 }
 
 const EMPTY_DRAFT: DraftForm = {
   workflow: "product_tag",
-  printer_profile_id: "",
+  device_assignment_id: "",
   branch_id: "",
   priority: "100",
 };
+
+const PRINTER_ROLES = ["receipt_printer", "a4_printer", "label_printer"];
 
 export function WorkflowBindingsCard() {
   const { currentOrg } = useOrganization();
@@ -89,7 +80,7 @@ export function WorkflowBindingsCard() {
   const orgId = currentOrg?.id ?? null;
 
   const [bindings, setBindings] = useState<Binding[]>([]);
-  const [printers, setPrinters] = useState<PrinterOption[]>([]);
+  const [devices, setDevices] = useState<DeviceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<DraftForm>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
@@ -99,23 +90,24 @@ export function WorkflowBindingsCard() {
     if (!orgId) return;
     setLoading(true);
     try {
-      const [bRes, pRes] = await Promise.all([
+      const [bRes, dRes] = await Promise.all([
         supabase
-          .from("printer_workflow_bindings")
-          .select("id, org_id, branch_id, warehouse_id, workflow, printer_profile_id, priority, active")
-          .eq("org_id", orgId)
+          .from("device_workflow_bindings")
+          .select("id, organization_id, branch_id, warehouse_id, workflow, device_assignment_id, priority, active")
+          .eq("organization_id", orgId)
           .order("workflow", { ascending: true })
           .order("priority", { ascending: true }),
         supabase
-          .from("printer_profiles")
-          .select("id, label, transport, command_language, dpi, is_active")
-          .eq("business_id", orgId)
-          .order("label", { ascending: true }),
+          .from("device_assignments")
+          .select("id, display_name, transport, command_language, dpi, enabled, role")
+          .eq("organization_id", orgId)
+          .in("role", PRINTER_ROLES)
+          .order("display_name", { ascending: true }),
       ]);
       if (bRes.error) throw bRes.error;
-      if (pRes.error) throw pRes.error;
+      if (dRes.error) throw dRes.error;
       setBindings((bRes.data ?? []) as Binding[]);
-      setPrinters((pRes.data ?? []) as PrinterOption[]);
+      setDevices((dRes.data ?? []) as DeviceOption[]);
     } catch (e) {
       toast.error(`Failed to load workflow bindings: ${normalizeError(e).message}`);
     } finally {
@@ -125,16 +117,16 @@ export function WorkflowBindingsCard() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const printerById = useMemo(() => {
-    const m = new Map<string, PrinterOption>();
-    for (const p of printers) m.set(p.id, p);
+  const deviceById = useMemo(() => {
+    const m = new Map<string, DeviceOption>();
+    for (const p of devices) m.set(p.id, p);
     return m;
-  }, [printers]);
+  }, [devices]);
 
   const handleAdd = useCallback(async () => {
     if (!orgId) return;
-    if (!draft.printer_profile_id) {
-      toast.error("Choose a printer profile to bind.");
+    if (!draft.device_assignment_id) {
+      toast.error("Choose a printer to bind.");
       return;
     }
     const priority = Number.parseInt(draft.priority, 10);
@@ -145,13 +137,13 @@ export function WorkflowBindingsCard() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from("printer_workflow_bindings")
+        .from("device_workflow_bindings")
         .insert({
-          org_id: orgId,
+          organization_id: orgId,
           branch_id: draft.branch_id || null,
           warehouse_id: null,
           workflow: draft.workflow,
-          printer_profile_id: draft.printer_profile_id,
+          device_assignment_id: draft.device_assignment_id,
           priority,
           active: true,
         });
@@ -170,7 +162,7 @@ export function WorkflowBindingsCard() {
     setRemovingId(id);
     try {
       const { error } = await supabase
-        .from("printer_workflow_bindings")
+        .from("device_workflow_bindings")
         .delete()
         .eq("id", id);
       if (error) throw error;
@@ -188,7 +180,7 @@ export function WorkflowBindingsCard() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Workflow bindings</CardTitle>
-          <CardDescription>Select an organization to manage printer / workflow bindings.</CardDescription>
+          <CardDescription>Select an organization to manage device / workflow bindings.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -199,12 +191,11 @@ export function WorkflowBindingsCard() {
       <CardHeader>
         <CardTitle className="text-base">Workflow bindings</CardTitle>
         <CardDescription>
-          Route each printing workflow to a specific printer profile. Lower priority wins when
+          Route each printing workflow to a specific device. Lower priority wins when
           multiple bindings match. Leave branch blank for an org-wide default.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* --- Add form --- */}
         <div className="rounded-md border p-3 space-y-3" data-testid="binding-add-form">
           <p className="text-sm font-medium">Add binding</p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -230,20 +221,20 @@ export function WorkflowBindingsCard() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="binding-printer" className="text-xs">Printer profile</Label>
+              <Label htmlFor="binding-printer" className="text-xs">Device</Label>
               <Select
-                value={draft.printer_profile_id}
-                onValueChange={(v) => setDraft((d) => ({ ...d, printer_profile_id: v }))}
+                value={draft.device_assignment_id}
+                onValueChange={(v) => setDraft((d) => ({ ...d, device_assignment_id: v }))}
               >
                 <SelectTrigger id="binding-printer" data-testid="binding-printer-trigger">
-                  <SelectValue placeholder={printers.length === 0 ? "No printer profiles" : "Choose printer"} />
+                  <SelectValue placeholder={devices.length === 0 ? "No devices" : "Choose device"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {printers.map((p) => (
-                    <SelectItem key={p.id} value={p.id} disabled={!p.is_active}>
-                      {p.label}
+                  {devices.map((p) => (
+                    <SelectItem key={p.id} value={p.id} disabled={!p.enabled}>
+                      {p.display_name}
                       <span className="ml-2 text-xs text-muted-foreground font-mono">
-                        {(p.command_language ?? "?").toUpperCase()} · {p.transport} · {p.dpi ?? "?"} dpi
+                        {(p.command_language ?? p.role).toUpperCase()} · {p.transport} · {p.dpi ?? "?"} dpi
                       </span>
                     </SelectItem>
                   ))}
@@ -283,7 +274,7 @@ export function WorkflowBindingsCard() {
             <Button
               size="sm"
               onClick={() => void handleAdd()}
-              disabled={saving || printers.length === 0}
+              disabled={saving || devices.length === 0}
               data-testid="binding-add-submit"
             >
               {saving ? "Adding…" : "Add binding"}
@@ -291,12 +282,11 @@ export function WorkflowBindingsCard() {
           </div>
         </div>
 
-        {/* --- Existing bindings --- */}
         {loading ? (
           <Skeleton className="h-24 w-full" />
         ) : bindings.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No workflow bindings yet. The dispatcher will fall back to any active printer profile for the org.
+            No workflow bindings yet. The dispatcher will fall back to any active device for the org.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -304,7 +294,7 @@ export function WorkflowBindingsCard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Workflow</TableHead>
-                  <TableHead>Printer</TableHead>
+                  <TableHead>Device</TableHead>
                   <TableHead>Scope</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
@@ -313,15 +303,15 @@ export function WorkflowBindingsCard() {
               </TableHeader>
               <TableBody>
                 {bindings.map((b) => {
-                  const printer = printerById.get(b.printer_profile_id);
+                  const device = deviceById.get(b.device_assignment_id);
                   return (
                     <TableRow key={b.id} data-testid={`binding-row-${b.id}`}>
                       <TableCell className="text-xs font-mono">{b.workflow}</TableCell>
                       <TableCell className="text-xs">
-                        {printer?.label ?? <span className="text-muted-foreground">[missing profile]</span>}
-                        {printer && (
+                        {device?.display_name ?? <span className="text-muted-foreground">[missing device]</span>}
+                        {device && (
                           <span className="ml-2 text-muted-foreground font-mono">
-                            {(printer.command_language ?? "?").toUpperCase()} · {printer.dpi ?? "?"} dpi
+                            {(device.command_language ?? device.role).toUpperCase()} · {device.dpi ?? "?"} dpi
                           </span>
                         )}
                       </TableCell>
