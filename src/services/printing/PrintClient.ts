@@ -507,6 +507,67 @@ class PrintClient {
       return generateDocumentEscPosBytes(documentType, documentId);
     }
   }
+
+  /**
+   * Wave B3 (Plan P2 Step 1) — ledger-cover interactive prints fired
+   * from `PrintPreviewDialog`.
+   *
+   * The dialog is opened as the `ask_user` fallback of `printOrPreview`
+   * (see `usePrintOrPreview.ts:88-94`) OR as the primary path for
+   * legacy shadow-path surfaces still on `useDocumentPrint`. In both
+   * cases the actual print is triggered inside the dialog and,
+   * historically, bypassed `PrintClient.print()` entirely — so the
+   * `print_jobs` ledger had a hole for every manually-driven print.
+   *
+   * This helper closes that hole without redesigning the dialog: the
+   * caller records the intent to print, receives a job handle, and
+   * marks the job sent/failed once the transport promise settles. The
+   * ledger row uses the same `(documentType, documentId, intent)`
+   * correlation-id bucket as `print()`, so a rapid double-click that
+   * flows through `usePrintOrPreview` (auto_print → ledgered) and then
+   * through the dialog (ask_user → ledgered here) still collapses on
+   * `(business_id, correlation_id)` uniqueness in the RPC.
+   *
+   * Returns `null` for the job handle when no business context is
+   * available (dialog opened outside a business scope, e.g. Platform
+   * admin previews). Interactive printing is never blocked by ledger
+   * failures.
+   */
+  async recordInteractivePrint(args: {
+    documentType: string;
+    documentId: string | null;
+    intent: PrintIntent;
+    format: 'pdf' | 'escpos' | 'zpl';
+    businessId: string | null;
+    branchId?: string | null;
+    printerProfileId?: string | null;
+  }): Promise<{
+    jobId: string | null;
+    markSent: () => Promise<void>;
+    markFailed: (error: string) => Promise<void>;
+  }> {
+    const noop = { jobId: null, markSent: async () => undefined, markFailed: async () => undefined };
+    if (!args.businessId) return noop;
+    const req: PrintRequest = {
+      intent: args.intent,
+      documentType: args.documentType,
+      documentId: args.documentId ?? '',
+      businessId: args.businessId,
+      branchId: args.branchId ?? null,
+    };
+    const jobId = await this.insertLedgerRow(
+      req,
+      args.printerProfileId ? ({ printerProfileId: args.printerProfileId } as ResolvedPrintPolicy) : null,
+      args.format,
+    );
+    if (!jobId) return noop;
+    return {
+      jobId,
+      markSent: () => this.markLedgerSent(jobId),
+      markFailed: (error: string) => this.markLedgerFailed(jobId, error),
+    };
+  }
 }
+
 
 export const printClient = new PrintClient();

@@ -22,10 +22,13 @@ import { useActiveOrDefaultRegister } from "@/hooks/pos/useActiveOrDefaultRegist
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
+import { printClient } from "@/services/printing/PrintClient";
 import { isElectron as runtimeIsElectron, openPdfPreview } from "@/services/printing/previewSurface";
 import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 import { SafeHtmlPreview } from "@/components/common/SafeHtmlPreview";
 import { useBranch } from "@/contexts/BranchContext";
+import { useBusinesses } from "@/contexts/BusinessContext";
+
 import {
   DocumentCommunicationBar,
   type DocumentCommunicationContext,
@@ -99,6 +102,8 @@ export function PrintPreviewDialog({
   const [zoom, setZoom] = useState(() => window.innerWidth < 640 ? 70 : 100);
   const isMobile = window.innerWidth < 640;
   const { currentBranch } = useBranch();
+  const { currentBusiness } = useBusinesses();
+
 
   // PDF blob state — the actual PDF that will be previewed, printed, and saved.
   // ADR-0015 (Phase F): blob URL lifecycle now lives inside <SafePdfViewer>;
@@ -354,18 +359,36 @@ export function PrintPreviewDialog({
       }
 
       if (canStream && bytes) {
-        const result = await printRawBytes(bytes);
-        if (result.success) {
-          toast({
-            title: "Sent to printer",
-            description: `${selectedDestination?.label ?? "Thermal printer"} · ${bytes.length} bytes`,
-          });
-        } else {
-          toast({
-            title: "Print failed",
-            description: result.error || "Printer reported an error",
-            variant: "destructive",
-          });
+        // Wave B3 (Plan P2 Step 1) — ledger-cover interactive thermal
+        // prints so the audit view sees every dispatch, not just the
+        // auto_print branch.
+        const ledger = await printClient.recordInteractivePrint({
+          documentType: documentType ?? "unknown",
+          documentId: documentId ?? null,
+          intent: "receipt",
+          format: "escpos",
+          businessId: currentBusiness?.id ?? null,
+          branchId: currentBranch?.id ?? null,
+        });
+        try {
+          const result = await printRawBytes(bytes);
+          if (result.success) {
+            await ledger.markSent();
+            toast({
+              title: "Sent to printer",
+              description: `${selectedDestination?.label ?? "Thermal printer"} · ${bytes.length} bytes`,
+            });
+          } else {
+            await ledger.markFailed(result.error || "Printer reported an error");
+            toast({
+              title: "Print failed",
+              description: result.error || "Printer reported an error",
+              variant: "destructive",
+            });
+          }
+        } catch (err) {
+          await ledger.markFailed((err as Error).message);
+          throw err;
         }
       } else if (wantsThermal && !selectedIsThermal) {
         toast({
@@ -377,11 +400,30 @@ export function PrintPreviewDialog({
           variant: "destructive",
         });
       } else if (pdfBlob) {
-        await printPdfInPage(pdfBlob);
-        toast({ title: "Print dialog opened" });
+        // Wave B3 (Plan P2 Step 1) — ledger-cover interactive PDF
+        // prints. `printPdfInPage`'s FIFO queue guarantees the browser
+        // print dialog opens for this job before the next one starts,
+        // so `markSent` after `await` is a truthful ack.
+        const ledger = await printClient.recordInteractivePrint({
+          documentType: documentType ?? "unknown",
+          documentId: documentId ?? null,
+          intent: "a4_document",
+          format: "pdf",
+          businessId: currentBusiness?.id ?? null,
+          branchId: currentBranch?.id ?? null,
+        });
+        try {
+          await printPdfInPage(pdfBlob);
+          await ledger.markSent();
+          toast({ title: "Print dialog opened" });
+        } catch (err) {
+          await ledger.markFailed((err as Error).message);
+          throw err;
+        }
       } else {
         toast({ title: "Nothing to print", description: "Document is not ready yet", variant: "destructive" });
       }
+
     } catch (error) {
       console.error("Print error:", error);
       toast({ title: "Print failed", description: "An error occurred while printing", variant: "destructive" });
