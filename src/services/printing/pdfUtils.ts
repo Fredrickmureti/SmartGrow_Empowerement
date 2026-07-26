@@ -164,6 +164,15 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
 }
 
 /**
+ * Optional paper-format override accepted at every generate-document entry
+ * point. Kept here (not in a hook) so the printing service is the single
+ * source of truth for the shape of the request body.
+ */
+export type PaperFormatOption =
+  | "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm"
+  | { widthMm: number; heightMm: number | "auto" };
+
+/**
  * Generate a document PDF via the server-side edge function and return the blob.
  */
 export async function generateDocumentPdf(
@@ -177,11 +186,20 @@ export async function generateDocumentPdf(
      * bound we render the same receipt on a real A4 sheet instead of
      * emitting a tall 80 mm PDF into Chrome's native print dialog.
      */
-    paperFormat?: "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm";
+    paperFormat?: PaperFormatOption;
+    /**
+     * Extra fields merged into the edge-function request body. Used by
+     * live-computed statements (recipient/customer/vendor) that need to
+     * carry `periodStart` / `periodEnd` / `businessId` alongside the
+     * document identity. Never overrides `documentType`, `documentId`,
+     * or `format`.
+     */
+    extraBody?: Record<string, unknown>;
   },
 ): Promise<Blob> {
   const { data, error } = await supabase.functions.invoke("generate-document", {
     body: {
+      ...(opts?.extraBody ?? {}),
       documentType,
       documentId,
       format: "pdf",
