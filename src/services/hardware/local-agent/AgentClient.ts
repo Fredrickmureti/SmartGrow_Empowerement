@@ -37,7 +37,7 @@ import type {
   AgentUsbDevicesResponse,
   AgentDeviceInfo,
 } from './protocol';
-import { DEFAULT_AGENT_URL } from './protocol';
+import { DEFAULT_AGENT_URL, DEFAULT_AGENT_TLS_PORT, type AgentTlsInfoResponse } from './protocol';
 import { RelayTransport, type RelayConfig } from './RelayTransport';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
