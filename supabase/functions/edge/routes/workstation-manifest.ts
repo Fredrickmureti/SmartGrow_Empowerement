@@ -1,5 +1,11 @@
 // AccrualFlow Edge — workstation manifest publish route.
-// Moved verbatim from edge-workstation-manifest/index.ts.
+//
+// Phase 2c consolidation: this endpoint used to upsert into the legacy
+// `workstation_devices` table, which is a parallel registry to the canonical
+// `device_assignments` table used everywhere else in the app. The workstation
+// manifest is now the single write path for LAN-agent-managed devices into
+// `device_assignments` (transport = 'local_agent', keyed by (workstation_id,
+// device_key) via the existing unique index).
 
 import { admin, authorizeWorkstation, json } from '../_shared.ts';
 
@@ -32,6 +38,26 @@ const ALLOWED_ROLES = new Set([
 ]);
 const ALLOWED_TRANSPORTS = new Set(['usb', 'tcp', 'serial', 'bluetooth', 'hid', 'virtual', 'other']);
 const ALLOWED_HEALTH = new Set(['ok', 'degraded', 'offline', 'error', 'unknown']);
+
+// Agent-side role → canonical `device_assignments.role` (HARDWARE_ROLES).
+// Unmapped roles fall through unchanged so we don't lose the row; downstream
+// consumers already handle the canonical set explicitly.
+const ROLE_MAP: Record<string, string> = {
+  drawer: 'cash_drawer',
+  display: 'customer_display',
+  eft_terminal: 'payment_terminal',
+  biometric: 'biometric_reader',
+};
+
+function toCanonicalRole(agentRole: string): string {
+  return ROLE_MAP[agentRole] ?? agentRole;
+}
+
+// Map agent health → device_assignments.status (kept close to legacy values
+// so historical dashboards don't break; treat unknown → 'unknown').
+function toStatus(health: string): string {
+  return ALLOWED_HEALTH.has(health) ? health : 'unknown';
+}
 
 interface IncomingDevice {
   device_key: string;
@@ -88,36 +114,52 @@ export async function handle(req: Request): Promise<Response> {
   const seenKeys = v.devices.map((d) => d.device_key);
 
   if (v.devices.length > 0) {
+    // Canonical write path: device_assignments. All workstation-published
+    // devices ride the LAN agent transport by definition; the wire-level
+    // agent transport (usb/tcp/serial/bluetooth/hid) is preserved inside
+    // `config.wire_transport` for the driver layer.
     const rows = v.devices.map((d) => ({
       organization_id: auth.organizationId,
       workstation_id: auth.workstationId,
       device_key: d.device_key,
-      role: d.role,
-      transport: d.transport,
+      role: toCanonicalRole(d.role),
+      transport: 'local_agent',
       driver: d.driver,
-      name: d.name,
-      capabilities: d.capabilities,
-      health: d.health,
-      metadata: d.metadata,
+      display_name: d.name ?? d.device_key,
+      capabilities: d.capabilities ?? {},
+      config: {
+        wire_transport: d.transport,
+        agent_role: d.role,
+        ...(d.metadata ?? {}),
+      },
+      enabled: true,
+      status: toStatus(d.health ?? 'unknown'),
       last_seen_at: nowIso,
+      updated_at: nowIso,
     }));
     const { error: upErr } = await admin
-      .from('workstation_devices')
-      .upsert(rows, { onConflict: 'workstation_id,device_key' });
+      .from('device_assignments')
+      .upsert(rows as any, { onConflict: 'workstation_id,device_key' });
     if (upErr) return json(500, { error: upErr.message });
   }
 
+  // Mark any workstation-managed rows we did NOT see this cycle as offline.
+  // Scope to rows this endpoint owns (transport = 'local_agent', workstation_id
+  // set) so we don't nuke Electron / WebUSB assignments belonging to the same
+  // organization.
   if (seenKeys.length > 0) {
     await admin
-      .from('workstation_devices')
-      .update({ health: 'offline', updated_at: nowIso })
+      .from('device_assignments')
+      .update({ status: 'offline', updated_at: nowIso })
       .eq('workstation_id', auth.workstationId)
+      .eq('transport', 'local_agent')
       .not('device_key', 'in', `(${seenKeys.map((k) => `"${k.replace(/"/g, '""')}"`).join(',')})`);
   } else {
     await admin
-      .from('workstation_devices')
-      .update({ health: 'offline', updated_at: nowIso })
-      .eq('workstation_id', auth.workstationId);
+      .from('device_assignments')
+      .update({ status: 'offline', updated_at: nowIso })
+      .eq('workstation_id', auth.workstationId)
+      .eq('transport', 'local_agent');
   }
 
   const { data: manifest, error: mErr } = await admin
