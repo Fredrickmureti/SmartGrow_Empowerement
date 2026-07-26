@@ -1,5 +1,6 @@
 import { getUptime } from '../server.js';
 import { handleDiscover } from './discover.js';
+import { loadUsbRuntime } from '../usb-runtime.js';
 
 interface DeviceInfo {
   type: 'network' | 'usb' | 'serial';
@@ -41,9 +42,9 @@ export async function refreshDeviceDiscovery(): Promise<void> {
     // Try to add USB devices if the usb module is available
     let usbDevices: DeviceInfo[] = [];
     try {
-      const usbModule = await import('usb');
-      const list = usbModule.getDeviceList();
-      usbDevices = list.map(d => ({
+      const usbModule = await loadUsbRuntime();
+      const list: any[] = usbModule ? usbModule.getDeviceList() : [];
+      usbDevices = list.map((d: any) => ({
         type: 'usb' as const,
         identifier: `${d.deviceDescriptor.idVendor.toString(16)}:${d.deviceDescriptor.idProduct.toString(16)}`,
         vendorId: d.deviceDescriptor.idVendor,
