@@ -102,9 +102,16 @@ Recommendation: proceed to P3 first, then do Step 3 on top of the new identity c
    - Filters: status, document type, free-text search over doc id / correlation id / error / intent / transport. Status-count cards for `queued|sent|acked|failed`. Latest 500 rows.
    - Fan-out visualization: children (P3 Step 2) group under their parent with an `↳` indent + tinted row, so multi-copy jobs render as a tree.
    - Read-only: no retry, cancel, or ack-backfill controls — those stay in the RPC / agent layer.
-4. **Ledger completion signal.** Wire agent's job-complete callback to write `acked_at` so the admin view distinguishes "sent to agent" from "printed".
+4. **Ledger completion signal. ✅ Shipped 2026-07-26.**
+   - New RPC `public.print_job_mark_acked_by_id(p_id uuid)` (SECURITY DEFINER, `EXECUTE` granted to `authenticated` + `service_role`). Flips a row to `acked` and stamps `acked_at`; also auto-promotes a parent container row to `acked` once every child copy is acked (idempotent, only advances rows in `queued`/`sent`).
+   - `PrintClient.print` now inspects the `DriverResult` from `hardwareClient.printRawBytes` / `printLabelBytes` — a real `{ success: false }` return no longer masquerades as a successful thermal print. On success, each copy (child or single-row) is marked sent → acked; on failure the ledger records `mark_failed` with the driver error. Parent container row mirrors the terminal state for admin filters.
+   - `PrintClient.recordInteractivePrint` handle gained `markAcked()`; `PrintPreviewDialog.handlePrint` now calls `markSent() + markAcked()` after successful thermal driver return and after the PDF print dialog resolves (P1's `pdfPrintQueue` guarantees the dialog opened for the current blob before `await` unblocks — that IS the browser ack).
+   - Queue-mediated thermal jobs continue to be acked by `SharedCommandQueueWorker` via `print_job_mark_acked(p_hw_command_id)` — this step only closes the direct-dispatch (interactive) gap.
+   - Contract test: `src/test/printing/print-client-acked-signal.test.ts` (5 tests: thermal-success acks, thermal-failure records failure and no ack, PDF single-copy acks after dialog, multi-copy fan-out acks every child + parent, `recordInteractivePrint().markAcked()` handle exercises the by-id RPC). Full suite: 158/158 pass.
+   - Collateral fix: `src/test/printing/print-client-policy.test.ts` mocks now return `{success:true}` from thermal drivers to match the real `DriverResult` shape the tightened check requires.
 
 ## Then — Guardrails
+
 
 - Architecture test: no page-level component calls `window.print()` or mounts a print `<iframe>` outside `pdfUtils`.
 - Architecture test: every UI print entry point goes through `PrintClient.print` OR `usePrintOrPreview.generateDocument`.
