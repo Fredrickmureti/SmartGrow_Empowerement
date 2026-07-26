@@ -5,8 +5,11 @@ import { handleTest } from './routes/test.js';
 import { handleDiscover } from './routes/discover.js';
 import { handleUsbDevices, handleUsbPrint } from './routes/usb.js';
 import { dispatchBiometric } from './routes/biometric.js';
-import { validateAuth, getAuthToken } from './auth.js';
-
+import { handleHealth } from './routes/health.js';
+import { buildSupportBundle } from './routes/support.js';
+import { validateAuth } from './auth.js';
+import { acceptNonce } from './nonce.js';
+import { logger } from './logger.js';
 
 const startTime = Date.now();
 
@@ -14,17 +17,39 @@ export function getUptime(): number {
   return Math.floor((Date.now() - startTime) / 1000);
 }
 
-// Wave 12 C1 — restrict CORS to known POS origins. Override via
-// AGENT_ALLOWED_ORIGINS (comma-separated). Defaults cover local dev +
-// the published Lovable preview/prod hosts.
+// AccrualFlow Edge — Phase 1 hardening.
+//
+// Allowed origins default covers local dev + the production ERP
+// (https://www.accrualflow.systems) and the Lovable preview hosts.
+// Additional origins can be appended via AGENT_ALLOWED_ORIGINS.
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:8080',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
+  'https://www.accrualflow.systems',
+  'https://accrualflow.systems',
 ];
-const ALLOWED_ORIGINS = (process.env.AGENT_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? [])
-  .concat(DEFAULT_ALLOWED_ORIGINS);
+const ALLOWED_ORIGINS = Array.from(
+  new Set(
+    (process.env.AGENT_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? [])
+      .concat(DEFAULT_ALLOWED_ORIGINS),
+  ),
+);
+
+const AGENT_PORT = parseInt(process.env.AGENT_PORT || '8043', 10);
+
+// DNS-rebinding defense: only accept Host headers that resolve to the
+// local listener. A malicious page cannot use a rebound DNS name to
+// hit us in a browser context because the Host header will not match.
+const ALLOWED_HOSTS = new Set([
+  `127.0.0.1:${AGENT_PORT}`,
+  `localhost:${AGENT_PORT}`,
+  `[::1]:${AGENT_PORT}`,
+]);
+
+// Routes that mutate hardware state MUST carry a fresh X-Edge-Nonce.
+const MUTATING_PATHS = new Set(['/print', '/test', '/usb/print']);
 
 function cors(res: http.ServerResponse, req?: http.IncomingMessage) {
   const origin = req?.headers.origin;
@@ -32,7 +57,10 @@ function cors(res: http.ServerResponse, req?: http.IncomingMessage) {
   res.setHeader('Access-Control-Allow-Origin', allowed);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Edge-Nonce');
+  // Chrome Private Network Access — required for HTTPS→loopback in prod.
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  res.setHeader('Access-Control-Max-Age', '600');
 }
 
 function json(res: http.ServerResponse, status: number, body: unknown, req?: http.IncomingMessage) {
@@ -47,8 +75,13 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
+function validateHost(req: http.IncomingMessage): boolean {
+  const host = req.headers.host?.toLowerCase();
+  if (!host) return false;
+  return ALLOWED_HOSTS.has(host);
+}
+
 export function createServer() {
-  // Start background device discovery
   startPeriodicDiscovery();
 
   return http.createServer(async (req, res) => {
@@ -56,7 +89,8 @@ export function createServer() {
     const path = url.pathname;
     const method = req.method?.toUpperCase() || 'GET';
 
-    // CORS preflight
+    // CORS preflight — respond before host/auth checks so the browser
+    // can complete the PNA handshake even from allowed origins.
     if (method === 'OPTIONS') {
       cors(res, req);
       res.writeHead(204);
@@ -64,27 +98,53 @@ export function createServer() {
       return;
     }
 
-    // Auth check — skip for /status (allow unauthenticated health checks)
-    if (path !== '/status' && !validateAuth(req)) {
-      json(res, 401, { error: 'Unauthorized — provide Authorization: Bearer <token>' });
-      return;
+    // DNS-rebinding defense.
+    if (!validateHost(req)) {
+      logger.warn('rejected_host', { host: req.headers.host, path });
+      return json(res, 421, { error: 'Misdirected request — invalid Host' }, req);
+    }
+
+    // Auth check — /status and /health remain unauthenticated so
+    // supervisors and the ERP can probe without a token.
+    const isPublic = path === '/status' || path === '/health';
+    if (!isPublic && !validateAuth(req)) {
+      return json(res, 401, { error: 'Unauthorized — provide Authorization: Bearer <token>' }, req);
+    }
+
+    // Nonce replay defense on mutating routes.
+    if (MUTATING_PATHS.has(path)) {
+      const nonce = req.headers['x-edge-nonce'];
+      const nonceStr = Array.isArray(nonce) ? nonce[0] : nonce;
+      if (!acceptNonce(nonceStr)) {
+        logger.warn('nonce_rejected', { path, hasNonce: Boolean(nonceStr) });
+        return json(res, 409, { error: 'Nonce missing or replayed — send fresh X-Edge-Nonce' }, req);
+      }
     }
 
     try {
       if (method === 'GET' && path === '/status') {
-        return json(res, 200, handleStatus());
+        return json(res, 200, handleStatus(), req);
+      }
+
+      if (method === 'GET' && path === '/health') {
+        return json(res, 200, handleHealth(), req);
+      }
+
+      if (method === 'GET' && path === '/support-bundle') {
+        return json(res, 200, buildSupportBundle({
+          port: AGENT_PORT,
+          allowed_origins: ALLOWED_ORIGINS,
+          auth_disabled: process.env.AGENT_AUTH_DISABLED === '1' || process.env.AGENT_AUTH_DISABLED === 'true',
+        }), req);
       }
 
       if (method === 'POST' && path === '/print') {
         const body = JSON.parse(await readBody(req));
         const result = await handlePrint(body);
-        // 200 = agent did its job (whether printer accepted or not); body carries success flag.
-        // 502 = upstream printer unreachable / timeout / refused.
-        // 400 = bad request payload.
         const status = result.success
           ? 200
           : /Missing required fields/i.test(result.error || '') ? 400 : 502;
-        return json(res, status, result);
+        return json(res, status, result, req);
       }
 
       if (method === 'POST' && path === '/test') {
@@ -93,38 +153,34 @@ export function createServer() {
         const status = result.success
           ? 200
           : /Missing required fields/i.test(result.error || '') ? 400 : 502;
-        return json(res, status, result);
+        return json(res, status, result, req);
       }
 
       if (method === 'GET' && path === '/discover') {
         const subnet = url.searchParams.get('subnet') || 'auto';
         const result = await handleDiscover(subnet);
-        return json(res, 200, result);
+        return json(res, 200, result, req);
       }
 
       if (method === 'GET' && path === '/usb/devices') {
-        const result = handleUsbDevices();
-        return json(res, 200, result);
+        return json(res, 200, handleUsbDevices(), req);
       }
 
       if (method === 'POST' && path === '/usb/print') {
         const body = JSON.parse(await readBody(req));
         const result = await handleUsbPrint(body);
-        const status = result.success ? 200 : 502;
-        return json(res, status, result);
+        return json(res, result.success ? 200 : 502, result, req);
       }
 
-      // Biometric routes — vendor SDKs forward canonical events here.
       if (path.startsWith('/biometric/')) {
         const result = await dispatchBiometric(method, path, () => readBody(req));
         if (result) return json(res, result.status, result.body, req);
       }
 
-      json(res, 404, { error: 'Not found' });
-
+      json(res, 404, { error: 'Not found' }, req);
     } catch (err: any) {
-      console.error(`[agent] Error handling ${method} ${path}:`, err);
-      json(res, 500, { error: err.message || 'Internal server error' });
+      logger.error('request_failed', { method, path, error: err?.message });
+      json(res, 500, { error: err.message || 'Internal server error' }, req);
     }
   });
 }
