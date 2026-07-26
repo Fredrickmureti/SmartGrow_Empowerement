@@ -646,6 +646,7 @@ class AgentClientImpl {
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
           deadlineMs: 15_000,
+          queueAware: true,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
@@ -709,6 +710,7 @@ class AgentClientImpl {
           payload: { vendorId, productId, data },
           idempotencyKey: idem,
           deadlineMs: 15_000,
+          queueAware: true,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
