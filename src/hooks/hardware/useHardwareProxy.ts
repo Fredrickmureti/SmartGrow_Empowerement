@@ -490,42 +490,72 @@ export function useHardwareProxy(
   }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   const openDrawer = useCallback(async (pin?: 2 | 5): Promise<DriverResult> => {
-    const result = await hardwareClient.openDrawer({ pin });
+    const result = (await dispatchViaAssignment(
+      'cash_drawer',
+      'open',
+      { pin },
+      () => hardwareClient.openDrawer({ pin }),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const readScale = useCallback(async (): Promise<DriverResult> => {
-    const result = await hardwareClient.readScale();
+    const result = (await dispatchViaAssignment(
+      'scale',
+      'read',
+      {},
+      () => hardwareClient.readScale(),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const tareScale = useCallback(async (): Promise<DriverResult> => {
-    const result = await hardwareClient.tareScale();
+    const result = (await dispatchViaAssignment(
+      'scale',
+      'tare',
+      {},
+      () => hardwareClient.tareScale(),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const updateDisplay = useCallback(async (data: unknown): Promise<DriverResult> => {
-    const result = await hardwareClient.updateCustomerDisplay(data as never);
+    const result = (await dispatchViaAssignment(
+      'customer_display',
+      'update',
+      data,
+      () => hardwareClient.updateCustomerDisplay(data as never),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const initiatePayment = useCallback(async (
     amount: number, currency: string, reference: string,
   ): Promise<DriverResult> => {
-    const result = await hardwareClient.initiatePayment({ amount, currency, reference });
+    const result = (await dispatchViaAssignment(
+      'payment_terminal',
+      'initiate_payment',
+      { amount, currency, reference },
+      () => hardwareClient.initiatePayment({ amount, currency, reference }),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const cancelPayment = useCallback(async (): Promise<DriverResult> => {
-    const result = await hardwareClient.cancelPayment();
+    const result = (await dispatchViaAssignment(
+      'payment_terminal',
+      'cancel_payment',
+      {},
+      () => hardwareClient.cancelPayment(),
+    )) as DriverResult;
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   /**
    * Force-disconnect the printer for `role` and retry connect. Used by the
