@@ -73497,6 +73497,10 @@ export type Database = {
         Args: { _action: string; _loan_id: string; _notes: string }
         Returns: undefined
       }
+      _loan_deallocate_schedule: {
+        Args: { _repayment_id: string }
+        Returns: undefined
+      }
       _loan_lifecycle_emit: {
         Args: {
           _actor: string
@@ -77509,6 +77513,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      employee_loan_mark_missed_installments: {
+        Args: { _as_of?: string }
+        Returns: Json
       }
       employee_loan_pause: {
         Args: { _loan_id: string; _reason?: string; _until: string }
