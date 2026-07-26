@@ -139,3 +139,15 @@ Step 2 (policies tab): move the `document_print_policies` editor from `src/compo
 Step 3 (redirect + delete): `Settings → Company → Printing` becomes a one-line redirect to `/platform/hardware/policies` (`<Navigate to="/platform/hardware/policies" replace />`). Delete `PrinterProfilesCard.tsx` and `WorkflowBindingsCard.tsx` (their content already lives in `DeviceWizard` + Devices tab). Delete the body of `PrintingSettings.tsx`; keep only the redirect shim until Phase 6 removes the shim itself.
 
 **Do not** touch `HardwareClient`'s `isElectron()` branches (Phase 5) or DROP legacy tables (Phase 6) until Phase 4 has removed the last UI writers.
+
+## Progress log — 2026-07-26 (Phase 4 · Step 2/3 — policies tab relocated)
+
+- `src/apps/platform/hardware/HardwarePolicies.tsx` (NEW): thin wrapper around the existing `<PrintingSettings />` so the editor gets an app-shell header. No functional change — same hooks, same RLS, same `document_print_policies` writes.
+- `src/apps/platform/hardware/routes.tsx`: registers `policies` route (`/platform/hardware/policies`).
+- `src/apps/platform/hardware/nav.ts`: adds a "Policies" nav group with the Print policies entry (FileText icon). Rails now expose the editor alongside Devices / Media / Capability / Labels.
+- `src/pages/settings/CompanySettings.tsx`: the Printing tab body is replaced by a redirect card ("Moved to Platform → Hardware → Print policies") with a `Link` to the new home. Tab trigger kept so existing bookmarks land on the redirect stub; Phase 6 removes the trigger + tab entirely.
+- Guards: 16/16 green (previous 13 + `platform-hardware-has-editor`). tsgo clean.
+
+Deferred to Phase 4 Step 3b / Phase 6:
+- Deleting `PrinterProfilesCard.tsx` / `WorkflowBindingsCard.tsx` — still gated on inventorying whether `DeviceWizard` covers 100% of the fields those cards expose (Step 1 inventory not yet exhaustive).
+- Removing the Printing tab trigger from CompanySettings — kept as redirect surface until Phase 6.

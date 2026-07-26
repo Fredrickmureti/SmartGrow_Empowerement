@@ -247,7 +247,29 @@ function CompanySettingsInner() {
           </TabsContent>
 
           <TabsContent value="printing">
-            <PrintingSettings />
+            {/*
+             * Wave 9d Phase 4 — canonical home for print policies moved to
+             * `/platform/hardware/policies`. This tab is a redirect stub;
+             * Phase 6 deletes the tab entirely.
+             */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Moved to Platform → Hardware → Print policies
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Per-document paper format, render mode, printer routing
+                  and auto-print now live under the Hardware app alongside
+                  device registration and media profiles.
+                </p>
+                <Button asChild>
+                  <Link to="/platform/hardware/policies">Open Print policies</Link>
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="payment-methods">
