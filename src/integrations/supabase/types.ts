@@ -13312,70 +13312,124 @@ export type Database = {
       }
       device_assignments: {
         Row: {
+          address: string | null
           business_id: string | null
           capabilities: Json
+          code128_native: boolean | null
+          columns_override: number | null
+          command_language: string | null
           config: Json
           created_at: string
           created_by: string | null
+          cutter: string | null
+          device_key: string | null
           display_name: string
+          dpi: number | null
           driver: string
           enabled: boolean
+          escpos_codepage: string | null
+          font: string | null
           id: string
+          is_calibrated: boolean
           is_default: boolean
           last_error: string | null
           last_seen_at: string | null
+          margin_cols: number | null
+          margins_mm: Json
+          notes: string | null
           organization_id: string
+          paper_format: string | null
+          paper_size: string | null
+          qr_native: boolean | null
           role: string
           scope_id: string | null
           scope_kind: string
           source_config_id: string | null
           status: string
+          supported_media_ids: string[]
           transport: string
           updated_at: string
+          workstation_id: string | null
         }
         Insert: {
+          address?: string | null
           business_id?: string | null
           capabilities?: Json
+          code128_native?: boolean | null
+          columns_override?: number | null
+          command_language?: string | null
           config?: Json
           created_at?: string
           created_by?: string | null
+          cutter?: string | null
+          device_key?: string | null
           display_name?: string
+          dpi?: number | null
           driver: string
           enabled?: boolean
+          escpos_codepage?: string | null
+          font?: string | null
           id?: string
+          is_calibrated?: boolean
           is_default?: boolean
           last_error?: string | null
           last_seen_at?: string | null
+          margin_cols?: number | null
+          margins_mm?: Json
+          notes?: string | null
           organization_id: string
+          paper_format?: string | null
+          paper_size?: string | null
+          qr_native?: boolean | null
           role: string
           scope_id?: string | null
           scope_kind: string
           source_config_id?: string | null
           status?: string
+          supported_media_ids?: string[]
           transport: string
           updated_at?: string
+          workstation_id?: string | null
         }
         Update: {
+          address?: string | null
           business_id?: string | null
           capabilities?: Json
+          code128_native?: boolean | null
+          columns_override?: number | null
+          command_language?: string | null
           config?: Json
           created_at?: string
           created_by?: string | null
+          cutter?: string | null
+          device_key?: string | null
           display_name?: string
+          dpi?: number | null
           driver?: string
           enabled?: boolean
+          escpos_codepage?: string | null
+          font?: string | null
           id?: string
+          is_calibrated?: boolean
           is_default?: boolean
           last_error?: string | null
           last_seen_at?: string | null
+          margin_cols?: number | null
+          margins_mm?: Json
+          notes?: string | null
           organization_id?: string
+          paper_format?: string | null
+          paper_size?: string | null
+          qr_native?: boolean | null
           role?: string
           scope_id?: string | null
           scope_kind?: string
           source_config_id?: string | null
           status?: string
+          supported_media_ids?: string[]
           transport?: string
           updated_at?: string
+          workstation_id?: string | null
         }
         Relationships: [
           {
@@ -13418,6 +13472,63 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_assignments_workstation_id_fkey"
+            columns: ["workstation_id"]
+            isOneToOne: false
+            referencedRelation: "workstations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_workflow_bindings: {
+        Row: {
+          active: boolean
+          branch_id: string | null
+          created_at: string
+          created_by: string | null
+          device_assignment_id: string
+          id: string
+          organization_id: string
+          priority: number
+          updated_at: string
+          warehouse_id: string | null
+          workflow: Database["public"]["Enums"]["printer_workflow"]
+        }
+        Insert: {
+          active?: boolean
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          device_assignment_id: string
+          id?: string
+          organization_id: string
+          priority?: number
+          updated_at?: string
+          warehouse_id?: string | null
+          workflow: Database["public"]["Enums"]["printer_workflow"]
+        }
+        Update: {
+          active?: boolean
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          device_assignment_id?: string
+          id?: string
+          organization_id?: string
+          priority?: number
+          updated_at?: string
+          warehouse_id?: string | null
+          workflow?: Database["public"]["Enums"]["printer_workflow"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_workflow_bindings_device_assignment_id_fkey"
+            columns: ["device_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "device_assignments"
             referencedColumns: ["id"]
           },
         ]
@@ -13640,6 +13751,7 @@ export type Database = {
           copies: number
           created_at: string
           created_by: string | null
+          device_assignment_id: string | null
           document_type: string
           id: string
           intent: string | null
@@ -13656,6 +13768,7 @@ export type Database = {
           copies?: number
           created_at?: string
           created_by?: string | null
+          device_assignment_id?: string | null
           document_type: string
           id?: string
           intent?: string | null
@@ -13672,6 +13785,7 @@ export type Database = {
           copies?: number
           created_at?: string
           created_by?: string | null
+          device_assignment_id?: string | null
           document_type?: string
           id?: string
           intent?: string | null
@@ -13702,6 +13816,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "document_print_policies_device_assignment_id_fkey"
+            columns: ["device_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "device_assignments"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "document_print_policies_printer_profile_id_fkey"
@@ -84461,6 +84582,19 @@ export type Database = {
           _setting_key: string
         }
         Returns: string
+      }
+      resolve_device_for_workflow: {
+        Args: {
+          p_branch_id?: string
+          p_org_id: string
+          p_warehouse_id?: string
+          p_workflow: Database["public"]["Enums"]["printer_workflow"]
+        }
+        Returns: {
+          binding_id: string
+          device_assignment_id: string
+          scope: string
+        }[]
       }
       resolve_fefo_lots: {
         Args: {
