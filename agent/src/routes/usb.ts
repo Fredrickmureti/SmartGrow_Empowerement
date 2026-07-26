@@ -6,16 +6,10 @@
  * build for the platform), these routes degrade gracefully.
  */
 
-let usbModule: typeof import('usb') | null = null;
+import { loadUsbRuntime, usbRuntimeSync, type UsbRuntime } from '../usb-runtime.js';
 
-async function loadUsb() {
-  if (usbModule) return usbModule;
-  try {
-    usbModule = await import('usb');
-    return usbModule;
-  } catch {
-    return null;
-  }
+async function loadUsb(): Promise<UsbRuntime | null> {
+  return loadUsbRuntime();
 }
 
 interface UsbDevice {
@@ -43,13 +37,13 @@ interface UsbPrintResponse {
 export function handleUsbDevices(): UsbDevicesResponse {
   try {
     // Attempt synchronous usb access if already loaded
-    const usb = usbModule;
+    const usb = usbRuntimeSync();
     if (!usb) {
       return { devices: [] };
     }
 
-    const list = usb.getDeviceList();
-    const devices: UsbDevice[] = list.map((d) => ({
+    const list: any[] = usb.getDeviceList();
+    const devices: UsbDevice[] = list.map((d: any) => ({
       vendorId: d.deviceDescriptor.idVendor,
       productId: d.deviceDescriptor.idProduct,
     }));
@@ -91,7 +85,7 @@ export async function handleUsbPrint(body: UsbPrintRequest): Promise<UsbPrintRes
     }
     iface.claim();
 
-    const outEndpoint = iface.endpoints.find((e) => e.direction === 'out');
+    const outEndpoint = iface.endpoints.find((e: any) => e.direction === 'out');
     if (!outEndpoint || outEndpoint.direction !== 'out') {
       iface.release(() => device.close());
       return { success: false, error: 'No OUT endpoint found on USB device' };
@@ -100,7 +94,7 @@ export async function handleUsbPrint(body: UsbPrintRequest): Promise<UsbPrintRes
     const buf = Buffer.from(data);
 
     return new Promise((resolve) => {
-      (outEndpoint as import('usb').OutEndpoint).transfer(buf, (err) => {
+      outEndpoint.transfer(buf, (err: any) => {
         iface.release(() => device.close());
         if (err) {
           resolve({ success: false, error: err.message });
