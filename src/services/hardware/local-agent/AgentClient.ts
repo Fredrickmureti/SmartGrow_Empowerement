@@ -343,6 +343,13 @@ class AgentClientImpl {
   /** Change the agent URL (e.g. for non-default port or LAN agent). Persisted. */
   setBaseUrl(url: string): void {
     this._baseUrl = url;
+    // An explicit choice pins the transport: the opportunistic HTTPS
+    // upgrade must never move an operator off the endpoint they typed.
+    this._urlPinned = true;
+    this._tlsUpgradeAttempted = false;
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(URL_PINNED_KEY, '1');
+    } catch { /* ignore */ }
     this._status = null;
     this._lastProbeTime = 0;
     this._lastAvailable = false;
