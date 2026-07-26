@@ -20,6 +20,34 @@ export interface WorkstationWritePayload {
   workstation_secret: string;
 }
 
+export interface ProbeTarget {
+  transport?: 'network' | 'usb';
+  ipAddress?: string;
+  port?: number;
+  vendorId?: number;
+  productId?: number;
+}
+export type ProbeOp = 'printer.test_page' | 'drawer.kick' | 'network.ping' | 'usb.list';
+export interface ProbeRequest {
+  deviceId?: string;
+  role?: string;
+  op: ProbeOp;
+  target?: ProbeTarget;
+}
+export interface ProbeResponse {
+  status: number;
+  success: boolean;
+  op?: ProbeOp;
+  deviceId?: string;
+  error?: string;
+  detail?: string;
+  responseTimeMs?: number;
+  bytesWritten?: number;
+  data?: unknown;
+  cached?: boolean;
+  cooldownMs?: number;
+}
+
 export interface EdgeBridge {
   workstation: {
     read(): Promise<WorkstationRead>;
@@ -34,6 +62,7 @@ export interface EdgeBridge {
     start(): Promise<{ ok: boolean; pid?: number; error?: string }>;
     stop(): Promise<{ ok: boolean }>;
     status(): Promise<{ running: boolean; pid: number | null }>;
+    probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
   shell: { openExternal(url: string): Promise<void> };
 }

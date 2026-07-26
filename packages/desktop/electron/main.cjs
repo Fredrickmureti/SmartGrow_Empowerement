@@ -20,10 +20,13 @@ const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
+const http = require('node:http');
 
 const EDGE_HOME = path.join(os.homedir(), '.accrualflow', 'edge');
 const WORKSTATION_JSON = path.join(EDGE_HOME, 'workstation.json');
 const SETTINGS_JSON = path.join(app.getPath('userData'), 'edge-desktop-settings.json');
+const AGENT_TOKEN_FILE = path.join(os.homedir(), '.pos-agent-token');
+const AGENT_PORT = parseInt(process.env.AGENT_PORT || '8043', 10);
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -176,6 +179,46 @@ ipcMain.handle('agent:status', () => ({
   running: Boolean(agentProc && !agentProc.killed),
   pid: agentProc?.pid ?? null,
 }));
+
+/**
+ * Proxy a probe request to the local agent over loopback. Bearer token
+ * is read from disk here so the renderer never sees it. Timeout is
+ * bounded (8 s) because probes can drive real transports; the agent's
+ * own 5 s per-(device, op) rate limit protects hardware from click
+ * storms.
+ */
+ipcMain.handle('agent:probe', async (_e, payload) => {
+  let token = null;
+  try { token = fs.readFileSync(AGENT_TOKEN_FILE, 'utf-8').trim(); } catch { /* auth may be disabled */ }
+  const body = Buffer.from(JSON.stringify(payload ?? {}));
+  return await new Promise((resolve) => {
+    const req = http.request({
+      host: '127.0.0.1',
+      port: AGENT_PORT,
+      path: '/probe',
+      method: 'POST',
+      timeout: 8000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': body.length,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf-8');
+        try { resolve({ status: res.statusCode ?? 0, ...JSON.parse(text) }); }
+        catch { resolve({ status: res.statusCode ?? 0, success: false, error: text || 'invalid_response' }); }
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('probe_timeout')); });
+    req.on('error', (err) => resolve({ status: 0, success: false, error: err.message }));
+    req.write(body);
+    req.end();
+  });
+});
+
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(String(url)));
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
