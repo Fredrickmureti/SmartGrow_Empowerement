@@ -46,6 +46,15 @@ export interface PrintRequest {
   businessId?: string | null;
   branchId?: string | null;
   /**
+   * Phase 5 Step B — when supplied together with `businessId`, the print
+   * client resolves the winning `device_assignments` row via
+   * `resolve_device` and dispatches thermal/label bytes through
+   * `hardwareClient.execAssignment` so `TransportRouter` sees the row's
+   * persisted `transport` instead of a role-only fan-out. Omit either
+   * value to fall back to legacy role-based dispatch.
+   */
+  organizationId?: string | null;
+  /**
    * Plan P3 Step 1 — per-click idempotency key. UI mints a UUID at the
    * submit boundary (button click, hotkey, programmatic dispatch) and
    * passes it here. When set, it replaces the legacy 2-second
@@ -172,6 +181,61 @@ class PrintClient {
   }
 
   /**
+   * Phase 5 Step B — per-assignment thermal/label dispatch.
+   *
+   * When the caller supplied both `organizationId` and `businessId`, ask
+   * the `resolve_device` RPC which `device_assignments` row wins for the
+   * (org, business, intent, branch) tuple, then dispatch via
+   * `hardwareClient.execAssignment` so `TransportRouter` picks the
+   * transport from that row. Falls back to the legacy role-only shim on
+   * missing context, resolver outage, or no assignment — a shop must
+   * never brick on a transient RPC failure.
+   */
+  private async dispatchThermalBytes(
+    bytes: Uint8Array | number[],
+    req: PrintRequest,
+    role: 'receipt_printer' | 'label_printer',
+  ): Promise<{ success: boolean; error?: string }> {
+    const legacy = () =>
+      role === 'label_printer'
+        ? hardwareClient.printLabelBytes(bytes)
+        : hardwareClient.printRawBytes(bytes);
+    if (!req.organizationId || !req.businessId) return legacy();
+    try {
+      const { resolveDeviceForIntent } = await import('@/hooks/useDeviceForIntent');
+      const resolved = await resolveDeviceForIntent({
+        organizationId: req.organizationId,
+        intentOrRole: req.intent,
+        businessId: req.businessId,
+      });
+      if (!resolved) return legacy();
+      // eslint-disable-next-line no-console
+      console.info('[hardware.route.decision]', {
+        stage: 'print-client',
+        intent: req.intent,
+        role,
+        assignmentId: resolved.id,
+        businessId: req.businessId,
+        branchId: req.branchId ?? null,
+      });
+      return await hardwareClient.execAssignment({
+        assignment: {
+          id: resolved.id,
+          role: resolved.role as 'receipt_printer' | 'label_printer',
+          transport: resolved.transport,
+          enabled: resolved.enabled,
+        },
+        op: 'print_raw',
+        payload: Array.from(bytes),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[hardware.route.decision] resolve_device failed in PrintClient, falling back', err);
+      return legacy();
+    }
+  }
+
+  /**
    * Print a document end-to-end. Renders server-side, picks the right
    * transport based on intent, and falls back gracefully.
    *
@@ -225,13 +289,13 @@ class PrintClient {
             copyResult = { success: true, transport: pdfTransport, policy };
           } else if (fmt === 'escpos') {
             const bytes = await generateDocumentEscPosBytes(req.documentType, req.documentId);
-            const res = await hardwareClient.printRawBytes(bytes);
+            const res = await this.dispatchThermalBytes(bytes, req, 'receipt_printer');
             copyResult = res.success
               ? { success: true, transport: 'thermal', policy }
               : { success: false, transport: 'thermal', error: res.error ?? 'thermal driver reported failure', policy };
           } else if (fmt === 'zpl') {
             const bytes = await this.renderLabelBytes(req.documentType, req.documentId);
-            const res = await hardwareClient.printLabelBytes(bytes);
+            const res = await this.dispatchThermalBytes(bytes, req, 'label_printer');
             copyResult = res.success
               ? { success: true, transport: 'thermal', policy }
               : { success: false, transport: 'thermal', error: res.error ?? 'label driver reported failure', policy };
