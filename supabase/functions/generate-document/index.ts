@@ -3026,12 +3026,17 @@ serve(async (req) => {
         | null = null;
       if (policy.printer_profile_id) {
         try {
+          // Phase 2c: read the physical printer profile from the canonical
+          // device_assignments registry. `policy.printer_profile_id` still
+          // references the legacy printer_profiles.id in the DB schema; the
+          // matching device_assignments row is joined via source_config_id
+          // (Phase 2b mirror). Phase 6 will re-point the FK and drop the OR.
           const { data: profileRow } = await supabase
-            .from("printer_profiles")
+            .from("device_assignments")
             .select(
               "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
             )
-            .eq("id", policy.printer_profile_id)
+            .or(`id.eq.${policy.printer_profile_id},source_config_id.eq.${policy.printer_profile_id}`)
             .maybeSingle();
           if (profileRow) physicalProfile = profileRow as typeof physicalProfile;
         } catch (_err) {
