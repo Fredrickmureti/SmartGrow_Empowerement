@@ -1,65 +1,64 @@
-## Verification findings (Phase 1 — done, evidence-based)
+# Consolidate AccrualFlow Edge functions into one router
 
-I audited `.lovable/plan.md` against the codebase. What the previous engineer claimed for 4.2.1–4.2.6 is, at the file level, real:
+## Why
+The project is at Supabase's Edge Function ceiling (`SUPABASE_MAX_FUNCTIONS_REACHED`). The six agent/workstation functions have never deployed, so enrolment 404s. Folding them into one router removes 5 slots of pressure and lets enrolment ship without a plan upgrade or churning the 100 unrelated functions.
 
-- `agent/src/tls.ts` — per-install self-signed loopback cert, SANs for `localhost`/`127.0.0.1`/`::1`, 0600 key, 30-day expiry check. Present.
-- `agent/src/server.ts` — `/tls-info` is one of exactly three unauthenticated routes; TLS port 8443 read from env. Present.
-- `agent/src/supervisor.ts` — IPC with `ping` / `status` / `reload_origins` / `shutdown`. Present.
-- `agent/scripts/install-service.cjs`, `agent/src/origins.ts`, `agent/src/routes/probe.ts`, `agent/src/routes/logs-stream.ts`, `packages/desktop/src/lib/realtime.ts`, all six desktop pages, and the six `supabase/functions/edge-*` functions all exist.
-- Renderer leak check: no supervisor token or workstation secret is read in `packages/desktop/src` beyond the enrolment write path (`Onboarding.tsx`, `Auth.tsx` pass `workstation_secret` straight to the main-process IPC write, which is the intended flow).
+## Target shape
 
-**Gaps found — 4.2.7 is materially unstarted, not "next up with (a) done":**
+One deployed function, `edge`, that dispatches on the trailing path segment:
 
-1. `rotateLoopbackTls()` is exported from `agent/src/tls.ts` but has **zero call sites anywhere in the repo**. It is dead code, so item (a) is not genuinely complete.
-2. There are **no trust-store helpers at all** — no `certutil`, `security add-trusted-cert`, or `update-ca-trust` anywhere, and no `supervisor:install_cert` IPC op.
-3. `edge-workstation-rotate-secret` updates `secret_hash` + `secret_rotated_at` only; it does not signal cert rotation, and `agent/src/manifest.ts` publishes no `tls` / fingerprint field, so the ERP has nothing to pin against.
-4. `AgentClient` still only ever talks to `this._baseUrl` (plaintext loopback) with the relay as the preferred path — correct for today, but it is the thing 4.2.7(d) is meant to unblock.
-5. No `pg_cron` schedule for `edge_jobs_expire_stale()` (4.2.9 confirmed pending).
+```text
+POST /functions/v1/edge/workstation/register        (was edge-workstation-register)
+POST /functions/v1/edge/workstation/rotate-secret   (was edge-workstation-rotate-secret)
+POST /functions/v1/edge/workstation/manifest        (was edge-workstation-manifest)
+GET  /functions/v1/edge/workstation/origins         (was edge-workstation-origins)
+POST /functions/v1/edge/agent/poll                  (was edge-agent-poll)
+POST /functions/v1/edge/agent/complete              (was edge-agent-complete)
+```
 
-So: resume at a genuine 4.2.7 start, not mid-item.
+Each old `index.ts` handler body becomes a route module imported by `supabase/functions/edge/index.ts`. Auth model, request/response shapes, CORS behaviour, and DB access stay byte-identical — this is a transport rename, not a redesign.
 
-## Work to do
+## Changes
 
-### 4.2.7a — Make cert rotation real
-- Add a rotation trigger in `agent/src/tls.ts`: persist `secretRotatedAt` in `meta.json`; add `ensureLoopbackTls({ rotateIfBefore })` that regenerates when the recorded rotation stamp is older than the workstation's `secret_rotated_at`.
-- Call it from `agent/src/index.ts` on boot, using the value the manifest publisher already fetches. `rotateLoopbackTls()` stops being dead code.
-- Expose `supervisor: rotate_cert` so the tray app can force rotation without a restart; the HTTPS listener rebinds with the new context.
+### 1. New router function
+- Create `supabase/functions/edge/index.ts`. It:
+  - Handles `OPTIONS` with the shared `corsHeaders`.
+  - Parses `new URL(req.url).pathname`, strips the `/edge` prefix, matches against a small route table.
+  - Delegates to `./routes/workstation-register.ts`, `workstation-rotate-secret.ts`, `workstation-manifest.ts`, `workstation-origins.ts`, `agent-poll.ts`, `agent-complete.ts`.
+  - Returns `404 { code: "NOT_FOUND" }` for unknown subpaths and `405` for wrong methods.
+- Move each existing handler's logic into its route module (one export: `handle(req: Request): Promise<Response>`). No behaviour change.
 
-### 4.2.7b — Publish the fingerprint to the ERP
-- Extend `agent/src/manifest.ts` to include `tls: { enabled, fingerprint_sha256, port, generated_at }` in the published manifest.
-- Extend `supabase/functions/edge-workstation-manifest` to accept and persist it on `workstation_manifests`.
-- Migration: add the column if the manifest is stored in typed columns rather than JSONB (GRANTs included, per project rules).
+### 2. Delete the six old function folders
+Remove `supabase/functions/edge-workstation-register`, `edge-workstation-rotate-secret`, `edge-workstation-manifest`, `edge-workstation-origins`, `edge-agent-poll`, `edge-agent-complete`. They're undeployed, so nothing breaks; keeping them invites drift.
 
-### 4.2.7c — OS trust-store install helper
-- New `agent/src/trustStore.ts` with per-platform install/uninstall:
-  - Windows: `certutil -addstore -f Root cert.pem` (elevation prompt handled, non-zero exit surfaced).
-  - macOS: `security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain`.
-  - Linux: copy to `/usr/local/share/ca-certificates/` + `update-ca-trust` / `update-ca-certificates`, plus user NSS DB (`certutil -d sql:$HOME/.pki/nssdb -A`) for Chrome.
-- Wire as supervisor ops `install_cert` / `uninstall_cert`, `main.cjs` IPC `supervisor:installCert`, preload + `types.d.ts`, and a "Trust local certificate" control with live trusted/untrusted state on the Dashboard TLS panel.
-- Never run these implicitly — always an explicit operator action, with the exact command shown before it runs.
+### 3. Update desktop callers (`packages/desktop/src/pages/`)
+Both currently use `supabase.functions.invoke('edge-workstation-…')`. That helper hits `/functions/v1/<name>` and can't reach a subpath. Switch these two to a direct `fetch` against `${SUPABASE_URL}/functions/v1/edge/workstation/<action>` with the same headers `functions.invoke` was setting (`apikey`, `Authorization: Bearer <session token>`, `Content-Type: application/json`). Preserve current error handling and returned shape.
 
-### 4.2.7d — Let the browser prefer HTTPS loopback
-- `AgentClient` gains transport preference: probe `https://127.0.0.1:8443/tls-info`, and on success use HTTPS as the direct-loopback transport; on TLS failure fall back to the relay (never silently to plaintext from an HTTPS origin).
-- Cache the probe result per session; keep the relay as the default when neither loopback works.
+- `Onboarding.tsx` → `POST /edge/workstation/register`
+- `Auth.tsx` → `POST /edge/workstation/rotate-secret`
 
-### 4.2.7c UI — done
-- `packages/desktop/src/components/CertificatePanel.tsx` on the Dashboard: live trusted/untrusted/unknown state from `cert_status`, "Review commands" showing the exact argv (and which steps elevate) before anything runs, plus Rotate / Trust / Remove-trust actions and per-step result output. Nothing runs on mount except the read-only status query.
+### 4. Update agent callers (`agent/src/`)
+Already use raw `fetch(`${cfg.supabase_url}/functions/v1/edge-…`)`. Rewrite the URLs only:
 
-### 4.2.8 — Signed installers + update channel (done, credentials pending)
-- `packages/desktop/scripts/build-installers.mjs` (`npm run package:signed`): `@electron/packager` build per target, Windows signing via `CSC_LINK` / `CSC_KEY_PASSWORD`, macOS signing via `CSC_NAME` and notarization via `APPLE_ID` / `APPLE_APP_PASSWORD` / `APPLE_TEAM_ID`. Missing credentials produce an UNSIGNED artifact plus an explicit warning naming the variable — no invented values. Emits archives + a `stable.json` channel manifest with per-artifact SHA-256.
-- `packages/desktop/electron/updater.cjs`: read-only channel check with numeric version compare, deterministic per-install rollout bucket (sha256 of workstation id), and `minimum_version` override for mandatory updates. It never downloads or executes an installer.
-  - Deviation from the original plan: `electron-updater` is not used. Our artifacts come from `@electron/packager`, so there is no electron-builder `latest.yml` for it to consume; the operator applies the update explicitly from the verified download link.
-- IPC `updates:check` in `main.cjs`, `window.edge.updates.check()` in preload + `types.d.ts`, and an "Updates" panel on the Dashboard showing installed→latest, channel, rollout %, bucket, notes and artifact SHA-256.
-- Tests: `src/test/hardware/update-channel.test.ts` pins version ordering and rollout-bucket stability/spread.
+- `manifest.ts` → `/functions/v1/edge/workstation/manifest`
+- `origins.ts` → `/functions/v1/edge/workstation/origins`
+- `relay.ts` → `/functions/v1/edge/agent/poll` and `/functions/v1/edge/agent/complete`
+- `index.ts` + `server.ts` + `README.md`: update log strings/comments to the new paths.
 
-**Build secrets you must add before shipping signed builds:** `CSC_LINK`, `CSC_KEY_PASSWORD`, `CSC_NAME`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`, and `EDGE_UPDATE_BASE_URL` / `EDGE_UPDATE_URL` for the channel host.
+### 5. Docs / migration comment
+- `packages/desktop/README.md` and `agent/README.md`: replace old function names with new paths in the endpoint tables.
+- `supabase/migrations/20260726025651_*.sql` contains only comments referencing the old names — update those comments in a new migration (or leave; comments don't affect runtime). Recommend: leave the historical migration untouched; add nothing new.
 
-### 4.2.9 — `edge_jobs` purge schedule (done)
-- `pg_cron` job `edge_jobs_purge_stale` runs `edge_jobs_expire_stale()` daily.
+### 6. Deploy
+After the edits, deploy just `edge`. That's a net **+1** function; the six deletes free 6 slots when the old ones eventually get cleaned up (they aren't deployed today, so no immediate slot pressure). Enrolment, rotate, manifest, origins, poll, complete all become reachable.
 
-### Plan hygiene
-- Rewrite `.lovable/plan.md` to reflect the verified state above (4.2.7 reset to not-started with the four sub-items), so the next engineer inherits an accurate log rather than an optimistic one.
+## Out of scope
+- No changes to auth model, DB schema, RLS, or payload shapes.
+- No audit of the other ~95 functions for cleanup (can be a follow-up if slot pressure returns).
+- No production URL / CORS / HTTPS-loopback work — that's the parent Edge architecture initiative, unaffected by this consolidation.
 
-## Technical notes
-
-Sandbox limits: I cannot spawn a service manager, install into an OS trust store, or run an enrolled workstation end-to-end here. Everything above will be verified by typecheck (`bunx tsgo --project agent/tsconfig.json`, `--project packages/desktop/tsconfig.json`), targeted unit tests for the pure pieces (fingerprint derivation, rotation-decision logic, trust-store command construction per platform), and static wiring checks. The manual on-machine verification checklist stays in `plan.md` for the steps that genuinely require a real workstation.
+## Verification after build-mode switch
+1. `supabase functions deploy edge` succeeds.
+2. `curl -sS -X POST $URL/functions/v1/edge/workstation/register …` returns the same JSON as the old function did in local dev (401 without auth, 200 with).
+3. Rebuild the Electron desktop app; enrolment completes without a 404.
+4. Agent logs on next start show manifest publish + origins refresh hitting the new paths with 200.

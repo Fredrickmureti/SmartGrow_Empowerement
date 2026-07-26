@@ -181,8 +181,8 @@ server.listen(PORT, '127.0.0.1', () => {
   });
 
   console.log(`  Relay:   ${process.env.ACCRUALFLOW_EDGE_CONFIG || '~/.accrualflow/edge/workstation.json'} (auto-started if present)`);
-  console.log(`  Manifest: published on start + every 60s to edge-workstation-manifest`);
-  console.log(`  Origins: refreshed every 15m from edge-workstation-origins (cached to ~/.accrualflow/edge/origins.json)`);
+  console.log(`  Manifest: published on start + every 60s to edge/workstation/manifest`);
+  console.log(`  Origins: refreshed every 15m from edge/workstation/origins (cached to ~/.accrualflow/edge/origins.json)`);
   console.log(`  Press Ctrl+C to stop\n`);
 });
 

@@ -77,7 +77,7 @@ export function loadConfig(): RelayConfig | null {
 }
 
 async function pollOnce(cfg: RelayConfig): Promise<RelayJob | null> {
-  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge-agent-poll`, {
+  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge/agent/poll`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ async function complete(
   jobId: string,
   outcome: { success: boolean; result?: unknown; error?: string },
 ): Promise<void> {
-  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge-agent-complete`, {
+  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge/agent/complete`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

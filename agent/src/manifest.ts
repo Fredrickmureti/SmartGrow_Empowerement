@@ -132,7 +132,7 @@ export interface ManifestPublisherHooks {
 async function publishOnce(cfg: RelayConfig, hooks: ManifestPublisherHooks): Promise<void> {
   const devices = await collectDevices();
   const tls = hooks.getTls?.();
-  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge-workstation-manifest`, {
+  const res = await fetch(`${cfg.supabase_url}/functions/v1/edge/workstation/manifest`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

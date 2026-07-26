@@ -116,7 +116,7 @@ async function fetchOnce(cfg: RelayConfig): Promise<{ origins: string[]; version
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(`${cfg.supabase_url}/functions/v1/edge-workstation-origins`, {
+    const res = await fetch(`${cfg.supabase_url}/functions/v1/edge/workstation/origins`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${cfg.workstation_secret}`,

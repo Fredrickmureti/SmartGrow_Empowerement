@@ -1,92 +1,8 @@
-// AccrualFlow Edge — workstation manifest publish endpoint (Phase 3).
-//
-// The agent POSTs its full capability manifest here on connect and whenever
-// its device inventory changes. Auth is the workstation bearer secret,
-// matching edge-agent-poll / edge-agent-complete.
-//
-// Body:
-//   {
-//     "agent_version": "1.3.0-edge.p3",
-//     "devices": [
-//       {
-//         "device_key": "usb:04b8:0e15",
-//         "role": "receipt_printer",
-//         "transport": "usb",
-//         "driver": "escpos",
-//         "name": "Epson TM-T20III",
-//         "capabilities": { "width_mm": 80, "cutter": true, "cash_drawer_kick": true },
-//         "health": "ok",
-//         "metadata": { "vendor_id": 1208, "product_id": 3605 }
-//       },
-//       ...
-//     ]
-//   }
-//
-// Effect:
-//   1. Upserts one row per device into public.workstation_devices (keyed
-//      by (workstation_id, device_key)) and marks any previously-known
-//      device that isn't in this payload as `health='offline'`.
-//   2. Inserts a full snapshot into public.workstation_manifests so we
-//      keep an auditable history.
-//
-// Response: { ok: true, devices: <count>, manifest_id: <uuid> }
+// AccrualFlow Edge — workstation manifest publish route.
+// Moved verbatim from edge-workstation-manifest/index.ts.
 
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { admin, authorizeWorkstation, json } from '../_shared.ts';
 
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
-
-async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-async function authorizeWorkstation(req: Request) {
-  const auth = req.headers.get('Authorization') ?? '';
-  const wsId = req.headers.get('X-Workstation-Id') ?? '';
-  const secret = auth.replace(/^Bearer\s+/i, '').trim();
-  if (!secret) return { ok: false as const, status: 401, error: 'missing_bearer' };
-  if (!wsId) return { ok: false as const, status: 400, error: 'missing_workstation_id' };
-  const hash = await sha256Hex(secret);
-  const { data, error } = await admin
-    .from('workstations')
-    .select('id, organization_id, secret_hash, secret_rotated_at')
-    .eq('id', wsId)
-    .maybeSingle();
-  if (error) return { ok: false as const, status: 500, error: 'db_error' };
-  if (!data) return { ok: false as const, status: 404, error: 'workstation_not_found' };
-  if (data.secret_hash !== hash) return { ok: false as const, status: 401, error: 'invalid_secret' };
-  return {
-    ok: true as const,
-    workstationId: data.id,
-    organizationId: data.organization_id,
-    secretRotatedAt: data.secret_rotated_at as string | null,
-  };
-}
-
-/**
- * Phase 4.2.7b — loopback TLS identity reported by the agent.
- *
- * The fingerprint is what the browser pins before it will talk to
- * `https://127.0.0.1:<tls_port>`, so it is only ever accepted from a
- * request that already proved possession of the workstation secret
- * (above). We validate the shape strictly: a 64-char lowercase hex
- * SHA-256 and a port in the unprivileged range. Anything else is
- * dropped rather than stored, so a malformed agent build can't poison
- * the value the ERP pins against.
- */
 interface IncomingTls {
   tls_fingerprint_sha256: string | null;
   tls_port: number | null;
@@ -109,7 +25,6 @@ function validateTls(raw: unknown): IncomingTls | null {
     : null;
   return { tls_fingerprint_sha256: fp, tls_port: port, tls_generated_at: generatedAt };
 }
-
 
 const ALLOWED_ROLES = new Set([
   'receipt_printer', 'label_printer', 'scanner', 'drawer', 'scale', 'display',
@@ -161,10 +76,7 @@ function validate(payload: unknown): { ok: true; devices: IncomingDevice[]; agen
   return { ok: true, devices: out, agentVersion };
 }
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-  if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' });
-
+export async function handle(req: Request): Promise<Response> {
   const auth = await authorizeWorkstation(req);
   if (!auth.ok) return json(auth.status, { error: auth.error });
 
@@ -175,7 +87,6 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const seenKeys = v.devices.map((d) => d.device_key);
 
-  // Upsert each device
   if (v.devices.length > 0) {
     const rows = v.devices.map((d) => ({
       organization_id: auth.organizationId,
@@ -196,7 +107,6 @@ Deno.serve(async (req) => {
     if (upErr) return json(500, { error: upErr.message });
   }
 
-  // Mark any previously-known device NOT in this payload as offline.
   if (seenKeys.length > 0) {
     await admin
       .from('workstation_devices')
@@ -222,9 +132,6 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (mErr) return json(500, { error: mErr.message });
 
-  // Heartbeat + TLS identity. `secret_rotated_at` goes back in the
-  // response so the agent can detect that its loopback cert was minted
-  // against a secret that has since been rotated and re-mint on the spot.
   const tls = validateTls((body as Record<string, unknown> | null)?.tls);
   await admin
     .from('workstations')
@@ -241,4 +148,4 @@ Deno.serve(async (req) => {
     manifest_id: manifest?.id,
     secret_rotated_at: auth.secretRotatedAt ?? null,
   });
-});
+}
