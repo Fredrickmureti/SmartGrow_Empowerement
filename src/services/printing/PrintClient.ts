@@ -244,12 +244,12 @@ class PrintClient {
 
         if (childJobId) {
           if (copyResult.success) {
-            if (copyResult.transport === 'thermal') {
-              await this.markLedgerSent(childJobId);
-            } else {
-              await this.markLedgerSent(childJobId);
-              await this.markLedgerAckedForNonThermal(childJobId);
-            }
+            // Both thermal (driver returned success) and PDF (browser
+            // print dialog resolved) count as ack'd delivery. Mark sent
+            // then acked so the admin view can distinguish "dispatched"
+            // from "confirmed" via timestamps while status lands terminal.
+            await this.markLedgerSent(childJobId);
+            await this.markLedgerAcked(childJobId);
           } else if (copyResult.error) {
             await this.markLedgerFailed(childJobId, copyResult.error).catch(() => undefined);
           }
@@ -260,11 +260,14 @@ class PrintClient {
 
       // Mirror the terminal state onto the parent container row when we
       // fanned out to child rows, so admin filters like "show failed jobs"
-      // surface either the parent or the copies coherently.
+      // surface either the parent or the copies coherently. The new
+      // `print_job_mark_acked_by_id` RPC also auto-promotes the parent
+      // when every child is acked, but we call it explicitly here to
+      // cover the single-copy path and any race with child updates.
       if (parentJobId && copies > 1) {
         if (lastResult.success) {
           await this.markLedgerSent(parentJobId);
-          await this.markLedgerAckedForNonThermal(parentJobId);
+          await this.markLedgerAcked(parentJobId);
         } else if (lastResult.error) {
           await this.markLedgerFailed(parentJobId, lastResult.error).catch(() => undefined);
         }
