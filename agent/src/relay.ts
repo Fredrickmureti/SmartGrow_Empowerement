@@ -194,7 +194,7 @@ export function startRelay(handler: RelayHandler): () => void {
       }
       const active = cfg;
       try {
-        const job = await pollOnce(active);
+        const batch = await pollOnce(active);
         setRelayHealth({
           state: 'ok',
           workstationId: active.workstation_id,
@@ -202,32 +202,50 @@ export function startRelay(handler: RelayHandler): () => void {
           lastError: null,
           consecutiveErrors: 0,
         });
-        if (!job) {
+        if (batch.length === 0) {
           await sleep(POLL_INTERVAL_MS);
           continue;
         }
-        log('info', 'relay.job.received', { jobId: job.id, role: job.role, op: job.op });
-        // Never execute a job whose deadline already passed. The browser has
-        // long since given up, so physically printing it now would be a
-        // "ghost print" arriving minutes after the operator asked for it.
-        const deadlineMs = Date.parse(job.deadline_at);
-        if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
-          const lateBy = Math.round((Date.now() - deadlineMs) / 1000);
-          log('warn', 'relay.job.expired_before_run', { jobId: job.id, op: job.op, lateBySeconds: lateBy });
-          await complete(active, job.id, {
-            success: false,
-            error: `expired_before_run: deadline passed ${lateBy}s ago`,
+        // Drain the whole claimed batch sequentially — no extra poll round-trip
+        // between jobs, which is what used to let bursts expire mid-queue.
+        if (batch.length > 1) log('info', 'relay.batch.received', { count: batch.length });
+        for (const job of batch) {
+          if (stopped) break;
+          log('info', 'relay.job.received', { jobId: job.id, role: job.role, op: job.op });
+          // Never execute a job whose deadline already passed. The browser has
+          // long since given up, so physically printing it now would be a
+          // "ghost print" arriving minutes after the operator asked for it.
+          const deadlineMs = Date.parse(job.deadline_at);
+          if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
+            const lateBy = Math.round((Date.now() - deadlineMs) / 1000);
+            const ageMs = Date.now() - Date.parse(job.created_at);
+            log('warn', 'relay.job.expired_before_run', {
+              jobId: job.id,
+              op: job.op,
+              role: job.role,
+              lateBySeconds: lateBy,
+              jobAgeMs: Number.isFinite(ageMs) ? ageMs : null,
+            });
+            await complete(active, job.id, {
+              success: false,
+              error: `expired_before_run: deadline passed ${lateBy}s ago`,
+            });
+            continue;
+          }
+          let outcome: { success: boolean; result?: unknown; error?: string };
+          const startedAt = Date.now();
+          try {
+            outcome = await handler(job);
+          } catch (err) {
+            outcome = { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
+          await complete(active, job.id, outcome);
+          log('info', 'relay.job.completed', {
+            jobId: job.id,
+            success: outcome.success,
+            elapsedMs: Date.now() - startedAt,
           });
-          continue;
         }
-        let outcome: { success: boolean; result?: unknown; error?: string };
-        try {
-          outcome = await handler(job);
-        } catch (err) {
-          outcome = { success: false, error: err instanceof Error ? err.message : String(err) };
-        }
-        await complete(active, job.id, outcome);
-        log('info', 'relay.job.completed', { jobId: job.id, success: outcome.success });
         // Immediately loop to drain any queued burst.
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
