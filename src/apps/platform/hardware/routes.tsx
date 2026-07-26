@@ -21,6 +21,7 @@ const HardwareTopology = lazy(() => import("@/apps/platform/hardware/HardwareTop
 const HardwareMedia = lazy(() => import("@/apps/platform/hardware/HardwareMedia"));
 const HardwareCapability = lazy(() => import("@/apps/platform/hardware/HardwareCapability"));
 const HardwareLabelTemplates = lazy(() => import("@/apps/platform/hardware/HardwareLabelTemplates"));
+const HardwarePrintQueue = lazy(() => import("@/apps/platform/hardware/HardwarePrintQueue"));
 const DeviceWizard = lazy(() => import("@/apps/platform/hardware/DeviceWizard"));
 
 import HardwareAppLayout from "@/apps/platform/hardware/HardwareAppLayout";
@@ -37,6 +38,7 @@ function PlatformHardwareApp() {
           <Route path="capability" element={<HardwareCapability />} />
           <Route path="labels" element={<HardwareLabelTemplates />} />
           <Route path="diagnostics" element={<HardwareDiagnostics />} />
+          <Route path="print-queue" element={<HardwarePrintQueue />} />
           <Route path="topology" element={<HardwareTopology />} />
           <Route path="*" element={<Navigate to="devices" replace />} />
         </Routes>
