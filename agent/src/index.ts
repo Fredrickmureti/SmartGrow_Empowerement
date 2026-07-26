@@ -5,6 +5,7 @@ import { getAuthToken } from './auth.js';
 import { logger } from './logger.js';
 import { startRelay } from './relay.js';
 import { startManifestPublisher } from './manifest.js';
+import { startOriginsRefresh } from './origins.js';
 import { handlePrint } from './routes/print.js';
 import { handleTest } from './routes/test.js';
 import { handleUsbDevices, handleUsbPrint } from './routes/usb.js';
@@ -97,19 +98,25 @@ server.listen(PORT, '127.0.0.1', () => {
   // Phase 3 — publish device capability manifest on start and periodically.
   const stopManifest = startManifestPublisher();
 
+  // Phase 4.2.5 — refresh tenant CORS allowlist from edge-workstation-origins.
+  const stopOrigins = startOriginsRefresh();
+
   process.on('SIGINT', () => {
     stopRelay();
     stopManifest();
+    stopOrigins();
     process.exit(0);
   });
   process.on('SIGTERM', () => {
     stopRelay();
     stopManifest();
+    stopOrigins();
     process.exit(0);
   });
 
   console.log(`  Relay:   ${process.env.ACCRUALFLOW_EDGE_CONFIG || '~/.accrualflow/edge/workstation.json'} (auto-started if present)`);
   console.log(`  Manifest: published on start + every 60s to edge-workstation-manifest`);
+  console.log(`  Origins: refreshed every 15m from edge-workstation-origins (cached to ~/.accrualflow/edge/origins.json)`);
   console.log(`  Press Ctrl+C to stop\n`);
 });
 
