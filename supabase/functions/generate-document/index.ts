@@ -2387,12 +2387,16 @@ serve(async (req) => {
         | null = null;
       if (previewProfileId) {
         try {
+          // Phase 2c: canonical registry is device_assignments. The legacy
+          // printer_profile id is still mirrored to source_config_id; when
+          // Phase 6 lands, callers will pass the device_assignment id
+          // directly and we match on `id`. Support both during the window.
           const { data: pp } = await supabase
-            .from("printer_profiles")
+            .from("device_assignments")
             .select(
               "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
             )
-            .eq("id", previewProfileId)
+            .or(`id.eq.${previewProfileId},source_config_id.eq.${previewProfileId}`)
             .maybeSingle();
           if (pp) previewProfile = pp as typeof previewProfile;
         } catch (_err) {
