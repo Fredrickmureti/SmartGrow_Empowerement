@@ -71,12 +71,17 @@ function failedCalls() {
 }
 
 describe('PrintClient — P3 Step 4 ledger acked_at', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     rpcMock.mockReset();
     printRawBytesMock.mockReset();
     printLabelBytesMock.mockReset();
     printLabelBytesMock.mockResolvedValue({ success: true });
     printPdfInPageMock.mockClear();
+    // Policy cache is a module-level singleton; flush between tests so
+    // per-test (business, docType, intent) tuples aren't shadowed by a
+    // previous test's `{copies: N}` snapshot.
+    const { printClient } = await import('@/services/printing/PrintClient');
+    printClient.invalidatePolicyCache();
   });
 
   it('marks thermal single-copy job sent then acked when driver returns success', async () => {
