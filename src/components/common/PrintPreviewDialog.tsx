@@ -376,6 +376,7 @@ export function PrintPreviewDialog({
           format: "escpos",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
+          idempotencyKey: clickIdempotencyKey,
         });
         try {
           const result = await printRawBytes(bytes);
@@ -418,6 +419,7 @@ export function PrintPreviewDialog({
           format: "pdf",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
+          idempotencyKey: clickIdempotencyKey,
         });
         try {
           await printPdfInPage(pdfBlob);
