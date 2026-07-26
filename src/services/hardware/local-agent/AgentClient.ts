@@ -142,8 +142,18 @@ class AgentClientImpl {
   private async _withEndpointLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const prev = this._endpointLocks.get(key) ?? Promise.resolve();
     // Swallow any rejection from prev — we only need ordering, not propagation.
-    const gate = prev.catch(() => undefined);
-    const run = gate.then(fn);
+    //
+    // Wave B4.3: the gate itself is time-capped. A never-settling predecessor
+    // (e.g. a mixed-content fetch that hangs forever) used to park every later
+    // job for the same printer behind it with no error at all — that is what
+    // made a burst of invoices stop printing after the first one.
+    const gate = Promise.race([
+      prev.catch(() => undefined),
+      new Promise<'lock_timeout'>((resolve) =>
+        setTimeout(() => resolve('lock_timeout'), AgentClient.LOCK_WAIT_MS),
+      ),
+    ]);
+    const run = gate.then(() => fn());
     this._endpointLocks.set(key, run);
     try {
       return await run;
@@ -152,6 +162,27 @@ class AgentClientImpl {
       if (this._endpointLocks.get(key) === run) {
         this._endpointLocks.delete(key);
       }
+    }
+  }
+
+  /** Max time a caller waits for the per-endpoint mutex before proceeding anyway. */
+  private static readonly LOCK_WAIT_MS = 20_000;
+  /** Hard ceiling on any direct (loopback) agent request. */
+  private static readonly DIRECT_PRINT_TIMEOUT_MS = 8_000;
+  private static readonly DIRECT_TEST_TIMEOUT_MS = 6_000;
+
+  /**
+   * `fetch` with a hard abort. Every direct agent call must be bounded: on an
+   * HTTPS origin a plaintext loopback request can stay pending indefinitely,
+   * which turns one bad job into a permanently stalled print queue.
+   */
+  private async _fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
     }
   }
 
