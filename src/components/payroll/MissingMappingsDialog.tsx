@@ -311,7 +311,52 @@ function MappingsBody({
   );
 }
 
-function Section({
+/**
+ * Loan-type-scoped mappings — `loan_types.gl_receivable_account_id` and
+ * `interest_income_account_id`. These are NOT `default_account_settings`
+ * keys; the account is owned by the loan type row itself, so the remediation
+ * is to open Loan Types settings. Rendering a picker here would be
+ * misleading because `payroll_apply_proposed_mappings` cannot resolve these
+ * keys.
+ */
+function LoanTypesSection({
+  rows,
+  onNavigate,
+}: {
+  rows: PayrollGlReadinessRow[];
+  onNavigate: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-semibold text-muted-foreground">Loan types</h4>
+      <div className="rounded-md border p-3 space-y-3 bg-muted/20">
+        <div className="text-xs text-muted-foreground">
+          These accounts live on the loan type, not on the generic GL Mapping
+          table. Payroll posts loan repayments directly against the loan
+          receivable owned by the loan type — set it once in Loan Types settings
+          and every future run for this type is covered.
+        </div>
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div key={r.setting_key} className="flex flex-wrap items-center justify-between gap-2 rounded border bg-background p-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium break-words">{r.label}</div>
+                <div className="text-xs text-muted-foreground">
+                  Needs {r.required_account_type} account · {r.kind === "loan_receivable" ? "Loan receivable" : "Interest income"}
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">Loan type</Badge>
+            </div>
+          ))}
+        </div>
+        <Button size="sm" className="w-full sm:w-auto" onClick={onNavigate}>
+          Open Loan Types settings <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
   title, rows, accounts, applyOne, createAndMap,
 }: {
   title: string;
