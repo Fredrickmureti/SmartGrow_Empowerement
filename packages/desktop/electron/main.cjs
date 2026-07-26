@@ -232,7 +232,7 @@ async function startAgent() {
     }
     agentProc = spawn(command, args, {
       cwd: launch.cwd,
-      env: { ...process.env, ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON },
+      env,
       stdio: 'ignore',
       detached: false,
     });
