@@ -1,6 +1,6 @@
 # AccrualFlow Edge — Hardware Runtime
 
-**Status:** Phase 1 (hardened localhost runtime). Formerly `pos-hardware-agent`.
+**Status:** Phase 2 (relay transport + hardened localhost runtime). Formerly `pos-hardware-agent`.
 See `.lovable/plan.md` for the full architecture roadmap.
 
 A signed, loopback-bound runtime that bridges the AccrualFlow ERP to
@@ -65,19 +65,62 @@ is recommended.
 Bearer token generated on first run, stored in `~/.pos-agent-token`
 (mode 0600). Set `AGENT_AUTH_DISABLED=1` for dev only.
 
-## Configuration
+## Phase 2 — Supabase relay transport
 
-| Env var                  | Default    | Description                              |
-|--------------------------|------------|------------------------------------------|
-| `AGENT_PORT`             | `8043`     | Loopback port                            |
-| `AGENT_AUTH_DISABLED`    | (unset)    | `1` skips auth. Dev only.                |
-| `AGENT_ALLOWED_ORIGINS`  | (unset)    | Comma-separated extra allowed origins    |
+The loopback listener alone cannot be reached from
+`https://www.accrualflow.systems` (mixed-content). Phase 2 adds a
+durable, browser-safe path via Supabase:
+
+```
+Browser (https://…)
+  └─ INSERT public.edge_jobs { workstation_id, role, payload, idempotency_key }
+       ↑ RLS: only org members can enqueue for their own workstations
+       ↓ Realtime UPDATE observed by the browser when the agent completes
+
+Agent (this runtime, on the customer workstation)
+  └─ POST /functions/v1/edge-agent-poll     (Bearer <workstation_secret>)
+     POST /functions/v1/edge-agent-complete (Bearer <workstation_secret>)
+       ↑ hash-verified against workstations.secret_hash server-side
+```
+
+### Enrolment (one-time, per workstation)
+
+1. From the ERP admin console, an org member calls the
+   `edge-workstation-register` edge function with a friendly
+   `name`. The response contains a UUID `id` and a raw
+   `secret` shown **once**.
+2. Drop the following into
+   `~/.accrualflow/edge/workstation.json` on the workstation
+   (or point `ACCRUALFLOW_EDGE_CONFIG` at any other path):
+
+   ```json
+   {
+     "supabase_url": "https://<ref>.supabase.co",
+     "workstation_id": "<uuid returned from register>",
+     "workstation_secret": "<raw secret returned once>"
+   }
+   ```
+
+3. Restart the runtime. On start, if the config file is present the
+   agent begins polling `edge-agent-poll` every ~1.5 s and posting
+   results back to `edge-agent-complete`. If the file is missing,
+   the runtime logs `relay.inactive.no_config` and only serves the
+   loopback listener (existing dev flow — unchanged).
+
+### Configuration
+
+| Env var                    | Default                                | Description                          |
+|----------------------------|----------------------------------------|--------------------------------------|
+| `AGENT_PORT`               | `8043`                                 | Loopback port                        |
+| `AGENT_AUTH_DISABLED`      | (unset)                                | `1` skips loopback auth. Dev only.   |
+| `AGENT_ALLOWED_ORIGINS`    | (unset)                                | Extra CORS origins (comma-separated) |
+| `ACCRUALFLOW_EDGE_CONFIG`  | `~/.accrualflow/edge/workstation.json` | Path to the workstation config       |
 
 ## Roadmap
 
-- Phase 2 — Outbound WebSocket relay to `wss://edge-relay.accrualflow.systems`.
+- Phase 2 — Supabase relay transport (edge_jobs table + edge functions). **Shipped in this build.**
 - Phase 3 — Capability manifest published by the agent.
-- Phase 4 — Electron desktop shell (tray, diagnostics, updates).
+- Phase 4 — Electron desktop shell (tray, diagnostics, enrolment wizard, updates).
 - Phase 5 — Plugin drivers (`@accrualflow/edge-drivers-*`).
 - Phase 6 — Observability + admin console.
 

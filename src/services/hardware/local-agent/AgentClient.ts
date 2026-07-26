@@ -38,11 +38,14 @@ import type {
   AgentDeviceInfo,
 } from './protocol';
 import { DEFAULT_AGENT_URL } from './protocol';
+import { RelayTransport, type RelayConfig } from './RelayTransport';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AgentChangeCallback = (available: boolean, status: AgentStatusResponse | null) => void;
 
 const TOKEN_STORAGE_KEY = 'pos.agent.token';
 const URL_STORAGE_KEY = 'pos.agent.url';
+const RELAY_STORAGE_KEY = 'pos.agent.relay';
 
 // Circuit-breaker tuning. Optional hardware MUST NOT spam the console or the
 // network with retries when the local agent is absent. We start at the
@@ -89,6 +92,16 @@ class AgentClientImpl {
    * cannot leak — the entry is replaced as new callers arrive.
    */
   private _endpointLocks = new Map<string, Promise<unknown>>();
+
+  /**
+   * Phase 2 relay transport. When configured (via `enableRelay()`), the
+   * client routes mutating operations through Supabase edge_jobs first
+   * and falls back to loopback HTTP only if the relay dispatch fails or
+   * times out. This is what unblocks production `https://` origins where
+   * mixed-content rules forbid a direct fetch to `http://127.0.0.1`.
+   */
+  private _relay: RelayTransport | null = null;
+  private _relayConfig: RelayConfig | null = null;
 
   /** Normalize a network endpoint key. Lowercases host, strips default ports. */
   private _netKey(ipAddress: string, port: number): string {
@@ -161,6 +174,49 @@ class AgentClientImpl {
   isAuthorized(): boolean {
     return this._lastAuthorized;
   }
+
+  // ═══════════════════════════════════════════
+  //  Phase 2 relay transport (Supabase edge_jobs)
+  // ═══════════════════════════════════════════
+
+  /**
+   * Enable the Supabase relay transport. When enabled, mutating hardware
+   * ops (`printNetwork`, `printUsb`, `testConnection`) are enqueued into
+   * `public.edge_jobs` and awaited via Realtime; the loopback HTTP path
+   * is used only as a fallback for local development and same-LAN calls.
+   *
+   * Callers are typically the hardware settings page and the POS runtime,
+   * which have both the authenticated Supabase client and the active
+   * workstation identity in hand.
+   */
+  enableRelay(supabase: SupabaseClient, config: RelayConfig): void {
+    this._relay = new RelayTransport(supabase, config);
+    this._relayConfig = config;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify(config));
+      }
+    } catch { /* ignore */ }
+  }
+
+  disableRelay(): void {
+    this._relay = null;
+    this._relayConfig = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(RELAY_STORAGE_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+
+  isRelayEnabled(): boolean {
+    return this._relay !== null;
+  }
+
+  getRelayConfig(): RelayConfig | null {
+    return this._relayConfig;
+  }
+
 
   private _authHeaders(): Record<string, string> {
     return this._token ? { Authorization: `Bearer ${this._token}` } : {};
@@ -340,6 +396,20 @@ class AgentClientImpl {
     data: number[],
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      // Phase 2: prefer relay when configured. On any relay failure (timeout,
+      // insert error, agent not consuming) fall through to the loopback path
+      // so LAN / dev workflows keep working.
+      if (this._relay) {
+        const idem = `print:${this._netKey(ipAddress, port)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const r = await this._relay.dispatch<AgentPrintResponse>({
+          role: 'print',
+          payload: { ipAddress, port, data },
+          idempotencyKey: idem,
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+        // fall through to loopback
+      }
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
           method: 'POST',
@@ -365,6 +435,14 @@ class AgentClientImpl {
     port: number,
   ): Promise<AgentTestResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      if (this._relay) {
+        const r = await this._relay.dispatch<AgentTestResponse>({
+          role: 'test',
+          payload: { ipAddress, port, timeout: 5000 },
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+      }
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
           method: 'POST',
@@ -398,6 +476,16 @@ class AgentClientImpl {
     data: number[],
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._usbKey(vendorId, productId), async () => {
+      if (this._relay) {
+        const idem = `usb_print:${this._usbKey(vendorId, productId)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const r = await this._relay.dispatch<AgentPrintResponse>({
+          role: 'usb_print',
+          payload: { vendorId, productId, data },
+          idempotencyKey: idem,
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+      }
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {
           method: 'POST',

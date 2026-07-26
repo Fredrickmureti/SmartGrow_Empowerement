@@ -13943,6 +13943,71 @@ export type Database = {
           },
         ]
       }
+      edge_jobs: {
+        Row: {
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          deadline_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          op: string
+          organization_id: string
+          payload: Json
+          requested_by: string | null
+          result: Json | null
+          role: string
+          status: string
+          updated_at: string
+          workstation_id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deadline_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          op?: string
+          organization_id: string
+          payload?: Json
+          requested_by?: string | null
+          result?: Json | null
+          role: string
+          status?: string
+          updated_at?: string
+          workstation_id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deadline_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          op?: string
+          organization_id?: string
+          payload?: Json
+          requested_by?: string | null
+          result?: Json | null
+          role?: string
+          status?: string
+          updated_at?: string
+          workstation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edge_jobs_workstation_id_fkey"
+            columns: ["workstation_id"]
+            isOneToOne: false
+            referencedRelation: "workstations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_event_outbox: {
         Row: {
           attempts: number
@@ -66367,6 +66432,39 @@ export type Database = {
           },
         ]
       }
+      workstations: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen_at: string | null
+          name: string
+          organization_id: string
+          secret_hash: string
+          updated_at: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          name: string
+          organization_id: string
+          secret_hash: string
+          updated_at?: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen_at?: string | null
+          name?: string
+          organization_id?: string
+          secret_hash?: string
+          updated_at?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       accounting_integrity_findings: {
@@ -76929,6 +77027,7 @@ export type Database = {
         }
       }
       earth: { Args: never; Returns: number }
+      edge_jobs_expire_stale: { Args: never; Returns: number }
       edit_procurement_recommendation_qty: {
         Args: { p_qty: number; p_reason: string; p_rec_id: string }
         Returns: undefined

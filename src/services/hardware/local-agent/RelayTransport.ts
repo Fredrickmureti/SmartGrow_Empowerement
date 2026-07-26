@@ -1,0 +1,179 @@
+/**
+ * RelayTransport — AccrualFlow Edge Phase 2.
+ *
+ * Enqueues a hardware job into `public.edge_jobs` for a specific workstation
+ * and awaits the agent's result via Supabase Realtime, falling back to
+ * polling if the Realtime channel is not established in time.
+ *
+ * This transport is the primary path for production browsers on
+ * `https://www.accrualflow.systems`, where mixed-content rules forbid a
+ * direct `fetch('http://127.0.0.1:8043/...')` from an HTTPS origin. The
+ * legacy loopback HTTP path in `AgentClient` stays as a fallback for LAN /
+ * dev workflows and for latency-sensitive operations where the round-trip
+ * through Supabase is undesirable.
+ *
+ * Contract:
+ *   const relay = new RelayTransport(supabase, { workstationId, organizationId });
+ *   const result = await relay.dispatch({ role, op, payload, idempotencyKey?, deadlineMs? });
+ *
+ * The `result` shape mirrors what the agent returns from the corresponding
+ * route (see `agent/src/routes/*`), so callers can treat relay and loopback
+ * responses interchangeably.
+ */
+
+import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+
+export type EdgeRole =
+  | 'print'
+  | 'test'
+  | 'usb_print'
+  | 'discover'
+  | 'usb_devices'
+  | 'status';
+
+export interface RelayConfig {
+  workstationId: string;
+  organizationId: string;
+  /** Default deadline for jobs in ms; jobs exceeding this are marked expired server-side. */
+  defaultDeadlineMs?: number;
+}
+
+export interface DispatchArgs {
+  role: EdgeRole;
+  op?: string;
+  payload?: Record<string, unknown>;
+  idempotencyKey?: string;
+  deadlineMs?: number;
+}
+
+export interface DispatchResult<T = unknown> {
+  jobId: string;
+  status: 'done' | 'error' | 'expired';
+  result: T | null;
+  error: string | null;
+}
+
+const DEFAULT_DEADLINE_MS = 30_000;
+const POLL_INTERVAL_MS = 1_500;
+
+export class RelayTransport {
+  constructor(
+    private readonly supabase: SupabaseClient,
+    private readonly config: RelayConfig,
+  ) {}
+
+  /** Enqueue a job and wait for the agent to complete it. */
+  async dispatch<T = unknown>(args: DispatchArgs): Promise<DispatchResult<T>> {
+    const deadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
+    const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
+
+    const insertRow = {
+      organization_id: this.config.organizationId,
+      workstation_id: this.config.workstationId,
+      role: args.role,
+      op: args.op ?? 'exec',
+      payload: args.payload ?? {},
+      idempotency_key: args.idempotencyKey ?? null,
+      deadline_at: deadlineAt,
+    };
+
+    // Idempotency: if a job with the same (org, ws, key) already exists we
+    // reuse it. The unique index lets the insert fail with 23505 which we
+    // translate into a lookup rather than a hard error.
+    const { data: inserted, error: insertErr } = await this.supabase
+      .from('edge_jobs')
+      .insert(insertRow)
+      .select('id, status, result, error')
+      .single();
+
+    let jobId: string | null = null;
+    if (insertErr) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((insertErr as any).code === '23505' && args.idempotencyKey) {
+        const { data: existing } = await this.supabase
+          .from('edge_jobs')
+          .select('id, status, result, error')
+          .eq('organization_id', this.config.organizationId)
+          .eq('workstation_id', this.config.workstationId)
+          .eq('idempotency_key', args.idempotencyKey)
+          .maybeSingle();
+        if (existing) {
+          if (existing.status === 'done' || existing.status === 'error' || existing.status === 'expired') {
+            return this._finalize<T>(existing.id, existing.status as DispatchResult['status'], existing.result as T | null, existing.error);
+          }
+          jobId = existing.id;
+        }
+      }
+      if (!jobId) {
+        return {
+          jobId: '',
+          status: 'error',
+          result: null,
+          error: `relay_insert_failed: ${insertErr.message}`,
+        };
+      }
+    } else {
+      jobId = inserted!.id;
+      if (inserted!.status === 'done' || inserted!.status === 'error' || inserted!.status === 'expired') {
+        return this._finalize<T>(jobId, inserted!.status as DispatchResult['status'], inserted!.result as T | null, inserted!.error);
+      }
+    }
+
+    return await this._await<T>(jobId, deadlineMs);
+  }
+
+  private _finalize<T>(jobId: string, status: DispatchResult['status'], result: T | null, error: string | null): DispatchResult<T> {
+    return { jobId, status, result, error };
+  }
+
+  private async _await<T>(jobId: string, deadlineMs: number): Promise<DispatchResult<T>> {
+    // Race: Realtime UPDATE on this row, polling every POLL_INTERVAL_MS,
+    // and a hard timeout at deadlineMs + 2s (server-side expiry runs on
+    // each poll from the agent, so we allow a small grace period).
+    return new Promise<DispatchResult<T>>((resolve) => {
+      let settled = false;
+      const finish = (r: DispatchResult<T>) => {
+        if (settled) return;
+        settled = true;
+        clearInterval(pollTimer);
+        clearTimeout(hardTimer);
+        void this.supabase.removeChannel(channel);
+        resolve(r);
+      };
+
+      const check = (row: { id: string; status: string; result: unknown; error: string | null }) => {
+        if (row.id !== jobId) return;
+        if (row.status === 'done' || row.status === 'error' || row.status === 'expired') {
+          finish(this._finalize<T>(jobId, row.status as DispatchResult['status'], row.result as T | null, row.error));
+        }
+      };
+
+      const channel: RealtimeChannel = this.supabase
+        .channel(`edge_job:${jobId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'edge_jobs', filter: `id=eq.${jobId}` },
+          (payload) => check(payload.new as { id: string; status: string; result: unknown; error: string | null }),
+        )
+        .subscribe();
+
+      const pollTimer = setInterval(async () => {
+        const { data } = await this.supabase
+          .from('edge_jobs')
+          .select('id, status, result, error')
+          .eq('id', jobId)
+          .maybeSingle();
+        if (data) check(data as { id: string; status: string; result: unknown; error: string | null });
+      }, POLL_INTERVAL_MS);
+
+      const hardTimer = setTimeout(() => {
+        finish({
+          jobId,
+          status: 'error',
+          result: null,
+          error: 'relay_timeout: agent did not respond before the deadline. Verify the AccrualFlow Edge desktop app is running on the target workstation.',
+        });
+      }, deadlineMs + 2_000);
+    });
+  }
+}
