@@ -84,3 +84,12 @@ The prior plan (`.lovable/plan.md`) declared Phases 1 and 2a/2b complete. Direct
 - Edge-function relay protocol changes beyond the new `resolve_device` RPC.
 - `document_templates` / `label_templates` schema changes beyond FK re-point.
 - Biometric / attendance flows beyond restoring role parity.
+
+## Progress log — 2026-07-26 (Phase 2c partial)
+
+- `supabase/functions/edge/routes/workstation-manifest.ts`: rewritten to upsert into `device_assignments` (transport = 'local_agent', keyed by `(workstation_id, device_key)`). Legacy `workstation_devices` no longer written by the LAN-agent manifest path. Agent-side roles (`drawer`, `display`, `eft_terminal`, `biometric`) mapped to canonical `HARDWARE_ROLES`; wire-level transport preserved in `config.wire_transport`. Devices missing from a manifest cycle are marked `status='offline'` (scope: same workstation_id + transport='local_agent').
+- `supabase/functions/generate-document/index.ts`: both `printer_profiles` reads (preview override + policy-driven physical profile) now read from `device_assignments` with `.or('id.eq.<x>,source_config_id.eq.<x>')` to honour both new and legacy IDs during the Phase 2b mirror window.
+- `src/test/architecture/role-vocabulary.test.ts`: new CI guard locking parity between Electron `HARDWARE_ROLES` and renderer `DeviceRole`. Green.
+- Typecheck: green. Architecture suite: only pre-existing failures (`no-english-regex-on-readiness-reasons`, `no-printservice-shim` — `PrintPreviewDialog.tsx`) unrelated to this turn.
+
+Next: retire the last `workstation_devices` consumers (agent status endpoints + any remaining edge reads), then land the `resolve_device` RPC (Phase 3 opening).
