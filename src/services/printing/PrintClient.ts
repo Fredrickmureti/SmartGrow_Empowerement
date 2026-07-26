@@ -287,11 +287,20 @@ class PrintClient {
     return `${req.documentType}:${req.documentId}:${req.intent}:${bucket}`;
   }
 
-  /** ADR-0090 · insert queued row via SECURITY DEFINER RPC. */
+  /**
+   * ADR-0090 · insert queued row via SECURITY DEFINER RPC.
+   * Plan P3 Step 2 — `opts.parentJobId` links a fan-out copy back to its
+   * parent container row; `opts.childIndex` suffixes the correlation id
+   * so children of a multi-copy job satisfy the
+   * `(business_id, correlation_id)` unique index while still collapsing
+   * on rapid double-click (the second click regenerates identical child
+   * keys and the DB rejects them).
+   */
   private async insertLedgerRow(
     req: PrintRequest,
     policy: ResolvedPrintPolicy | null,
     fmt: 'pdf' | 'escpos' | 'zpl',
+    opts?: { parentJobId?: string | null; childIndex?: number },
   ): Promise<string | null> {
     if (!req.businessId) return null;
     try {
@@ -299,6 +308,10 @@ class PrintClient {
       const transport = fmt === 'pdf'
         ? (typeof window !== 'undefined' && Boolean((window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron) ? 'pdf-electron' : 'pdf-browser')
         : 'thermal';
+      const baseCorrelation = this.correlationId(req);
+      const correlation = opts?.childIndex
+        ? `${baseCorrelation}:copy:${opts.childIndex}`
+        : baseCorrelation;
       const { data, error } = await supabase.rpc('print_job_insert', {
         p_business_id: req.businessId,
         p_branch_id: req.branchId ?? null,
@@ -308,9 +321,9 @@ class PrintClient {
         p_format: fmt,
         p_printer_profile_id: policy?.printerProfileId ?? null,
         p_media_profile_id: null,
-        p_correlation_id: this.correlationId(req),
+        p_correlation_id: correlation,
         p_transport: transport,
-        p_parent_job_id: null,
+        p_parent_job_id: opts?.parentJobId ?? null,
       });
       if (error) return null;
       return typeof data === 'string' ? data : null;
@@ -318,6 +331,7 @@ class PrintClient {
       return null;
     }
   }
+
 
   private async markLedgerSent(jobId: string): Promise<void> {
     try {
