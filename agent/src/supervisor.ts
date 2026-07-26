@@ -150,7 +150,12 @@ export function startSupervisor(hooks: SupervisorHooks): () => void {
               // Surfaced so the tray app can show the operator exactly
               // what `install_cert` will run before they consent.
               commands: describeTrustCommands('install', process.platform)
-                .map((c) => ({ command: `${c.file} ${c.args.join(' ')}`, explain: c.explain, elevates: c.elevates })),
+                .map((c) => ({
+                  command: `${c.file} ${c.args.join(' ')}`,
+                  explain: c.explain,
+                  elevates: c.elevates,
+                  optional: Boolean(c.optional),
+                })),
             }) + '\n');
             break;
           }

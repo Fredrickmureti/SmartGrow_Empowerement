@@ -15,6 +15,7 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
   const [status, setStatus] = useState<CertStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
   const [steps, setSteps] = useState<TrustResult['steps']>(undefined);
   const [showCommands, setShowCommands] = useState(false);
 
@@ -26,7 +27,7 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
   useEffect(() => { refresh(); }, [refresh]);
 
   const run = async (op: 'rotate' | 'install' | 'uninstall') => {
-    setBusy(op); setMsg(null); setSteps(undefined);
+    setBusy(op); setMsg(null); setHint(null); setSteps(undefined);
     try {
       if (op === 'rotate') {
         const r = await window.edge.supervisor.rotateCert();
@@ -38,7 +39,12 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
           ? await window.edge.supervisor.installCert()
           : await window.edge.supervisor.uninstallCert();
         setSteps(r.steps);
-        setMsg(r.ok ? `Trust store ${op} completed.` : `Trust store ${op} failed: ${r.error ?? 'unknown error'}`);
+        setHint(r.hint ?? null);
+        setMsg(r.ok
+          ? op === 'install'
+            ? 'Certificate trusted. Restart your browser for it to take effect.'
+            : 'Certificate trust removed.'
+          : `Could not ${op === 'install' ? 'trust' : 'remove'} the certificate: ${r.error ?? 'unknown error'}`);
       }
       await refresh();
       onChanged?.();
@@ -55,8 +61,10 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
       <h2>Local certificate</h2>
       <p className="panel-sub">
         The agent serves loopback HTTPS with a per-install self-signed
-        certificate. Browsers only accept it once it is present in this
-        machine&rsquo;s trust store. Installing requires administrator rights.
+        certificate. Browsers only accept it once it is trusted on this
+        machine. Trusting it for your own user account needs no
+        administrator rights &mdash; machine-wide steps are attempted as a
+        bonus and are skipped silently when elevation is unavailable.
       </p>
 
       <div className="grid-2">
@@ -98,7 +106,9 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
             <div key={c.command} style={{ marginTop: 8 }}>
               <div className="mono" style={{ fontSize: 11, wordBreak: 'break-all' }}>{c.command}</div>
               <div className="muted" style={{ fontSize: 11 }}>
-                {c.explain}{c.elevates ? ' · requires elevation' : ''}
+                {c.explain}
+                {c.elevates ? ' · may prompt for administrator' : ''}
+                {c.optional ? ' · optional' : ''}
               </div>
             </div>
           ))}
@@ -106,13 +116,14 @@ export function CertificatePanel({ onChanged }: { onChanged?: () => void }) {
       )}
 
       {msg && <div className="muted mono" style={{ marginTop: 8, fontSize: 12 }}>{msg}</div>}
+      {hint && <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>{hint}</div>}
 
       {steps && steps.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {steps.map((s, i) => (
             <div key={`${i}-${s.command}`} className="mono" style={{ fontSize: 11, wordBreak: 'break-all' }}>
-              <span className={s.ok ? 'pill ok' : 'pill err'} style={{ marginRight: 6 }}>
-                {s.ok ? 'ok' : 'fail'}
+              <span className={s.ok ? 'pill ok' : s.optional ? 'pill warn' : 'pill err'} style={{ marginRight: 6 }}>
+                {s.ok ? 'ok' : s.optional ? 'skipped' : 'fail'}
               </span>
               {s.command}
               {s.output && <div className="muted" style={{ fontSize: 11 }}>{s.output}</div>}

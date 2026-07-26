@@ -137,7 +137,7 @@ export interface CertStatus {
   trusted?: boolean | null;
   detail?: string;
   /** Exact commands `installCert()` will run, for operator review. */
-  commands?: Array<{ command: string; explain: string; elevates: boolean }>;
+  commands?: Array<{ command: string; explain: string; elevates: boolean; optional?: boolean }>;
   error?: string;
 }
 
@@ -145,8 +145,10 @@ export interface TrustResult {
   ok: boolean;
   platform?: string;
   certPath?: string;
-  steps?: Array<{ command: string; ok: boolean; output: string }>;
+  steps?: Array<{ command: string; ok: boolean; output: string; optional?: boolean; skipped?: boolean }>;
   error?: string;
+  /** Plain-language next step when a step did not apply cleanly. */
+  hint?: string;
 }
 
 export interface SupervisorStatus {
