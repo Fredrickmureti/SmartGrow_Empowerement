@@ -15,6 +15,7 @@ import { useOrganization } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
+import type { DeviceRole } from '@/services/hardware/types';
 
 export interface MissingLabelPrinterCta {
   message: string;
@@ -80,9 +81,28 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
             'No label printer assigned. Open Platform → Hardware to bind one.',
         };
       }
+      // Phase 5 Step B — per-assignment dispatch. When the platform
+      // resolver picked a concrete `device_assignments` row, route via
+      // `execAssignment` so `TransportRouter` sees the row's persisted
+      // `transport` (electron | local_agent | webusb | webhid) instead
+      // of a role-only fan-out at the driver seam.
+      if (device) {
+        return hardwareClient.execAssignment({
+          assignment: {
+            id: device.id,
+            role: device.role as DeviceRole,
+            transport: device.transport,
+            enabled: device.enabled,
+          },
+          op: 'print_raw',
+          payload: Array.from(bytes),
+        });
+      }
+      // Fallback — only the workstation-relay probe found a device (no
+      // resolver row surfaced through `useDeviceForRole`). Legacy path.
       return hardwareClient.printLabelBytes(bytes);
     },
-    [hasDevice],
+    [hasDevice, device],
   );
 
   return {

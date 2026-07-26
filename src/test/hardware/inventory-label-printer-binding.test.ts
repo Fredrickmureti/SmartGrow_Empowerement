@@ -28,8 +28,11 @@ describe('useInventoryLabelPrinter (Wave 7 cross-module seam)', () => {
     expect(src).toMatch(/missingDeviceCta/);
   });
 
-  it("dispatches raw label bytes through hardwareClient, not a direct driver", () => {
-    expect(src).toContain("hardwareClient.printRawBytes");
+  it("dispatches label bytes through hardwareClient, not a direct driver", () => {
+    // Phase 5 Step B: primary path is `execAssignment` (per-assignment,
+    // transport chosen from the resolver row). `printLabelBytes` remains
+    // only as the workstation-relay fallback when no resolver row surfaced.
+    expect(src).toMatch(/hardwareClient\.(execAssignment|printLabelBytes)/);
     expect(src).not.toContain('browserHardwareAdapter');
     expect(src).not.toContain('agentClient');
   });
