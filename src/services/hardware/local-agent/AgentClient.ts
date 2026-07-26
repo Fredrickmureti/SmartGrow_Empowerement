@@ -38,11 +38,14 @@ import type {
   AgentDeviceInfo,
 } from './protocol';
 import { DEFAULT_AGENT_URL } from './protocol';
+import { RelayTransport, type RelayConfig } from './RelayTransport';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AgentChangeCallback = (available: boolean, status: AgentStatusResponse | null) => void;
 
 const TOKEN_STORAGE_KEY = 'pos.agent.token';
 const URL_STORAGE_KEY = 'pos.agent.url';
+const RELAY_STORAGE_KEY = 'pos.agent.relay';
 
 // Circuit-breaker tuning. Optional hardware MUST NOT spam the console or the
 // network with retries when the local agent is absent. We start at the
