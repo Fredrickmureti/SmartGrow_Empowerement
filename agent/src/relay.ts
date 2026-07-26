@@ -33,11 +33,13 @@ import { logger } from './logger.js';
 const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, ctx: Record<string, unknown>) =>
   logger[level](msg, ctx);
 
-interface RelayConfig {
+export interface RelayConfig {
   supabase_url: string;
   workstation_id: string;
   workstation_secret: string;
 }
+
+export const AGENT_VERSION = '1.3.0-edge.p3';
 
 interface RelayJob {
   id: string;
