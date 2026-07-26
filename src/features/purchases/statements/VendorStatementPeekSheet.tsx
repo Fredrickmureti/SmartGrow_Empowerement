@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 
 interface Props {
@@ -29,7 +29,7 @@ interface Props {
 export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
   const { record, loading, error } = useVendorStatementRecord(statementId);
   const { currentBusiness } = useBusinesses();
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
   const [emailOpen, setEmailOpen] = useState(false);
 
   const handleDownload = async () => {

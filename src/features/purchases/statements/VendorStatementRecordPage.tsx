@@ -29,7 +29,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 
 function fmtDate(v: string | null | undefined) {
@@ -47,7 +47,7 @@ export default function VendorStatementRecordPage() {
   const { formatCurrency } = useCurrency();
   const { currentBusiness } = useBusinesses();
   const { record, loading, error } = useVendorStatementRecord(id);
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
   const [emailOpen, setEmailOpen] = useState(false);
 
   const back = () => navigate("/purchases/statements");
