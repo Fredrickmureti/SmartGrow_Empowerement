@@ -83,6 +83,7 @@ class AgentClientImpl {
   private _lastAvailable = false;
   /** True when /status is reachable AND a protected probe (HEAD /discover) succeeds. */
   private _lastAuthorized = false;
+  private _authReason: AgentAuthReason = 'unreachable';
 
   /**
    * Wave B4.2 — per-endpoint mutex.
