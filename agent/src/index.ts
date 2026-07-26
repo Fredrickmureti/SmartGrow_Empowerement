@@ -36,8 +36,9 @@ let tlsInfo: LoopbackTls | null = TLS_DISABLED ? null : (() => {
   }
 })();
 
-const server = createServer(tlsInfo);
-const tlsServer = tlsInfo ? createTlsServer(tlsInfo) : null;
+const getTls = () => tlsInfo;
+const server = createServer(getTls);
+const tlsServer = tlsInfo ? createTlsServer(tlsInfo, getTls) : null;
 
 /**
  * Re-mint the loopback certificate and push it into the running TLS
