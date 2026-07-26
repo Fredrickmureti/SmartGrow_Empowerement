@@ -175,6 +175,49 @@ class AgentClientImpl {
     return this._lastAuthorized;
   }
 
+  // ═══════════════════════════════════════════
+  //  Phase 2 relay transport (Supabase edge_jobs)
+  // ═══════════════════════════════════════════
+
+  /**
+   * Enable the Supabase relay transport. When enabled, mutating hardware
+   * ops (`printNetwork`, `printUsb`, `testConnection`) are enqueued into
+   * `public.edge_jobs` and awaited via Realtime; the loopback HTTP path
+   * is used only as a fallback for local development and same-LAN calls.
+   *
+   * Callers are typically the hardware settings page and the POS runtime,
+   * which have both the authenticated Supabase client and the active
+   * workstation identity in hand.
+   */
+  enableRelay(supabase: SupabaseClient, config: RelayConfig): void {
+    this._relay = new RelayTransport(supabase, config);
+    this._relayConfig = config;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify(config));
+      }
+    } catch { /* ignore */ }
+  }
+
+  disableRelay(): void {
+    this._relay = null;
+    this._relayConfig = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(RELAY_STORAGE_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+
+  isRelayEnabled(): boolean {
+    return this._relay !== null;
+  }
+
+  getRelayConfig(): RelayConfig | null {
+    return this._relayConfig;
+  }
+
+
   private _authHeaders(): Record<string, string> {
     return this._token ? { Authorization: `Bearer ${this._token}` } : {};
   }
