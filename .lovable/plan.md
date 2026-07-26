@@ -107,3 +107,8 @@ Next: swap `generate-document` and any POS printer/kitchen dispatch to call `res
 - `generate-document`'s two ad-hoc `device_assignments` reads intentionally stay ID-driven (policy or preview pins a specific profile) — `resolve_device` is not the right primitive there. The intent-driven swap targets POS dispatch (`useHardwareProxy.printReceipt`) and kitchen-ticket dispatch, planned for the next turn.
 
 Next: route `useHardwareProxy.printReceipt` and the kitchen-ticket dispatch path through `useDeviceForIntent` / `resolve_device`, then start Phase 3's `PrintClient` label intent so `labelDispatch` becomes a thin adapter.
+
+## Progress log — 2026-07-26 (Phase 3 parity guard)
+
+- `src/test/architecture/intent-to-role-parity.test.ts`: locks three invariants on `INTENT_TO_ROLE` — coverage of every `PrintIntent` union member, mapping only into canonical `DeviceRole` values, and no stale entries. Parses the two source files directly (regex over union types with comment stripping) so a drift in either union fails CI immediately. 3/3 tests green.
+- Contract now enforced end-to-end: `PrintIntent` ⇢ `INTENT_TO_ROLE` ⇢ `DeviceRole` (also asserted parity with Electron `HARDWARE_ROLES` in the earlier `role-vocabulary.test.ts`), so a new intent cannot ship without a role, and a typo'd role cannot ship at all.
