@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ProbeOp, ProbeRequest, ProbeResponse, WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
 import { SUPABASE_ANON_KEY } from '../lib/config';
+import { shortId } from '../lib/identity';
 
 interface Props { workstation: WorkstationRead }
 
