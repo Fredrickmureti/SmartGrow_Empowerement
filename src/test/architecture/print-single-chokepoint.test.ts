@@ -52,6 +52,11 @@ const PIPELINE_ALLOWED = new Set<string>([
   // Reports export/preview surfaces (batch export path).
   "services/reports/ReportExportService.ts",
   "components/reports/PrintPreviewDialog.tsx",
+  // Preview dialogs that render PDF blobs in-place (fallback surface used
+  // when PrintClient policy resolves to `transport: 'ask_user'`).
+  "components/common/PrintPreviewDialog.tsx",
+  "components/payroll/PayrollPreviewDialog.tsx",
+  "components/pos/ReceiptPreviewBody.tsx",
 ]);
 
 /**
