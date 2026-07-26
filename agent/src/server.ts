@@ -96,7 +96,12 @@ function validateHost(req: http.IncomingMessage): boolean {
 }
 
 // Shared request handler used by both the http and https listeners.
-function buildHandler(tlsInfo: LoopbackTls | null) {
+//
+// The TLS material is read through a getter, not captured by value: the
+// loopback cert can be re-minted at runtime (Phase 4.2.7a) and
+// `/tls-info` must always report the fingerprint the listener is
+// currently presenting, or the ERP would pin a cert that no longer exists.
+function buildHandler(getTlsInfo: () => LoopbackTls | null) {
   return async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const path = url.pathname;
