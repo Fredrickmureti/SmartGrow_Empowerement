@@ -76,7 +76,7 @@ export function startPeriodicDiscovery(): void {
 export function handleStatus(): AgentStatusResponse {
   return {
     running: true,
-    version: '1.2.0-edge.p2',
+    version: '1.3.0-edge.p3',
     devices: cachedDevices,
     uptime: getUptime(),
   };

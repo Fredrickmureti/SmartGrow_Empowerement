@@ -16,7 +16,7 @@ const server = createServer();
 server.listen(PORT, '127.0.0.1', () => {
   const token = getAuthToken();
   logger.info('edge_started', { port: PORT, auth: Boolean(token) });
-  console.log(`\n  AccrualFlow Edge — Hardware Runtime v1.2.0-edge.p2`);
+  console.log(`\n  AccrualFlow Edge — Hardware Runtime v1.3.0-edge.p3`);
   console.log(`  Listening on http://127.0.0.1:${PORT} (loopback only)`);
   if (token) {
     console.log(`  Auth token: ${token.substring(0, 8)}…  (full token in ~/.pos-agent-token)`);
@@ -70,15 +70,21 @@ server.listen(PORT, '127.0.0.1', () => {
     }
   });
 
+  // Phase 3 — publish device capability manifest on start and periodically.
+  const stopManifest = startManifestPublisher();
+
   process.on('SIGINT', () => {
     stopRelay();
+    stopManifest();
     process.exit(0);
   });
   process.on('SIGTERM', () => {
     stopRelay();
+    stopManifest();
     process.exit(0);
   });
 
   console.log(`  Relay:   ${process.env.ACCRUALFLOW_EDGE_CONFIG || '~/.accrualflow/edge/workstation.json'} (auto-started if present)`);
+  console.log(`  Manifest: published on start + every 60s to edge-workstation-manifest`);
   console.log(`  Press Ctrl+C to stop\n`);
 });
