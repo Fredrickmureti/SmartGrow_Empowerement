@@ -64,7 +64,36 @@ export interface EdgeBridge {
     status(): Promise<{ running: boolean; pid: number | null }>;
     probe(payload: ProbeRequest): Promise<ProbeResponse>;
   };
+  supervisor: {
+    status(): Promise<SupervisorStatus>;
+    ping(): Promise<{ ok: boolean; pong?: number; error?: string }>;
+    reload(): Promise<{ ok: boolean; error?: string }>;
+    shutdown(): Promise<{ ok: boolean; error?: string }>;
+    install(): Promise<InstallerResult>;
+    uninstall(): Promise<InstallerResult>;
+    start(): Promise<InstallerResult>;
+    stop(): Promise<InstallerResult>;
+  };
   shell: { openExternal(url: string): Promise<void> };
+}
+
+export interface SupervisorStatus {
+  ok: boolean;
+  error?: string;
+  version?: string;
+  pid?: number;
+  uptime_s?: number;
+  platform?: string;
+  workstation_id?: string | null;
+  tls?: { enabled: boolean; fingerprint_sha256: string | null; port: number | null };
+}
+
+export interface InstallerResult {
+  ok: boolean;
+  code?: number | null;
+  stdout?: string;
+  stderr?: string;
+  error?: string;
 }
 
 declare global {
