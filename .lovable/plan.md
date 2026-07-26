@@ -18,6 +18,15 @@
 
 Pending work is **not** UI, business logic, or new pipelines — it is architecture lock-in and dead-code removal. This is exactly what the parent prompt asks for: one canonical pipeline, no drift.
 
+## Status snapshot (post-continuation)
+
+| Phase | Status | Evidence |
+| --- | --- | --- |
+| G1 — no shadow `window.print()` / hidden print `<iframe>` | ✅ shipped | `src/test/architecture/print-no-shadow-window-print.test.ts` |
+| G2 — every UI entry through the chokepoint | ✅ shipped | `src/test/architecture/print-single-chokepoint.test.ts` |
+| G3 — FIFO parity between PDF and raw-bytes transports | ✅ shipped | `src/test/printing/print-thermal-fifo-queue.test.ts` alongside `print-pdf-fifo-queue.test.ts` |
+| C — collapse the shadow path (delete `useDocumentPrint`) | ✅ shipped | hook file deleted; `rg -n "from ['\"]@/hooks/useDocumentPrint" src` → 0 hits; `LegalRecipients` migrated to `printClient.download` / `printClient.printDocument` with `extraBody`; `PrintClient.download` and `printDocument` now ledger every intent |
+
 ## Phase G — Guardrails (architecture invariants)
 
 Locks the single-pipeline invariant so a future refactor cannot silently reintroduce the drift that caused the original Sales-vs-Labels asymmetry.
