@@ -65,6 +65,10 @@ const STATUS_TIMEOUT_MS = 1_500;
 
 class AgentClientImpl {
   private _baseUrl: string;
+  /** True when a human explicitly set the URL — blocks the auto TLS upgrade. */
+  private _urlPinned = false;
+  /** One upgrade attempt per client lifetime unless the URL changes. */
+  private _tlsUpgradeAttempted = false;
   private _token: string | null = null;
   private _status: AgentStatusResponse | null = null;
   private _lastProbeTime = 0;
