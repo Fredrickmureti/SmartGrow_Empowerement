@@ -214,12 +214,12 @@ function MappingsBody({
 
   const grouped = useMemo(() => {
     return {
-      core: effectiveMissing.filter((r) => r.kind === "core"),
-      employee: effectiveMissing.filter((r) => r.kind === "employee_payable"),
-      employerExpense: effectiveMissing.filter((r) => r.kind === "employer_expense"),
-      employerPayable: effectiveMissing.filter((r) => r.kind === "employer_payable"),
+      core: genericMissing.filter((r) => r.kind === "core"),
+      employee: genericMissing.filter((r) => r.kind === "employee_payable"),
+      employerExpense: genericMissing.filter((r) => r.kind === "employer_expense"),
+      employerPayable: genericMissing.filter((r) => r.kind === "employer_payable"),
     };
-  }, [effectiveMissing]);
+  }, [genericMissing]);
 
   if (isLoading && !useEventList) {
     return (
