@@ -58,7 +58,7 @@ export function useDeviceForIntent(
   intentOrRole: PrintIntent | string,
   opts: DeviceForIntentOptions = {},
 ): DeviceForIntentResult {
-  const { organization } = useOrganization();
+  const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const role =
     (INTENT_TO_ROLE as Record<string, string>)[intentOrRole] ?? intentOrRole;
@@ -75,19 +75,20 @@ export function useDeviceForIntent(
   const query = useQuery({
     queryKey: [
       'resolve_device',
-      organization?.id ?? null,
+      currentOrg?.id ?? null,
       role,
       businessId,
       scopeKind,
       scopeId,
     ],
-    enabled: Boolean(organization?.id) && (opts.enabled ?? true),
+    enabled: Boolean(currentOrg?.id) && (opts.enabled ?? true),
     queryFn: async (): Promise<DeviceAssignment | null> => {
       const { data, error } = await supabase.rpc('resolve_device', {
-        _organization_id: organization!.id,
+        _organization_id: currentOrg!.id,
         _role: role,
         _business_id: businessId,
         _scope_kind: scopeKind,
+
         _scope_id: scopeId,
       });
       if (error) throw error;
