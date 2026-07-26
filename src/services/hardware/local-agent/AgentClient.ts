@@ -150,7 +150,7 @@ class AgentClientImpl {
     const gate = Promise.race([
       prev.catch(() => undefined),
       new Promise<'lock_timeout'>((resolve) =>
-        setTimeout(() => resolve('lock_timeout'), AgentClient.LOCK_WAIT_MS),
+        setTimeout(() => resolve('lock_timeout'), AgentClientImpl.LOCK_WAIT_MS),
       ),
     ]);
     const run = gate.then(() => fn());
@@ -574,7 +574,7 @@ class AgentClientImpl {
           headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, data }),
         },
-        AgentClient.DIRECT_PRINT_TIMEOUT_MS,
+        AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS,
       );
       const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
       if (res.status === 401) {
@@ -587,7 +587,7 @@ class AgentClientImpl {
       if (err instanceof Error && err.name === 'AbortError') {
         return {
           success: false,
-          error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClient.DIRECT_PRINT_TIMEOUT_MS / 1000}s while printing to ${ipAddress}:${port}. This job was dropped so the next one can go through.`,
+          error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS / 1000}s while printing to ${ipAddress}:${port}. This job was dropped so the next one can go through.`,
         };
       }
       return { success: false, error: `Local agent unreachable at ${this._baseUrl}. Cannot print to ${ipAddress}:${port}.` };
@@ -603,7 +603,7 @@ class AgentClientImpl {
           headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
         },
-        AgentClient.DIRECT_TEST_TIMEOUT_MS,
+        AgentClientImpl.DIRECT_TEST_TIMEOUT_MS,
       );
       const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
       if (res.status === 401) {
@@ -616,7 +616,7 @@ class AgentClientImpl {
       if (err instanceof Error && err.name === 'AbortError') {
         return {
           success: false,
-          error: `agent_request_timeout: the local agent at ${this._baseUrl} did not answer within ${AgentClient.DIRECT_TEST_TIMEOUT_MS / 1000}s.`,
+          error: `agent_request_timeout: the local agent at ${this._baseUrl} did not answer within ${AgentClientImpl.DIRECT_TEST_TIMEOUT_MS / 1000}s.`,
         };
       }
       return {
@@ -724,7 +724,7 @@ class AgentClientImpl {
             headers: this._mutatingHeaders(),
             body: JSON.stringify({ vendorId, productId, data }),
           },
-          AgentClient.DIRECT_PRINT_TIMEOUT_MS,
+          AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS,
         );
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
         if (res.status === 401) return { success: false, error: 'Agent rejected request: missing or invalid token.' };
@@ -733,7 +733,7 @@ class AgentClientImpl {
         return { success: false, error: 'Agent returned an empty response' };
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          return { success: false, error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClient.DIRECT_PRINT_TIMEOUT_MS / 1000}s.` };
+          return { success: false, error: `agent_request_timeout: no response from the local agent at ${this._baseUrl} within ${AgentClientImpl.DIRECT_PRINT_TIMEOUT_MS / 1000}s.` };
         }
         return { success: false, error: 'Local agent unreachable for USB printing.' };
       }
