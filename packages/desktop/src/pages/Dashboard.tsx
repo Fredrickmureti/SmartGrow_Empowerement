@@ -146,9 +146,12 @@ export function Dashboard({ workstation }: Props) {
         </div>
       </div>
 
+      <CertificatePanel onChanged={refresh} />
+
       {err && <div className="panel" style={{ borderColor: 'var(--edge-err)' }}>
         <div className="error-inline">{err}</div>
       </div>}
+
 
       <div className="panel">
         <h2>Service supervisor</h2>
