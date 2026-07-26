@@ -42,13 +42,20 @@ So: resume at a genuine 4.2.7 start, not mid-item.
 - `AgentClient` gains transport preference: probe `https://127.0.0.1:8443/tls-info`, and on success use HTTPS as the direct-loopback transport; on TLS failure fall back to the relay (never silently to plaintext from an HTTPS origin).
 - Cache the probe result per session; keep the relay as the default when neither loopback works.
 
-### 4.2.8 — Signed installers + auto-update
-- `@electron/packager` build script producing Windows/macOS/Linux artifacts, Windows signing via `CSC_LINK`, macOS notarization via `APPLE_ID`, deb/rpm output.
-- `electron-updater` on a versioned channel with staged rollout, plus an "Updates" panel in the tray app.
-- Signing credentials are workspace build secrets — I will scaffold the config and flag exactly which secrets you must add; I will not invent values.
+### 4.2.7c UI — done
+- `packages/desktop/src/components/CertificatePanel.tsx` on the Dashboard: live trusted/untrusted/unknown state from `cert_status`, "Review commands" showing the exact argv (and which steps elevate) before anything runs, plus Rotate / Trust / Remove-trust actions and per-step result output. Nothing runs on mount except the read-only status query.
 
-### 4.2.9 — `edge_jobs` purge schedule
-- Migration scheduling `pg_cron` `edge_jobs_purge_stale` to run `edge_jobs_expire_stale()` daily.
+### 4.2.8 — Signed installers + update channel (done, credentials pending)
+- `packages/desktop/scripts/build-installers.mjs` (`npm run package:signed`): `@electron/packager` build per target, Windows signing via `CSC_LINK` / `CSC_KEY_PASSWORD`, macOS signing via `CSC_NAME` and notarization via `APPLE_ID` / `APPLE_APP_PASSWORD` / `APPLE_TEAM_ID`. Missing credentials produce an UNSIGNED artifact plus an explicit warning naming the variable — no invented values. Emits archives + a `stable.json` channel manifest with per-artifact SHA-256.
+- `packages/desktop/electron/updater.cjs`: read-only channel check with numeric version compare, deterministic per-install rollout bucket (sha256 of workstation id), and `minimum_version` override for mandatory updates. It never downloads or executes an installer.
+  - Deviation from the original plan: `electron-updater` is not used. Our artifacts come from `@electron/packager`, so there is no electron-builder `latest.yml` for it to consume; the operator applies the update explicitly from the verified download link.
+- IPC `updates:check` in `main.cjs`, `window.edge.updates.check()` in preload + `types.d.ts`, and an "Updates" panel on the Dashboard showing installed→latest, channel, rollout %, bucket, notes and artifact SHA-256.
+- Tests: `src/test/hardware/update-channel.test.ts` pins version ordering and rollout-bucket stability/spread.
+
+**Build secrets you must add before shipping signed builds:** `CSC_LINK`, `CSC_KEY_PASSWORD`, `CSC_NAME`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`, and `EDGE_UPDATE_BASE_URL` / `EDGE_UPDATE_URL` for the channel host.
+
+### 4.2.9 — `edge_jobs` purge schedule (done)
+- `pg_cron` job `edge_jobs_purge_stale` runs `edge_jobs_expire_stale()` daily.
 
 ### Plan hygiene
 - Rewrite `.lovable/plan.md` to reflect the verified state above (4.2.7 reset to not-started with the four sub-items), so the next engineer inherits an accurate log rather than an optimistic one.

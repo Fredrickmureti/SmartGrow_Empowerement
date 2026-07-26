@@ -2,7 +2,7 @@
   "name": "@accrualflow/edge-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "AccrualFlow Edge Desktop — tray-based operator console for enrolling and diagnosing an AccrualFlow Edge workstation.",
+  "description": "AccrualFlow Edge Desktop \u2014 tray-based operator console for enrolling and diagnosing an AccrualFlow Edge workstation.",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -11,7 +11,8 @@
     "start": "electron .",
     "package:linux": "vite build && electron-packager . AccrualFlowEdge --platform=linux --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release' --ignore='node_modules/(?!(better-sqlite3))'",
     "package:win": "vite build && electron-packager . AccrualFlowEdge --platform=win32 --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release'",
-    "package:mac": "vite build && electron-packager . AccrualFlowEdge --platform=darwin --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release'"
+    "package:mac": "vite build && electron-packager . AccrualFlowEdge --platform=darwin --arch=x64 --out=release --overwrite --ignore='^/src' --ignore='^/release'",
+    "package:signed": "node scripts/build-installers.mjs"
   },
   "devDependencies": {
     "@electron/packager": "^18.3.6",

@@ -174,6 +174,20 @@ ipcMain.handle('workstation:clear', () => {
 });
 ipcMain.handle('settings:read', () => readSettings());
 ipcMain.handle('settings:write', (_e, next) => writeSettings(next ?? {}));
+// Phase 4.2.8 — update channel check. Read-only: it fetches the channel
+// manifest and reports applicability. It never downloads or runs an
+// installer; the operator opens the signed artifact themselves.
+ipcMain.handle('updates:check', async (_e, opts) => {
+  const { checkForUpdate } = require('./updater.cjs');
+  const ws = readWorkstation() || {};
+  const settings = readSettings() || {};
+  return checkForUpdate({
+    currentVersion: app.getVersion(),
+    installId: ws.workstation_id || 'unassigned',
+    channel: (opts && opts.channel) || settings.update_channel || 'stable',
+  });
+});
+
 ipcMain.handle('agent:start', () => startAgent());
 ipcMain.handle('agent:stop', () => { stopAgent(); return { ok: true }; });
 ipcMain.handle('agent:status', () => ({

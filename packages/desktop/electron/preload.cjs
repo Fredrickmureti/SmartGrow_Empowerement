@@ -42,6 +42,10 @@ const api = {
     installCert: () => ipcRenderer.invoke('supervisor:installCert'),
     uninstallCert: () => ipcRenderer.invoke('supervisor:uninstallCert'),
   },
+  updates: {
+    // Read-only channel check (Phase 4.2.8). No download, no execution.
+    check: (opts) => ipcRenderer.invoke('updates:check', opts ?? {}),
+  },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },
