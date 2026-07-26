@@ -440,9 +440,18 @@ class AgentClientImpl {
     this._probing = true;
 
     try {
-      const status = await this._fetchStatus(true);
+      let status = await this._fetchStatus(true);
+      // Phase 4.2.7d — once the agent answers at all, see whether it also
+      // offers a trusted loopback TLS endpoint and move onto it. Re-probe
+      // through the new transport so `_status` reflects what we'll use.
+      if (status?.running === true) {
+        const before = this._baseUrl;
+        await this._tryUpgradeToTls();
+        if (this._baseUrl !== before) status = await this._fetchStatus(true);
+      }
       const available = status?.running === true;
       this._status = status;
+
 
       // Confirm protected endpoints accept the configured token (or that auth is disabled).
       this._lastAuthorized = available ? await this._checkAuthorized() : false;
