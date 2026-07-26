@@ -1,14 +1,14 @@
 /**
- * ADR-0087 guardrail — printer_profiles is the source of hardware
- * capability (command language, DPI, supported media). This test locks
- * down two contracts that keep the architecture from silently reverting:
+ * ADR-0087 + Phase 2b guardrail — the unified `device_assignments`
+ * registry is the single source of hardware capability (command
+ * language, DPI, paper size, supported media). The Phase 2a migration
+ * folded `printer_profiles` into `device_assignments`; this test locks
+ * down that `labelDispatch` reads capability from that canonical table,
+ * NOT from ad-hoc per-device overrides in `assignment.config`.
  *
- *   1. `labelDispatch` reads `dpi` and `supported_media_ids` from
- *      `printer_profiles`, NOT from `device_assignments.config`.
- *   2. Label drivers (`ZplLabelDriver`, `EplLabelDriver`) prefer payload
- *      media hints (which originate from `printer_profiles` +
- *      `media_profiles`) over `assignment.config.{dpi,widthMm,heightMm}`,
- *      and strip any body-embedded envelope before writing.
+ * It also locks down the driver-side envelope contract that the label
+ * body owns content only — the transport (ZPL `^PW/^LL`, EPL `q/Q`)
+ * is emitted by the driver from the resolved media + dpi.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -31,16 +31,25 @@ const BROWSER = readFileSync(
   'utf-8',
 );
 
-describe('labelDispatch reads hardware capability from printer_profiles', () => {
-  it("selects dpi and supported_media_ids from 'printer_profiles'", () => {
-    expect(DISPATCH).toMatch(/from\(['"]printer_profiles['"]\)/);
+describe('labelDispatch reads hardware capability from device_assignments', () => {
+  it("selects dpi and supported_media_ids from the unified 'device_assignments' registry", () => {
+    expect(DISPATCH).toMatch(/from\(['"]device_assignments['"]\)/);
     expect(DISPATCH).toMatch(/dpi/);
     expect(DISPATCH).toMatch(/supported_media_ids/);
   });
 
+  it('resolves the workflow-bound device via resolve_device_for_workflow, not the legacy resolver', () => {
+    expect(DISPATCH).toMatch(/resolve_device_for_workflow/);
+    expect(DISPATCH).not.toMatch(/resolve_workflow_printer/);
+  });
+
+  it('does NOT read hardware capability from the legacy printer_profiles table', () => {
+    expect(DISPATCH).not.toMatch(/from\(['"]printer_profiles['"]\)/);
+  });
+
   it('does NOT source dpi/widthMm from device_assignments.config', () => {
-    // Dispatch code should never reach for the ad-hoc per-device override.
-    expect(DISPATCH).not.toMatch(/device_assignments/);
+    // Per-device overrides in `config` are runtime-only — capability is a
+    // first-class column on the assignment row and must be read as such.
     expect(DISPATCH).not.toMatch(/assignment\.config\.(dpi|widthMm|heightMm)/);
   });
 });
@@ -58,9 +67,6 @@ describe('ZplLabelDriver honours payload media hints over assignment.config', ()
   });
 
   it('emits the envelope from the resolved dpi via mediaGeometry.mediaDots', () => {
-    // Phase 14: transports delegate to mediaGeometry; they no longer
-    // own `dpi / 25.4`. What we care about here is that the envelope
-    // tokens (`^PW`, `^LL`) are emitted from the mediaDots result.
     expect(ZPL).toMatch(/mediaDots\(/);
     expect(ZPL).toMatch(/\^PW\$\{/);
     expect(ZPL).toMatch(/\^LL\$\{/);
