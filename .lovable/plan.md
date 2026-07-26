@@ -132,3 +132,31 @@ Code sweep:
 1. Run all 8 guards: `bunx vitest run src/test/architecture/useHardwareProxy-execAssignment src/test/architecture/useInventoryLabelPrinter-execAssignment src/test/hardware/inventory-label-printer-binding src/test/architecture/pos-receipt-resolver src/test/architecture/intent-to-role-parity src/test/architecture/transport-router-matrix src/test/architecture/role-vocabulary src/test/architecture/generate-document-resolver` — must be green before editing.
 2. Enumerate remaining role-only call sites with the grep above; migrate each using the same 3-part recipe: (a) accept the resolved `device` from `useDeviceForRole`, (b) call `execAssignment({ assignment: {id, role, transport, enabled}, op, payload })`, (c) add a matching arch guard in `src/test/architecture/`.
 3. When zero non-fallback role-only calls remain, promote the primary/fallback ordering: `execAssignment` becomes the only public method, `execAny`/legacy shims move to a `@deprecated` block inside `HardwareClient.ts` — then Phase 5 Step C deletions are safe.
+
+## Progress log — 2026-07-26 (Phase 5 Step B — non-print POS ops on execAssignment)
+
+**Changed:**
+- `src/hooks/hardware/useHardwareProxy.ts`: added shared `dispatchViaAssignment(role, op, payload, legacy)` helper (memoised on org/business/register). Migrated `openDrawer`, `readScale`, `tareScale`, `updateDisplay`, `initiatePayment`, `cancelPayment` to route through it. Every non-print POS op now resolves an assignment first and dispatches via `execAssignment`, with the pre-existing role-only `hardwareClient.*` call reduced to a legacy fallback closure that only fires on resolver outage / missing org.
+- `src/test/architecture/useHardwareProxy-execAssignment.test.ts`: expanded guard now pins exactly-one legacy call across all 8 shims (print + drawer + scale + display + payment), and asserts the helper covers the 4 non-print roles (`cash_drawer`, `scale`, `customer_display`, `payment_terminal`).
+
+**Verified:** 34/34 across all 8 hardware guards. No API surface change for callers — action-method signatures identical.
+
+## Phase status (2026-07-26 · after non-print op migration)
+
+- [~] Phase 5 Step B — `useHardwareProxy` fully on `execAssignment` (all 8 ops), `useInventoryLabelPrinter` migrated. Remaining consumer files with role-only shim usage (from grep above):
+  - `src/services/printing/PrintClient.ts` (lines 228, 234, 418) — chokepoint; receives `businessId`/`branchId` in `PrintRequest` already, so plumbing an intent→assignment resolve is straightforward. Highest leverage remaining migration.
+  - `src/services/printing/labelDispatch.ts` (line 387) — label helper.
+  - `src/services/printing/reprintClient.ts` (lines 78, 89) — reprint uses `exec({role,...})` and already has document context; wrap in `execAssignment`.
+  - `src/services/hardware/SharedCommandQueueWorker.ts` (line 180) — queue drain; needs assignment lookup per queued job.
+  - `src/components/events/BusinessSagaMount.tsx` (line 273) — saga-driven hardware; has business event context.
+  - Intentionally NOT migrated: `HardwareDevices.tsx` + `DeviceWizard.tsx` test-a-device flows are role-agnostic bench tests by design.
+- [ ] Phase 5 Step B tidy — peel remaining `ipcAvailable()` sites in `HardwareClient.ts` behind `hostRouter.*`.
+- [ ] Phase 5 Step C — invert `execAssignment` / `execAny` primacy, delete `LocalAgentTransport.ts` + `TransportAdapter.resolveTransport()`.
+- [ ] Phase 6 — legacy DB drop.
+
+## Handoff — next agent
+
+1. Run all 8 guards. Must be green before editing.
+2. Migrate `PrintClient.print()` (highest leverage — chokepoint). Recipe: at the top of the format-specific branches (`escpos`, `zpl`), if `req.businessId` is set, `resolveDeviceForIntent({ organizationId, intentOrRole: req.intent, businessId })` and `execAssignment` with the ESC/POS or ZPL bytes. Keep the existing `printRawBytes`/`printLabelBytes` calls as the resolver-outage fallback. Add a matching guard in `src/test/architecture/`.
+3. Then migrate `labelDispatch.ts`, `reprintClient.ts`, `SharedCommandQueueWorker.ts`, `BusinessSagaMount.tsx` — same recipe, same guard style.
+4. When zero non-fallback role-only calls remain outside `HardwareClient.ts`, promote primary/fallback ordering inside `HardwareClient.ts` and proceed to Step C.
