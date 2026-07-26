@@ -396,6 +396,20 @@ class AgentClientImpl {
     data: number[],
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      // Phase 2: prefer relay when configured. On any relay failure (timeout,
+      // insert error, agent not consuming) fall through to the loopback path
+      // so LAN / dev workflows keep working.
+      if (this._relay) {
+        const idem = `print:${this._netKey(ipAddress, port)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+        const r = await this._relay.dispatch<AgentPrintResponse>({
+          role: 'print',
+          payload: { ipAddress, port, data },
+          idempotencyKey: idem,
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+        // fall through to loopback
+      }
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
           method: 'POST',
