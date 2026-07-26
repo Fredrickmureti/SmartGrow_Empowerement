@@ -13,39 +13,21 @@
  * that compose it are exempt.
  */
 
-// Snapshot taken 2026-06-18 (Wave B1 Step 2.5). Update as surfaces migrate.
+// Snapshot taken 2026-07-26 (Print Pipeline P2 Step 2 complete). Sales /
+// purchase pages (Invoices, Bills, Estimates, etc.) reach useDocumentPrint
+// only transitively through usePrintOrPreview — they are NOT direct
+// consumers and must not be added here. The list below is now infra-only.
 const ALLOWED_FILES = [
   'src/components/common/PrintSettingsPopover.tsx',
   'src/components/finance/CreditNoteDetailDialog.tsx',
-  'src/components/pos/TransactionHistoryDialog.tsx',
   'src/components/settings/PrinterProfilesCard.tsx',
   'src/components/settings/PrintingSettings.tsx',
   'src/hooks/useDocumentPrint.ts',
   'src/hooks/useDocumentPrintPolicies.ts',
   'src/hooks/usePrinterProfiles.ts',
-  // Wave B1 Step 3 — shared migration helper; wraps useDocumentPrint as
-  // the ask_user / failure fallback for pages routed through PrintClient.
+  // Shared migration helper; wraps useDocumentPrint as the ask_user /
+  // failure fallback for pages routed through PrintClient.
   'src/hooks/usePrintOrPreview.ts',
-  'src/pages/Bills.tsx',
-  'src/pages/CreditNotes.tsx',
-  'src/pages/CustomerPayments.tsx',
-  'src/pages/CustomerStatements.tsx',
-  'src/pages/DeliveryNotes.tsx',
-  'src/pages/Estimates.tsx',
-  'src/pages/Invoices.tsx',
-  'src/pages/ProformaInvoices.tsx',
-  'src/pages/PurchaseOrders.tsx',
-  'src/pages/PurchaseReturns.tsx',
-  'src/pages/SalesOrders.tsx',
-  'src/pages/SalesReturns.tsx',
-  'src/pages/VendorStatements.tsx',
-  'src/pages/pos/POSReports.tsx',
-  'src/pages/pos/POSSettings.tsx',
-  'src/pages/pos/POSTerminal.tsx',
-  // ADR-0086 D3 — Vendor Statement peek/record migrated off the
-  // direct `generate-document` invoke onto `useDocumentPrint.downloadPdf`.
-  'src/features/purchases/statements/VendorStatementPeekSheet.tsx',
-  'src/features/purchases/statements/VendorStatementRecordPage.tsx',
 ];
 
 /** @type {import('eslint').Rule.RuleModule} */
