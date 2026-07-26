@@ -146,15 +146,28 @@ Shipped at `v1.3.0-edge.p3`. Verified: migration applied, edge function deployed
 - Client `CapabilityResolver` (`src/services/hardware/local-agent/CapabilityResolver.ts`): `resolve({ workstationId, role, needs, healthIn })` picks the best-matching device (capability-match score → health → last-seen recency); `listForWorkstation` for admin UI.
 - All prior endpoint-shaped calls remain intact (deprecated but functional through one more release, per plan §5.3).
 
-### 🚧 Phase 4 — Desktop shell (next)
-Owner: next agent. Recommended entry point: `packages/desktop/` Electron scaffold — reuse the existing top-level `electron/main.cjs` pattern (see `<electron-desktop-app>` in system knowledge for the `base: './'` and `.cjs` requirements).
-- Onboarding wizard invoking `edge-workstation-register` and writing `~/.accrualflow/edge/workstation.json` (mode 0600).
-- Dashboard: relay + loopback status, workstation identity, last activity — powered by the Realtime subscriptions already enabled in Phases 2/3.
-- Devices tab: renders `workstation_devices` live; per-device Test button that enqueues an `edge_jobs` row and awaits the result via `RelayTransport`.
-- Diagnostics: printer test page, USB tree, network reachability, scale/drawer read (behind capability gates from Phase 3).
-- Logs viewer + one-click support bundle export (already exposed by `/support-bundle`).
-- Auth: view workstation ID, rotate credential (new endpoint required: `edge-workstation-rotate-secret`), revoke.
-- Tray icon + background service supervision; signed installers (Win/macOS/Linux) with `@electron/packager` per sandbox constraints.
+### ✅ Phase 4.1 — Desktop shell (scaffold complete)
+Shipped in `packages/desktop/` at `0.1.0`. Verified: root-app `bunx tsgo` clean (the desktop package is outside `tsconfig.app.json`'s include set, so it typechecks independently in its own workspace).
+
+Delivered:
+- Electron scaffold under `packages/desktop/` following the `<electron-desktop-app>` rules — `.cjs` main, `base: './'` in `vite.config.ts`, `@electron/packager` for packaging (not `electron-builder`).
+- `electron/main.cjs` — tray-first supervisor: OS window, tray menu, atomic mode-0600 write of `~/.accrualflow/edge/workstation.json`, child-process supervision of the agent runtime (`ACCRUALFLOW_EDGE_CONFIG` pre-injected).
+- `electron/preload.cjs` — context-isolated IPC surface exposed as `window.edge` (workstation, settings, agent, shell). Renderer runs with `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`.
+- **Onboarding wizard** (`src/pages/Onboarding.tsx`) — email/password sign-in → org pick → name → `edge-workstation-register` → mode-0600 secret write → agent auto-start. Raw secret shown once, never surfaced to the renderer after the enrolment moment.
+- **Dashboard** (`src/pages/Dashboard.tsx`) — agent-process pill (running/stopped/pid) + relay-heartbeat freshness pill (fresh if `last_seen_at < 120 s`), 10 s poll of `public.workstations`, start/stop/restart controls.
+- **Devices** (`src/pages/Devices.tsx`) — live table of `public.workstation_devices` (Phase 3 capability model): name, role, transport, driver, capabilities, health pill, last seen. 15 s poll.
+- **Diagnostics** (`src/pages/Diagnostics.tsx`) — self-test suite covering workstation.json readability, agent process liveness, Supabase reachability. Wired for capability-gated device probes in Phase 4.2.
+- **Logs** (`src/pages/Logs.tsx`) — tails the agent `/status` ring buffer with a JSON support-bundle download.
+- **Auth** (`src/pages/Auth.tsx`) — displays workstation/org IDs, rotates the credential via the new `edge-workstation-rotate-secret` function, atomic re-write of `workstation.json`, agent restart. "Sign out workstation" clears `workstation.json` and returns to the enrolment wizard.
+- **Server side**: new edge function `edge-workstation-rotate-secret` (deployed, org-membership authed against the workstation's `organization_id`) and migration adding `workstations.secret_rotated_at` for audit.
+- Zero-dependency Supabase client (`src/lib/supabase.ts`) — no `@supabase/supabase-js` in the installer surface; auth/edge-invoke/PostgREST via `fetch`. Session held in-memory only; disk credential is the workstation secret at mode 0600.
+
+Deferred to **Phase 4.2** (explicit "Coming next" section rendered inside Diagnostics so the scope is visible to the operator):
+- Local TLS on the loopback listener + OS trust-store install from a signed installer.
+- SSE tail for live log streaming (replaces the current on-demand `/status` pull).
+- Supabase Realtime subscriptions for Dashboard/Devices (replaces 10-15 s polls).
+- Real device probes (test page, cash-drawer kick, scale read, USB tree) wired through the loopback API.
+- Signed installers (EV cert on Windows, notarization on macOS, apt/dnf repos on Linux) + `electron-updater` staged rollout channel.
 
 ### ⏳ Phase 5 — Plugin drivers
 Split ESC/POS, ZPL, USB, biometric into `packages/edge-drivers-*` behind a `probe/open/execute/close/healthcheck` interface. Signed plugin loader in `~/.accrualflow/edge/plugins/`.
@@ -169,7 +182,7 @@ OpenTelemetry hooks; Sentry-compatible crash reporter; admin console page (works
   ```
   edge/
     packages/runtime/          (ex agent/src, plus relay client)
-    packages/desktop/          (Electron shell)
+    packages/desktop/          (Electron shell — Phase 4.1 shipped)
     packages/drivers-receipt/
     packages/drivers-label/
     packages/drivers-scanner/
@@ -182,7 +195,7 @@ OpenTelemetry hooks; Sentry-compatible crash reporter; admin console page (works
   ```
 - **Command AST**: reuse `Line[]` from ADR-0084/0085 for print; introduce analogous ASTs for `ScaleReading`, `ScanEvent`, `DrawerCommand`, `EftIntent`.
 - **Relay protocol**: JSON envelope `{ id, workstation, role, op, payload, idempotency_key, deadline_ms }` → `{ id, ok, result | error, telemetry }`. At-most-once via `idempotency_key`, at-least-once retry from ERP with same key.
-- **Loopback TLS**: per-install cert generated by installer via `mkcert`-equivalent bundled tool, installed into OS trust store; cert pinned in the ERP client after enrolment.
+- **Loopback TLS**: per-install cert generated by installer via `mkcert`-equivalent bundled tool, installed into OS trust store; cert pinned in the ERP client after enrolment. **(Phase 4.2)**
 - **Migration path for existing `agent/`**: no breaking rename; `pos-hardware-agent` becomes a thin re-export from `@accrualflow/edge-runtime`; `~/.pos-agent-token` continues to work until Phase 1 rotation runs.
 - **Guardrails**: extend existing ESLint rules (`no-raw-hardware-ipc`, `no-raw-escpos-bytes`, `no-raw-zpl-outside-printing`) to also forbid direct `fetch('http://localhost:8043')` from `src/` outside `local-agent/`.
 - **Backwards compatibility**: current `AgentClient` remains the single browser chokepoint; only its internals change.
@@ -197,18 +210,25 @@ OpenTelemetry hooks; Sentry-compatible crash reporter; admin console page (works
 
 ## 8. Handoff — Instructions for the Next Agent
 
-**Before writing new code, verify Phase 3 is enterprise-grade complete:**
+**Currently active:** 🚧 **Phase 4.2 — Desktop shell hardening.** The Phase 4.1 scaffold is production-shaped but its transports and installer are still dev-grade. Do NOT jump to Phase 5 (drivers) or Phase 6 (admin) until 4.2 is closed — the plugin bus depends on the local-TLS loopback and the admin console depends on the observability hooks that land in 4.2.
 
-1. **Migration integrity** — Confirm `public.workstation_devices` and `public.workstation_manifests` exist with org-scoped RLS, the (workstation_id, device_key) unique index, `updated_at` triggers, and Realtime enabled. Run `supabase--read_query` against `pg_policies` + `pg_publication_tables`.
-2. **Edge function `edge-workstation-manifest`** — Manually exercise via `supabase--curl_edge_functions` with a real `X-Workstation-Id` + workstation secret; confirm (a) unknown workstations return 404, (b) mismatched secret returns 401, (c) role/transport validation rejects garbage, (d) devices absent from a subsequent publish flip to `health='offline'`.
-3. **Agent manifest publisher** — Confirm `agent/src/manifest.ts` runs only when `workstation.json` is present, publishes on start + every 60 s, and never crashes when the `usb` module is missing.
-4. **Client resolver** — Confirm `CapabilityResolver.resolve` ranks by capability-match then health then recency and returns `null` on negative-score winners (regression risk: don't silently pick a wrong-capability device).
-5. **No orphaned surface** — There is no UI wired to `workstation_devices` yet. That's intentional: it belongs to Phase 4. Do not add ad-hoc pages under `src/pages/` for it; build them inside the Electron shell.
+**Before writing new code, verify Phase 4.1 is enterprise-grade complete:**
 
-**Once verification is green, start Phase 4 — Desktop shell:**
+1. **Enrolment wizard end-to-end** — In `packages/desktop`, `npm install && npm run build && EDGE_DESKTOP_DEV_URL=http://localhost:5180 npm start`. Confirm (a) sign-in fails cleanly on bad creds without leaking session state, (b) org list is only populated when the user actually belongs to organizations (RPC `get_user_organizations`), (c) `workstation.json` is created at mode `0600` (`stat -c '%a' ~/.accrualflow/edge/workstation.json` = `600` on Linux, ACL equivalent on Windows), (d) the raw secret is never written to `localStorage`, `sessionStorage`, or IndexedDB (`localStorage.length === 0` in DevTools).
+2. **IPC surface is minimal** — `window.edge` exposes only workstation / settings / agent / shell namespaces. Confirm the renderer cannot reach `require`, `process`, `fs`, `child_process`. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` in `electron/main.cjs`.
+3. **Rotate credential** — `edge-workstation-rotate-secret` invalidates the previous secret atomically. Verify by (a) rotating, (b) trying to `edge-agent-poll` with the old secret → expect 401, (c) confirming the new secret works. `secret_rotated_at` should update.
+4. **Dashboard / Devices data paths** — Both are 10-15 s polls against PostgREST with `apikey`/`Authorization` headers correctly set for RLS. When the user is unauthenticated in the desktop app (fresh install after enrolment), those reads should still succeed via the workstation-level RLS on `public.workstations` and `public.workstation_devices` — verify this against the migration in `supabase/migrations/`.
+5. **No orphaned surface in the web app** — `packages/desktop/` is intentionally NOT wired into `src/`. Nothing under `src/pages/` renders workstation identity or devices. That work is owned by the Electron shell; do not add ad-hoc routes for it.
 
-- Scaffold `packages/desktop/` Electron app; follow the `<electron-desktop-app>` rules (`base: './'` in `vite.config.ts`, `.cjs` main, `@electron/packager`).
-- First deliverable = **onboarding wizard**: signs in via existing Supabase auth, calls `edge-workstation-register`, writes `~/.accrualflow/edge/workstation.json` with mode 0600. This unblocks every subsequent Phase 4 milestone.
-- Then Dashboard → Devices → Diagnostics → Logs → Auth, in that order, so each tab lands atop a stable data path.
+**Once verification is green, start Phase 4.2 — Desktop shell hardening**, in this order (each unlocks the next):
+
+1. **Local TLS on the loopback listener.** Extend `agent/src/server.ts` to bind `https://127.0.0.1:8443` with a per-install cert generated during first-run enrolment. Ship a small `edge-cert-install` helper (Windows: CertUtil; macOS: `security add-trusted-cert`; Linux: user-scoped NSS DB) that the desktop shell invokes from `electron/main.cjs` on first launch after enrolment. Pin the cert fingerprint in `workstation.json`.
+2. **Realtime subscriptions in the shell.** Replace the 10-15 s polls in `Dashboard` and `Devices` with Supabase Realtime channels (`public.workstations`, `public.workstation_devices`). Fall back to poll on ws failure. Both tables already have Realtime enabled (Phases 2/3).
+3. **SSE log tail.** Add a `GET /logs/stream` route to the agent that emits NDJSON via SSE from the same ring buffer surfaced by `/status`. Replace the current on-demand fetch in `packages/desktop/src/pages/Logs.tsx`.
+4. **Real device probes in Diagnostics.** Wire capability-gated buttons for printer test page, drawer kick, scale read, USB tree — all through the (now-TLS) loopback API. Use `CapabilityResolver` from Phase 3 to enable/disable each button based on the current manifest.
+5. **Signed installers + auto-update.** `electron-updater` on a versioned channel; EV cert on Windows, notarization on macOS, apt/dnf repos on Linux. Package via `@electron/packager` (per sandbox constraint — `electron-builder` is not usable here).
+
+Only after all five 4.2 milestones land, move on to Phase 5 (plugin drivers). The plugin bus's `open()` method depends on a stable loopback URL + trusted TLS.
+
 
 **Do not** jump ahead to Phase 5 (plugin drivers) or Phase 6 (observability) — the desktop shell is the operator-visible surface the plan promised and everything downstream assumes it exists.
