@@ -508,6 +508,23 @@ class AgentClientImpl {
   //  Network printer operations
   // ═══════════════════════════════════════════
 
+  /**
+   * Is the loopback HTTP fallback actually usable from this document?
+   *
+   * On an HTTPS origin a plaintext `http://localhost:8043` request is mixed
+   * content: the browser blocks it, and depending on the block mode the
+   * pending fetch can sit unresolved. Falling through to it after a relay
+   * failure therefore turned a clean "agent offline" answer into an
+   * indefinite spinner with nothing in the console. Only take the fallback
+   * when the transport is same-scheme-safe (dev/LAN http origins, or an
+   * agent reachable over https via the trusted loopback certificate).
+   */
+  private _loopbackUsable(): boolean {
+    if (typeof window === 'undefined') return false;
+    if (window.location.protocol !== 'https:') return true;
+    return this._baseUrl.startsWith('https:');
+  }
+
   /** Send raw bytes to a network printer via the agent (serialized per endpoint). */
   async printNetwork(
     ipAddress: string,
