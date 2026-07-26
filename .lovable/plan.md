@@ -1,68 +1,78 @@
+## Root cause (traced, not guessed)
 
-## Root cause (verified against the live DB and code)
+`approve_payroll_run` calls `payroll_required_gl_mappings_for_run`. My prior migration (`20260726010535_...sql`) wrote a CTE:
 
-The blocker `GL_MAPPING_MISSING — loan_repayment_sal_adv_payable` is a **phantom requirement** produced by the readiness/gate function. Nothing in the posting pipeline ever reads or writes that key.
+```sql
+loan_types_used AS (
+  SELECT DISTINCT lt.id, lt.name, lt.gl_receivable_account_id,
+         lt.interest_income_account_id,
+         COALESCE(lt.interest_rate, 0) AS interest_rate   -- ❌
+    FROM public.employee_loans l
+    JOIN public.loan_types     lt ON lt.id = l.loan_type_id
+   ...
+)
+```
 
-Two resolvers exist for loan repayments, and they disagree on what is required:
+Verified against the live schema (`information_schema.columns` for `public.loan_types`): **`loan_types` has no `interest_rate` column**. Interest lives in two different places by design:
 
-1. **Posting resolver (authoritative).** `post-payroll-gl` posts loan-repayment legs through `public.payroll_loan_repayment_gl_targets(run)`. That function resolves the credit leg via `loan_types.gl_receivable_account_id` (with a fallback to the `loan_receivable` role via `_loan_resolve_account`) and the interest leg via `loan_types.interest_income_account_id`. It never touches `default_account_settings['loan_repayment_*_payable']`. This is the enterprise-correct pattern: a repayment reduces a receivable, it does not credit a payable.
+| Concept                        | Column                             | Table            |
+| ------------------------------ | ---------------------------------- | ---------------- |
+| "Does this type charge interest at all?" (policy) | `requires_interest` (bool)         | `loan_types`     |
+| Actual rate on an issued loan (contract)          | `interest_rate` (numeric)          | `employee_loans` |
 
-2. **Readiness/gate resolver (phantom).** `public.payroll_required_gl_mappings_for_run` aggregates `payslip_lines` by `rule_code` and emits a required `<rule_code>_payable` key for every line that looks like an employee-side deduction. It tries to skip loan lines with `category NOT IN ('earning','loan_repayment')` — but the compute engine actually writes loan-repayment payslip lines with `category = 'deduction'` (verified: `SELECT DISTINCT category, rule_code FROM payslip_lines WHERE rule_code LIKE 'loan_repayment%'` → `deduction / loan_repayment_sal_adv`). So the filter silently misses them, and the gate demands a `_payable` key that the posting engine will never consume.
+Postgres's own hint (`Perhaps you meant "l.interest_rate"`) points straight at the mistake: I mixed the two.
 
-Result — the exact contradiction the user reported:
-- `compute-payroll` writes a `payroll_run_issues` row for `loan_repayment_sal_adv_payable` at severity `blocker`, so approval is refused.
-- The Payroll → GL Account Mapping screen only lists canonical mapping keys (core + statutory + custom deductions), and loan-repayment keys are correctly absent from that surface, so it looks "fully configured".
-- The user has no remediation path because the demanded key is not real.
+## Why this is a business-event problem, not a typo
 
-There is no data-fix here. Seeding a `loan_repayment_sal_adv_payable` account would just paper over a broken contract between two resolvers; the account would be inert at post time because `payroll_loan_repayment_gl_targets` doesn't read it.
+The readiness gate must answer one question per loan type in a run:
 
-## Enterprise-alignment note
+> "For this run, does the loan type require an interest-income GL account?"
 
-SAP, Oracle Fusion, Workday, and Dynamics all treat employee loans/advances as receivable subledgers owned by the loan/advance module. Payroll deductions reduce that receivable directly; they do not create a parallel payroll payable per loan type. Our posting side already implements this pattern (ADR 0091 — "Loans emit events, finance owns posting"; `loan_types.gl_receivable_account_id`). The gate function is the only place that still speaks the wrong vocabulary.
+That's true when **either**:
 
-## Plan
+- the loan type is configured to charge interest at all (`lt.requires_interest = true`), **or**
+- any actual issued loan of that type in this run has a non-zero rate (`l.interest_rate > 0`).
 
-**Phase 1 — Fix the gate's vocabulary (make readiness agree with posting).**
+Using `requires_interest` alone is too eager for types that *can* charge interest but happen to have zero-rate loans in this run; using `l.interest_rate` alone misses types where interest is guaranteed by policy but the rate column is null on the loan row. The correct signal is the OR of both, aggregated per loan type.
 
-Migration replacing `public.payroll_required_gl_mappings_for_run`:
-- Exclude any payslip line whose `rule_code` starts with `loan_repayment` from the `_payable` / `_employer_expense` aggregation. This is the load-bearing predicate — categories are unreliable (compute-payroll tags these as `deduction`), rule_code is deterministic.
-- Belt-and-braces: also exclude lines where `source->>'kind' = 'loan_repayment'` or `source->'input_ref'->>'code'` starts with `loan_repayment`, so a future compute-payroll refactor that changes the rule_code shape still can't reintroduce the phantom.
-- Leave core keys (`salary_expense`, `net_salary_payable`), statutory `_payable`/`_employer_expense`, and custom-deduction keys untouched — this is a surgical exclusion, not a rewrite.
+## Fix
 
-**Phase 2 — Positive loan-side readiness (real remediation path).**
+Rewrite `loan_types_used` in the same function (single migration, replaces the function in place):
 
-Extend the same function to emit *the mappings loans actually need*, so if a `loan_type` used in the run is missing its receivable account the user is told the truth:
-- For each distinct `loan_id` present in this run's payslip lines (or in `loan_repayments` for the run), join to `loan_types` and emit a virtual readiness row per unmapped loan type:
-  - `setting_key = 'loan_type:<loan_type_id>:receivable'`, `kind = 'loan_receivable'`, `required_account_type = 'asset'`, `is_mapped = (loan_types.gl_receivable_account_id IS NOT NULL)`, label = `"<Loan type name> — Receivable"`.
-  - Same shape for `interest_income` when the loan type charges interest (`interest_rate > 0`) and `interest_income_account_id IS NULL`, `required_account_type = 'income'`.
-- These rows carry a `kind` the UI can route to the Loan Types settings page (`/hr/payroll/loan-types`), not to the generic GL Mapping screen — because that's where these accounts genuinely live.
+```sql
+loan_types_used AS (
+  SELECT lt.id, lt.name,
+         lt.gl_receivable_account_id,
+         lt.interest_income_account_id,
+         bool_or(
+           COALESCE(l.interest_rate, 0) > 0
+           OR COALESCE(lt.requires_interest, false)
+         ) AS charges_interest
+    FROM public.employee_loans l
+    JOIN public.loan_types     lt ON lt.id = l.loan_type_id
+    JOIN public.loan_repayments lr ON lr.loan_id = l.id
+    JOIN public.payslips        ps ON ps.id = lr.payslip_id
+    JOIN public.payroll_runs    pr ON pr.id = ps.payroll_run_id
+   WHERE pr.id = p_run_id
+   GROUP BY lt.id, lt.name, lt.gl_receivable_account_id, lt.interest_income_account_id
+),
+```
 
-**Phase 3 — UI: route loan-shaped blockers to the correct remediation surface.**
+Downstream references that read `ltu.interest_rate > 0` become `ltu.charges_interest`. Nothing else in the function changes. Receivable requirement is still emitted for every loan type used; interest-income requirement is emitted only when `charges_interest`.
 
-- In the payroll run blocker list / `MissingMappingsDialog`, when a row's `kind` is `loan_receivable` or `interest_income` (or `setting_key` starts with `loan_type:`), render a "Fix in Loan Types" CTA that deep-links to the loan-types row instead of the GL Mapping table. The generic "Apply suggested" path stays for the canonical keys.
-- No change to Payroll → GL Account Mapping's contents — it stays authoritative for the keys it already owns.
+## Guard against regression
 
-**Phase 4 — Clean up existing phantom blockers.**
+Add `src/test/architecture/payroll-readiness-no-nonexistent-loan-columns.test.ts` — inspects the latest migration defining `payroll_required_gl_mappings_for_run` and fails if it references `lt.interest_rate` / `loan_types.interest_rate` (any alias of `loan_types` with `.interest_rate`). Cheap, deterministic, pins the exact regression.
 
-One-shot SQL in the same migration: delete `payroll_run_issues` rows where `code = 'GL_MAPPING_MISSING'` and `details->>'setting_key'` matches `^loan_repayment_.*_payable$` (and the analogous `_employer_expense` shape, defensively). These were never real. Runs currently stuck in the contradictory "missing but everything configured" state will unblock on the next readiness re-evaluation.
+## Files touched
 
-**Phase 5 — Architecture guards (regression protection).**
+- New migration replacing `payroll_required_gl_mappings_for_run` with the corrected `loan_types_used` CTE and reference rename.
+- `src/test/architecture/payroll-readiness-no-nonexistent-loan-columns.test.ts` (new).
 
-- `src/test/architecture/payroll-readiness-excludes-loan-repayment.test.ts` — asserts the current `payroll_required_gl_mappings_for_run` body contains the `rule_code NOT ILIKE 'loan_repayment%'` predicate (or equivalent) so a future migration cannot silently reintroduce the phantom.
-- `supabase/tests/payroll_readiness_loan_repayment_test.sql` (pgTAP) — seeds a payslip line with `category='deduction'`, `rule_code='loan_repayment_x'`, calls the readiness RPC, and asserts no `_payable` requirement row is returned for it; asserts the loan-side `loan_type:<id>:receivable` row IS returned and is `is_mapped=false` when the loan type has no receivable account.
-- `src/test/architecture/loan-repayment-gate-posting-parity.test.ts` — greps `post-payroll-gl` to confirm it still routes loan legs exclusively through `payroll_loan_repayment_gl_targets` and never resolves any `loan_repayment_*_payable` key, keeping the gate and the poster in permanent lock-step.
+No client, no edge function changes — the RPC signature is unchanged.
 
-## Technical details
+## Not doing
 
-- `public.payroll_required_gl_mappings_for_run` is `STABLE SECURITY DEFINER`; the migration is a `CREATE OR REPLACE FUNCTION` — no signature change, no downstream call-site edits.
-- `compute-payroll`'s mapping short-circuit (`supabase/functions/compute-payroll/index.ts` ~line 5590) is unchanged; it will simply stop receiving the phantom row.
-- `post-payroll-gl` is unchanged (already correct).
-- The one-shot delete is scoped to `severity='blocker'` `GL_MAPPING_MISSING` rows whose `setting_key` matches the loan-repayment pattern; no other issue rows are touched.
-- No changes to `default_account_settings`, `default_account_setting_bindings`, `loan_types`, or the resolver `_loan_resolve_account` — those are already the canonical single source of truth for the loan side.
-
-## Definition of done
-
-- Approval of a run containing loan/advance deductions is not blocked by a `loan_repayment_*_payable` key.
-- If a `loan_type` used in the run has no `gl_receivable_account_id`, the run is blocked with a message that names the loan type and deep-links to Loan Types settings.
-- Payroll → GL Account Mapping and Payroll Readiness agree on the set of required keys (verified by pgTAP round-trip).
-- Architecture guards make the drift non-recurrable.
+- No changes to `loan_types` schema (would be masking; `requires_interest` already encodes the policy).
+- No changes to `approve_payroll_run` (it just surfaces the RPC's error; fixing the RPC fixes it).
+- No touch to the phantom-key cleanup or the UI routing landed in the previous phase — those remain correct.
