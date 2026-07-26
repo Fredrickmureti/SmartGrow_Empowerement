@@ -65,13 +65,15 @@ describe("Loan reverse-repayment — single-writer discipline", () => {
 
   it("canonical reversal RPC exists and recomputes balances from the ledger", () => {
     const files = rgFiles(
-      "employee_loan_reverse_repayment\\s*\\(",
+      "CREATE OR REPLACE FUNCTION public\\.employee_loan_reverse_repayment",
       "supabase/migrations",
     ).sort();
     const latest = files[files.length - 1];
     expect(latest).toBeTruthy();
     const sql = read(latest);
-    const idx = sql.lastIndexOf("employee_loan_reverse_repayment");
+    const idx = sql.lastIndexOf(
+      "CREATE OR REPLACE FUNCTION public.employee_loan_reverse_repayment",
+    );
     const body = sql.slice(idx);
     // Recomputes from aggregates — no drift-prone in-place arithmetic.
     expect(body).toMatch(/SUM\(amount\)/i);
