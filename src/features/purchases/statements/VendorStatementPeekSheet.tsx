@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { useDocumentPrint } from "@/hooks/useDocumentPrint";
+import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 
 interface Props {
