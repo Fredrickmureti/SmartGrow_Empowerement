@@ -435,6 +435,14 @@ class AgentClientImpl {
     port: number,
   ): Promise<AgentTestResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
+      if (this._relay) {
+        const r = await this._relay.dispatch<AgentTestResponse>({
+          role: 'test',
+          payload: { ipAddress, port, timeout: 5000 },
+        });
+        if (r.status === 'done' && r.result) return r.result;
+        if (r.status === 'error' && r.result) return r.result;
+      }
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
           method: 'POST',
