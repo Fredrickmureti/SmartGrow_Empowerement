@@ -26,6 +26,16 @@ const api = {
     // from ~/.pos-agent-token so the raw secret never touches the DOM.
     probe: (payload) => ipcRenderer.invoke('agent:probe', payload),
   },
+  supervisor: {
+    status: () => ipcRenderer.invoke('supervisor:status'),
+    ping: () => ipcRenderer.invoke('supervisor:ping'),
+    reload: () => ipcRenderer.invoke('supervisor:reload'),
+    shutdown: () => ipcRenderer.invoke('supervisor:shutdown'),
+    install: () => ipcRenderer.invoke('supervisor:install'),
+    uninstall: () => ipcRenderer.invoke('supervisor:uninstall'),
+    start: () => ipcRenderer.invoke('supervisor:start'),
+    stop: () => ipcRenderer.invoke('supervisor:stop'),
+  },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   },

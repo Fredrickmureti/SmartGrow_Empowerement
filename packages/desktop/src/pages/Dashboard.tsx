@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { WorkstationRead } from '../types';
+import type { WorkstationRead, SupervisorStatus } from '../types';
 import { select } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtime';
 
@@ -24,6 +24,9 @@ export function Dashboard({ workstation }: Props) {
   const [row, setRow] = useState<WorkstationRow | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tls, setTls] = useState<TlsInfo | null>(null);
+  const [supStatus, setSupStatus] = useState<SupervisorStatus | null>(null);
+  const [supBusy, setSupBusy] = useState<string | null>(null);
+  const [supMsg, setSupMsg] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
@@ -44,6 +47,8 @@ export function Dashboard({ workstation }: Props) {
         const r = await fetch('http://127.0.0.1:8043/tls-info', { cache: 'no-store' });
         if (r.ok) setTls(await r.json());
       } catch { setTls({ enabled: false }); }
+      try { setSupStatus(await window.edge.supervisor.status()); }
+      catch (e) { setSupStatus({ ok: false, error: e instanceof Error ? e.message : String(e) }); }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -67,6 +72,17 @@ export function Dashboard({ workstation }: Props) {
   const relayFresh = row?.last_seen_at
     ? (Date.now() - new Date(row.last_seen_at).getTime()) < 120_000
     : false;
+
+  const runSup = async (op: 'install' | 'uninstall' | 'start' | 'stop' | 'reload') => {
+    setSupBusy(op); setSupMsg(null);
+    try {
+      const r = op === 'reload'
+        ? await window.edge.supervisor.reload()
+        : await window.edge.supervisor[op]();
+      setSupMsg(r.ok ? `${op}: ok` : `${op} failed: ${r.error ?? ('stderr' in r ? r.stderr : 'unknown')}`);
+      await refresh();
+    } finally { setSupBusy(null); }
+  };
 
   return (
     <>
@@ -132,6 +148,54 @@ export function Dashboard({ workstation }: Props) {
       {err && <div className="panel" style={{ borderColor: 'var(--edge-err)' }}>
         <div className="error-inline">{err}</div>
       </div>}
+
+      <div className="panel">
+        <h2>Service supervisor</h2>
+        <p className="panel-sub">
+          Host the runtime under a platform-native service so it survives
+          reboot, logout, and laptop-lid-close. The tray app connects to it
+          over a local named pipe / unix socket.
+        </p>
+        <div className="grid-2">
+          <div className="stat">
+            <div className="stat-label">Supervisor</div>
+            <div className="stat-value">
+              {supStatus?.ok
+                ? <span className="pill ok"><span className="pill-dot" />online · pid {supStatus.pid}</span>
+                : <span className="pill warn"><span className="pill-dot" />{supStatus?.error ?? 'offline'}</span>}
+            </div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Uptime</div>
+            <div className="stat-value mono">
+              {supStatus?.ok && typeof supStatus.uptime_s === 'number'
+                ? `${Math.floor(supStatus.uptime_s / 60)}m ${supStatus.uptime_s % 60}s`
+                : '—'}
+            </div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Runtime</div>
+            <div className="stat-value mono">{supStatus?.version ?? '—'}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Platform</div>
+            <div className="stat-value mono">{supStatus?.platform ?? '—'}</div>
+          </div>
+        </div>
+        <div className="button-row" style={{ marginTop: 12 }}>
+          <button className="btn" disabled={supBusy !== null}
+            onClick={() => runSup('install')}>Install as service</button>
+          <button className="btn secondary" disabled={supBusy !== null}
+            onClick={() => runSup('start')}>Start</button>
+          <button className="btn secondary" disabled={supBusy !== null}
+            onClick={() => runSup('stop')}>Stop</button>
+          <button className="btn secondary" disabled={supBusy !== null || !supStatus?.ok}
+            onClick={() => runSup('reload')}>Reload origins</button>
+          <button className="btn secondary" disabled={supBusy !== null}
+            onClick={() => runSup('uninstall')}>Uninstall</button>
+        </div>
+        {supMsg && <div className="muted mono" style={{ marginTop: 8, fontSize: 12 }}>{supMsg}</div>}
+      </div>
     </>
   );
 }
