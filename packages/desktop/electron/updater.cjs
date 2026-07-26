@@ -28,9 +28,14 @@
 
 const crypto = require('node:crypto');
 
-const DEFAULT_CHANNEL_URL =
-  process.env.EDGE_UPDATE_URL ||
-  'https://updates.accrualflow.app/edge/{channel}.json';
+/**
+ * The channel base URL is NOT hardcoded to a host that may not exist. It is
+ * read from (in order) the operator setting, the environment, and finally
+ * left unset — in which case the check reports `not_configured` rather than
+ * a red "check failed", because "no release channel published yet" is a
+ * normal state for a self-hosted deployment.
+ */
+const ENV_CHANNEL_URL = process.env.EDGE_UPDATE_URL || null;
 
 /** Compare dotted numeric versions. Returns >0 when `a` is newer than `b`. */
 function compareVersions(a, b) {
@@ -66,13 +71,35 @@ function platformKey() {
  */
 async function checkForUpdate(opts) {
   const channel = opts.channel || 'stable';
-  const url = DEFAULT_CHANNEL_URL.replace('{channel}', encodeURIComponent(channel));
+  const template = opts.channelUrl || ENV_CHANNEL_URL;
+  if (!template) {
+    return {
+      ok: true,
+      configured: false,
+      state: 'not_configured',
+      channel,
+      current_version: opts.currentVersion,
+      latest_version: null,
+      update_available: false,
+      applies_to_this_device: false,
+      platform: platformKey(),
+    };
+  }
+  const url = String(template).replace('{channel}', encodeURIComponent(channel));
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 10_000);
   try {
     const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-    if (!res.ok) return { ok: false, error: `channel_http_${res.status}`, channel, url };
-    const manifest = await res.json();
+    if (res.status === 404) {
+      return { ok: true, configured: true, state: 'no_release', channel, url, current_version: opts.currentVersion, latest_version: null, update_available: false, applies_to_this_device: false, platform: platformKey() };
+    }
+    if (!res.ok) return { ok: false, configured: true, state: 'channel_error', error: `channel_http_${res.status}`, channel, url, current_version: opts.currentVersion, platform: platformKey() };
+    let manifest;
+    try { manifest = await res.json(); }
+    catch { return { ok: false, configured: true, state: 'malformed_manifest', error: 'manifest_is_not_valid_json', channel, url, current_version: opts.currentVersion, platform: platformKey() }; }
+    if (!manifest || typeof manifest !== 'object' || !manifest.version) {
+      return { ok: false, configured: true, state: 'malformed_manifest', error: 'manifest_missing_version', channel, url, current_version: opts.currentVersion, platform: platformKey() };
+    }
 
     const newer = compareVersions(manifest.version, opts.currentVersion) > 0;
     const artifact = (manifest.artifacts || {})[platformKey()] || null;
@@ -86,6 +113,8 @@ async function checkForUpdate(opts) {
 
     return {
       ok: true,
+      configured: true,
+      state: 'checked',
       channel,
       current_version: opts.currentVersion,
       latest_version: manifest.version ?? null,
@@ -102,7 +131,17 @@ async function checkForUpdate(opts) {
       unsupported_platform: Boolean(newer && !artifact),
     };
   } catch (e) {
-    return { ok: false, channel, url, error: e && e.name === 'AbortError' ? 'timeout' : String(e && e.message || e) };
+    const offline = e && (e.name === 'AbortError' || /fetch failed|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|network/i.test(String(e.message || e)));
+    return {
+      ok: !!offline,          // unreachable channel is informational, not an error
+      configured: true,
+      state: offline ? 'unreachable' : 'channel_error',
+      channel,
+      url,
+      current_version: opts.currentVersion,
+      platform: platformKey(),
+      error: e && e.name === 'AbortError' ? 'timeout' : String((e && e.message) || e),
+    };
   } finally {
     clearTimeout(timer);
   }
