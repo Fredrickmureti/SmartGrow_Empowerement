@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { WorkstationRead, SupervisorStatus } from '../types';
 import { select } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtime';
+import { CertificatePanel } from '../components/CertificatePanel';
 
 interface Props { workstation: WorkstationRead }
 
