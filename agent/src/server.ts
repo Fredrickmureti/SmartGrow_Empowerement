@@ -9,6 +9,7 @@ import { dispatchBiometric } from './routes/biometric.js';
 import { handleHealth } from './routes/health.js';
 import { buildSupportBundle } from './routes/support.js';
 import { handleLogsStream } from './routes/logs-stream.js';
+import { handleProbe } from './routes/probe.js';
 import { validateAuth } from './auth.js';
 import { acceptNonce } from './nonce.js';
 import { logger } from './logger.js';
@@ -56,6 +57,9 @@ const ALLOWED_HOSTS = new Set([
 ]);
 
 // Routes that mutate hardware state MUST carry a fresh X-Edge-Nonce.
+// /probe is deliberately excluded: it has its own 5s-per-(device,op)
+// server-side rate limit and is only ever driven by the local desktop
+// diagnostics UI, which cannot re-use nonces across page reloads.
 const MUTATING_PATHS = new Set(['/print', '/test', '/usb/print']);
 
 function cors(res: http.ServerResponse, req?: http.IncomingMessage) {
@@ -177,6 +181,11 @@ function buildHandler(tlsInfo: LoopbackTls | null) {
         const body = JSON.parse(await readBody(req));
         const result = await handleUsbPrint(body);
         return json(res, result.success ? 200 : 502, result, req);
+      }
+      if (method === 'POST' && path === '/probe') {
+        const body = JSON.parse(await readBody(req));
+        const { status, body: result } = await handleProbe(body);
+        return json(res, status, result, req);
       }
       if (path.startsWith('/biometric/')) {
         const result = await dispatchBiometric(method, path, () => readBody(req));
