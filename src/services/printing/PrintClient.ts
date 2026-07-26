@@ -554,6 +554,8 @@ class PrintClient {
     businessId: string | null;
     branchId?: string | null;
     printerProfileId?: string | null;
+    /** Plan P3 Step 1 — per-click UUID minted at the UI submit boundary. */
+    idempotencyKey?: string;
   }): Promise<{
     jobId: string | null;
     markSent: () => Promise<void>;
@@ -567,6 +569,7 @@ class PrintClient {
       documentId: args.documentId ?? '',
       businessId: args.businessId,
       branchId: args.branchId ?? null,
+      idempotencyKey: args.idempotencyKey,
     };
     const jobId = await this.insertLedgerRow(
       req,
