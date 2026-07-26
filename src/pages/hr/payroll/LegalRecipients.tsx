@@ -69,7 +69,7 @@ export default function LegalRecipients() {
     format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd"),
   );
   const [to, setTo] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
-  const { printDocument, downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const [isGeneratingPdf, setIsGeneratingPdf] = useLocalState(false);
   // The recipient statement is computed live (no persisted row carrying a
   // business_id), so the active business must ride in on the request body —
   // it is what resolves the letterhead branding AND the statement currency.
