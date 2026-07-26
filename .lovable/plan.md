@@ -13,7 +13,7 @@ Living document. Updated after each phase completes.
 | **P2 Step 3** | Fold `downloadPdf` into `PrintClient`, delete `useDocumentPrint` | ⏳ Pending |
 | **P3 Step 1** | Per-click idempotency key at UI submit boundaries | ✅ Done (2026-07-26) |
 | **P3 Step 2** | Parent/child chaining on `print_jobs` (fan-out copies) | ✅ Done (2026-07-26) |
-| **P3 Step 3** | Platform → Print Queue admin view | ⏳ Pending |
+| **P3 Step 3** | Platform → Print Queue admin view | ✅ Done (2026-07-26) |
 | **P3 Step 4** | Agent job-complete callback → `acked_at` | ⏳ Pending |
 | **Guardrails** | Architecture tests locking single-pipeline invariant | ⏳ Pending |
 
