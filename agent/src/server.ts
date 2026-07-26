@@ -14,6 +14,7 @@ import { validateAuth } from './auth.js';
 import { acceptNonce } from './nonce.js';
 import { logger } from './logger.js';
 import type { LoopbackTls } from './tls.js';
+import { getAllowedOrigins } from './origins.js';
 
 const startTime = Date.now();
 
@@ -21,25 +22,12 @@ export function getUptime(): number {
   return Math.floor((Date.now() - startTime) / 1000);
 }
 
-// AccrualFlow Edge — Phase 1 hardening.
+// AccrualFlow Edge — Phase 1 hardening + Phase 4.2.5 tenant allowlist.
 //
-// Allowed origins default covers local dev + the production ERP
-// (https://www.accrualflow.systems) and the Lovable preview hosts.
-// Additional origins can be appended via AGENT_ALLOWED_ORIGINS.
-const DEFAULT_ALLOWED_ORIGINS = [
-  'http://localhost:8080',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-  'https://www.accrualflow.systems',
-  'https://accrualflow.systems',
-];
-const ALLOWED_ORIGINS = Array.from(
-  new Set(
-    (process.env.AGENT_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? [])
-      .concat(DEFAULT_ALLOWED_ORIGINS),
-  ),
-);
+// The allowlist is now dynamic: built-in defaults + AGENT_ALLOWED_ORIGINS
+// env override are merged with the tenant-signed list fetched every 15 min
+// from edge-workstation-origins (agent/src/origins.ts). Read once per
+// request so a refresh takes effect without restarting the listener.
 
 const AGENT_PORT = parseInt(process.env.AGENT_PORT || '8043', 10);
 const AGENT_TLS_PORT = parseInt(process.env.AGENT_TLS_PORT || '8443', 10);
@@ -64,7 +52,8 @@ const MUTATING_PATHS = new Set(['/print', '/test', '/usb/print']);
 
 function cors(res: http.ServerResponse, req?: http.IncomingMessage) {
   const origin = req?.headers.origin;
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowlist = getAllowedOrigins();
+  const allowed = origin && allowlist.includes(origin) ? origin : allowlist[0];
   res.setHeader('Access-Control-Allow-Origin', allowed);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -76,7 +65,8 @@ function cors(res: http.ServerResponse, req?: http.IncomingMessage) {
 
 function corsHeaderMap(req?: http.IncomingMessage): Record<string, string> {
   const origin = req?.headers.origin;
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowlist = getAllowedOrigins();
+  const allowed = origin && allowlist.includes(origin) ? origin : allowlist[0];
   return {
     'Access-Control-Allow-Origin': allowed,
     Vary: 'Origin',
@@ -152,7 +142,7 @@ function buildHandler(tlsInfo: LoopbackTls | null) {
       if (method === 'GET' && path === '/support-bundle') {
         return json(res, 200, buildSupportBundle({
           port: AGENT_PORT,
-          allowed_origins: ALLOWED_ORIGINS,
+          allowed_origins: getAllowedOrigins(),
           auth_disabled: process.env.AGENT_AUTH_DISABLED === '1' || process.env.AGENT_AUTH_DISABLED === 'true',
         }), req);
       }

@@ -1,0 +1,2 @@
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS edge_allowed_origins text[] NOT NULL DEFAULT ARRAY[]::text[];
+COMMENT ON COLUMN public.organizations.edge_allowed_origins IS 'Tenant-scoped allowlist of Origin headers the AccrualFlow Edge hardware agent accepts for CORS. Fetched by the agent every 15 minutes via edge-workstation-origins and merged with built-in defaults (localhost + accrualflow.systems).';

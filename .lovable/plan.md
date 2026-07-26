@@ -5,7 +5,10 @@
 
 Agent bumped to `v1.4.0-edge.p4.2`. Typecheck (`bunx tsgo --project agent/tsconfig.json`) is clean on all new/edited files; pre-existing errors in `agent/src/routes/biometric.test.ts` and `packages/desktop/src/lib/config.ts` are unrelated. Runtime end-to-end verification still needs an enrolled workstation on a developer machine.
 
+**Currently active:** Phase 4.2 — items 4.2.1–4.2.5 shipped. **Next up:** 4.2.6 (Windows Service supervisor / macOS LaunchAgent / Linux systemd user unit).
+
 Shipped:
+- **4.2.5 Tenant origin allowlist** — migration `2026-07-26` adds `organizations.edge_allowed_origins text[]` (default `{}`). New edge function `supabase/functions/edge-workstation-origins/index.ts` authenticates via the same workstation-secret pattern as manifest (SHA-256 compared to `workstations.secret_hash`), validates each origin URL (http/https, no path/query/fragment, ≤253 chars, cap 64), and returns `{ origins, ttl_seconds: 900, version: sha256(origins), fetched_at }`. Deployed and smoke-tested (unknown workstation returns 404 as expected). Agent side: `agent/src/origins.ts` fetches on start + every 15 min (60 s retry on error), caches to `~/.accrualflow/edge/origins.json` (mode 0644, no secrets), and exposes `getAllowedOrigins()` which merges built-in defaults + `AGENT_ALLOWED_ORIGINS` env override + tenant list. `agent/src/server.ts` no longer holds a hard-coded `ALLOWED_ORIGINS`; every CORS response reads the live snapshot. `SIGINT`/`SIGTERM` stops the refresh loop cleanly.
 - **4.2.4 Device probes in Diagnostics** — new `POST /probe` on the agent (`agent/src/routes/probe.ts`) dispatches `printer.test_page` (ESC/POS test slip), `drawer.kick` (ESC p 0 pulse), `network.ping`, and `usb.list` against network or USB targets with a 5 s per-(deviceId, op) server-side cooldown that returns 429 + cached result on repeat clicks. Bearer injection moved to `main.cjs` (`agent:probe` IPC reads `~/.pos-agent-token` and proxies to loopback with an 8 s timeout) so the token never enters the renderer. Diagnostics page now lists live `workstation_devices` rows with role-appropriate buttons and per-device last-result feedback.
 - **4.2.1 Local TLS on loopback** — `agent/src/tls.ts` load-or-generate per-install RSA-2048 self-signed cert at `~/.accrualflow/edge/tls/{cert.pem,key.pem,meta.json}`; SHA-256 fingerprint recorded and re-derived on load; SANs cover `localhost`+`127.0.0.1`+`::1`; auto-regenerate <30 d from expiry. New listener at `https://127.0.0.1:8443` alongside legacy `http://127.0.0.1:8043` (`AGENT_TLS_DISABLED=1` opts out). New unauthenticated `GET /tls-info` (fingerprint + port + expiry) and `/health` includes TLS metadata so the ERP can pin without a bearer.
 - **4.2.2 Realtime subscriptions** — `packages/desktop/src/lib/realtime.ts` is a zero-dep Phoenix v2 client over `WebSocket` with `postgres_changes`, 25 s heartbeat, 3 s reconnect backoff. Dashboard subscribes to `workstations` UPDATE (30 s poll safety net); Devices subscribes to `workstation_devices` `*` (45 s safety net).
@@ -13,11 +16,25 @@ Shipped:
 - **Dashboard TLS surface** — "Local loopback" stat polls `/tls-info` and shows the live `https://127.0.0.1:8443` URL plus fingerprint.
 
 Deferred to the next loop (nothing user-visible in the ERP yet):
-- **4.2.5** `edge-workstation-origins` edge fn + 15 min cache in `workstation.json`.
 - **4.2.6** Windows Service supervisor (macOS LaunchAgent / Linux systemd user unit).
 - **4.2.7** Trust-store install helper + cert-rotation-on-secret-rotation. Only after this lands should `AgentClient` prefer `https:8443` in the browser (self-signed today fails WebCrypto validation).
 - **4.2.8** Signed installers + `electron-updater` with staged rollout.
 - **4.2.9** Daily `pg_cron` on `edge_jobs_expire_stale()`.
+
+## Handoff — Instructions for the next agent
+
+Before writing any new code, **verify 4.2.5 against enterprise-grade practice**:
+
+1. `bunx tsgo --project agent/tsconfig.json` — must be clean (ignore the pre-existing `biometric.test.ts` diagnostics).
+2. Confirm `supabase/functions/edge-workstation-origins/index.ts` is deployed (Supabase dashboard → Edge Functions) and that hitting it with a bogus bearer returns 401/404, and with a real workstation secret returns `{ origins, version, ttl_seconds }`.
+3. Confirm the migration landed: `SELECT column_name FROM information_schema.columns WHERE table_name='organizations' AND column_name='edge_allowed_origins';` returns one row.
+4. Confirm `agent/src/server.ts` no longer holds a `const ALLOWED_ORIGINS`; every CORS response calls `getAllowedOrigins()` at request time.
+5. Insert a test origin: `UPDATE organizations SET edge_allowed_origins = ARRAY['https://pos.tenant.example'] WHERE id = <org>;`, restart the agent on an enrolled workstation, and verify a preflight from that origin returns `Access-Control-Allow-Origin: https://pos.tenant.example` within 15 min (or immediately after `SIGHUP`-style reload once we add one).
+6. Confirm `~/.accrualflow/edge/origins.json` is written at mode 0644 and contains only public origins — **no secrets**.
+
+**Then resume at 4.2.6 (Windows Service supervisor)** — do not jump ahead to 4.2.7+ until 4.2.6 lands and survives a reboot on all three platforms. The service supervisor is the last blocker before we can call the desktop shell production-ready; 4.2.7 (cert rotation) and 4.2.8 (signed installers) both assume it exists.
+
+Sequencing rule for 4.2.6: land a minimal working supervisor on **one** platform (Windows Service via `node-windows` is the recommended starting point) with the tray app talking to it over a named pipe, then port to macOS LaunchAgent, then Linux systemd user unit. Do **not** split the supervisor across platforms in parallel — one coherent, tested implementation at a time.
 
 ## Verification of Prior Work (Phase 1)
 
