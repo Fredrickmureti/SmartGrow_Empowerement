@@ -6,6 +6,9 @@ import { logger } from './logger.js';
 import { startRelay } from './relay.js';
 import { startManifestPublisher } from './manifest.js';
 import { startOriginsRefresh } from './origins.js';
+import { refreshOriginsOnce } from './origins.js';
+import { startSupervisor } from './supervisor.js';
+import { loadConfig } from './relay.js';
 import { handlePrint } from './routes/print.js';
 import { handleTest } from './routes/test.js';
 import { handleUsbDevices, handleUsbPrint } from './routes/usb.js';
@@ -101,16 +104,32 @@ server.listen(PORT, '127.0.0.1', () => {
   // Phase 4.2.5 — refresh tenant CORS allowlist from edge-workstation-origins.
   const stopOrigins = startOriginsRefresh();
 
+  // Phase 4.2.6 — supervisor IPC so a platform-native service manager
+  // (Windows Service via node-windows, macOS LaunchAgent, Linux systemd
+  // --user) can host this runtime and the tray app can talk to it as a
+  // client. See `agent/scripts/install-service.cjs`.
+  const wsCfg = loadConfig();
+  const stopSupervisor = startSupervisor({
+    version: 'v1.4.0-edge.p4.2.6',
+    tlsEnabled: Boolean(tlsInfo),
+    tlsFingerprint: tlsInfo?.fingerprintSha256 ?? null,
+    tlsPort: tlsInfo ? TLS_PORT : null,
+    workstationId: wsCfg?.workstation_id ?? null,
+    onReloadOrigins: () => { void refreshOriginsOnce(); },
+  });
+
   process.on('SIGINT', () => {
     stopRelay();
     stopManifest();
     stopOrigins();
+    stopSupervisor();
     process.exit(0);
   });
   process.on('SIGTERM', () => {
     stopRelay();
     stopManifest();
     stopOrigins();
+    stopSupervisor();
     process.exit(0);
   });
 
