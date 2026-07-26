@@ -477,7 +477,24 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
         return;
       }
       if (!hardwareClient.agent.isAuthorized()) {
-        toast.error('Agent is online but rejected the token. Paste the token from ~/.pos-agent-token, or run the agent with AGENT_AUTH_DISABLED=1.', { duration: 8000 });
+        // Distinguish the three failure modes — they need different fixes.
+        const reason = hardwareClient.agent.getAuthReason();
+        if (reason === 'blocked') {
+          toast.error(
+            'Agent answered, but this browser blocked the authorized request. An HTTPS page cannot call a plain-HTTP agent: install the agent\'s loopback certificate, or open the ERP over http://localhost.',
+            { duration: 10000 },
+          );
+        } else if (reason === 'missing_token') {
+          toast.error(
+            'Agent requires a pairing token. Open AccrualFlow Edge → Identity → Browser pairing and copy the pairing token (not the workstation secret).',
+            { duration: 10000 },
+          );
+        } else {
+          toast.error(
+            'Agent rejected this token. Use the pairing token from AccrualFlow Edge → Identity → Browser pairing (or ~/.pos-agent-token) — the workstation secret from enrolment will not work here.',
+            { duration: 10000 },
+          );
+        }
         return;
       }
       toast.success(`Agent v${status.version} authorized (${status.devices?.length || 0} devices discovered)`);
@@ -563,16 +580,23 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
             </div>
             <Input
               type="password"
-              placeholder="Agent token (from ~/.pos-agent-token) — leave blank if AGENT_AUTH_DISABLED=1"
+              placeholder="Pairing token — Edge app → Identity → Browser pairing"
               value={agentToken}
               onChange={(e) => setAgentToken(e.target.value)}
               className="text-sm font-mono"
             />
-            <p className="text-xs text-muted-foreground">
-              The agent generates a shared-secret token on first run, saved to <code>~/.pos-agent-token</code>.
-              Paste it here to authorize prints. Or run <code>npm run agent:dev</code> to disable auth in development.
-              Network printers and USB devices are accessed through this agent — change the URL to point to a LAN agent on another machine.
-            </p>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>
+                Paste the <strong>pairing token</strong> from <strong>AccrualFlow Edge → Identity → Browser pairing</strong>
+                {' '}(same value as <code>~/.pos-agent-token</code>). This is <strong>not</strong> the workstation secret
+                shown during enrolment — that one authenticates the device to AccrualFlow and the agent will reject it.
+              </p>
+              <p>
+                Network printers and USB devices are reached through this agent — point the URL at a LAN agent to share
+                hardware across terminals. In development, <code>npm run agent:dev</code> disables auth and the token can
+                be left blank.
+              </p>
+            </div>
           </div>
 
           <Separator className="my-3" />

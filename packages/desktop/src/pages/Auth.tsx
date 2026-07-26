@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { WorkstationRead } from '../types';
 import { invoke, signInWithPassword, currentSession } from '../lib/supabase';
 import { IdChip } from '../components/IdChip';
+import { BrowserPairing } from '../components/BrowserPairing';
 
 interface Props { workstation: WorkstationRead; onChanged: () => void }
 
@@ -124,6 +125,8 @@ export function Auth({ workstation, onChanged }: Props) {
           <button className="btn danger" onClick={signOutWorkstation}>Remove workstation.json</button>
         </div>
       </div>
+
+      <BrowserPairing />
     </>
   );
 }

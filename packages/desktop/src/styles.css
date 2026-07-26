@@ -217,6 +217,30 @@ table.edge-table td.mono { font-family: var(--edge-mono); font-size: 12px; }
 .log-view .log-ok { color: var(--edge-ok); }
 
 /* ── Utilities ─────────────────────────────────────────────────────────── */
+/* ── Browser pairing ──────────────────────────────────────────────────── */
+.pairing-steps {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px;
+  font-size: 12px; color: var(--edge-muted); counter-reset: pairing;
+}
+.pairing-steps > span {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border: 1px solid var(--edge-border);
+  border-radius: 999px; background: var(--edge-panel-2);
+}
+.pairing-steps > span::before {
+  counter-increment: pairing; content: counter(pairing);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--edge-border); color: var(--edge-text);
+  font-size: 10px; font-weight: 600;
+}
+.pairing-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.pairing-value {
+  flex: 1 1 260px; min-width: 0; padding: 8px 10px;
+  background: #06080b; border: 1px solid var(--edge-border); border-radius: 6px;
+  font-size: 12px; letter-spacing: 0.4px; word-break: break-all;
+}
+
 .mono { font-family: var(--edge-mono); }
 .muted { color: var(--edge-muted); }
 .error-inline { color: var(--edge-err); font-size: 12px; margin-top: 6px; }

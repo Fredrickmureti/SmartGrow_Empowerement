@@ -22,6 +22,10 @@ const api = {
     stop: () => ipcRenderer.invoke('agent:stop'),
     status: () => ipcRenderer.invoke('agent:status'),
     logs: () => ipcRenderer.invoke('agent:logs'),
+    // Loopback pairing material for browsers on this machine. Distinct from
+    // the cloud workstation secret — see main.cjs for the rationale.
+    pairing: () => ipcRenderer.invoke('agent:pairing'),
+    rotateToken: () => ipcRenderer.invoke('agent:rotateToken'),
     // Phase 4.2.4 — signed probe dispatch. The renderer sends a probe
     // descriptor (deviceId/role/op/target); main injects the bearer token
     // from ~/.pos-agent-token so the raw secret never touches the DOM.

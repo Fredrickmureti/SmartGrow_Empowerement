@@ -27,7 +27,7 @@
 import { browserHardwareAdapter, type DeviceAssignment } from "./BrowserHardwareAdapter";
 import { hardwareEventBus, type HardwareEvent, type HardwareEventType } from "./HardwareEventBus";
 import type { DeviceRole, DriverCommand, DriverResult } from "./drivers/DriverInterface";
-import { agentClient } from "./local-agent/AgentClient";
+import { agentClient, type AgentAuthReason } from "./local-agent/AgentClient";
 import type { RelayConfig } from "./local-agent/RelayTransport";
 import { customerDisplayClient, type CustomerDisplayData, type CustomerDisplayConfig } from "./local-display/CustomerDisplayClient";
 import type { AgentStatusResponse, AgentDeviceInfo } from "./local-agent/protocol";
@@ -540,6 +540,11 @@ const agent = {
   isAuthorized(): boolean {
     if (isElectronMode()) return false;
     return agentClient.isAuthorized();
+  },
+  /** Why the last authorization attempt failed — drives actionable UI copy. */
+  getAuthReason(): AgentAuthReason {
+    if (isElectronMode()) return 'ok';
+    return agentClient.getAuthReason();
   },
   getBaseUrl(): string {
     return agentClient.getBaseUrl();

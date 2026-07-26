@@ -43,6 +43,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AgentChangeCallback = (available: boolean, status: AgentStatusResponse | null) => void;
 
+/** Outcome of the last protected-endpoint authorization check. */
+export type AgentAuthReason = 'ok' | 'missing_token' | 'unauthorized' | 'blocked' | 'unreachable';
+
 const TOKEN_STORAGE_KEY = 'pos.agent.token';
 const URL_STORAGE_KEY = 'pos.agent.url';
 const RELAY_STORAGE_KEY = 'pos.agent.relay';
@@ -83,6 +86,7 @@ class AgentClientImpl {
   private _lastAvailable = false;
   /** True when /status is reachable AND a protected probe (HEAD /discover) succeeds. */
   private _lastAuthorized = false;
+  private _authReason: AgentAuthReason = 'unreachable';
 
   /**
    * Wave B4.2 — per-endpoint mutex.
@@ -252,6 +256,21 @@ class AgentClientImpl {
   /** True only when /status responds AND protected calls are authorized. */
   isAuthorized(): boolean {
     return this._lastAuthorized;
+  }
+
+  /**
+   * Why the last authorization check landed where it did. Drives actionable
+   * copy in the hardware settings UI instead of one generic failure toast.
+   *
+   * - `ok`            — protected routes accept the token (or auth is off)
+   * - `missing_token` — no token configured and the agent requires one
+   * - `unauthorized`  — agent answered 401/403; wrong token pasted
+   * - `blocked`       — browser refused the request (CORS / mixed content)
+   * - `unreachable`   — the agent itself did not answer
+   */
+  getAuthReason(): AgentAuthReason {
+    if (!this._lastAvailable && !this._relay) return 'unreachable';
+    return this._authReason;
   }
 
   // ═══════════════════════════════════════════
@@ -633,7 +652,14 @@ class AgentClientImpl {
   //  Private helpers
   // ═══════════════════════════════════════════
 
-  /** Probe a protected endpoint to confirm the token is accepted. */
+  /**
+   * Probe a protected endpoint to confirm the token is accepted, and record
+   * WHY it failed. "Online but rejected" and "online but the browser blocked
+   * the request" look identical from a boolean, and operators cannot act on
+   * either without the distinction: a 401 means the wrong secret was pasted
+   * (typically the cloud workstation secret instead of `~/.pos-agent-token`),
+   * whereas a network-level failure means CORS / mixed content.
+   */
   private async _checkAuthorized(): Promise<boolean> {
     try {
       const controller = new AbortController();
@@ -644,8 +670,16 @@ class AgentClientImpl {
         signal: controller.signal,
       });
       clearTimeout(timeout);
-      return res.status !== 401;
+      if (res.status === 401 || res.status === 403) {
+        this._authReason = this._token ? 'unauthorized' : 'missing_token';
+        return false;
+      }
+      this._authReason = 'ok';
+      return true;
     } catch {
+      // The status probe already succeeded, so the listener is up; a throw here
+      // is the browser refusing the cross-origin/mixed-content request.
+      this._authReason = 'blocked';
       return false;
     }
   }
