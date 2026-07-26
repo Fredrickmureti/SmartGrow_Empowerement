@@ -114,41 +114,54 @@ AccrualFlow Edge Desktop  ── loopback https://127.0.0.1:8443 (fallback, same
 
 Sequenced so each phase ships value and preserves the current localhost flow until the replacement is proven.
 
-### Phase 0 — Report & rename (this plan)
-Publish the audit; introduce name `AccrualFlow Edge`; keep `agent/` running unchanged.
+**Legend:** ✅ Shipped & verified · 🚧 Active · ⏳ Pending
 
-### Phase 1 — Harden the existing agent (2 wks)
-- DNS-rebinding defense: enforce `Host` header ∈ `{127.0.0.1:8043, localhost:8043}`.
-- Origin allowlist tightened + `Access-Control-Allow-Private-Network: true` on preflight.
-- JWT-shaped tokens with `exp`, `nbf`, `aud`, `tenant`, `workstation`, replacing flat shared secret. Rotation endpoint.
-- Nonce replay cache on mutating routes.
-- Structured NDJSON logging + `/health` endpoint distinct from `/status`.
-- Support bundle CLI: `accrualflow-edge support-bundle`.
+### ✅ Phase 0 — Report & rename
+Audit published; runtime renamed to `AccrualFlow Edge`; existing `agent/` kept operational.
 
-### Phase 2 — Relay transport (3 wks)
-- Ship `edge-relay` as a Supabase Edge Function + Supabase Realtime channel per workstation (reuses existing auth + RLS; no new infra).
-- Agent opens outbound Realtime subscription on start; consumes commands, publishes ACKs.
-- Client `AgentClient` gains a `RelayTransport` sibling; probes relay first, loopback second.
-- End-to-end: production ERP prints via relay with zero loopback dependency.
+### ✅ Phase 1 — Harden the existing agent
+Shipped in `agent/` at `v1.1.0-edge.p1`. Verified via `bunx tsgo` and route contract tests.
+- Loopback-only bind (127.0.0.1), `Host` header pinning (DNS-rebinding defense).
+- `Access-Control-Allow-Private-Network: true` + tightened Origin allowlist (adds `https://www.accrualflow.systems`).
+- `X-Edge-Nonce` replay protection on mutating routes.
+- Structured NDJSON logger + in-memory ring buffer (`agent/src/logger.ts`).
+- `/health` and authenticated `/support-bundle` endpoints.
+- Nonce-aware `AgentClient` on the browser side.
+- (JWT-shaped rotation is deferred — the workstation-secret path in Phase 2 supersedes it for the relay leg.)
 
-### Phase 3 — Capability model (2 wks)
-- Introduce `WorkstationManifest` published by agent on connect + on device change.
-- ERP `hardwareClient.exec` resolves via capabilities; endpoint-shaped calls deprecated but supported for one release.
-- Persist manifest in `workstation_devices` table (RLS: tenant + workstation).
+### ✅ Phase 2 — Relay transport
+Shipped at `v1.2.0-edge.p2`. Verified by full-app typecheck; end-to-end runtime verification requires an enrolled workstation.
+- Migration `20260726020046_*`: `public.workstations`, `public.edge_jobs` (+ `edge_jobs_expire_stale` RPC, unique idempotency index, Realtime enabled).
+- Edge functions: `edge-workstation-register` (org-authed enrolment, secret shown once, SHA-256 stored), `edge-agent-poll`, `edge-agent-complete` (both workstation-secret authed).
+- Client `RelayTransport` (enqueue → race Realtime UPDATE vs poll vs hard timeout, idempotency-key reuse).
+- `AgentClient.enableRelay/disableRelay/isRelayEnabled`; `printNetwork`, `testConnection`, `printUsb` prefer relay and fall through to loopback.
+- Agent `relay.ts` polls the edge functions with the workstation secret, dispatches to existing route handlers, auto-starts when `~/.accrualflow/edge/workstation.json` (or `$ACCRUALFLOW_EDGE_CONFIG`) exists.
+- Documented in `agent/README.md` (enrolment, config file shape, env vars).
 
-### Phase 4 — Desktop shell (4 wks)
-- Electron app wrapping the runtime; onboarding wizard; device dashboard; diagnostics; logs; token management; updates.
-- Tray icon + background service supervision.
-- Signed installers for Win/macOS/Linux; auto-update channel.
+### ✅ Phase 3 — Capability model
+Shipped at `v1.3.0-edge.p3`. Verified: migration applied, edge function deployed, full-app typecheck clean.
+- Migration: `public.workstation_devices` (device_key, role, transport, driver, name, capabilities jsonb, health, last_seen_at, metadata; unique on (workstation_id, device_key); org-scoped RLS; Realtime on) and `public.workstation_manifests` (payload jsonb history; org-scoped RLS; Realtime on).
+- Edge function `edge-workstation-manifest` (workstation-secret authed): validates roles/transports, upserts the current device set, marks vanished devices `health='offline'`, inserts a manifest snapshot, updates the workstation heartbeat + version.
+- Agent `manifest.ts`: builds a manifest from USB hints (Epson/Star/Zebra/Bixolon vid tables → capabilities such as `width_mm`, `cutter`) plus the existing network discovery, publishes on start + every 60 s; wired into `index.ts` with SIGINT/SIGTERM cleanup.
+- Client `CapabilityResolver` (`src/services/hardware/local-agent/CapabilityResolver.ts`): `resolve({ workstationId, role, needs, healthIn })` picks the best-matching device (capability-match score → health → last-seen recency); `listForWorkstation` for admin UI.
+- All prior endpoint-shaped calls remain intact (deprecated but functional through one more release, per plan §5.3).
 
-### Phase 5 — Plugin drivers (ongoing)
-- Split existing ESC/POS, ZPL, USB, biometric into `edge-drivers-*` workspaces behind the driver interface.
-- Add scanner, drawer, scale, EFT, customer display, RFID drivers incrementally.
-- Signed plugin loader for third-party drivers.
+### 🚧 Phase 4 — Desktop shell (next)
+Owner: next agent. Recommended entry point: `packages/desktop/` Electron scaffold — reuse the existing top-level `electron/main.cjs` pattern (see `<electron-desktop-app>` in system knowledge for the `base: './'` and `.cjs` requirements).
+- Onboarding wizard invoking `edge-workstation-register` and writing `~/.accrualflow/edge/workstation.json` (mode 0600).
+- Dashboard: relay + loopback status, workstation identity, last activity — powered by the Realtime subscriptions already enabled in Phases 2/3.
+- Devices tab: renders `workstation_devices` live; per-device Test button that enqueues an `edge_jobs` row and awaits the result via `RelayTransport`.
+- Diagnostics: printer test page, USB tree, network reachability, scale/drawer read (behind capability gates from Phase 3).
+- Logs viewer + one-click support bundle export (already exposed by `/support-bundle`).
+- Auth: view workstation ID, rotate credential (new endpoint required: `edge-workstation-rotate-secret`), revoke.
+- Tray icon + background service supervision; signed installers (Win/macOS/Linux) with `@electron/packager` per sandbox constraints.
 
-### Phase 6 — Observability + Admin (2 wks)
-- OpenTelemetry hooks, Sentry-compatible crash reporter, admin console page listing workstations, versions, health, last seen, revoke button.
-- Update rollout controls.
+### ⏳ Phase 5 — Plugin drivers
+Split ESC/POS, ZPL, USB, biometric into `packages/edge-drivers-*` behind a `probe/open/execute/close/healthcheck` interface. Signed plugin loader in `~/.accrualflow/edge/plugins/`.
+
+### ⏳ Phase 6 — Observability + Admin
+OpenTelemetry hooks; Sentry-compatible crash reporter; admin console page (workstations list, versions, health, revoke, staged update rollout).
+
 
 ## 6. Technical Details (dev-facing)
 
@@ -181,3 +194,21 @@ Publish the audit; introduce name `AccrualFlow Edge`; keep `agent/` running unch
 - Adding a new device category is a new `edge-drivers-*` package + capability entry, not a runtime change.
 - Support engineers can retrieve logs, health, and version for any workstation from the admin console without shell access to the customer machine.
 - Every credential is short-lived, workstation-bound, tenant-bound, and revocable.
+
+## 8. Handoff — Instructions for the Next Agent
+
+**Before writing new code, verify Phase 3 is enterprise-grade complete:**
+
+1. **Migration integrity** — Confirm `public.workstation_devices` and `public.workstation_manifests` exist with org-scoped RLS, the (workstation_id, device_key) unique index, `updated_at` triggers, and Realtime enabled. Run `supabase--read_query` against `pg_policies` + `pg_publication_tables`.
+2. **Edge function `edge-workstation-manifest`** — Manually exercise via `supabase--curl_edge_functions` with a real `X-Workstation-Id` + workstation secret; confirm (a) unknown workstations return 404, (b) mismatched secret returns 401, (c) role/transport validation rejects garbage, (d) devices absent from a subsequent publish flip to `health='offline'`.
+3. **Agent manifest publisher** — Confirm `agent/src/manifest.ts` runs only when `workstation.json` is present, publishes on start + every 60 s, and never crashes when the `usb` module is missing.
+4. **Client resolver** — Confirm `CapabilityResolver.resolve` ranks by capability-match then health then recency and returns `null` on negative-score winners (regression risk: don't silently pick a wrong-capability device).
+5. **No orphaned surface** — There is no UI wired to `workstation_devices` yet. That's intentional: it belongs to Phase 4. Do not add ad-hoc pages under `src/pages/` for it; build them inside the Electron shell.
+
+**Once verification is green, start Phase 4 — Desktop shell:**
+
+- Scaffold `packages/desktop/` Electron app; follow the `<electron-desktop-app>` rules (`base: './'` in `vite.config.ts`, `.cjs` main, `@electron/packager`).
+- First deliverable = **onboarding wizard**: signs in via existing Supabase auth, calls `edge-workstation-register`, writes `~/.accrualflow/edge/workstation.json` with mode 0600. This unblocks every subsequent Phase 4 milestone.
+- Then Dashboard → Devices → Diagnostics → Logs → Auth, in that order, so each tab lands atop a stable data path.
+
+**Do not** jump ahead to Phase 5 (plugin drivers) or Phase 6 (observability) — the desktop shell is the operator-visible surface the plan promised and everything downstream assumes it exists.
