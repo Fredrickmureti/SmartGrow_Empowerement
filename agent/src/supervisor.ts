@@ -25,6 +25,10 @@
  *                                              tls: { enabled, fingerprint },
  *                                              workstation_id }
  *   { op: 'reload_origins' }             -> { ok }        (kicks getAllowedOrigins refetch)
+ *   { op: 'rotate_cert' }                -> { ok, fingerprint_sha256 }
+ *   { op: 'cert_status' }                -> { ok, trusted, detail, commands }
+ *   { op: 'install_cert' }               -> { ok, steps[] }   (OS trust store)
+ *   { op: 'uninstall_cert' }             -> { ok, steps[] }
  *   { op: 'shutdown' }                   -> { ok }        (process.exit(0) after 200ms)
  */
 import net from 'node:net';
