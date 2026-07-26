@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { WorkstationRead } from '../types';
 import { select } from '../lib/supabase';
+import { subscribeTable } from '../lib/realtime';
 
 interface Props { workstation: WorkstationRead }
 
 interface WorkstationRow { id: string; name: string; version: string | null; last_seen_at: string | null }
+interface TlsInfo { enabled: boolean; fingerprint_sha256?: string; port?: number }
 
 /**
  * Dashboard — at-a-glance workstation health.
@@ -21,6 +23,7 @@ export function Dashboard({ workstation }: Props) {
   const [agentPid, setAgentPid] = useState<number | null>(null);
   const [row, setRow] = useState<WorkstationRow | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [tls, setTls] = useState<TlsInfo | null>(null);
 
   const refresh = async () => {
     try {
@@ -34,13 +37,31 @@ export function Dashboard({ workstation }: Props) {
         );
         setRow(rows[0] ?? null);
       }
+      // Poll the agent's /tls-info so the "Local loopback" stat reflects
+      // reality. Auth-free by design (only the SHA-256 fingerprint is
+      // exposed — no private material).
+      try {
+        const r = await fetch('http://127.0.0.1:8043/tls-info', { cache: 'no-store' });
+        if (r.ok) setTls(await r.json());
+      } catch { setTls({ enabled: false }); }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 10_000);
-    return () => clearInterval(t);
+    // Realtime-first (Phase 4.2 item 2). Poll every 30s as a safety net
+    // in case the ws connection is silently dropped.
+    let sub: { close(): void } | null = null;
+    if (workstation.workstation_id) {
+      sub = subscribeTable({
+        table: 'workstations',
+        event: 'UPDATE',
+        filter: `id=eq.${workstation.workstation_id}`,
+        onChange: () => refresh(),
+      });
+    }
+    const t = setInterval(refresh, 30_000);
+    return () => { clearInterval(t); sub?.close(); };
   }, [workstation.workstation_id]);
 
   const relayFresh = row?.last_seen_at
@@ -78,7 +99,16 @@ export function Dashboard({ workstation }: Props) {
           </div>
           <div className="stat">
             <div className="stat-label">Local loopback</div>
-            <div className="stat-value">https://127.0.0.1:8043</div>
+            <div className="stat-value">
+              {tls?.enabled
+                ? `https://127.0.0.1:${tls.port ?? 8443}`
+                : 'http://127.0.0.1:8043'}
+            </div>
+            {tls?.enabled && tls.fingerprint_sha256 && (
+              <div className="muted mono" style={{ fontSize: 10, wordBreak: 'break-all', marginTop: 4 }}>
+                fp: {tls.fingerprint_sha256}
+              </div>
+            )}
           </div>
           <div className="stat">
             <div className="stat-label">Organization</div>
