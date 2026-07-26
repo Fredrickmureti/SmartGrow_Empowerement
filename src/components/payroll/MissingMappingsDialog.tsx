@@ -286,6 +286,9 @@ function MappingsBody({
 
       <ScrollArea className="max-h-[55vh] sm:max-h-[50vh] -mx-1 px-1 pr-2">
         <div className="space-y-4">
+          {loanRows.length > 0 && (
+            <LoanTypesSection rows={loanRows} onNavigate={() => { navigate("/hr/payroll/loan-types"); onClose(); }} />
+          )}
           {grouped.core.length > 0 && (
             <Section title="Core payroll accounts" rows={grouped.core} accounts={accounts} applyOne={applyOne} createAndMap={createAndMap} />
           )}
