@@ -182,8 +182,8 @@ export default function Invoices() {
   const allFilteredSelected = invoices.length > 0 && invoices.every((inv) => selectedIds.has(inv.id));
   const draftSelectedCount = selectedInvoices.filter((inv) => inv.status === "draft").length;
 
-  // Print / preview. Primary invoice Print intentionally does NOT use
-  // usePrintOrPreview: that hook opens PrintPreviewDialog on ask_user/error,
+  // Print / preview. Primary invoice Print intentionally bypasses the
+  // preview-fallback hook: that hook opens PrintPreviewDialog on ask_user/error,
   // which caused rapid Sales prints to switch away from the raw FIFO hardware
   // path while Product Labels kept queueing deterministically.
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);

@@ -2,7 +2,7 @@
  * Regression guard — Sales invoice Print must not silently fall back to the
  * preview dialog. Product Labels queue every rapid click onto the raw hardware
  * path; Sales invoice Print must do the same via PrintClient instead of using
- * usePrintOrPreview/generateDocument, whose failure path opens preview.
+ * the preview-fallback hook, whose failure path opens preview.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
