@@ -429,15 +429,44 @@ ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(String(url)
 // out to `agent/scripts/install-service.cjs`; the other ops go over the
 // supervisor pipe/socket.
 const { spawn: spawnP } = require('node:child_process');
+function installerPath() {
+  const candidates = [
+    path.join(agentRoot(), 'scripts', 'install-service.cjs'),
+    path.join(process.resourcesPath || '', 'agent', 'scripts', 'install-service.cjs'),
+    path.resolve(__dirname, '..', '..', '..', 'agent', 'scripts', 'install-service.cjs'),
+  ];
+  return candidates.find((p) => p && fs.existsSync(p)) || null;
+}
 function runInstaller(subcmd) {
   return new Promise((resolve) => {
-    const script = path.resolve(__dirname, '..', '..', '..', 'agent', 'scripts', 'install-service.cjs');
-    if (!fs.existsSync(script)) return resolve({ ok: false, error: 'installer_not_bundled' });
-    const child = spawnP(process.execPath, [script, subcmd], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const script = installerPath();
+    if (!script) {
+      return resolve({
+        ok: false,
+        error: 'installer_not_bundled',
+        detail: `no install-service.cjs under ${agentRoot()} — repackage with the agent bundled as an extra resource`,
+      });
+    }
+    const child = spawnP(process.execPath, [script, subcmd], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1',
+        ACCRUALFLOW_AGENT_ROOT: agentRoot(),
+        ACCRUALFLOW_EDGE_CONFIG: WORKSTATION_JSON,
+      },
+    });
     let out = '', err = '';
     child.stdout.on('data', (b) => { out += b.toString('utf-8'); });
     child.stderr.on('data', (b) => { err += b.toString('utf-8'); });
-    child.on('close', (code) => resolve({ ok: code === 0, code, stdout: out, stderr: err }));
+    child.on('error', (e) => resolve({ ok: false, error: String(e && e.message ? e.message : e), stdout: out, stderr: err }));
+    child.on('close', (code) => resolve({
+      ok: code === 0,
+      code,
+      stdout: out,
+      stderr: err,
+      error: code === 0 ? undefined : (err.trim().split('\n').slice(-3).join(' ') || `exit ${code}`),
+    }));
   });
 }
 ipcMain.handle('supervisor:status',  () => supervisor.send('status'));
@@ -451,16 +480,35 @@ ipcMain.handle('supervisor:certStatus',     () => supervisor.send('cert_status',
 ipcMain.handle('supervisor:rotateCert',     () => supervisor.send('rotate_cert', {}, 15000));
 ipcMain.handle('supervisor:installCert',    () => supervisor.send('install_cert', {}, 120000));
 ipcMain.handle('supervisor:uninstallCert',  () => supervisor.send('uninstall_cert', {}, 120000));
-ipcMain.handle('supervisor:install',   () => runInstaller('install'));
+ipcMain.handle('supervisor:install',   async () => {
+  const r = await runInstaller('install');
+  // The service now owns port 8043 — release our own child so the two
+  // runtimes do not fight over the loopback listener.
+  if (r.ok) stopAgent();
+  return r;
+});
 ipcMain.handle('supervisor:uninstall', () => runInstaller('uninstall'));
-ipcMain.handle('supervisor:start',     () => runInstaller('start'));
+ipcMain.handle('supervisor:start',     async () => {
+  const r = await runInstaller('start');
+  if (r.ok) stopAgent();
+  return r;
+});
 ipcMain.handle('supervisor:stop',      () => runInstaller('stop'));
+ipcMain.handle('supervisor:installed', () => ({ installed: Boolean(installerPath()) ? undefined : false, installerAvailable: Boolean(installerPath()) }));
+ipcMain.handle('supervisor:serviceStatus', () => runInstaller('status'));
 
 // ── Lifecycle ────────────────────────────────────────────────────────────
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   ensureEdgeHome();
   createTray();
   createWindow();
+  // Auto-start the runtime unless the operator opted out or a
+  // platform service / manual dev process already owns the port.
+  const settings = readSettings() || {};
+  if (settings.agent_autostart !== false) {
+    const r = await startAgent({ auto: true });
+    if (!r.ok) pushAgentLog('stderr', `[desktop] autostart failed: ${r.error}`);
+  }
 });
 
 // Tray-first: closing the last window does NOT quit the app.
