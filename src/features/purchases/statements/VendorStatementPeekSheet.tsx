@@ -29,7 +29,7 @@ interface Props {
 export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
   const { record, loading, error } = useVendorStatementRecord(statementId);
   const { currentBusiness } = useBusinesses();
-  const { downloadPdf, isGeneratingPdf } = useDocumentPrint();
+  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
   const [emailOpen, setEmailOpen] = useState(false);
 
   const handleDownload = async () => {
