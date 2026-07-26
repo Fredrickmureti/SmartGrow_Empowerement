@@ -357,6 +357,7 @@ function LoanTypesSection({
   );
 }
 
+function Section({
   title, rows, accounts, applyOne, createAndMap,
 }: {
   title: string;
