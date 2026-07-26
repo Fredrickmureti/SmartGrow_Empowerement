@@ -357,23 +357,25 @@ class PrintClient {
   }
 
   /**
-   * PDF/browser transports have no async ack — the browser print dialog
-   * accepting the blob IS the ack. We call mark_sent then flip status to
-   * 'acked' via a direct update through the SECURITY DEFINER path. To
-   * avoid a second RPC, we reuse mark_sent (status='sent') and let the
-   * SLO monitor treat pdf-browser rows as terminal via transport check.
+   * Plan P3 Step 4 — flip a ledger row to `acked` by job id.
    *
-   * For strict acked semantics on PDF, we chain a mark_sent → mark_acked
-   * flow. There's no hw_command_id for PDF, so we use a dedicated RPC
-   * variant that acks by job id.
+   * Two callers share this path:
+   *   - PDF/browser transports: the print dialog resolving is the ack.
+   *   - Thermal (direct-dispatch): `hardwareClient.printRawBytes` /
+   *     `printLabelBytes` returning success means the Electron main
+   *     process or local-agent driver confirmed the write. That is the
+   *     ack for the interactive path (queue-mediated thermal jobs are
+   *     acked by `SharedCommandQueueWorker` via `print_job_mark_acked`
+   *     keyed on `hw_command_id`).
+   *
+   * Backed by `public.print_job_mark_acked_by_id(uuid)` which also
+   * auto-promotes a parent container row once every child copy is acked.
+   * Ledger failures never block printing.
    */
-  private async markLedgerAckedForNonThermal(jobId: string): Promise<void> {
+  private async markLedgerAcked(jobId: string): Promise<void> {
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      // Reuse mark_sent for now; add a by-id ack RPC in D2 if needed.
-      // The SLO monitor (D4) filters out non-thermal transports from
-      // "stalled" alerts, so leaving these at 'sent' is safe.
-      await supabase.rpc('print_job_mark_sent', { p_id: jobId, p_hw_command_id: null });
+      await supabase.rpc('print_job_mark_acked_by_id', { p_id: jobId });
     } catch { /* noop */ }
   }
 
