@@ -508,6 +508,23 @@ class AgentClientImpl {
   //  Network printer operations
   // ═══════════════════════════════════════════
 
+  /**
+   * Is the loopback HTTP fallback actually usable from this document?
+   *
+   * On an HTTPS origin a plaintext `http://localhost:8043` request is mixed
+   * content: the browser blocks it, and depending on the block mode the
+   * pending fetch can sit unresolved. Falling through to it after a relay
+   * failure therefore turned a clean "agent offline" answer into an
+   * indefinite spinner with nothing in the console. Only take the fallback
+   * when the transport is same-scheme-safe (dev/LAN http origins, or an
+   * agent reachable over https via the trusted loopback certificate).
+   */
+  private _loopbackUsable(): boolean {
+    if (typeof window === 'undefined') return false;
+    if (window.location.protocol !== 'https:') return true;
+    return this._baseUrl.startsWith('https:');
+  }
+
   /** Send raw bytes to a network printer via the agent (serialized per endpoint). */
   async printNetwork(
     ipAddress: string,
@@ -524,10 +541,12 @@ class AgentClientImpl {
           role: 'print',
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
+          deadlineMs: 15_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
-        // fall through to loopback
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
+        // fall through to loopback (LAN / dev origins only)
       }
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
@@ -558,9 +577,11 @@ class AgentClientImpl {
         const r = await this._relay.dispatch<AgentTestResponse>({
           role: 'test',
           payload: { ipAddress, port, timeout: 5000 },
+          deadlineMs: 10_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
@@ -601,9 +622,11 @@ class AgentClientImpl {
           role: 'usb_print',
           payload: { vendorId, productId, data },
           idempotencyKey: idem,
+          deadlineMs: 15_000,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
+        if (!this._loopbackUsable()) return { success: false, error: r.error ?? 'relay dispatch failed' };
       }
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {

@@ -175,17 +175,19 @@ async function publishOnce(cfg: RelayConfig, hooks: ManifestPublisherHooks): Pro
  * without a workstation identity there's nowhere to publish to.
  */
 export function startManifestPublisher(hooks: ManifestPublisherHooks = {}): () => void {
-  const cfg = loadConfig();
-  if (!cfg) {
-    logger.info('manifest.inactive.no_config', {});
-    return () => undefined;
-  }
+  if (!loadConfig()) logger.info('manifest.inactive.no_config', {});
 
   let stopped = false;
   const tick = async () => {
     if (stopped) return;
-    try { await publishOnce(cfg, hooks); }
-    catch (err) { logger.warn('manifest.publish_failed', { error: err instanceof Error ? err.message : String(err) }); }
+    // Re-read the config on every tick so an enrolment or secret rotation is
+    // picked up without restarting the agent (the publisher used to capture
+    // the credential once at startup and 401 forever after a rotation).
+    const cfg = loadConfig();
+    if (cfg) {
+      try { await publishOnce(cfg, hooks); }
+      catch (err) { logger.warn('manifest.publish_failed', { error: err instanceof Error ? err.message : String(err) }); }
+    }
     if (!stopped) setTimeout(tick, MANIFEST_INTERVAL_MS);
   };
   // Slight startup delay so background discovery has a chance to warm up.

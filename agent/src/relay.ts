@@ -25,10 +25,11 @@
  * long-lived WebSocket in Phase 4 when the desktop shell lands.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { logger } from './logger.js';
+import { setRelayHealth } from './relay-state.js';
 
 const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, ctx: Record<string, unknown>) =>
   logger[level](msg, ctx);
@@ -53,14 +54,25 @@ interface RelayJob {
 
 const POLL_INTERVAL_MS = 1_500;
 const POLL_ERROR_BACKOFF_MS = 15_000;
+/**
+ * A 401 means the workstation secret on disk no longer matches the server
+ * (almost always because the operator just rotated it in the desktop app).
+ * That is recoverable within seconds by re-reading the config file, so it
+ * gets a short backoff instead of the generic network backoff.
+ */
+const AUTH_ERROR_BACKOFF_MS = 3_000;
 
 export type RelayHandler = (job: RelayJob) => Promise<{ success: boolean; result?: unknown; error?: string }>;
 
-export function loadConfig(): RelayConfig | null {
+export function configPath(): string {
   const explicit = process.env.ACCRUALFLOW_EDGE_CONFIG;
-  const path = explicit && explicit.length > 0
+  return explicit && explicit.length > 0
     ? explicit
     : join(homedir(), '.accrualflow', 'edge', 'workstation.json');
+}
+
+export function loadConfig(): RelayConfig | null {
+  const path = configPath();
   if (!existsSync(path)) return null;
   try {
     const raw = readFileSync(path, 'utf-8');
@@ -74,6 +86,15 @@ export function loadConfig(): RelayConfig | null {
     log('warn', 'relay.config.read_failed', { path, error: String(err) });
     return null;
   }
+}
+
+function configMtimeMs(): number {
+  try { return statSync(configPath()).mtimeMs; } catch { return 0; }
+}
+
+function isAuthError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return msg.includes('poll_http_401') || msg.includes('poll_http_404');
 }
 
 async function pollOnce(cfg: RelayConfig): Promise<RelayJob | null> {
@@ -120,19 +141,65 @@ async function complete(
  * inactive.
  */
 export function startRelay(handler: RelayHandler): () => void {
-  const cfg = loadConfig();
+  let cfg = loadConfig();
+  let mtime = configMtimeMs();
+  let reloads = 0;
+
   if (!cfg) {
-    log('info', 'relay.inactive.no_config', {});
-    return () => undefined;
+    // No credential *yet* — the operator may enrol at any moment from the
+    // desktop shell. Keep watching the config path instead of giving up for
+    // the lifetime of the process (which previously required a restart).
+    log('info', 'relay.inactive.no_config', { path: configPath() });
   }
+  setRelayHealth({
+    state: cfg ? 'starting' : 'inactive',
+    workstationId: cfg?.workstation_id ?? null,
+    lastError: null,
+    consecutiveErrors: 0,
+    credentialReloads: 0,
+  });
 
   let stopped = false;
-  log('info', 'relay.started', { workstationId: cfg.workstation_id, supabaseUrl: cfg.supabase_url });
+  if (cfg) log('info', 'relay.started', { workstationId: cfg.workstation_id, supabaseUrl: cfg.supabase_url });
+
+  /** Re-read `workstation.json`; returns true when the credential changed. */
+  const reloadConfig = (reason: string): boolean => {
+    const next = loadConfig();
+    mtime = configMtimeMs();
+    const changed = Boolean(next) && (
+      !cfg
+      || next!.workstation_secret !== cfg.workstation_secret
+      || next!.workstation_id !== cfg.workstation_id
+      || next!.supabase_url !== cfg.supabase_url
+    );
+    if (changed) {
+      cfg = next;
+      reloads += 1;
+      log('info', 'relay.credential.reloaded', { reason, workstationId: cfg!.workstation_id, reloads });
+      setRelayHealth({ workstationId: cfg!.workstation_id, credentialReloads: reloads });
+    }
+    return changed;
+  };
 
   const loop = async () => {
     while (!stopped) {
+      // Pick up an enrolment / rotation that happened while we were running.
+      if (!cfg || configMtimeMs() !== mtime) reloadConfig(cfg ? 'mtime_changed' : 'awaiting_enrolment');
+      if (!cfg) {
+        setRelayHealth({ state: 'inactive' });
+        await sleep(POLL_INTERVAL_MS * 2);
+        continue;
+      }
+      const active = cfg;
       try {
-        const job = await pollOnce(cfg);
+        const job = await pollOnce(active);
+        setRelayHealth({
+          state: 'ok',
+          workstationId: active.workstation_id,
+          lastPollOkAt: new Date().toISOString(),
+          lastError: null,
+          consecutiveErrors: 0,
+        });
         if (!job) {
           await sleep(POLL_INTERVAL_MS);
           continue;
@@ -144,14 +211,30 @@ export function startRelay(handler: RelayHandler): () => void {
         } catch (err) {
           outcome = { success: false, error: err instanceof Error ? err.message : String(err) };
         }
-        await complete(cfg, job.id, outcome);
+        await complete(active, job.id, outcome);
         log('info', 'relay.job.completed', { jobId: job.id, success: outcome.success });
         // Immediately loop to drain any queued burst.
       } catch (err) {
-        log('warn', 'relay.poll.error', { error: err instanceof Error ? err.message : String(err) });
-        await sleep(POLL_ERROR_BACKOFF_MS);
+        const message = err instanceof Error ? err.message : String(err);
+        const auth = isAuthError(err);
+        log('warn', 'relay.poll.error', { error: message, auth });
+        setRelayHealth({
+          state: auth ? 'unauthorized' : 'error',
+          lastError: message,
+          consecutiveErrors: (auth ? 1 : 1),
+        });
+        if (auth) {
+          // Self-heal: the desktop app rewrites workstation.json on rotation,
+          // so re-read it and retry quickly rather than backing off for 15 s
+          // and never recovering until restart.
+          const changed = reloadConfig('auth_error');
+          await sleep(changed ? 250 : AUTH_ERROR_BACKOFF_MS);
+        } else {
+          await sleep(POLL_ERROR_BACKOFF_MS);
+        }
       }
     }
+    setRelayHealth({ state: 'inactive' });
   };
 
   void loop();

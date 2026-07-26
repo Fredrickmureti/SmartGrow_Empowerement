@@ -55,6 +55,12 @@ export interface DispatchResult<T = unknown> {
 
 const DEFAULT_DEADLINE_MS = 30_000;
 const POLL_INTERVAL_MS = 1_500;
+/**
+ * The agent polls every 1.5 s and stamps `workstations.last_seen_at` on each
+ * poll. If the newest stamp is older than this, the workstation is not
+ * listening and queueing a job would just burn the caller's deadline.
+ */
+const LIVENESS_WINDOW_MS = 20_000;
 
 export class RelayTransport {
   constructor(
@@ -62,10 +68,41 @@ export class RelayTransport {
     private readonly config: RelayConfig,
   ) {}
 
+  /**
+   * Fail fast when the target workstation is not polling. Without this the
+   * UI spins for the whole deadline on an offline/unauthorized agent and the
+   * job sits in `edge_jobs` forever.
+   */
+  private async _liveness(): Promise<{ alive: boolean; lastSeenAt: string | null }> {
+    const { data, error } = await this.supabase
+      .from('workstations')
+      .select('last_seen_at')
+      .eq('id', this.config.workstationId)
+      .maybeSingle();
+    if (error || !data) return { alive: false, lastSeenAt: null };
+    const lastSeenAt = (data as { last_seen_at: string | null }).last_seen_at;
+    if (!lastSeenAt) return { alive: false, lastSeenAt: null };
+    const age = Date.now() - new Date(lastSeenAt).getTime();
+    return { alive: age <= LIVENESS_WINDOW_MS, lastSeenAt };
+  }
+
   /** Enqueue a job and wait for the agent to complete it. */
   async dispatch<T = unknown>(args: DispatchArgs): Promise<DispatchResult<T>> {
     const deadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
     const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
+
+    const liveness = await this._liveness();
+    if (!liveness.alive) {
+      const seen = liveness.lastSeenAt
+        ? `last polled ${Math.round((Date.now() - new Date(liveness.lastSeenAt).getTime()) / 1000)}s ago`
+        : 'never polled';
+      return {
+        jobId: '',
+        status: 'error',
+        result: null,
+        error: `agent_offline: this workstation is not polling AccrualFlow (${seen}). Open the AccrualFlow Edge desktop app on that machine — if it is already running, re-issue its workstation secret from Identity so the relay can re-authorise.`,
+      };
+    }
 
     const insertRow = {
       organization_id: this.config.organizationId,
@@ -167,11 +204,18 @@ export class RelayTransport {
       }, POLL_INTERVAL_MS);
 
       const hardTimer = setTimeout(() => {
+        // Don't leave the row queued forever — an unclaimed job that nobody
+        // is waiting for is what filled `edge_jobs` with orphans before.
+        void this.supabase
+          .from('edge_jobs')
+          .update({ status: 'expired', error: 'relay_timeout: no agent response', updated_at: new Date().toISOString() })
+          .eq('id', jobId)
+          .in('status', ['queued', 'in_progress']);
         finish({
           jobId,
           status: 'error',
           result: null,
-          error: 'relay_timeout: agent did not respond before the deadline. Verify the AccrualFlow Edge desktop app is running on the target workstation.',
+          error: 'relay_timeout: the agent claimed no result before the deadline. Verify the AccrualFlow Edge desktop app is running and that the printer is reachable from that machine.',
         });
       }, deadlineMs + 2_000);
     });
