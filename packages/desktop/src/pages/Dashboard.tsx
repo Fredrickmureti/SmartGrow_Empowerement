@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { WorkstationRead, SupervisorStatus } from '../types';
+import type { WorkstationRead, SupervisorStatus, InstallerResult } from '../types';
 import { select } from '../lib/supabase';
 import { subscribeTable } from '../lib/realtime';
 import { CertificatePanel } from '../components/CertificatePanel';
@@ -29,6 +29,9 @@ export function Dashboard({ workstation }: Props) {
   const [supStatus, setSupStatus] = useState<SupervisorStatus | null>(null);
   const [supBusy, setSupBusy] = useState<string | null>(null);
   const [supMsg, setSupMsg] = useState<string | null>(null);
+  const [svc, setSvc] = useState<(InstallerResult & { installerAvailable?: boolean }) | null>(null);
+  const [agentMsg, setAgentMsg] = useState<string | null>(null);
+  const [agentBusy, setAgentBusy] = useState(false);
 
   const refresh = async () => {
     try {
@@ -51,6 +54,8 @@ export function Dashboard({ workstation }: Props) {
       } catch { setTls({ enabled: false }); }
       try { setSupStatus(await window.edge.supervisor.status()); }
       catch (e) { setSupStatus({ ok: false, error: e instanceof Error ? e.message : String(e) }); }
+      try { setSvc(await window.edge.supervisor.serviceStatus()); }
+      catch { setSvc(null); }
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -84,6 +89,16 @@ export function Dashboard({ workstation }: Props) {
       setSupMsg(r.ok ? `${op}: ok` : `${op} failed: ${r.error ?? ('stderr' in r ? r.stderr : 'unknown')}`);
       await refresh();
     } finally { setSupBusy(null); }
+  };
+
+  const startAgent = async () => {
+    setAgentBusy(true); setAgentMsg(null);
+    try {
+      const r = await window.edge.agent.start();
+      if (r.ok) setAgentMsg(r.external ? 'A runtime is already listening on this workstation.' : `Runtime started (pid ${r.pid ?? '—'}).`);
+      else setAgentMsg(`Start failed: ${r.error}${r.detail ? ` — ${r.detail}` : ''}. See the Logs tab for the runtime output.`);
+      await refresh();
+    } finally { setAgentBusy(false); }
   };
 
   return (
@@ -139,12 +154,13 @@ export function Dashboard({ workstation }: Props) {
         <h2>Agent runtime</h2>
         <p className="panel-sub">Start, stop, or restart the AccrualFlow Edge runtime on this device.</p>
         <div className="button-row">
-          <button className="btn" onClick={() => window.edge.agent.start().then(refresh)}>
-            {agentRunning ? 'Restart agent' : 'Start agent'}
+          <button className="btn" disabled={agentBusy} onClick={startAgent}>
+            {agentBusy ? 'Starting…' : agentRunning ? 'Restart agent' : 'Start agent'}
           </button>
           <button className="btn secondary" disabled={!agentRunning}
             onClick={() => window.edge.agent.stop().then(refresh)}>Stop agent</button>
         </div>
+        {agentMsg && <div className="muted mono" style={{ marginTop: 8, fontSize: 12 }}>{agentMsg}</div>}
       </div>
 
       <CertificatePanel onChanged={refresh} />
@@ -169,8 +185,21 @@ export function Dashboard({ workstation }: Props) {
             <div className="stat-value">
               {supStatus?.ok
                 ? <span className="pill ok"><span className="pill-dot" />online · pid {supStatus.pid}</span>
-                : <span className="pill warn"><span className="pill-dot" />{supStatus?.error ?? 'offline'}</span>}
+                : <span className="pill warn"><span className="pill-dot" />
+                    {svc && svc.installerAvailable === false
+                      ? 'service tooling not bundled'
+                      : svc && !svc.ok
+                        ? 'not installed'
+                        : supStatus?.error === 'supervisor_not_running'
+                          ? 'installed · not running'
+                          : supStatus?.error ?? 'offline'}
+                  </span>}
             </div>
+            {svc?.installerAvailable === false && (
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                This build was packaged without the Edge runtime. Repackage with the agent bundled as an extra resource.
+              </div>
+            )}
           </div>
           <div className="stat">
             <div className="stat-label">Uptime</div>
