@@ -151,3 +151,56 @@ Step 3 (redirect + delete): `Settings → Company → Printing` becomes a one-li
 Deferred to Phase 4 Step 3b / Phase 6:
 - Deleting `PrinterProfilesCard.tsx` / `WorkflowBindingsCard.tsx` — still gated on inventorying whether `DeviceWizard` covers 100% of the fields those cards expose (Step 1 inventory not yet exhaustive).
 - Removing the Printing tab trigger from CompanySettings — kept as redirect surface until Phase 6.
+
+## Progress log — 2026-07-26 (Phase 5 Prep + Step A — field-parity map & TransportRouter)
+
+**Phase 5 Prep (field-parity for Phase 6 green-light):**
+
+- `src/apps/platform/hardware/legacyPrinterProfileFieldMap.ts` (NEW): documentation-only map assigning every `printer_profiles` column a new home on the unified surfaces: `assignment.<field>`, `assignment.config.<key>`, `assignment.capabilities.<key>`, `policy.<field>`, `media_profile.<field>`, or explicit `LEGACY_DROPPED` with reason. Covers all 24 columns per generated types.
+- `src/test/architecture/legacy-printer-profile-field-parity.test.ts` (NEW): 2 guards —
+  1. Every column in `printer_profiles.Row` from `src/integrations/supabase/types.ts` MUST have a mapping entry. Future migrations that add a column trip this test.
+  2. The mapping file is documentation-only — importing it at runtime (outside the test) fails the guard, keeping the legacy shape out of the shipped bundle.
+
+**Phase 5 Step A (TransportRouter foundation):**
+
+- `src/services/hardware/transport/TransportRouter.ts` (NEW): pure `route(assignment, host)` decision. Inputs are `device_assignments.transport` (with legacy aliases `usb|serial|network → local_agent`) + a `HostCapabilities` snapshot (`isElectron`, `hasWebUSB`, `hasWebHID`). Returns `{ kind: "electron_native" | "local_agent" | "webusb" | "webhid" | "unavailable", requestedTransport, reason? }`. `sniffHost()` is the ONLY function in the module that reads runtime globals; `route()` is a pure function of its args. `routeWithRuntimeHost()` is the convenience combo callers use.
+- Decision matrix codified:
+  - `electron` → `electron_native` (Electron only) else `unavailable`.
+  - `cups|winspool` → `electron_native` only (OS spooler needs main-process access).
+  - `local_agent` → `local_agent` from either host.
+  - `webusb|webhid` → `electron_native` inside Electron; matching browser API in a capable browser; else `unavailable`.
+  - `enabled === false` → `unavailable` regardless of transport.
+- `src/test/architecture/transport-router-matrix.test.ts` (NEW): 8 tests pin the matrix (Electron, capable browser, minimal browser hosts × every transport + legacy aliases + disabled row + unknown value). All 8 green.
+
+**Verification this turn:**
+- `bunx vitest run transport-router-matrix legacy-printer-profile-field-parity print-policies-canonical-home` → 14/14 green.
+
+## Phase status (2026-07-26 · end of Phase 5 Step A)
+
+- [x] Phase 1, 2, 3 — complete.
+- [x] Phase 4 — UI consolidation (canonical home for print policies is `/platform/hardware/policies`; guard-locked).
+- [~] Phase 5 — Transport consolidation. **Step A complete** (pure TransportRouter + decision matrix). **Step B pending** (rewrite `HardwareClient` to consult `TransportRouter.route()` exactly once per call, collapsing the ~15 scattered `isElectronMode()` branches). **Step C pending** (delete the legacy `resolveTransport()` in `transport/index.ts` and `LocalAgentTransport` renderer shim once callers migrate).
+- [ ] Phase 6 — Legacy schema removal (green-lit by the field-parity map, but blocked on Phase 5 Step C).
+
+## Handoff — next agent (Phase 5 Step B)
+
+**Verify first (do not trust this log — check):**
+1. `bunx vitest run src/test/architecture/transport-router-matrix.test.ts src/test/architecture/legacy-printer-profile-field-parity.test.ts src/test/architecture/print-policies-canonical-home.test.ts src/test/architecture/generate-document-resolver.test.ts` → 21 tests green.
+2. `bunx tsgo --noEmit` → clean.
+3. `rg -n "isElectronMode|isElectron\(\)" src/services/hardware/` — confirm the audit surface is still exactly what the plan describes (14 `isElectronMode()` hits in `HardwareClient.ts` + `isElectron()` in `transport/index.ts` + `CustomerDisplayClient`). No new sites should have appeared.
+4. `rg -n "LEGACY_PRINTER_PROFILE_FIELD_MAP|legacyPrinterProfileFieldMap" src/` — hits limited to the mapping file itself and its arch test. If any runtime module imports it, the field-parity guard should already be failing.
+
+**Then open Phase 5 Step B:**
+
+Step B (HardwareClient rewrite — the invasive bit):
+1. Rewrite `HardwareClient.ts` so every code path that currently branches on `isElectronMode()` instead consults `TransportRouter.route(assignment, sniffHost())` on the resolved `device_assignments` row and switches on `decision.kind`. This requires threading the `assignment` object (not just a role string) into `HardwareClient.exec` — today `execAny(role, op, ...)` fires blind. Introduce a `hardwareClient.exec(assignment, op, payload)` overload that takes the resolved assignment and treat the legacy `execAny(role, …)` as a thin wrapper that first calls `resolveDeviceForIntent` internally.
+2. Update `useHardwareProxy.printReceipt` / `printKitchenOrder` and `printClient.print()` to pass the assignment they already resolved (they call `resolveDeviceForIntent` today and then discard the row).
+3. Add architectural guard `hardware-transport-single-router.test.ts` asserting that `isElectronMode` / `isElectron()` may be referenced only in: `src/lib/environment.ts`, `src/services/hardware/transport/TransportRouter.ts` (`sniffHost`), and the CustomerDisplay module (`local-display/*` — that surface has its own audit track and is out of scope for this consolidation). Any other hit fails the guard.
+4. Do NOT delete `LocalAgentTransport.ts` yet — Step C.
+
+Step C (post-B cleanup):
+- Delete the legacy `resolveTransport()` in `src/services/hardware/transport/index.ts` (superseded by TransportRouter).
+- Delete `LocalAgentTransport.ts` renderer shim only after `rg` confirms zero importers.
+- Retain `AgentClient.ts` (ADR-0037).
+
+**Do not** touch Phase 6 (DROP TABLE) until Step C removes the last renderer reader of the legacy transport shim. The field-parity map is the Phase 6 green-light checklist; use it when writing the drop migration to confirm every column already has a new home.
