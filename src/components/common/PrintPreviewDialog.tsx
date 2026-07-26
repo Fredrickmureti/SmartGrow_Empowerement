@@ -70,7 +70,14 @@ export function PrintPreviewDialog({
 }: PrintPreviewDialogProps) {
   const { toast } = useToast();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isPrinting, setIsPrinting] = useState(false);
+  // Wave B3 (Plan P1) — `pendingPrints` replaces the legacy `isPrinting`
+  // boolean. Each Print click enqueues a job on `printPdfInPage`'s FIFO
+  // queue (module-scoped in `pdfUtils.ts`) and increments this counter;
+  // the counter decrements when that specific job resolves. Rapid clicks
+  // no longer no-op — they queue behind the in-flight dialog and print
+  // in order, matching the label-path FIFO guarantees.
+  const [pendingPrints, setPendingPrints] = useState(0);
+  const isPrinting = pendingPrints > 0;
   const [isSavingPDF, setIsSavingPDF] = useState(false);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("__browser__");
   // Stage W6 (ADR-0008): destinations come from the unified device
