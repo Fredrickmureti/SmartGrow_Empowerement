@@ -126,6 +126,8 @@ function MappingsBody({
         required_account_type:
           m.kind === "employer_expense" ? "expense" :
           m.kind === "core" && m.setting_key === "salary_expense" ? "expense" :
+          m.kind === "loan_receivable" ? "asset" :
+          m.kind === "interest_income" ? "income" :
           "liability",
         is_mapped: false,
         suggested_account_id: m.suggested_account_id ?? null,
@@ -133,8 +135,19 @@ function MappingsBody({
       })) as PayrollGlReadinessRow[]
     : setupMissing;
 
+  // Loan-type-scoped rows live in Loan Types settings, not the generic GL
+  // Mapping surface. They're segregated so the generic "one-click setup" /
+  // "apply all suggested" flows never try to upsert them into
+  // default_account_settings (which would silently fail — those keys aren't
+  // in that table's vocabulary).
+  const isLoanRow = (r: PayrollGlReadinessRow) =>
+    r.kind === "loan_receivable" || r.kind === "interest_income" ||
+    r.setting_key.startsWith("loan_type:");
+  const loanRows = effectiveMissing.filter(isLoanRow);
+  const genericMissing = effectiveMissing.filter((r) => !isLoanRow(r));
+
   const effectiveSuggestedPairs = useEventList
-    ? effectiveMissing
+    ? genericMissing
         .filter((r) => !!r.suggested_account_id)
         .map((r) => ({ setting_key: r.setting_key, account_id: r.suggested_account_id! }))
     : setupSuggestedPairs;
