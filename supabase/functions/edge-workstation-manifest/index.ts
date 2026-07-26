@@ -62,14 +62,54 @@ async function authorizeWorkstation(req: Request) {
   const hash = await sha256Hex(secret);
   const { data, error } = await admin
     .from('workstations')
-    .select('id, organization_id, secret_hash')
+    .select('id, organization_id, secret_hash, secret_rotated_at')
     .eq('id', wsId)
     .maybeSingle();
   if (error) return { ok: false as const, status: 500, error: 'db_error' };
   if (!data) return { ok: false as const, status: 404, error: 'workstation_not_found' };
   if (data.secret_hash !== hash) return { ok: false as const, status: 401, error: 'invalid_secret' };
-  return { ok: true as const, workstationId: data.id, organizationId: data.organization_id };
+  return {
+    ok: true as const,
+    workstationId: data.id,
+    organizationId: data.organization_id,
+    secretRotatedAt: data.secret_rotated_at as string | null,
+  };
 }
+
+/**
+ * Phase 4.2.7b — loopback TLS identity reported by the agent.
+ *
+ * The fingerprint is what the browser pins before it will talk to
+ * `https://127.0.0.1:<tls_port>`, so it is only ever accepted from a
+ * request that already proved possession of the workstation secret
+ * (above). We validate the shape strictly: a 64-char lowercase hex
+ * SHA-256 and a port in the unprivileged range. Anything else is
+ * dropped rather than stored, so a malformed agent build can't poison
+ * the value the ERP pins against.
+ */
+interface IncomingTls {
+  tls_fingerprint_sha256: string | null;
+  tls_port: number | null;
+  tls_generated_at: string | null;
+}
+
+function validateTls(raw: unknown): IncomingTls | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const t = raw as Record<string, unknown>;
+  if (t.enabled === false) {
+    return { tls_fingerprint_sha256: null, tls_port: null, tls_generated_at: null };
+  }
+  const fp = typeof t.fingerprint_sha256 === 'string' ? t.fingerprint_sha256.toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(fp)) return null;
+  const port = typeof t.port === 'number' && Number.isInteger(t.port) && t.port > 1024 && t.port < 65536
+    ? t.port
+    : null;
+  const generatedAt = typeof t.generated_at === 'string' && !Number.isNaN(Date.parse(t.generated_at))
+    ? new Date(t.generated_at).toISOString()
+    : null;
+  return { tls_fingerprint_sha256: fp, tls_port: port, tls_generated_at: generatedAt };
+}
+
 
 const ALLOWED_ROLES = new Set([
   'receipt_printer', 'label_printer', 'scanner', 'drawer', 'scale', 'display',
