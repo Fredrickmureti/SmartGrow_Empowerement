@@ -343,7 +343,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/print`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, data }),
         });
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
@@ -368,7 +368,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/test`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ ipAddress, port, timeout: 5000 }),
         });
         const body = await this._readJson<AgentTestResponse & { error?: string }>(res);
@@ -401,7 +401,7 @@ class AgentClientImpl {
       try {
         const res = await fetch(`${this._baseUrl}/usb/print`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this._authHeaders() },
+          headers: this._mutatingHeaders(),
           body: JSON.stringify({ vendorId, productId, data }),
         });
         const body = await this._readJson<AgentPrintResponse & { error?: string }>(res);
