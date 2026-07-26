@@ -53,11 +53,10 @@ interface RelayJob {
 
 const POLL_INTERVAL_MS = 1_500;
 const POLL_ERROR_BACKOFF_MS = 15_000;
-const AGENT_VERSION = '1.2.0-edge.p2';
 
 export type RelayHandler = (job: RelayJob) => Promise<{ success: boolean; result?: unknown; error?: string }>;
 
-function loadConfig(): RelayConfig | null {
+export function loadConfig(): RelayConfig | null {
   const explicit = process.env.ACCRUALFLOW_EDGE_CONFIG;
   const path = explicit && explicit.length > 0
     ? explicit
