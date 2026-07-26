@@ -119,7 +119,7 @@ export function useHardwareProxy(
   options?: { disabled?: boolean; passive?: boolean },
 ) {
   const id = useRef(`useHardwareProxy-${Date.now()}-${Math.random()}`).current;
-  const { organization } = useOrganization();
+  const { currentOrg: organization } = useOrganization();
   const { currentBusiness } = useBusinesses();
 
   // Read directly from the canonical `device_assignments` table.

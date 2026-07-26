@@ -34,6 +34,18 @@ export interface ResolvedPolicy {
   paper_format: PaperFormat;
   render_mode: RenderMode;
   printer_profile_id: string | null;
+  /**
+   * Phase 3C — canonical device pin. When set, downstream generators
+   * dispatch to this `device_assignments.id` directly and skip the
+   * legacy `printer_profile_id → source_config_id` fan-out.
+   */
+  device_assignment_id: string | null;
+  /**
+   * Phase 3C — role-only routing hint. When neither `device_assignment_id`
+   * nor `printer_profile_id` is set, generators call `resolve_device`
+   * with the role derived from this intent (see `intentToRole.ts`).
+   */
+  intent: string | null;
   auto_print: boolean;
   source: "override" | "branch" | "business" | "default";
 }
@@ -48,8 +60,11 @@ const SYSTEM_DEFAULT: Omit<ResolvedPolicy, "source"> = {
   paper_format: "a4",
   render_mode: "pdf",
   printer_profile_id: null,
+  device_assignment_id: null,
+  intent: null,
   auto_print: false,
 };
+
 
 export async function resolvePrintPolicy(
   supabase: SupabaseClient,
@@ -68,6 +83,8 @@ export async function resolvePrintPolicy(
       paper_format: (override.paperFormat ?? SYSTEM_DEFAULT.paper_format) as PaperFormat,
       render_mode: (override.renderMode ?? SYSTEM_DEFAULT.render_mode) as RenderMode,
       printer_profile_id: override.printerProfileId ?? null,
+      device_assignment_id: null,
+      intent: null,
       auto_print: false,
       source: "override",
     };
@@ -80,7 +97,9 @@ export async function resolvePrintPolicy(
   try {
     const { data, error } = await supabase
       .from("document_print_policies")
-      .select("paper_format, render_mode, printer_profile_id, auto_print, branch_id")
+      .select(
+        "paper_format, render_mode, printer_profile_id, device_assignment_id, intent, auto_print, branch_id",
+      )
       .eq("business_id", businessId)
       .eq("document_type", documentType)
       .or(branchId ? `branch_id.eq.${branchId},branch_id.is.null` : "branch_id.is.null");
@@ -99,9 +118,12 @@ export async function resolvePrintPolicy(
       paper_format: (row.paper_format as PaperFormat) ?? SYSTEM_DEFAULT.paper_format,
       render_mode: (row.render_mode as RenderMode) ?? SYSTEM_DEFAULT.render_mode,
       printer_profile_id: row.printer_profile_id ?? null,
+      device_assignment_id: (row as { device_assignment_id?: string | null }).device_assignment_id ?? null,
+      intent: (row as { intent?: string | null }).intent ?? null,
       auto_print: !!row.auto_print,
       source: branchRow ? "branch" : "business",
     };
+
   } catch (_err) {
     return { ...SYSTEM_DEFAULT, source: "default" };
   }
