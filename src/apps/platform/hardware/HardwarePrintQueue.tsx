@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RefreshCw, Printer, AlertTriangle, CheckCircle2, Clock, PrinterOff } from "lucide-react";
+import { RefreshCw, Printer, AlertTriangle, CheckCircle2, Clock, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
@@ -49,7 +49,7 @@ const STATUS_OPTIONS = [
   { value: "sent", label: "Sent to printer" },
   { value: "acked", label: "Printed" },
   { value: "failed", label: "Failed" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "abandoned", label: "Abandoned" },
 ];
 
 function datePresetSince(preset: DatePreset): string | null {
@@ -109,13 +109,13 @@ export default function HardwarePrintQueue() {
         let q = supabase
           .from("print_jobs")
           .select(
-            "id,business_id,branch_id,doc_type,doc_id,intent,format,transport,status,correlation_id,parent_job_id,attempt_count,last_error,requested_at,sent_at,acked_at,failed_at,requested_by,printer_profile_id",
+            "id,business_id,branch_id,doc_type,doc_id,intent,format,transport,status,correlation_id,parent_job_id,attempt_count,last_error,requested_at,sent_at,acked_at,failed_at,requested_by,device_assignment_id",
             { count: "exact" },
           )
           .eq("business_id", businessId)
           .order("requested_at", { ascending: false });
-        if (statusFilter !== "all") q = q.eq("status", statusFilter);
-        if (printerFilter !== "all") q = q.eq("printer_profile_id", printerFilter);
+        if (statusFilter !== "all") q = q.eq("status", statusFilter as "queued" | "sent" | "acked" | "failed" | "abandoned");
+        if (printerFilter !== "all") q = q.eq("device_assignment_id", printerFilter);
         if (since) q = q.gte("requested_at", since);
         if (search.trim()) {
           const term = `%${search.trim()}%`;
@@ -125,7 +125,12 @@ export default function HardwarePrintQueue() {
         const to = from + pageSize - 1;
         const { data, error, count } = await q.range(from, to);
         if (error) throw error;
-        setRows((data ?? []) as PrintJobRow[]);
+        setRows(
+          ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+            ...r,
+            printer_profile_id: (r as { device_assignment_id: string | null }).device_assignment_id,
+          })) as unknown as PrintJobRow[],
+        );
         setTotalCount(count ?? null);
       } catch (e) {
         toast.error(`Failed to load print activity: ${(e as Error).message}`);
@@ -144,7 +149,7 @@ export default function HardwarePrintQueue() {
   useEffect(() => {
     if (!businessId) return;
     const since = datePresetSince(datePreset);
-    const statuses: Array<"acked" | "failed" | "queued" | "sent"> = ["acked", "failed", "queued", "sent"];
+    const statuses = ["acked", "failed", "queued", "sent"] as const;
     Promise.all(
       statuses.map(async (s) => {
         let q = supabase
@@ -264,7 +269,7 @@ export default function HardwarePrintQueue() {
         <Kpi icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />} label="Printed" value={kpi.printed} />
         <Kpi icon={<AlertTriangle className="h-4 w-4 text-destructive" />} label="Failed" value={kpi.failed} tone={kpi.failed > 0 ? "destructive" : undefined} />
         <Kpi icon={<Clock className="h-4 w-4 text-amber-600" />} label="Queued" value={kpi.queued} />
-        <Kpi icon={<PrinterOff className="h-4 w-4 text-muted-foreground" />} label="Sent, not yet acknowledged" value={kpi.sent} />
+        <Kpi icon={<Send className="h-4 w-4 text-muted-foreground" />} label="Sent, not yet acknowledged" value={kpi.sent} />
       </div>
 
       {/* Filter bar */}
