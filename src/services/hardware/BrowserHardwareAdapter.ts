@@ -194,9 +194,10 @@ class BrowserHardwareAdapterService {
       // Audit Wave 9d.3 — `label_printer` is now first-class on the browser
       // path as well. When the operator has not bound a dedicated label
       // printer we fall back to the receipt printer (most thermal label
-      // printers identify as ESC/POS receipt-class anyway). The PrintClient
-      // (P1) will surface a non-misleading "no label printer" affordance
-      // upstream of this fallback.
+      // printers identify as ESC/POS receipt-class anyway). The label
+      // dispatch layer (`services/printing/labelDispatch`) surfaces a
+      // non-misleading "no label printer" affordance upstream of this
+      // fallback; this adapter only executes what reaches it.
       case 'label_printer:print_raw':
       case 'label_printer:print_label':
       case 'label_printer:print_receipt': {
