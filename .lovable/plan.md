@@ -14,15 +14,20 @@ Everything the handoff notes claimed as landed was independently confirmed again
 | `dispatch-print-jobs-every-minute` cron active | `cron.job` query | ✅ active, `* * * * *` |
 | `@deprecated` + no-restricted-imports on `PrintClient` / `usePrintOrPreview`, grandfather allowlist in `eslint.config.js` | file inspection | ✅ present (lines 186–222) |
 
-**Genuine current state**
+**Genuine current state (updated 2026-07-27, end of turn)**
 
 - Waves 1–6 real and healthy; Wave 6 dispatcher cron already firing.
 - Wave 6.5 Pass 1 complete. Pass 2 (delete `app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`) still gated on publishing the TanStack build — respect that gate; do not delete pre-publish.
-- Wave 7.1 (golden) and 7.1.5 (materialization RPC + POS snapshot builder) genuinely landed.
-- **54 files still import `PrintClient` / `usePrintOrPreview`** (of which ~35 are production callers; the rest are the shims themselves, tests, and the eslint-guarded grandfather list). Wave 7.2 has not started.
-- Waves 8 and 9 untouched, as documented.
+- Wave 7.1 (golden) and 7.1.5 (materialization RPC + POS receipt snapshot builder) landed by the prior engineer.
+- **Wave 7.2 progress this turn**:
+  - `src/services/documents/snapshots/posKitchenTicket.ts` — new kitchen-ticket snapshot builder (5 unit tests green).
+  - `src/test/documents/snapshot-contract.test.ts` — new cross-builder contract test + meta-check that every file under `snapshots/` is covered (3 assertions green).
+  - `src/components/pos/restaurant/KitchenOrderTicket.tsx` rewritten off `printClient.printKitchenTicket` onto `ensureDocumentRecord` + `submitDocumentIntent`; removed from the `no-restricted-imports` grandfather allowlist in `eslint.config.js`.
+- **Remaining Wave 7.2 callers** (~33 files): POS terminal (`PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer`, `usePrinterStatus`), all sales pages (Invoices, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, SalesOrders, SalesReturns, CustomerPayments, CustomerStatements), purchases (Bills, PurchaseOrders, PurchaseReturns, VendorStatements + peek + record page, GRN wizard), HR (Recruitment, ContractsList, LifecycleTimeline, LegalRecipients), inventory labels (Products, useLabelPrint), cross-cutting hooks (`useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient`), hardware admin (`HardwareDevices`).
+- Waves 7.3 / 7.4 / 7.5 / 7.6 / 8 / 9 untouched.
 
-Resume point: **Wave 7.2**, starting with the POS terminal (protected by the 7.1 byte-parity golden).
+Resume point: continue **Wave 7.2** with the POS terminal (protected by the 7.1 byte-parity golden). PostPaymentSurface is the largest single call site — it also uses `printClient.renderReceiptPdfBlob`, which is a distinct chokepoint (PDF pipeline, not thermal). Fold the PDF path through `submitDocumentIntent` with `scenario='save_pdf'` OR keep it as a `document_artifacts` fetch — decide once in a follow-up ADR before the PostPaymentSurface rewrite; do not free-form it.
+
 
 ## Phase 2 — Plan additions
 
