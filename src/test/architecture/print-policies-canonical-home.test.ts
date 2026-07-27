@@ -66,7 +66,11 @@ describe("Print policies canonical home (Phase 6 Step C)", () => {
   });
 
   it("resolve_device_for_workflow RPC has no live callers", () => {
-    const files = grep("resolve_device_for_workflow").filter((f) => !f.includes("/test/"));
+    // types.ts is regenerated from Supabase and may briefly list a
+    // dropped RPC until the next codegen run.
+    const files = grep("resolve_device_for_workflow").filter(
+      (f) => !f.includes("/test/") && f !== "src/integrations/supabase/types.ts",
+    );
     expect(files, `Stale resolve_device_for_workflow caller(s): ${files.join(", ")}`)
       .toEqual([]);
   });
