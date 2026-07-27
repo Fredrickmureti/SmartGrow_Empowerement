@@ -53,7 +53,10 @@ interface Props {
   documentLabel: DisplayLabel;
   requesterLabel: DisplayLabel;
   printerLabel: DisplayLabel;
+  onRequeue?: (row: PrintJobRow) => void | Promise<void>;
+  requeueing?: boolean;
 }
+
 
 type PrintJobRow = PrintJobDrawerRow;
 
@@ -80,10 +83,15 @@ export function JobDetailDrawer({
   documentLabel,
   requesterLabel,
   printerLabel,
+  onRequeue,
+  requeueing,
 }: Props) {
   if (!row) return null;
   const terminalAt = row.acked_at ?? row.failed_at ?? row.sent_at;
   const err = row.last_error ? classifyError(row.last_error) : null;
+  const canRequeue =
+    !!onRequeue && ["failed", "dead_letter", "abandoned"].includes(row.status);
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -97,6 +105,22 @@ export function JobDetailDrawer({
             {docTypeLabel(row.doc_type)} · {intentLabel(row.intent)} · Requested {shortDateTime(row.requested_at)}
           </SheetDescription>
         </SheetHeader>
+
+        {canRequeue && (
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="default"
+              disabled={requeueing}
+              onClick={() => onRequeue?.(row)}
+            >
+              <RotateCcw className={`h-4 w-4 mr-1.5 ${requeueing ? "animate-spin" : ""}`} />
+              {requeueing ? "Requeueing…" : "Requeue job"}
+            </Button>
+          </div>
+        )}
+
+
 
         <div className="mt-4 space-y-4">
           <section>

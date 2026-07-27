@@ -46,11 +46,14 @@ type PageSize = (typeof PAGE_SIZES)[number];
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "queued", label: "Queued" },
+  { value: "processing", label: "Processing" },
   { value: "sent", label: "Sent to printer" },
   { value: "acked", label: "Printed" },
   { value: "failed", label: "Failed" },
+  { value: "dead_letter", label: "Dead-letter" },
   { value: "abandoned", label: "Abandoned" },
 ];
+
 
 function datePresetSince(preset: DatePreset): string | null {
   const now = Date.now();
