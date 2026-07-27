@@ -144,6 +144,9 @@ export function SidebarBody({
         className={cn(
           "flex items-center h-12 border-b border-border shrink-0",
           collapsed ? "justify-center px-1" : "gap-2 px-3",
+          // Reserve room on the right so the Sheet's absolute close (X) button
+          // doesn't sit on top of the app-switcher trigger.
+          !collapsed && showAppSwitcher && "pr-12",
         )}
       >
         {!collapsed && (
