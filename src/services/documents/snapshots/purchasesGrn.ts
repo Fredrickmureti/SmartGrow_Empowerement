@@ -157,10 +157,11 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
         vendor:contacts(name, email, phone, address_line1, city, state, postal_code)
       ),
       items:goods_receipt_items(
-        description, quantity_received, sku, pack_quantity, pack_size, unit_of_measure,
+        description, quantity_received, display_quantity, uom_snapshot,
         packaging:product_packaging(name, qty_in_base_uom),
         product:products(base_uom:units_of_measure!base_uom_id(code, name))
       )
+
       `,
     )
     .eq("id", grnId)
