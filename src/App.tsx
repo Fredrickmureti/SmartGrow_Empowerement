@@ -280,7 +280,7 @@ const App = () => (
                               <ConnectivityBanner />
                               {/* Phase 2 hardware platform: mirror device_assignments → Electron SQLite cache. No-op in browser. */}
                               <ElectronHydratorMount />
-                              {/* AccrualFlow Edge: hydrate browser runtime from workstation_devices and route HTTPS-origin jobs through Supabase. */}
+                              {/* AccrualFlow Edge: hydrate browser runtime from device_assignments (station-scoped rows) and route HTTPS-origin jobs through Supabase. */}
                               <EdgeRelayMount />
                               {/* Phase 3 hardware platform: feed active org/business into the exec-log writer. */}
                               <HardwareExecContextMount />
