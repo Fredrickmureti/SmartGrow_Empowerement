@@ -24,7 +24,7 @@ export const LINE_ITEM_UOM_SELECT = `
 export interface RawLineItemUom {
   quantity?: number | null;
   display_quantity?: number | null;
-  uom_snapshot?: { code?: string | null; name?: string | null } | null;
+  uom_snapshot?: string | { code?: string | null; name?: string | null } | null;
   packaging?: { name: string | null; qty_in_base_uom: number | null } | null;
   display_uom?: { code: string | null; name: string | null } | null;
   product?: {
@@ -47,6 +47,11 @@ export interface NormalizedLineItemUom {
  * builders (and the renderers downstream) expect. Pure and deterministic.
  */
 export function normalizeLineItemUom(row: RawLineItemUom): NormalizedLineItemUom {
+  const snapshotUom =
+    typeof row.uom_snapshot === "string"
+      ? row.uom_snapshot
+      : row.uom_snapshot?.code ?? row.uom_snapshot?.name ?? null;
+
   return {
     sku: row.product_sku_snapshot ?? row.product?.sku ?? null,
     pack_quantity: row.display_quantity == null ? null : Number(row.display_quantity),
@@ -57,7 +62,7 @@ export function normalizeLineItemUom(row: RawLineItemUom): NormalizedLineItemUom
     unit_of_measure:
       row.packaging?.name ??
       row.display_uom?.code ??
-      row.uom_snapshot?.code ??
+      snapshotUom ??
       row.product?.base_uom?.code ??
       null,
   };

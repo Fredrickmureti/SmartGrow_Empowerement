@@ -46,6 +46,14 @@ export interface SalesInvoiceItemRow {
   unit_of_measure?: string | null;
 }
 
+interface SalesInvoiceItemSourceRow extends Omit<SalesInvoiceItemRow, "sku" | "packaging" | "product"> {
+  product_id: string | null;
+  packaging_id: string | null;
+  display_uom_id: string | null;
+  display_quantity: number | null;
+  uom_snapshot: string | null;
+}
+
 export interface SalesInvoiceContactRow {
   name: string | null;
   email?: string | null;
@@ -183,6 +191,9 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
   supabase: SupabaseClient,
   invoiceId: string,
 ): Promise<BuildSalesInvoiceSnapshotResult> {
+  // Do not use nested PostgREST embeds here. This installation intentionally
+  // has no FK relationships on invoices/invoice_items, so schema-cache embeds
+  // such as `product:products(...)` fail with PGRST200 before routing begins.
   const { data, error } = await supabase
     .from("invoices")
     .select(
@@ -190,21 +201,11 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       id, invoice_number, status, issue_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
       currency, notes, terms,
-      organization_id, business_id, branch_id,
-      contact:contacts(name, email, phone, address_line1, city, state, postal_code),
-      business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
-      invoice_items(
-        description, quantity, unit_price, tax_rate, tax_amount,
-        discount_percent, line_total,
-        display_quantity, uom_snapshot,
-        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
-        display_uom:units_of_measure!display_uom_id(code, name),
-        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
-      )
+      organization_id, business_id, branch_id, contact_id
       `,
     )
     .eq("id", invoiceId)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     throw new Error(
@@ -213,5 +214,133 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       }`,
     );
   }
-  return buildSalesInvoiceSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "invoice_items") as unknown as SalesInvoiceHeaderRow);
+
+  const { data: itemData, error: itemError } = await supabase
+    .from("invoice_items")
+    .select(
+      `description, quantity, unit_price, tax_rate, tax_amount,
+       discount_percent, line_total, product_id, packaging_id,
+       display_uom_id, display_quantity, uom_snapshot, sort_order`,
+    )
+    .eq("invoice_id", invoiceId)
+    .order("sort_order", { ascending: true });
+
+  if (itemError) {
+    throw new Error(
+      `fetchAndBuildSalesInvoiceSnapshot: invoice ${invoiceId} items failed: ${itemError.message}`,
+    );
+  }
+
+  const items = (itemData ?? []) as unknown as SalesInvoiceItemSourceRow[];
+  const productIds = [...new Set(items.map((item) => item.product_id).filter((id): id is string => Boolean(id)))];
+  const packagingIds = [...new Set(items.map((item) => item.packaging_id).filter((id): id is string => Boolean(id)))];
+  const displayUomIds = [...new Set(items.map((item) => item.display_uom_id).filter((id): id is string => Boolean(id)))];
+
+  const invoice = data as unknown as Omit<SalesInvoiceHeaderRow, "contact" | "business" | "invoice_items"> & {
+    contact_id: string | null;
+  };
+
+  const [contactResult, businessResult, productsResult, packagingResult, displayUomsResult] =
+    await Promise.all([
+      invoice.contact_id
+        ? supabase
+            .from("contacts")
+            .select("name, email, phone, address_line1, city, state, postal_code")
+            .eq("id", invoice.contact_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      invoice.business_id
+        ? supabase
+            .from("businesses")
+            .select("id, name, legal_name, email, phone, address, logo_url, currency")
+            .eq("id", invoice.business_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      productIds.length
+        ? supabase.from("products").select("id, sku, base_uom_id").in("id", productIds)
+        : Promise.resolve({ data: [], error: null }),
+      packagingIds.length
+        ? supabase
+            .from("product_packaging")
+            .select("id, name, qty_in_base_uom")
+            .in("id", packagingIds)
+        : Promise.resolve({ data: [], error: null }),
+      displayUomIds.length
+        ? supabase.from("units_of_measure").select("id, code, name").in("id", displayUomIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+  const relatedError =
+    contactResult.error ??
+    businessResult.error ??
+    productsResult.error ??
+    packagingResult.error ??
+    displayUomsResult.error;
+  if (relatedError) {
+    throw new Error(
+      `fetchAndBuildSalesInvoiceSnapshot: invoice ${invoiceId} related data failed: ${relatedError.message}`,
+    );
+  }
+
+  const products = (productsResult.data ?? []) as Array<{
+    id: string;
+    sku: string | null;
+    base_uom_id: string | null;
+  }>;
+  const baseUomIds = [...new Set(products.map((product) => product.base_uom_id).filter((id): id is string => Boolean(id)))];
+  const { data: baseUomData, error: baseUomError } = baseUomIds.length
+    ? await supabase.from("units_of_measure").select("id, code, name").in("id", baseUomIds)
+    : { data: [], error: null };
+  if (baseUomError) {
+    throw new Error(
+      `fetchAndBuildSalesInvoiceSnapshot: invoice ${invoiceId} base units failed: ${baseUomError.message}`,
+    );
+  }
+
+  const byId = <T extends { id: string }>(rows: T[]) =>
+    new Map(rows.map((row) => [row.id, row]));
+  const productById = byId(products);
+  const packagingById = byId((packagingResult.data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    qty_in_base_uom: number | null;
+  }>);
+  const displayUomById = byId((displayUomsResult.data ?? []) as Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+  }>);
+  const baseUomById = byId((baseUomData ?? []) as Array<{
+    id: string;
+    code: string | null;
+    name: string | null;
+  }>);
+
+  const hydratedItems = items.map((item) => {
+    const product = item.product_id ? productById.get(item.product_id) : undefined;
+    return {
+      ...item,
+      packaging: item.packaging_id ? packagingById.get(item.packaging_id) ?? null : null,
+      display_uom: item.display_uom_id ? displayUomById.get(item.display_uom_id) ?? null : null,
+      product: product
+        ? {
+            sku: product.sku,
+            base_uom: product.base_uom_id
+              ? baseUomById.get(product.base_uom_id) ?? null
+              : null,
+          }
+        : null,
+    };
+  });
+
+  const hydrated = normalizeSnapshotItems(
+    {
+      ...invoice,
+      contact: contactResult.data,
+      business: businessResult.data,
+      invoice_items: hydratedItems,
+    },
+    "invoice_items",
+  );
+  return buildSalesInvoiceSnapshot(hydrated as unknown as SalesInvoiceHeaderRow);
 }
