@@ -1,0 +1,215 @@
+/**
+ * Wave 7.2 — Sales invoice snapshot builder.
+ *
+ * Converts a sales invoice (header + items + contact + business) into
+ * the JSON blob the shared rendering engine expects for
+ * `document_kinds.code = 'sales.invoice'`.
+ *
+ * The output shape mirrors `DocumentData` (defined in
+ * `supabase/functions/_shared/templateRenderer.ts`) so both the PDF
+ * (A4 default) and thermal renderers consume the same canonical fields
+ * — no per-medium template drift.
+ *
+ * Two entry points:
+ *  - {@link buildSalesInvoiceSnapshot} — pure, unit-testable, requires
+ *    fully-hydrated inputs.
+ *  - {@link fetchAndBuildSalesInvoiceSnapshot} — Supabase-driven helper
+ *    that mirrors the `fetchInvoice` fetcher in `generate-document`, so
+ *    call sites (Invoices.tsx et al) migrate in two lines.
+ *
+ * This is Path A of ADR resolution for Wave 7.2 fork (1): each page
+ * assembles its own snapshot rather than the RPC materializing
+ * server-side. Chosen because it keeps `ensure_document_record` a pure
+ * upsert and lets each module own its projection.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SnapshotBlob } from "./index";
+
+// ---------- Input shapes (mirror what fetchInvoice selects) ----------
+
+export interface SalesInvoiceItemRow {
+  description: string | null;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number | null;
+  tax_amount: number | null;
+  discount_percent: number | null;
+  line_total: number;
+  sku?: string | null;
+  packaging?: { name: string | null; qty_in_base_uom: number | null } | null;
+  product?: {
+    base_uom?: { code: string | null; name: string | null } | null;
+  } | null;
+  pack_quantity?: number | null;
+  pack_size?: number | null;
+  unit_of_measure?: string | null;
+}
+
+export interface SalesInvoiceContactRow {
+  name: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+}
+
+export interface SalesInvoiceBusinessRow {
+  id: string;
+  name: string | null;
+  legal_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  logo_url?: string | null;
+  currency?: string | null;
+}
+
+export interface SalesInvoiceHeaderRow {
+  id: string;
+  invoice_number: string;
+  status: string;
+  issue_date: string;
+  due_date: string | null;
+  subtotal: number;
+  tax_amount: number;
+  discount_amount: number | null;
+  total: number;
+  amount_paid: number | null;
+  currency: string | null;
+  notes: string | null;
+  terms: string | null;
+  organization_id: string;
+  business_id: string | null;
+  branch_id: string | null;
+  contact: SalesInvoiceContactRow | null;
+  business: SalesInvoiceBusinessRow | null;
+  invoice_items: SalesInvoiceItemRow[] | null;
+}
+
+export interface BuildSalesInvoiceSnapshotResult {
+  snapshot: SnapshotBlob;
+  documentNumber: string;
+  documentDate: string;
+  organizationId: string;
+  businessId: string | null;
+  branchId: string | null;
+  currency: string;
+  sourceDocId: string;
+}
+
+/**
+ * Deterministic: items are emitted in the order supplied and no wall-
+ * clock timestamps are introduced, so repeat calls produce byte-identical
+ * output. That's what keeps `ensure_document_record`'s upsert idempotent
+ * on retry / reprint.
+ */
+export function buildSalesInvoiceSnapshot(
+  invoice: SalesInvoiceHeaderRow,
+): BuildSalesInvoiceSnapshotResult {
+  if (!invoice.id) throw new Error("buildSalesInvoiceSnapshot: invoice.id required");
+  if (!invoice.invoice_number) {
+    throw new Error("buildSalesInvoiceSnapshot: invoice_number required");
+  }
+  if (!invoice.issue_date) {
+    throw new Error("buildSalesInvoiceSnapshot: issue_date required");
+  }
+
+  const items = (invoice.invoice_items ?? []).map((item) => ({
+    description: item.description,
+    quantity: Number(item.quantity ?? 0),
+    unit_price: Number(item.unit_price ?? 0),
+    tax_rate: item.tax_rate == null ? null : Number(item.tax_rate),
+    tax_amount: item.tax_amount == null ? null : Number(item.tax_amount),
+    discount_percent:
+      item.discount_percent == null ? null : Number(item.discount_percent),
+    line_total: Number(item.line_total ?? 0),
+    sku: item.sku ?? null,
+    pack_quantity: item.pack_quantity ?? null,
+    pack_size: item.pack_size ?? null,
+    unit_of_measure:
+      item.unit_of_measure ??
+      item.packaging?.name ??
+      item.product?.base_uom?.code ??
+      null,
+  }));
+
+  const currency = invoice.currency || "USD";
+
+  const snapshot: SnapshotBlob = {
+    document_type: "invoice",
+    document_type_label: "INVOICE",
+    document_number: invoice.invoice_number,
+    status: invoice.status,
+    issue_date: invoice.issue_date,
+    due_date: invoice.due_date,
+    subtotal: Number(invoice.subtotal ?? 0),
+    tax_amount: Number(invoice.tax_amount ?? 0),
+    discount_amount: Number(invoice.discount_amount ?? 0),
+    total: Number(invoice.total ?? 0),
+    amount_paid: Number(invoice.amount_paid ?? 0),
+    currency,
+    notes: invoice.notes ?? null,
+    terms: invoice.terms ?? null,
+    contact: invoice.contact,
+    business_id: invoice.business_id,
+    organization_id: invoice.organization_id,
+    branch_id: invoice.branch_id,
+    items,
+  };
+
+  return {
+    snapshot,
+    documentNumber: invoice.invoice_number,
+    documentDate: invoice.issue_date.slice(0, 10),
+    organizationId: invoice.organization_id,
+    businessId: invoice.business_id,
+    branchId: invoice.branch_id,
+    currency,
+    sourceDocId: invoice.id,
+  };
+}
+
+/**
+ * Loads the exact columns the pure builder needs and returns its
+ * result. Mirrors the projection in
+ * `supabase/functions/generate-document/index.ts::fetchInvoice` so the
+ * client-side snapshot lines up with the server-side historical fetcher
+ * (until the generate-document short-circuit is retired in Wave 9).
+ */
+export async function fetchAndBuildSalesInvoiceSnapshot(
+  supabase: SupabaseClient,
+  invoiceId: string,
+): Promise<BuildSalesInvoiceSnapshotResult> {
+  const { data, error } = await supabase
+    .from("invoices")
+    .select(
+      `
+      id, invoice_number, status, issue_date, due_date,
+      subtotal, tax_amount, discount_amount, total, amount_paid,
+      currency, notes, terms,
+      organization_id, business_id, branch_id,
+      contact:contacts(name, email, phone, address_line1, city, state, postal_code),
+      business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
+      invoice_items(
+        description, quantity, unit_price, tax_rate, tax_amount,
+        discount_percent, line_total, sku,
+        pack_quantity, pack_size, unit_of_measure,
+        packaging:product_packaging(name, qty_in_base_uom),
+        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+      )
+      `,
+    )
+    .eq("id", invoiceId)
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `fetchAndBuildSalesInvoiceSnapshot: invoice ${invoiceId} not found: ${
+        error?.message ?? "no row"
+      }`,
+    );
+  }
+  return buildSalesInvoiceSnapshot(data as unknown as SalesInvoiceHeaderRow);
+}
