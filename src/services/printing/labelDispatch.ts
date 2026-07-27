@@ -236,33 +236,13 @@ async function resolvePrinterMedia(
   return null;
 }
 
-async function resolvePrinter(orgId: string, workflow: PrinterWorkflow, branchId?: string | null, warehouseId?: string | null): Promise<ResolvedPrinter | null> {
-  // Phase 2b — canonical resolver returns a device_assignments.id.
-  const { data, error } = await supabase.rpc('resolve_device_for_workflow', {
-    p_org_id: orgId,
-    p_workflow: workflow,
-    p_branch_id: branchId ?? null,
-    p_warehouse_id: warehouseId ?? null,
-  });
-  if (error || !data || (Array.isArray(data) && data.length === 0)) return null;
-  const row = Array.isArray(data) ? data[0] : data;
-  return row as ResolvedPrinter;
-}
-
 export async function printLabelByTemplate(input: LabelDispatchInput): Promise<LabelDispatchResult> {
-  // Resolve the physical printer first so the template resolver can pick
-  // the media-specific variant when one exists.
-  let printer: ResolvedPrinter | null = null;
-  if (input.workflow) {
-    printer = await resolvePrinter(input.orgId, input.workflow, input.branchId, input.warehouseId);
-  }
-
-  // ADR-0087 — media resolution now runs even without a workflow-bound
-  // printer, so an org with a default media_profile always gets a valid
-  // envelope. The `printer` arg is optional; when null we skip straight
-  // to the org-default fallback chain.
-  let media: ResolvedMedia | null = await resolvePrinterMedia(
-    printer?.device_assignment_id ?? null,
+  // Phase 6 Step C — the physical printer is chosen inside execForIntent
+  // via document_print_policies + resolve_device. Media geometry is
+  // resolved org-scoped so an org with a default media_profile always
+  // gets a valid envelope.
+  const media: ResolvedMedia | null = await resolvePrinterMedia(
+    null,
     input.orgId,
     input.mediaProfileId ?? null,
   );
@@ -289,8 +269,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
         error:
           `Label template '${input.templateKey}' exists for this organization but could not be resolved for the requested scope ` +
           `(branch=${input.branchId ?? 'none'}, media=${media?.id ?? input.mediaProfileId ?? 'none'}). ` +
-          `Bind a label printer to workflow '${input.workflow ?? 'product_tag'}' in Platform → Hardware, ` +
-          `or pass mediaProfileId explicitly.`,
+          `Add a label-printer assignment in Platform → Hardware and, if needed, a print policy for '${input.templateKey}', or pass mediaProfileId explicitly.`,
       };
     }
     return {
@@ -352,15 +331,6 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
       return { success: false, error: `unsupported label engine '${tpl.engine}'` };
   }
 
-  // Printer scope hints stay in the payload; audit linkage (Track A) is now
-  // promoted to top-level fields so HardwareClient writes them to
-  // hardware_exec_log.source_doc_*.
-  if (printer) {
-    // Phase 6 — the payload carries the canonical `device_assignments.id`.
-    payload.deviceAssignmentId = printer.device_assignment_id;
-    payload.printerScope = printer.scope;
-  }
-
   // ADR-0087 — carry media geometry + dpi so the label driver emits the
   // paper envelope (`^PW`/`^LL` for ZPL, `q`/`Q` for EPL). Template body
   // owns content only.
@@ -377,52 +347,22 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
 
   const role = tpl.engine === 'pdf' ? 'a4_printer' : 'label_printer';
 
-  // Phase 5 Step B — dispatch through the assignment, never the bare role.
-  // The workflow binding already named a `device_assignments` row; load its
-  // transport so `TransportRouter` decides the IO path. Without a workflow
-  // binding we fall back to the intent resolver (`resolve_device`), which
-  // applies the same scope → business → default → last-seen tie-break.
-  let res: DriverResult;
-  if (printer) {
-    const { data: row } = await supabase
-      .from('device_assignments')
-      .select('id, role, transport, enabled')
-      .eq('id', printer.device_assignment_id)
-      .maybeSingle();
-    if (!row) {
-      return { success: false, error: `bound printer ${printer.device_assignment_id} no longer exists` };
-    }
-    res = await hardwareClient.execAssignment({
-      assignment: {
-        id: row.id,
-        role: row.role as never,
-        transport: row.transport,
-        enabled: row.enabled,
-      },
-      op: 'print_label',
-      payload,
-      idempotencyKey: idem,
-      sourceDocType: input.sourceDocType ?? null,
-      sourceDocId: input.sourceDocId ?? null,
-      businessEventId: input.businessEventId ?? null,
-    });
-  } else {
-    res = await execForIntent({
-      intentOrRole: role,
-      op: 'print_label',
-      payload,
-      organizationId: input.orgId,
-      idempotencyKey: idem,
-      sourceDocType: input.sourceDocType ?? null,
-      sourceDocId: input.sourceDocId ?? null,
-      businessEventId: input.businessEventId ?? null,
-    });
-  }
+  // Phase 6 Step C — single dispatch path: intent → role → assignment via
+  // `resolve_device`. Deterministic printing, no shadow branches.
+  const res: DriverResult = await execForIntent({
+    intentOrRole: role,
+    op: 'print_label',
+    payload,
+    organizationId: input.orgId,
+    idempotencyKey: idem,
+    sourceDocType: input.sourceDocType ?? null,
+    sourceDocId: input.sourceDocId ?? null,
+    businessEventId: input.businessEventId ?? null,
+  });
 
   return {
     ...res,
     templateResolved: { engine: tpl.engine, version: tpl.version, scope: tpl.scope },
-    printerResolved: printer ? { deviceAssignmentId: printer.device_assignment_id, scope: printer.scope } : undefined,
     mediaResolved: media ? { profileId: media.id, widthMm: media.widthMm, heightMm: media.heightMm, dpi: media.dpi } : undefined,
   };
 }
