@@ -13874,13 +13874,11 @@ export type Database = {
       }
       document_print_policies: {
         Row: {
-          auto_print: boolean
           branch_id: string | null
           business_id: string
           copies: number
           created_at: string
           created_by: string | null
-          device_assignment_id: string | null
           document_type: string
           id: string
           intent: string | null
@@ -13892,13 +13890,11 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          auto_print?: boolean
           branch_id?: string | null
           business_id: string
           copies?: number
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           document_type: string
           id?: string
           intent?: string | null
@@ -13910,13 +13906,11 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          auto_print?: boolean
           branch_id?: string | null
           business_id?: string
           copies?: number
           created_at?: string
           created_by?: string | null
-          device_assignment_id?: string | null
           document_type?: string
           id?: string
           intent?: string | null
@@ -13948,13 +13942,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "document_print_policies_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
           },
         ]
       }
@@ -48706,92 +48693,6 @@ export type Database = {
             columns: ["parent_job_id"]
             isOneToOne: false
             referencedRelation: "print_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      printer_role_branch_bindings: {
-        Row: {
-          branch_id: string
-          created_at: string
-          device_assignment_id: string
-          id: string
-          is_primary: boolean
-          organization_id: string
-          priority: number
-          role_id: string
-          updated_at: string
-        }
-        Insert: {
-          branch_id: string
-          created_at?: string
-          device_assignment_id: string
-          id?: string
-          is_primary?: boolean
-          organization_id: string
-          priority?: number
-          role_id: string
-          updated_at?: string
-        }
-        Update: {
-          branch_id?: string
-          created_at?: string
-          device_assignment_id?: string
-          id?: string
-          is_primary?: boolean
-          organization_id?: string
-          priority?: number
-          role_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "printer_role_branch_bindings_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_device_assignment_id_fkey"
-            columns: ["device_assignment_id"]
-            isOneToOne: false
-            referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "printer_role_branch_bindings_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "printer_roles"
             referencedColumns: ["id"]
           },
         ]
@@ -84203,22 +84104,6 @@ export type Database = {
         Returns: undefined
       }
       print_job_resend: { Args: { p_id: string }; Returns: string }
-      print_policies_resolve: {
-        Args: {
-          p_branch_id: string
-          p_business_id: string
-          p_document_type: string
-          p_intent?: string
-        }
-        Returns: {
-          ask_user: boolean
-          auto_print: boolean
-          copies: number
-          device_assignment_id: string
-          paper_format: string
-          render_mode: string
-        }[]
-      }
       process_leave_accruals: { Args: { p_org_id?: string }; Returns: Json }
       process_payroll_loan_deductions: {
         Args: {
@@ -85541,19 +85426,6 @@ export type Database = {
       resolve_fiscal_provider: {
         Args: { p_branch_id: string; p_org_id: string }
         Returns: string
-      }
-      resolve_hardware_assignment: {
-        Args: {
-          p_branch_id: string
-          p_organization_id: string
-          p_role_code: string
-        }
-        Returns: {
-          device_assignment_id: string
-          device_status: string
-          is_primary: boolean
-          priority: number
-        }[]
       }
       resolve_install_plan: {
         Args: { p_app_id: string; p_org_id: string }
