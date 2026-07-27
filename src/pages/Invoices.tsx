@@ -43,7 +43,10 @@ import {
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { printClient } from "@/services/printing/PrintClient";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
+import { supabase } from "@/integrations/supabase/client";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
