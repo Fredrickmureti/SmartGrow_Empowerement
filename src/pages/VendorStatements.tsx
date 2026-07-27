@@ -283,28 +283,16 @@ export default function VendorStatements() {
       if (!statementId) throw new Error("Could not determine statement ID for PDF generation");
 
       // Wave 7.2 — dispatch through the unified document engine so a manual
-      // "PDF" click cannot bypass archive / disposition rules.
-      const built = await fetchAndBuildVendorStatementSnapshot(supabase, statementId);
-      const documentRecordId = await ensureDocumentRecord({
-        kindCode: "purchases.statement",
-        organizationId: currentOrg?.id ?? built.organizationId,
-        sourceModule: "purchases",
-        sourceDocType: "vendor_statement",
-        sourceDocId: statementId,
-        businessId: built.businessId ?? currentBusiness?.id ?? null,
-        branchId: built.branchId ?? currentBranch?.id ?? null,
-        partyKind: "supplier",
-        partyId: built.vendorId,
-        currency: built.currency,
-        documentNumber: built.documentNumber,
-        documentDate: built.documentDate,
-        snapshot: built.snapshot,
+      // "PDF" click cannot bypass archive / disposition rules. Shared with
+      // the peek sheet and the record page: one implementation only.
+      const result = await dispatchVendorStatement({
+        statementId,
+        organizationId: currentOrg?.id ?? null,
+        businessId: currentBusiness?.id ?? null,
+        branchId: currentBranch?.id ?? null,
       });
-      const result = await submitDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast.success(`Statement dispatched to ${result.target_count} target(s).`);
+      toast.success(`Statement dispatched to ${result.targetCount} target(s).`);
+
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
