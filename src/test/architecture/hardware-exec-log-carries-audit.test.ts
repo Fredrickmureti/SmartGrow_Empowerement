@@ -68,10 +68,11 @@ describe("saga + label dispatch always pass audit linkage", () => {
     // Phase 5 Step B — labelDispatch no longer dispatches at a bare role.
     // Both paths (bound assignment, resolver fallback) must carry audit.
     expect(f).not.toMatch(/hardwareClient\.exec\(\{/);
-    const blocks = [
-      f.match(/hardwareClient\.execAssignment\(\{[\s\S]*?\n  \}\)/)?.[0] ?? "",
-      f.match(/execForIntent\(\{[\s\S]*?\n    \}\)/)?.[0] ?? "",
-    ];
+    const slice = (marker: string) => {
+      const i = f.indexOf(marker);
+      return i === -1 ? "" : f.slice(i, i + 700);
+    };
+    const blocks = [slice("hardwareClient.execAssignment({"), slice("execForIntent({")];
     for (const block of blocks) {
       expect(block.length, "dispatch block not found").toBeGreaterThan(0);
       expect(block).toMatch(/sourceDocType/);
