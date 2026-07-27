@@ -1,5 +1,12 @@
 # Hardware Platform Audit — Device Registration Consolidation
 
+> **Status: CLOSED — 2026-07-27.** Steps A, C, D, E landed. Step B was a
+> no-op in the end: `DeviceRegistryCard` already had browser-API
+> discovery and structured transport sub-forms with no free-form JSON, so
+> the wizard's only unique contribution was its (broken) hardcoded driver
+> map, which is now deleted. See ADR-0099 and the guard test
+> `src/test/architecture/hardware-registration-single-surface.test.ts`.
+
 ## 1. Findings (evidence-based)
 
 ### 1.1 Two UIs, one persistence layer
@@ -103,3 +110,21 @@ Add `docs/adr/00XX-hardware-single-registration-surface.md` recording: one regis
 
 ## 7. Execution order
 A (driver catalog + guard) → B (promote register flow) → C (delete wizard + route) → D (guards) → E (ADR). Each step ships independently; the reported bug is fixed at end of Step A.
+
+## 8. Closing verification
+- Step A ✅ `zpl_label` / `epl_label` / `escpos_label` registered in
+  `DriverRegistry`; `EscPosPrinterDriver.supportedRoles` no longer claims
+  `label_printer`. `getDriversForRole('label_printer')` returns the
+  three canonical drivers in every UI.
+- Step B ⏭ No-op — mature `DeviceRegistryCard` already covers discovery
+  + structured transport (verified: no `Textarea` / JSON parse in the
+  file).
+- Step C ✅ `DeviceWizard.tsx` deleted; `/platform/hardware/devices/new`
+  is a `<Navigate>` redirect; "Add Device" nav item removed; host-router
+  allow-list entry dropped.
+- Step D ✅ `hardware-registration-single-surface.test.ts` green
+  alongside `platform-hardware-has-editor`, `hardware-driver-duplication`,
+  `role-vocabulary`, `host-router-single-source`,
+  `print-policies-canonical-home`.
+- Step E ✅ ADR-0099 committed at
+  `docs/adr/0099-hardware-single-registration-surface.md`.
