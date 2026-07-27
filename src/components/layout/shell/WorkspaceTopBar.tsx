@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronRight, Menu, Search, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Menu, Search, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,6 +17,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { DeclaredScopeChip } from "@/components/common/DeclaredScopeChip";
 import { UserProfileSheet } from "@/components/profile/UserProfileSheet";
 import { ResourceCenterLauncher } from "@/features/resources/ResourceCenterLauncher";
+import { AppSwitcher } from "@/components/navigation/AppSwitcher";
 import { useAIAssistantContext } from "@/contexts/AIAssistantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
