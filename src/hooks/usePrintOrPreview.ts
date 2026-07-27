@@ -1,7 +1,13 @@
 /**
+ * @deprecated Wave 6.5 (2026-07-27). Will be removed in Wave 7. New
+ * callers must use `submitIntent` from `@/services/documents/submitIntent`;
+ * do not add new imports of this hook (enforced by `no-restricted-imports`).
+ *
  * usePrintOrPreview — the single UI-level entry point for "print a
  * business document".
  *
+ * Behaviour:
+
  * Behaviour:
  *   1. Call `printClient.print({ intent: 'a4_document', ... })` with the
  *      current business/branch. `PrintClient` consults the policy resolver.

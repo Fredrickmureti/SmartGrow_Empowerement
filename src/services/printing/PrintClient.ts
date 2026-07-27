@@ -1,19 +1,22 @@
 /**
- * PrintClient — single chokepoint facade for every print path.
+ * @deprecated Wave 6.5 (2026-07-27). PrintClient is a legacy chokepoint
+ * that will be removed in Wave 7 (POS Receipt Convergence). New code MUST
+ * go through `submitIntent` in `src/services/documents/submitIntent.ts`,
+ * which resolves `output_intents`, materialises `document_artifacts`,
+ * enqueues `print_jobs`, and lets `dispatch-print-jobs` drive hardware.
  *
- * Audit Wave 9d.6 (P1). Owns:
+ * Legacy purpose (kept only until Wave 7 rewrites its callers):
  *   - PDF rendering via the server-side `generate-document` edge function
  *   - ESC/POS rendering via the same edge function (`format=escpos`)
  *   - ZPL label rendering via the server-side renderer (Wave 9d.7)
  *   - Transport selection (Electron main-process pdfBytes pipe vs. browser
  *     iframe vs. hardwareClient.printRawBytes for thermal bytes)
  *
- * Every consumer that prints — POS, Inventory, HR, Sales, Purchases,
- * Finance — MUST go through this client. Direct calls to
- * `pos.print.pdfBytes` or `hardwareClient.printRawBytes` are still allowed
- * inside this file and inside `pdfUtils`, but nowhere else (enforced by
- * `tests/guards/single-print-chokepoint.test.ts`).
+ * Every remaining consumer is tracked in
+ * `docs/audit/2026-wave6.5-legacy-inventory.md`. Do NOT add new imports —
+ * enforced by the `no-restricted-imports` ESLint rule.
  */
+
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import {
   generateDocumentPdf,

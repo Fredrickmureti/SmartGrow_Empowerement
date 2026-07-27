@@ -516,23 +516,9 @@ export function useReturnDiagnostics(runId: string | null | undefined) {
   });
 }
 
-export function useOverrideReturnDiagnostic() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: { diagnostic_id: string; run_id: string; reason: string }) => {
-      const { data, error } = await supabase.functions.invoke("override-return-diagnostic", {
-        body: { diagnostic_id: input.diagnostic_id, reason: input.reason },
-      });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
-      return data;
-    },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["payroll", "return-diagnostics", vars.run_id] });
-      qc.invalidateQueries({ queryKey: ["payroll", "return-runs"] });
-    },
-  });
-}
+// useOverrideReturnDiagnostic and its `override-return-diagnostic` edge
+// function were removed in Wave 6.5 (2026-07-27). No live UI consumer.
+// Historical diagnostics remain queryable via useReturnDiagnostics above.
 
 /**
  * Dispatch a generated return to the statutory authority via the metadata

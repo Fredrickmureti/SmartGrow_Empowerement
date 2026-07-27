@@ -179,6 +179,12 @@ export default tseslint.config(
             { name: "@/components/navigation/AppModuleTabs", message: "Horizontal module tabs are no longer the primary nav. Use per-workspace nav.ts groups." },
             { name: "@/components/navigation/ReportsSubNav", message: "Reports live under each workspace's nav.ts plus the cross-domain Reports workspace." },
             { name: "@/components/navigation/NavigationModeToggle", message: "Navigation mode is unified; the toggle is deprecated." },
+            // Wave 6.5 deprecations (Document / Print / Hardware pipeline).
+            // Removal lands in Wave 7 (POS Receipt Convergence). New callers
+            // must go through @/services/documents/submitIntent — see
+            // docs/audit/2026-wave6.5-legacy-inventory.md.
+            { name: "@/services/printing/PrintClient", message: "Deprecated (Wave 6.5). Use submitIntent from @/services/documents/submitIntent." },
+            { name: "@/hooks/usePrintOrPreview", message: "Deprecated (Wave 6.5). Use submitIntent from @/services/documents/submitIntent." },
           ],
           patterns: [
             { group: ["@/components/navigation"], message: "Import shell pieces from @/design-system (PlatformShell, primitives) instead of the legacy navigation barrel." },
@@ -188,6 +194,7 @@ export default tseslint.config(
     },
   },
 
+
   // Legacy-shell allowlist: the modules below have not yet been migrated to
   // PlatformShell. They keep importing the deprecated nav components until
   // their workspace is migrated workspace-by-workspace. Remove entries here
@@ -196,11 +203,28 @@ export default tseslint.config(
     files: [
       "src/apps/reports/ReportsLayout.tsx",
       "src/components/navigation/**/*.{ts,tsx}",
+      // Wave 6.5 ratchet — existing importers of the deprecated print
+      // shims. Do NOT extend; each entry must disappear when Wave 7
+      // migrates its caller to `submitIntent`.
+      "src/pages/**/*.{ts,tsx}",
+      "src/features/purchases/**/*.{ts,tsx}",
+      "src/apps/pos/**/*.{ts,tsx}",
+      "src/apps/platform/hardware/**/*.{ts,tsx}",
+      "src/components/events/BusinessSagaMount.tsx",
+      "src/components/common/PrintPreviewDialog.tsx",
+      "src/components/pos/restaurant/KitchenOrderTicket.tsx",
+      "src/hooks/pos/**/*.{ts,tsx}",
+      "src/hooks/usePrintOrPreview.ts",
+      "src/hooks/useDeviceForIntent.ts",
+      "src/hooks/inventory/useLabelPrint.ts",
+      "src/services/printing/reprintClient.ts",
+      "src/test/**/*.{ts,tsx}",
     ],
     rules: {
       "no-restricted-imports": "off",
     },
   },
+
   // Localization-pack engine guard: payroll/statutory engines must not
   // branch on hard-coded rule_code literals (PAYE/NSSF/SHIF/AHL/NHIF/VAT…).
   // Use validated rule.parameters / computation_method dispatch instead.
