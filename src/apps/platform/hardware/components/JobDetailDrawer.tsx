@@ -10,8 +10,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Copy } from "lucide-react";
+import { Copy, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+
 import {
   docTypeLabel,
   intentLabel,
