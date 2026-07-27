@@ -84,8 +84,8 @@ export function PrintPreviewDialog({
   const [isSavingPDF, setIsSavingPDF] = useState(false);
   const [selectedPrinter, setSelectedPrinter] = useState<string>("__browser__");
   // Stage W6 (ADR-0008): destinations come from the unified device
-  // registry (HardwareProxy), not the legacy `printService.getPrinters`
-  // path. Browser remains the always-available fallback.
+  // registry (HardwareProxy), not the deleted PrintService singleton's
+  // printer-enumeration path. Browser remains the always-available fallback.
   //
   // We bind the proxy to whatever POS register the user currently has
   // open as a till. That way the Sales / Purchases print preview sees

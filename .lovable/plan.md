@@ -62,6 +62,17 @@ _Progress (2026-07-27):_ `PrintIntent` moved out of `PrintClient` into the neutr
 
 _Scope correction:_ `usePOSCashDrawer` was listed here on the assumption it issues a raw drawer-kick op. It does not — it dispatches a **`drawer_slip` document** via `printClient.print(...)`. That is a document-dispatch call, so it belongs with **G** (it needs the drawer-slip ESC/POS renderer ported into the shared engine before it can move). Same for `usePrintWithFallback` inside `usePrinterStatus`, whose two `printClient.print` calls are document dispatch, not hardware status. What genuinely remains in F is the status/device-resolution half.
 
+_Progress (2026-07-27, cont.):_ **`usePrinterStatus` split and relocated.** The one file held two concerns: printer reachability (hardware) and document dispatch with fallback (printing) — and sat under `hooks/pos/`, so a platform hardware hook was POS-scoped and imported `printClient`. Now:
+
+- `hooks/hardware/usePrinterStatus.ts` — reachability only, `hardwareClient` only, no printing imports. Exports `printerStatusSnapshot()` for non-React callers.
+- `hooks/printing/usePrintWithFallback.ts` — dispatch, consulting `printerStatusSnapshot()`. Dependency points one way: printing may ask hardware, never the reverse.
+- `hooks/pos/usePrinterStatus.ts` deleted; `hooks/pos/index.ts` re-exports both from their owners for existing call sites.
+- `hardware-not-pos-scoped.test.ts` extended to forbid the POS path returning; new `printer-status-dispatch-split.test.ts` locks the one-way dependency.
+
+Also fixed a pre-existing red guard: a comment in `PrintPreviewDialog.tsx` naming `printService.getPrinters` tripped the `no-printservice-shim` regex. Reworded; that guard is green again.
+
+What remains in F: `HardwareDevices` and `BrowserHardwareAdapter`.
+
 
 **G. POS terminal** — `PostPaymentSurface`, `HistoryWorkspace`, `lib/pos/receipt/renderers`. Requires porting the drawer-slip ESC/POS renderer into the shared engine; guarded by thermal + kitchen golden files.
 
