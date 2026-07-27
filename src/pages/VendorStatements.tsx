@@ -637,7 +637,7 @@ export default function VendorStatements() {
                               <Download className="mr-2 h-4 w-4" />Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              const res = await printClient.downloadExport({
+                              const res = await downloadExport({
                                 documentType: "vendor_statement",
                                 documentId: statement.id,
                                 format: "csv",
