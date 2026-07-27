@@ -103,3 +103,27 @@ Exit: `edge-fn-inventory.test.ts` reflects the smaller surface, `.lovable/plan.m
 - Edge-fn count as of this plan: `ls supabase/functions | wc -l` → 100. Guard ceiling in `edge-fn-inventory.test.ts` → 87.
 - Deletion of edge fns must go through the `supabase--delete_edge_functions` tool (removing the folder alone leaves the deployed function live and the guard still failing).
 - When repointing legacy `generate-*` callers onto `submitIntent`, confirm each source has a matching `document_kinds` row and a `default_template_id`; add migrations for any gaps before deleting the fn.
+- Edge-fn count as of Wave 7.1.5: `ls supabase/functions | wc -l` → **96**. Ceiling in `edge-fn-inventory.test.ts` → 96 (monotonic-decrease).
+- `document_records` now has renderer-aligned columns `document_number`, `document_date`, `snapshot`. Any new snapshot builder must produce a JSON blob whose top-level keys match the fixture in `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts` (for thermal receipts) or the equivalent locked fixture for its media class.
+
+## Handoff — instructions for the next agent
+
+Before writing code, **verify the previous engineer's work (this turn's work) matches enterprise standards**:
+
+1. **DB verification** — run:
+   - `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='document_records';` — must include `document_number`, `document_date`, `snapshot`.
+   - `SELECT pg_get_functiondef(oid) FROM pg_proc WHERE proname='ensure_document_record';` — must be the 15-arg SECURITY DEFINER variant with `_assert_org_member`. The 12-arg overload must be gone.
+   - `SELECT indexname FROM pg_indexes WHERE tablename='document_records';` — must include `document_records_source_unique_idx`.
+2. **Test verification** — `bunx vitest run src/test/documents/pos-receipt-snapshot.test.ts` must be 4/4 green. `deno test supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts` (via `supabase--test_edge_functions`) must stay green.
+3. **Shim verification** — `src/services/documents/ensureDocumentRecord.ts` exists and is the only new client entry point; no code path bypasses it by inserting directly into `document_records`.
+4. **Docs** — `docs/audit/2026-wave6.5-legacy-inventory.md` §Wave 7.1.5 accurately reflects the shipped surface.
+
+**If verification passes**, resume from **Wave 7.2**:
+
+1. Land `pos.kitchen_ticket` snapshot builder (`src/services/documents/snapshots/posKitchenTicket.ts`) + unit test.
+2. Rewrite the POS terminal's post-payment surface (`src/pages/pos/POSTerminal.tsx`, `src/pages/pos/PostPaymentSurface.tsx`, `KitchenOrderTicket.tsx`) off `PrintClient` onto `ensureDocumentRecord` + `submitDocumentIntent`. Byte-parity must hold — run the Wave 7.1 golden after each edit.
+3. Remove those files from the `no-restricted-imports` allow-list in `eslint.config.js`.
+4. Move to `sales.invoice` next (highest caller count in the audit doc), then `purchases.bill`, then the remaining sales pages.
+
+Do **not** jump to Wave 8 or 9 before Wave 7.2 drives the allow-list to zero and Wave 7.3 deletes `PrintClient`. Each wave must reach production-ready state before the next begins.
+
