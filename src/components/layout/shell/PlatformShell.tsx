@@ -14,7 +14,7 @@
  */
 import { ReactNode, useMemo, useState } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import { Lock, LayoutGrid, Home } from "lucide-react";
+import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AppLayoutProvider } from "@/contexts/AppLayoutContext";
