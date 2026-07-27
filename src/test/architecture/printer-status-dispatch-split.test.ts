@@ -55,6 +55,9 @@ describe("printer status / print dispatch separation", () => {
   });
 
   it("the status hook does not re-export the dispatch hook", () => {
-    expect(read(STATUS)).not.toMatch(/usePrintWithFallback/);
+    // Prose references are fine; a re-export would re-merge the concerns.
+    const body = read(STATUS);
+    expect(body).not.toMatch(/export\s*\{[^}]*usePrintWithFallback/);
+    expect(body).not.toMatch(/export\s+function\s+usePrintWithFallback/);
   });
 });
