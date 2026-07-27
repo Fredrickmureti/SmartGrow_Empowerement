@@ -490,16 +490,8 @@ export default function CustomerPayments() {
           onComplete={handleImportComplete}
         />
 
-        {/* Receipt Preview via unified document engine */}
-        <PrintPreviewDialog
-          open={printPreviewOpen}
-          onOpenChange={setPrintPreviewOpen}
-          title={printPreviewTitle}
-          documentType={printDocumentType}
-          documentId={printDocumentId}
-          filename={printPreviewTitle.replace(/\s+/g, "_")}
-          communication={printCommunication}
-        />
+        {/* Receipt preview/print/download all flow through the unified
+            document engine via handleDispatchReceipt — no local dialog. */}
 
         {/* Stats */}
         <div className="stats-grid grid-cols-1 sm:grid-cols-4">
@@ -659,12 +651,9 @@ export default function CustomerPayments() {
                 isLoading={isLoading}
                 bulkSelection={bulkSelection}
                 onViewDetail={(payment) => { setSelectedPayment(payment); setPeekId(payment.id); }}
-                onViewReceipt={handleViewReceipt}
-                onDownloadReceipt={handleDownloadReceipt}
-                onPrintReceipt={(payment) => {
-                  const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
-                  printOrPreview({ documentType: "receipt", documentId: payment.id, title: `Receipt ${receiptNum}` });
-                }}
+                onViewReceipt={handleDispatchReceipt}
+                onDownloadReceipt={handleDispatchReceipt}
+                onPrintReceipt={handleDispatchReceipt}
                 onEmailReceipt={(payment) => {
                   const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
                   const contact = payment.contact as { name: string; email?: string } | null;
