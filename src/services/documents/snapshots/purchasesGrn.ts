@@ -158,8 +158,10 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
       ),
       items:goods_receipt_items(
         description, quantity_received, display_quantity, uom_snapshot,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
 
       `,

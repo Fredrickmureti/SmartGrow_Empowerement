@@ -263,10 +263,11 @@ export async function fetchAndBuildSalesDeliveryNoteSnapshot(
       carrier:carriers(name, tracking_url_template),
       backorder_of:delivery_notes!backorder_of_dn_id(delivery_number),
       items:delivery_note_items(
-        description, quantity_ordered, quantity_delivered, sku,
-        pack_quantity, pack_size, unit_of_measure,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        description, quantity_ordered, quantity_delivered,
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
     )
