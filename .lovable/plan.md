@@ -55,14 +55,23 @@ Close the CreditNotes preview leg exactly as the prior plan specified (Sales ste
 - Eslint allowlist unchanged: `src/pages/**/*.{ts,tsx}` still shields Bills, PurchaseOrders, PurchaseReturns, VendorStatements, POSReports, HR pages. Glob does not empty until every remaining `src/pages/**` importer of `usePrintOrPreview` migrates (Purchases + HR + POS clusters below).
 - Verification: `src/test/documents` — 90/90 green (12 files); grep clean (`rg 'usePrintOrPreview|PrintPreviewDialog|generateDocument|printPreviewOpen' src/pages/CreditNotes.tsx` returns nothing); tsgo on the touched file returned no errors under `tsconfig.app.json`.
 
-Remaining `usePrintOrPreview` importers (12 files, in execution order):
-- Purchases: `src/pages/Bills.tsx`, `src/pages/PurchaseOrders.tsx`, `src/pages/PurchaseReturns.tsx`, `src/pages/VendorStatements.tsx`, `src/features/purchases/statements/VendorStatementPeekSheet.tsx`, `src/features/purchases/statements/VendorStatementRecordPage.tsx`, `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx`.
+Remaining `usePrintOrPreview` importers (11 files, in execution order):
+- Purchases: `src/pages/PurchaseOrders.tsx`, `src/pages/PurchaseReturns.tsx`, `src/pages/VendorStatements.tsx`, `src/features/purchases/statements/VendorStatementPeekSheet.tsx`, `src/features/purchases/statements/VendorStatementRecordPage.tsx`, `src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx`.
 - HR: `src/pages/hr/Recruitment.tsx`, `src/pages/hr/contracts/ContractsListPage.tsx`, `src/pages/hr/lifecycle/LifecycleTimelinePage.tsx`.
 - POS: `src/pages/pos/POSReports.tsx`.
 
+### Bills landing note (2026-07-27)
+
+- Snapshot builder added at `src/services/documents/snapshots/purchasesBill.ts` (pure `buildPurchasesBillSnapshot` + `fetchAndBuildPurchasesBillSnapshot`) mirroring `generate-document::fetchBill` field-for-field. Emits `document_type: "bill"`, `document_type_label: "VENDOR BILL"`.
+- Unit tests added at `src/test/documents/purchases-bill-snapshot.test.ts` (8 tests: identity guards, projection parity, UoM resolution, string→number coercion, currency default, determinism). `SUITE` entry added to `snapshot-contract.test.ts` (12 → 13 builders under contract).
+- `src/pages/Bills.tsx`: removed `usePrintOrPreview` + `PrintPreviewDialog` imports and destructuring, deleted the mounted `<PrintPreviewDialog>`, added `useBranches`, and rewrote `handlePrintBill` through `fetchAndBuildPurchasesBillSnapshot → ensureDocumentRecord({ kindCode: 'purchases.bill', partyKind: 'supplier' }) → submitDocumentIntent({ triggeredSource: 'manual' })`. `document_kinds.code = 'purchases.bill'` already exists — no migration needed. Email leg still routes through `SendDocumentDialog` (out of scope). Only leg the page ever exposed for print was the row-action print button; no preview/download buttons existed to migrate.
+- Note: `contact.party_kind` enum is `customer|employee|supplier` (not `vendor`); `partyKind: 'supplier'` is the correct value for vendor bills and matches how contacts of type `supplier` are stored.
+- Verification: `src/test/documents` — 99/99 green (13 files); grep clean (`rg 'usePrintOrPreview|PrintPreviewDialog|generateDocument|printPreviewOpen|isGeneratingPdf' src/pages/Bills.tsx` returns nothing); tsgo clean on `Bills.tsx` under `tsconfig.app.json`.
+- Eslint allowlist unchanged: `src/pages/**/*.{ts,tsx}` still shields PurchaseOrders, PurchaseReturns, VendorStatements, POSReports, HR pages.
+
 ### Instructions for the next agent
 
-1. **Verify before continuing.** Run `bunx vitest run src/test/documents` (expect 90+ green) and `rg -l "usePrintOrPreview" src/pages src/features` (expect the 12-file list above, minus whatever you migrate). If either drifts, fix before starting new work.
-2. **Resume at Purchases step 1 — `Bills`.** Build `src/services/documents/snapshots/purchasesBill.ts` (pure `buildBillSnapshot(row)` + `fetchAndBuildBillSnapshot(supabase, id)` returning `{ document_number, document_date, snapshot }`), cross-check field shapes against the edge-function renderer in `supabase/functions/generate-document` (bill/vendor renderer), add `src/test/documents/purchases-bill-snapshot.test.ts` with identity guards + totals + currency + vendor block cases, add the `SUITE` entry in `snapshot-contract.test.ts` (goes 12 → 13), then rewrite every leg in `src/pages/Bills.tsx` — print, preview, download, email — to dispatch through `ensureDocumentRecord({ kindCode: 'purchases.bill' }) → submitDocumentIntent`. Confirm `purchases.bill` exists in `document_kinds` before wiring (query `supabase--read_query`); if missing, add it via migration in the same change with GRANT+RLS parity with the existing rows.
+1. **Verify before continuing.** Run `bunx vitest run src/test/documents` (expect 99+ green) and `rg -l "usePrintOrPreview" src/pages src/features` (expect the 11-file list above, minus whatever you migrate). If either drifts, fix before starting new work.
+2. **Resume at Purchases step 2 — `PurchaseOrders`.** Build `src/services/documents/snapshots/purchasesPo.ts` (mirror `generate-document::fetchPurchaseOrder`; kindCode `purchases.po`), add unit tests + `SUITE` entry (13 → 14), then rewrite every leg in `src/pages/PurchaseOrders.tsx` through `ensureDocumentRecord → submitDocumentIntent`. `partyKind` is `'supplier'`.
 3. **Do not skip the contract test entry.** The `SUITE` entry is what enforces the builder shape across the fleet — a builder without it is not "under contract".
-4. Update this plan file with a dated landing note per page, matching the CreditNotes template above.
+4. Update this plan file with a dated landing note per page, matching the CreditNotes and Bills templates above.

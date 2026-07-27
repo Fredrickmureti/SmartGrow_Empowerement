@@ -18,9 +18,11 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
 
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBranches } from "@/hooks/useBranches";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DynamicViewsRenderer } from "@/components/common/DynamicViewsRenderer";
 import { CustomFieldFilters } from "@/components/common/CustomFieldFilters";
@@ -191,6 +193,7 @@ export default function Bills() {
   const { exportBills } = useExport();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   const { canManagePurchases, canManageFinancials } = usePermissions();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
 
@@ -198,17 +201,8 @@ export default function Bills() {
   const userRole = currentOrg?.role;
   const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
 
-  // Print & Email support
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
+  // Print & Email support — routed through the Wave 7.2 canonical
+  // pipeline (snapshot → ensureDocumentRecord → submitDocumentIntent).
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
@@ -238,22 +232,59 @@ export default function Bills() {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const handlePrintBill = async (bill: Bill) => {
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing bills.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsPrinting(bill.id);
-    const vendor = contacts.find((c) => c.id === bill.vendor_id);
-    await generateDocument("bill", bill.id, `Bill ${bill.bill_number}`, {
-      entityType: "bill",
-      entityId: bill.id,
-      businessId: currentBusiness?.id,
-      recipientPhone: vendor?.phone ?? null,
-      recipientName: vendor?.name ?? bill.vendor?.name ?? null,
-      variables: {
-        bill_number: bill.bill_number ?? "",
-        amount: String(bill.total ?? 0),
-        due_date: bill.due_date ?? "",
-        customer_name: vendor?.name ?? bill.vendor?.name ?? "",
-      },
-    });
-    setIsPrinting(null);
+    try {
+      // Wave 7.2 — canonical print pipeline: build snapshot → ensure
+      // document record → submit routing intent. No direct hardware calls.
+      const built = await fetchAndBuildPurchasesBillSnapshot(supabase, bill.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "purchases.bill",
+        organizationId: currentOrg.id,
+        sourceModule: "purchases",
+        sourceDocType: "bill",
+        sourceDocId: bill.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "supplier",
+        partyId: built.vendorId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Bill ${bill.bill_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(null);
+    }
   };
 
   const handleVoidBill = async (id: string) => {
@@ -905,19 +936,6 @@ export default function Bills() {
       <BillPeekSheet
         billId={peekId}
         onOpenChange={(open) => { if (!open) setPeekId(null); }}
-      />
-
-
-
-      {/* Print Preview Dialog */}
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`bill-${printDocumentId}`}
-        communication={printCommunication}
       />
 
       {/* Email Dialog */}
