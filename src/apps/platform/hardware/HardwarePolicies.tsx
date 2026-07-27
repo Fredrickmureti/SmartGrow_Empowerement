@@ -6,12 +6,12 @@
  * the sole home for anything printer-related, so this route becomes the
  * canonical editor. `Settings → Company → Printing` now redirects here.
  *
- * The body is intentionally a thin wrapper around the existing
- * `<PrintingSettings />` component — no functional change, only a
- * relocation. `PrintingSettings.tsx` will be inlined and split in
- * Phase 6 when the legacy Company tab is deleted.
+ * The body renders the canonical `<PrintPoliciesEditor />` (Phase 6
+ * Step C — moved out of `src/components/settings/` so the editor lives
+ * next to the rest of the hardware app tree). `Settings → Company →
+ * Printing` is removed entirely.
  */
-import { PrintingSettings } from "@/components/settings/PrintingSettings";
+import PrintPoliciesEditor from "@/apps/platform/hardware/PrintPoliciesEditor";
 
 export default function HardwarePolicies() {
   return (
@@ -24,7 +24,7 @@ export default function HardwarePolicies() {
           the system default (A4 PDF) applies.
         </p>
       </div>
-      <PrintingSettings />
+      <PrintPoliciesEditor />
     </div>
   );
 }
