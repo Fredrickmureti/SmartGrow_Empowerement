@@ -112,7 +112,9 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         business: { id: "b", name: "Widget Co" },
         credit_note_items: [],
       }),
+  },
   {
+
     file: "salesEstimate.ts",
     run: () =>
       buildSalesEstimateSnapshot({
