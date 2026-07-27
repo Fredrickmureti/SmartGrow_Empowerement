@@ -52,10 +52,11 @@ describe("hardware_exec_log carries audit columns", () => {
 });
 
 describe("saga + label dispatch always pass audit linkage", () => {
-  it("BusinessSagaMount passes audit fields on every hardwareClient.exec call", () => {
+  it("BusinessSagaMount dispatches through the resolver with audit fields", () => {
     const f = read("components/events/BusinessSagaMount.tsx");
-    // Every exec call must include sourceDocId AND businessEventId.
-    const execBlocks = f.match(/hardwareClient\.exec\(\{[\s\S]*?\}\)/g) ?? [];
+    // Phase 5 Step B — the saga no longer dispatches at a bare role.
+    expect(f).not.toMatch(/hardwareClient\.exec\(\{/);
+    const execBlocks = f.match(/execForIntent\(\{[\s\S]*?\n      \}\)/g) ?? [];
     expect(execBlocks.length, "expected at least one hardwareClient.exec call").toBeGreaterThan(0);
     for (const block of execBlocks) {
       expect(block, `audit fields missing: ${block}`).toMatch(/sourceDocId/);
