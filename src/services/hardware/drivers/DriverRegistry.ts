@@ -25,6 +25,7 @@ import { KeyboardScannerDriver } from './KeyboardScannerDriver';
 import { HidScannerDriver } from './HidScannerDriver';
 import { LineDisplayDriver } from './LineDisplayDriver';
 import { EposPrinterDriver } from './EposPrinterDriver';
+import { ZplLabelDriver, EplLabelDriver, EscPosLabelDriver } from './LabelPrinterDrivers';
 
 type DriverFactory = () => IDriver;
 
@@ -115,6 +116,9 @@ function formatDriverLabel(type: DriverType): string {
     bixolon: 'Bixolon (ESC/POS)',
     epson: 'Epson (ESC/POS)',
     epos_printer: 'Epson ePOS (Direct HTTP)',
+    zpl_label: 'Zebra / ZPL Label',
+    epl_label: 'Eltron / EPL Label',
+    escpos_label: 'ESC/POS Label (Generic)',
     escpos_drawer: 'Via Receipt Printer (RJ-11)',
     generic_scale: 'Generic Scale',
     toledo_scale: 'Toledo / Mettler-Toledo',
@@ -164,6 +168,11 @@ registerDriver('browser_print', () => new BrowserPrintDriver(), { browserFallbac
 // Epson ePOS — LAN HTTP path. Reaches a real printer even without Electron,
 // but Electron's main-process ESC/POS driver is preferred when available.
 registerDriver('epos_printer', () => new EposPrinterDriver(), { browserFallback: true });
+
+// Label printers — covered by main-process ZPL/EPL/ESC/POS-label drivers.
+registerDriver('zpl_label',    () => new ZplLabelDriver(),    { browserFallback: true });
+registerDriver('epl_label',    () => new EplLabelDriver(),    { browserFallback: true });
+registerDriver('escpos_label', () => new EscPosLabelDriver(), { browserFallback: true });
 
 // Payment terminals — stubs, no main-process equivalent yet.
 registerDriver('worldline_terminal', () => new PaymentTerminalDriver('worldline'));
