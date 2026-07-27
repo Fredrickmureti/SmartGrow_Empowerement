@@ -85607,7 +85607,7 @@ export type Database = {
         Args: {
           p_branch_id?: string
           p_document_kind: string
-          p_organization_id: string
+          p_organization_id?: string
           p_scenario?: string
         }
         Returns: Json
