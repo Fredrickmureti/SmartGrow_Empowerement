@@ -96,7 +96,7 @@ export function KitchenOrderTicket({
           created_at: o.created_at,
           organization_id: o.organization_id ?? orgId,
           business_id: o.business_id ?? currentBusiness?.id ?? null,
-          branch_id: o.branch_id ?? null,
+          branch_id: (o as { branch_id?: string | null }).branch_id ?? null,
           transaction: o.transaction ?? null,
         })),
         station: order.printer_category,
