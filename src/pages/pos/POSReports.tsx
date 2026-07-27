@@ -55,7 +55,8 @@ import { ReceiptPreviewBody } from "@/components/pos/ReceiptPreviewBody";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranch } from "@/contexts/BranchContext";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { dispatchPosReceipt } from "@/features/pos/receipts/dispatchPosReceipt";
+import { toast } from "sonner";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import {
   exportToCSV,
@@ -150,7 +151,7 @@ export default function POSReports() {
   const { registers } = usePOSRegisters();
   const { formatCurrency, getCurrencySymbol, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
-  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
+  const [isDispatchingReceipt, setIsDispatchingReceipt] = useState(false);
 
   // Filter registers by selected branch so the register picker stays coherent
   const visibleRegisters =
@@ -228,14 +229,26 @@ export default function POSReports() {
   );
 
   const handleReceiptPdf = useCallback(
-    (transaction: POSTransactionRecord) => {
-      downloadPdf(
-        "pos_receipt",
-        transaction.id,
-        `receipt-${transaction.transaction_number}`,
-      );
+    async (transaction: POSTransactionRecord) => {
+      setIsDispatchingReceipt(true);
+      try {
+        await dispatchPosReceipt({
+          transactionId: transaction.id,
+          organizationId: currentOrg?.id ?? null,
+          triggeredSource: "reprint",
+        });
+        toast.success(
+          `Receipt ${transaction.transaction_number} queued for delivery`,
+        );
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to issue receipt copy",
+        );
+      } finally {
+        setIsDispatchingReceipt(false);
+      }
     },
-    [downloadPdf],
+    [currentOrg?.id],
   );
 
   const getExportConfig = useCallback((): ExportConfig => {
@@ -1226,7 +1239,7 @@ export default function POSReports() {
                         <Button
                           variant="outline"
                           onClick={() => handleReceiptPdf(receiptDetails)}
-                          disabled={isGeneratingPdf}
+                          disabled={isDispatchingReceipt}
                         >
                           <Download className="mr-2 h-4 w-4" /> PDF
                         </Button>
