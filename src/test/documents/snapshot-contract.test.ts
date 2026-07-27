@@ -62,6 +62,31 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         station: "kitchen",
       }),
   },
+  {
+    file: "salesInvoice.ts",
+    run: () =>
+      buildSalesInvoiceSnapshot({
+        id: "inv-1",
+        invoice_number: "INV-2026-0001",
+        status: "sent",
+        issue_date: "2026-07-27",
+        due_date: "2026-08-27",
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        amount_paid: 0,
+        currency: "KES",
+        notes: null,
+        terms: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        invoice_items: [],
+      }),
+  },
 ];
 
 describe("snapshot builder contract", () => {
