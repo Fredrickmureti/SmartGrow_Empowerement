@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { Download, Send, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   DocumentPeekShell,
   Section,
@@ -18,8 +19,11 @@ import { Button } from "@/components/ui/button";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
+import { normalizeError } from "@/services/resilience";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
+import { dispatchVendorStatement } from "./dispatchVendorStatement";
 
 interface Props {
   statementId: string | null;
@@ -29,17 +33,29 @@ interface Props {
 export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
   const { record, loading, error } = useVendorStatementRecord(statementId);
   const { currentBusiness } = useBusinesses();
-  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
+  const [dispatching, setDispatching] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
 
   const handleDownload = async () => {
-    if (!record) return;
-    const filename = `Vendor_Statement_${record.data.contact.name.replace(
-      /[^a-zA-Z0-9]/g,
-      "_",
-    )}_${format(new Date(), "yyyy-MM-dd")}`;
-    await downloadPdf("vendor_statement", record.header.id, filename);
+    if (!record || dispatching) return;
+    setDispatching(true);
+    try {
+      const result = await dispatchVendorStatement({
+        statementId: record.header.id,
+        organizationId: currentOrg?.id ?? null,
+        businessId: currentBusiness?.id ?? null,
+        branchId: currentBranch?.id ?? null,
+      });
+      toast.success(`Statement dispatched to ${result.targetCount} target(s).`);
+    } catch (err) {
+      toast.error(`Failed to dispatch statement: ${normalizeError(err).message}`);
+    } finally {
+      setDispatching(false);
+    }
   };
+
 
   return (
     <>
@@ -79,9 +95,9 @@ export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
-                disabled={isGeneratingPdf}
+                disabled={dispatching}
               >
-                {isGeneratingPdf ? (
+                {dispatching ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Download className="mr-2 h-4 w-4" />

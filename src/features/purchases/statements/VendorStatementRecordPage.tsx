@@ -25,12 +25,16 @@ import {
   DocumentActivityPanel,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBranches } from "@/hooks/useBranches";
+import { normalizeError } from "@/services/resilience";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
+import { dispatchVendorStatement } from "./dispatchVendorStatement";
 
 function fmtDate(v: string | null | undefined) {
   if (!v) return "—";
@@ -46,20 +50,32 @@ export default function VendorStatementRecordPage() {
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
+  const { currentBranch } = useBranches();
   const { record, loading, error } = useVendorStatementRecord(id);
-  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
+  const [dispatching, setDispatching] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
 
   const back = () => navigate("/purchases/statements");
 
   const handleDownload = async () => {
-    if (!record) return;
-    const filename = `Vendor_Statement_${record.data.contact.name.replace(
-      /[^a-zA-Z0-9]/g,
-      "_",
-    )}_${format(new Date(), "yyyy-MM-dd")}`;
-    await downloadPdf("vendor_statement", record.header.id, filename);
+    if (!record || dispatching) return;
+    setDispatching(true);
+    try {
+      const result = await dispatchVendorStatement({
+        statementId: record.header.id,
+        organizationId: currentOrg?.id ?? null,
+        businessId: currentBusiness?.id ?? null,
+        branchId: currentBranch?.id ?? null,
+      });
+      toast.success(`Statement dispatched to ${result.targetCount} target(s).`);
+    } catch (err) {
+      toast.error(`Failed to dispatch statement: ${normalizeError(err).message}`);
+    } finally {
+      setDispatching(false);
+    }
   };
+
 
   if (loading) {
     return (
@@ -141,9 +157,9 @@ export default function VendorStatementRecordPage() {
                   variant="outline"
                   size="sm"
                   onClick={handleDownload}
-                  disabled={isGeneratingPdf}
+                  disabled={dispatching}
                 >
-                  {isGeneratingPdf ? (
+                  {dispatching ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Download className="mr-2 h-4 w-4" />

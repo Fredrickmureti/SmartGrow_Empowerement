@@ -30,6 +30,8 @@ import { buildPurchasesBillSnapshot } from "@/services/documents/snapshots/purch
 import { buildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { buildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
+import { buildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
+
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -398,7 +400,25 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         creditNotes: [],
       }),
   },
+  {
+    file: "purchasesGrn.ts",
+    run: () =>
+      buildPurchasesGrnSnapshot({
+        id: "grn-1",
+        receipt_number: "GRN-1",
+        status: "received",
+        receipt_date: "2026-07-27",
+        notes: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        purchase_order_id: "po-1",
+        purchase_order: { po_number: "PO-1", currency: "KES", vendor_id: "v-1", vendor: null },
+        items: [],
+      }),
+  },
 ];
+
 
 
 describe("snapshot builder contract", () => {
