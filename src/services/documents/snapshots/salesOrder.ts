@@ -11,6 +11,7 @@
  * short-circuit is retired in Wave 9.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchSalesOrder selects) ----------
@@ -184,8 +185,10 @@ export async function fetchAndBuildSalesOrderSnapshot(
       items:sales_order_items(
         description, quantity, unit_price, tax_rate, tax_amount,
         discount_percent, line_total,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
     )
@@ -199,5 +202,5 @@ export async function fetchAndBuildSalesOrderSnapshot(
       }`,
     );
   }
-  return buildSalesOrderSnapshot(data as unknown as SalesOrderHeaderRow);
+  return buildSalesOrderSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as SalesOrderHeaderRow);
 }

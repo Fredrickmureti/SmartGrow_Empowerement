@@ -18,6 +18,7 @@
  *    so call sites migrate in two lines.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchEstimate selects) ----------
@@ -190,10 +191,11 @@ export async function fetchAndBuildSalesEstimateSnapshot(
       business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
       estimate_items(
         description, quantity, unit_price, tax_rate, tax_amount,
-        discount_percent, line_total, sku,
-        pack_quantity, pack_size, unit_of_measure,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        discount_percent, line_total,
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
     )
@@ -207,5 +209,5 @@ export async function fetchAndBuildSalesEstimateSnapshot(
       }`,
     );
   }
-  return buildSalesEstimateSnapshot(data as unknown as SalesEstimateHeaderRow);
+  return buildSalesEstimateSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "estimate_items") as unknown as SalesEstimateHeaderRow);
 }

@@ -4,6 +4,7 @@
  * for `document_kinds.code = 'purchases.return'`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface PurchasesReturnItemRow {
@@ -151,8 +152,9 @@ export async function fetchAndBuildPurchasesReturnSnapshot(
       business:businesses(id, name, base_currency),
       items:purchase_return_items(
         description, quantity, unit_price, tax_rate, tax_amount, line_total,
-        return_reason, condition, sku, pack_quantity, pack_size, unit_of_measure,
-        packaging:product_packaging(name, qty_in_base_uom),
+        return_reason, condition,         display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
         product:products(name, sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
@@ -165,5 +167,5 @@ export async function fetchAndBuildPurchasesReturnSnapshot(
       `fetchAndBuildPurchasesReturnSnapshot: purchase return ${prId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildPurchasesReturnSnapshot(data as unknown as PurchasesReturnHeaderRow);
+  return buildPurchasesReturnSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesReturnHeaderRow);
 }

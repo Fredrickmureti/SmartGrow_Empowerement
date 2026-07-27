@@ -18,6 +18,7 @@
  *    so call sites migrate in two lines.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchProforma selects) ----------
@@ -185,10 +186,8 @@ export async function fetchAndBuildSalesProformaSnapshot(
       business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
       proforma_invoice_items(
         description, quantity, unit_price, tax_rate, tax_amount,
-        discount_percent, line_total, sku,
-        pack_quantity, pack_size, unit_of_measure,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        discount_percent, line_total,
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
     )
@@ -202,5 +201,5 @@ export async function fetchAndBuildSalesProformaSnapshot(
       }`,
     );
   }
-  return buildSalesProformaSnapshot(data as unknown as SalesProformaHeaderRow);
+  return buildSalesProformaSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "proforma_invoice_items") as unknown as SalesProformaHeaderRow);
 }

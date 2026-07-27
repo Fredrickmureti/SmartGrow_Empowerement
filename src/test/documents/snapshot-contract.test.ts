@@ -454,10 +454,12 @@ describe("snapshot builder contract", () => {
     });
   }
 
-  it("every file under snapshots/ (except index.ts) is covered by SUITE", () => {
+  it("every builder file under snapshots/ is covered by SUITE", () => {
+    // Non-builder modules: barrel + shared projection helpers.
+    const NON_BUILDERS = new Set(["index.ts", "lineItemUom.ts"]);
     const files = fs
       .readdirSync(SNAPSHOTS_DIR)
-      .filter((f) => f.endsWith(".ts") && f !== "index.ts");
+      .filter((f) => f.endsWith(".ts") && !NON_BUILDERS.has(f));
     const covered = new Set(SUITE.map((s) => s.file));
     const missing = files.filter((f) => !covered.has(f));
     expect(

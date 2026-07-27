@@ -11,6 +11,7 @@
  * the generate-document short-circuit is retired in Wave 9).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror fetchBill's projection) ----------
@@ -178,10 +179,11 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       vendor:contacts(name, email, phone, address_line1, city, state, postal_code),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
       items:bill_items(
-        description, quantity, unit_price, tax_rate, tax_amount, line_total, sku,
-        pack_quantity, pack_size, unit_of_measure,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        description, quantity, unit_price, tax_rate, tax_amount, line_total,
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
       `,
     )
@@ -196,6 +198,6 @@ export async function fetchAndBuildPurchasesBillSnapshot(
     );
   }
   return buildPurchasesBillSnapshot(
-    data as unknown as PurchasesBillHeaderRow,
+    normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesBillHeaderRow,
   );
 }

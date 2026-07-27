@@ -11,6 +11,7 @@
  * document that looks like a priced commitment.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface PurchasesGrnItemRow {
@@ -157,9 +158,11 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
         vendor:contacts(name, email, phone, address_line1, city, state, postal_code)
       ),
       items:goods_receipt_items(
-        description, quantity_received, display_quantity, uom_snapshot,
-        packaging:product_packaging(name, qty_in_base_uom),
-        product:products(base_uom:units_of_measure!base_uom_id(code, name))
+        description, quantity_received,
+        display_quantity, uom_snapshot,
+        packaging:product_packaging!packaging_id(name, qty_in_base_uom),
+        display_uom:units_of_measure!display_uom_id(code, name),
+        product:products(sku, base_uom:units_of_measure!base_uom_id(code, name))
       )
 
       `,
@@ -172,5 +175,5 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
       `fetchAndBuildPurchasesGrnSnapshot: goods receipt ${grnId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildPurchasesGrnSnapshot(data as unknown as PurchasesGrnHeaderRow);
+  return buildPurchasesGrnSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesGrnHeaderRow);
 }
