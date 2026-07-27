@@ -193,6 +193,7 @@ export default function Bills() {
   const { exportBills } = useExport();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   const { canManagePurchases, canManageFinancials } = usePermissions();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
 
@@ -200,17 +201,8 @@ export default function Bills() {
   const userRole = currentOrg?.role;
   const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
 
-  // Print & Email support
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
+  // Print & Email support — routed through the Wave 7.2 canonical
+  // pipeline (snapshot → ensureDocumentRecord → submitDocumentIntent).
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
