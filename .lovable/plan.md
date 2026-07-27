@@ -19,9 +19,10 @@ Everything the handoff notes claimed as landed was independently confirmed again
 - Waves 1–6 real and healthy; Wave 6 dispatcher cron already firing.
 - Wave 6.5 Pass 1 complete. Pass 2 (delete `app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`) still gated on publishing the TanStack build — respect that gate; do not delete pre-publish.
 - Wave 7.1 (golden) and 7.1.5 (materialization RPC + POS receipt snapshot builder) landed by the prior engineer.
-- **Wave 7.2 progress this turn**:
-  - `src/services/documents/snapshots/posKitchenTicket.ts` — new kitchen-ticket snapshot builder (5 unit tests green).
-  - `src/test/documents/snapshot-contract.test.ts` — new cross-builder contract test + meta-check that every file under `snapshots/` is covered (3 assertions green).
+- **Wave 7.2 progress**:
+  - `src/services/documents/snapshots/posKitchenTicket.ts` — kitchen-ticket snapshot builder (5 unit tests green).
+  - `src/services/documents/snapshots/salesInvoice.ts` — sales-invoice snapshot builder + `fetchAndBuildSalesInvoiceSnapshot` Supabase fetcher matching `generate-document::fetchInvoice`'s projection (5 unit tests green). Chosen **Path A** for fork (1): each page owns its snapshot; keeps `ensure_document_record` a pure upsert.
+  - `src/test/documents/snapshot-contract.test.ts` — cross-builder contract test + meta-check that every file under `snapshots/` is covered (18 tests green across 4 suites).
   - `src/components/pos/restaurant/KitchenOrderTicket.tsx` rewritten off `printClient.printKitchenTicket` onto `ensureDocumentRecord` + `submitDocumentIntent`; removed from the `no-restricted-imports` grandfather allowlist in `eslint.config.js`.
 - **Remaining Wave 7.2 callers** (~33 files): POS terminal (`PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer`, `usePrinterStatus`), all sales pages (Invoices, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, SalesOrders, SalesReturns, CustomerPayments, CustomerStatements), purchases (Bills, PurchaseOrders, PurchaseReturns, VendorStatements + peek + record page, GRN wizard), HR (Recruitment, ContractsList, LifecycleTimeline, LegalRecipients), inventory labels (Products, useLabelPrint), cross-cutting hooks (`useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient`), hardware admin (`HardwareDevices`).
 - Waves 7.3 / 7.4 / 7.5 / 7.6 / 8 / 9 untouched.
