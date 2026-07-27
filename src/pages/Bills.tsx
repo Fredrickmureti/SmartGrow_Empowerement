@@ -938,19 +938,6 @@ export default function Bills() {
         onOpenChange={(open) => { if (!open) setPeekId(null); }}
       />
 
-
-
-      {/* Print Preview Dialog */}
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`bill-${printDocumentId}`}
-        communication={printCommunication}
-      />
-
       {/* Email Dialog */}
       <SendDocumentDialog
         open={showEmailDialog}
