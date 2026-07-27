@@ -160,6 +160,7 @@ function PlatformShellBody({
             nav={nav}
             onNavigate={() => setMobileNavOpen(false)}
             defaultExpandAll
+            showAppSwitcher
           />
         </div>
       }
