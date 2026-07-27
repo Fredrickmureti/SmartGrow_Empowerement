@@ -86,6 +86,7 @@ export default function HardwarePrintQueue() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSize>(50);
   const [drawerRow, setDrawerRow] = useState<PrintJobRow | null>(null);
+  const [requeueing, setRequeueing] = useState(false);
   const [engineerMode, setEngineerMode] = useState(false);
   const [kpi, setKpi] = useState<{ printed: number; failed: number; queued: number; sent: number }>({
     printed: 0,
@@ -93,6 +94,24 @@ export default function HardwarePrintQueue() {
     queued: 0,
     sent: 0,
   });
+
+  const handleRequeue = async (row: PrintJobRow) => {
+    setRequeueing(true);
+    try {
+      const { error } = await (supabase as unknown as {
+        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      }).rpc("requeue_print_job", { p_job_id: row.id });
+      if (error) throw error;
+      toast.success("Job requeued");
+      setDrawerRow(null);
+      void load();
+    } catch (e) {
+      toast.error(`Requeue failed: ${(e as Error).message}`);
+    } finally {
+      setRequeueing(false);
+    }
+  };
+
 
   // Reset page whenever filters change.
   useEffect(() => {
@@ -435,7 +454,10 @@ export default function HardwarePrintQueue() {
         documentLabel={drawerRow ? documentDisplay(drawerRow.doc_type, drawerRow.doc_id) : { label: "" }}
         requesterLabel={drawerRow ? requesterDisplay(drawerRow.requested_by) : { label: "" }}
         printerLabel={drawerRow ? printerDisplay(drawerRow.printer_profile_id) : { label: "" }}
+        onRequeue={handleRequeue}
+        requeueing={requeueing}
       />
+
     </div>
   );
 }
