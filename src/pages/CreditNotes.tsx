@@ -135,15 +135,6 @@ export default function CreditNotes() {
   // Issue confirmation dialog
   const [issueConfirmCN, setIssueConfirmCN] = useState<CreditNote | null>(null);
 
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
 
   // Handle ?action=create from global create menu or invoice dropdown —
   // redirect to the new create route with any pre-fill params.
