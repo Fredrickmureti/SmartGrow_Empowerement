@@ -81,4 +81,4 @@ _Scope correction:_ `usePOSCashDrawer` was listed here on the assumption it issu
 
 ## Immediate next action
 
-Begin **D**, and correct the stale scope note in `.lovable/plan.md` first so the log stops pointing at the wrong shim.
+Finish **F**'s remaining half (device resolution + status onto `hardwareClient`), then start **G** by porting the drawer-slip ESC/POS renderer into the shared engine — that port is the blocker for both `usePOSCashDrawer` and `usePrintWithFallback`.
