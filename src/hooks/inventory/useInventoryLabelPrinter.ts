@@ -4,9 +4,10 @@
  * Inventory is the canonical non-POS consumer of the hardware contract.
  * It resolves the device bound to the `label_printer` role for the
  * current business scope (with tenant default as fallback). The
- * additional "any workstation-attached label printer" fallback used the
- * legacy `workstation_devices` table; Phase 2a merged those rows into
- * `device_assignments`, so a single role query now covers both cases.
+ * additional "any workstation-attached label printer" fallback previously
+ * lived on a separate mirror table; that mirror has been retired (Phase 6
+ * Step C) and a single query against `device_assignments` now covers
+ * both business-scoped and workstation-scoped rows.
  */
 import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
