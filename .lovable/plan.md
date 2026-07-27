@@ -57,3 +57,25 @@ The prior roadmap is sound. Three changes:
 ## Immediate next action
 
 Start at A: migrate the two vendor-statement surfaces, then build `purchases.grn`.
+
+---
+
+## Landing note — 2026-07-27 (Wave 7.2)
+
+### Done and verified
+- **A. Purchases** — complete. Vendor-statement surfaces (List/Peek/Record) via `dispatchVendorStatement`; `purchases.grn` builder + 9 tests + kind registered; GRN wizard via `dispatchGoodsReceipt`.
+- **C. POSReports** — complete. `dispatchPosReceipt` (frozen `pos_receipt_snapshots` only, customer/merchant kinds) + 7 tests; page off `usePrintOrPreview`.
+- **B. HR letters** — complete. `hrLetter.ts` (offer / contract / promotion / warning builders + fetchers), 15 tests, SUITE at **18 builders**; kinds `hr.promotion_letter` and `hr.warning_letter` registered; `Recruitment.tsx`, `ContractsListPage.tsx`, `LifecycleTimelinePage.tsx` migrated.
+- **HR letter discoverability** — Contracts / Lifecycle / Recruitment are `internalOnly` apps (never in the launcher) and nothing linked to them, so their letter surfaces were routable but unreachable. Added a **People operations** group to `EMPLOYEES_NAV`: Contracts & letters (`/hr/contracts/all`), Lifecycle events (`/hr/lifecycle/timeline`), Recruitment & offers (`/hr/recruitment`).
+- Stale guard `sales-invoice-print-no-preview-fallback.test.ts` updated: invoices now assert `submitDocumentIntent`, not the deleted `PrintClient.print` path.
+- Verification: `tsgo` clean; `src/test/documents` **157 passing / 19 files**; print-chokepoint guards green.
+
+### Current status
+Remaining `usePrintOrPreview` call sites: **2 non-legacy** — `Products.tsx` / `useLabelPrint.ts` (D) and the POS terminal cluster (E) — plus the hook itself and the architecture guards.
+
+### Active phase → next
+Phase 3 **D — Inventory labels**. Enforce ADR-0088 mm-relative geometry and ADR-0089 identity refusal in `Products.tsx` / `useLabelPrint.ts`: never emit a UUID as a barcode; refuse with an operator-facing CTA when identity resolution returns null. Then **E — POS terminal** (requires porting the drawer-slip ESC/POS renderer; guarded by thermal + kitchen golden files), then F/G/H.
+
+### Instructions for the next agent
+1. **Verify before extending.** Read `src/services/documents/snapshots/hrLetter.ts`, `src/features/hr/letters/dispatchHrLetter.ts`, `dispatchGoodsReceipt.ts`, `dispatchPosReceipt.ts`. Confirm each follows the builder contract (pure `buildX` + `fetchAndBuildX`), resolves tenancy explicitly, and never re-fetches inside a renderer. Re-run `bunx tsgo --noEmit` and `bunx vitest run src/test/documents/`.
+2. Only then start D. Do not begin E before D is production-ready, and do not touch G (destructive removal) while any `usePrintOrPreview` call site remains.
