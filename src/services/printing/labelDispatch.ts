@@ -1,13 +1,14 @@
 /**
  * labelDispatch — Track 2 entry point for printing a label-template by key.
  *
- * Resolves (1) the workflow-bound printer for the active scope and
- * (2) the org/branch-scoped template body, performs `{{token}}`
- * substitution against `vars`, and dispatches the rendered payload
- * through `hardwareClient.exec` under the `label_printer` role.
- *
- * Fallback chain (printer): exact (branch+warehouse) → branch → org → none.
- * Fallback chain (template): branch override → org default → none.
+ * Resolves the org/branch-scoped label template body, performs
+ * `{{token}}` substitution against `vars`, and dispatches the rendered
+ * payload through the canonical intent resolver (`execForIntent`) under
+ * the `label_printer` / `a4_printer` role. Physical printer selection
+ * lives inside `resolve_device` (`document_print_policies`) — Phase 6
+ * Step C retired the parallel `resolve_device_for_workflow` path and
+ * the `printer_workflow_bindings` table with it. The optional
+ * `workflow` field is now advisory only (kept for audit / observability).
  *
  * If no template is registered for `templateKey`, the function returns a
  * structured `{ ok: false, error }` rather than throwing — saga handlers
@@ -15,7 +16,6 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { execForIntent } from '@/services/hardware/execForIntent';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
 import { compileLabelDoc, isLabelDoc, type LabelDoc } from './labelCompiler';
@@ -65,8 +65,6 @@ export interface LabelDispatchInput {
 
 export interface LabelDispatchResult extends DriverResult {
   templateResolved?: { engine: LabelEngine; version: number; scope: string };
-  /** `profileId` == `device_assignments.id` of the resolved printer. */
-  printerResolved?: { profileId: string; scope: string };
   mediaResolved?: { profileId: string; widthMm: number; heightMm: number | null; dpi: number };
 }
 
