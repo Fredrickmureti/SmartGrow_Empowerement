@@ -47,12 +47,22 @@ Re-verified `app-lifecycle`, `post-loan-interest-accrual`, and `activate-organiz
 Exit criteria: audit doc up-to-date, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing.
 
 
-## Wave 7 — POS Receipt Convergence (IN PROGRESS — 7.1 landed 2026-07-27)
+## Wave 7 — POS Receipt Convergence (IN PROGRESS — 7.1 landed 2026-07-27; 7.2 blocked on 7.1.5)
 
 Preserve the previous engineer's subwaves; execute in order, no shortcuts:
 
 - **7.1** ✅ Byte-parity golden at the AST→ESC/POS seam. `ReceiptTemplateGenerator` never existed in this codebase (stale plan entry), so instead of a new `thermal-receipt.ts` file we lock the existing `renderAstToEscPos` output for a canonical POS receipt fixture. Test: `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts`; golden: `thermal_receipt_golden.json` (sha256 `495b7d7d…2153e`, 667 bytes @ 80mm). Auto-seeds on first run; any drift fails loudly with a 40-line preview. This is the parity gate Wave 7.2 must clear.
-- **7.2** Mechanical rewrite of every POS hook / checkout component / label page from `PrintClient.print(…)` and `useDocumentPrint(…)` onto `submitIntent({ documentKind, recordId, scenario })`. Drive the allow-list in `eslint.config.js` from Wave 6.5 to zero. Golden test above is the safety net.
+- **7.1.5** ⏸ **NEW — unlanded prerequisite discovered 2026-07-27.** `submit-document-intent` requires a pre-existing `document_records` row (`p_document_record_id` is not-null; edge fn 404s on missing lookup). `public.document_records` is currently empty (0 rows) and no `materialize_document_record(kind_code, source_module, source_doc_id)` RPC exists — grep for `materialize|create_document_record|upsert_document_record` returned zero hits in `supabase/functions` and `src/services`. Wave 7.2's mechanical rewrite therefore cannot proceed until we land:
+  1. A SECURITY DEFINER RPC `public.ensure_document_record(kind_code text, source_module text, source_doc_type text, source_doc_id uuid, org_id uuid, business_id uuid, branch_id uuid, party_kind text, party_id uuid, currency text, snapshot jsonb) RETURNS uuid` that upserts on `(source_module, source_doc_type, source_doc_id)` and returns the record id. GRANTs to `authenticated` scoped by `_assert_org_member`.
+  2. A client shim `src/services/documents/ensureDocumentRecord.ts` that wraps the RPC.
+  3. Per-kind snapshot builders (starting with `pos.receipt_customer`, `pos.kitchen_ticket`, `sales.invoice`, `purchases.bill`) — a `src/services/documents/snapshots/<kind>.ts` file per module, each returning the JSON blob the renderer expects (compatible with the golden fixture).
+  4. Unit tests that each snapshot builder produces byte-identical output to `printClient.print*` for the same source entity (leverages 7.1 golden methodology).
+- **7.2** Mechanical rewrite of every `PrintClient.print(…)` / `usePrintOrPreview` caller (~35 files — full list in `docs/audit/2026-wave6.5-legacy-inventory.md`) onto:
+  ```ts
+  const recordId = await ensureDocumentRecord({...});
+  await submitDocumentIntent({ documentRecordId: recordId, scenario: 'on_close' });
+  ```
+  Drive the allow-list in `eslint.config.js` from 35 to zero, module by module: POS terminal first (protected by 7.1 golden), then sales pages, then purchases/HR/hardware.
 - **7.3** Delete `PrintClient`, `usePrintOrPreview`, and `BrowserHardwareAdapter.print` (adapter keeps `open/close/scan/etc`). `useDocumentPrint` and `ReceiptTemplateGenerator` do not exist — skip.
 - **7.4** `POS_CHOKEPOINT_V2` feature flag with one-release dual-write so a rollback is a config flip, not a code revert.
 - **7.5** Architecture guards: no `PrintClient` imports anywhere; no client-side `print_jobs` insert; no `window.print()` outside the print-preview surface.
