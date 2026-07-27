@@ -74,9 +74,8 @@ import {
   ScanLine,
   Printer,
 } from "lucide-react";
-import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
-import { printClient } from "@/services/printing/PrintClient";
-import { resolveLabelBarcode, LABEL_BARCODE_REFUSAL } from "@/services/printing/labelBarcode";
+import { useLabelPrint } from "@/hooks/inventory/useLabelPrint";
+import type { PrintableProduct } from "@/services/printing/labelBarcode";
 import {
   DropdownMenu,
   DropdownMenuContent,
