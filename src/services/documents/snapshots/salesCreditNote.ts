@@ -56,7 +56,7 @@ export interface SalesCreditNoteBusinessRow {
   phone?: string | null;
   address?: string | null;
   logo_url?: string | null;
-  currency?: string | null;
+  base_currency?: string | null;
 }
 
 export interface SalesCreditNoteHeaderRow {
@@ -180,7 +180,7 @@ export async function fetchAndBuildSalesCreditNoteSnapshot(
       subtotal, tax_amount, total, currency, notes, reason,
       organization_id, business_id, branch_id, contact_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code),
-      business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
+      business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
       credit_note_items(
         description, quantity, unit_price, tax_rate, tax_amount, line_total,
         display_quantity, uom_snapshot,

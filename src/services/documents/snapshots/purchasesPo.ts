@@ -41,7 +41,7 @@ export interface PurchasesPoBusinessRow {
   phone?: string | null;
   address?: string | null;
   logo_url?: string | null;
-  currency?: string | null;
+  base_currency?: string | null;
 }
 
 export interface PurchasesPoHeaderRow {
@@ -151,7 +151,7 @@ export async function fetchAndBuildPurchasesPoSnapshot(
       subtotal, tax_amount, discount_amount, total, currency, notes,
       shipping_address, organization_id, business_id, branch_id, vendor_id,
       vendor:contacts(name, email, phone, address_line1, city, state, postal_code),
-      business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
+      business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
       items:purchase_order_items(
         description, quantity, unit_price, tax_rate, tax_amount, line_total,
         display_quantity, uom_snapshot,

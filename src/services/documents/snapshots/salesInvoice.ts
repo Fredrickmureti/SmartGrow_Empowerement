@@ -72,7 +72,7 @@ export interface SalesInvoiceBusinessRow {
   phone?: string | null;
   address?: string | null;
   logo_url?: string | null;
-  currency?: string | null;
+  base_currency?: string | null;
 }
 
 export interface SalesInvoiceHeaderRow {
@@ -252,7 +252,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       invoice.business_id
         ? supabase
             .from("businesses")
-            .select("id, name, legal_name, email, phone, address, logo_url, currency")
+            .select("id, name, legal_name, email, phone, address, logo_url, base_currency")
             .eq("id", invoice.business_id)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
