@@ -141,15 +141,19 @@ export function statusTone(
     case "printed":
       return "default";
     case "sent":
+    case "processing":
       return "secondary";
     case "failed":
+    case "dead_letter":
       return "destructive";
     case "cancelled":
     case "canceled":
+    case "abandoned":
       return "outline";
     default:
       return "outline";
   }
+
 }
 
 export function runtimeReasonLabel(reason: string | null | undefined): string {
