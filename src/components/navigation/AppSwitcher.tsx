@@ -148,7 +148,13 @@ export function AppSwitcher({
               </Button>
             )}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-64">
+          <DropdownMenuContent
+            align="start"
+            sideOffset={8}
+            collisionPadding={12}
+            avoidCollisions
+            className="w-[min(16rem,calc(100vw-2rem))] max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain"
+          >
             {/* Home link at top */}
             <DropdownMenuItem
               onClick={() => {
