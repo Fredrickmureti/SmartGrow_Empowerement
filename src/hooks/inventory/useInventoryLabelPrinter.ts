@@ -98,9 +98,15 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
           payload: Array.from(bytes),
         });
       }
-      // Fallback — only the workstation-relay probe found a device (no
-      // resolver row surfaced through `useDeviceForRole`). Legacy path.
-      return hardwareClient.printLabelBytes(bytes);
+      // Phase 5 Step C — no role-only fallback. The relay probe only
+      // proves *some* workstation printer exists org-wide; it does not
+      // identify which row wins for this scope. Refuse instead of
+      // guessing.
+      return {
+        success: false,
+        error:
+          'No label printer is bound to this scope. Open Platform → Hardware to bind one.',
+      };
     },
     [hasDevice, device],
   );
