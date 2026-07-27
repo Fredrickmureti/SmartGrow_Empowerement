@@ -371,6 +371,33 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         items: [],
       }),
   },
+  {
+    file: "purchasesVendorStatement.ts",
+    run: () =>
+      buildVendorStatementSnapshot({
+        statement: {
+          id: "vs-1",
+          contact_id: "v-1",
+          organization_id: "o",
+          business_id: "b",
+          branch_id: null,
+          period_start: "2026-06-01",
+          period_end: "2026-06-30",
+          statement_date: "2026-06-30",
+          created_at: "2026-06-30T00:00:00Z",
+          opening_balance: 0,
+          closing_balance: null,
+          total_billed: 0,
+          total_payments: 0,
+          sent_at: null,
+          contact: { name: "Widgets Supplier Ltd" },
+          business: { id: "b", name: "Acme", base_currency: "KES" },
+        },
+        bills: [],
+        payments: [],
+        creditNotes: [],
+      }),
+  },
 ];
 
 
