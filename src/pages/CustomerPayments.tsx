@@ -12,10 +12,12 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { VoidPaymentDialog } from "@/components/payments/VoidPaymentDialog";
 import { ReversePaymentWizard } from "@/components/payments/ReversePaymentWizard";
@@ -124,18 +126,6 @@ export default function CustomerPayments() {
   // Studio integration
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "payment" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("payment");
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-    downloadPdf,
-    printOrPreview,
-  } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
