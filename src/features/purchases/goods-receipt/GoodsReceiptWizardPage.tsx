@@ -66,7 +66,7 @@ import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { useGs1Scanner } from "@/lib/gs1/useGs1Scanner";
 import { normalizeError } from "@/services/resilience";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { dispatchGoodsReceipt } from "@/features/purchases/goods-receipt/dispatchGoodsReceipt";
 import type { PurchaseOrder } from "@/hooks/usePurchaseOrders";
 
 type StepId = "setup" | "receive" | "confirm";
