@@ -192,14 +192,16 @@ async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<
   }
 
   const { data: candidates, error: resolveErr } = await admin.rpc(
-    "resolve_hardware_assignment",
+    "resolve_device",
     {
-      p_organization_id: doc.organization_id,
-      p_branch_id: job.branch_id,
-      p_role_code: job.hardware_role,
+      _organization_id: doc.organization_id,
+      _role: job.hardware_role,
+      _business_id: job.business_id,
+      _scope_kind: null,
+      _scope_id: null,
     },
   );
-  if (resolveErr) throw new Error(`resolve_role_failed:${resolveErr.message}`);
+  if (resolveErr) throw new Error(`resolve_device_failed:${resolveErr.message}`);
 
   const chosen = (candidates ?? [])[0];
   if (!chosen) {
@@ -212,9 +214,9 @@ async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<
     .insert({
       org_id: doc.organization_id,
       branch_id: job.branch_id,
-      device_assignment_id: chosen.device_assignment_id,
+      device_assignment_id: chosen.id,
       role: job.hardware_role,
-      op: "print",
+      op: job.medium === "escpos" || job.medium === "zpl" ? "print_raw" : "print",
       payload: {
         artifact_id: artifactId,
         medium: job.medium,

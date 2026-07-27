@@ -145,24 +145,46 @@ class PrintClient {
     }
     try {
       const { supabase } = await import('@/integrations/supabase/client');
-      const { data, error } = await supabase.rpc('print_policies_resolve', {
-        p_business_id: businessId,
-        p_branch_id: (branchId ?? null) as unknown as string,
-        p_document_type: documentType,
-        p_intent: intent,
-      });
+      const client = supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              eq: (column: string, value: string) => {
+                or: (filter: string) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+              };
+            };
+          };
+        };
+      };
+      const { data, error } = await client
+        .from('document_print_policies')
+        .select('paper_format, render_mode, trigger, role_code, copies, branch_id')
+        .eq('business_id', businessId)
+        .eq('document_type', documentType)
+        .or(branchId ? `branch_id.eq.${branchId},branch_id.is.null` : 'branch_id.is.null');
       if (error) return null;
-      const row = Array.isArray(data) ? data[0] : data;
+      const rows = (data ?? []) as Array<{
+        paper_format?: string | null;
+        render_mode?: string | null;
+        trigger?: string | null;
+        role_code?: string | null;
+        copies?: number | null;
+        branch_id?: string | null;
+      }>;
+      const row = (branchId ? rows.find((r) => r.branch_id === branchId) : null)
+        ?? rows.find((r) => r.branch_id === null)
+        ?? null;
       let value: ResolvedPrintPolicy | null = null;
       if (row) {
         const renderMode = (row.render_mode ?? 'pdf') as ResolvedPrintPolicy['renderMode'];
+        const trigger = row.trigger ?? 'manual';
         value = {
-          deviceAssignmentId: row.device_assignment_id ? String(row.device_assignment_id) : null,
+          deviceAssignmentId: null,
           paperFormat: String(row.paper_format ?? 'a4'),
           renderMode: renderMode === 'escpos' || renderMode === 'html' ? renderMode : 'pdf',
           copies: typeof row.copies === 'number' && row.copies > 0 ? row.copies : 1,
-          autoPrint: Boolean(row.auto_print),
-          askUser: Boolean(row.ask_user),
+          autoPrint: trigger === 'auto',
+          askUser: trigger === 'preview_only',
         };
       }
       // Bound cache size (evict oldest).

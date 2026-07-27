@@ -561,8 +561,8 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
                           onClick={handleReprint}
                           title={posReceiptDevice
                             ? `Reprint to ${posReceiptDevice.display_name ?? `${posReceiptDevice.role} (${posReceiptDevice.transport})`}`
-                            : posReceiptPolicy.device_assignment_id
-                              ? "Reprint — the configured device is no longer bound"
+                            : posReceiptPolicy.role_code
+                              ? "Reprint — no matching device is currently bound"
                               : "Reprint"}
                         >
                           <Printer className="h-4 w-4 mr-1" />
@@ -653,7 +653,7 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
             open
             isReprint
             policy={posReceiptPolicy ? {
-              auto_print: posReceiptPolicy.auto_print,
+              auto_print: posReceiptPolicy.trigger === "auto",
               render_mode: posReceiptPolicy.render_mode,
               paper_format: posReceiptPolicy.paper_format,
             } : undefined}

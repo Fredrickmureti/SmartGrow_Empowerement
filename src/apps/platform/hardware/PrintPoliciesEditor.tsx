@@ -73,7 +73,7 @@ export default function PrintPoliciesEditor() {
   const { policies, loading, saving, upsert, remove, findPolicy } = useDocumentPrintPolicies(businessId);
 
   // Phase 1 — routing target is a *role* (see Printer roles module), not a
-  // device. Physical device is chosen at runtime by role→branch bindings.
+  // device. Physical device is chosen at runtime through resolve_device.
   const { data: roles = [] } = useQuery({
     enabled: !!orgId,
     queryKey: ["printer_roles_min", orgId],
@@ -106,8 +106,7 @@ export default function PrintPoliciesEditor() {
     return {
       paper_format: existing?.paper_format ?? "a4",
       render_mode: existing?.render_mode ?? "pdf",
-      trigger: (existing?.trigger as OutputTrigger | undefined)
-        ?? (existing?.auto_print ? "auto" : "manual"),
+      trigger: (existing?.trigger as OutputTrigger | undefined) ?? "manual",
       role_code: existing?.role_code ?? null,
       branch_scope: branchScope,
     };
@@ -130,12 +129,9 @@ export default function PrintPoliciesEditor() {
       document_type: docType,
       paper_format: draft.paper_format,
       render_mode: draft.render_mode,
-      // Legacy columns kept in the row so the old resolver still returns
-      // during Phase 2 rollout. Phase 2 drops them.
-      device_assignment_id: null,
-      auto_print: draft.trigger === "auto",
       trigger: draft.trigger,
       role_code: draft.role_code,
+      copies: 1,
     };
     const ok = await upsert(policy);
     if (ok) {
@@ -283,7 +279,7 @@ export default function PrintPoliciesEditor() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {/* Role — semantic routing. Physical device comes from Printer roles bindings. */}
+                  {/* Role — semantic routing. Physical device comes from resolve_device. */}
                   <Select
                     value={draft.role_code ?? "__none__"}
                     onValueChange={(v) =>
@@ -298,7 +294,7 @@ export default function PrintPoliciesEditor() {
                       title={
                         !roleRequired
                           ? "Download / preview triggers do not need a printer role."
-                          : "Which printer role handles this document. Per-branch device is chosen in the Printer roles module."
+                          : "Which printer role handles this document. The matching device is chosen automatically."
                       }
                     >
                       <SelectValue placeholder="— pick a role —" />
@@ -358,12 +354,11 @@ export default function PrintPoliciesEditor() {
           Every document flows through the same chain:
           <strong className="mx-1">policy (this page)</strong> ›
           <strong className="mx-1">printer role</strong> ›
-          <strong className="mx-1">per-branch device binding</strong> ›
+          <strong className="mx-1">matching device assignment</strong> ›
           <strong className="mx-1">device capability</strong> ›
           <strong className="mx-1">hardware</strong>.
-          Set the paper format and trigger here; the physical printer is
-          chosen automatically from the role's branch bindings (see
-          <em className="mx-1">Printer roles</em>). Rows left blank inherit
+          Set the paper format and trigger here; the physical printer is chosen
+          automatically from the selected role. Rows left blank inherit
           from the business default; blank there means <em>A4 PDF, manual</em>.
         </CardContent>
       </Card>
