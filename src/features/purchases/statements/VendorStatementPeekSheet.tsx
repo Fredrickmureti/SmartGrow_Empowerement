@@ -21,7 +21,7 @@ import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
-import { normalizeError } from "@/lib/errors/normalizeError";
+import { normalizeError } from "@/services/resilience";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 import { dispatchVendorStatement } from "./dispatchVendorStatement";
 
@@ -95,9 +95,9 @@ export function VendorStatementPeekSheet({ statementId, onOpenChange }: Props) {
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
-                disabled={isGeneratingPdf}
+                disabled={dispatching}
               >
-                {isGeneratingPdf ? (
+                {dispatching ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
