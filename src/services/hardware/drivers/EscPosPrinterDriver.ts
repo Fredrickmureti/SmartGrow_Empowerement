@@ -4,9 +4,9 @@
  * Routes print jobs through the unified TransportAdapter layer.
  * The driver produces ESC/POS bytes; the transport delivers them.
  *
- * Transport selection is fully delegated to `resolveTransport()`.
- * This driver never checks isPrivateIP, isElectron, or chooses
- * between edge functions vs local agents. That's the transport's job.
+ * Transport selection is fully delegated to `TransportRouter` via
+ * `resolveTransport()`. This driver never checks isPrivateIP, isElectron,
+ * or chooses between agents — it only produces bytes.
  */
 
 import type {
@@ -37,11 +37,13 @@ export class EscPosPrinterDriver implements IDriver {
 
   async connect(params: Record<string, unknown>): Promise<DriverResult> {
     this._connectionParams = params;
-    const connectionType = (params.connection_type as string) || 'network';
+    const transport_ = (params.transport as string | undefined)
+      ?? (params.connection_type as string | undefined)
+      ?? 'local_agent';
 
     // Build transport options from connection params
     const transportOpts: ResolveTransportOptions = {
-      connectionType: connectionType as ResolveTransportOptions['connectionType'],
+      transport: transport_,
       ipAddress: params.ipAddress as string | undefined,
       port: params.port as number | undefined,
       vendorId: params.vendorId as number | undefined,
@@ -50,8 +52,8 @@ export class EscPosPrinterDriver implements IDriver {
 
     const transport = resolveTransport(transportOpts);
     if (!transport) {
-      this._status = { connected: false, status: 'error', lastError: `No transport for ${connectionType}` };
-      return { success: false, error: `No available transport for connection type: ${connectionType}` };
+      this._status = { connected: false, status: 'error', lastError: `No transport for ${transport_}` };
+      return { success: false, error: `No available transport for: ${transport_}` };
     }
 
     this._transport = transport;
