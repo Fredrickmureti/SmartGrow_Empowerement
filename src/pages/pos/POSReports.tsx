@@ -55,7 +55,8 @@ import { ReceiptPreviewBody } from "@/components/pos/ReceiptPreviewBody";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranch } from "@/contexts/BranchContext";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { dispatchPosReceipt } from "@/features/pos/receipts/dispatchPosReceipt";
+import { toast } from "sonner";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import {
   exportToCSV,
