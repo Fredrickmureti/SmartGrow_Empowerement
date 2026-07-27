@@ -20,7 +20,7 @@ import { ReceiptLivePreview } from "./ReceiptLivePreview";
 import type { ExtendedReceiptSettings, PaperSize, ReceiptTemplate, FontSize, LineSpacing, LogoSize } from "@/types/receipt";
 import { PAPER_CONFIGS, TEMPLATE_PRESETS, applyTemplatePreset } from "@/lib/receiptConfig";
 import { useTestPrintReceipt } from "@/hooks/pos/useTestPrintReceipt";
-import { usePrinterProfiles } from "@/hooks/usePrinterProfiles";
+import { useDeviceAssignments } from "@/hooks/useDeviceAssignments";
 import { ResolvedPrintPolicyPanel } from "./ResolvedPrintPolicyPanel";
 
 export function ReceiptSettings() {
@@ -32,22 +32,24 @@ export function ReceiptSettings() {
   const { branding } = useDocumentBranding(currentBusiness?.id ?? null, currentBranch?.id ?? null);
   const { formatCurrency } = useCurrency();
   const { sendTestPrint, isPrinting, lastResolved } = useTestPrintReceipt();
-  // Receipt overhaul Phase 2 — let the operator pick which physical printer
-  // profile the test print should resolve through. Default to the first
-  // active thermal-capable profile so a single-printer shop works zero-conf.
-  const { activeProfiles } = usePrinterProfiles(currentBusiness?.id ?? null);
-  const thermalProfiles = activeProfiles.filter((p) =>
-    p.paper_format === "80mm" || p.paper_format === "58mm" || p.paper_format === "40mm"
+  // Phase 6 — the test-print target is a `device_assignments` row. The legacy
+  // `printer_profiles` table is gone; thermal geometry lives on the assignment.
+  const { assignments } = useDeviceAssignments();
+  const thermalProfiles = assignments.filter(
+    (a) =>
+      a.enabled &&
+      a.role.includes("printer") &&
+      (a.paper_format === "80mm" || a.paper_format === "58mm" || a.paper_format === "40mm"),
   );
-  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
-  const effectiveProfileId = selectedProfileId || thermalProfiles[0]?.id || "";
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
+  const effectiveAssignmentId = selectedAssignmentId || thermalProfiles[0]?.id || "";
 
   const [localSettings, setLocalSettings] = useState<ExtendedReceiptSettings>(settings);
   const [hasChanges, setHasChanges] = useState(false);
 
   const handleTestPrint = () => {
     sendTestPrint({
-      printerProfileId: effectiveProfileId || null,
+      deviceAssignmentId: effectiveAssignmentId || null,
       receiptSettings: localSettings,
       branding: {
         name: branding?.legal_name || branding?.name || currentBusiness?.name || "Your Company",
@@ -334,16 +336,16 @@ export function ReceiptSettings() {
           <CardContent className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
               <div className="space-y-1">
-                <Label className="text-xs">Printer profile</Label>
+                <Label className="text-xs">Printer</Label>
                 <Select
-                  value={effectiveProfileId}
-                  onValueChange={setSelectedProfileId}
+                  value={effectiveAssignmentId}
+                  onValueChange={setSelectedAssignmentId}
                 >
                   <SelectTrigger><SelectValue placeholder="Engine defaults" /></SelectTrigger>
                   <SelectContent>
                     {thermalProfiles.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.label} · {p.paper_format} · Font {p.font}
+                        {p.display_name} · {p.paper_format} · Font {p.font ?? "A"}
                         {p.columns_override ? ` · ${p.columns_override}c` : ""}
                       </SelectItem>
                     ))}
@@ -354,7 +356,7 @@ export function ReceiptSettings() {
             <ResolvedPrintPolicyPanel
               resolved={lastResolved}
               expectedColumns={null}
-              profileLabel={(id) => thermalProfiles.find((p) => p.id === id)?.label ?? null}
+              profileLabel={(id) => thermalProfiles.find((p) => p.id === id)?.display_name ?? null}
             />
           </CardContent>
         </Card>

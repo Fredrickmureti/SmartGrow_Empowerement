@@ -2372,7 +2372,7 @@ serve(async (req) => {
       // printer-profile path as a real receipt, otherwise the operator
       // tests against the engine defaults instead of their actual printer.
       const previewProfileId =
-        (body.printerProfileId as string | undefined) ?? undefined;
+        (body.deviceAssignmentId as string | undefined) ?? undefined;
       let previewProfile:
         | {
             columns_override: number | null;
@@ -2387,16 +2387,14 @@ serve(async (req) => {
         | null = null;
       if (previewProfileId) {
         try {
-          // Phase 2c: canonical registry is device_assignments. The legacy
-          // printer_profile id is still mirrored to source_config_id; when
-          // Phase 6 lands, callers will pass the device_assignment id
-          // directly and we match on `id`. Support both during the window.
+          // Phase 6: `device_assignments` is the sole registry. Callers pass
+          // the assignment id directly — the legacy profile mirror is gone.
           const { data: pp } = await supabase
             .from("device_assignments")
             .select(
               "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
             )
-            .or(`id.eq.${previewProfileId},source_config_id.eq.${previewProfileId}`)
+            .eq("id", previewProfileId)
             .maybeSingle();
           if (pp) previewProfile = pp as typeof previewProfile;
         } catch (_err) {
@@ -3024,22 +3022,18 @@ serve(async (req) => {
             is_calibrated: boolean | null;
           }
         | null = null;
-      // Phase 3C — canonical device resolution. Preference order:
-      //   1. policy.device_assignment_id  → direct pin (new canonical column).
-      //   2. policy.printer_profile_id     → legacy pin (Phase 6 drops it).
-      //   3. policy.intent                 → role-only routing via `resolve_device`
+      // Phase 6 — canonical device resolution. Preference order:
+      //   1. policy.device_assignment_id  → direct pin (canonical column).
+      //   2. policy.intent                 → role-only routing via `resolve_device`
       //      (server-authoritative tie-break, identical to the client UI).
       // Emits one `hardware.route.decision` per resolved policy so the DoD
       // grep across sales / purchases / POS / inventory / WMS shows the
       // single canonical resolver on every printable intent.
       let resolvedAssignmentId: string | null = null;
-      let routeDecisionSource: "device_pin" | "profile_pin" | "intent_role" | "none" = "none";
+      let routeDecisionSource: "device_pin" | "intent_role" | "none" = "none";
       if (policy.device_assignment_id) {
         resolvedAssignmentId = policy.device_assignment_id;
         routeDecisionSource = "device_pin";
-      } else if (policy.printer_profile_id) {
-        resolvedAssignmentId = policy.printer_profile_id;
-        routeDecisionSource = "profile_pin";
       } else if (policy.intent) {
         try {
           const { roleForIntent } = await import("../_shared/printing/intentToRole.ts");
@@ -3069,19 +3063,13 @@ serve(async (req) => {
       }
       if (resolvedAssignmentId) {
         try {
-          // Prefer the canonical `id` match; fall back to `source_config_id`
-          // only for the profile_pin case where the id references the legacy
-          // `printer_profiles.id` (Phase 2b mirror, dropped in Phase 6).
-          const query = supabase
+          const { data: profileRow } = await supabase
             .from("device_assignments")
             .select(
               "columns_override, margin_cols, font, cutter, qr_native, code128_native, paper_format, is_calibrated",
-            );
-          const filtered =
-            routeDecisionSource === "profile_pin"
-              ? query.or(`id.eq.${resolvedAssignmentId},source_config_id.eq.${resolvedAssignmentId}`)
-              : query.eq("id", resolvedAssignmentId);
-          const { data: profileRow } = await filtered.maybeSingle();
+            )
+            .eq("id", resolvedAssignmentId)
+            .maybeSingle();
           if (profileRow) physicalProfile = profileRow as typeof physicalProfile;
         } catch (_err) {
           // Profile load is best-effort. The builder defaults are safe.
@@ -3249,9 +3237,9 @@ serve(async (req) => {
       policyHeaders["X-Print-Policy-Margin-Columns"] = String(escposRows.marginCols);
       policyHeaders["X-Print-Policy-Profile-Override"] =
         mergedProfile.columns_override !== null ? "calibrated" : "safe-default";
-      if (policy.printer_profile_id) {
+      if (policy.device_assignment_id) {
         policyHeaders["X-Print-Policy-Profile-Id"] = String(
-          policy.printer_profile_id,
+          policy.device_assignment_id,
         );
       }
       // Observability — expose the actual bytes' fingerprint + renderer
@@ -3274,7 +3262,7 @@ serve(async (req) => {
           marginColumns: escposRows.marginCols,
           font: escposRows.font,
           profileOverride: mergedProfile.columns_override !== null ? "calibrated" : "safe-default",
-          profileId: policy.printer_profile_id ?? null,
+          profileId: policy.device_assignment_id ?? null,
           bytes: (escposBytes as Uint8Array).length,
           sha256: _byteHash,
         }),

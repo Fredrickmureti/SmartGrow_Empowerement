@@ -42,7 +42,11 @@ export interface DeviceAssignment {
   status: string;
   last_seen_at: string | null;
   last_error: string | null;
-  source_config_id: string | null;
+  /** Thermal/media geometry (Phase 6 — merged from the dropped `printer_profiles`). */
+  paper_format: string | null;
+  font: string | null;
+  columns_override: number | null;
+  is_calibrated: boolean;
   created_at: string;
   updated_at: string;
 }
