@@ -13762,6 +13762,67 @@ export type Database = {
           },
         ]
       }
+      document_header_footer: {
+        Row: {
+          ast: Json
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          kind: string
+          label: string
+          organization_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ast?: Json
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          kind: string
+          label: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ast?: Json
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          kind?: string
+          label?: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_header_footer_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "document_header_footer_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "document_header_footer_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_kinds: {
         Row: {
           allowed_formats: string[]
@@ -13880,6 +13941,130 @@ export type Database = {
             columns: ["device_assignment_id"]
             isOneToOne: false
             referencedRelation: "device_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_template_ast: {
+        Row: {
+          ast: Json
+          branch_id: string | null
+          created_at: string
+          created_by: string | null
+          footer_id: string | null
+          header_id: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          kind_code: string
+          label: string
+          media_class: string | null
+          organization_id: string | null
+          scope: string
+          theme_id: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ast?: Json
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          footer_id?: string | null
+          header_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          kind_code: string
+          label: string
+          media_class?: string | null
+          organization_id?: string | null
+          scope: string
+          theme_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ast?: Json
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          footer_id?: string | null
+          header_id?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          kind_code?: string
+          label?: string
+          media_class?: string | null
+          organization_id?: string | null
+          scope?: string
+          theme_id?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_template_ast_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_footer_id_fkey"
+            columns: ["footer_id"]
+            isOneToOne: false
+            referencedRelation: "document_header_footer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_header_id_fkey"
+            columns: ["header_id"]
+            isOneToOne: false
+            referencedRelation: "document_header_footer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_kind_code_fkey"
+            columns: ["kind_code"]
+            isOneToOne: false
+            referencedRelation: "document_kinds"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "document_template_ast_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_template_ast_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "document_theme"
             referencedColumns: ["id"]
           },
         ]
@@ -14108,6 +14293,64 @@ export type Database = {
           },
           {
             foreignKeyName: "document_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_theme: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          label: string
+          organization_id: string | null
+          tokens: Json
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          label: string
+          organization_id?: string | null
+          tokens?: Json
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          label?: string
+          organization_id?: string | null
+          tokens?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_theme_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "document_theme_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "document_theme_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
