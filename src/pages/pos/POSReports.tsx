@@ -1239,7 +1239,7 @@ export default function POSReports() {
                         <Button
                           variant="outline"
                           onClick={() => handleReceiptPdf(receiptDetails)}
-                          disabled={isGeneratingPdf}
+                          disabled={isDispatchingReceipt}
                         >
                           <Download className="mr-2 h-4 w-4" /> PDF
                         </Button>
