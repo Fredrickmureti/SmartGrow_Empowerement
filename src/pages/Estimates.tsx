@@ -91,7 +91,10 @@ import { AdditionalCost } from "@/components/common/AdditionalCostsSection";
 // `/sales/estimates/:id/edit` routes on top of RecordFormShell.
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
+
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { AITextAssist } from "@/components/shared/AITextAssist";
@@ -251,17 +254,19 @@ export default function Estimates() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   
-  // Unified document print
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
+  // Wave 7.2 — print goes straight down the canonical document pipeline
+  // (snapshot → document_records → output intent). The preview dialog is
+  // kept as an operator-facing fallback surface only; it is no longer the
+  // print path, so rapid Sales prints can't get bounced off the raw FIFO
+  // hardware route by an ask_user/error branch.
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
+  const isGeneratingPdf = false;
+
   
   // Bulk operations state
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -366,19 +371,73 @@ export default function Estimates() {
     }
   };
 
-  const handlePrint = async (estimate: typeof estimates[0]) => {
-    await generateDocument("estimate", estimate.id, `Estimate ${estimate.estimate_number}`, {
-      entityType: "estimate",
-      entityId: estimate.id,
-      recipientPhone: (estimate as any).contact?.phone ?? null,
-      recipientName: estimate.contact?.name ?? null,
-      variables: {
-        estimate_number: estimate.estimate_number,
-        amount: String((estimate as any).total ?? 0),
-        customer_name: estimate.contact?.name ?? "",
-      },
-    });
+  const openDocumentPreview = (
+    documentType: string,
+    documentId: string,
+    title: string,
+    communication?: Parameters<typeof PrintPreviewDialog>[0]["communication"],
+  ) => {
+    setPrintPreviewTitle(title);
+    setPrintDocumentType(documentType);
+    setPrintDocumentId(documentId);
+    setPrintCommunication(communication);
+    setPrintPreviewOpen(true);
   };
+
+  const handlePrint = async (estimate: typeof estimates[0]) => {
+    setSelectedEstimate(estimate as Estimate);
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing estimates.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Wave 7.2 — canonical print pipeline: build snapshot → ensure
+      // document record → submit routing intent. No direct hardware calls.
+      const built = await fetchAndBuildSalesEstimateSnapshot(supabase, estimate.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.estimate",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "estimate",
+        sourceDocId: estimate.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Estimate ${estimate.estimate_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const filteredEstimates = estimates.filter((est) => {
     const matchesSearch =

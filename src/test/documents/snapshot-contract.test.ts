@@ -19,6 +19,8 @@ import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posRecei
 import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
 import { buildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { buildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
+import { buildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
+
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
 
@@ -111,7 +113,33 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         credit_note_items: [],
       }),
   },
+  {
+
+    file: "salesEstimate.ts",
+    run: () =>
+      buildSalesEstimateSnapshot({
+        id: "est-1",
+        estimate_number: "EST-2026-0001",
+        status: "sent",
+        issue_date: "2026-07-27",
+        expiry_date: "2026-08-10",
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        terms: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        estimate_items: [],
+      }),
+  },
 ];
+
 
 describe("snapshot builder contract", () => {
   for (const entry of SUITE) {
