@@ -23,7 +23,7 @@ import { composeBlocks, getMediumRenderer } from "./mediumRegistry.ts";
 import { persistArtifact, shouldPersistArtifact } from "../documents/persistArtifact.ts";
 
 async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource);
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
