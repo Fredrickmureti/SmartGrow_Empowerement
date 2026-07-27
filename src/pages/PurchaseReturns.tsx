@@ -67,9 +67,14 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { supabase } from "@/integrations/supabase/client";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
@@ -132,6 +137,9 @@ export default function PurchaseReturns() {
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
 
   const [showDialog, setShowDialog] = useState(false);
   const [peekId, setPeekId] = usePeekParam();
@@ -141,40 +149,46 @@ export default function PurchaseReturns() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
-
-  // Print & Email support
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
-  const [printReturnNumber, setPrintReturnNumber] = useState("");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
 
   const handlePrintReturn = async (pr: PurchaseReturn) => {
+    if (!currentOrg?.id || !currentBusiness?.id) {
+      toast({ title: "No organization/company", description: "Pick a company before printing.", variant: "destructive" });
+      return;
+    }
     setIsPrinting(pr.id);
-    setPrintReturnNumber(pr.return_number);
-    const vendor = contacts.find((c) => c.id === pr.vendor_id);
-    // Purchase returns use credit_note document type for debit note rendering
-    await generateDocument("credit_note" as any, pr.id, `Purchase Return ${pr.return_number}`, {
-      entityType: "purchase_return",
-      entityId: pr.id,
-      recipientPhone: vendor?.phone ?? null,
-      recipientName: vendor?.name ?? pr.vendor?.name ?? null,
-      variables: {
-        return_number: pr.return_number,
-        amount: String((pr as any).total ?? 0),
-        customer_name: vendor?.name ?? pr.vendor?.name ?? "",
-      },
-    });
-    setIsPrinting(null);
+    try {
+      const built = await fetchAndBuildPurchasesReturnSnapshot(supabase, pr.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "purchases.return",
+        organizationId: currentOrg.id,
+        sourceModule: "purchases",
+        sourceDocType: "purchase_return",
+        sourceDocId: pr.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "supplier",
+        partyId: built.vendorId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Return ${pr.return_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({ title: "Print failed", description: normalizeError(err).message, variant: "destructive" });
+    } finally {
+      setIsPrinting(null);
+    }
   };
 
   const [formData, setFormData] = useState({
@@ -573,16 +587,6 @@ export default function PurchaseReturns() {
         </Card>
       </div>
 
-      {/* Print Preview Dialog */}
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`purchase-return-${printReturnNumber || 'document'}`}
-        communication={printCommunication}
-      />
 
       {/* Email Dialog */}
       <SendDocumentDialog

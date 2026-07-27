@@ -74,8 +74,10 @@ import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendD
 // /purchases/orders/:id/edit. See src/features/purchases/orders/PurchaseOrderEditPage.tsx.
 // Create-PO dialog retired — creation is now the RecordFormShell route at
 // /purchases/orders/new. See src/features/purchases/orders/PurchaseOrderCreatePage.tsx.
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBranches } from "@/hooks/useBranches";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -193,6 +195,7 @@ export default function PurchaseOrders() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   const contactResolverRef = useRef<ContactResolver | null>(null);
   const productResolverRef = useRef<ProductResolver | null>(null);
 
@@ -284,35 +287,50 @@ export default function PurchaseOrders() {
   const [peekId, setPeekId] = usePeekParam();
 
 
-  // Unified document print
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
-  const [printPONumber, setPrintPONumber] = useState("");
-
   const handlePrintPO = async (po: PurchaseOrder) => {
+    if (!currentBusiness?.id) {
+      toast({ title: "No company selected", description: "Pick a company before printing.", variant: "destructive" });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({ title: "No organization", description: "Sign in to an organization before printing.", variant: "destructive" });
+      return;
+    }
     setIsPrinting(po.id);
-    setPrintPONumber(po.po_number);
-    const vendor = contacts.find((c) => c.id === po.vendor_id);
-    await generateDocument("purchase_order", po.id, `Purchase Order ${po.po_number}`, {
-      entityType: "purchase_order",
-      entityId: po.id,
-      recipientPhone: vendor?.phone ?? null,
-      recipientName: vendor?.name ?? null,
-      variables: {
-        po_number: po.po_number,
-        vendor_name: vendor?.name ?? "",
-        total: String(po.total ?? 0),
-      },
-    });
-    setIsPrinting(null);
+    try {
+      const built = await fetchAndBuildPurchasesPoSnapshot(supabase, po.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "purchases.po",
+        organizationId: currentOrg.id,
+        sourceModule: "purchases",
+        sourceDocType: "purchase_order",
+        sourceDocId: po.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "supplier",
+        partyId: built.vendorId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `PO ${po.po_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrinting(null);
+    }
   };
 
 
@@ -663,16 +681,6 @@ export default function PurchaseOrders() {
         }}
       />
 
-      {/* Print Preview Dialog */}
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`purchase-order-${printPONumber || 'document'}`}
-        communication={printCommunication}
-      />
       {/* PO peek surface */}
       <PurchaseOrderPeekSheet
         poId={peekId}

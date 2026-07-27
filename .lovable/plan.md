@@ -69,9 +69,30 @@ Remaining `usePrintOrPreview` importers (11 files, in execution order):
 - Verification: `src/test/documents` — 99/99 green (13 files); grep clean (`rg 'usePrintOrPreview|PrintPreviewDialog|generateDocument|printPreviewOpen|isGeneratingPdf' src/pages/Bills.tsx` returns nothing); tsgo clean on `Bills.tsx` under `tsconfig.app.json`.
 - Eslint allowlist unchanged: `src/pages/**/*.{ts,tsx}` still shields PurchaseOrders, PurchaseReturns, VendorStatements, POSReports, HR pages.
 
+### PurchaseOrders landing note (2026-07-27)
+
+- Snapshot builder added at `src/services/documents/snapshots/purchasesPo.ts` (pure `buildPurchasesPoSnapshot` + `fetchAndBuildPurchasesPoSnapshot`) mirroring `generate-document::fetchPurchaseOrder`. `SUITE` grew 13 → 14.
+- `src/pages/PurchaseOrders.tsx`: removed `usePrintOrPreview` + `PrintPreviewDialog`, added `useBranches`, rewrote `handlePrintPO` through `fetchAndBuildPurchasesPoSnapshot → ensureDocumentRecord({ kindCode: 'purchases.po', partyKind: 'supplier' }) → submitDocumentIntent({ triggeredSource: 'manual' })`.
+
+### PurchaseReturns landing note (2026-07-27)
+
+- Snapshot builder added at `src/services/documents/snapshots/purchasesReturn.ts` (pure `buildPurchasesReturnSnapshot` + `fetchAndBuildPurchasesReturnSnapshot`) mirroring `generate-document::fetchPurchaseReturn`. Emits `document_type: "vendor_return"`, `document_type_label: "VENDOR RETURN"`. `SUITE` grew 14 → 15.
+- `src/test/documents/purchases-return-snapshot.test.ts`: 7 tests (identity emission, routing metadata, fallbacks, currency default, coercion, determinism, identity guards).
+- `src/pages/PurchaseReturns.tsx`: removed `usePrintOrPreview` + `PrintPreviewDialog`, added `useOrganization` + `useBusinesses` + `useBranches`, rewrote `handlePrintReturn` through `fetchAndBuildPurchasesReturnSnapshot → ensureDocumentRecord({ kindCode: 'purchases.return', partyKind: 'supplier' }) → submitDocumentIntent({ triggeredSource: 'manual' })`. The prior implementation was mis-typed as `credit_note`; the new path routes through the correct `purchases.return` document kind.
+
+### VendorStatements landing note (2026-07-27)
+
+- Snapshot builder added at `src/services/documents/snapshots/purchasesVendorStatement.ts` (pure `buildVendorStatementSnapshot` + `fetchAndBuildVendorStatementSnapshot`) mirroring `generate-document::fetchVendorStatement`. Emits `document_type: "vendor_statement"`, `document_type_label: "VENDOR STATEMENT"`. Aging buckets accept an injectable `now` for deterministic tests. `SUITE` grew 15 → 16.
+- `src/test/documents/purchases-vendor-statement-snapshot.test.ts`: 7 tests (type/label, running balance, closing_balance override, aging buckets, fully-paid exclusion, determinism, identity guards).
+- `src/pages/VendorStatements.tsx`: removed `usePrintOrPreview.downloadPdf`, added `useBranches`, rewrote `handlePrint` through `fetchAndBuildVendorStatementSnapshot → ensureDocumentRecord({ kindCode: 'purchases.statement', partyKind: 'supplier' }) → submitDocumentIntent({ triggeredSource: 'manual' })`. A manual "PDF" click can no longer bypass archive / disposition rules.
+- Verification (all three above): `src/test/documents` — 124/124 green (16 files); grep clean on the touched files (`usePrintOrPreview|PrintPreviewDialog|downloadPdf|generateDocument`).
+
 ### Instructions for the next agent
 
-1. **Verify before continuing.** Run `bunx vitest run src/test/documents` (expect 99+ green) and `rg -l "usePrintOrPreview" src/pages src/features` (expect the 11-file list above, minus whatever you migrate). If either drifts, fix before starting new work.
-2. **Resume at Purchases step 2 — `PurchaseOrders`.** Build `src/services/documents/snapshots/purchasesPo.ts` (mirror `generate-document::fetchPurchaseOrder`; kindCode `purchases.po`), add unit tests + `SUITE` entry (13 → 14), then rewrite every leg in `src/pages/PurchaseOrders.tsx` through `ensureDocumentRecord → submitDocumentIntent`. `partyKind` is `'supplier'`.
-3. **Do not skip the contract test entry.** The `SUITE` entry is what enforces the builder shape across the fleet — a builder without it is not "under contract".
-4. Update this plan file with a dated landing note per page, matching the CreditNotes and Bills templates above.
+1. **Verify before continuing.** Run `bunx vitest run src/test/documents` (expect 124+ green) and `rg -l "usePrintOrPreview" src/pages src/features` — should now list `VendorStatementPeekSheet.tsx`, `VendorStatementRecordPage.tsx`, `GoodsReceiptWizardPage.tsx`, `Recruitment.tsx`, `ContractsListPage.tsx`, `LifecycleTimelinePage.tsx`, `POSReports.tsx`.
+2. **Resume at Purchases step 4 — `VendorStatementPeekSheet` + `VendorStatementRecordPage`.** These already have a snapshot builder (`purchasesVendorStatement.ts`); just wire their print/download legs to `fetchAndBuildVendorStatementSnapshot → ensureDocumentRecord → submitDocumentIntent`. No new SUITE entry needed.
+3. **Then `GoodsReceiptWizardPage`** — new snapshot builder needed (`purchases.grn`); grep for `fetchGoodsReceipt` in `generate-document/index.ts` for the projection.
+4. **HR cluster is bigger than a single-page migration.** The HR letter shape (`HrLetterData`) is not the standard `SnapshotBlob` — facts / salutation / body / signatories. Options: (a) create client-side HR-letter builders that mirror `hrLetterFetchers.ts` and pass through `submitDocumentIntent` with a discriminant in the snapshot; or (b) extend `submitDocumentIntent` to accept `sourceDocId` alone and let the server re-fetch via existing `fetchHrLetter`. Discuss with the owner before starting — this is a design fork, not a mechanical migration.
+5. **`POSReports.tsx`** currently only uses `downloadPdf` for the shift/z-report artefact. It needs a `pos.shift_report` snapshot builder — likely worth grouping with the POS cluster (fork 2, drawer-slip ESC/POS engine port) rather than doing standalone.
+6. Update this plan file with a dated landing note per page, matching the templates above.
+
