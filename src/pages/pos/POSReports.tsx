@@ -151,7 +151,7 @@ export default function POSReports() {
   const { registers } = usePOSRegisters();
   const { formatCurrency, getCurrencySymbol, baseCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
-  const { downloadPdf, isGeneratingPdf } = usePrintOrPreview();
+  const [isDispatchingReceipt, setIsDispatchingReceipt] = useState(false);
 
   // Filter registers by selected branch so the register picker stays coherent
   const visibleRegisters =
