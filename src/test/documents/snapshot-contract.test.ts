@@ -398,7 +398,25 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         creditNotes: [],
       }),
   },
+  {
+    file: "purchasesGrn.ts",
+    run: () =>
+      buildPurchasesGrnSnapshot({
+        id: "grn-1",
+        receipt_number: "GRN-1",
+        status: "received",
+        receipt_date: "2026-07-27",
+        notes: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        purchase_order_id: "po-1",
+        purchase_order: { po_number: "PO-1", currency: "KES", vendor_id: "v-1", vendor: null },
+        items: [],
+      }),
+  },
 ];
+
 
 
 describe("snapshot builder contract", () => {
