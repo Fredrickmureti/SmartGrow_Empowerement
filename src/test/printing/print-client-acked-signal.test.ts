@@ -80,8 +80,7 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
   beforeEach(async () => {
     rpcMock.mockReset();
     execAssignmentMock.mockReset();
-    printLabelBytesMock.mockReset();
-    printLabelBytesMock.mockResolvedValue({ success: true });
+    resolveDeviceMock.mockClear();
     printPdfInPageMock.mockClear();
     // Policy cache is a module-level singleton; flush between tests so
     // per-test (business, docType, intent) tuples aren't shadowed by a
