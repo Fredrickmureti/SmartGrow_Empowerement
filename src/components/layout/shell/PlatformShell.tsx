@@ -154,17 +154,14 @@ function PlatformShellBody({
         </>
       }
       mobileSidebar={
-        <>
-          <MobileAppSwitcher currentApp={app} onNavigate={() => setMobileNavOpen(false)} />
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <SidebarBody
-              app={app}
-              nav={nav}
-              onNavigate={() => setMobileNavOpen(false)}
-              defaultExpandAll
-            />
-          </div>
-        </>
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <SidebarBody
+            app={app}
+            nav={nav}
+            onNavigate={() => setMobileNavOpen(false)}
+            defaultExpandAll
+          />
+        </div>
       }
       topBar={
         <WorkspaceTopBar
