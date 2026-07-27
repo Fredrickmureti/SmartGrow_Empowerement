@@ -23,6 +23,7 @@
  *    helper that performs those lookups and delegates.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchDeliveryNote selects) ----------
@@ -282,7 +283,7 @@ export async function fetchAndBuildSalesDeliveryNoteSnapshot(
     );
   }
 
-  const row = data as unknown as SalesDeliveryNoteHeaderRow & {
+  const row = normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as SalesDeliveryNoteHeaderRow & {
     dispatch_officer_id?: string | null;
     received_by_user_id?: string | null;
   };

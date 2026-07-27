@@ -16,6 +16,7 @@
  *    helper mirroring `generate-document::fetchCreditNote`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror fetchCreditNote's projection) ----------
@@ -200,6 +201,6 @@ export async function fetchAndBuildSalesCreditNoteSnapshot(
     );
   }
   return buildSalesCreditNoteSnapshot(
-    data as unknown as SalesCreditNoteHeaderRow,
+    normalizeSnapshotItems(data as Record<string, unknown>, "credit_note_items") as unknown as SalesCreditNoteHeaderRow,
   );
 }

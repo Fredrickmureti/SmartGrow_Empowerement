@@ -11,6 +11,7 @@
  * the generate-document short-circuit is retired in Wave 9).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror fetchBill's projection) ----------
@@ -197,6 +198,6 @@ export async function fetchAndBuildPurchasesBillSnapshot(
     );
   }
   return buildPurchasesBillSnapshot(
-    data as unknown as PurchasesBillHeaderRow,
+    normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesBillHeaderRow,
   );
 }

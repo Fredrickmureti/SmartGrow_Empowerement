@@ -6,6 +6,7 @@
  * until the generate-document short-circuit is retired.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface SalesReturnItemRow {
@@ -169,5 +170,5 @@ export async function fetchAndBuildSalesReturnSnapshot(
       }`,
     );
   }
-  return buildSalesReturnSnapshot(data as unknown as SalesReturnHeaderRow);
+  return buildSalesReturnSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as SalesReturnHeaderRow);
 }

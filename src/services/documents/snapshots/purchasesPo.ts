@@ -5,6 +5,7 @@
  * for `document_kinds.code = 'purchases.po'`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface PurchasesPoItemRow {
@@ -168,5 +169,5 @@ export async function fetchAndBuildPurchasesPoSnapshot(
       `fetchAndBuildPurchasesPoSnapshot: po ${poId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildPurchasesPoSnapshot(data as unknown as PurchasesPoHeaderRow);
+  return buildPurchasesPoSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesPoHeaderRow);
 }

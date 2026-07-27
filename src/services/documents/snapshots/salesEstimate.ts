@@ -18,6 +18,7 @@
  *    so call sites migrate in two lines.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchEstimate selects) ----------
@@ -208,5 +209,5 @@ export async function fetchAndBuildSalesEstimateSnapshot(
       }`,
     );
   }
-  return buildSalesEstimateSnapshot(data as unknown as SalesEstimateHeaderRow);
+  return buildSalesEstimateSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "estimate_items") as unknown as SalesEstimateHeaderRow);
 }

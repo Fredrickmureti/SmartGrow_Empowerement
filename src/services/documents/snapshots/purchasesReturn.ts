@@ -4,6 +4,7 @@
  * for `document_kinds.code = 'purchases.return'`.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface PurchasesReturnItemRow {
@@ -166,5 +167,5 @@ export async function fetchAndBuildPurchasesReturnSnapshot(
       `fetchAndBuildPurchasesReturnSnapshot: purchase return ${prId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildPurchasesReturnSnapshot(data as unknown as PurchasesReturnHeaderRow);
+  return buildPurchasesReturnSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesReturnHeaderRow);
 }

@@ -23,6 +23,7 @@
  * upsert and lets each module own its projection.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchInvoice selects) ----------
@@ -212,5 +213,5 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       }`,
     );
   }
-  return buildSalesInvoiceSnapshot(data as unknown as SalesInvoiceHeaderRow);
+  return buildSalesInvoiceSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "invoice_items") as unknown as SalesInvoiceHeaderRow);
 }

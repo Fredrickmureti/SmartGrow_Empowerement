@@ -18,6 +18,7 @@
  *    so call sites migrate in two lines.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchProforma selects) ----------
@@ -200,5 +201,5 @@ export async function fetchAndBuildSalesProformaSnapshot(
       }`,
     );
   }
-  return buildSalesProformaSnapshot(data as unknown as SalesProformaHeaderRow);
+  return buildSalesProformaSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "proforma_invoice_items") as unknown as SalesProformaHeaderRow);
 }

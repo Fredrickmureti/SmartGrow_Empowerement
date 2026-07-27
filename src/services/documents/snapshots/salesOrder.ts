@@ -11,6 +11,7 @@
  * short-circuit is retired in Wave 9.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 // ---------- Input shapes (mirror what fetchSalesOrder selects) ----------
@@ -201,5 +202,5 @@ export async function fetchAndBuildSalesOrderSnapshot(
       }`,
     );
   }
-  return buildSalesOrderSnapshot(data as unknown as SalesOrderHeaderRow);
+  return buildSalesOrderSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as SalesOrderHeaderRow);
 }

@@ -11,6 +11,7 @@
  * document that looks like a priced commitment.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 
 export interface PurchasesGrnItemRow {
@@ -174,5 +175,5 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
       `fetchAndBuildPurchasesGrnSnapshot: goods receipt ${grnId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildPurchasesGrnSnapshot(data as unknown as PurchasesGrnHeaderRow);
+  return buildPurchasesGrnSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesGrnHeaderRow);
 }

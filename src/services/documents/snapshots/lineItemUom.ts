@@ -69,3 +69,17 @@ export function withLineItemUom<T extends RawLineItemUom>(
 ): T & NormalizedLineItemUom {
   return { ...row, ...normalizeLineItemUom(row) };
 }
+
+/**
+ * Flattens the item collection on a fetched header row so the pure builders
+ * keep seeing `sku` / `pack_quantity` / `pack_size` / `unit_of_measure`.
+ * `itemsKey` differs per document kind (`items`, `invoice_items`, ...).
+ */
+export function normalizeSnapshotItems<T extends Record<string, unknown>>(
+  row: T,
+  itemsKey: string,
+): T {
+  const raw = row[itemsKey];
+  if (!Array.isArray(raw)) return row;
+  return { ...row, [itemsKey]: raw.map((i) => withLineItemUom(i as RawLineItemUom)) };
+}
