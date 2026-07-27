@@ -70,6 +70,21 @@ import { scanFeedbackBus } from "@/services/scanner";
 import { useSalesOpenDraftHandler, useSalesHasActiveDraft } from "@/contexts/SalesScanContext";
 import { dialogReadyBus } from "@/services/scanner/dialogReadyBus";
 
+function describeInvoicePrintError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("column") && lower.includes("businesses") && lower.includes("currency")) {
+    return "Invoice print failed while loading company branding: the company currency field is out of sync with the database schema.";
+  }
+
+  if (lower.includes("fetchandbuildsalesinvoicesnapshot")) {
+    return "Invoice print failed while preparing the document snapshot. Refresh the invoice and try again.";
+  }
+
+  return normalizeError(err).message;
+}
+
 export default function Invoices() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -352,7 +367,7 @@ export default function Invoices() {
     } catch (err) {
       toast({
         title: "Print failed",
-        description: normalizeError(err).message,
+        description: describeInvoicePrintError(err),
         variant: "destructive",
       });
     }
