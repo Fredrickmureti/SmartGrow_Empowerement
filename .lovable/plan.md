@@ -14,6 +14,26 @@ Legacy paths (`ReceiptTemplateGenerator`, `receiptConfig`, `useDocumentPrint`, `
 
 **Verdict:** Waves 1–5 are genuinely complete and enterprise-grade. Resume at Wave 6 as the plan directs.
 
+## Wave 6 — ✅ COMPLETE (2026-07-27)
+
+Delivered:
+
+- **Schema** (`printer_roles`, `printer_role_branch_bindings`) with org bootstrap trigger seeding the five canonical roles (`receipt_thermal`, `fiscal_a4`, `label_zpl`, `kitchen`, `back_office`) + backfill for existing orgs. `print_jobs` extended with `dedupe_key`, `max_attempts`, `next_attempt_at`, `processing` / `dead_letter` states.
+- **RPCs** (all `SECURITY DEFINER`, `search_path=public`): `resolve_hardware_assignment`, `claim_print_jobs(limit)` with `FOR UPDATE SKIP LOCKED`, `requeue_print_job` (platform-admin only), `mark_print_job_failed` with exponential back-off → `dead_letter` on cap.
+- **Drainer** `supabase/functions/dispatch-print-jobs/index.ts` — single-writer queue drainer, scheduled every minute via pg_cron (`dispatch-print-jobs-every-minute`). Note: awaiting a Supabase edge-function slot to redeploy; code + cron are live.
+- **UI**: `HardwarePrintQueue` gains `Requeue` action in the job drawer + `dead_letter`/`processing` status chips. New `HardwareRoles` admin page (`/platform/hardware/roles`) does CRUD on roles and per-branch device bindings via `useDeviceAssignments` — no duplicate registration surface (ADR-0099).
+- **Guards**: `src/test/architecture/wave6-dispatcher.test.ts` — no code outside the drainer calls `claim_print_jobs`; no code outside `submitIntent.ts` inserts into `print_jobs`.
+
+### Next agent — Wave 7 pre-flight
+
+Before touching POS receipt convergence, verify:
+1. Bootstrap trigger fires on new-org insert (`_wave6_seed_printer_roles`).
+2. `claim_print_jobs(N)` respects `SKIP LOCKED` — two concurrent calls must not return the same row.
+3. `dead_letter` transition when `attempt_count >= max_attempts`.
+4. `requeue_print_job` refuses non-platform-admin callers.
+
+
+
 ## Phase 2 — Plan validation
 
 The existing §10 spec for Wave 6 is sound. I add two items I judged missing:

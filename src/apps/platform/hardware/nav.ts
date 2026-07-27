@@ -3,7 +3,7 @@
  * and topology inside PlatformShell so the page is no longer a buried
  * standalone surface without rails or sidebar.
  */
-import { Cpu, Activity, Network, Ruler, Gauge, Tag, Printer, FileText } from "lucide-react";
+import { Cpu, Activity, Network, Ruler, Gauge, Tag, Printer, FileText, Route as RouteIcon } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const HARDWARE_NAV: WorkspaceNav = {
@@ -34,8 +34,12 @@ export const HARDWARE_NAV: WorkspaceNav = {
         // Wave 9d Phase 4: canonical home for `document_print_policies`.
         // `Settings → Company → Printing` now redirects here.
         { to: "/platform/hardware/policies", label: "Print policies", icon: FileText },
+        // Wave 6: role-based hardware assignment. Documents ask for a role,
+        // bindings decide the physical device per branch.
+        { to: "/platform/hardware/roles", label: "Printer roles", icon: RouteIcon },
       ],
     },
+
     {
       label: "Insights",
       items: [
