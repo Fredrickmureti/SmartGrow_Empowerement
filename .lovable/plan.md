@@ -47,18 +47,18 @@ Re-verified `app-lifecycle`, `post-loan-interest-accrual`, and `activate-organiz
 Exit criteria: audit doc up-to-date, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing.
 
 
-## Wave 7 — POS Receipt Convergence
+## Wave 7 — POS Receipt Convergence (IN PROGRESS — 7.1 landed 2026-07-27)
 
 Preserve the previous engineer's subwaves; execute in order, no shortcuts:
 
-- **7.1** Server-side `thermalReceipt` renderer in `_shared/rendering/renderers/thermal-receipt.ts` with byte-parity fixtures against the current `ReceiptTemplateGenerator` (golden-file tests under `src/test/rendering/`).
-- **7.2** Mechanical rewrite of every POS hook / checkout component / label page from `PrintClient.print(…)` and `useDocumentPrint(…)` onto `submitIntent({ documentKind, recordId, scenario })`. Drive the allow-list from Wave 6.5 to zero.
-- **7.3** Delete `PrintClient`, `usePrintOrPreview`, `useDocumentPrint`, `ReceiptTemplateGenerator`, and `BrowserHardwareAdapter.print` (adapter keeps `open/close/scan/etc`).
+- **7.1** ✅ Byte-parity golden at the AST→ESC/POS seam. `ReceiptTemplateGenerator` never existed in this codebase (stale plan entry), so instead of a new `thermal-receipt.ts` file we lock the existing `renderAstToEscPos` output for a canonical POS receipt fixture. Test: `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts`; golden: `thermal_receipt_golden.json` (sha256 `495b7d7d…2153e`, 667 bytes @ 80mm). Auto-seeds on first run; any drift fails loudly with a 40-line preview. This is the parity gate Wave 7.2 must clear.
+- **7.2** Mechanical rewrite of every POS hook / checkout component / label page from `PrintClient.print(…)` and `useDocumentPrint(…)` onto `submitIntent({ documentKind, recordId, scenario })`. Drive the allow-list in `eslint.config.js` from Wave 6.5 to zero. Golden test above is the safety net.
+- **7.3** Delete `PrintClient`, `usePrintOrPreview`, and `BrowserHardwareAdapter.print` (adapter keeps `open/close/scan/etc`). `useDocumentPrint` and `ReceiptTemplateGenerator` do not exist — skip.
 - **7.4** `POS_CHOKEPOINT_V2` feature flag with one-release dual-write so a rollback is a config flip, not a code revert.
 - **7.5** Architecture guards: no `PrintClient` imports anywhere; no client-side `print_jobs` insert; no `window.print()` outside the print-preview surface.
 - **7.6** Latency fast-path — `submit_document_intent` triggers a `pg_net.http_post` to `dispatch-print-jobs` when `scenario='on_close'`, so POS receipts print p95 ≤ 2 s without waiting for the next cron tick.
 
-Exit: byte-parity golden tests green, POS smoke (`e2e/`) green, `PrintClient` gone, allow-lists empty.
+Exit: byte-parity golden green, POS smoke (`e2e/`) green, `PrintClient` gone, allow-lists empty.
 
 ## Wave 8 — Hardware Adapter Internals
 
