@@ -8,8 +8,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const rpcMock = vi.fn();
-const printRawBytesMock = vi.fn();
-const printLabelBytesMock = vi.fn().mockResolvedValue({ success: true });
+// Phase 5 Step C — thermal dispatch is resolve-then-execAssignment.
+const execAssignmentMock = vi.fn();
+const resolveDeviceMock = vi.fn().mockResolvedValue({
+  id: 'assign-1', role: 'receipt_printer', transport: 'electron', enabled: true,
+});
 const generatePdfMock = vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
 const generateEscPosMock = vi.fn().mockResolvedValue(new Uint8Array([0x1b, 0x40]));
 const printPdfInPageMock = vi.fn().mockResolvedValue(undefined);
@@ -20,9 +23,12 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 vi.mock('@/services/hardware/HardwareClient', () => ({
   hardwareClient: {
-    printRawBytes: (...a: unknown[]) => printRawBytesMock(...a),
-    printLabelBytes: (...a: unknown[]) => printLabelBytesMock(...a),
+    execAssignment: (...a: unknown[]) => execAssignmentMock(...a),
   },
+}));
+
+vi.mock('@/hooks/useDeviceForIntent', () => ({
+  resolveDeviceForIntent: (...a: unknown[]) => resolveDeviceMock(...a),
 }));
 
 vi.mock('@/services/printing/pdfUtils', () => ({
@@ -73,7 +79,7 @@ function failedCalls() {
 describe('PrintClient — P3 Step 4 ledger acked_at', () => {
   beforeEach(async () => {
     rpcMock.mockReset();
-    printRawBytesMock.mockReset();
+    execAssignmentMock.mockReset();
     printLabelBytesMock.mockReset();
     printLabelBytesMock.mockResolvedValue({ success: true });
     printPdfInPageMock.mockClear();
@@ -86,12 +92,13 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
 
   it('marks thermal single-copy job sent then acked when driver returns success', async () => {
     seedRpc('escpos', 1);
-    printRawBytesMock.mockResolvedValue({ success: true });
+    execAssignmentMock.mockResolvedValue({ success: true });
     const { printClient } = await import('@/services/printing/PrintClient');
     const res = await printClient.print({
       intent: 'receipt',
       documentType: 'pos_receipt',
       documentId: 'txn-1',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       idempotencyKey: 'click-a',
     });
@@ -103,12 +110,13 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
 
   it('marks thermal job failed (no ack) when driver returns success:false', async () => {
     seedRpc('escpos', 1);
-    printRawBytesMock.mockResolvedValue({ success: false, error: 'offline' });
+    execAssignmentMock.mockResolvedValue({ success: false, error: 'offline' });
     const { printClient } = await import('@/services/printing/PrintClient');
     const res = await printClient.print({
       intent: 'receipt',
       documentType: 'pos_receipt',
       documentId: 'txn-2',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       idempotencyKey: 'click-b',
     });
@@ -124,6 +132,7 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
       intent: 'a4_document',
       documentType: 'invoice',
       documentId: 'inv-1',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       idempotencyKey: 'click-c',
     });
@@ -139,6 +148,7 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
       intent: 'a4_document',
       documentType: 'invoice',
       documentId: 'inv-2',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       idempotencyKey: 'click-d',
     });
@@ -162,6 +172,7 @@ describe('PrintClient — P3 Step 4 ledger acked_at', () => {
       documentId: 'inv-9',
       intent: 'a4_document',
       format: 'pdf',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       idempotencyKey: 'click-e',
     });
