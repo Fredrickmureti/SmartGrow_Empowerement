@@ -119,13 +119,17 @@ export function statusLabel(status: string | null | undefined): string {
   if (!status) return "—";
   const map: Record<string, string> = {
     queued: "Queued",
+    processing: "Processing",
     sent: "Sent to printer",
     acked: "Printed",
     printed: "Printed",
     failed: "Failed",
+    dead_letter: "Dead-letter (giving up)",
+    abandoned: "Abandoned",
     cancelled: "Cancelled",
     canceled: "Cancelled",
   };
+
   return map[status] ?? prettifyEnum(status);
 }
 
