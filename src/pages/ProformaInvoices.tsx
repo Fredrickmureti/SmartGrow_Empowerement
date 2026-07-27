@@ -63,6 +63,7 @@ import { usePeekParam } from "@/features/sales/record";
 export default function ProformaInvoices() {
   const navigate = useNavigate();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   const [searchParams, setSearchParams] = useSearchParams();
   const { proformaInvoices, isLoading, deleteProformaInvoice, updateProformaInvoice, convertToInvoice, refresh } = useProformaInvoices();
   const { formatCurrency } = useCurrency();
