@@ -31,6 +31,7 @@ import { buildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchas
 import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { buildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { buildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
+import { buildHrLetterSnapshot } from "@/services/documents/snapshots/hrLetter";
 
 
 
