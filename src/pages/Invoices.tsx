@@ -43,7 +43,9 @@ import {
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { printClient } from "@/services/printing/PrintClient";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
@@ -312,41 +314,50 @@ export default function Invoices() {
       });
       return;
     }
-
-    const clickIdempotencyKey =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `invoice-print:${invoice.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-
-    const result = await printClient.print({
-      intent: "a4_document",
-      documentType: "invoice",
-      documentId: invoice.id,
-      title: `Invoice ${invoice.invoice_number}`,
-      organizationId: currentOrg?.id ?? null,
-      businessId: currentBusiness.id,
-      branchId: currentBranch?.id ?? null,
-      idempotencyKey: clickIdempotencyKey,
-    });
-
-    if (result.success) {
+    if (!currentOrg?.id) {
       toast({
-        title: result.transport === "thermal" ? "Sent to printer" : "Print dispatched",
-        description: result.transport === "thermal"
-          ? `Invoice ${invoice.invoice_number} was queued for the receipt printer.`
-          : `Invoice ${invoice.invoice_number} was sent through ${result.transport}.`,
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
       });
       return;
     }
 
-    toast({
-      title: "Print failed",
-      description: result.transport === "ask_user"
-        ? "Invoice print policy is set to ask before printing. Change the policy to auto-print, or use the preview action explicitly."
-        : result.error ?? "The printer did not accept this invoice print job.",
-      variant: "destructive",
-    });
+    try {
+      // Wave 7.2 — canonical print pipeline: build snapshot → ensure
+      // document record → submit routing intent. No direct hardware calls.
+      const built = await fetchAndBuildSalesInvoiceSnapshot(supabase, invoice.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.invoice",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "invoice",
+        sourceDocId: invoice.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Invoice ${invoice.invoice_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
   };
+
 
   const executeDelete = async (invoice: Invoice) => {
     try { await deleteInvoice(invoice.id); toast({ title: "Invoice deleted" }); } catch (error: any) { toast({ title: "Error deleting invoice", description: normalizeError(error).message, variant: "destructive" }); }
