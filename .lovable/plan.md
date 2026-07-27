@@ -190,6 +190,53 @@ Nothing on this list survives as a fallback.
 
 ---
 
-## Next Step
+## 9. Execution Status (authoritative)
 
-On approval, begin **Wave 1** (Document Domain foundation): migration for `documents`, `document_kinds`, artifacts v2 columns, kind seed data, grants + RLS, plus the humanize entries. No UI or renderer changes in Wave 1 — foundation only, so every following wave has a stable spine to attach to.
+| Wave | Status | Notes |
+|------|--------|-------|
+| Wave 1 — Document Domain foundation | ✅ Done (repaired in Wave 5) | Initial `CREATE TABLE IF NOT EXISTS public.documents` silently no-oped due to a pre-existing legacy DMS table with the same name. Repaired in Wave 5: canonical aggregate lives at `public.document_records` (SAP DIR convention). `document_kinds` seeded. `document_artifacts` v2 columns added. |
+| Wave 2 — Template Registry rewrite | ✅ Done | `document_theme`, `document_header_footer`, `document_template_ast` created with scope-based RLS. One system-default AST seeded per kind. Legacy `document_templates` untouched (Wave 9 purge). |
+| Wave 3 — Rendering Engine consolidation | ✅ Done | `supabase/functions/_shared/rendering/*` + `render-document` edge function. Medium registry dispatches to pdf/escpos/zpl/html adapters. Content-hashed, artifact-persisted. Engine now reads from `document_records` (repointed in Wave 5). |
+| Wave 4 — Output Intent + Policy Resolver | ✅ Done | `output_intents`, `output_intent_targets`, `output_dispatch_log`, `resolve_output_intent` RPC, `resolve-output-intent` edge function, `src/services/documents/outputIntent.ts` client shim. System defaults seeded for every document kind. |
+| Wave 5 — Print job pipeline unification | ✅ Done (this iteration) | `print_jobs` extended with `document_record_id`, `output_intent_id`, `output_intent_target_id`, `artifact_id`, `disposition`, `medium`, `hardware_role`, `copies`, `scenario`, `triggered_source`, `render_params`. New `submit_document_intent` RPC = single server-side chokepoint (resolves plan, enqueues one job per target atomically, writes dispatch log). Worker helpers `mark_print_job_dispatched` / `mark_print_job_failed`. Edge function `submit-document-intent`. Client shim `src/services/documents/submitIntent.ts`. **Legacy callsites not yet migrated** — that migration is Wave 5.5 and Wave 7 (POS) / Wave 8 (labels). |
+| Wave 6 — Hardware role aliases + dispatch worker | 🔜 Next | Introduce `printer_roles` table (aliases like `receipt_thermal`, `fiscal_a4`, `label_zpl`, `kitchen`, `back_office`). Build the queue drainer edge function that pops queued `print_jobs` rows, calls `render-document`, persists the artifact, and either hands print jobs to `hardwareClient` (via role→assignment resolution) or routes email/archive/download dispositions to their pipelines. Delete direct-printer-id policy references. |
+| Wave 7 — POS receipt convergence | ⏳ Pending | POS commit path emits a Document Record + calls `submitDocumentIntent`. Delete `ReceiptTemplateGenerator.ts`, `ReceiptEscPosBuilder.ts`, `receiptConfig.ts`. Two paper widths become `media_class` values. |
+| Wave 8 — Label pipeline convergence | ⏳ Pending | Move `labelCompiler` / `labelDispatch` / `labelBarcode` server-side under `_shared/rendering/renderers/zpl/`. Visual designer writes AST into `document_template_ast`. |
+| Wave 9 — Legacy purge | ⏳ Pending | Delete `PrintService.ts`, `useDocumentPrint` direct path, legacy `document_templates` table, deprecated preload IPC channels, per-module template editors, superseded generate-* edge functions (become thin adapters). |
+| Wave 10 — Guardrails & docs | ⏳ Pending | ESLint rules: `no-direct-renderer-call`, `no-direct-print-policy-read`, `no-per-module-template`, `no-legacy-documents-table`. Architecture tests. Refresh ADR-0086 as master doc; tombstone superseded ADRs. |
+
+**Currently active:** Wave 5 complete. **Next up:** Wave 6.
+
+---
+
+## 10. Instructions for the Next Agent
+
+Before touching Wave 6, VERIFY the previous waves are enterprise-grade:
+
+1. **Wave 5 repair sanity check.**
+   - Confirm `public.document_records` exists and has the columns from §3.2. Confirm `public.documents` remains the legacy DMS folders table (unchanged).
+   - Confirm `document_artifacts.document_id` FK targets `document_records(id)`, not the legacy DMS table (`\d public.document_artifacts` or `supabase--read_query` on `pg_constraint`).
+   - Confirm `output_dispatch_log.document_id` FK targets `document_records(id)`.
+   - Confirm `supabase/functions/_shared/rendering/{engine,resolveContext}.ts` query `document_records` — a repo grep for `.from("documents")` inside `supabase/functions/_shared/rendering/` must return zero hits.
+
+2. **Wave 5 chokepoint sanity check.**
+   - `submit_document_intent(uuid, text, text, jsonb)` is `SECURITY DEFINER`, gates on `is_org_member`, and inserts one `print_jobs` row per resolved target with the new columns populated. Verify by inserting a stub `document_records` row for a test org and calling the RPC; expect ≥1 queued job.
+   - `mark_print_job_dispatched` / `mark_print_job_failed` reject non-service-role callers.
+
+3. **Only after those checks pass, begin Wave 6.** Do NOT skip ahead to POS/label convergence (Waves 7/8) — Wave 6 is what makes queued jobs actually reach a device. Wave 6 scope:
+   - `printer_roles` table: `(id, organization_id, code, label, hardware_kind, default_media_class, is_active)`; per-branch overrides via a `printer_role_branch_bindings` table.
+   - RPC `resolve_hardware_assignment(organization_id, branch_id, role_code)` → device_assignment id.
+   - Edge function `dispatch-print-jobs` (cron-invoked every ~30s): claims batch of `queued` jobs with `FOR UPDATE SKIP LOCKED`; per job → invoke `render-document` → persist artifact → per disposition:
+     - `print` → resolve role→assignment, hand to `hardwareClient` command queue, call `mark_print_job_dispatched(job_id, artifact_id, hw_command_id)`.
+     - `email` → enqueue via `email_event_outbox`, mark dispatched.
+     - `download` / `archive` → mark dispatched immediately (artifact already stored).
+     - `fiscal` → hand to `fiscal_transmissions` pipeline.
+     - `webhook` → enqueue on `business_event_outbox`.
+   - Update Wave 4 targets seed: `receipt_thermal` / `fiscal_a4` / `label_zpl` role aliases become rows in `printer_roles` per org (bootstrap trigger on business creation).
+   - Delete direct printer-id references from any remaining policy code paths.
+
+4. **Do NOT** start Wave 6 by modifying POS or label code — that is Wave 7/8 territory. Keep the pipeline shape stable through Wave 6 so those later waves have a fully working drainer to plug into.
+
+5. **After Wave 6, update this plan file the same way**: flip Wave 6 to ✅, add its notes row, and rewrite §10 for the next agent to verify Wave 6 before starting Wave 7.
+
+The overriding rule is unchanged: each wave lands schema + code + guards + deletions and reaches a coherent production-ready state before the next one starts. No shadow paths, no orphaned functionality, no jumping between unrelated areas.

@@ -41,7 +41,7 @@ export async function buildContext(
 }
 
 async function loadDocument(supabase: SupabaseClient, id: string) {
-  const { data, error } = await supabase.from("documents").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("document_records").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error(`document_not_found:${id}`);
   return {

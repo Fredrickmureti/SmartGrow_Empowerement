@@ -13539,7 +13539,7 @@ export type Database = {
           content_sha256: string
           copies: number
           created_at: string
-          document_id: string
+          document_id: string | null
           document_number: string | null
           document_type: string
           format: string | null
@@ -13573,7 +13573,7 @@ export type Database = {
           content_sha256: string
           copies?: number
           created_at?: string
-          document_id: string
+          document_id?: string | null
           document_number?: string | null
           document_type: string
           format?: string | null
@@ -13607,7 +13607,7 @@ export type Database = {
           content_sha256?: string
           copies?: number
           created_at?: string
-          document_id?: string
+          document_id?: string | null
           document_number?: string | null
           document_type?: string
           format?: string | null
@@ -13634,6 +13634,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "document_artifacts_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_artifacts_superseded_by_fkey"
             columns: ["superseded_by"]
@@ -13941,6 +13948,111 @@ export type Database = {
             columns: ["device_assignment_id"]
             isOneToOne: false
             referencedRelation: "device_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_records: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          id: string
+          kind_code: string
+          locale: string | null
+          metadata: Json
+          organization_id: string
+          party_id: string | null
+          party_kind: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          source_module: string
+          status: string
+          superseded_by: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          kind_code: string
+          locale?: string | null
+          metadata?: Json
+          organization_id: string
+          party_id?: string | null
+          party_kind?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          source_module: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          kind_code?: string
+          locale?: string | null
+          metadata?: Json
+          organization_id?: string
+          party_id?: string | null
+          party_kind?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          source_module?: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_records_kind_code_fkey"
+            columns: ["kind_code"]
+            isOneToOne: false
+            referencedRelation: "document_kinds"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "document_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "document_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "document_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_records_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "document_records"
             referencedColumns: ["id"]
           },
         ]
@@ -30985,7 +31097,7 @@ export type Database = {
             foreignKeyName: "output_dispatch_log_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
-            referencedRelation: "documents"
+            referencedRelation: "document_records"
             referencedColumns: ["id"]
           },
           {
@@ -48417,85 +48529,146 @@ export type Database = {
       print_jobs: {
         Row: {
           acked_at: string | null
+          artifact_id: string | null
           attempt_count: number
           branch_id: string | null
           business_id: string
+          copies: number
           correlation_id: string
           created_at: string
           device_assignment_id: string | null
+          disposition: Database["public"]["Enums"]["output_disposition"] | null
           doc_id: string | null
           doc_type: string
+          document_record_id: string | null
           failed_at: string | null
           format: string
+          hardware_role: string | null
           hw_command_id: number | null
           id: string
           intent: string
           last_error: string | null
           media_profile_id: string | null
+          medium: Database["public"]["Enums"]["output_medium"] | null
+          output_intent_id: string | null
+          output_intent_target_id: string | null
           parent_job_id: string | null
+          render_params: Json
           requested_at: string
           requested_by: string | null
+          scenario: string
           sent_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
           transport: string
+          triggered_source: string | null
           updated_at: string
         }
         Insert: {
           acked_at?: string | null
+          artifact_id?: string | null
           attempt_count?: number
           branch_id?: string | null
           business_id: string
+          copies?: number
           correlation_id: string
           created_at?: string
           device_assignment_id?: string | null
+          disposition?: Database["public"]["Enums"]["output_disposition"] | null
           doc_id?: string | null
           doc_type: string
+          document_record_id?: string | null
           failed_at?: string | null
           format: string
+          hardware_role?: string | null
           hw_command_id?: number | null
           id?: string
           intent: string
           last_error?: string | null
           media_profile_id?: string | null
+          medium?: Database["public"]["Enums"]["output_medium"] | null
+          output_intent_id?: string | null
+          output_intent_target_id?: string | null
           parent_job_id?: string | null
+          render_params?: Json
           requested_at?: string
           requested_by?: string | null
+          scenario?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
           transport: string
+          triggered_source?: string | null
           updated_at?: string
         }
         Update: {
           acked_at?: string | null
+          artifact_id?: string | null
           attempt_count?: number
           branch_id?: string | null
           business_id?: string
+          copies?: number
           correlation_id?: string
           created_at?: string
           device_assignment_id?: string | null
+          disposition?: Database["public"]["Enums"]["output_disposition"] | null
           doc_id?: string | null
           doc_type?: string
+          document_record_id?: string | null
           failed_at?: string | null
           format?: string
+          hardware_role?: string | null
           hw_command_id?: number | null
           id?: string
           intent?: string
           last_error?: string | null
           media_profile_id?: string | null
+          medium?: Database["public"]["Enums"]["output_medium"] | null
+          output_intent_id?: string | null
+          output_intent_target_id?: string | null
           parent_job_id?: string | null
+          render_params?: Json
           requested_at?: string
           requested_by?: string | null
+          scenario?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
           transport?: string
+          triggered_source?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "print_jobs_artifact_id_fkey"
+            columns: ["artifact_id"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_jobs_document_record_id_fkey"
+            columns: ["document_record_id"]
+            isOneToOne: false
+            referencedRelation: "document_records"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "print_jobs_hw_command_id_fkey"
             columns: ["hw_command_id"]
             isOneToOne: false
             referencedRelation: "hardware_command_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_jobs_output_intent_id_fkey"
+            columns: ["output_intent_id"]
+            isOneToOne: false
+            referencedRelation: "output_intents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "print_jobs_output_intent_target_id_fkey"
+            columns: ["output_intent_target_id"]
+            isOneToOne: false
+            referencedRelation: "output_intent_targets"
             referencedColumns: ["id"]
           },
           {
@@ -77616,7 +77789,7 @@ export type Database = {
           content_sha256: string
           copies: number
           created_at: string
-          document_id: string
+          document_id: string | null
           document_number: string | null
           document_type: string
           format: string | null
@@ -81067,6 +81240,18 @@ export type Database = {
       mark_po_billed: {
         Args: { p_bill_id: string; p_po_id: string }
         Returns: Json
+      }
+      mark_print_job_dispatched: {
+        Args: {
+          p_artifact_id?: string
+          p_hw_command_id?: number
+          p_job_id: string
+        }
+        Returns: undefined
+      }
+      mark_print_job_failed: {
+        Args: { p_error: string; p_job_id: string }
+        Returns: undefined
       }
       mark_timesheets_invoiced: {
         Args: { _invoice_id: string; _timesheet_ids: string[] }
@@ -85752,6 +85937,15 @@ export type Database = {
           p_provider_id: string
         }
         Returns: string
+      }
+      submit_document_intent: {
+        Args: {
+          p_document_record_id: string
+          p_override_targets?: Json
+          p_scenario?: string
+          p_triggered_source?: string
+        }
+        Returns: Json
       }
       submit_profile_change_request: {
         Args: { p_field_key: string; p_new_value: Json; p_reason?: string }

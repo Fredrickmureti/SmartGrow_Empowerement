@@ -128,19 +128,19 @@ export async function renderDocument(
 }
 
 async function lookupKindForDocument(supabase: SupabaseClient, id: string): Promise<string> {
-  const { data, error } = await supabase.from("documents").select("kind_code").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("document_records").select("kind_code").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error(`document_not_found:${id}`);
   return data.kind_code as string;
 }
 async function lookupOrgForDocument(supabase: SupabaseClient, id: string): Promise<string> {
-  const { data, error } = await supabase.from("documents").select("organization_id").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("document_records").select("organization_id").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error(`document_not_found:${id}`);
   return data.organization_id as string;
 }
 async function lookupBranchForDocument(supabase: SupabaseClient, id: string): Promise<string | null> {
-  const { data, error } = await supabase.from("documents").select("branch_id").eq("id", id).maybeSingle();
+  const { data, error } = await supabase.from("document_records").select("branch_id").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data?.branch_id as string | null) ?? null;
 }
