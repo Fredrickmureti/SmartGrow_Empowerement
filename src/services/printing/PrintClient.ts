@@ -26,12 +26,11 @@ import {
   openPdfInNewTab,
 } from '@/services/printing/pdfUtils';
 
-export type PrintIntent =
-  | 'receipt'        // thermal receipt printer
-  | 'kitchen_ticket' // thermal kitchen printer
-  | 'label'          // ZPL/EPL label printer (falls back to ESC/POS)
-  | 'a4_document'    // PDF on a4_printer or browser/OS
-  | 'packing_slip';  // A4 with thermal fallback
+// `PrintIntent` is defined in the shared vocabulary module
+// (`@/services/printing/types`) so consumers can route by intent without
+// importing this dispatch client. Re-exported here for existing callers.
+export type { PrintIntent } from '@/services/printing/types';
+import type { PrintIntent } from '@/services/printing/types';
 
 export interface PrintRequest {
   intent: PrintIntent;
