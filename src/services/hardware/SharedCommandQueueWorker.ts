@@ -87,6 +87,8 @@ interface QueueRow {
 
 export interface WorkerStatus {
   workerId: string;
+}
+  workerId: string;
   isLeader: boolean;
   lastClaimAt: number | null;
   inFlight: { id: number; role: string; op: string } | null;
