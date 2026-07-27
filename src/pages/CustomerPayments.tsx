@@ -12,10 +12,12 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { VoidPaymentDialog } from "@/components/payments/VoidPaymentDialog";
 import { ReversePaymentWizard } from "@/components/payments/ReversePaymentWizard";
@@ -124,18 +126,6 @@ export default function CustomerPayments() {
   // Studio integration
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "payment" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("payment");
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-    downloadPdf,
-    printOrPreview,
-  } = usePrintOrPreview();
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -340,27 +330,55 @@ export default function CustomerPayments() {
     unreconciledAmount: unreconciledPayments.reduce((sum, p) => sum + p.amount, 0),
   };
 
-  const handleViewReceipt = (payment: Payment) => {
-    const contact = payment.contact as { name?: string; phone?: string | null } | null;
+  /**
+   * Dispatch a customer payment receipt through the Wave 7 document engine.
+   * All three legacy legs (view / download / print) collapse into one
+   * intent submission — the resolved routing plan handles disposition
+   * (screen preview, PDF download, thermal spooler, email, fiscal, …)
+   * so a "receipt" print button never bypasses fiscal / archive rules.
+   */
+  const handleDispatchReceipt = useCallback(async (payment: Payment) => {
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing receipts.",
+        variant: "destructive",
+      });
+      return;
+    }
     const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
-    generateDocument("receipt", payment.id, `Receipt ${receiptNum} — ${contact?.name || "Customer"}`, {
-      entityType: "payment",
-      entityId: payment.id,
-      recipientPhone: contact?.phone ?? null,
-      recipientName: contact?.name ?? null,
-      variables: {
-        receipt_number: receiptNum,
-        amount: String(payment.amount ?? 0),
-        customer_name: contact?.name ?? "",
-        payment_date: payment.payment_date ?? "",
-      },
-    });
-  };
-
-  const handleDownloadReceipt = (payment: Payment) => {
-    const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
-    downloadPdf("receipt", payment.id, receiptNum);
-  };
+    try {
+      const built = await fetchAndBuildPaymentReceiptSnapshot(supabase, payment.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.payment_receipt",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "payment_receipt",
+        sourceDocId: payment.id,
+        businessId: built.businessId ?? currentBusiness?.id ?? null,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Receipt dispatched",
+        description: `Receipt ${receiptNum} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Receipt dispatch failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  }, [currentOrg?.id, currentBusiness?.id, toast]);
 
   const hasActiveFilters = statusFilter !== "all" || methodFilter !== "all" || dateRange !== "all" || searchQuery.length > 0;
 
@@ -472,16 +490,8 @@ export default function CustomerPayments() {
           onComplete={handleImportComplete}
         />
 
-        {/* Receipt Preview via unified document engine */}
-        <PrintPreviewDialog
-          open={printPreviewOpen}
-          onOpenChange={setPrintPreviewOpen}
-          title={printPreviewTitle}
-          documentType={printDocumentType}
-          documentId={printDocumentId}
-          filename={printPreviewTitle.replace(/\s+/g, "_")}
-          communication={printCommunication}
-        />
+        {/* Receipt preview/print/download all flow through the unified
+            document engine via handleDispatchReceipt — no local dialog. */}
 
         {/* Stats */}
         <div className="stats-grid grid-cols-1 sm:grid-cols-4">
@@ -641,12 +651,9 @@ export default function CustomerPayments() {
                 isLoading={isLoading}
                 bulkSelection={bulkSelection}
                 onViewDetail={(payment) => { setSelectedPayment(payment); setPeekId(payment.id); }}
-                onViewReceipt={handleViewReceipt}
-                onDownloadReceipt={handleDownloadReceipt}
-                onPrintReceipt={(payment) => {
-                  const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
-                  printOrPreview({ documentType: "receipt", documentId: payment.id, title: `Receipt ${receiptNum}` });
-                }}
+                onViewReceipt={handleDispatchReceipt}
+                onDownloadReceipt={handleDispatchReceipt}
+                onPrintReceipt={handleDispatchReceipt}
                 onEmailReceipt={(payment) => {
                   const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
                   const contact = payment.contact as { name: string; email?: string } | null;

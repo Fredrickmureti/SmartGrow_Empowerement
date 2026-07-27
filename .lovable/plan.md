@@ -22,8 +22,8 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
 1. **Sales cluster (active).** In order, each landed as one unit (snapshot builder + unit tests + `snapshot-contract` entry + call-site rewrite covering print and preview + eslint allowlist trim when a glob empties):
    1. `SalesOrders` → `sales.order_ack` **(DONE & VERIFIED — 2026-07-27)**
    2. `SalesReturns` → `sales.return` **(DONE & VERIFIED — 2026-07-27)**
-   3. `CustomerPayments` → `sales.payment_receipt` **(NEXT)**
-   4. `CustomerStatements` → `sales.statement`
+   3. `CustomerPayments` → `sales.payment_receipt` **(DONE & VERIFIED — 2026-07-27)**
+   4. `CustomerStatements` → `sales.statement` **(NEXT)**
    5. Close `CreditNotes` preview leg onto the artifact store.
 2. **Purchases cluster.** `Bills`, `PurchaseOrders`, `PurchaseReturns`, `VendorStatements` + `VendorStatementPeekSheet` + `VendorStatementRecordPage`, `GoodsReceiptWizardPage`; then remove `src/pages/**` and `src/features/purchases/**` from the eslint allowlist.
 3. **HR cluster.** `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`, `LegalRecipients`.
@@ -44,4 +44,11 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
 
 ## Immediate next action once approved
 
-Proceed to `CustomerPayments` → `sales.payment_receipt` following the same one-unit pattern (builder + tests + contract entry + call-site rewrite for both print and preview paths).
+Proceed to `CustomerStatements` → `sales.statement` following the same one-unit pattern (builder + tests + contract entry + call-site rewrite covering all legacy print/preview/download legs).
+
+### CustomerPayments landing note (2026-07-27)
+
+- Added `src/services/documents/snapshots/salesPaymentReceipt.ts` mirroring `generate-document::fetchReceipt` — items-as-truth from `payment_allocations`, uniform-or-fallback currency, unapplied advance suppressed when restricted to a single invoice.
+- Added `src/test/documents/sales-payment-receipt-snapshot.test.ts` (10 cases: label, RCP fallback, sort order, items-as-truth totals, restrict-to-invoice suppression, on-account fallback, currency resolution, method label mapping, determinism, identity guards) and a `snapshot-contract` SUITE entry.
+- `CustomerPayments.tsx`: removed `usePrintOrPreview`, removed `PrintPreviewDialog`, collapsed `handleViewReceipt` / `handleDownloadReceipt` / `onPrintReceipt` into one `handleDispatchReceipt` that runs `fetchAndBuildPaymentReceiptSnapshot → ensureDocumentRecord({ kindCode: 'sales.payment_receipt' }) → submitDocumentIntent({ triggeredSource: 'manual' })`. All three legs now share the routing plan — a preview cannot bypass fiscal/archive dispositions.
+- Verification: `src/test/documents` — 80/80 green; `tsgo` clean on touched files.
