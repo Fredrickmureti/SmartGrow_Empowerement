@@ -66390,65 +66390,6 @@ export type Database = {
           },
         ]
       }
-      workstation_devices: {
-        Row: {
-          capabilities: Json
-          created_at: string
-          device_key: string
-          driver: string | null
-          health: string
-          id: string
-          last_seen_at: string | null
-          metadata: Json
-          name: string | null
-          organization_id: string
-          role: string
-          transport: string
-          updated_at: string
-          workstation_id: string
-        }
-        Insert: {
-          capabilities?: Json
-          created_at?: string
-          device_key: string
-          driver?: string | null
-          health?: string
-          id?: string
-          last_seen_at?: string | null
-          metadata?: Json
-          name?: string | null
-          organization_id: string
-          role: string
-          transport: string
-          updated_at?: string
-          workstation_id: string
-        }
-        Update: {
-          capabilities?: Json
-          created_at?: string
-          device_key?: string
-          driver?: string | null
-          health?: string
-          id?: string
-          last_seen_at?: string | null
-          metadata?: Json
-          name?: string | null
-          organization_id?: string
-          role?: string
-          transport?: string
-          updated_at?: string
-          workstation_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workstation_devices_workstation_id_fkey"
-            columns: ["workstation_id"]
-            isOneToOne: false
-            referencedRelation: "workstations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       workstation_manifests: {
         Row: {
           agent_version: string | null
