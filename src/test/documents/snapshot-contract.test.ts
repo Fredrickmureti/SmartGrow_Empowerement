@@ -88,6 +88,29 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         invoice_items: [],
       }),
   },
+  {
+    file: "salesCreditNote.ts",
+    run: () =>
+      buildSalesCreditNoteSnapshot({
+        id: "cn-1",
+        credit_note_number: "CN-2026-0001",
+        status: "issued",
+        issue_date: "2026-07-27",
+        subtotal: 100,
+        tax_amount: 16,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        reason: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact_id: "c-1",
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        credit_note_items: [],
+      }),
+  },
 ];
 
 describe("snapshot builder contract", () => {
