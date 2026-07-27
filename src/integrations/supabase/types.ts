@@ -13886,6 +13886,8 @@ export type Database = {
           intent: string | null
           paper_format: string
           render_mode: string
+          role_code: string | null
+          trigger: Database["public"]["Enums"]["document_output_trigger"]
           updated_at: string
           updated_by: string | null
         }
@@ -13902,6 +13904,8 @@ export type Database = {
           intent?: string | null
           paper_format?: string
           render_mode?: string
+          role_code?: string | null
+          trigger?: Database["public"]["Enums"]["document_output_trigger"]
           updated_at?: string
           updated_by?: string | null
         }
@@ -13918,6 +13922,8 @@ export type Database = {
           intent?: string | null
           paper_format?: string
           render_mode?: string
+          role_code?: string | null
+          trigger?: Database["public"]["Enums"]["document_output_trigger"]
           updated_at?: string
           updated_by?: string | null
         }
@@ -87546,6 +87552,11 @@ export type Database = {
         | "completed"
       custom_deduction_tax_treatment: "pre_tax" | "post_tax"
       department_status: "active" | "archived" | "dissolved"
+      document_output_trigger:
+        | "manual"
+        | "auto"
+        | "preview_only"
+        | "download_only"
       employee_advance_status:
         | "requested"
         | "approved"
@@ -88327,6 +88338,12 @@ export const Constants = {
       ],
       custom_deduction_tax_treatment: ["pre_tax", "post_tax"],
       department_status: ["active", "archived", "dissolved"],
+      document_output_trigger: [
+        "manual",
+        "auto",
+        "preview_only",
+        "download_only",
+      ],
       employee_advance_status: [
         "requested",
         "approved",
