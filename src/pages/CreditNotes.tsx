@@ -3,6 +3,11 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useCreditNotes, CreditNote } from "@/hooks/useCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
 
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
@@ -89,6 +94,8 @@ export default function CreditNotes() {
   const { creditNotes, isLoading, updateCreditNote, issueCreditNote, deleteCreditNote, refreshCreditNotes } = useCreditNotes();
   const { contacts } = useContacts();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { } = useExport();
@@ -207,17 +214,57 @@ export default function CreditNotes() {
   };
 
   const handlePrint = async (cn: CreditNote) => {
-    await generateDocument("credit_note", cn.id, `Credit Note ${cn.credit_note_number}`, {
-      entityType: "credit_note",
-      entityId: cn.id,
-      recipientPhone: (cn as any).contact?.phone ?? null,
-      recipientName: cn.contact?.name ?? null,
-      variables: {
-        credit_note_number: cn.credit_note_number,
-        amount: String(cn.total ?? 0),
-        customer_name: cn.contact?.name ?? "",
-      },
-    });
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing credit notes.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Wave 7.2 — canonical print pipeline: build snapshot → ensure
+      // document record → submit routing intent. No direct hardware calls.
+      const built = await fetchAndBuildSalesCreditNoteSnapshot(supabase, cn.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.credit_note",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "credit_note",
+        sourceDocId: cn.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "customer",
+        partyId: built.contactId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Credit note ${cn.credit_note_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredCreditNotes = creditNotes.filter((cn) => {
