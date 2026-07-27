@@ -10,7 +10,26 @@
  * right now?". Status snapshots are produced by `usePrinterStatus`
  * (which reads `hardwareClient.devices.getStatuses()` and projects the
  * relevant roles onto this shape).
+
+/**
+ * What a caller is trying to put on physical media.
+ *
+ * Intent — not printer model, not document type — is the input to every
+ * routing decision downstream: which hardware role receives the job
+ * (`INTENT_TO_ROLE`), which render format is produced (PDF / ESC-POS /
+ * ZPL), and which fallback applies when no device answers.
+ *
+ * This lives in the shared vocabulary module rather than in `PrintClient`
+ * so that device resolution and status hooks can speak about intent
+ * without importing the dispatch client itself.
  */
+export type PrintIntent =
+  | 'receipt'        // thermal receipt printer
+  | 'kitchen_ticket' // thermal kitchen printer
+  | 'label'          // ZPL/EPL label printer (falls back to ESC/POS)
+  | 'a4_document'    // PDF on a4_printer or browser/OS
+  | 'packing_slip';  // A4 with thermal fallback
+
 
 /** UI-facing snapshot of "is a printer available right now?". */
 export interface PrinterStatus {
