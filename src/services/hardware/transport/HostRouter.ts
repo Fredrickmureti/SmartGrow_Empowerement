@@ -42,6 +42,17 @@ function posBridge(): PosBridge | undefined {
 }
 
 /**
+ * Phase 5 Step B — the ONLY sanctioned way for the hardware layer to
+ * reach the Electron preload bridge. Callers narrow the shape they need
+ * via the type parameter instead of re-casting `window` in place, so a
+ * grep for `(window as unknown as` inside `src/services/hardware/**`
+ * stays empty and the guard test can enforce it.
+ */
+export function hostBridge<T = PosBridge>(): T | undefined {
+  return posBridge() as T | undefined;
+}
+
+/**
  * True when the main-process CommandRouter IPC (`window.pos.hardware.exec`)
  * is reachable from the renderer. This is the ONLY predicate that gates
  * the Electron-native execution path.
@@ -93,4 +104,5 @@ export const hostRouter = {
   isElectronHost,
   hasStalePreload,
   snapshot: snapshotHost,
+  bridge: hostBridge,
 };
