@@ -19,6 +19,7 @@ import type { DeviceAssignment } from "@/hooks/useDeviceAssignments";
 
 export type PaperFormat = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm" | "custom";
 export type RenderMode = "pdf" | "escpos";
+export type OutputTrigger = "manual" | "auto" | "preview_only" | "download_only";
 
 export interface PrintPolicy {
   id?: string;
@@ -29,6 +30,11 @@ export interface PrintPolicy {
   render_mode: RenderMode;
   device_assignment_id: string | null;
   auto_print: boolean;
+  /** Phase 1 — unified routing model. When the document reaches paper. */
+  trigger?: OutputTrigger;
+  /** Phase 1 — semantic printer role (see printer_roles.code). Physical
+   *  device is chosen at runtime by printer_role_branch_bindings. */
+  role_code?: string | null;
 }
 
 export const DOCUMENT_TYPES: { value: string; label: string }[] = [
@@ -62,7 +68,7 @@ export function useDocumentPrintPolicies(businessId: string | null | undefined) 
     try {
       const { data, error } = await supabase
         .from("document_print_policies")
-        .select("id, business_id, branch_id, document_type, paper_format, render_mode, device_assignment_id, auto_print")
+        .select("id, business_id, branch_id, document_type, paper_format, render_mode, device_assignment_id, auto_print, trigger, role_code")
         .eq("business_id", businessId);
       if (error) throw error;
       setPolicies((data ?? []) as PrintPolicy[]);
