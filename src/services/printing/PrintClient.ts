@@ -74,7 +74,7 @@ export interface PrintResult {
 
 /** Wave B1 Step 2 — runtime view over `print_policies_resolve` rows. */
 export interface ResolvedPrintPolicy {
-  printerProfileId: string | null;
+  deviceAssignmentId: string | null;
   paperFormat: string;
   renderMode: 'pdf' | 'escpos' | 'html';
   copies: number;
@@ -155,7 +155,7 @@ class PrintClient {
       if (row) {
         const renderMode = (row.render_mode ?? 'pdf') as ResolvedPrintPolicy['renderMode'];
         value = {
-          printerProfileId: row.printer_profile_id ? String(row.printer_profile_id) : null,
+          deviceAssignmentId: row.device_assignment_id ? String(row.device_assignment_id) : null,
           paperFormat: String(row.paper_format ?? 'a4'),
           renderMode: renderMode === 'escpos' || renderMode === 'html' ? renderMode : 'pdf',
           copies: typeof row.copies === 'number' && row.copies > 0 ? row.copies : 1,
@@ -401,7 +401,7 @@ class PrintClient {
         p_doc_id: req.documentId || null,
         p_intent: req.intent,
         p_format: fmt,
-        p_printer_profile_id: policy?.printerProfileId ?? null,
+        p_device_assignment_id: policy?.deviceAssignmentId ?? null,
         p_media_profile_id: null,
         p_correlation_id: correlation,
         p_transport: transport,
@@ -763,7 +763,7 @@ class PrintClient {
     format: 'pdf' | 'escpos' | 'zpl';
     businessId: string | null;
     branchId?: string | null;
-    printerProfileId?: string | null;
+    deviceAssignmentId?: string | null;
     /** Plan P3 Step 1 — per-click UUID minted at the UI submit boundary. */
     idempotencyKey?: string;
   }): Promise<{
@@ -789,7 +789,7 @@ class PrintClient {
     };
     const jobId = await this.insertLedgerRow(
       req,
-      args.printerProfileId ? ({ printerProfileId: args.printerProfileId } as ResolvedPrintPolicy) : null,
+      args.deviceAssignmentId ? ({ deviceAssignmentId: args.deviceAssignmentId } as ResolvedPrintPolicy) : null,
       args.format,
     );
     if (!jobId) return noop;
