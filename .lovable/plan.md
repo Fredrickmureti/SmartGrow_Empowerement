@@ -20,9 +20,9 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
 ## Phase 3 — Execution order (resuming, unchanged from prior file)
 
 1. **Sales cluster (active).** In order, each landed as one unit (snapshot builder + unit tests + `snapshot-contract` entry + call-site rewrite covering print and preview + eslint allowlist trim when a glob empties):
-   1. `SalesOrders` → `sales.order_ack` **(NEXT)**
-   2. `SalesReturns` → `sales.return`
-   3. `CustomerPayments` → `sales.payment_receipt`
+   1. `SalesOrders` → `sales.order_ack` **(DONE & VERIFIED — 2026-07-27)**
+   2. `SalesReturns` → `sales.return` **(DONE & VERIFIED — 2026-07-27)**
+   3. `CustomerPayments` → `sales.payment_receipt` **(NEXT)**
    4. `CustomerStatements` → `sales.statement`
    5. Close `CreditNotes` preview leg onto the artifact store.
 2. **Purchases cluster.** `Bills`, `PurchaseOrders`, `PurchaseReturns`, `VendorStatements` + `VendorStatementPeekSheet` + `VendorStatementRecordPage`, `GoodsReceiptWizardPage`; then remove `src/pages/**` and `src/features/purchases/**` from the eslint allowlist.
@@ -44,4 +44,4 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
 
 ## Immediate next action once approved
 
-Land `SalesOrders` → `sales.order_ack` as one complete unit (builder + tests + contract entry + print/preview rewrite), update `.lovable/plan.md` to mark it DONE & VERIFIED, then proceed to `SalesReturns`.
+Proceed to `CustomerPayments` → `sales.payment_receipt` following the same one-unit pattern (builder + tests + contract entry + call-site rewrite for both print and preview paths).
