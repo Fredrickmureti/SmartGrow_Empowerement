@@ -22,7 +22,6 @@ const HardwareMedia = lazy(() => import("@/apps/platform/hardware/HardwareMedia"
 const HardwareCapability = lazy(() => import("@/apps/platform/hardware/HardwareCapability"));
 const HardwareLabelTemplates = lazy(() => import("@/apps/platform/hardware/HardwareLabelTemplates"));
 const HardwarePrintQueue = lazy(() => import("@/apps/platform/hardware/HardwarePrintQueue"));
-const DeviceWizard = lazy(() => import("@/apps/platform/hardware/DeviceWizard"));
 const HardwarePolicies = lazy(() => import("@/apps/platform/hardware/HardwarePolicies"));
 
 import HardwareAppLayout from "@/apps/platform/hardware/HardwareAppLayout";
@@ -34,7 +33,10 @@ function PlatformHardwareApp() {
         <Routes>
           <Route index element={<Navigate to="devices" replace />} />
           <Route path="devices" element={<HardwareDevices />} />
-          <Route path="devices/new" element={<DeviceWizard />} />
+          {/* Legacy `/devices/new` wizard retired — the mature
+              `HardwareDevices` page hosts the single registration
+              surface (DeviceRegistryCard). Redirect any bookmarks. */}
+          <Route path="devices/new" element={<Navigate to="../devices" replace />} />
           <Route path="media" element={<HardwareMedia />} />
           <Route path="capability" element={<HardwareCapability />} />
           <Route path="labels" element={<HardwareLabelTemplates />} />

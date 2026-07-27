@@ -39,7 +39,6 @@ const ALLOWED = new Set<string>([
   "services/hardware/local-display/CustomerDisplayClient.ts",
   // UI diagnostics page reads capability probe directly for display:
   "apps/platform/hardware/HardwareDevices.tsx",
-  "apps/platform/hardware/DeviceWizard.tsx",
   "pages/pos/CustomerDisplay.tsx",
   // Offline stack has its own preload bridge (SQLite + background sync);
   // migration to HostRouter is tracked separately from the print path.

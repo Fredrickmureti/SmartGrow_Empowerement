@@ -1,67 +1,105 @@
+# Hardware Platform Audit — Device Registration Consolidation
 
-# Hardware Platform Consolidation — Verification & Phase 6 Step C Completion
+## 1. Findings (evidence-based)
 
-## Phase 0 — Independent verification of the prior engineer's claims
+### 1.1 Two UIs, one persistence layer
+Route table (`src/apps/platform/hardware/routes.tsx`):
+- `/platform/hardware/devices` → `HardwareDevices.tsx` → embeds `<DeviceRegistryCard/>` (Register tab) + Assignments/Discover/Runtime tabs.
+- `/platform/hardware/devices/new` → `DeviceWizard.tsx`.
 
-Re-checked `.lovable/plan.md` against tree and DB. All Phase 5B/5C/6A/6B claims verified against source:
+Both writers eventually persist to the **same table** `public.device_assignments`:
+- `DeviceRegistryCard` writes via `useHardwareRegistryCrud` → `supabase.from("device_assignments").insert/update` (`src/hooks/hardware/useHardwareRegistryCrud.ts:188,224,242,268`).
+- `DeviceWizard` writes via `useDeviceAssignments().upsert` → same table (`src/hooks/useDeviceAssignments.ts`).
 
-- Confirmed removed: `printReceiptThermal`, all 11 role-only shims in `HardwareClient`, `usePrinterProfiles`, `PrinterProfilesCard`, `legacyPrinterProfileFieldMap`. `execAny(` appears only inside `HardwareClient.ts`; every consumer routes via `execForIntent.ts` → `execAssignment`.
-- Confirmed dropped in DB: `printer_profiles`, `printer_workflow_bindings`, `device_assignments.source_config_id`, `print_jobs.printer_profile_id`.
-- Residual `printer_profiles` string hits are documentation/comments and test fixtures only — not live code paths.
+So the divergence is **UI + driver catalog**, not database. This is Option D from the brief: a partial rewrite that never finished — the wizard was added as the "missing surface between discovery classifier and a saved assignment row" (see `DeviceWizard.tsx:12-19`), but the mature page (`HardwareDevices`) was never retired and the two catalogs drifted.
 
-Pending items on the prior plan are all still open and correctly scoped. Nothing to redo — resume at Phase 6 Step C.
+### 1.2 Root cause of the "Label Printer → ESC/POS" bug
+`DeviceRegistryCard` renders drivers from the real registry via `getDriversForRole(role)` (`DriverRegistry.ts:73`). The registry (`DriverRegistry.ts:143-181`) registers **no label-specific drivers**. Instead `EscPosPrinterDriver.supportedRoles` includes `label_printer` (`EscPosPrinterDriver.ts:21`), so selecting Label Printer legitimately returns `escpos/star/epson/citizen/bixolon` — none appropriate for ZPL/EPL thermal label printers.
 
-## Phase 6 Step C — final sweep (this plan)
+`DeviceWizard` avoids the registry entirely and uses a hardcoded map `label_printer: ["zpl_label","epl_label","escpos_label"]` (`DeviceWizard.tsx:81-90`). These driver types are **not registered** in `DriverRegistry` — so a device saved from the wizard cannot be dispatched to at runtime (`createDriver('zpl_label')` returns null). The wizard's UX is correct; its plumbing is a dead end.
 
-Four ordered work packages. Guard tests (`src/test/hardware`, `src/test/printing`, `src/test/architecture/*hardware*`, `*print*`, `host-state-single-owner`, `transport-decision-single-owner`) must stay green after each package.
+Conclusion: **neither surface is fully correct**. The wizard has the right UX shape but no drivers behind it; the mature page has the right runtime plumbing but a mis-declared driver→role table.
 
-### 1. Retire `workstation_devices`
+### 1.3 Ownership map (canonical, after consolidation)
 
-Live readers (verified): `src/components/hardware/EdgeRelayMount.tsx`, `supabase/functions/edge/routes/workstation-manifest.ts`, mounted from `src/App.tsx:283`. `useInventoryLabelPrinter.ts` reference is a historical comment.
+| Concern | Owner |
+|---|---|
+| Persistence | `public.device_assignments` (single tenant-scoped registry) |
+| CRUD hook | `useDeviceAssignments` |
+| Driver + backend catalog | `services/hardware/drivers/DriverRegistry` (`getDriversForRole`, `getBackendsForDriver`) |
+| Role vocabulary | `services/hardware/drivers/DriverInterface.DeviceRole` |
+| Discovery + classification | `electron/hardware/discovery/*` → `window.pos.hardware.discover()` |
+| Runtime dispatch | `hardwareClient.exec` → CommandRouter → DeviceManager → Transport |
+| Assignments view | `HardwareDevices.tsx` (Assignments / Runtime / Discover tabs) |
+| Test dispatch | `printClient.printLabel` for labels; `hardwareClient.exec` for everything else |
 
-- Delete `EdgeRelayMount.tsx` and remove its mount from `src/App.tsx`. `ElectronHydratorMount` already hydrates `device_assignments` — the parallel workstation-based hydration is the exact "hidden legacy path" the mandate forbids.
-- Delete `supabase/functions/edge/routes/workstation-manifest.ts` and any route table entry.
-- Migration: `DROP TABLE public.workstation_devices` (1 row per prior audit; no FK dependents remain after prior phases).
-- Regenerate `src/integrations/supabase/types.ts`.
-- Update the comment in `useInventoryLabelPrinter.ts` for accuracy.
+### 1.4 Enterprise-pattern reference
+Mature POS/ERP hardware stacks (Odoo IoT, Shopify POS, Square, Lightspeed, Toast, MS Dynamics 365 Commerce, Zebra Setup Utilities, Epson TM Utility) converge on the same shape:
 
-### 2. Delete workflow-binding legacy (`resolve_device_for_workflow`)
+1. **One device registry**, keyed by (org, branch/register, role, transport-identity).
+2. **Role → capability profile → compatible drivers**. Drivers declare which roles they support; the UI never hardcodes lists.
+3. **Discovery is optional**; a single register flow supports both "scan & bind" and "add manually", not two separate pages.
+4. **Config is structured** (transport + typed params), never free-form JSON pasted by an operator.
+5. **Lifecycle is orthogonal to registration**: assignment, runtime status, diagnostics, retirement are separate views over the same row.
 
-Readers: `src/hooks/useDeviceForWorkflow.ts`, `src/components/hardware/WorkflowBindingsCard.tsx` (mounted in `HardwareDevices.tsx:500`), `src/services/printing/labelDispatch.ts:246`.
+Our target end-state matches this pattern.
 
-The canonical binding surface is `document_print_policies` edited at `/platform/hardware/policies`. `printer_workflow_bindings` was already dropped, so `resolve_device_for_workflow` is a shell over an empty table.
+## 2. Consolidation strategy
 
-- `labelDispatch.ts`: remove the `resolve_device_for_workflow` RPC branch entirely; intent → `resolveDeviceForIntent` (same seam every other consumer uses) is the sole path. Label dispatch already carries `intent`, `businessId`, `branchId`.
-- Delete `useDeviceForWorkflow.ts`, `WorkflowBindingsCard.tsx`, and its import + usage in `HardwareDevices.tsx`.
-- Migration: `DROP FUNCTION resolve_device_for_workflow`, `DROP FUNCTION resolve_workflow_printer` (if either still exists).
-- Regenerate types.
+Keep `/platform/hardware/devices` as the **single** authoritative surface. Fold the wizard's genuinely-additive capabilities (discovery classifier ranking, structured transport-param derivation) into it. Delete the `/devices/new` route. No compatibility layer, no fallback page.
 
-### 3. Close the CompanySettings "Printing" tab
+## 3. Migration plan (staged, no regressions)
 
-`src/pages/settings/CompanySettings.tsx` still ships the `printing` `TabsTrigger` + `TabsContent` redirect stub. Canonical home is `/platform/hardware/policies`.
+### Step A — Fix the driver catalog (root cause of the reported bug)
+1. Remove `label_printer` from `EscPosPrinterDriver.supportedRoles`.
+2. Add real label drivers: `ZplLabelDriver`, `EplLabelDriver`, `EscPosLabelDriver` (thin classes reusing existing transport plumbing; wired as `supportedRoles = ['label_printer']`). Register them in `DriverRegistry`.
+3. Result: `getDriversForRole('label_printer')` returns `zpl_label / epl_label / escpos_label` in **both** UIs automatically.
+4. Guard: extend `src/test/architecture/role-vocabulary.test.ts` (or add a sibling) asserting every `DeviceRole` has ≥1 registered driver, and that `receipt_printer` drivers do not claim `label_printer`.
 
-- Remove the `printing` `TabsTrigger` and `TabsContent value="printing">` block.
-- If `?tab=printing` arrives in the URL, redirect (via `<Navigate>` or `useEffect`) to `/platform/hardware/policies` so bookmarks don't 404.
-- Rename `src/components/settings/PrintingSettings.tsx` → `src/apps/platform/hardware/PrintPoliciesEditor.tsx` and inline it into `HardwarePolicies.tsx` as its child (drops the last cross-tree import from `components/settings/` into the hardware app).
-- Remove the now-orphan `Printer` icon import + `PrintingSettings` import cleanup in `CompanySettings.tsx`.
+### Step B — Promote DeviceRegistryCard to full-featured register flow
+Inside `HardwareDevices.tsx` Register tab (`DeviceRegistryCard`):
+1. Add a "Discover" affordance that calls `window.pos.hardware.discover()` and renders the wizard's ranked candidate list; picking a candidate pre-fills role, driver, transport, and structured params.
+2. Replace all free-form JSON entry with typed sub-forms per transport (`usb: vendorId/productId`, `network: host/port`, `serial: path/baudRate`, `cups/winspool: queueName`). No `<textarea>` for config anywhere.
+3. Keep manual-add as the fallback path when discovery isn't available (browser/PWA) — one form, two entry points, one code path.
 
-### 4. Shrink the hardware chokepoint allow-list
+### Step C — Retire `/platform/hardware/devices/new`
+1. Delete `src/apps/platform/hardware/DeviceWizard.tsx`.
+2. Remove the `devices/new` route from `routes.tsx`; add a `Navigate` redirect from `devices/new` → `devices?tab=register` for any bookmarked links, then remove after one release.
+3. Delete the wizard's private `ROLE_OPTIONS` / `DRIVER_OPTIONS` / `TRANSPORT_OPTIONS` constants — `DriverRegistry` is the only source of truth.
+4. Delete tests that pin the old wizard URL; update `platform-hardware-has-editor.test.ts` if needed.
 
-`hardware-single-chokepoint.test.ts` currently permits any file under `src/services/hardware/**` to reach `hardwareClient`. Post-migration the only sanctioned callers are `src/services/printing/**` (dispatch layer) and `src/services/hardware/{HardwareClient,execForIntent,transport}.**` (internal wiring).
+### Step D — Architecture guards (prevent re-drift)
+1. New test `src/test/architecture/hardware-single-registration-surface.test.ts`:
+   - Asserts only one route path matches `/platform/hardware/devices/*` renders a registration form.
+   - Asserts no file outside `DriverRegistry.ts` hardcodes `role → driver[]` maps (regex on `label_printer.*zpl_label` etc.).
+   - Asserts no `<textarea>` labelled "Config (JSON)" exists in `src/apps/platform/hardware/**`.
+2. New test asserting every writer to `device_assignments` goes through `useDeviceAssignments` (grep guard).
 
-- Rewrite the allow-list to that whitelist.
-- Run `rg 'hardwareClient\.' src` and fold any surviving legit call site into the whitelist explicitly; any hit not in the whitelist gets migrated to `execForIntent` in the same commit.
+### Step E — Docs & ADR
+Add `docs/adr/00XX-hardware-single-registration-surface.md` recording: one registry table, one CRUD hook, one register page, driver catalog is authoritative, discovery is a mode not a page.
 
-### 5. Final grep / definition of done
+## 4. Non-goals (explicitly)
+- No change to `device_assignments` schema.
+- No change to CommandRouter / transports / `hardwareClient` runtime.
+- No change to Assignments/Runtime/Diagnostics tabs beyond what Step B needs.
 
-```
-rg 'workstation_devices|resolve_workflow_printer|resolve_device_for_workflow|source_config_id|execAny\('   \
-   src supabase/functions
-```
-must return only doc/comment lines under `docs/` and archived SQL under `supabase/migrations/`. `bunx tsgo --noEmit -p tsconfig.app.json` clean. `bunx vitest run src/test/hardware src/test/printing src/test/architecture` — the 9 hardware guards + `host-state-single-owner`, `transport-decision-single-owner`, `print-policies-canonical-home` all green.
+## 5. Deliverables checklist (from the brief)
 
-Pre-existing repo-wide failures unrelated to hardware (payroll/HR/inventory guards, `no-printservice-shim`) stay out of scope per the prior handoff — they are not caused by this track and folding them in would violate the "don't start unrelated modules" rule.
+1. Duplicate registration systems exist? **Yes — UI-only, shared table.** §1.1
+2. Canonical ownership → §1.3.
+3. Device registration architecture → §1.3 + Step B.
+4. Driver resolution → `DriverRegistry.getDriversForRole` after Step A.
+5. Capability discovery → `electron/hardware/discovery` classifier, surfaced in-page by Step B.
+6. Runtime ownership → `hardwareClient` (unchanged).
+7. Assignment ownership → `useDeviceAssignments` on `device_assignments`.
+8. Database ownership → `device_assignments` (single table).
+9. UI ownership → `HardwareDevices.tsx` (single page, tabbed).
+10. Consolidation strategy → §2.
+11. Migration plan → §3, staged A→E, no regressions.
 
-## Out of scope
+## 6. Risk & rollback
+- Step A is behavior-changing for existing label-printer rows saved with `driver_type='escpos'`: add a one-shot migration/hook that rewrites those rows to `escpos_label` on first read, or surfaces a "driver deprecated — reselect" chip. Rollback = revert the driver-registry commit; DB shape unchanged.
+- Step C removes a route: 302 redirect covers bookmarks.
 
-Byte-level driver rewrites, relay protocol changes, `document_templates` / `label_templates` schema changes beyond FK re-points, attendance/biometric flows. No new architecture is being introduced — this closes the migration the prior engineer opened.
+## 7. Execution order
+A (driver catalog + guard) → B (promote register flow) → C (delete wizard + route) → D (guards) → E (ADR). Each step ships independently; the reported bug is fixed at end of Step A.

@@ -18,7 +18,9 @@ import { resolveTransport, type ITransport, type ResolveTransportOptions } from 
 
 export class EscPosPrinterDriver implements IDriver {
   readonly driverType: DriverType = 'escpos';
-  readonly supportedRoles: DeviceRole[] = ['receipt_printer', 'kitchen_printer', 'label_printer'];
+  // Label printers get dedicated drivers (zpl_label / epl_label / escpos_label);
+  // ESC/POS receipt drivers no longer masquerade as label printers.
+  readonly supportedRoles: DeviceRole[] = ['receipt_printer', 'kitchen_printer'];
   readonly supportedBackends: ConnectionBackend[] = ['electron', 'webusb', 'local_proxy', 'network'];
 
   private _status: DeviceStatus = { connected: false, status: 'unknown' };
