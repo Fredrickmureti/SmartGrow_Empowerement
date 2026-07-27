@@ -164,6 +164,35 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         proforma_invoice_items: [],
       }),
   },
+  {
+    file: "salesDeliveryNote.ts",
+    run: () =>
+      buildSalesDeliveryNoteSnapshot({
+        id: "dn-1",
+        delivery_number: "DN-2026-0001",
+        status: "dispatched",
+        delivery_date: "2026-07-27",
+        notes: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        shipping_address: null,
+        driver_name: null,
+        vehicle_number: null,
+        shipping_method: null,
+        tracking_number: null,
+        dispatch_route: null,
+        dispatched_at: null,
+        delivered_at: null,
+        ready_at: null,
+        freight_cost: null,
+        freight_currency: null,
+        is_backorder: false,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co", base_currency: "KES" },
+        items: [],
+      }),
+  },
 ];
 
 
