@@ -254,17 +254,19 @@ export default function Estimates() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   
-  // Unified document print
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    isGeneratingPdf,
-    generateDocument,
-  } = usePrintOrPreview();
+  // Wave 7.2 — print goes straight down the canonical document pipeline
+  // (snapshot → document_records → output intent). The preview dialog is
+  // kept as an operator-facing fallback surface only; it is no longer the
+  // print path, so rapid Sales prints can't get bounced off the raw FIFO
+  // hardware route by an ask_user/error branch.
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
+  const isGeneratingPdf = false;
+
   
   // Bulk operations state
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
