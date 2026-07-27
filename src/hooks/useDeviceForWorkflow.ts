@@ -3,7 +3,7 @@
  * printer_workflow at the current org/branch/warehouse scope.
  *
  * Phase 2b: switched from `resolve_workflow_printer` (which returned a
- * legacy `printer_profile_id`) to `resolve_device_for_workflow`, which
+ * legacy `device_assignment_id`) to `resolve_device_for_workflow`, which
  * returns the canonical `device_assignment_id`. This is the runtime that
  * powers `printLabelByTemplate` and every UI surface that answers "which
  * device is bound to this workflow?".

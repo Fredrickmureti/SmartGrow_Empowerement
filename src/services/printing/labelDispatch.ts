@@ -361,10 +361,10 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   // promoted to top-level fields so HardwareClient writes them to
   // hardware_exec_log.source_doc_*.
   if (printer) {
-    // `printerProfileId` name retained on the payload for backwards
+    // `deviceAssignmentId` name retained on the payload for backwards
     // compatibility with drivers/log consumers — the value is now the
     // resolved `device_assignments.id`.
-    payload.printerProfileId = printer.device_assignment_id;
+    payload.deviceAssignmentId = printer.device_assignment_id;
     payload.deviceAssignmentId = printer.device_assignment_id;
     payload.printerScope = printer.scope;
   }

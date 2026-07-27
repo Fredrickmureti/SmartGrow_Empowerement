@@ -56,7 +56,7 @@ beforeEach(async () => {
 describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
   it('short-circuits with ask_user when policy returns ask_user=true', async () => {
     rpcMock.mockResolvedValue({
-      data: [{ printer_profile_id: null, paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: false, ask_user: true }],
+      data: [{ device_assignment_id: null, paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: false, ask_user: true }],
       error: null,
     });
     const { printClient } = await import('@/services/printing/PrintClient');
@@ -76,7 +76,7 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
 
   it('routes to thermal when policy.render_mode=escpos and ask_user=false', async () => {
     rpcMock.mockResolvedValue({
-      data: [{ printer_profile_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 1, auto_print: true, ask_user: false }],
+      data: [{ device_assignment_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 1, auto_print: true, ask_user: false }],
       error: null,
     });
     const { printClient } = await import('@/services/printing/PrintClient');
@@ -124,7 +124,7 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
   // ── Wave B1 Step 2.5 corrections ─────────────────────────────────
   it('does NOT route to ask_user when auto_print=false (only RPC ask_user matters)', async () => {
     rpcMock.mockResolvedValue({
-      data: [{ printer_profile_id: 'pp-x', paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: false, ask_user: false }],
+      data: [{ device_assignment_id: 'pp-x', paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: false, ask_user: false }],
       error: null,
     });
     const { printClient } = await import('@/services/printing/PrintClient');
@@ -143,7 +143,7 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
 
   it('honours policy.copies by fanning out the transport call', async () => {
     rpcMock.mockResolvedValue({
-      data: [{ printer_profile_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 3, auto_print: true, ask_user: false }],
+      data: [{ device_assignment_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 3, auto_print: true, ask_user: false }],
       error: null,
     });
     const { printClient } = await import('@/services/printing/PrintClient');
@@ -161,7 +161,7 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
 
   it('caches resolved policies so repeated prints hit the RPC once', async () => {
     rpcMock.mockResolvedValue({
-      data: [{ printer_profile_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 1, auto_print: true, ask_user: false }],
+      data: [{ device_assignment_id: 'pp-1', paper_format: '80mm', render_mode: 'escpos', copies: 1, auto_print: true, ask_user: false }],
       error: null,
     });
     const { printClient } = await import('@/services/printing/PrintClient');
