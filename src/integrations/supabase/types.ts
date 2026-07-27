@@ -13959,6 +13959,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          document_date: string | null
+          document_number: string | null
           id: string
           kind_code: string
           locale: string | null
@@ -13966,6 +13968,7 @@ export type Database = {
           organization_id: string
           party_id: string | null
           party_kind: string | null
+          snapshot: Json
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -13981,6 +13984,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          document_date?: string | null
+          document_number?: string | null
           id?: string
           kind_code: string
           locale?: string | null
@@ -13988,6 +13993,7 @@ export type Database = {
           organization_id: string
           party_id?: string | null
           party_kind?: string | null
+          snapshot?: Json
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -14003,6 +14009,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          document_date?: string | null
+          document_number?: string | null
           id?: string
           kind_code?: string
           locale?: string | null
@@ -14010,6 +14018,7 @@ export type Database = {
           organization_id?: string
           party_id?: string | null
           party_kind?: string | null
+          snapshot?: Json
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -79287,12 +79296,15 @@ export type Database = {
           p_branch_id?: string
           p_business_id?: string
           p_currency?: string
+          p_document_date?: string
+          p_document_number?: string
           p_kind_code: string
           p_locale?: string
           p_metadata?: Json
           p_organization_id: string
           p_party_id?: string
           p_party_kind?: string
+          p_snapshot?: Json
           p_source_doc_id: string
           p_source_doc_type: string
           p_source_module: string
