@@ -23,8 +23,8 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
    1. `SalesOrders` → `sales.order_ack` **(DONE & VERIFIED — 2026-07-27)**
    2. `SalesReturns` → `sales.return` **(DONE & VERIFIED — 2026-07-27)**
    3. `CustomerPayments` → `sales.payment_receipt` **(DONE & VERIFIED — 2026-07-27)**
-   4. `CustomerStatements` → `sales.statement` **(NEXT)**
-   5. Close `CreditNotes` preview leg onto the artifact store.
+   4. `CustomerStatements` → `sales.statement` **(DONE & VERIFIED — 2026-07-27)**
+   5. Close `CreditNotes` preview leg onto the artifact store. **(NEXT)**
 2. **Purchases cluster.** `Bills`, `PurchaseOrders`, `PurchaseReturns`, `VendorStatements` + `VendorStatementPeekSheet` + `VendorStatementRecordPage`, `GoodsReceiptWizardPage`; then remove `src/pages/**` and `src/features/purchases/**` from the eslint allowlist.
 3. **HR cluster.** `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`, `LegalRecipients`.
 4. **Inventory labels.** `Products.tsx`, `useLabelPrint.ts` — enforce ADR-0088 (mm-relative geometry) and ADR-0089 (never emit a UUID as barcode; refuse on null resolution).
@@ -44,7 +44,20 @@ No new architectural gaps found beyond what the prior file already flagged. Two 
 
 ## Immediate next action once approved
 
-Proceed to `CustomerStatements` → `sales.statement` following the same one-unit pattern (builder + tests + contract entry + call-site rewrite covering all legacy print/preview/download legs).
+Close the `CreditNotes` preview leg: the print path already uses the intent engine, but the preview button still calls `usePrintOrPreview`. Route the preview through `fetchAndBuildCreditNoteSnapshot → ensureDocumentRecord({ kindCode: 'sales.credit_note' }) → submitDocumentIntent({ triggeredSource: 'manual' })` so no leg bypasses the routing plan. Once done, drop `CreditNotes.tsx` from the eslint allowlist for `usePrintOrPreview` if the glob empties.
+
+### CustomerStatements landing note (2026-07-27)
+
+- Added `src/services/documents/snapshots/salesCustomerStatement.ts` mirroring `generate-document::fetchCustomerStatement`. Pure `buildCustomerStatementSnapshot` computes the sorted ledger + running balance (opening → invoices/payments/CNs) and the 5-bucket aging summary (Current / 1-30 / 31-60 / 61-90 / 90+) from unpaid invoice remainders only. `fetchAndBuildCustomerStatementSnapshot` reproduces the edge function's three period-scoped queries (invoices, payments, credit_notes with status in `issued|applied|partially_applied`), scoped by `business_id` when present. Injectable `now` keeps aging deterministic.
+- Added `src/test/documents/sales-customer-statement-snapshot.test.ts` (9 cases: doc-type/label/number, stable sort + running balance, closing_balance fallback + honor, aging math, sent-vs-draft status, currency resolution, determinism, identity guards) and a `snapshot-contract` SUITE entry (now 12 builders under contract).
+- `CustomerStatements.tsx`: removed `usePrintOrPreview` / `downloadPdf`. The single "Download PDF" leg now dispatches through `ensureDocumentRecord({ kindCode: 'sales.statement' }) → submitDocumentIntent({ triggeredSource: 'manual' })`, so the routing plan (`view|download|email`) is the sole exit — CSV export is unchanged (still `printClient.downloadExport`, which itself archives to version history).
+- Verification: `src/test/documents` — 90/90 green (12 files); `tsgo` clean on touched files (`CustomerStatements.tsx`, `salesCustomerStatement.ts`, `snapshot-contract.test.ts`).
+
+### Instructions for the next agent
+
+1. **Verify before continuing.** Re-run `bunx vitest run src/test/documents` (expect 90+ green) and `grep -R "usePrintOrPreview\|downloadPdf" src/pages/CustomerStatements.tsx src/pages/CustomerPayments.tsx src/pages/SalesOrders.tsx src/pages/SalesReturns.tsx` (expect empty). Confirm `sales.statement` still exists in `document_kinds` and that the snapshot's `statement_transactions` / `statement_aging` field shapes match the renderer (`src/services/documents/templates/**`). If any check fails, fix the regression before starting new work — do not paper over it.
+2. **Resume at Sales step 5**, not somewhere else in the roadmap: close the `CreditNotes` preview leg. Only move to the Purchases cluster once every Sales page's print, preview, download, and email legs go through `submitDocumentIntent`.
+3. Keep the plan (`.lovable/plan.md`) as the single source of truth — every landing gets a dated note here, not just in commit messages.
 
 ### CustomerPayments landing note (2026-07-27)
 
