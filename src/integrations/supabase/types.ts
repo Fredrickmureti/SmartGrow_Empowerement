@@ -13535,14 +13535,17 @@ export type Database = {
           branch_id: string | null
           business_id: string
           byte_size: number
+          content_hash: string | null
           content_sha256: string
           copies: number
           created_at: string
           document_id: string
           document_number: string | null
           document_type: string
+          format: string | null
           id: string
           intent: string | null
+          media_class: string | null
           metadata: Json
           mime_type: string
           organization_id: string
@@ -13553,8 +13556,10 @@ export type Database = {
           render_mode: string
           rendered_by: string | null
           rendered_via: string
+          retention_class: string
           storage_bucket: string
           storage_path: string
+          superseded_by: string | null
           supersedes_id: string | null
           template_id: string | null
           template_version: number | null
@@ -13564,14 +13569,17 @@ export type Database = {
           branch_id?: string | null
           business_id: string
           byte_size: number
+          content_hash?: string | null
           content_sha256: string
           copies?: number
           created_at?: string
           document_id: string
           document_number?: string | null
           document_type: string
+          format?: string | null
           id?: string
           intent?: string | null
+          media_class?: string | null
           metadata?: Json
           mime_type?: string
           organization_id: string
@@ -13582,8 +13590,10 @@ export type Database = {
           render_mode?: string
           rendered_by?: string | null
           rendered_via?: string
+          retention_class?: string
           storage_bucket?: string
           storage_path: string
+          superseded_by?: string | null
           supersedes_id?: string | null
           template_id?: string | null
           template_version?: number | null
@@ -13593,14 +13603,17 @@ export type Database = {
           branch_id?: string | null
           business_id?: string
           byte_size?: number
+          content_hash?: string | null
           content_sha256?: string
           copies?: number
           created_at?: string
           document_id?: string
           document_number?: string | null
           document_type?: string
+          format?: string | null
           id?: string
           intent?: string | null
+          media_class?: string | null
           metadata?: Json
           mime_type?: string
           organization_id?: string
@@ -13611,14 +13624,23 @@ export type Database = {
           render_mode?: string
           rendered_by?: string | null
           rendered_via?: string
+          retention_class?: string
           storage_bucket?: string
           storage_path?: string
+          superseded_by?: string | null
           supersedes_id?: string | null
           template_id?: string | null
           template_version?: number | null
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "document_artifacts_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "document_artifacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_artifacts_supersedes_id_fkey"
             columns: ["supersedes_id"]
@@ -13739,6 +13761,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      document_kinds: {
+        Row: {
+          allowed_formats: string[]
+          code: string
+          created_at: string
+          default_intents: string[]
+          default_media_class: string
+          domain: string
+          is_active: boolean
+          label: string
+          legal_class: string
+          requires_party: boolean
+          updated_at: string
+        }
+        Insert: {
+          allowed_formats?: string[]
+          code: string
+          created_at?: string
+          default_intents?: string[]
+          default_media_class?: string
+          domain: string
+          is_active?: boolean
+          label: string
+          legal_class?: string
+          requires_party?: boolean
+          updated_at?: string
+        }
+        Update: {
+          allowed_formats?: string[]
+          code?: string
+          created_at?: string
+          default_intents?: string[]
+          default_media_class?: string
+          domain?: string
+          is_active?: boolean
+          label?: string
+          legal_class?: string
+          requires_party?: boolean
+          updated_at?: string
+        }
+        Relationships: []
       }
       document_print_policies: {
         Row: {
@@ -14047,6 +14111,111 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          id: string
+          kind_code: string
+          locale: string | null
+          metadata: Json
+          organization_id: string
+          party_id: string | null
+          party_kind: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          source_module: string
+          status: string
+          superseded_by: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          kind_code: string
+          locale?: string | null
+          metadata?: Json
+          organization_id: string
+          party_id?: string | null
+          party_kind?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          source_module: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          kind_code?: string
+          locale?: string | null
+          metadata?: Json
+          organization_id?: string
+          party_id?: string | null
+          party_kind?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_event_id?: string | null
+          source_module?: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_kind_code_fkey"
+            columns: ["kind_code"]
+            isOneToOne: false
+            referencedRelation: "document_kinds"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "documents"
             referencedColumns: ["id"]
           },
         ]
@@ -77008,14 +77177,17 @@ export type Database = {
           branch_id: string | null
           business_id: string
           byte_size: number
+          content_hash: string | null
           content_sha256: string
           copies: number
           created_at: string
           document_id: string
           document_number: string | null
           document_type: string
+          format: string | null
           id: string
           intent: string | null
+          media_class: string | null
           metadata: Json
           mime_type: string
           organization_id: string
@@ -77026,8 +77198,10 @@ export type Database = {
           render_mode: string
           rendered_by: string | null
           rendered_via: string
+          retention_class: string
           storage_bucket: string
           storage_path: string
+          superseded_by: string | null
           supersedes_id: string | null
           template_id: string | null
           template_version: number | null
