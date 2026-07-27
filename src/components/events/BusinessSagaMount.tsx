@@ -277,7 +277,7 @@ export function BusinessSagaMount({ orgId }: Props) {
         op: 'open',
         payload: {},
         organizationId: e.orgId ?? orgId ?? null,
-        businessId: (payload.business_id as string | undefined) ?? null,
+        businessId: (e as { businessId?: string | null }).businessId ?? null,
         idempotencyKey: `payment-drawer:${e.sourceDocId}`,
         sourceDocType: e.sourceDocType,
         sourceDocId: e.sourceDocId,
