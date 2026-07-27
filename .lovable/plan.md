@@ -19,22 +19,29 @@ Net: Waves 1–6 are genuinely landed and Wave 6 is *not* deploy-blocked (cron i
 
 Correction to plan: strike the "deploy-blocked / SUPABASE_MAX_FUNCTIONS_REACHED" caveat on Wave 6 — the dispatcher is already scheduled and active. Wave 6.5 no longer needs to unblock deploys, but is still required to keep the edge-fn inventory guard honest and to prepare Wave 7's deletions.
 
-## Wave 6.5 — Legacy Consolidation (execute now)
+## Wave 6.5 — Legacy Consolidation (IN PROGRESS — pass 1 landed 2026-07-27)
 
-Goal: bring edge-fn count from 100 → ≤ 87 by removing functions with zero live callers, mark client-side legacy shims `@deprecated`, and land the inventory audit.
+Goal: bring edge-fn count from 100 → ≤ 87, mark client-side legacy shims `@deprecated`, and land the inventory audit.
 
-Steps, in order:
+### Pass 1 (2026-07-27) — landed
 
-1. **Live-caller audit.** For every edge fn in the "likely-legacy" set (`generate-document`, `generate-payslip-pdf`, `generate-payroll-document`, `generate-annual-earnings-statement`, `generate-tax-certificate`, `download-tax-certificate`, `override-return-diagnostic`, plus any other zero-caller finds), grep `src/`, `supabase/functions/`, and DB triggers/cron for callers. Record results in `docs/audit/2026-wave6.5-legacy-inventory.md` with a caller-graph table per fn.
-2. **Retire zero-caller fns.** Delete each fn via `supabase--delete_edge_functions` and remove its folder. Minimum 3, target ≥ 13, so the guard ceiling drops back to 87 or lower.
-3. **Repoint any remaining callers of retired fns** onto `submitIntent({ documentKind: … })`. This is mechanical: the resolver + renderer + dispatcher already handle every artifact type in `format_registry`.
-4. **Mark client shims deprecated (no deletion — Wave 7 owns that).**
-   - Add `@deprecated` JSDoc + `// eslint-disable-next-line` sentinel on `src/services/printing/PrintClient.ts`, `src/hooks/usePrintOrPreview.ts`, `src/hooks/useDocumentPrint.ts`, `ReceiptTemplateGenerator`.
-   - Add an ESLint `no-restricted-imports` rule forbidding *new* imports of those modules (existing importers listed in the audit doc as an allow-list, to be drained in Wave 7).
-5. **Lower `CEILING` in `src/test/architecture/edge-fn-inventory.test.ts`** to the new count. Run the whole architecture suite to confirm no regression.
-6. **Flip `.lovable/plan.md`:** Wave 6.5 → ✅, Wave 7 → ▶ ACTIVE, and delete the stale deploy-blocked note on Wave 6.
+- ✅ Audit doc: `docs/audit/2026-wave6.5-legacy-inventory.md` (caller-graph + candidate list + cron-safe list).
+- ✅ Deleted 4 zero-caller functions: `override-return-diagnostic`, `send-leave-email`, `generate-cycle-counts`, `generate-audit-certificate`. Count 100 → **96**.
+- ✅ Removed the now-orphaned `useOverrideReturnDiagnostic` hook.
+- ✅ `@deprecated` JSDoc on `src/services/printing/PrintClient.ts` and `src/hooks/usePrintOrPreview.ts`. (`useDocumentPrint` and `ReceiptTemplateGenerator` do not exist as files — stale plan entries.)
+- ✅ ESLint `no-restricted-imports` blocks new imports of the two shims; existing importers grandfathered via a ratchet allowlist in `eslint.config.js` that must shrink in Wave 7.
+- ✅ `edge-fn-inventory.test.ts::CEILING` ratcheted 87 → 96 with a documented monotonic-decrease invariant.
 
-Exit criteria: audit doc committed, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing (verified via `cron.job_run_details`).
+### Pass 2 (next)
+
+1. Verify the three candidate deletions in the audit doc (`app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`) against marketplace flows, outbox producers, and emailed activation links.
+2. Retire additional zero-caller fns to drive `CEILING ≤ 87`.
+3. Repoint any remaining callers onto `submitIntent({ documentKind: … })`.
+4. Lower `CEILING` on every retirement; guard must stay green.
+5. When `CEILING` hits 87, flip Wave 6.5 → ✅ and Wave 7 → ▶ ACTIVE.
+
+Exit criteria: audit doc up-to-date, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing.
+
 
 ## Wave 7 — POS Receipt Convergence
 
