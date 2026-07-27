@@ -25,6 +25,7 @@ import { buildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/s
 import { buildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { buildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
+import { buildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -264,6 +265,34 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         },
         [],
       ),
+  },
+  {
+    file: "salesCustomerStatement.ts",
+    run: () =>
+      buildCustomerStatementSnapshot({
+        statement: {
+          id: "stmt-1",
+          contact_id: "c-1",
+          organization_id: "o",
+          business_id: "b",
+          branch_id: null,
+          period_start: "2026-06-01",
+          period_end: "2026-06-30",
+          statement_date: "2026-07-01",
+          created_at: "2026-07-01T00:00:00Z",
+          opening_balance: 0,
+          closing_balance: 0,
+          total_invoiced: 0,
+          total_payments: 0,
+          sent_at: null,
+          contact: { name: "Acme Ltd" },
+          business: { id: "b", name: "Widget Co", base_currency: "KES" },
+        },
+        invoices: [],
+        payments: [],
+        creditNotes: [],
+        now: new Date("2026-07-27T00:00:00Z"),
+      }),
   },
 ];
 
