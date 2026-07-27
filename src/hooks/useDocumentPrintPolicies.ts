@@ -16,7 +16,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useResolvedDeviceForDocument } from "@/hooks/hardware/useResolvedDeviceForDocument";
 import type { DeviceAssignment } from "@/hooks/useDeviceAssignments";
-import type { PrinterProfile } from "@/hooks/usePrinterProfiles";
 
 export type PaperFormat = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm" | "custom";
 export type RenderMode = "pdf" | "escpos";
@@ -28,7 +27,7 @@ export interface PrintPolicy {
   document_type: string;
   paper_format: PaperFormat;
   render_mode: RenderMode;
-  printer_profile_id: string | null;
+  device_assignment_id: string | null;
   auto_print: boolean;
 }
 
@@ -63,7 +62,7 @@ export function useDocumentPrintPolicies(businessId: string | null | undefined) 
     try {
       const { data, error } = await supabase
         .from("document_print_policies")
-        .select("id, business_id, branch_id, document_type, paper_format, render_mode, printer_profile_id, auto_print")
+        .select("id, business_id, branch_id, document_type, paper_format, render_mode, device_assignment_id, auto_print")
         .eq("business_id", businessId);
       if (error) throw error;
       setPolicies((data ?? []) as PrintPolicy[]);
@@ -155,11 +154,11 @@ export function useDocumentPrintPolicies(businessId: string | null | undefined) 
 /**
  * Stage W6 (ADR-0008) — same resolution rules as the server-side
  * `_shared/printing/resolvePolicy.ts`, but in the React tree so POS /
- * Settings UI can react to `auto_print`, `printer_profile_id`, etc.
+ * Settings UI can react to `auto_print`, `device_assignment_id`, etc.
  * without a network round-trip.
  *
  * Falls back to the system default `{ paper_format: 'a4', render_mode:
- * 'pdf', auto_print: false, printer_profile_id: null }` when no row
+ * 'pdf', auto_print: false, device_assignment_id: null }` when no row
  * matches — identical behaviour to the server resolver.
  */
 export interface ResolvedPrintPolicy extends Omit<PrintPolicy, "id" | "branch_id" | "business_id"> {
@@ -184,7 +183,7 @@ export function useResolvedPrintPolicy(
         document_type: row.document_type,
         paper_format: row.paper_format,
         render_mode: row.render_mode,
-        printer_profile_id: row.printer_profile_id,
+        device_assignment_id: row.device_assignment_id,
         auto_print: row.auto_print,
         source: branchHit ? "branch" : "business",
       }
@@ -192,7 +191,7 @@ export function useResolvedPrintPolicy(
         document_type: documentType,
         paper_format: "a4",
         render_mode: "pdf",
-        printer_profile_id: null,
+        device_assignment_id: null,
         auto_print: false,
         source: "default",
       };
@@ -204,7 +203,7 @@ export function useResolvedPrintPolicy(
  * useResolvedPrintPolicyWithDevice — Wave 10 (P3 #17 finish).
  *
  * Same return as `useResolvedPrintPolicy`, plus the matching
- * `printer_profiles` row and the `device_assignments` row that the
+ * `device_assignments` row that the
  * print router will actually dispatch to. Callers that want
  * device-aware UI (e.g. "Will print to: Star TSP143 on usb:049f:0001")
  * use this; existing callers stay on the additive base hook above.
@@ -224,7 +223,6 @@ export function useResolvedPrintPolicyWithDevice(
   documentType: string,
 ): {
   policy: ResolvedPrintPolicy;
-  profile: PrinterProfile | null;
   device: DeviceAssignment | null;
   loading: boolean;
 } {
@@ -233,13 +231,11 @@ export function useResolvedPrintPolicyWithDevice(
     branchId,
     documentType,
   );
-  const { device, profile, isLoading: deviceLoading } = useResolvedDeviceForDocument(
-    businessId,
-    policy.printer_profile_id,
+  const { device, isLoading: deviceLoading } = useResolvedDeviceForDocument(
+    policy.device_assignment_id,
   );
   return {
     policy,
-    profile,
     device,
     loading: policyLoading || deviceLoading,
   };

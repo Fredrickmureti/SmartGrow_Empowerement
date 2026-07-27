@@ -20,9 +20,8 @@ type ThermalPaper = "40mm" | "58mm" | "80mm";
 const THERMAL: ReadonlySet<string> = new Set(["40mm", "58mm", "80mm"]);
 
 interface Props {
-  /** Bound device id from the resolved print policy (device_assignment_id
-   *  or the legacy printer_profile_id — either resolves). */
-  profileId: string | null;
+  /** Bound `device_assignments.id` from the resolved print policy. */
+  deviceAssignmentId: string | null;
   /** Current paper size selected in POS receipt settings. */
   selectedPaper: string;
 }
@@ -33,7 +32,7 @@ interface DeviceRow {
   display_name: string | null;
 }
 
-export function PrinterProfilePaperMismatchAlert({ profileId, selectedPaper }: Props) {
+export function PrinterProfilePaperMismatchAlert({ deviceAssignmentId: profileId, selectedPaper }: Props) {
   const queryClient = useQueryClient();
   const isThermalSelected = THERMAL.has(selectedPaper);
 
@@ -42,12 +41,10 @@ export function PrinterProfilePaperMismatchAlert({ profileId, selectedPaper }: P
     enabled: !!profileId && isThermalSelected,
     queryFn: async () => {
       if (!profileId) return null;
-      // Match either the assignment id or the legacy printer_profiles id
-      // (retained as source_config_id during the compatibility window).
       const { data, error } = await supabase
         .from("device_assignments")
-        .select("id, paper_size, display_name, source_config_id")
-        .or(`id.eq.${profileId},source_config_id.eq.${profileId}`)
+        .select("id, paper_size, display_name")
+        .eq("id", profileId)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;

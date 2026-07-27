@@ -301,7 +301,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
           return;
         }
         const transport = resolveTransport({
-          connectionType: 'network',
+          transport: 'local_agent',
           ipAddress,
           port,
         });
