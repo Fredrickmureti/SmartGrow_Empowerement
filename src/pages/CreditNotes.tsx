@@ -94,6 +94,8 @@ export default function CreditNotes() {
   const { creditNotes, isLoading, updateCreditNote, issueCreditNote, deleteCreditNote, refreshCreditNotes } = useCreditNotes();
   const { contacts } = useContacts();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
   
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { } = useExport();
