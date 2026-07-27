@@ -78,7 +78,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { printClient } from "@/services/printing/PrintClient";
+import { downloadExport } from "@/services/exports";
 
 export default function CustomerStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
