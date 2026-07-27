@@ -1,9 +1,8 @@
 /**
- * Phase 3C guard — `generate-document` MUST resolve a document's physical
+ * Phase 6 guard — `generate-document` MUST resolve a document's physical
  * printer through the canonical chain:
  *
- *   policy.device_assignment_id → policy.printer_profile_id (legacy) →
- *   policy.intent → resolve_device(role)
+ *   policy.device_assignment_id → policy.intent → resolve_device(role)
  *
  * Any regression that drops the `resolve_device` intent branch, drops the
  * `hardware.route.decision` log, or reintroduces role dispatch outside this
@@ -19,13 +18,10 @@ const SRC = readFileSync(
   "utf-8",
 );
 
-describe("generate-document · Phase 3C canonical resolver", () => {
-  it("prefers policy.device_assignment_id before the legacy printer_profile_id pin", () => {
+describe("generate-document · Phase 6 canonical resolver", () => {
+  it("pins on policy.device_assignment_id and has no legacy printer-profile pin", () => {
     expect(SRC).toMatch(/policy\.device_assignment_id/);
-    const devIdx = SRC.indexOf("policy.device_assignment_id");
-    const profIdx = SRC.indexOf("policy.printer_profile_id", devIdx);
-    expect(devIdx).toBeGreaterThan(-1);
-    expect(profIdx).toBeGreaterThan(devIdx);
+    expect(SRC).not.toMatch(/printer_profile_id/);
   });
 
   it("falls through to `resolve_device` when the policy carries only an intent", () => {
@@ -43,13 +39,11 @@ describe("generate-document · Phase 3C canonical resolver", () => {
     expect(SRC).toMatch(/surface:\s*["']generate-document["']/);
   });
 
-  it("keeps the `.or(id, source_config_id)` fan-out ONLY for the legacy profile_pin branch", () => {
-    // Fan-out must be gated behind routeDecisionSource === 'profile_pin' so
-    // the canonical device_assignment_id and intent paths never revive the
-    // legacy string-match join.
-    expect(SRC).toMatch(
-      /routeDecisionSource\s*===\s*["']profile_pin["']\s*\?\s*[\s\S]{0,120}source_config_id/,
-    );
+  it("never revives the legacy `source_config_id` fan-out", () => {
+    // Phase 6 dropped `printer_profiles` and the `source_config_id` mirror;
+    // every lookup matches `device_assignments.id` directly.
+    expect(SRC).not.toMatch(/source_config_id/);
+    expect(SRC).not.toMatch(/profile_pin/);
   });
 
   it("never dispatches to `resolve_device` for the preview-override branch (that path is ID-pinned)", () => {
