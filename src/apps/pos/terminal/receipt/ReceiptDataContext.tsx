@@ -111,7 +111,7 @@ export function ReceiptDataProvider({ businessId, branchId, children }: ReceiptD
 
   const policy = useMemo<PrintPolicyHint>(
     () => ({
-      auto_print: !!posReceiptPolicy.auto_print,
+      auto_print: posReceiptPolicy.trigger === "auto",
       render_mode: (posReceiptPolicy.render_mode === "escpos" ? "escpos" : "pdf") as "pdf" | "escpos",
       paper_format: posReceiptPolicy.paper_format as "58mm" | "80mm" | "a4" | "a5" | "letter",
       device_id: posReceiptDevice?.id ?? null,
@@ -120,7 +120,7 @@ export function ReceiptDataProvider({ businessId, branchId, children }: ReceiptD
         (posReceiptDevice ? `${posReceiptDevice.role} (${posReceiptDevice.transport})` : null),
     }),
     [
-      posReceiptPolicy.auto_print,
+      posReceiptPolicy.trigger,
       posReceiptPolicy.render_mode,
       posReceiptPolicy.paper_format,
       posReceiptDevice?.id,
