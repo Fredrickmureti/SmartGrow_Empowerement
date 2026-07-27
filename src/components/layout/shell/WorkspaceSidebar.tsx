@@ -127,19 +127,22 @@ export function SidebarBody({
   collapsed = false,
   onNavigate,
   defaultExpandAll = false,
+  showAppSwitcher = false,
 }: {
   app: AppDefinition;
   nav: WorkspaceNav;
   collapsed?: boolean;
   onNavigate?: () => void;
   defaultExpandAll?: boolean;
+  /** Render an app-switcher dropdown next to the app name (mobile sidebar). */
+  showAppSwitcher?: boolean;
 }) {
   const AppIcon = app.icon;
   return (
     <>
       <div
         className={cn(
-          "flex items-center h-12 border-b border-border",
+          "flex items-center h-12 border-b border-border shrink-0",
           collapsed ? "justify-center px-1" : "gap-2 px-3",
         )}
       >
@@ -147,6 +150,22 @@ export function SidebarBody({
           <>
             <AppIcon className="h-4 w-4 shrink-0" style={{ color: app.color }} />
             <span className="text-sm font-semibold truncate flex-1">{app.name}</span>
+            {showAppSwitcher && (
+              <AppSwitcher
+                variant="dropdown"
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    aria-label="Switch app"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    <span>Switch</span>
+                  </Button>
+                }
+              />
+            )}
           </>
         )}
       </div>
