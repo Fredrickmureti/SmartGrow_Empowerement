@@ -50,12 +50,18 @@ The direction is right; five things must be added, because inspecting the real `
 
 ## Phase 3 — Execution order
 
-**D. Labels (`Products.tsx`, `useLabelPrint.ts`, `PrintLabelButton`, `CartItemEditor`, `ProductQuickView`, `FixedAssets`)**
-Introduce a `labels` document class dispatched through `submitDocumentIntent`. Enforce ADR-0088 mm-relative geometry and ADR-0089 identity refusal: never emit a UUID as a barcode; refuse with an operator-facing CTA when identity resolution returns null. Keep the existing "no label printer bound" refusal behaviour.
+**D. Labels — DONE (2026-07-27).**
+`useLabelPrint` now calls `printLabelByTemplate` directly; `Products.tsx` lost ~100 lines of duplicated refusal/identity logic and consumes the hook. ADR-0089 identity refusal and the "no label printer bound" behaviour are preserved and guarded by `products-label-print.test.ts`. Allowlist entry removed.
 
-**E. Exports** — new `src/services/exports/` owner; migrate the two statement pages off `printClient.downloadExport`.
+**E. Exports — DONE (2026-07-27).**
+New owner `src/services/exports/` (`documentExport.ts` + barrel). `exportDocument` / `downloadExport` deleted from `PrintClient`; both statement pages migrated. Rationale recorded in the module header: an extract has no template, geometry, policy, or device, so it is not a document — the only shared concern is the `document_artifacts` archive row, which is archival, not printing. Guarded by `export-not-document.test.ts` (bidirectional: exports must not import printing/hardware, and the print client must not regrow export methods).
 
 **F. Hardware seams** — `usePrinterStatus`, `useDeviceForIntent`, `usePOSCashDrawer`, `HardwareDevices`, `BrowserHardwareAdapter` onto `hardwareClient`.
+
+_Progress (2026-07-27):_ `PrintIntent` moved out of `PrintClient` into the neutral vocabulary module `services/printing/types.ts`, so intent-based routing (`useDeviceForIntent`, `usePrinterStatus`, `usePrintOrPreview`, the parity guard) no longer depends on the doomed dispatch shim. `PrintClient` re-exports it for existing callers. `intent-to-role-parity.test.ts` now reads the union from `types.ts`.
+
+_Scope correction:_ `usePOSCashDrawer` was listed here on the assumption it issues a raw drawer-kick op. It does not — it dispatches a **`drawer_slip` document** via `printClient.print(...)`. That is a document-dispatch call, so it belongs with **G** (it needs the drawer-slip ESC/POS renderer ported into the shared engine before it can move). Same for `usePrintWithFallback` inside `usePrinterStatus`, whose two `printClient.print` calls are document dispatch, not hardware status. What genuinely remains in F is the status/device-resolution half.
+
 
 **G. POS terminal** — `PostPaymentSurface`, `HistoryWorkspace`, `lib/pos/receipt/renderers`. Requires porting the drawer-slip ESC/POS renderer into the shared engine; guarded by thermal + kitchen golden files.
 
