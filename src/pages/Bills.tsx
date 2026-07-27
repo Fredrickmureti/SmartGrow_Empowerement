@@ -261,7 +261,7 @@ export default function Bills() {
         sourceDocId: bill.id,
         businessId: built.businessId ?? currentBusiness.id,
         branchId: built.branchId ?? currentBranch?.id ?? null,
-        partyKind: "vendor",
+        partyKind: "supplier",
         partyId: built.vendorId,
         currency: built.currency,
         documentNumber: built.documentNumber,
