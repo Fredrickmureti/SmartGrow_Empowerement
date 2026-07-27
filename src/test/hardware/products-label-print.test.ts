@@ -1,28 +1,29 @@
 /**
- * Wave B2.2 — Products page label-print seam contract.
+ * Products page label-print seam contract.
  *
- * History: this test originally guarded the Wave 9f seam where Products.tsx
- * built ZPL bytes inline and shipped them through
- * `useInventoryLabelPrinter().printLabelBytes(...)`. The audit in
- * `docs/audit/2026-06-17-hardware-enterprise-readiness.md` (§2.B + risk B2.2)
- * called out that the inline-ZPL path bypassed the `label_templates`
- * registry and prevented branch overrides, price tokens, and template
- * versioning. B2.2 of the execution plan in `.lovable/plan.md` routes the
- * page through the template-driven dispatch, and Phase 3 of the hardware
- * consolidation moved every consumer to the single `printClient.printLabel`
- * façade so the platform has one chokepoint for template-driven labels.
+ * History: this test originally guarded a seam where `Products.tsx` built ZPL
+ * bytes inline, then a later revision where the page called the
+ * `printClient.printLabel` façade. Both are gone.
+ *
+ * The problem with the façade revision was not the façade itself — it was that
+ * `Products.tsx` had hand-copied the *whole* label protocol next to it:
+ * missing-device refusal, org check, ADR-0089 barcode-identity refusal, the
+ * `name / sku / sku_display / barcode / hri_flag` var pack, and its own toast
+ * phrasing. Every other label call site in the app (`PrintLabelButton`,
+ * `CartItemEditor`, `ProductQuickView`, `FixedAssets`) went through the shared
+ * `useLabelPrint` seam, so Products was one edit away from silently drifting
+ * out of parity on any of those five rules.
  *
  * What this test locks in now:
- *   1. Products imports `useInventoryLabelPrinter` (for the missing-device
- *      CTA) AND the `printClient` façade from PrintClient.
- *   2. There is a `printClient.printLabel({ ... templateKey: 'product_label' })`
- *      call wired into a UI handler.
- *   3. The page renders a "Print label" row action.
- *   4. The missing-device CTA path is still surfaced.
- *   5. The page contains NO raw ZPL strings (defense-in-depth alongside the
+ *   1. Products drives labels through the shared `useLabelPrint` seam.
+ *   2. It still uses the canonical `product_label` / `shelf_label` template
+ *      keys and their workflows.
+ *   3. It does NOT re-implement device / identity refusal locally.
+ *   4. It does NOT reach around the seam into `printClient`, the
+ *      `printLabelByTemplate` primitive, `hardwareClient`, or raw drivers.
+ *   5. The page renders a "Print label" row action wired to a handler.
+ *   6. The page contains NO raw ZPL strings (defense-in-depth alongside the
  *      `no-raw-zpl-outside-printing` ESLint rule).
- *   6. The page does NOT reach around the seam into raw drivers, POS hooks,
- *      hardwareClient, or the internal `printLabelByTemplate` primitive.
  *
  * Source-inspection rather than a render test — Products has dozens of
  * unrelated hook imports whose mocks would dwarf the assertion.
@@ -34,29 +35,35 @@ import { resolve } from "node:path";
 const PRODUCTS = resolve(__dirname, "../../pages/Products.tsx");
 const SRC = readFileSync(PRODUCTS, "utf-8");
 
-describe("Products label-print seam (Wave B2.2)", () => {
-  it("imports the platform-hardware seam hook for the missing-device CTA", () => {
-    expect(SRC).toContain(
-      'from "@/hooks/inventory/useInventoryLabelPrinter"',
-    );
-    expect(SRC).toMatch(/useInventoryLabelPrinter\s*\(\s*\)/);
+describe("Products label-print seam", () => {
+  it("drives labels through the shared useLabelPrint seam", () => {
+    expect(SRC).toContain('from "@/hooks/inventory/useLabelPrint"');
+    expect(SRC).toMatch(/useLabelPrint\s*\(/);
   });
 
-  it("imports the printClient façade (single-chokepoint label entry)", () => {
-    expect(SRC).toContain('from "@/services/printing/PrintClient"');
-    expect(SRC).toMatch(/printClient\.printLabel\s*\(/);
-  });
-
-  it("uses the canonical product_label template key", () => {
+  it("uses the canonical template keys and workflows", () => {
     expect(SRC).toMatch(/templateKey:\s*["']product_label["']/);
+    expect(SRC).toMatch(/workflow:\s*["']product_tag["']/);
+    expect(SRC).toMatch(/templateKey:\s*["']shelf_label["']/);
+    expect(SRC).toMatch(/workflow:\s*["']shelf_edge["']/);
   });
 
-  it("does NOT reach around the façade into the labelDispatch primitive or raw drivers/hardwareClient/POS hooks", () => {
+  it("does NOT re-implement refusal rules the seam already owns", () => {
+    // ADR-0089 identity refusal lives in useLabelPrint, once.
+    expect(SRC).not.toMatch(/resolveLabelBarcode\s*\(/);
+    expect(SRC).not.toMatch(/LABEL_BARCODE_REFUSAL/);
+    // The missing-device pre-flight likewise belongs to the seam.
+    expect(SRC).not.toMatch(/useInventoryLabelPrinter\s*\(/);
+  });
+
+  it("does NOT reach around the seam into the shim, the primitive, or hardware", () => {
+    expect(SRC).not.toMatch(/from\s+["']@\/services\/printing\/PrintClient["']/);
+    expect(SRC).not.toMatch(/printClient\./);
+    expect(SRC).not.toMatch(/printLabelByTemplate\s*\(/);
+    expect(SRC).not.toMatch(/from\s+["']@\/services\/printing\/labelDispatch["']/);
     expect(SRC).not.toMatch(/from\s+["']@\/services\/hardware\/drivers\//);
     expect(SRC).not.toMatch(/from\s+["']@\/hooks\/pos\/useHardware/);
     expect(SRC).not.toMatch(/hardwareClient\./);
-    expect(SRC).not.toMatch(/printLabelByTemplate\s*\(/);
-    expect(SRC).not.toMatch(/from\s+["']@\/services\/printing\/labelDispatch["']/);
   });
 
   it("contains NO raw ZPL byte construction (template-driven now)", () => {
