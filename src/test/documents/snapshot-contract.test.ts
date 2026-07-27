@@ -30,6 +30,8 @@ import { buildPurchasesBillSnapshot } from "@/services/documents/snapshots/purch
 import { buildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { buildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
+import { buildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
+
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
