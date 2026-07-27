@@ -134,7 +134,7 @@ export default function GoodsReceiptWizardPage() {
   const { currentBranch } = useBranches();
   const { user } = useAuth();
   const { warehouses } = useWarehouses();
-  const { printOrPreview } = usePrintOrPreview();
+  
 
   useActiveScanContext({ workspace_id: "grn" });
 
