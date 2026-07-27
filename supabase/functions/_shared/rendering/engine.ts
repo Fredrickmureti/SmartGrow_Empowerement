@@ -20,7 +20,7 @@ import type { RenderRequest, RenderResult } from "./types.ts";
 import { resolveTemplateAst } from "./resolveTemplate.ts";
 import { buildContext } from "./resolveContext.ts";
 import { composeBlocks, getMediumRenderer } from "./mediumRegistry.ts";
-import { persistDocumentArtifact } from "../documents/persistArtifact.ts";
+import { persistArtifact, shouldPersistArtifact } from "../documents/persistArtifact.ts";
 
 async function sha256(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -89,25 +89,33 @@ export async function renderDocument(
     },
   };
 
-  if (req.persist !== false && req.document_id) {
+  if (
+    req.persist !== false &&
+    req.document_id &&
+    shouldPersistArtifact(context.document.kind_code)
+  ) {
     try {
-      const persisted = await persistDocumentArtifact({
+      const persisted = await persistArtifact({
         supabase,
+        bytes,
         organizationId: context.document.organization_id,
         businessId: context.document.business_id,
         branchId: context.document.branch_id,
         documentType: context.document.kind_code,
         documentId: context.document.id,
         documentNumber: context.document.number,
-        bytes,
-        mimeType: renderer.mime_type,
-        renderMode: renderer.medium,
+        intent: (context.options["intent"] as string | null) ?? null,
         templateId: template.id,
         templateVersion: template.version,
+        policyId: (context.options["policy_id"] as string | null) ?? null,
+        mimeType: renderer.mime_type,
+        renderMode: renderer.medium,
         paperFormat: (context.options["paper_format"] as string) ?? template.media_class,
+        copies: (context.options["copies"] as number) ?? 1,
+        renderedBy: (context.options["rendered_by"] as string | null) ?? null,
         renderedVia: "rendering_engine",
-        blocking: renderer.medium !== "html",
-      } as Parameters<typeof persistDocumentArtifact>[0]);
+        metadata: result.metadata,
+      });
       result.artifact_id = persisted?.id ?? undefined;
     } catch (err) {
       console.warn("[rendering-engine] persistArtifact non-fatal error", err);
