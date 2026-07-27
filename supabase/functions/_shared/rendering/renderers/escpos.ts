@@ -12,6 +12,8 @@
 import type { AstBlock, RenderContext, ResolvedTemplate } from "../types.ts";
 import { renderDocumentEscPosWithResult, type ThermalWidth } from "../../escpos/renderDocumentEscPos.ts";
 
+import type { RenderDocumentEscPosOptions } from "../../escpos/renderDocumentEscPos.ts";
+
 export function renderAstToEscPos(args: {
   template: ResolvedTemplate;
   context: RenderContext;
@@ -19,7 +21,8 @@ export function renderAstToEscPos(args: {
 }): Uint8Array {
   const opts = args.context.options as Record<string, unknown>;
   const width = (opts["width"] as ThermalWidth | undefined) ?? "80mm";
-  const capabilities = (opts["capabilities"] as Record<string, boolean | number> | undefined) ?? null;
+  const capabilities =
+    (opts["capabilities"] as RenderDocumentEscPosOptions["capabilities"]) ?? null;
   const receiptSettings = (opts["receiptSettings"] as Record<string, unknown> | undefined) ?? null;
   const font = (opts["font"] as "A" | "B" | undefined) ?? "A";
 
@@ -35,7 +38,7 @@ export function renderAstToEscPos(args: {
     width,
     title: (opts["title"] as string | undefined) ?? undefined,
     receiptSettings,
-    capabilities: capabilities as Parameters<typeof renderDocumentEscPosWithResult>[1]["capabilities"],
+    capabilities,
     font,
   });
   return bytes;

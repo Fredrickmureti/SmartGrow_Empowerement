@@ -98,7 +98,7 @@ serve(async (req) => {
       );
     }
     const kind = (result.metadata["kind"] as string) ?? "document";
-    return new Response(result.bytes, {
+    return new Response(result.bytes as unknown as BodyInit, {
       headers: {
         ...corsHeaders,
         "content-type": result.mime_type,
