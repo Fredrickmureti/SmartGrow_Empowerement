@@ -507,33 +507,6 @@ class PrintClient {
   }
 
   /**
-   * Milestone B — POS receipt thermal print.
-   *
-   * Chokepoint replacement for the legacy `printThermal` renderer helper.
-   * Fetches ESC/POS bytes server-side via `generate-document` and streams
-   * them through the caller-supplied `printRawBytes` transport. The
-   * register-scoped transport is passed in explicitly because it comes
-   * from `useHardwareProxy(register_id)` — the client itself does not
-   * know which register's hardware to speak to.
-   */
-  async printReceiptThermal(opts: {
-    transactionId: string;
-    printRawBytes: (bytes: Uint8Array) => Promise<{ success: boolean; error?: string; bytesWritten?: number }>;
-    documentType?: string;
-  }): Promise<{ success: boolean; error?: string; bytesWritten?: number }> {
-    try {
-      const bytes = await generateDocumentEscPosBytes(
-        opts.documentType ?? 'pos_receipt',
-        opts.transactionId,
-      );
-      const res = await opts.printRawBytes(bytes);
-      return { success: res.success, error: res.error, bytesWritten: res.bytesWritten };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  /**
    * Milestone B — POS receipt PDF blob.
    *
    * Chokepoint replacement for the legacy `renderReceiptPdf` renderer

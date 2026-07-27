@@ -31,6 +31,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from './HardwareClient';
 import type { DeviceRole } from './drivers/DriverInterface';
+import { execForIntent } from './execForIntent';
 
 /** ADR-0090 · Phase D2 — roles whose ack is mirrored into `print_jobs`. */
 const PRINT_ROLES = new Set<string>([
@@ -77,6 +78,12 @@ interface QueueRow {
   business_event_id: string | null;
   source_doc_type: string | null;
   source_doc_id: string | null;
+  /**
+   * Phase 5 Step B — the enqueuer records which `device_assignments` row
+   * the resolver picked. When present the worker dispatches to that exact
+   * device; when absent (legacy rows) it re-resolves by role.
+   */
+  device_assignment_id?: string | null;
 }
 
 export interface WorkerStatus {
@@ -88,6 +95,51 @@ export interface WorkerStatus {
   totalFailed: number;
   totalReclaimed: number;
   startedAt: number;
+}
+
+/**
+ * Phase 5 Step B — queue rows dispatch through an assignment, never a bare
+ * role. Rows carrying `device_assignment_id` go straight to that device;
+ * legacy rows without one are re-resolved server-side by role + org/business
+ * so the queue and the UI agree on the target device.
+ */
+async function dispatchQueueRow(row: QueueRow) {
+  const audit = {
+    idempotencyKey: row.idempotency_key ?? undefined,
+    sourceDocType: row.source_doc_type,
+    sourceDocId: row.source_doc_id,
+    businessEventId: row.business_event_id,
+  };
+
+  if (row.device_assignment_id) {
+    const { data: assignment } = await supabase
+      .from('device_assignments')
+      .select('id, role, transport, enabled')
+      .eq('id', row.device_assignment_id)
+      .maybeSingle();
+    if (assignment) {
+      return hardwareClient.execAssignment({
+        assignment: {
+          id: assignment.id,
+          role: assignment.role as DeviceRole,
+          transport: assignment.transport,
+          enabled: assignment.enabled,
+        },
+        op: row.op,
+        payload: row.payload,
+        ...audit,
+      });
+    }
+  }
+
+  return execForIntent({
+    intentOrRole: row.role,
+    op: row.op,
+    payload: row.payload,
+    organizationId: row.org_id,
+    businessId: row.business_id ?? null,
+    ...audit,
+  });
 }
 
 let active: { stop: () => void; status: () => WorkerStatus } | null = null;
@@ -177,15 +229,7 @@ export function startSharedCommandQueueWorker(
         status.lastClaimAt = Date.now();
         status.inFlight = { id: row.id, role: row.role, op: row.op };
         try {
-          const result = await hardwareClient.exec({
-            role: row.role as DeviceRole,
-            op: row.op,
-            payload: row.payload,
-            idempotencyKey: row.idempotency_key ?? undefined,
-            sourceDocType: row.source_doc_type,
-            sourceDocId: row.source_doc_id,
-            businessEventId: row.business_event_id,
-          });
+          const result = await dispatchQueueRow(row);
           await supabase.rpc('complete_hardware_command', {
             p_id: row.id,
             p_success: !!result?.success,

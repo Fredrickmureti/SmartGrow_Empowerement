@@ -16,6 +16,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
+import { execForIntent } from '@/services/hardware/execForIntent';
 import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
 import { compileLabelDoc, isLabelDoc, type LabelDoc } from './labelCompiler';
 
@@ -384,15 +385,47 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
 
   const role = tpl.engine === 'pdf' ? 'a4_printer' : 'label_printer';
 
-  const res = await hardwareClient.exec({
-    role,
-    op: 'print_label',
-    payload,
-    idempotencyKey: idem,
-    sourceDocType: input.sourceDocType ?? null,
-    sourceDocId: input.sourceDocId ?? null,
-    businessEventId: input.businessEventId ?? null,
-  });
+  // Phase 5 Step B — dispatch through the assignment, never the bare role.
+  // The workflow binding already named a `device_assignments` row; load its
+  // transport so `TransportRouter` decides the IO path. Without a workflow
+  // binding we fall back to the intent resolver (`resolve_device`), which
+  // applies the same scope → business → default → last-seen tie-break.
+  let res: DriverResult;
+  if (printer) {
+    const { data: row } = await supabase
+      .from('device_assignments')
+      .select('id, role, transport, enabled')
+      .eq('id', printer.device_assignment_id)
+      .maybeSingle();
+    if (!row) {
+      return { success: false, error: `bound printer ${printer.device_assignment_id} no longer exists` };
+    }
+    res = await hardwareClient.execAssignment({
+      assignment: {
+        id: row.id,
+        role: row.role as never,
+        transport: row.transport,
+        enabled: row.enabled,
+      },
+      op: 'print_label',
+      payload,
+      idempotencyKey: idem,
+      sourceDocType: input.sourceDocType ?? null,
+      sourceDocId: input.sourceDocId ?? null,
+      businessEventId: input.businessEventId ?? null,
+    });
+  } else {
+    res = await execForIntent({
+      intentOrRole: role,
+      op: 'print_label',
+      payload,
+      organizationId: input.orgId,
+      idempotencyKey: idem,
+      sourceDocType: input.sourceDocType ?? null,
+      sourceDocId: input.sourceDocId ?? null,
+      businessEventId: input.businessEventId ?? null,
+    });
+  }
 
   return {
     ...res,

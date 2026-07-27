@@ -65,12 +65,17 @@ describe("Milestone B — POS renderer ownership", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("PrintClient owns the receipt bytes helpers", () => {
+  it("PrintClient owns the receipt helpers via the single chokepoint", () => {
     const src = readFileSync(
       join(root, "src", "services", "printing", "PrintClient.ts"),
       "utf8",
     );
-    expect(src).toMatch(/printReceiptThermal\s*\(/);
+    // Phase 5 Step B — `printReceiptThermal` (caller-supplied transport
+    // callback) is deleted. Thermal receipts go through `print()` →
+    // `dispatchThermalBytes` → `execAssignment` so the resolver, not the
+    // caller, picks the device.
+    expect(src).not.toMatch(/printReceiptThermal/);
+    expect(src).toMatch(/dispatchThermalBytes\s*\(/);
     expect(src).toMatch(/renderReceiptPdfBlob\s*\(/);
   });
 

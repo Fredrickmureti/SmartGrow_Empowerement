@@ -15,7 +15,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { hardwareClient } from '@/services/hardware/HardwareClient';
+import { execForIntent } from '@/services/hardware/execForIntent';
 import { printClient } from '@/services/printing/PrintClient';
 import type { LabelDispatchInput } from '@/services/printing/labelDispatch';
 import { generateDocumentEscPosBytes } from '@/services/printing/pdfUtils';
@@ -69,16 +69,29 @@ export async function dispatchLabelReprint(
  */
 export async function dispatchReceiptReprint(
   reprintRequestId: string,
-  input: { receiptData: unknown; sourceDocType: string; sourceDocId: string },
+  input: {
+    receiptData: unknown;
+    sourceDocType: string;
+    sourceDocId: string;
+    /** Required — the resolver needs org context to pick the assignment. */
+    organizationId: string;
+    businessId?: string | null;
+  },
 ) {
+  // Phase 5 Step B — reprints resolve a `device_assignments` row through
+  // `execForIntent` (intent = receipt) instead of dispatching at the bare
+  // `receipt_printer` role, so a reprint lands on exactly the device the
+  // original print used.
   if (input.sourceDocType === 'pos_receipt') {
     const bytes = await generateDocumentEscPosBytes('pos_receipt', input.sourceDocId, {
       forceRefreshSettings: false,
     });
-    return hardwareClient.exec({
-      role: 'receipt_printer',
+    return execForIntent({
+      intentOrRole: 'receipt',
       op: 'print_raw',
       payload: Array.from(bytes),
+      organizationId: input.organizationId,
+      businessId: input.businessId ?? null,
       idempotencyKey: `reprint:${reprintRequestId}`,
       sourceDocType: input.sourceDocType,
       sourceDocId: input.sourceDocId,
@@ -86,10 +99,12 @@ export async function dispatchReceiptReprint(
     });
   }
 
-  return hardwareClient.exec({
-    role: 'receipt_printer',
+  return execForIntent({
+    intentOrRole: 'receipt',
     op: 'print_receipt',
     payload: { receiptData: input.receiptData },
+    organizationId: input.organizationId,
+    businessId: input.businessId ?? null,
     idempotencyKey: `reprint:${reprintRequestId}`,
     sourceDocType: input.sourceDocType,
     sourceDocId: input.sourceDocId,

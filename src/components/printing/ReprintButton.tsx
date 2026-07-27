@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Printer, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBusinesses } from '@/hooks/useBusinesses';
+import { useOrganization } from '@/hooks/useOrganization';
 import { requestReprint, dispatchLabelReprint, dispatchReceiptReprint } from '@/services/printing/reprintClient';
 import type { PrinterWorkflow } from '@/services/printing/labelDispatch';
 
@@ -50,6 +51,7 @@ export type ReprintButtonProps = {
 
 export function ReprintButton(props: ReprintButtonProps) {
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -103,6 +105,10 @@ export function ReprintButton(props: ReprintButtonProps) {
           receiptData: props.receiptData,
           sourceDocType: props.sourceDocType,
           sourceDocId: props.sourceDocId,
+          // Phase 5 Step B — the device resolver is org-scoped; pass the
+          // real organization plus the active business tie-break.
+          organizationId: currentOrg?.id ?? '',
+          businessId: currentBusiness?.id ?? null,
         });
         if (!res?.success) {
           toast({ variant: 'destructive', title: 'Reprint queued but not printed', description: res?.error ?? 'Printer unavailable' });

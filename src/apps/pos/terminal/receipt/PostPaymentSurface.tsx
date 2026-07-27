@@ -108,7 +108,6 @@ export function PostPaymentSurface({
   const {
     printerStatus,
     isRoleAvailable,
-    printRawBytes,
     updateDisplay,
     reconnectRole,
     deviceStatuses,
@@ -205,9 +204,19 @@ export function PostPaymentSurface({
     setPrintState({ kind: "printing" });
     try {
       if (thermalAvailable) {
-        const res = await printClient.printReceiptThermal({
-          transactionId: model.meta.transaction_id,
-          printRawBytes,
+        // Phase 5 Step B — the receipt path goes through the single
+        // chokepoint. `printClient.print` resolves the winning
+        // `device_assignments` row via `resolve_device` and dispatches
+        // through `TransportRouter`; the register-scoped `printRawBytes`
+        // callback is gone with it.
+        const res = await printClient.print({
+          intent: "receipt",
+          documentType: "pos_receipt",
+          documentId: model.meta.transaction_id,
+          format: "escpos",
+          organizationId: currentOrg?.id ?? null,
+          businessId: currentBusiness?.id ?? null,
+          branchId: currentBranch?.id ?? null,
         });
         if (res.success) {
           setPrintState({ kind: "printed", channel: "thermal" });
@@ -231,7 +240,7 @@ export function PostPaymentSurface({
       setPrintState({ kind: "failed", message });
       toast({ title: "Print failed", description: message, variant: "destructive" });
     }
-  }, [model, thermalAvailable, printRawBytes, toast]);
+  }, [model, thermalAvailable, currentOrg?.id, currentBusiness?.id, currentBranch?.id, toast]);
 
   const handleReconnectPrinter = useCallback(async () => {
     const res = await reconnectRole("receipt_printer");

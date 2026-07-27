@@ -63,8 +63,8 @@ describe("Stage X6 — POS receipt renderer contract", () => {
   });
 
   it("Milestone B — legacy print renderer modules (ThermalPrintRenderer, PdfRenderer) are demoted and removed", () => {
-    // Their responsibilities moved into `printClient.printReceiptThermal`
-    // and `printClient.renderReceiptPdfBlob`. Recreating them would
+    // Their responsibilities moved into `printClient.print()` and
+    // `printClient.renderReceiptPdfBlob`. Recreating them would
     // fragment the print chokepoint again.
     const present = readdirSync(RENDERER_DIR);
     expect(present).not.toContain("ThermalPrintRenderer.ts");
@@ -113,7 +113,12 @@ describe("Stage X6 — POS receipt renderer contract", () => {
       join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
     );
-    expect(src).toMatch(/printClient\.printReceiptThermal/);
+    // Phase 5 Step B — thermal receipts route through the chokepoint
+    // `printClient.print({ intent: 'receipt' … })`; the register-scoped
+    // `printRawBytes` callback path is gone.
+    expect(src).toMatch(/printClient\.print\(/);
+    expect(src).not.toMatch(/printReceiptThermal/);
+    expect(src).not.toMatch(/printRawBytes,/);
     expect(src).toMatch(/printClient\.renderReceiptPdfBlob/);
     expect(src).toMatch(/showSuccessOnCustomerDisplay/);
     // Legacy renderer helpers must not resurface.
