@@ -6,7 +6,7 @@
  *
  * Known generator limitation: the Supabase type generator infers all RPC
  * return columns as non-nullable strings, even when the SQL function can
- * return NULL (here: `printer_profile_id` when no policy matches). The
+ * return NULL (here: `device_assignment_id` when no policy matches). The
  * runtime contract is documented in the migration and enforced by callers
  * who treat empty/falsy as "no profile".
  */
@@ -31,7 +31,7 @@ describe('print_policies_resolve RPC contract', () => {
 
   it('returns the ADR-0026 row shape', () => {
     const row: ReturnRow = {
-      printer_profile_id: '',
+      device_assignment_id: '',
       paper_format: 'a4',
       render_mode: 'pdf',
       copies: 1,
@@ -41,14 +41,14 @@ describe('print_policies_resolve RPC contract', () => {
 
     // Field-by-field type assertions — any drift in the migration that
     // changes column names or types breaks this typecheck.
-    const printerProfileId: string = row.printer_profile_id;
+    const deviceAssignmentId: string = row.device_assignment_id;
     const paperFormat: string = row.paper_format;
     const renderMode: string = row.render_mode;
     const copies: number = row.copies;
     const autoPrint: boolean = row.auto_print;
     const askUser: boolean = row.ask_user;
 
-    expect([printerProfileId, paperFormat, renderMode, copies, autoPrint, askUser]).toEqual([
+    expect([deviceAssignmentId, paperFormat, renderMode, copies, autoPrint, askUser]).toEqual([
       '',
       'a4',
       'pdf',

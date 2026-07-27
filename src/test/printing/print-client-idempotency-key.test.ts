@@ -50,7 +50,7 @@ beforeEach(async () => {
   rpcMock.mockImplementation(async (name: string) => {
     if (name === 'print_policies_resolve') {
       return {
-        data: [{ printer_profile_id: null, paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: true, ask_user: false }],
+        data: [{ device_assignment_id: null, paper_format: 'a4', render_mode: 'pdf', copies: 1, auto_print: true, ask_user: false }],
         error: null,
       };
     }

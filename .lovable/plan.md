@@ -63,3 +63,31 @@ Data first, then drops, in one migration:
 ## Out of scope
 
 Byte-level driver rewrites, relay protocol changes, `document_templates` / `label_templates` schema changes beyond the FK re-point, attendance/biometric flows beyond role-vocabulary parity.
+
+---
+
+# STATUS — updated end of Phase 6 Step A/B
+
+## Fully implemented and verified
+- **Phase 5 Step B (consumer migration)** — `printReceiptThermal` deleted; `PostPaymentSurface`, `labelDispatch`, `reprintClient`, `SharedCommandQueueWorker`, `BusinessSagaMount`, `useHardwareProxy`, `useInventoryLabelPrinter` all dispatch via `resolveDeviceForIntent` → `execAssignment` (canonical seam: `src/services/hardware/execForIntent.ts`).
+- **Host-state consolidation** — `hostBridge<T>()` in `HostRouter.ts` is the only sanctioned bridge access; guard `src/test/architecture/host-state-single-owner.test.ts`.
+- **Phase 5 Step C** — all 11 role-only shims removed from `HardwareClient.ts`; `resolveTransport()` now delegates to `TransportRouter.route()`; guard `transport-decision-single-owner.test.ts`.
+- **Phase 6 Step A/B** — legacy printer-profile model removed end to end:
+  - Deleted `usePrinterProfiles.ts`, `PrinterProfilesCard.tsx`, `legacyPrinterProfileFieldMap.ts`, `legacy-printer-profile-field-parity.test.ts`, `printer-profile-hardware-shape.test.ts`.
+  - `PrintClient`, `labelDispatch`, `useDeviceForWorkflow`, `ReceiptSettings`, `useTestPrintReceipt`, `generate-document`, `_shared/printing/resolvePolicy.ts` all use `device_assignment_id`.
+  - Migration applied: policy backfill to intent routing, `print_jobs.printer_profile_id` → `device_assignment_id`, `print_policies_resolve` / `print_job_insert` RPCs updated, `printer_profiles` + `printer_workflow_bindings` dropped, `device_assignments.source_config_id` dropped.
+  - Verified: `tsgo --noEmit` clean; `src/test/printing` + printing/hardware architecture guards 159/159 green.
+
+## Currently active phase
+Phase 6 — Step C (final sweep).
+
+## Pending
+1. `workstation_devices` table + `EdgeRelayMount` / `workstation-manifest` readers — still present, not yet retired.
+2. `PrintingSettings.tsx` redirect stub + Printing tab trigger in `CompanySettings.tsx` — decide keep vs delete now that it renders assignments.
+3. Drop `resolve_workflow_printer` / `resolve_device_for_workflow` RPCs if no reader remains.
+4. Shrink the `no-hardware-client-outside-printclient` allow-list to `src/services/printing/**` + `src/services/hardware/transport/**`.
+5. Pre-existing, unrelated to this track: `no-printservice-shim.test.ts` fails, plus ~110 repo-wide architecture guards failing in payroll/HR/inventory areas (not caused by this work — do not fold them into this roadmap).
+
+## Instructions for the next agent
+1. **Verify first.** Re-run `npx tsgo --noEmit` and `npx vitest run src/test/printing src/test/hardware src/test/architecture/print-policies-canonical-home.test.ts src/test/architecture/generate-document-resolver.test.ts src/test/architecture/host-state-single-owner.test.ts src/test/architecture/transport-decision-single-owner.test.ts`. Then grep: `rg 'printer_profiles|printer_workflow_bindings|source_config_id|execAny\(' src supabase/functions` must return zero hits. If any of this fails, fix it before adding new work.
+2. **Then resume at Phase 6 Step C pending item 1** (`workstation_devices` retirement), working the pending list in order. Do not start unrelated modules; do not leave a partially migrated surface.

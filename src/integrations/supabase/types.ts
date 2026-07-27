@@ -13344,7 +13344,6 @@ export type Database = {
           role: string
           scope_id: string | null
           scope_kind: string
-          source_config_id: string | null
           status: string
           supported_media_ids: string[]
           transport: string
@@ -13384,7 +13383,6 @@ export type Database = {
           role: string
           scope_id?: string | null
           scope_kind: string
-          source_config_id?: string | null
           status?: string
           supported_media_ids?: string[]
           transport: string
@@ -13424,7 +13422,6 @@ export type Database = {
           role?: string
           scope_id?: string | null
           scope_kind?: string
-          source_config_id?: string | null
           status?: string
           supported_media_ids?: string[]
           transport?: string
@@ -13756,7 +13753,6 @@ export type Database = {
           id: string
           intent: string | null
           paper_format: string
-          printer_profile_id: string | null
           render_mode: string
           updated_at: string
           updated_by: string | null
@@ -13773,7 +13769,6 @@ export type Database = {
           id?: string
           intent?: string | null
           paper_format?: string
-          printer_profile_id?: string | null
           render_mode?: string
           updated_at?: string
           updated_by?: string | null
@@ -13790,7 +13785,6 @@ export type Database = {
           id?: string
           intent?: string | null
           paper_format?: string
-          printer_profile_id?: string | null
           render_mode?: string
           updated_at?: string
           updated_by?: string | null
@@ -13822,13 +13816,6 @@ export type Database = {
             columns: ["device_assignment_id"]
             isOneToOne: false
             referencedRelation: "device_assignments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_print_policies_printer_profile_id_fkey"
-            columns: ["printer_profile_id"]
-            isOneToOne: false
-            referencedRelation: "printer_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -47831,6 +47818,7 @@ export type Database = {
           business_id: string
           correlation_id: string
           created_at: string
+          device_assignment_id: string | null
           doc_id: string | null
           doc_type: string
           failed_at: string | null
@@ -47841,7 +47829,6 @@ export type Database = {
           last_error: string | null
           media_profile_id: string | null
           parent_job_id: string | null
-          printer_profile_id: string | null
           requested_at: string
           requested_by: string | null
           sent_at: string | null
@@ -47856,6 +47843,7 @@ export type Database = {
           business_id: string
           correlation_id: string
           created_at?: string
+          device_assignment_id?: string | null
           doc_id?: string | null
           doc_type: string
           failed_at?: string | null
@@ -47866,7 +47854,6 @@ export type Database = {
           last_error?: string | null
           media_profile_id?: string | null
           parent_job_id?: string | null
-          printer_profile_id?: string | null
           requested_at?: string
           requested_by?: string | null
           sent_at?: string | null
@@ -47881,6 +47868,7 @@ export type Database = {
           business_id?: string
           correlation_id?: string
           created_at?: string
+          device_assignment_id?: string | null
           doc_id?: string | null
           doc_type?: string
           failed_at?: string | null
@@ -47891,7 +47879,6 @@ export type Database = {
           last_error?: string | null
           media_profile_id?: string | null
           parent_job_id?: string | null
-          printer_profile_id?: string | null
           requested_at?: string
           requested_by?: string | null
           sent_at?: string | null
@@ -47912,159 +47899,6 @@ export type Database = {
             columns: ["parent_job_id"]
             isOneToOne: false
             referencedRelation: "print_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      printer_profiles: {
-        Row: {
-          address: string | null
-          business_id: string
-          capabilities: string[]
-          code128_native: boolean
-          columns_override: number | null
-          command_language: string | null
-          created_at: string
-          cutter: string
-          dpi: number | null
-          escpos_codepage: string | null
-          font: string
-          id: string
-          is_active: boolean
-          is_calibrated: boolean
-          label: string
-          margin_cols: number | null
-          margins_mm: Json
-          notes: string | null
-          paper_format: string
-          paper_size: string | null
-          qr_native: boolean
-          supported_media_ids: string[]
-          transport: string
-          updated_at: string
-        }
-        Insert: {
-          address?: string | null
-          business_id: string
-          capabilities?: string[]
-          code128_native?: boolean
-          columns_override?: number | null
-          command_language?: string | null
-          created_at?: string
-          cutter?: string
-          dpi?: number | null
-          escpos_codepage?: string | null
-          font?: string
-          id?: string
-          is_active?: boolean
-          is_calibrated?: boolean
-          label: string
-          margin_cols?: number | null
-          margins_mm?: Json
-          notes?: string | null
-          paper_format?: string
-          paper_size?: string | null
-          qr_native?: boolean
-          supported_media_ids?: string[]
-          transport: string
-          updated_at?: string
-        }
-        Update: {
-          address?: string | null
-          business_id?: string
-          capabilities?: string[]
-          code128_native?: boolean
-          columns_override?: number | null
-          command_language?: string | null
-          created_at?: string
-          cutter?: string
-          dpi?: number | null
-          escpos_codepage?: string | null
-          font?: string
-          id?: string
-          is_active?: boolean
-          is_calibrated?: boolean
-          label?: string
-          margin_cols?: number | null
-          margins_mm?: Json
-          notes?: string | null
-          paper_format?: string
-          paper_size?: string | null
-          qr_native?: boolean
-          supported_media_ids?: string[]
-          transport?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "printer_profiles_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "printer_profiles_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "printer_profiles_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-        ]
-      }
-      printer_workflow_bindings: {
-        Row: {
-          active: boolean
-          branch_id: string | null
-          created_at: string
-          created_by: string | null
-          id: string
-          org_id: string
-          printer_profile_id: string
-          priority: number
-          updated_at: string
-          warehouse_id: string | null
-          workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Insert: {
-          active?: boolean
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          org_id: string
-          printer_profile_id: string
-          priority?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Update: {
-          active?: boolean
-          branch_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          org_id?: string
-          printer_profile_id?: string
-          priority?: number
-          updated_at?: string
-          warehouse_id?: string | null
-          workflow?: Database["public"]["Enums"]["printer_workflow"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "printer_workflow_bindings_printer_profile_id_fkey"
-            columns: ["printer_profile_id"]
-            isOneToOne: false
-            referencedRelation: "printer_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -83355,13 +83189,13 @@ export type Database = {
           p_branch_id: string
           p_business_id: string
           p_correlation_id: string
+          p_device_assignment_id: string
           p_doc_id: string
           p_doc_type: string
           p_format: string
           p_intent: string
           p_media_profile_id: string
           p_parent_job_id?: string
-          p_printer_profile_id: string
           p_transport: string
         }
         Returns: string
@@ -83391,8 +83225,8 @@ export type Database = {
           ask_user: boolean
           auto_print: boolean
           copies: number
+          device_assignment_id: string
           paper_format: string
-          printer_profile_id: string
           render_mode: string
         }[]
       }
@@ -84624,7 +84458,6 @@ export type Database = {
           role: string
           scope_id: string | null
           scope_kind: string
-          source_config_id: string | null
           status: string
           supported_media_ids: string[]
           transport: string

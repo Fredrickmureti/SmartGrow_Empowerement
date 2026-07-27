@@ -44,7 +44,7 @@ function seedRpc(policy: { copies: number; render_mode?: 'pdf' | 'escpos' }) {
     if (name === 'print_policies_resolve') {
       return {
         data: [{
-          printer_profile_id: null,
+          device_assignment_id: null,
           paper_format: 'a4',
           render_mode: policy.render_mode ?? 'pdf',
           copies: policy.copies,
