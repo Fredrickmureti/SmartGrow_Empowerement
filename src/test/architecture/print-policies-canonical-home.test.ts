@@ -1,14 +1,16 @@
 /**
- * Wave 9d Phase 4 — canonical home for print policies.
+ * Wave 9d Phase 4 (+ Phase 6 Step C) — canonical home for print policies.
  *
- * The `document_print_policies` editor (`<PrintingSettings />`) and the
- * `PrinterProfilesCard` surface must live under `/platform/hardware/*`
- * and NOT be re-mounted inside `Settings → Company` or any other
- * non-hardware shell. `Settings → Company → Printing` is a redirect
- * stub only; Phase 6 deletes it entirely.
+ * The `document_print_policies` editor is `<PrintPoliciesEditor />` and
+ * lives under `/platform/hardware/*`. `Settings → Company → Printing`
+ * has been deleted entirely, and the legacy
+ * `@/components/settings/PrintingSettings` module no longer exists.
+ * `WorkflowBindingsCard` and `resolve_device_for_workflow` were retired
+ * with `printer_workflow_bindings` — the only routing seam is
+ * `document_print_policies` + `resolve_device`.
  *
- * If you are intentionally relocating either surface, update the
- * allow-list below in the same commit.
+ * If you are intentionally relocating the editor, update the allow-list
+ * below in the same commit.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -29,57 +31,43 @@ function grep(pattern: string): string[] {
   }
 }
 
-describe("Print policies canonical home (Wave 9d Phase 4)", () => {
-  it("<PrintingSettings /> is only rendered under /apps/platform/hardware/", () => {
-    // Importers/renderers of PrintingSettings.
-    const files = grep("from ['\"]@/components/settings/PrintingSettings").filter(
-      (f) => !f.endsWith("PrintingSettings.tsx") &&
-             !f.includes("/test/") &&
-             !f.startsWith("src/components/settings/"),
+describe("Print policies canonical home (Phase 6 Step C)", () => {
+  it("<PrintPoliciesEditor /> is only rendered under /apps/platform/hardware/", () => {
+    const files = grep("from ['\"]@/apps/platform/hardware/PrintPoliciesEditor").filter(
+      (f) => !f.endsWith("PrintPoliciesEditor.tsx") && !f.includes("/test/"),
     );
     const allowed = new Set([
       "src/apps/platform/hardware/HardwarePolicies.tsx",
     ]);
     const stray = files.filter((f) => !allowed.has(f));
-    expect(stray, `Unexpected PrintingSettings importer(s): ${stray.join(", ")}`)
+    expect(stray, `Unexpected PrintPoliciesEditor importer(s): ${stray.join(", ")}`)
       .toEqual([]);
   });
 
-  it("PrinterProfilesCard is only imported inside the hardware surface", () => {
-    const files = grep("PrinterProfilesCard").filter(
-      (f) => !f.endsWith("PrinterProfilesCard.tsx") &&
-             !f.includes("/test/") &&
-             !f.includes("/hooks/usePrinterProfiles.ts"),
-    );
-    // PrintingSettings hosts the card and is itself gated by the
-    // previous test to only render under /platform/hardware/.
-    const allowed = new Set([
-      "src/components/settings/PrintingSettings.tsx",
-    ]);
-    const stray = files.filter((f) => !allowed.has(f));
-    expect(stray, `Unexpected PrinterProfilesCard importer(s): ${stray.join(", ")}`)
+  it("legacy '@/components/settings/PrintingSettings' module is gone", () => {
+    const importers = grep("from ['\"]@/components/settings/PrintingSettings");
+    expect(importers, `Legacy PrintingSettings importer(s): ${importers.join(", ")}`)
       .toEqual([]);
   });
 
-  it("Settings → Company printing tab is a redirect stub, not an editor", () => {
+  it("Settings → Company no longer ships a printing tab", () => {
     const src = readFileSync(
       resolve(ROOT, "src/pages/settings/CompanySettings.tsx"),
       "utf-8",
     );
-    // Redirect link to the canonical home must be present.
-    expect(src).toContain("/platform/hardware/policies");
-    // And the tab must NOT mount <PrintingSettings /> anymore.
+    expect(src).not.toMatch(/value=["']printing["']/);
     expect(src).not.toMatch(/<PrintingSettings\b/);
   });
 
-  it("WorkflowBindingsCard is only imported inside the hardware surface", () => {
-    const files = grep("WorkflowBindingsCard").filter(
-      (f) => !f.endsWith("WorkflowBindingsCard.tsx") &&
-             !f.includes("/test/") &&
-             !f.includes("/hooks/usePrinterProfiles.ts"),
-    );
-    const stray = files.filter((f) => !f.startsWith("src/apps/platform/hardware/"));
-    expect(stray, `Unexpected WorkflowBindingsCard importer(s): ${stray.join(", ")}`)
+  it("WorkflowBindingsCard has been fully removed", () => {
+    const files = grep("WorkflowBindingsCard").filter((f) => !f.includes("/test/"));
+    expect(files, `Stale WorkflowBindingsCard reference(s): ${files.join(", ")}`)
+      .toEqual([]);
+  });
+
+  it("resolve_device_for_workflow RPC has no live callers", () => {
+    const files = grep("resolve_device_for_workflow").filter((f) => !f.includes("/test/"));
+    expect(files, `Stale resolve_device_for_workflow caller(s): ${files.join(", ")}`)
       .toEqual([]);
   });
 });
