@@ -32,8 +32,7 @@ import {
   type PrintPolicy,
 } from "@/hooks/useDocumentPrintPolicies";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { PrinterProfilesCard } from "@/components/settings/PrinterProfilesCard";
-import { usePrinterProfiles, isThermalCapable } from "@/hooks/usePrinterProfiles";
+import { useDeviceAssignments } from "@/hooks/useDeviceAssignments";
 
 const PAPER_OPTIONS: { value: PaperFormat; label: string }[] = [
   { value: "a4", label: "A4 (210 × 297 mm)" },
@@ -54,7 +53,7 @@ interface RowState {
   paper_format: PaperFormat;
   render_mode: RenderMode;
   auto_print: boolean;
-  printer_profile_id: string | null;
+  device_assignment_id: string | null;
   branch_scope: "business" | string; // "business" or branch id
 }
 
@@ -65,7 +64,12 @@ export function PrintingSettings() {
   const businessId = currentBusiness?.id ?? null;
   const { policies, loading, saving, upsert, remove, findPolicy } = useDocumentPrintPolicies(businessId);
 
-  const { activeProfiles } = usePrinterProfiles(businessId);
+  // Phase 6 — the destination is a `device_assignments` row, not a legacy
+  // printer profile. Printers only; disabled rows are not selectable.
+  const { assignments } = useDeviceAssignments();
+  const activeProfiles = assignments.filter(
+    (a) => a.enabled && a.role.includes("printer"),
+  );
 
   // Per-row "draft" edits keyed by `${branch_scope}:${docType}`.
   const [drafts, setDrafts] = useState<Record<string, RowState>>({});
@@ -83,7 +87,7 @@ export function PrintingSettings() {
       paper_format: existing?.paper_format ?? "a4",
       render_mode: existing?.render_mode ?? "pdf",
       auto_print: existing?.auto_print ?? false,
-      printer_profile_id: existing?.printer_profile_id ?? null,
+      device_assignment_id: existing?.device_assignment_id ?? null,
       branch_scope: branchScope,
     };
   };
@@ -103,7 +107,7 @@ export function PrintingSettings() {
       document_type: docType,
       paper_format: draft.paper_format,
       render_mode: draft.render_mode,
-      printer_profile_id: autoPrint ? draft.printer_profile_id : null,
+      device_assignment_id: autoPrint ? draft.device_assignment_id : null,
       auto_print: autoPrint,
     };
     const ok = await upsert(policy);
@@ -189,10 +193,13 @@ export function PrintingSettings() {
               const dirty = !!drafts[draftKey];
               // Filter compatible printers: when render_mode is escpos, only thermal-capable printers.
               const compatibleProfiles = activeProfiles.filter((p) =>
-                draft.render_mode === "escpos" ? isThermalCapable(p) : true,
+                draft.render_mode === "escpos"
+                  ? String((p.config as { paper_size?: string })?.paper_size ?? "").endsWith("mm")
+                    || p.driver === "escpos"
+                  : true,
               );
               const autoPrintEnabled = dt.value === "pos_receipt";
-              const needsPrinter = autoPrintEnabled && draft.auto_print && !draft.printer_profile_id;
+              const needsPrinter = autoPrintEnabled && draft.auto_print && !draft.device_assignment_id;
               return (
                 <div
                   key={dt.value}
@@ -231,10 +238,10 @@ export function PrintingSettings() {
                     </SelectContent>
                   </Select>
                   <Select
-                    value={draft.printer_profile_id ?? "__none__"}
+                    value={draft.device_assignment_id ?? "__none__"}
                     onValueChange={(v) =>
                       setDraft(branchScope, dt.value, {
-                        printer_profile_id: v === "__none__" ? null : v,
+                        device_assignment_id: v === "__none__" ? null : v,
                       })
                     }
                     disabled={!autoPrintEnabled || !draft.auto_print}
@@ -255,7 +262,7 @@ export function PrintingSettings() {
                       <SelectItem value="__none__" className="text-xs">— none (operator confirms) —</SelectItem>
                       {compatibleProfiles.map((p) => (
                         <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.label} <span className="text-muted-foreground">· {p.paper_format}</span>
+                          {p.display_name} <span className="text-muted-foreground">· {p.transport}</span>
                         </SelectItem>
                       ))}
                       {compatibleProfiles.length === 0 && (
@@ -314,8 +321,6 @@ export function PrintingSettings() {
 
   return (
     <div className="space-y-4">
-      <PrinterProfilesCard businessId={businessId} canWrite={canWrite} />
-
       <Card className="border-dashed">
         <CardContent className="py-3 text-xs text-muted-foreground">
           Document printing follows this resolution order:
