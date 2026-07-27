@@ -77,6 +77,12 @@ interface QueueRow {
   business_event_id: string | null;
   source_doc_type: string | null;
   source_doc_id: string | null;
+  /**
+   * Phase 5 Step B — the enqueuer records which `device_assignments` row
+   * the resolver picked. When present the worker dispatches to that exact
+   * device; when absent (legacy rows) it re-resolves by role.
+   */
+  device_assignment_id?: string | null;
 }
 
 export interface WorkerStatus {
@@ -177,15 +183,7 @@ export function startSharedCommandQueueWorker(
         status.lastClaimAt = Date.now();
         status.inFlight = { id: row.id, role: row.role, op: row.op };
         try {
-          const result = await hardwareClient.exec({
-            role: row.role as DeviceRole,
-            op: row.op,
-            payload: row.payload,
-            idempotencyKey: row.idempotency_key ?? undefined,
-            sourceDocType: row.source_doc_type,
-            sourceDocId: row.source_doc_id,
-            businessEventId: row.business_event_id,
-          });
+          const result = await dispatchQueueRow(row);
           await supabase.rpc('complete_hardware_command', {
             p_id: row.id,
             p_success: !!result?.success,
