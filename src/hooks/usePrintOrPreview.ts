@@ -25,7 +25,8 @@
  */
 
 import { useCallback, useState } from "react";
-import { printClient, type PrintIntent } from "@/services/printing/PrintClient";
+import { printClient } from "@/services/printing/PrintClient";
+import type { PrintIntent } from "@/services/printing/types";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useOrganization } from "@/hooks/useOrganization";
 import { toast } from "sonner";

@@ -29,10 +29,10 @@ import { toast } from "sonner";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
 import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
-import { printClient } from "@/services/printing/PrintClient";
-import type {
-  PrinterWorkflow,
-  LabelDispatchResult,
+import {
+  printLabelByTemplate,
+  type PrinterWorkflow,
+  type LabelDispatchResult,
 } from "@/services/printing/labelDispatch";
 import {
   resolveLabelBarcode,
@@ -103,7 +103,7 @@ export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
         hri_flag: identity.hri,
         ...args.extraVars,
       };
-      const result = await printClient.printLabel({
+      const result = await printLabelByTemplate({
         orgId: currentOrg.id,
         branchId,
         warehouseId,

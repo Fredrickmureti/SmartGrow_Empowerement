@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { useBusinesses } from '@/hooks/useBusinesses';
-import type { PrintIntent } from '@/services/printing/PrintClient';
+import type { PrintIntent } from '@/services/printing/types';
 import type { DeviceAssignment, DeviceScope } from '@/hooks/useDeviceAssignments';
 
 /**

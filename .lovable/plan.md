@@ -1,81 +1,84 @@
-## Phase 1 — Independent verification (done, no code changed)
+# Document → Print → Hardware Reconstruction — Verified Status & Continuation Plan
 
-I re-audited every claim in `.lovable/plan.md` against the live tree rather than trusting the log:
+## Phase 1 — Independent verification (complete, no code changed)
 
-| Claim | Independent check | Verdict |
+I checked every claim in `.lovable/plan.md` against the live tree rather than trusting the log.
+
+### Claims that hold up
+
+| Claim | Evidence | Verdict |
 |---|---|---|
-| 16 snapshot builders under contract | `src/services/documents/snapshots/` holds exactly 15 builders + `index.ts` | Confirmed |
-| 124 snapshot tests green | `bunx vitest run src/test/documents` → 16 files, 124 passed | Confirmed |
-| `snapshot-contract` SUITE grew to 16 | contract suite reports 16 tests | Confirmed |
-| Sales cluster fully migrated (incl. CreditNotes preview leg) | no Sales page imports `usePrintOrPreview` | Confirmed |
-| Bills / PurchaseOrders / PurchaseReturns / VendorStatements migrated | none of the four import the deprecated hook | Confirmed |
-| Remaining call sites = 7 | `rg -l usePrintOrPreview` returns exactly: `VendorStatementPeekSheet`, `VendorStatementRecordPage`, `GoodsReceiptWizardPage`, `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`, `POSReports` (plus the hook itself, `PrintClient.ts`, and 2 architecture guard tests) | Confirmed |
-| Eslint deprecation guard in place | `eslint.config.js` bans `@/hooks/usePrintOrPreview` with `src/pages/**` still allowlisted | Confirmed |
+| Purchases cluster (A) complete | `dispatchVendorStatement.ts`, `dispatchGoodsReceipt.ts` exist; `VendorStatementPeekSheet/RecordPage`, `GoodsReceiptWizardPage` consume them | Confirmed |
+| HR letters (B) complete | `snapshots/hrLetter.ts` + `features/hr/letters/dispatchHrLetter.ts`; `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage` migrated | Confirmed |
+| POSReports (C) complete | `features/pos/receipts/dispatchPosReceipt.ts`; page migrated | Confirmed |
+| 18 snapshot builders under contract | 18 builder files + `index.ts`; `snapshot-contract.test.ts` reports 18 tests | Confirmed |
+| Test suite green | `src/test/documents` → 19 files, **157 passed** | Confirmed |
+| `usePrintOrPreview` nearly dead | only the hook itself, `PrintClient.ts`, 2 guard tests, and 2 doc-comment mentions reference it | Confirmed |
 
-No false completions, no drift, no rework needed. The genuine resume point is **Purchases step 4**.
+### Claims that are wrong
+
+**The progress log mis-states the remaining work.** It says: *"Remaining `usePrintOrPreview` call sites: 2 non-legacy — `Products.tsx`/`useLabelPrint.ts` (D) and the POS terminal cluster (E)."*
+
+Neither `Products.tsx` nor `useLabelPrint.ts` imports `usePrintOrPreview`. They import **`printClient`** directly. The previous engineer tracked the wrong shim: `usePrintOrPreview` is essentially dead, but **`PrintClient.ts` is very much alive with 18 non-test importers in application code**:
+
+```text
+Labels / documents   Products.tsx, useLabelPrint.ts, LegalRecipients.tsx,
+                     CustomerStatements.tsx, VendorStatements.tsx
+POS terminal         PostPaymentSurface.tsx, HistoryWorkspace.tsx,
+                     usePOSCashDrawer.ts, usePrinterStatus.ts,
+                     lib/pos/receipt/renderers/index.ts
+Cross-cutting        useDeviceForIntent.ts, BusinessSagaMount.tsx,
+                     PrintPreviewDialog.tsx, ReprintButton.tsx,
+                     DocumentHistoryPanel.tsx, DocumentArtifactStore.ts,
+                     HardwareDevices.tsx, BrowserHardwareAdapter.ts,
+                     services/printing/reprintClient.ts
+```
+
+So phases **D and E are not "nearly done" — they have not started**, and their real scope is larger than logged. The ratchet also never tightened: `eslint.config.js` still blanket-allowlists `src/pages/**`, `src/features/purchases/**`, `src/apps/pos/**`. And the onboarding doc from phase H (`docs/architecture/DOCUMENT_PRINT_HARDWARE.md`) does not exist.
+
+**Genuine resume point: start of D, with corrected scope.**
 
 ## Phase 2 — Plan corrections and additions
 
-The prior roadmap is sound. Three changes:
+The direction is right; five things must be added, because inspecting the real `printClient` call sites exposed responsibility leaks the original roadmap never named.
 
-1. **The HR fork is decided, not deferred.** The prior engineer left "discuss with owner". Decision: HR letters get **client-side snapshot builders** mirroring `hrLetterFetchers.ts`, emitting the same `{ document_number, document_date, snapshot }` contract with a `document_class: "letter"` discriminant carrying `facts / salutation / body / signatories`. Rejected the alternative (server re-fetch by `sourceDocId`) because it re-opens a second document-resolution path — exactly the duplication this reconstruction exists to remove.
-2. **`POSReports` is not deferrable into the POS cluster.** Its `downloadPdf("shift_report")` leg is a plain artifact download with no ESC/POS dependency, so it moves with the rest of the download legs and does not wait on the drawer-slip engine fork.
-3. **Added: dead-shim sweep as an explicit phase.** `src/services/printing/` still ships `PrintClient.ts` and `reprintClient.ts`; both must die in the destructive wave, together with the eslint rules that only exist to police them.
+1. **The migration target is `PrintClient`, not `usePrintOrPreview`.** Rewrite phases D–G around retiring `printClient`. `usePrintOrPreview` deletes almost for free.
+2. **Export is not a document.** `CustomerStatements.tsx` and `VendorStatements.tsx` call `printClient.downloadExport(...)` for CSV/XLSX data extracts. A data extract is not a rendered document and must not travel the print pipeline. It gets its own owner (`src/services/exports/`), not a fold-in to `submitDocumentIntent`.
+3. **Device state is hardware's job, not the print client's.** `usePrinterStatus`, `useDeviceForIntent`, and `HardwareDevices` read device health through `printClient`. Per the hardware README the sole chokepoint is `hardwareClient`. These move to `hardwareClient` and never gain a document dependency.
+4. **A cash drawer is not a document.** `usePOSCashDrawer` routes a pure hardware op through the print client. It goes direct to `hardwareClient.exec({ role: 'cash_drawer' })`.
+5. **Reprint is a disposition, not a client.** `reprintClient.ts` becomes `submitDocumentIntent({ triggeredSource: 'reprint' })`, proven by asserting the reprint flag lands in the command log before the file is deleted.
 
 ## Phase 3 — Execution order
 
-**A. Purchases (finish)**
-- `VendorStatementPeekSheet` + `VendorStatementRecordPage` — reuse the existing `purchasesVendorStatement` builder; rewrite the download legs through `ensureDocumentRecord → submitDocumentIntent`. No new SUITE entry.
-- `GoodsReceiptWizardPage` — new `purchases.grn` builder mirroring `generate-document::fetchGoodsReceipt`, plus unit tests and SUITE entry (16 → 17).
-- Drop `src/features/purchases/**` from the eslint allowlist once empty.
+**D. Labels — DONE (2026-07-27).**
+`useLabelPrint` now calls `printLabelByTemplate` directly; `Products.tsx` lost ~100 lines of duplicated refusal/identity logic and consumes the hook. ADR-0089 identity refusal and the "no label printer bound" behaviour are preserved and guarded by `products-label-print.test.ts`. Allowlist entry removed.
 
-**B. HR letters**
-- New builders `hrOfferLetter`, `hrContract`, `hrLifecycleLetter` under the letter discriminant, with tests + SUITE entries (→ 20).
-- Migrate `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`.
-- A letter-shape contract test asserting the letter discriminant never leaks into transactional-document renderers.
+**E. Exports — DONE (2026-07-27).**
+New owner `src/services/exports/` (`documentExport.ts` + barrel). `exportDocument` / `downloadExport` deleted from `PrintClient`; both statement pages migrated. Rationale recorded in the module header: an extract has no template, geometry, policy, or device, so it is not a document — the only shared concern is the `document_artifacts` archive row, which is archival, not printing. Guarded by `export-not-document.test.ts` (bidirectional: exports must not import printing/hardware, and the print client must not regrow export methods).
 
-**C. POSReports** — `pos.shift_report` builder + migration of the download leg.
+**F. Hardware seams** — `usePrinterStatus`, `useDeviceForIntent`, `usePOSCashDrawer`, `HardwareDevices`, `BrowserHardwareAdapter` onto `hardwareClient`.
 
-**D. Inventory labels** — enforce ADR-0088 mm-relative geometry and ADR-0089 identity refusal in `Products.tsx` / `useLabelPrint.ts`: never emit a UUID as a barcode, refuse with an operator-facing CTA when identity resolution returns null.
+_Progress (2026-07-27):_ `PrintIntent` moved out of `PrintClient` into the neutral vocabulary module `services/printing/types.ts`, so intent-based routing (`useDeviceForIntent`, `usePrinterStatus`, `usePrintOrPreview`, the parity guard) no longer depends on the doomed dispatch shim. `PrintClient` re-exports it for existing callers. `intent-to-role-parity.test.ts` now reads the union from `types.ts`.
 
-**E. POS terminal** — `PostPaymentSurface`, `HistoryWorkspace`, `usePOSCashDrawer`, `usePrinterStatus`. Requires porting the drawer-slip ESC/POS renderer into the Wave 3 engine; guarded by thermal + kitchen golden files.
+_Scope correction:_ `usePOSCashDrawer` was listed here on the assumption it issues a raw drawer-kick op. It does not — it dispatches a **`drawer_slip` document** via `printClient.print(...)`. That is a document-dispatch call, so it belongs with **G** (it needs the drawer-slip ESC/POS renderer ported into the shared engine before it can move). Same for `usePrintWithFallback` inside `usePrinterStatus`, whose two `printClient.print` calls are document dispatch, not hardware status. What genuinely remains in F is the status/device-resolution half.
 
-**F. Cross-cutting seams** — `useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `HardwareDevices`, and folding `reprintClient` into `submitDocumentIntent({ triggeredSource: 'reprint' })` only after proving `hardware_command_log.is_reprint = true` end-to-end.
 
-**G. Destructive removal (Wave 7.3)** — delete `PrintClient.ts`, `usePrintOrPreview.ts`, `reprintClient.ts`, `BrowserHardwareAdapter.print`, the whole eslint allowlist, and every rule that becomes dead. Architecture tests flip from "allowlisted" to "must not exist".
+**G. POS terminal** — `PostPaymentSurface`, `HistoryWorkspace`, `lib/pos/receipt/renderers`. Requires porting the drawer-slip ESC/POS renderer into the shared engine; guarded by thermal + kitchen golden files.
 
-**H. Guards + onboarding doc (Waves 7.5/8/9)** — transport-router consolidation, then `docs/architecture/DOCUMENT_PRINT_HARDWARE.md` as the single doc a new developer reads to understand event → document → template → render → policy → printer → transport → device.
+**H. Document surfaces** — `PrintPreviewDialog`, `DocumentHistoryPanel`, `DocumentArtifactStore`, `BusinessSagaMount`, `ReprintButton`/`reprintClient`, `LegalRecipients`.
+
+**I. Destructive removal** — delete `PrintClient.ts`, `usePrintOrPreview.ts`, `reprintClient.ts`, the entire eslint allowlist block, and every rule that becomes dead. Architecture guards flip from "allowlisted" to "must not exist".
+
+**J. Onboarding doc** — `docs/architecture/DOCUMENT_PRINT_HARDWARE.md`: the single file a new developer reads to follow event → document → template → render → policy → printer → transport → device.
 
 ## Invariants held on every step
 
 - Only `submit-document-intent` writes `print_jobs`; only `dispatch-print-jobs` claims them.
-- Hardware access exclusively through `hardwareClient`.
+- Hardware access exclusively through `hardwareClient`; document dispatch exclusively through `submitDocumentIntent`.
+- Builder contract: pure `buildXSnapshot(row)` + `fetchAndBuildXSnapshot(supabase, id)` with a `snapshot-contract` SUITE entry.
 - Every new public table ships GRANT + RLS in the same migration.
-- Builder contract: pure `buildXSnapshot(row)` + `fetchAndBuildXSnapshot(supabase, id)`, with a `snapshot-contract` SUITE entry.
-- Per-step bar: clean `tsgo` on touched files, green `src/test/documents` and `src/test/printing`, and a dated landing note appended to `.lovable/plan.md`.
+- Per-step bar: clean `tsgo` on touched files, green `src/test/documents` and `src/test/printing`, allowlist entry removed, dated landing note appended.
 
 ## Immediate next action
 
-Start at A: migrate the two vendor-statement surfaces, then build `purchases.grn`.
-
----
-
-## Landing note — 2026-07-27 (Wave 7.2)
-
-### Done and verified
-- **A. Purchases** — complete. Vendor-statement surfaces (List/Peek/Record) via `dispatchVendorStatement`; `purchases.grn` builder + 9 tests + kind registered; GRN wizard via `dispatchGoodsReceipt`.
-- **C. POSReports** — complete. `dispatchPosReceipt` (frozen `pos_receipt_snapshots` only, customer/merchant kinds) + 7 tests; page off `usePrintOrPreview`.
-- **B. HR letters** — complete. `hrLetter.ts` (offer / contract / promotion / warning builders + fetchers), 15 tests, SUITE at **18 builders**; kinds `hr.promotion_letter` and `hr.warning_letter` registered; `Recruitment.tsx`, `ContractsListPage.tsx`, `LifecycleTimelinePage.tsx` migrated.
-- **HR letter discoverability** — Contracts / Lifecycle / Recruitment are `internalOnly` apps (never in the launcher) and nothing linked to them, so their letter surfaces were routable but unreachable. Added a **People operations** group to `EMPLOYEES_NAV`: Contracts & letters (`/hr/contracts/all`), Lifecycle events (`/hr/lifecycle/timeline`), Recruitment & offers (`/hr/recruitment`).
-- Stale guard `sales-invoice-print-no-preview-fallback.test.ts` updated: invoices now assert `submitDocumentIntent`, not the deleted `PrintClient.print` path.
-- Verification: `tsgo` clean; `src/test/documents` **157 passing / 19 files**; print-chokepoint guards green.
-
-### Current status
-Remaining `usePrintOrPreview` call sites: **2 non-legacy** — `Products.tsx` / `useLabelPrint.ts` (D) and the POS terminal cluster (E) — plus the hook itself and the architecture guards.
-
-### Active phase → next
-Phase 3 **D — Inventory labels**. Enforce ADR-0088 mm-relative geometry and ADR-0089 identity refusal in `Products.tsx` / `useLabelPrint.ts`: never emit a UUID as a barcode; refuse with an operator-facing CTA when identity resolution returns null. Then **E — POS terminal** (requires porting the drawer-slip ESC/POS renderer; guarded by thermal + kitchen golden files), then F/G/H.
-
-### Instructions for the next agent
-1. **Verify before extending.** Read `src/services/documents/snapshots/hrLetter.ts`, `src/features/hr/letters/dispatchHrLetter.ts`, `dispatchGoodsReceipt.ts`, `dispatchPosReceipt.ts`. Confirm each follows the builder contract (pure `buildX` + `fetchAndBuildX`), resolves tenancy explicitly, and never re-fetches inside a renderer. Re-run `bunx tsgo --noEmit` and `bunx vitest run src/test/documents/`.
-2. Only then start D. Do not begin E before D is production-ready, and do not touch G (destructive removal) while any `usePrintOrPreview` call site remains.
+Finish **F**'s remaining half (device resolution + status onto `hardwareClient`), then start **G** by porting the drawer-slip ESC/POS renderer into the shared engine — that port is the blocker for both `usePOSCashDrawer` and `usePrintWithFallback`.

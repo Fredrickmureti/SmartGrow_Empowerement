@@ -20,7 +20,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { hardwareClient } from "@/services/hardware/HardwareClient";
-import { printClient, type PrintIntent } from "@/services/printing/PrintClient";
+import { printClient } from "@/services/printing/PrintClient";
+import type { PrintIntent } from "@/services/printing/types";
 import {
   printPdfInPage,
   generateDocumentPdf,

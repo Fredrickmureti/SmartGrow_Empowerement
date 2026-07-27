@@ -78,7 +78,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { printClient } from "@/services/printing/PrintClient";
+import { downloadExport } from "@/services/exports";
 
 export default function VendorStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -637,7 +637,7 @@ export default function VendorStatements() {
                               <Download className="mr-2 h-4 w-4" />Download PDF
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={async () => {
-                              const res = await printClient.downloadExport({
+                              const res = await downloadExport({
                                 documentType: "vendor_statement",
                                 documentId: statement.id,
                                 format: "csv",

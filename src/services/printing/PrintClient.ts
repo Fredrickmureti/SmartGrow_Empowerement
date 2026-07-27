@@ -26,12 +26,11 @@ import {
   openPdfInNewTab,
 } from '@/services/printing/pdfUtils';
 
-export type PrintIntent =
-  | 'receipt'        // thermal receipt printer
-  | 'kitchen_ticket' // thermal kitchen printer
-  | 'label'          // ZPL/EPL label printer (falls back to ESC/POS)
-  | 'a4_document'    // PDF on a4_printer or browser/OS
-  | 'packing_slip';  // A4 with thermal fallback
+// `PrintIntent` is defined in the shared vocabulary module
+// (`@/services/printing/types`) so consumers can route by intent without
+// importing this dispatch client. Re-exported here for existing callers.
+export type { PrintIntent } from '@/services/printing/types';
+import type { PrintIntent } from '@/services/printing/types';
 
 export interface PrintRequest {
   intent: PrintIntent;
@@ -557,60 +556,10 @@ class PrintClient {
   }
 
 
-  /**
-   * Milestone C.1 — tabular export via the platform.
-   *
-   * Fetches a server-rendered CSV/XLSX blob from `generate-document`
-   * (`format: 'csv' | 'xlsx'`). The edge function persists an immutable
-   * `document_artifacts` row with `render_mode: 'export'` so version
-   * history surfaces the download alongside PDF/ESC/POS renders. Only
-   * document types on the server-side allow-list are accepted; anything
-   * else 400s at the edge (never silently degrades).
-   */
-  async exportDocument(opts: {
-    documentType: string;
-    documentId: string;
-    format: 'csv' | 'xlsx';
-  }): Promise<Blob> {
-    const { supabase } = await import('@/integrations/supabase/client');
-    const { data, error } = await supabase.functions.invoke('generate-document', {
-      body: {
-        documentType: opts.documentType,
-        documentId: opts.documentId,
-        format: opts.format,
-      },
-    });
-    if (error) throw error;
-    if (data instanceof Blob) return data;
-    if (data instanceof Uint8Array) return new Blob([data as BlobPart], { type: 'text/csv;charset=utf-8' });
-    if (data instanceof ArrayBuffer) return new Blob([data], { type: 'text/csv;charset=utf-8' });
-    // supabase-js may return string for text responses.
-    if (typeof data === 'string') return new Blob([data], { type: 'text/csv;charset=utf-8' });
-    return new Blob([data as BlobPart], { type: 'text/csv;charset=utf-8' });
-  }
+  // Tabular CSV/XLSX exports used to live here. They were moved to
+  // `@/services/exports` — a data extract is not a rendered document and has
+  // no business travelling the print pipeline. Do not reintroduce them.
 
-  /** Convenience: export + trigger a browser download. */
-  async downloadExport(opts: {
-    documentType: string;
-    documentId: string;
-    format: 'csv' | 'xlsx';
-    filename: string;
-  }): Promise<PrintResult> {
-    try {
-      const blob = await this.exportDocument(opts);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = opts.filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      return { success: true, transport: 'download' };
-    } catch (err) {
-      return { success: false, transport: 'none', error: (err as Error).message };
-    }
-  }
 
   /**
    * Save the document as a PDF to the user's downloads folder.
