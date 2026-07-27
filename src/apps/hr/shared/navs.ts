@@ -75,6 +75,22 @@ export const EMPLOYEES_NAV: WorkspaceNav = {
       ],
     },
     {
+      /**
+       * Wave 7.2 — entry points to the HR workspaces that issue letters.
+       * Contracts, Lifecycle and Recruitment are `internalOnly` apps, so they
+       * never appear in the launcher; without these links their document
+       * surfaces (contract letters, promotion/warning letters, offer letters)
+       * were routable but unreachable. Employees is the HR foundation
+       * workspace, so it owns the hand-off.
+       */
+      label: "People operations",
+      items: [
+        { to: "/hr/contracts/all", label: "Contracts & letters", icon: FileSignature },
+        { to: "/hr/lifecycle/timeline", label: "Lifecycle events", icon: History },
+        { to: "/hr/recruitment", label: "Recruitment & offers", icon: Briefcase },
+      ],
+    },
+    {
       label: "Setup",
       items: [
         {

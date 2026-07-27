@@ -19,8 +19,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { WorkflowSheet, WorkflowSheetSection, WorkflowSheetGrid, WorkflowField } from "@/components/workflow/WorkflowSheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Briefcase, Plus, UserPlus, ArrowRight, Star, Printer, FileText } from "lucide-react";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { toast } from "sonner";
+import { dispatchHrLetter } from "@/features/hr/letters/dispatchHrLetter";
 import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 const STAGES: ApplicationStage[] = ["applied", "screen", "interview", "assessment", "offer", "hired", "rejected", "withdrawn"];
@@ -388,7 +388,7 @@ function CandidatesTab() {
  *
  * Lists offer_letters attached to an application and exposes the enterprise
  * document platform surface for each one:
- *   • Print → generate-document(offer_letter, offer.id) via usePrintOrPreview.
+ *   • Print → dispatchHrLetter('offer_letter', offer.id) → document engine.
  *   • History → DocumentHistorySheet mounts DocumentVersionsSection scoped
  *     to (offer_letter, offer.id) so prior artifacts are auditable inline.
  *
@@ -403,15 +403,28 @@ function OfferActions({
   candidateName: string;
 }) {
   const { offers, createOffer } = useOffers(application.id);
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+
+  /**
+   * Issue the offer through the document engine. The commercial terms are
+   * frozen at issue time — a candidate's countersigned copy and our archived
+   * copy are the same bytes, forever.
+   */
+  async function issueOffer(offerId: string) {
+    setIssuingId(offerId);
+    try {
+      await dispatchHrLetter({ letterType: "offer_letter", sourceId: offerId });
+      toast.success(`Offer — ${candidateName} queued`, {
+        description: "Track it under Documents.",
+      });
+    } catch (e) {
+      toast.error("Could not issue offer letter", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setIssuingId(null);
+    }
+  }
 
   return (
     <div className="w-full space-y-1 pt-1 border-t">
@@ -435,10 +448,9 @@ function OfferActions({
               size="sm"
               variant="ghost"
               className="h-7 text-xs flex-1"
-              onClick={() =>
-                generateDocument("offer_letter", o.id, `Offer — ${candidateName}`)
-              }
-              title="Print offer letter"
+              disabled={issuingId === o.id}
+              onClick={() => issueOffer(o.id)}
+              title="Issue offer letter"
             >
               <Printer className="h-3 w-3 mr-1" /> Print
             </Button>
@@ -451,14 +463,6 @@ function OfferActions({
           </div>
         ))
       )}
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        communication={printCommunication}
-      />
     </div>
   );
 }
