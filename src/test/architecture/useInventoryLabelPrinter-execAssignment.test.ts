@@ -28,8 +28,8 @@ describe('useInventoryLabelPrinter — Phase 5 Step B per-assignment dispatch', 
     expect(SRC).toMatch(/transport:\s*device\.transport/);
   });
 
-  it('keeps the role-only fallback strictly bounded (single call site)', () => {
-    const hits = SRC.match(/hardwareClient\.printLabelBytes\(/g) ?? [];
-    expect(hits.length).toBe(1);
+  it('has no role-only fallback left (Phase 5 Step C)', () => {
+    expect(SRC).not.toMatch(/hardwareClient\.printLabelBytes\(/);
+    expect(SRC).toMatch(/No label printer is bound/);
   });
 });
