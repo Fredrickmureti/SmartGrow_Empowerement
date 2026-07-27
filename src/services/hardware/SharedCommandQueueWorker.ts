@@ -31,6 +31,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from './HardwareClient';
 import type { DeviceRole } from './drivers/DriverInterface';
+import { execForIntent } from './execForIntent';
 
 /** ADR-0090 · Phase D2 — roles whose ack is mirrored into `print_jobs`. */
 const PRINT_ROLES = new Set<string>([
