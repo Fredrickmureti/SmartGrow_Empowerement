@@ -703,20 +703,20 @@ export default function GoodsReceiptWizardPage() {
         }.`,
       });
 
-      // ADR-0026 / ADR-0086 — dispatch the GRN through the canonical print
-      // policy resolver. Auto-prints when a policy is configured; otherwise
-      // opens the preview dialog. Never blocks navigation.
+      // ADR-0026 / ADR-0086 — dispatch the GRN through the unified document
+      // engine: snapshot → document record → output intent. Disposition
+      // (print, archive, email) is resolved server-side from policy, so the
+      // wizard never decides how the paper comes out. Never blocks navigation.
       try {
-        await printOrPreview({
-          documentType: "goods_receipt",
-          documentId: receipt.id,
-          title: `Goods Receipt ${grnNumber}`,
-          intent: "a4_document",
+        await dispatchGoodsReceipt({
+          goodsReceiptId: receipt.id,
+          organizationId: currentOrg.id,
           branchId: currentBranch?.id ?? null,
         });
       } catch (printErr) {
-        console.warn("[GRN] print dispatch failed (non-blocking)", printErr);
+        console.warn("[GRN] document dispatch failed (non-blocking)", printErr);
       }
+
 
       navigate(`/purchases/orders/${po.id}`);
     } catch (error: any) {
