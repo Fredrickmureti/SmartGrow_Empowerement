@@ -157,7 +157,7 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
         vendor:contacts(name, email, phone, address_line1, city, state, postal_code)
       ),
       items:goods_receipt_items(
-        description, quantity_received, display_quantity, uom_snapshot,
+        description, quantity_received,
         display_quantity, uom_snapshot,
         packaging:product_packaging!packaging_id(name, qty_in_base_uom),
         display_uom:units_of_measure!display_uom_id(code, name),
