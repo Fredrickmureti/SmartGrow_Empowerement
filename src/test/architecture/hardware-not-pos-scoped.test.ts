@@ -37,6 +37,12 @@ describe("hardware not pos-scoped (Wave 9c)", () => {
       "components/pos/DeviceRegistryCard.ts",
       "hooks/pos/useHardwareProxy.ts",
       "hooks/pos/useHardwareProxy.tsx",
+      // Printer reachability is a hardware question every module asks —
+      // POS, Inventory, Warehouse, HR, Manufacturing. It now lives at
+      // `hooks/hardware/usePrinterStatus.ts`, with document dispatch split
+      // out to `hooks/printing/usePrintWithFallback.ts`.
+      "hooks/pos/usePrinterStatus.ts",
+      "hooks/pos/usePrinterStatus.tsx",
     ];
     const survivors = legacy.filter((p) => existsSync(join(ROOT, p)));
     expect(
