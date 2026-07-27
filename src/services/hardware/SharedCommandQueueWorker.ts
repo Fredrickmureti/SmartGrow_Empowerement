@@ -87,8 +87,6 @@ interface QueueRow {
 
 export interface WorkerStatus {
   workerId: string;
-}
-  workerId: string;
   isLeader: boolean;
   lastClaimAt: number | null;
   inFlight: { id: number; role: string; op: string } | null;
@@ -96,6 +94,51 @@ export interface WorkerStatus {
   totalFailed: number;
   totalReclaimed: number;
   startedAt: number;
+}
+
+/**
+ * Phase 5 Step B — queue rows dispatch through an assignment, never a bare
+ * role. Rows carrying `device_assignment_id` go straight to that device;
+ * legacy rows without one are re-resolved server-side by role + org/business
+ * so the queue and the UI agree on the target device.
+ */
+async function dispatchQueueRow(row: QueueRow) {
+  const audit = {
+    idempotencyKey: row.idempotency_key ?? undefined,
+    sourceDocType: row.source_doc_type,
+    sourceDocId: row.source_doc_id,
+    businessEventId: row.business_event_id,
+  };
+
+  if (row.device_assignment_id) {
+    const { data: assignment } = await supabase
+      .from('device_assignments')
+      .select('id, role, transport, enabled')
+      .eq('id', row.device_assignment_id)
+      .maybeSingle();
+    if (assignment) {
+      return hardwareClient.execAssignment({
+        assignment: {
+          id: assignment.id,
+          role: assignment.role as DeviceRole,
+          transport: assignment.transport,
+          enabled: assignment.enabled,
+        },
+        op: row.op,
+        payload: row.payload,
+        ...audit,
+      });
+    }
+  }
+
+  return execForIntent({
+    intentOrRole: row.role,
+    op: row.op,
+    payload: row.payload,
+    organizationId: row.org_id,
+    businessId: row.business_id ?? null,
+    ...audit,
+  });
 }
 
 let active: { stop: () => void; status: () => WorkerStatus } | null = null;
