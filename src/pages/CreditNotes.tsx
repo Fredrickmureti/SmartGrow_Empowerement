@@ -474,16 +474,6 @@ export default function CreditNotes() {
         document={emailDocument}
       />
 
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`credit-note-${printPreviewTitle.replace('Credit Note ', '')}`}
-        communication={printCommunication}
-      />
-
 
       {/* Contact Preview Drawer */}
       <ContactPreviewDrawer
