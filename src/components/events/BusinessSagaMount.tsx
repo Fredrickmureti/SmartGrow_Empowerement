@@ -11,7 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { BusinessSaga } from '@/services/events/BusinessSaga';
 import { printClient } from '@/services/printing/PrintClient';
-import { hardwareClient } from '@/services/hardware/HardwareClient';
+import { execForIntent } from '@/services/hardware/execForIntent';
 import { domainEventBus, type DomainEvent } from '@/services/events/domainEventBus';
 import { customerDisplayClient, type CustomerDisplayData } from '@/services/hardware/local-display/CustomerDisplayClient';
 import {
