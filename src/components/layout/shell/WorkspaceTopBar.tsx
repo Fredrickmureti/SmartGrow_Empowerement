@@ -103,15 +103,11 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
           <Menu className="h-4 w-4" />
         </Button>
       )}
-      {/* Breadcrumb — first crumb is an AppSwitcher trigger so users can
-          hop between apps without opening the sidebar (critical on mobile). */}
+      {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="flex items-center gap-1 min-w-0 text-sm">
         {crumbs.map((c, i) => {
           const last = i === crumbs.length - 1;
-          const isAppCrumb = i === 0;
-          // On mobile, hide intermediate crumbs but always keep the app
-          // switcher (first crumb) and the current page (last crumb).
-          const mobileHidden = !last && !isAppCrumb && crumbs.length > 1;
+          const mobileHidden = !last && crumbs.length > 1;
           return (
             <span
               key={`${c.label}-${i}`}
@@ -123,38 +119,7 @@ export function WorkspaceTopBar({ app, nav, onOpenMobileNav }: WorkspaceTopBarPr
               {i > 0 && (
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
               )}
-              {isAppCrumb ? (
-                <AppSwitcher
-                  variant="dropdown"
-                  trigger={
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-md px-1.5 py-1 -mx-1 min-w-0",
-                        "hover:bg-accent/60 transition-colors",
-                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      )}
-                      aria-label={`Switch app — currently ${c.label}`}
-                    >
-                      <span
-                        className="inline-flex h-5 w-5 items-center justify-center rounded shrink-0"
-                        style={{ backgroundColor: `${app.color}20`, color: app.color }}
-                      >
-                        <app.icon className="h-3.5 w-3.5" />
-                      </span>
-                      <span
-                        className={cn(
-                          "truncate",
-                          last ? "font-medium text-foreground" : "text-foreground",
-                        )}
-                      >
-                        {c.label}
-                      </span>
-                      <ChevronDown className="h-3 w-3 text-muted-foreground/70 shrink-0" />
-                    </button>
-                  }
-                />
-              ) : last || !c.to ? (
+              {last || !c.to ? (
                 <span className="truncate font-medium text-foreground">{c.label}</span>
               ) : (
                 <Link
