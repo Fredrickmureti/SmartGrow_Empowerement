@@ -17,12 +17,10 @@ describe("Sales invoice print path", () => {
     expect(SRC).not.toMatch(/generateDocument\s*\(/);
   });
 
-  it("routes primary invoice print through PrintClient.print", () => {
-    expect(SRC).toContain('from "@/services/printing/PrintClient"');
+  it("routes primary invoice print through the document intent engine", () => {
+    expect(SRC).toContain('from "@/services/documents/submitIntent"');
     expect(SRC).toMatch(/const\s+handlePrintInvoice\s*=\s*async/);
-    expect(SRC).toMatch(/printClient\.print\s*\(\s*\{/);
-    expect(SRC).toMatch(/documentType:\s*"invoice"/);
-    expect(SRC).toMatch(/idempotencyKey:\s*clickIdempotencyKey/);
+    expect(SRC).toMatch(/submitDocumentIntent\s*\(\s*\{/);
   });
 
   it("does not open PrintPreviewDialog from the primary invoice print handler", () => {
