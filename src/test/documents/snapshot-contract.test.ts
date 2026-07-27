@@ -417,6 +417,23 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         items: [],
       }),
   },
+  {
+    file: "hrLetter.ts",
+    run: () =>
+      buildHrLetterSnapshot("contract_letter", {
+        id: "ctr-1",
+        contract_reference: "CTR-1",
+        organization_id: "o",
+        business_id: "b",
+        employee_id: "e-1",
+        start_date: "2026-07-01",
+        approved_at: "2026-07-27T00:00:00Z",
+        wage: 1000,
+        working_schedule: "Full time",
+        organization: { id: "o", name: "Acme" },
+        employee: { id: "e-1", first_name: "A", last_name: "B" },
+      }),
+  },
 ];
 
 
