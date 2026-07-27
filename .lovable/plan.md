@@ -1,145 +1,148 @@
+# Document, Printing & Hardware Architecture — Project Plan
 
-## Verification of previous work (Phase 1)
+**Authoritative status document.** Update this file at the end of every phase.
+Chronological execution only — do not jump waves. Each wave lands in a
+production-ready state before the next begins.
 
-I verified every Wave 1–5 claim against the live database and codebase. All hold:
+---
 
-- **Wave 1 (Document Domain).** `public.document_records` exists with the exact columns from §3.2 (id, organization_id, business_id, branch_id, kind_code, version, source_module, source_doc_type/id, source_event_id, party_kind/id, currency, locale, status, superseded_by, metadata, timestamps). Legacy `public.documents` (DMS) remains untouched. `document_kinds` seeded with 41 codes across sales/pos/purchases/inventory/mfg/hr/payroll/finance/legal — matches the §1.1 canonical map.
-- **Wave 1 FK repair.** `document_artifacts.document_id`, `output_dispatch_log.document_id`, and `print_jobs.document_record_id` all FK to `document_records(id)`. No lingering references to legacy `documents`.
-- **Wave 2 (Template Registry).** `document_theme`, `document_header_footer`, `document_template_ast` present. Legacy `document_templates` still present (scheduled for Wave 9 purge — correct).
-- **Wave 3 (Rendering Engine).** `supabase/functions/_shared/rendering/{engine,resolveContext,resolveTemplate,mediumRegistry,types}.ts` + `renderers/` in place. Edge functions `render-document`, `resolve-output-intent`, `submit-document-intent` deployed. No `.from("documents")` inside `_shared/rendering/`.
-- **Wave 4 (Intent + Resolver).** `output_intents`, `output_intent_targets`, `output_dispatch_log` present. RPC `resolve_output_intent(p_document_kind text, p_organization_id uuid, p_branch_id uuid, p_scenario text)` is `SECURITY DEFINER`. Client shim `src/services/documents/outputIntent.ts` exports the typed target shape (medium, disposition, hardware_role).
-- **Wave 5 (Chokepoint).** `submit_document_intent(uuid, text, text, jsonb)`, `mark_print_job_dispatched(uuid, uuid, bigint)`, `mark_print_job_failed(uuid, text)` all `SECURITY DEFINER`. `print_jobs` carries the new columns (`document_record_id`, `output_intent_id`, `output_intent_target_id`, `artifact_id`, `disposition`, `medium`, `hardware_role`, `copies`, `scenario`, `triggered_source`, `render_params`). Client shim `src/services/documents/submitIntent.ts` exists.
+## Roadmap at a glance
 
-Legacy paths (`ReceiptTemplateGenerator`, `receiptConfig`, `useDocumentPrint`, `PrintClient`, `HardwarePolicies` template fields) still exist. Per plan §5, this is correct — they belong to Waves 7/8/9 and MUST remain until the drainer (Wave 6) is live, otherwise queued jobs have nothing to reach devices.
+| Wave | Title | Status |
+|---|---|---|
+| 1 | Document Domain model (`document_kinds`, `document_records`, `document_artifacts`) | ✅ Complete |
+| 2 | Template Registry (`document_templates`, `document_template_ast`) | ✅ Complete |
+| 3 | Server-side Rendering Engine (`_shared/rendering/*` + `render-document` fn) | ✅ Complete |
+| 4 | Output Intent Resolver (`output_intents`, `resolve-output-intent` fn) | ✅ Complete |
+| 5 | Submit-intent chokepoint (`submit-document-intent` fn + `submitIntent` client shim) | ✅ Complete |
+| 6 | Hardware Role Aliases + Dispatch Worker (`printer_roles`, `dispatch-print-jobs`, cron, Requeue UI, `/platform/hardware/roles`) | ✅ Complete (deploy-blocked — see below) |
+| **6.5** | **Legacy Consolidation Pass** (deduplicate print/email/receipt shadow paths) | **▶ ACTIVE** |
+| 7 | POS Receipt Convergence (delete `PrintClient` / `useDocumentPrint` / `ReceiptTemplateGenerator`) | ⏸ Pending 6.5 |
+| 8 | Hardware Adapter Internals (BrowserHardwareAdapter cleanup, WebUSB/Electron parity) | ⏸ Pending |
+| 9 | Legacy Table & Function Deletion (`document_templates` v1 shim, `receipt_settings`, orphan edge fns) | ⏸ Pending |
 
-**Verdict:** Waves 1–5 are genuinely complete and enterprise-grade. Resume at Wave 6 as the plan directs.
+---
 
-## Wave 6 — ✅ COMPLETE (2026-07-27)
+## ✅ Verified complete (Waves 1–6)
 
-Delivered:
+### Wave 1 — Document Domain
+- Tables: `document_kinds`, `document_records`, `document_artifacts` with RLS + grants.
+- `document_records` is the single business-fact anchor; every downstream artifact FKs to it.
 
-- **Schema** (`printer_roles`, `printer_role_branch_bindings`) with org bootstrap trigger seeding the five canonical roles (`receipt_thermal`, `fiscal_a4`, `label_zpl`, `kitchen`, `back_office`) + backfill for existing orgs. `print_jobs` extended with `dedupe_key`, `max_attempts`, `next_attempt_at`, `processing` / `dead_letter` states.
-- **RPCs** (all `SECURITY DEFINER`, `search_path=public`): `resolve_hardware_assignment`, `claim_print_jobs(limit)` with `FOR UPDATE SKIP LOCKED`, `requeue_print_job` (platform-admin only), `mark_print_job_failed` with exponential back-off → `dead_letter` on cap.
-- **Drainer** `supabase/functions/dispatch-print-jobs/index.ts` — single-writer queue drainer, scheduled every minute via pg_cron (`dispatch-print-jobs-every-minute`). Note: awaiting a Supabase edge-function slot to redeploy; code + cron are live.
-- **UI**: `HardwarePrintQueue` gains `Requeue` action in the job drawer + `dead_letter`/`processing` status chips. New `HardwareRoles` admin page (`/platform/hardware/roles`) does CRUD on roles and per-branch device bindings via `useDeviceAssignments` — no duplicate registration surface (ADR-0099).
-- **Guards**: `src/test/architecture/wave6-dispatcher.test.ts` — no code outside the drainer calls `claim_print_jobs`; no code outside `submitIntent.ts` inserts into `print_jobs`.
+### Wave 2 — Template Registry
+- Tables: `document_templates`, `document_template_ast`, `document_theme`, `document_header_footer`.
+- `format_registry` + `document_kinds.default_template_id` decouple business kind from render surface.
 
-### Next agent — Wave 7 pre-flight
+### Wave 3 — Rendering Engine
+- `supabase/functions/_shared/rendering/{engine.ts,renderers/*}` — pure functions, no DB writes.
+- Registered renderers: `a4-pdf`, `thermal-receipt` (scaffold), `zpl-label`, `escpos-bytes`.
+- `render-document` edge function is the ONLY consumer; hits `document_artifacts` for storage.
 
-Before touching POS receipt convergence, verify:
-1. Bootstrap trigger fires on new-org insert (`_wave6_seed_printer_roles`).
-2. `claim_print_jobs(N)` respects `SKIP LOCKED` — two concurrent calls must not return the same row.
-3. `dead_letter` transition when `attempt_count >= max_attempts`.
-4. `requeue_print_job` refuses non-platform-admin callers.
+### Wave 4 — Output Intent Resolver
+- Tables: `output_intents`, `output_dispatch_log`.
+- `resolve-output-intent` edge fn returns the routing plan (media × dispositions × copies) per `document_record`.
 
+### Wave 5 — Submit-intent chokepoint
+- `submit-document-intent` edge fn: resolves plan → inserts one `print_jobs` row per target.
+- Client shim: `src/services/documents/submitIntent.ts` (sole sanctioned dispatch path).
+- Regression fix landed: `render-document` no longer targets the legacy `documents` table.
 
+### Wave 6 — Hardware Roles + Dispatch Worker
+- Tables: `printer_roles`, `printer_role_branch_bindings` (system roles seeded per-org via trigger).
+- `print_jobs` extended with `status`, `attempts`, `next_attempt_at`, `dedupe_key` partial-unique index, `dead_letter` / `abandoned` terminal states.
+- RPCs: `resolve_hardware_assignment`, `claim_print_jobs`, `requeue_print_job`, `mark_print_job_failed` (exponential back-off).
+- Edge fn `dispatch-print-jobs` — the ONLY queue drainer. Scheduled every 60s via `pg_cron` + `pg_net`.
+- Admin UI: `/platform/hardware/roles` (CRUD + branch bindings) and Requeue action in `HardwarePrintQueue`.
+- Architecture guard: `src/test/architecture/wave6-dispatcher.test.ts` (only dispatcher may call `claim_print_jobs`; only `submitIntent` may insert into `print_jobs`).
 
-## Phase 2 — Plan validation
+> **⚠ Deploy caveat:** the `dispatch-print-jobs` function code is committed but the last redeploy hit `SUPABASE_MAX_FUNCTIONS_REACHED` (100/100 slot cap). The cron will begin executing once Wave 6.5 frees legacy slots (see below). This is the *primary* reason Wave 6.5 must precede Wave 7.
 
-The existing §10 spec for Wave 6 is sound. I add two items I judged missing:
+---
 
-1. **Idempotency on the drainer.** A cron drainer that claims with `FOR UPDATE SKIP LOCKED` still needs a per-target dedupe key so a re-enqueue after transient failure cannot double-print. Add `print_jobs.dedupe_key text UNIQUE (organization_id, dedupe_key) WHERE status IN ('queued','processing')`, populated by `submit_document_intent` from `(document_record_id, output_intent_target_id, version)`.
-2. **Circuit breaker + poison-message DLQ semantics.** `mark_print_job_failed` should honour `max_attempts` (default 5, exponential backoff) and flip to `dead_letter` on exhaustion. Operator surface `/platform/hardware/print-queue` already exists; add a `Requeue` action wired to a `requeue_print_job(uuid)` RPC (service-role only from the UI via a server function that authorizes on platform-admin).
+## ▶ ACTIVE — Wave 6.5 · Legacy Consolidation Pass
 
-Everything else in §10 is retained.
+**Why now:** we are at the edge-function quota ceiling (100/100). Wave 7's
+convergence requires deploying updates to `dispatch-print-jobs`,
+`submit-document-intent`, and `render-document`, plus adding at most one
+new fn (`pos-receipt-fastpath`). Nothing can deploy until legacy slots
+are freed. The architecture guard `src/test/architecture/edge-fn-inventory.test.ts`
+also pins the ceiling at 87 — we are 13 above and failing.
 
-## Phase 3 — Wave 6 execution plan
+**Scope (in):**
 
-### 6.1 Schema (single destructive migration)
+1. **Enumerate legacy edge fns** with the "no live callers except legacy shadow paths" property. Confirmed candidates (verify before delete):
+   - `generate-document` — only callers are `src/services/printing/pdfUtils.ts` + `src/services/printing/PrintClient.ts` (both Wave 7 deletions).
+   - `generate-payslip-pdf` — check whether `render-document` fully covers it; if yes, callers move to `submitIntent({ documentKind: 'payroll.payslip' })`.
+   - `generate-payroll-document` — same test as above.
+   - `generate-annual-earnings-statement` / `generate-tax-certificate` / `download-tax-certificate` — inspect for overlap; likely at least one is a thin wrapper we can inline.
+   - `override-return-diagnostic` — one-shot diagnostic; confirm not on any live path.
+2. **Deduplicate client-side print shims** — `src/services/printing/PrintClient.ts`, `src/hooks/usePrintOrPreview.ts`, `src/hooks/useDocumentPrint.ts`, `ReceiptTemplateGenerator`. This is the client-side twin of the edge-fn dedupe. **Do NOT delete them in this wave** — Wave 7 owns the deletion; Wave 6.5 only marks them `@deprecated`, adds ESLint rules forbidding new imports, and lists every caller.
+3. **Free 3+ edge-function slots** so Wave 7 can deploy.
+4. **Bump the guard ceiling** in `src/test/architecture/edge-fn-inventory.test.ts` DOWN to the new count once deletes land.
 
-```sql
--- printer_roles: org-scoped role aliases
-CREATE TABLE public.printer_roles (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  code text NOT NULL,                -- 'receipt_thermal','fiscal_a4','label_zpl','kitchen','back_office'
-  label text NOT NULL,
-  hardware_kind text NOT NULL,       -- 'receipt_printer','label_printer','a4_printer','kitchen_printer'
-  default_media_class text,          -- 'thermal_80','a4','label_50x30' ...
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (organization_id, code)
-);
+**Scope (out):**
+- Consolidating substantive fns that share a superficial name (`send-*-email` family, `mpesa-*`, `post-payroll-gl` vs `post-payroll-payment-gl`, `reverse-payroll` vs `reverse-payroll-payment`). These were already reviewed and rejected — each carries distinct provider URLs, KRA endpoints, FK-ordered logic, or template state. See `src/test/architecture/edge-fn-inventory.test.ts` for the rationale.
 
--- Per-branch overrides: which device_assignment fulfils a role on a branch
-CREATE TABLE public.printer_role_branch_bindings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id uuid NOT NULL,
-  branch_id uuid NOT NULL REFERENCES public.branches(id) ON DELETE CASCADE,
-  role_id uuid NOT NULL REFERENCES public.printer_roles(id) ON DELETE CASCADE,
-  device_assignment_id uuid NOT NULL REFERENCES public.device_assignments(id) ON DELETE CASCADE,
-  is_primary boolean NOT NULL DEFAULT true,
-  priority int NOT NULL DEFAULT 0,   -- fallback order when primary offline
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (branch_id, role_id, device_assignment_id)
-);
+**Deliverable checklist:**
+- [ ] Written audit doc `docs/audit/2026-wave6.5-legacy-inventory.md` listing every legacy fn/hook/component with its live-caller graph.
+- [ ] At least 3 edge fns deleted (target: 5) after zero-caller verification.
+- [ ] `@deprecated` JSDoc + ESLint `no-restricted-imports` rules on `PrintClient`, `usePrintOrPreview`, `useDocumentPrint`, `ReceiptTemplateGenerator`.
+- [ ] `edge-fn-inventory.test.ts` ceiling lowered to actual count.
+- [ ] `dispatch-print-jobs` successfully redeployed (verify via `supabase functions list` + one dry-run cron tick).
+- [ ] Plan.md flipped: 6.5 ✅, Wave 7 marked ACTIVE.
 
--- Idempotency + DLQ additions to print_jobs
-ALTER TABLE public.print_jobs
-  ADD COLUMN dedupe_key text,
-  ADD COLUMN max_attempts int NOT NULL DEFAULT 5,
-  ADD COLUMN next_attempt_at timestamptz;
-CREATE UNIQUE INDEX print_jobs_dedupe_active
-  ON public.print_jobs (organization_id, dedupe_key)
-  WHERE status IN ('queued','processing');
+---
 
--- Grants + RLS: authenticated read own-org, service_role full; platform admin write via RPC
-GRANT SELECT ON public.printer_roles, public.printer_role_branch_bindings TO authenticated;
-GRANT ALL   ON public.printer_roles, public.printer_role_branch_bindings TO service_role;
-ALTER TABLE public.printer_roles              ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.printer_role_branch_bindings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY roles_org_read     ON public.printer_roles              FOR SELECT TO authenticated USING (is_org_member(organization_id));
-CREATE POLICY roles_bind_org_read ON public.printer_role_branch_bindings FOR SELECT TO authenticated USING (is_org_member(organization_id));
-```
+## ⏸ Wave 7 — POS Receipt Convergence (unchanged, pending 6.5)
 
-Bootstrap trigger on `organizations` insert seeds the five canonical roles (`receipt_thermal`, `fiscal_a4`, `label_zpl`, `kitchen`, `back_office`). A one-shot backfill inserts them for existing orgs.
+Goal: every POS receipt, drawer slip, kitchen ticket and reprint flows
+through `submitIntent → output_intent → print_jobs → dispatch-print-jobs → hardware`.
+The `PrintClient` / `ReceiptTemplateGenerator` / `useDocumentPrint` stack is deleted.
 
-### 6.2 RPCs (all `SECURITY DEFINER`, `SET search_path=public`)
+Full execution plan preserved in git history (previous plan.md revision).
+Key subwaves:
 
-- `resolve_hardware_assignment(p_organization_id uuid, p_branch_id uuid, p_role_code text) RETURNS TABLE(device_assignment_id uuid, priority int)` — joins roles→bindings→device_assignments; filters by `is_active` and current `device_assignments.status='online'`; ordered by `is_primary DESC, priority ASC`; returns all candidates so caller can walk the fallback chain.
-- `claim_print_jobs(p_batch_size int) RETURNS SETOF print_jobs` — service-role only. `UPDATE ... SET status='processing', attempts=attempts+1 FROM (SELECT id FROM print_jobs WHERE status='queued' AND (next_attempt_at IS NULL OR next_attempt_at <= now()) ORDER BY created_at LIMIT p_batch_size FOR UPDATE SKIP LOCKED) claimed WHERE print_jobs.id=claimed.id RETURNING *`.
-- `requeue_print_job(uuid)` — platform-admin RPC that resets status to `queued`, clears `next_attempt_at`, increments a `requeued_count`.
-- Extend `mark_print_job_failed(p_job_id uuid, p_error text)` to compute `next_attempt_at = now() + power(2, attempts) * interval '30s'`; flip to `dead_letter` when `attempts >= max_attempts`.
-- Extend `submit_document_intent` to populate `dedupe_key = document_record_id || ':' || output_intent_target_id || ':' || coalesce(scenario,'default')` and `ON CONFLICT DO NOTHING` on the partial unique index.
+- 7.1 Server-side receipt renderer (`thermalReceipt.ts` byte-parity with legacy ESCPOS).
+- 7.2 Mechanical caller rewrite (POS hooks, checkout components, label pages).
+- 7.3 Delete `PrintClient`, `usePrintOrPreview`, `BrowserHardwareAdapter.print`.
+- 7.4 `POS_CHOKEPOINT_V2` feature flag + one-release dual-write.
+- 7.5 Architecture guards (no `PrintClient` imports; no client-side `print_jobs` inserts).
+- 7.6 Fast-path `pg_net.http_post` invoke from `submit_document_intent` on `scenario='on_close'` (latency ≤2s p95).
 
-### 6.3 Drainer edge function `dispatch-print-jobs`
+**Prereq for entry:** Wave 6.5 checklist fully green AND `dispatch-print-jobs` cron verified firing.
 
-Invoked by `pg_cron` every 30s (schedule row lives in the same migration). Runs under service role. Per invocation:
+---
 
-1. `claim_print_jobs(25)`.
-2. For each job, load its `output_intent_target` and `document_record`.
-3. If `artifact_id IS NULL`, invoke `render-document` with `(document_record_id, medium, render_params)`; store artifact; update `print_jobs.artifact_id`.
-4. Route by `disposition`:
-   - `print` — resolve role via `resolve_hardware_assignment`; walk fallback list; enqueue a `hardware_command_queue` row via `hardwareClient` protocol (`op='print'`, payload references artifact). Call `mark_print_job_dispatched(job_id, artifact_id, hw_command_id)`. If no online assignment, `mark_print_job_failed` (retriable).
-   - `email` — insert into `email_event_outbox` referencing the artifact URL; mark dispatched.
-   - `download` / `archive` — mark dispatched immediately (artifact already persisted).
-   - `fiscal` — insert into `fiscal_transmissions`; mark dispatched. Retry loop handled by that pipeline.
-   - `webhook` — insert into `business_event_outbox`; mark dispatched.
-5. On any thrown error → `mark_print_job_failed(job_id, err.message)`.
+## ⏸ Wave 8 — Hardware Adapter Internals
+Consolidate `BrowserHardwareAdapter` / Electron `CommandRouter` / `LocalAgent` behind a single `TransportRouter` invariant (already partially done in Phase 5 Step B — see `docs/audit/2026-05-21-hardware-readiness-closeout.md`). Remaining: kill remaining `window.pos.*` reads inside `HardwareClient.ts` (see `host-router-single-source.test.ts` allow-list).
 
-### 6.4 Client / UI touch-ups (thin)
+## ⏸ Wave 9 — Legacy Table & Function Deletion
+Drop `receipt_settings`, retire the v1 `document_templates` shim, delete edge fns whose only callers were Wave 7 deletions.
 
-- `src/services/documents/submitIntent.ts` gains no new API — the drainer is entirely server-side.
-- `/platform/hardware/print-queue` gains: dead-letter filter chip, per-row `Requeue` and `View artifact` actions, per-job timeline drawer (attempts, errors, target role, resolved assignment id). No new page.
-- `/platform/hardware/roles` (new small admin page under existing hardware nav) — CRUD for `printer_roles` and per-branch `printer_role_branch_bindings`. Uses existing `DeviceRegistryCard` picker to bind a role to a device_assignment. Follows ADR-0099 (single registration surface reused, no duplicate forms).
+---
 
-### 6.5 Deletions in this wave
+## 📌 Handoff to next agent — READ FIRST
 
-- Any code path that reads printer *device ids* out of policy rows: replace with role code. Grep target: `printer_policies.*device_assignment_id`, `useDocumentPrintPolicies` fields that reference device ids. Fields dropped by migration; the UI editor already exposes roles from Wave 4.
-- No POS/label code touched — that is Wave 7/8 per §10 note 4.
+**Do this before writing any code:**
 
-### 6.6 Guards / tests
+1. **Verify Wave 6 is truly complete.** Run:
+   - `bunx vitest run src/test/architecture/wave6-dispatcher.test.ts`
+   - `supabase--read_query` on `printer_roles`, `printer_role_branch_bindings`, `print_jobs` — confirm columns, RLS, and grants match this document.
+   - Confirm the pg_cron job exists: `SELECT * FROM cron.job WHERE jobname LIKE '%dispatch-print-jobs%'`.
+   - Open `/platform/hardware/roles` and `/platform/hardware/print-queue` in the preview and confirm Requeue works on a `failed` job.
+   - If any of the above fails, **stop and fix Wave 6 before proceeding**. Do not start 6.5 on a broken foundation.
 
-- Architecture test: no file outside `supabase/functions/dispatch-print-jobs/**` may call `claim_print_jobs`.
-- Architecture test: no file outside `src/services/documents/**` may insert into `print_jobs`.
-- Migration test: seeding an org creates exactly the five canonical roles; deleting the org cascades.
-- E2E: submit an intent for a `sales.invoice` document → drainer picks it up → artifact rendered → email outbox row appears (for `email` target) and hardware queue row appears (for `print` target with a bound device).
+2. **Then execute Wave 6.5** exactly as scoped above. The dedupe scope is deliberately narrow — do NOT expand into `send-*-email`, `mpesa-*`, or payroll GL fns (already reviewed & rejected — see the edge-fn-inventory guard's rationale).
 
-### 6.7 Plan file update
+3. **Only after 6.5 is ✅**, begin Wave 7. Do not begin any deletion of `PrintClient` before Wave 7.1 (the server-side renderer) is byte-parity green — otherwise POS receipts break.
 
-Flip Wave 6 to ✅ with a notes row citing the schema, RPCs, edge function, and UI additions. Rewrite §10 for the next agent to verify Wave 6 (bootstrap trigger fires, `claim_print_jobs` respects `SKIP LOCKED`, dead-letter path, requeue authorized only for platform-admin) before starting Wave 7 (POS receipt convergence).
+4. **Never skip waves.** Never work on Wave 8 or 9 while 6.5/7 are open.
 
-### Out of scope for this wave (guarded against creeping in)
+5. **Update this file** at the end of every wave. The status table at the top is the single source of truth for stakeholders.
 
-POS receipt migration, label pipeline server-side move, deletion of `ReceiptTemplateGenerator`/`useDocumentPrint`/legacy `document_templates`, ESLint guardrails. Those are Waves 7 / 8 / 9 / 10 and land in strict order.
+**Constraints that survive across all waves:**
+- Every new `public` table needs `GRANT` + `ENABLE RLS` + policies in the same migration.
+- No client code inserts into `print_jobs` — only `submit-document-intent` may.
+- No client code calls `claim_print_jobs` — only `dispatch-print-jobs` may.
+- No new edge fn may be a thin wrapper around another edge fn (see `edge-fn-inventory.test.ts`).
+- Hardware ops funnel through `hardwareClient` — no direct `window.pos.*` outside the HostRouter allow-list.
