@@ -66,7 +66,7 @@ serve(async (req) => {
 
   // Authorization: the caller must be a member of the target org.
   const orgId = body.document_id
-    ? (await supabase.from("documents").select("organization_id").eq("id", body.document_id).maybeSingle())
+    ? (await supabase.from("document_records").select("organization_id").eq("id", body.document_id).maybeSingle())
         .data?.organization_id
     : body.preview?.organization_id;
   if (!orgId) {

@@ -48536,6 +48536,7 @@ export type Database = {
           copies: number
           correlation_id: string
           created_at: string
+          dedupe_key: string | null
           device_assignment_id: string | null
           disposition: Database["public"]["Enums"]["output_disposition"] | null
           doc_id: string | null
@@ -48548,14 +48549,18 @@ export type Database = {
           id: string
           intent: string
           last_error: string | null
+          max_attempts: number
           media_profile_id: string | null
           medium: Database["public"]["Enums"]["output_medium"] | null
+          next_attempt_at: string | null
           output_intent_id: string | null
           output_intent_target_id: string | null
           parent_job_id: string | null
+          processing_at: string | null
           render_params: Json
           requested_at: string
           requested_by: string | null
+          requeued_count: number
           scenario: string
           sent_at: string | null
           status: Database["public"]["Enums"]["print_job_status"]
@@ -48572,6 +48577,7 @@ export type Database = {
           copies?: number
           correlation_id: string
           created_at?: string
+          dedupe_key?: string | null
           device_assignment_id?: string | null
           disposition?: Database["public"]["Enums"]["output_disposition"] | null
           doc_id?: string | null
@@ -48584,14 +48590,18 @@ export type Database = {
           id?: string
           intent: string
           last_error?: string | null
+          max_attempts?: number
           media_profile_id?: string | null
           medium?: Database["public"]["Enums"]["output_medium"] | null
+          next_attempt_at?: string | null
           output_intent_id?: string | null
           output_intent_target_id?: string | null
           parent_job_id?: string | null
+          processing_at?: string | null
           render_params?: Json
           requested_at?: string
           requested_by?: string | null
+          requeued_count?: number
           scenario?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
@@ -48608,6 +48618,7 @@ export type Database = {
           copies?: number
           correlation_id?: string
           created_at?: string
+          dedupe_key?: string | null
           device_assignment_id?: string | null
           disposition?: Database["public"]["Enums"]["output_disposition"] | null
           doc_id?: string | null
@@ -48620,14 +48631,18 @@ export type Database = {
           id?: string
           intent?: string
           last_error?: string | null
+          max_attempts?: number
           media_profile_id?: string | null
           medium?: Database["public"]["Enums"]["output_medium"] | null
+          next_attempt_at?: string | null
           output_intent_id?: string | null
           output_intent_target_id?: string | null
           parent_job_id?: string | null
+          processing_at?: string | null
           render_params?: Json
           requested_at?: string
           requested_by?: string | null
+          requeued_count?: number
           scenario?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["print_job_status"]
@@ -48676,6 +48691,156 @@ export type Database = {
             columns: ["parent_job_id"]
             isOneToOne: false
             referencedRelation: "print_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      printer_role_branch_bindings: {
+        Row: {
+          branch_id: string
+          created_at: string
+          device_assignment_id: string
+          id: string
+          is_primary: boolean
+          organization_id: string
+          priority: number
+          role_id: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          device_assignment_id: string
+          id?: string
+          is_primary?: boolean
+          organization_id: string
+          priority?: number
+          role_id: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          device_assignment_id?: string
+          id?: string
+          is_primary?: boolean
+          organization_id?: string
+          priority?: number
+          role_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printer_role_branch_bindings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_device_assignment_id_fkey"
+            columns: ["device_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "device_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "printer_role_branch_bindings_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "printer_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      printer_roles: {
+        Row: {
+          code: string
+          created_at: string
+          default_media_class: string | null
+          description: string | null
+          hardware_kind: string
+          id: string
+          is_active: boolean
+          is_system: boolean
+          label: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          default_media_class?: string | null
+          description?: string | null
+          hardware_kind: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          label: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          default_media_class?: string | null
+          description?: string | null
+          hardware_kind?: string
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          label?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printer_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "printer_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "printer_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -74617,6 +74782,10 @@ export type Database = {
         Returns: Json
       }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
+      _seed_default_printer_roles: {
+        Args: { p_organization_id: string }
+        Returns: undefined
+      }
       _sod_is_approved_status: { Args: { s: string }; Returns: boolean }
       _ss_authorize: {
         Args: { p_id: string; p_permission: string }
@@ -76988,6 +77157,56 @@ export type Database = {
             }
           }
       claim_pick_task: { Args: { p_task_id: string }; Returns: Json }
+      claim_print_jobs: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          acked_at: string | null
+          artifact_id: string | null
+          attempt_count: number
+          branch_id: string | null
+          business_id: string
+          copies: number
+          correlation_id: string
+          created_at: string
+          dedupe_key: string | null
+          device_assignment_id: string | null
+          disposition: Database["public"]["Enums"]["output_disposition"] | null
+          doc_id: string | null
+          doc_type: string
+          document_record_id: string | null
+          failed_at: string | null
+          format: string
+          hardware_role: string | null
+          hw_command_id: number | null
+          id: string
+          intent: string
+          last_error: string | null
+          max_attempts: number
+          media_profile_id: string | null
+          medium: Database["public"]["Enums"]["output_medium"] | null
+          next_attempt_at: string | null
+          output_intent_id: string | null
+          output_intent_target_id: string | null
+          parent_job_id: string | null
+          processing_at: string | null
+          render_params: Json
+          requested_at: string
+          requested_by: string | null
+          requeued_count: number
+          scenario: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          transport: string
+          triggered_source: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_scanner_session_pairing: {
         Args: { p_device_label: string; p_token: string }
         Returns: {
@@ -84995,6 +85214,56 @@ export type Database = {
         }
         Returns: string
       }
+      requeue_print_job: {
+        Args: { p_job_id: string }
+        Returns: {
+          acked_at: string | null
+          artifact_id: string | null
+          attempt_count: number
+          branch_id: string | null
+          business_id: string
+          copies: number
+          correlation_id: string
+          created_at: string
+          dedupe_key: string | null
+          device_assignment_id: string | null
+          disposition: Database["public"]["Enums"]["output_disposition"] | null
+          doc_id: string | null
+          doc_type: string
+          document_record_id: string | null
+          failed_at: string | null
+          format: string
+          hardware_role: string | null
+          hw_command_id: number | null
+          id: string
+          intent: string
+          last_error: string | null
+          max_attempts: number
+          media_profile_id: string | null
+          medium: Database["public"]["Enums"]["output_medium"] | null
+          next_attempt_at: string | null
+          output_intent_id: string | null
+          output_intent_target_id: string | null
+          parent_job_id: string | null
+          processing_at: string | null
+          render_params: Json
+          requested_at: string
+          requested_by: string | null
+          requeued_count: number
+          scenario: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["print_job_status"]
+          transport: string
+          triggered_source: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "print_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reserve_pos_stock: {
         Args: {
           p_organization_id: string
@@ -85237,6 +85506,19 @@ export type Database = {
       resolve_fiscal_provider: {
         Args: { p_branch_id: string; p_org_id: string }
         Returns: string
+      }
+      resolve_hardware_assignment: {
+        Args: {
+          p_branch_id: string
+          p_organization_id: string
+          p_role_code: string
+        }
+        Returns: {
+          device_assignment_id: string
+          device_status: string
+          is_primary: boolean
+          priority: number
+        }[]
       }
       resolve_install_plan: {
         Args: { p_app_id: string; p_org_id: string }
@@ -87631,7 +87913,14 @@ export type Database = {
         | "adyen"
         | "verifone"
         | "square_terminal"
-      print_job_status: "queued" | "sent" | "acked" | "failed" | "abandoned"
+      print_job_status:
+        | "queued"
+        | "sent"
+        | "acked"
+        | "failed"
+        | "abandoned"
+        | "processing"
+        | "dead_letter"
       printer_workflow:
         | "receiving"
         | "shipping"
@@ -88431,7 +88720,15 @@ export const Constants = {
         "verifone",
         "square_terminal",
       ],
-      print_job_status: ["queued", "sent", "acked", "failed", "abandoned"],
+      print_job_status: [
+        "queued",
+        "sent",
+        "acked",
+        "failed",
+        "abandoned",
+        "processing",
+        "dead_letter",
+      ],
       printer_workflow: [
         "receiving",
         "shipping",

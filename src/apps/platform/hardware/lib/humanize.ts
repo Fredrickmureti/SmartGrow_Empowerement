@@ -119,13 +119,17 @@ export function statusLabel(status: string | null | undefined): string {
   if (!status) return "—";
   const map: Record<string, string> = {
     queued: "Queued",
+    processing: "Processing",
     sent: "Sent to printer",
     acked: "Printed",
     printed: "Printed",
     failed: "Failed",
+    dead_letter: "Dead-letter (giving up)",
+    abandoned: "Abandoned",
     cancelled: "Cancelled",
     canceled: "Cancelled",
   };
+
   return map[status] ?? prettifyEnum(status);
 }
 
@@ -137,15 +141,19 @@ export function statusTone(
     case "printed":
       return "default";
     case "sent":
+    case "processing":
       return "secondary";
     case "failed":
+    case "dead_letter":
       return "destructive";
     case "cancelled":
     case "canceled":
+    case "abandoned":
       return "outline";
     default:
       return "outline";
   }
+
 }
 
 export function runtimeReasonLabel(reason: string | null | undefined): string {
