@@ -33,7 +33,7 @@ export const HARDWARE_NAV: WorkspaceNav = {
       items: [
         // Wave 9d Phase 4: canonical home for `document_print_policies`.
         // `Settings → Company → Printing` now redirects here.
-        { to: "/platform/hardware/policies", label: "Print policies", icon: FileText },
+        { to: "/platform/hardware/policies", label: "Output policies", icon: FileText },
         // Wave 6: role-based hardware assignment. Documents ask for a role,
         // bindings decide the physical device per branch.
         { to: "/platform/hardware/roles", label: "Printer roles", icon: RouteIcon },

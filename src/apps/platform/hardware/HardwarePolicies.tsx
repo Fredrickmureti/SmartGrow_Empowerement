@@ -17,11 +17,13 @@ export default function HardwarePolicies() {
   return (
     <div className="space-y-4 p-4 md:p-6">
       <div>
-        <h1 className="text-lg font-semibold">Print policies</h1>
+        <h1 className="text-lg font-semibold">Output policies</h1>
         <p className="text-sm text-muted-foreground">
-          Per-document paper format, render mode, and auto-print routing.
-          Branch overrides win over business defaults; if no policy exists
-          the system default (A4 PDF) applies.
+          Per-document paper format, trigger, and semantic printer role.
+          Physical device is chosen at runtime by the role's per-branch
+          bindings (see <em>Printer roles</em>). Branch overrides win over
+          business defaults; without a policy the system default (A4 PDF,
+          manual) applies.
         </p>
       </div>
       <PrintPoliciesEditor />
