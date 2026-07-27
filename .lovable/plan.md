@@ -28,6 +28,19 @@ Everything the handoff notes claimed as landed was independently confirmed again
 
 Resume point: continue **Wave 7.2** with the POS terminal (protected by the 7.1 byte-parity golden). PostPaymentSurface is the largest single call site — it also uses `printClient.renderReceiptPdfBlob`, which is a distinct chokepoint (PDF pipeline, not thermal). Fold the PDF path through `submitDocumentIntent` with `scenario='save_pdf'` OR keep it as a `document_artifacts` fetch — decide once in a follow-up ADR before the PostPaymentSurface rewrite; do not free-form it.
 
+**Architectural forks blocking further mechanical Wave 7.2 progress (surfaced this turn, unresolved):**
+
+1. **Sales/purchases page callers via `usePrintOrPreview`** (~11 pages, funnel through one hook). Each call passes only `(documentType, documentId)`. Migrating requires either:
+   - **(a) client-side snapshot builders per `document_kinds.code`** (sales.invoice, sales.credit_note, sales.delivery_note, sales.estimate, sales.proforma, sales.order_ack, sales.payment_receipt, sales.statement, purchases.bill, purchases.po) — 10 new builders + goldens. This is real Wave 7.2 work but non-trivial (each pulls party, line items, tax rows, fiscal fields, currency).
+   - **(b) extend `ensure_document_record` server-side** to materialize the snapshot from source rows when `p_snapshot IS NULL`, using the same fetchers that today live in `generate-document`. This preserves the mechanical-rewrite scope of Wave 7.2 (call sites become 2 lines) at the cost of coupling the RPC to per-module SQL.
+   - Rewriting `usePrintOrPreview` internally to call the new pipeline is a **one-line-per-call-site** migration IF (b) is taken. If (a) is taken, each page rewrites its own snapshot assembly.
+   - **Decision needed before proceeding.** Do not attempt page-by-page migration under path (a) without first landing at least the sales.invoice snapshot builder + golden.
+2. **`usePOSCashDrawer` (drawer_slip)** — there is no `document_kinds.code = 'pos.drawer_slip'` row and no renderer for it in the new Wave 3 engine; today the ONLY renderer lives in `generate-document`'s short-circuit calling `_shared/escpos/drawer.ts`. Migration requires (i) inserting the kind, (ii) porting `buildDrawerSlipEscPos` into `supabase/functions/_shared/rendering/renderers/`, (iii) registering it in the coverage matrix, (iv) rewriting `src/test/printing/drawer-slip-wiring.test.ts` to lock the new seam, (v) building a snapshot from the mutation inputs (all fields are already in scope). Not blocked — pure work — but crosses into Wave 7.3 (renderer coverage) not Wave 7.2 (mechanical).
+3. **`reprintClient.dispatchReceiptReprint` / `dispatchLabelReprint`** — the "reprint audit" semantics are currently enforced by `execForIntent(..., isReprint: true)` at the hardware exec layer. `submitDocumentIntent({ triggeredSource: 'reprint' })` records the source at the intent layer but the downstream worker does NOT currently propagate `isReprint` onto the `print_jobs` → `hardware_command_log` chain. Need to confirm end-to-end that a Wave 5 reprint still lands a `hardware_command_log.is_reprint = true` row before folding this in, or the audit trail regresses.
+
+**Recommendation for next turn:** land the sales.invoice snapshot builder + golden (unblocks path (a) for the 11-page page cluster) OR resolve fork (1) via a written ADR choosing (b). Either is a discrete deliverable; do not attempt more mechanical page rewrites until one lands.
+
+
 
 ## Phase 2 — Plan additions
 
