@@ -24,7 +24,9 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
-import { printClient } from "@/services/printing/PrintClient";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
@@ -71,19 +73,58 @@ export function KitchenOrderTicket({
       toast.error("Cannot print — order has no transaction reference yet.");
       return;
     }
+    const orgId = currentOrg?.id ?? order.organization_id;
+    if (!orgId) {
+      toast.error("Cannot print — missing organization context.");
+      return;
+    }
     setIsPrinting(true);
     try {
-      const result = await printClient.printKitchenTicket(txnId, {
+      // Wave 7.2 — kitchen tickets flow through the same
+      // Document Record → submit-document-intent chokepoint as customer
+      // receipts. Snapshot is frozen client-side, materialized via the
+      // security-definer RPC, then dispatched by the server-side worker.
+      const built = buildKitchenTicketSnapshot({
+        orders: (groupedOrders?.length ? groupedOrders : [order]).map((o) => ({
+          id: o.id,
+          transaction_id: o.transaction_id,
+          transaction_item_id: o.transaction_item_id ?? null,
+          printer_category: o.printer_category,
+          priority: o.priority ?? 0,
+          notes: o.notes ?? null,
+          table_number: o.table_number ? String(o.table_number) : null,
+          created_at: o.created_at,
+          organization_id: o.organization_id ?? orgId,
+          business_id: o.business_id ?? currentBusiness?.id ?? null,
+          branch_id: (o as { branch_id?: string | null }).branch_id ?? null,
+          transaction: o.transaction ?? null,
+        })),
         station: order.printer_category,
-        table: order.table_number ? String(order.table_number) : null,
-        organizationId: currentOrg?.id ?? null,
-        businessId: currentBusiness?.id ?? null,
       });
-      if (result.success) {
+      const recordId = await ensureDocumentRecord({
+        kindCode: "pos.kitchen_ticket",
+        organizationId: orgId,
+        sourceModule: "pos",
+        sourceDocType: "kitchen_ticket",
+        sourceDocId: built.sourceDocId,
+        businessId: built.businessId,
+        branchId: built.branchId,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const res = await submitDocumentIntent({
+        documentRecordId: recordId,
+        scenario: "on_close",
+        triggeredSource: "manual",
+      });
+      if (res.job_ids.length > 0) {
         toast.success(`Sent to ${order.printer_category} printer`);
       } else {
-        toast.error(`Print failed: ${result.error ?? "no kitchen printer bound"}`);
+        toast.error(`Print failed: no kitchen printer bound for ${order.printer_category}`);
       }
+    } catch (err) {
+      toast.error(`Print failed: ${(err as Error).message}`);
     } finally {
       setIsPrinting(false);
     }

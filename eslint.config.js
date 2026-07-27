@@ -212,7 +212,7 @@ export default tseslint.config(
       "src/apps/platform/hardware/**/*.{ts,tsx}",
       "src/components/events/BusinessSagaMount.tsx",
       "src/components/common/PrintPreviewDialog.tsx",
-      "src/components/pos/restaurant/KitchenOrderTicket.tsx",
+      
       "src/hooks/pos/**/*.{ts,tsx}",
       "src/hooks/usePrintOrPreview.ts",
       "src/hooks/useDeviceForIntent.ts",

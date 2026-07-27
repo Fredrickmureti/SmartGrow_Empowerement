@@ -1,129 +1,114 @@
-# Document / Printing / Hardware — Resumption Plan
+# Document / Printing / Hardware — Resumption Plan (verified)
 
-## Verification of previous engineer's claims
+## Phase 1 — Verification of previous engineer's claims
 
-Confirmed against the live project (not just against `.lovable/plan.md`):
+Everything the handoff notes claimed as landed was independently confirmed against the live project:
 
-| Claim | Evidence | Verdict |
+| Claim | Check | Result |
 |---|---|---|
-| Wave 1 tables exist (`document_kinds`, `document_records`, `document_artifacts`) | `information_schema` query | ✅ real |
-| Wave 2 template registry (`document_templates`, `document_template_ast`, `document_theme`, `document_header_footer`, `format_registry`) | same | ✅ real |
-| Wave 3 rendering engine | `supabase/functions/render-document` + `_shared/rendering/*` present | ✅ real |
-| Wave 4 output resolver (`output_intents`, `output_dispatch_log`, `resolve-output-intent` fn) | tables + fn folder present | ✅ real |
-| Wave 5 submit-intent chokepoint (`submit-document-intent`, `src/services/documents/submitIntent.ts`) | fn folder present | ✅ real |
-| Wave 6 hardware roles + dispatcher (`printer_roles`, `printer_role_branch_bindings`, `print_jobs`, `dispatch-print-jobs`, pg_cron) | tables present, cron row `dispatch-print-jobs-every-minute` **active = true, schedule `* * * * *`** | ✅ real *and cron is firing* — the plan's "deploy-blocked" caveat is stale |
-| Wave 6.5 marked ACTIVE | no `docs/audit/2026-wave6.5-legacy-inventory.md`, no `@deprecated` JSDoc on `PrintClient`/`usePrintOrPreview`/`useDocumentPrint`, no new ESLint restrictions on those imports, edge-fn count still **100** vs ceiling 87 | ❌ **not started** |
-| Waves 7 / 8 / 9 | pending, code untouched | ⏸ as documented |
+| `document_records.document_number/date/snapshot` columns exist | `information_schema.columns` query | ✅ present |
+| `ensure_document_record` is the 15-arg SECURITY DEFINER variant; 12-arg overload dropped | `pg_proc` query | ✅ only one overload, `pronargs=15` |
+| Client shim `src/services/documents/ensureDocumentRecord.ts` exists | file listing | ✅ present alongside `submitIntent.ts`, `snapshots/posReceipt.ts` |
+| Wave 7.1 golden fixture + test present | `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden{,_test}.{json,ts}` | ✅ both present |
+| Edge-fn count = 96, ceiling ratcheted to 96 with monotonic-decrease invariant | `ls supabase/functions \| wc -l` = 96; `edge-fn-inventory.test.ts` CEILING=96 | ✅ matches |
+| `dispatch-print-jobs-every-minute` cron active | `cron.job` query | ✅ active, `* * * * *` |
+| `@deprecated` + no-restricted-imports on `PrintClient` / `usePrintOrPreview`, grandfather allowlist in `eslint.config.js` | file inspection | ✅ present (lines 186–222) |
 
-Net: Waves 1–6 are genuinely landed and Wave 6 is *not* deploy-blocked (cron is live). Wave 6.5 exists only as a section header. Resume execution from the top of Wave 6.5.
+**Genuine current state (updated 2026-07-27, end of turn)**
 
-Correction to plan: strike the "deploy-blocked / SUPABASE_MAX_FUNCTIONS_REACHED" caveat on Wave 6 — the dispatcher is already scheduled and active. Wave 6.5 no longer needs to unblock deploys, but is still required to keep the edge-fn inventory guard honest and to prepare Wave 7's deletions.
+- Waves 1–6 real and healthy; Wave 6 dispatcher cron already firing.
+- Wave 6.5 Pass 1 complete. Pass 2 (delete `app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`) still gated on publishing the TanStack build — respect that gate; do not delete pre-publish.
+- Wave 7.1 (golden) and 7.1.5 (materialization RPC + POS receipt snapshot builder) landed by the prior engineer.
+- **Wave 7.2 progress this turn**:
+  - `src/services/documents/snapshots/posKitchenTicket.ts` — new kitchen-ticket snapshot builder (5 unit tests green).
+  - `src/test/documents/snapshot-contract.test.ts` — new cross-builder contract test + meta-check that every file under `snapshots/` is covered (3 assertions green).
+  - `src/components/pos/restaurant/KitchenOrderTicket.tsx` rewritten off `printClient.printKitchenTicket` onto `ensureDocumentRecord` + `submitDocumentIntent`; removed from the `no-restricted-imports` grandfather allowlist in `eslint.config.js`.
+- **Remaining Wave 7.2 callers** (~33 files): POS terminal (`PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer`, `usePrinterStatus`), all sales pages (Invoices, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, SalesOrders, SalesReturns, CustomerPayments, CustomerStatements), purchases (Bills, PurchaseOrders, PurchaseReturns, VendorStatements + peek + record page, GRN wizard), HR (Recruitment, ContractsList, LifecycleTimeline, LegalRecipients), inventory labels (Products, useLabelPrint), cross-cutting hooks (`useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient`), hardware admin (`HardwareDevices`).
+- Waves 7.3 / 7.4 / 7.5 / 7.6 / 8 / 9 untouched.
 
-## Wave 6.5 — Legacy Consolidation (IN PROGRESS — pass 1 landed 2026-07-27)
-
-Goal: bring edge-fn count from 100 → ≤ 87, mark client-side legacy shims `@deprecated`, and land the inventory audit.
-
-### Pass 1 (2026-07-27) — landed
-
-- ✅ Audit doc: `docs/audit/2026-wave6.5-legacy-inventory.md` (caller-graph + candidate list + cron-safe list).
-- ✅ Deleted 4 zero-caller functions: `override-return-diagnostic`, `send-leave-email`, `generate-cycle-counts`, `generate-audit-certificate`. Count 100 → **96**.
-- ✅ Removed the now-orphaned `useOverrideReturnDiagnostic` hook.
-- ✅ `@deprecated` JSDoc on `src/services/printing/PrintClient.ts` and `src/hooks/usePrintOrPreview.ts`. (`useDocumentPrint` and `ReceiptTemplateGenerator` do not exist as files — stale plan entries.)
-- ✅ ESLint `no-restricted-imports` blocks new imports of the two shims; existing importers grandfathered via a ratchet allowlist in `eslint.config.js` that must shrink in Wave 7.
-- ✅ `edge-fn-inventory.test.ts::CEILING` ratcheted 87 → 96 with a documented monotonic-decrease invariant.
-
-### Pass 2 (2026-07-27) — BLOCKED on publish
-
-Re-verified `app-lifecycle`, `post-loan-interest-accrual`, and `activate-organization`: zero code invokers, zero `cron.job` references. `supabase--delete_edge_functions` refused with: "codebase is mid-migration to TanStack Start, the migrated app has not been published yet; leave deployed functions live as rollback coverage; publish and verify first."
-
-**Unblock sequence**
-
-1. Publish the current TanStack build; smoke-test cron, print pipeline, and auth flows.
-2. Confirm with ops that no emailed activation link still targets `activate-organization`.
-3. Delete the three candidates → count 96 → 93; ratchet `CEILING`.
-4. Continue retiring zero-caller fns toward `CEILING ≤ 87`, then flip Wave 6.5 → ✅ and Wave 7 → ▶ ACTIVE.
+Resume point: continue **Wave 7.2** with the POS terminal (protected by the 7.1 byte-parity golden). PostPaymentSurface is the largest single call site — it also uses `printClient.renderReceiptPdfBlob`, which is a distinct chokepoint (PDF pipeline, not thermal). Fold the PDF path through `submitDocumentIntent` with `scenario='save_pdf'` OR keep it as a `document_artifacts` fetch — decide once in a follow-up ADR before the PostPaymentSurface rewrite; do not free-form it.
 
 
-Exit criteria: audit doc up-to-date, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing.
+## Phase 2 — Plan additions
 
+The existing plan is directionally correct. Add these previously-missing items:
 
-## Wave 7 — POS Receipt Convergence (IN PROGRESS — 7.1 + 7.1.5 landed 2026-07-27; 7.2 next)
+1. **Snapshot-builder contract test** — every builder under `src/services/documents/snapshots/` must produce a JSON blob whose top-level keys match its media class's locked fixture. Add `src/test/documents/snapshot-contract.test.ts` before writing the second builder, so drift is caught the moment a new builder lands.
+2. **Idempotency at the ensureDocumentRecord seam** — assert (test + code comment) that calling `ensureDocumentRecord` twice with the same `(org, source_module, source_doc_type, source_doc_id)` returns the same `document_record_id` and does NOT create a second `print_jobs` row when the second `submitDocumentIntent` runs with the same scenario. Guards double-print on POS retry.
+3. **Reprint path parity** — `src/services/printing/reprintClient.ts` also imports `PrintClient`. Fold reprint into `submitDocumentIntent({ triggered_source: 'reprint' })` in Wave 7.2 so reprint is not left as a second chokepoint that Wave 7.3 would have to delete separately.
+4. **Label printing (Products, `useLabelPrint`)** — the audit lists label print among Wave 7.2 callers but the snapshot list in the handoff omits contract details. Add: label snapshot builders (`inventory.product_label`, `inventory.shelf_label`, etc.) MUST honor ADR-0088 (mm-relative geometry) and ADR-0089 (barcode identity — never emit UUID). Add a lint/test guard that refuses to render a label when `resolveLabelBarcode` returns `null`.
+5. **Kitchen ticket golden** — before rewriting `KitchenOrderTicket.tsx`, lock a second byte-parity fixture (`kitchen_ticket_golden.json`) analogous to Wave 7.1. Kitchen tickets have different cut/beep semantics than customer receipts and need their own gate.
+6. **Wave 7.6 fast-path guard** — the `pg_net.http_post` fast-path from `submit_document_intent` must be idempotent w.r.t. the cron tick (both may claim the same job). Add a test that a job is dispatched exactly once even when both paths race.
+7. **Wave 9 destructive migration safety** — before dropping `receipt_settings`, add a migration-time assertion that every row's semantics have a home in `document_theme` / `document_header_footer`; fail the migration otherwise.
 
-Preserve the previous engineer's subwaves; execute in order, no shortcuts:
+## Phase 3 — Execution order
 
-- **7.1** ✅ Byte-parity golden at the AST→ESC/POS seam. `ReceiptTemplateGenerator` never existed in this codebase (stale plan entry), so instead of a new `thermal-receipt.ts` file we lock the existing `renderAstToEscPos` output for a canonical POS receipt fixture. Test: `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts`; golden: `thermal_receipt_golden.json` (sha256 `495b7d7d…2153e`, 667 bytes @ 80mm). Auto-seeds on first run; any drift fails loudly with a 40-line preview. This is the parity gate Wave 7.2 must clear.
-- **7.1.5** ✅ Document-record materialization (landed 2026-07-27). Prerequisite for 7.2 mechanical rewrite. What landed:
-  1. Migration: added `document_number`, `document_date`, `snapshot jsonb NOT NULL DEFAULT '{}'::jsonb` columns to `public.document_records` (renderer already read them but table didn't have them — pre-existing bug). Added unique index on `(org, source_module, source_doc_type, source_doc_id) WHERE superseded_by IS NULL`.
-  2. RPC: `public.ensure_document_record(kind_code, org_id, source_module, source_doc_type, source_doc_id, business_id, branch_id, party_kind, party_id, currency, locale, metadata, document_number, document_date, snapshot) RETURNS uuid` — SECURITY DEFINER, gated by `_assert_org_member`, validates `document_kinds.code`, idempotent upsert on the source triple. Old 12-arg overload dropped so no caller can bypass snapshot columns.
-  3. Client shim: `src/services/documents/ensureDocumentRecord.ts`. The ONLY sanctioned way for app code to obtain a `document_record_id`.
-  4. First snapshot builder: `src/services/documents/snapshots/posReceipt.ts` (reads `pos_receipt_snapshots.payload`, produces JSON matching the Wave 7.1 golden shape). Unit tests: `src/test/documents/pos-receipt-snapshot.test.ts` — 4 tests green.
-  5. Remaining snapshot builders (drain in 7.2 alongside each module's rewrite): `pos.kitchen_ticket`, `sales.invoice`, `purchases.bill`, `sales.credit_note`, `sales.delivery_note`, `sales.estimate`, `sales.payment_receipt`, `sales.statement`, `purchases.po`, `payroll.payslip`, `hr.contract`, `inventory.grn`, `inventory.*label`.
-- **7.2** ▶ NEXT. Mechanical rewrite of every `PrintClient.print(…)` / `usePrintOrPreview` caller (~35 files — full list in `docs/audit/2026-wave6.5-legacy-inventory.md`) onto:
+Execute in strict order. Do not open a later step before the previous is production-ready.
+
+### Wave 7.2 — Mechanical rewrite (allowlist → 0)
+
+For each module, land in one commit: snapshot builder + unit test + call-site rewrite + eslint allowlist entry removal + relevant golden green.
+
+1. **POS terminal** (protected by 7.1 golden):
+   - Land `snapshots/posKitchenTicket.ts` + lock `kitchen_ticket_golden.json`.
+   - Rewrite `apps/pos/terminal/receipt/PostPaymentSurface.tsx`, `components/pos/restaurant/KitchenOrderTicket.tsx`, `apps/pos/terminal/history/HistoryWorkspace.tsx`, `hooks/pos/usePOSCashDrawer.ts`, `hooks/pos/usePrinterStatus.ts`, `pages/pos/POSReports.tsx`.
+   - Remove `src/apps/pos/**`, `src/hooks/pos/**`, `src/components/pos/restaurant/KitchenOrderTicket.tsx` from allowlist.
+2. **Sales pages** — invoice, credit note, delivery note, estimate, proforma, sales order, sales return, customer payment, customer statement. One snapshot builder per `document_kinds.code`; rewrite pages; drop allowlist entries.
+3. **Purchases** — bill, PO, purchase return, vendor statement (peek + record page), GRN wizard. Same pattern.
+4. **HR** — recruitment, contracts list, lifecycle timeline, legal recipients (payroll).
+5. **Inventory labels** — `Products.tsx`, `hooks/inventory/useLabelPrint.ts` — enforce ADR-0088/0089 guards.
+6. **Cross-cutting hooks / components** — `useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient` (fold into `submitDocumentIntent` per Phase 2 item 3).
+7. Hardware settings page `apps/platform/hardware/HardwareDevices.tsx` — only if it truly prints; else drop the import.
+8. Land contract + idempotency tests from Phase 2 items 1–2.
+
+Exit: no-restricted-imports allowlist for `PrintClient`/`usePrintOrPreview` is empty; every golden green; smoke tests under `e2e/` pass.
+
+### Wave 7.3 — Delete legacy chokepoint
+
+Delete `src/services/printing/PrintClient.ts`, `src/hooks/usePrintOrPreview.ts`, `BrowserHardwareAdapter.print`, `reprintClient.ts`. Delete the no-restricted-imports rules (unnecessary once the files are gone). Update tests that referenced them.
+
+### Wave 7.4 — Feature flag
+
+`POS_CHOKEPOINT_V2` env-driven flag with one-release dual-write (v1 path already deleted, so dual-write means "server-side dispatch fallback" — implement as a `submit_document_intent` param).
+
+### Wave 7.5 — Architecture guards
+
+New arch tests: no `PrintClient` imports; no client-side `print_jobs` inserts; no client-side `document_records` inserts; no `window.print()` outside preview surface; snapshot-contract test (Phase 2 item 1); label-identity guard (Phase 2 item 4).
+
+### Wave 7.6 — Latency fast-path
+
+`submit_document_intent` fires `pg_net.http_post` to `dispatch-print-jobs` when `scenario='on_close'`. Add race-idempotency test (Phase 2 item 6).
+
+### Wave 8 — Transport router consolidation
+
+- Fold `BrowserHardwareAdapter` / Electron `CommandRouter` / `LocalAgent` behind one `TransportRouter`.
+- Drain `window.pos.*` reads inside `HardwareClient.ts`; drive `host-router-single-source.test.ts` allow-list to zero.
+- Capability negotiation via `hardware_capabilities` so scales / biometric / RFID plug in with no adapter changes.
+
+### Wave 9 — Legacy deletion
+
+- Publish TanStack build; unblock Wave 6.5 Pass 2; delete `app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`; ratchet CEILING → 93, then continue toward ≤ 87.
+- Drop `receipt_settings` with the pre-drop assertion migration (Phase 2 item 7).
+- Retire v1 `document_templates` shim; drop deprecated RPCs/triggers with zero call sites.
+- Remove `@deprecated` sentinels.
+- Replace wave-by-wave audits with a single `docs/architecture/DOCUMENT_PRINT_HARDWARE.md` overview covering: business event → document_record → template → renderer → output intent → print_jobs → dispatcher → transport → device.
+
+## Cross-wave invariants (unchanged, do not violate)
+
+- Every new `public` table: `GRANT` + `ENABLE RLS` + policies in the same migration.
+- Only `submit-document-intent` inserts into `print_jobs`; only `dispatch-print-jobs` calls `claim_print_jobs`.
+- No new edge fn may wrap another edge fn.
+- Hardware ops only through `hardwareClient`; no direct `window.pos.*` outside HostRouter allow-list.
+- `.lovable/plan.md` top-of-file status table updated at the end of every wave.
+
+## Technical details
+
+- Snapshot builder shape: `{ document_number: string, document_date: string (ISO), snapshot: Record<string, unknown> }`. Top-level keys of `snapshot` must match the locked fixture for the media class.
+- Call site pattern:
   ```ts
   const built = buildXSnapshot(source);
-  const recordId = await ensureDocumentRecord({ kindCode, organizationId, sourceModule, sourceDocType, sourceDocId, ...built });
-  await submitDocumentIntent({ documentRecordId: recordId, scenario: 'on_close' });
+  const recordId = await ensureDocumentRecord({ kindCode, organizationId, sourceModule, sourceDocType, sourceDocId, businessId, branchId, partyKind, partyId, currency, locale, metadata, ...built });
+  await submitDocumentIntent({ documentRecordId: recordId, scenario });
   ```
-  Drive the allow-list in `eslint.config.js` from 35 to zero, module by module: POS terminal first (protected by 7.1 golden), then sales pages, then purchases/HR/hardware. For each module, land the snapshot builder + unit test + rewrite in the SAME commit — do not leave a module half-migrated.
-- **7.3** Delete `PrintClient`, `usePrintOrPreview`, and `BrowserHardwareAdapter.print` (adapter keeps `open/close/scan/etc`). `useDocumentPrint` and `ReceiptTemplateGenerator` do not exist — skip.
-- **7.4** `POS_CHOKEPOINT_V2` feature flag with one-release dual-write so a rollback is a config flip, not a code revert.
-- **7.5** Architecture guards: no `PrintClient` imports anywhere; no client-side `print_jobs` insert; no client-side `document_records` insert (must go through `ensureDocumentRecord`); no `window.print()` outside the print-preview surface.
-- **7.6** Latency fast-path — `submit_document_intent` triggers a `pg_net.http_post` to `dispatch-print-jobs` when `scenario='on_close'`, so POS receipts print p95 ≤ 2 s without waiting for the next cron tick.
-
-Exit: byte-parity golden green, POS smoke (`e2e/`) green, `PrintClient` gone, allow-lists empty.
-
-
-## Wave 8 — Hardware Adapter Internals
-
-- Fold `BrowserHardwareAdapter` / Electron `CommandRouter` / `LocalAgent` behind a single `TransportRouter` (partially done — see `docs/audit/2026-05-21-hardware-readiness-closeout.md`).
-- Drain remaining `window.pos.*` reads inside `HardwareClient.ts` — enforced by the `host-router-single-source.test.ts` allow-list, drive that list to zero.
-- Add capability negotiation so future hardware classes (scales, biometric, RFID) plug in via `hardware_capabilities` without new adapter code paths.
-
-## Wave 9 — Legacy Table & Function Deletion
-
-- Drop `receipt_settings` (data migrated into `document_theme` / `document_header_footer` during Wave 2).
-- Retire the v1 `document_templates` shim (any remaining reads repointed at `document_templates` + `document_template_ast`).
-- Delete edge fns whose only callers were Wave 7 deletions (second inventory pass; ceiling drops again).
-- Drop deprecated RPCs / triggers with zero remaining call sites.
-- Remove `@deprecated` sentinels — everything the code touches is canonical.
-
-Exit: `edge-fn-inventory.test.ts` reflects the smaller surface, `.lovable/plan.md` archived, `docs/architecture/` gains a single "Document → Print → Hardware pipeline" overview replacing the wave-by-wave audits.
-
-## Cross-wave invariants (do not violate)
-
-- Every new `public` table: `GRANT` + `ENABLE RLS` + policies in the *same* migration.
-- Only `submit-document-intent` inserts into `print_jobs`; only `dispatch-print-jobs` calls `claim_print_jobs`. Guards already in `wave6-dispatcher.test.ts`.
-- No new edge fn may be a thin wrapper around another edge fn (guarded).
-- Hardware ops only through `hardwareClient`; no direct `window.pos.*` outside the HostRouter allow-list.
-- Update `.lovable/plan.md` at the end of every wave — the top-of-file status table is the single source of truth.
-
-## Technical notes for implementers
-
-- Live DB confirmations already ran: all Wave 1–6 tables exist; pg_cron rows `dispatch-print-jobs-every-minute` and `check-print-queue-slo-nightly` are active.
-- Edge-fn count as of this plan: `ls supabase/functions | wc -l` → 100. Guard ceiling in `edge-fn-inventory.test.ts` → 87.
-- Deletion of edge fns must go through the `supabase--delete_edge_functions` tool (removing the folder alone leaves the deployed function live and the guard still failing).
-- When repointing legacy `generate-*` callers onto `submitIntent`, confirm each source has a matching `document_kinds` row and a `default_template_id`; add migrations for any gaps before deleting the fn.
-- Edge-fn count as of Wave 7.1.5: `ls supabase/functions | wc -l` → **96**. Ceiling in `edge-fn-inventory.test.ts` → 96 (monotonic-decrease).
-- `document_records` now has renderer-aligned columns `document_number`, `document_date`, `snapshot`. Any new snapshot builder must produce a JSON blob whose top-level keys match the fixture in `supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts` (for thermal receipts) or the equivalent locked fixture for its media class.
-
-## Handoff — instructions for the next agent
-
-Before writing code, **verify the previous engineer's work (this turn's work) matches enterprise standards**:
-
-1. **DB verification** — run:
-   - `SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='document_records';` — must include `document_number`, `document_date`, `snapshot`.
-   - `SELECT pg_get_functiondef(oid) FROM pg_proc WHERE proname='ensure_document_record';` — must be the 15-arg SECURITY DEFINER variant with `_assert_org_member`. The 12-arg overload must be gone.
-   - `SELECT indexname FROM pg_indexes WHERE tablename='document_records';` — must include `document_records_source_unique_idx`.
-2. **Test verification** — `bunx vitest run src/test/documents/pos-receipt-snapshot.test.ts` must be 4/4 green. `deno test supabase/functions/_shared/rendering/renderers/thermal_receipt_golden_test.ts` (via `supabase--test_edge_functions`) must stay green.
-3. **Shim verification** — `src/services/documents/ensureDocumentRecord.ts` exists and is the only new client entry point; no code path bypasses it by inserting directly into `document_records`.
-4. **Docs** — `docs/audit/2026-wave6.5-legacy-inventory.md` §Wave 7.1.5 accurately reflects the shipped surface.
-
-**If verification passes**, resume from **Wave 7.2**:
-
-1. Land `pos.kitchen_ticket` snapshot builder (`src/services/documents/snapshots/posKitchenTicket.ts`) + unit test.
-2. Rewrite the POS terminal's post-payment surface (`src/pages/pos/POSTerminal.tsx`, `src/pages/pos/PostPaymentSurface.tsx`, `KitchenOrderTicket.tsx`) off `PrintClient` onto `ensureDocumentRecord` + `submitDocumentIntent`. Byte-parity must hold — run the Wave 7.1 golden after each edit.
-3. Remove those files from the `no-restricted-imports` allow-list in `eslint.config.js`.
-4. Move to `sales.invoice` next (highest caller count in the audit doc), then `purchases.bill`, then the remaining sales pages.
-
-Do **not** jump to Wave 8 or 9 before Wave 7.2 drives the allow-list to zero and Wave 7.3 deletes `PrintClient`. Each wave must reach production-ready state before the next begins.
-
+- Reprint: `submitDocumentIntent({ documentRecordId, scenario, triggered_source: 'reprint' })` — no separate client.
+- Idempotency: `ensure_document_record` upserts on `(org, source_module, source_doc_type, source_doc_id) WHERE superseded_by IS NULL`; `submit_document_intent` should upsert `print_jobs` on `(document_record_id, scenario, target_hash)`; verify and add if missing during Wave 7.2 step 1.
