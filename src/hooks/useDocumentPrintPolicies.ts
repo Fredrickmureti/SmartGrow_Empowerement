@@ -14,7 +14,7 @@ import { normalizeError } from "@/services/resilience";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useResolvedDeviceForDocument } from "@/hooks/hardware/useResolvedDeviceForDocument";
+import { useDeviceForIntent } from "@/hooks/useDeviceForIntent";
 import type { DeviceAssignment } from "@/hooks/useDeviceAssignments";
 
 export type PaperFormat = "a4" | "letter" | "a5" | "80mm" | "58mm" | "40mm" | "custom";
@@ -28,13 +28,12 @@ export interface PrintPolicy {
   document_type: string;
   paper_format: PaperFormat;
   render_mode: RenderMode;
-  device_assignment_id: string | null;
-  auto_print: boolean;
-  /** Phase 1 — unified routing model. When the document reaches paper. */
-  trigger?: OutputTrigger;
-  /** Phase 1 — semantic printer role (see printer_roles.code). Physical
-   *  device is chosen at runtime by printer_role_branch_bindings. */
-  role_code?: string | null;
+  /** When this document reaches paper. */
+  trigger: OutputTrigger;
+  /** Semantic printer role (see printer_roles.code). Physical device is
+   * chosen through printer_roles.hardware_kind → device_assignments. */
+  role_code: string | null;
+  copies?: number | null;
 }
 
 export const DOCUMENT_TYPES: { value: string; label: string }[] = [
@@ -68,10 +67,10 @@ export function useDocumentPrintPolicies(businessId: string | null | undefined) 
     try {
       const { data, error } = await supabase
         .from("document_print_policies")
-        .select("id, business_id, branch_id, document_type, paper_format, render_mode, device_assignment_id, auto_print, trigger, role_code")
+        .select("id, business_id, branch_id, document_type, paper_format, render_mode, trigger, role_code, copies")
         .eq("business_id", businessId);
       if (error) throw error;
-      setPolicies((data ?? []) as PrintPolicy[]);
+      setPolicies((data ?? []) as unknown as PrintPolicy[]);
     } catch (e: any) {
       toast({ title: "Failed to load print policies", description: normalizeError(e).message, variant: "destructive" });
     } finally {
@@ -160,11 +159,11 @@ export function useDocumentPrintPolicies(businessId: string | null | undefined) 
 /**
  * Stage W6 (ADR-0008) — same resolution rules as the server-side
  * `_shared/printing/resolvePolicy.ts`, but in the React tree so POS /
- * Settings UI can react to `auto_print`, `device_assignment_id`, etc.
+ * Settings UI can react to `trigger`, `role_code`, etc.
  * without a network round-trip.
  *
  * Falls back to the system default `{ paper_format: 'a4', render_mode:
- * 'pdf', auto_print: false, device_assignment_id: null }` when no row
+ * 'pdf', trigger: 'manual', role_code: null }` when no row
  * matches — identical behaviour to the server resolver.
  */
 export interface ResolvedPrintPolicy extends Omit<PrintPolicy, "id" | "branch_id" | "business_id"> {
@@ -189,16 +188,18 @@ export function useResolvedPrintPolicy(
         document_type: row.document_type,
         paper_format: row.paper_format,
         render_mode: row.render_mode,
-        device_assignment_id: row.device_assignment_id,
-        auto_print: row.auto_print,
+        trigger: row.trigger,
+        role_code: row.role_code,
+        copies: row.copies,
         source: branchHit ? "branch" : "business",
       }
     : {
         document_type: documentType,
         paper_format: "a4",
         render_mode: "pdf",
-        device_assignment_id: null,
-        auto_print: false,
+        trigger: "manual",
+        role_code: null,
+        copies: 1,
         source: "default",
       };
 
@@ -237,8 +238,12 @@ export function useResolvedPrintPolicyWithDevice(
     branchId,
     documentType,
   );
-  const { device, isLoading: deviceLoading } = useResolvedDeviceForDocument(
-    policy.device_assignment_id,
+  const { device, isLoading: deviceLoading } = useDeviceForIntent(
+    policy.role_code ?? policy.document_type,
+    {
+      preferBusinessId: businessId ?? null,
+      enabled: Boolean(policy.role_code),
+    },
   );
   return {
     policy,
