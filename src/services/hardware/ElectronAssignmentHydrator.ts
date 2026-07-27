@@ -18,6 +18,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import type { DeviceAssignment } from '@/hooks/useDeviceAssignments';
+import { hostBridge } from './transport/HostRouter';
 
 type DevicesIpc = {
   list: () => Promise<{ ok: boolean; rows?: unknown[]; error?: string }>;
@@ -34,8 +35,9 @@ type DevicesIpc = {
 };
 
 function getDevicesIpc(): DevicesIpc | null {
-  if (typeof window === 'undefined') return null;
-  const pos = (window as unknown as { pos?: { devices?: DevicesIpc } }).pos;
+  // Phase 5 Step B — host access goes through HostRouter, never a local
+  // `window.pos` cast (guard: host-state-single-owner).
+  const pos = hostBridge<{ devices?: DevicesIpc }>();
   if (!pos?.devices?.list || !pos.devices.upsert) return null;
   return pos.devices;
 }

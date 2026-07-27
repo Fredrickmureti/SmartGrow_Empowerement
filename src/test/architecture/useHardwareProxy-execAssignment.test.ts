@@ -34,14 +34,14 @@ describe('useHardwareProxy — Phase 5 Step B per-assignment dispatch', () => {
     expect(SRC).toMatch(/id:\s*resolved\.id/);
   });
 
-  it('keeps the role-only fallback strictly gated behind resolver outage / no-org', () => {
-    // The remaining role-only call sites are the fallback path — they live
-    // inside a `dispatchViaAssignment` `legacy` closure. Assert there is
-    // exactly one call per legacy shim so a refactor cannot silently
-    // reintroduce role-based dispatch as the primary path.
+  it('has no role-only fallback left (Phase 5 Step C)', () => {
+    // The legacy shims were deleted from HardwareClient. Every dispatch
+    // resolves a `device_assignments` row first; an unresolvable intent
+    // fails loudly instead of guessing a device by role.
     for (const method of [
       'printReceipt',
       'printKitchenOrder',
+      'printRawBytes',
       'openDrawer',
       'readScale',
       'tareScale',
@@ -49,9 +49,11 @@ describe('useHardwareProxy — Phase 5 Step B per-assignment dispatch', () => {
       'initiatePayment',
       'cancelPayment',
     ]) {
-      const hits = SRC.match(new RegExp(`hardwareClient\\.${method}\\(`, 'g')) ?? [];
-      expect(hits.length, `${method} legacy shim call count`).toBe(1);
+      expect(SRC, `${method} role-only shim must be gone`).not.toMatch(
+        new RegExp(`hardwareClient\\.${method}\\(`),
+      );
     }
+    expect(SRC).toMatch(/no_device_bound/);
   });
 
   it('non-print roles (drawer, scale, display, payment) route through dispatchViaAssignment', () => {

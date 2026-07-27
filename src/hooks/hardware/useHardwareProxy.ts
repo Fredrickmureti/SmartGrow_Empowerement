@@ -292,19 +292,19 @@ export function useHardwareProxy(
    * the printReceipt / printKitchenOrder paths: resolve the winning
    * `device_assignments` row via `resolve_device`, then execute against
    * that row so `TransportRouter` sees the row's persisted `transport`.
-   * Falls back to the legacy role-only method on resolver outage or
-   * missing org context — a shop must never brick on a transient RPC
-   * failure.
+   * Phase 5 Step C — no role-only fallback. Without org context, a bound
+   * assignment, or a healthy resolver the call fails loudly.
    */
   const dispatchViaAssignment = useCallback(
-    async <T,>(
+    async (
       role: DeviceRole,
       op: string,
       payload: unknown,
-      legacy: () => Promise<T>,
       intent?: string,
-    ): Promise<T | DriverResult> => {
-      if (!organization?.id) return legacy();
+    ): Promise<DriverResult> => {
+      if (!organization?.id) {
+        return { success: false, error: `no_device_bound: missing organization context for ${role}` };
+      }
       try {
         const resolved = await resolveDeviceForIntent({
           organizationId: organization.id,
@@ -312,7 +312,12 @@ export function useHardwareProxy(
           businessId: currentBusiness?.id ?? null,
           scope: registerId ? { kind: 'register', id: registerId } : undefined,
         });
-        if (!resolved) return legacy();
+        if (!resolved) {
+          return {
+            success: false,
+            error: `no_device_bound: no ${role.replace('_', ' ')} is bound for this register/business. Bind one in Platform → Hardware.`,
+          };
+        }
         // eslint-disable-next-line no-console
         console.info('[hardware.route.decision]', {
           intent: intent ?? role,
@@ -334,8 +339,11 @@ export function useHardwareProxy(
         });
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[hardware.route.decision] resolve_device failed, falling back to role dispatch', err);
-        return legacy();
+        console.warn('[hardware.route.decision] resolve_device failed', err);
+        return {
+          success: false,
+          error: `device resolver unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     },
     [organization?.id, currentBusiness?.id, registerId],
@@ -394,24 +402,18 @@ export function useHardwareProxy(
         return result;
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[hardware.route.decision] resolve_device failed, falling back to role dispatch', err);
+        console.warn('[hardware.route.decision] resolve_device failed', err);
+        return {
+          success: false,
+          error: `device resolver unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     }
-    // Fallback (no org context or resolver outage) — role-based dispatch.
-    const result = await hardwareClient.printReceipt({
-      receiptData: {
-        lines: receiptData.lines?.map((l) => ({
-          text: typeof l === 'string' ? l : l.text || '',
-          align: l.align,
-          bold: l.bold,
-        })) || [],
-        header: receiptData.header,
-        footer: receiptData.footer,
-        cut: receiptData.cut !== false,
-      } as never,
-    });
-    void refreshStatuses();
-    return result;
+    // Phase 5 Step C — no role-only fallback path exists any more.
+    return {
+      success: false,
+      error: 'no_device_bound: missing organization context for receipt printing',
+    };
   }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   /**
@@ -420,10 +422,17 @@ export function useHardwareProxy(
    * receipt printer. Bypasses the client byte-builder entirely.
    */
   const printRawBytes = useCallback(async (bytes: Uint8Array | number[]): Promise<DriverResult> => {
-    const result = await hardwareClient.printRawBytes(bytes);
+    // Phase 5 Step C — raw ESC/POS bytes are still a *receipt* intent; the
+    // platform resolves which assignment wins, the caller never names one.
+    const result = await dispatchViaAssignment(
+      'receipt_printer',
+      'print_raw',
+      Array.from(bytes),
+      'receipt',
+    );
     void refreshStatuses();
     return result;
-  }, [refreshStatuses]);
+  }, [refreshStatuses, dispatchViaAssignment]);
 
   const printKitchenOrder = useCallback(async (orderData: ReceiptData): Promise<DriverResult> => {
     // Phase 5 Step B — same per-assignment dispatch as receipts.
@@ -471,64 +480,55 @@ export function useHardwareProxy(
         return result;
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[hardware.route.decision] resolve_device failed (kitchen), falling back to role dispatch', err);
+        console.warn('[hardware.route.decision] resolve_device failed (kitchen)', err);
+        return {
+          success: false,
+          error: `device resolver unavailable: ${err instanceof Error ? err.message : String(err)}`,
+        };
       }
     }
-    const result = await hardwareClient.printKitchenOrder({
-      receiptData: {
-        lines: orderData.lines?.map((l) => ({
-          text: typeof l === 'string' ? l : l.text || '',
-          align: l.align,
-          bold: l.bold,
-        })) || [],
-        header: orderData.header,
-        cut: true,
-      } as never,
-    });
-    void refreshStatuses();
-    return result;
+    return {
+      success: false,
+      error: 'no_device_bound: missing organization context for kitchen printing',
+    };
   }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   const openDrawer = useCallback(async (pin?: 2 | 5): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'cash_drawer',
       'open',
       { pin },
-      () => hardwareClient.openDrawer({ pin }),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const readScale = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'scale',
       'read',
       {},
-      () => hardwareClient.readScale(),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const tareScale = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'scale',
       'tare',
       {},
-      () => hardwareClient.tareScale(),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const updateDisplay = useCallback(async (data: unknown): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'customer_display',
       'update',
       data,
-      () => hardwareClient.updateCustomerDisplay(data as never),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);
@@ -536,23 +536,21 @@ export function useHardwareProxy(
   const initiatePayment = useCallback(async (
     amount: number, currency: string, reference: string,
   ): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'payment_terminal',
       'initiate_payment',
       { amount, currency, reference },
-      () => hardwareClient.initiatePayment({ amount, currency, reference }),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const cancelPayment = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'payment_terminal',
       'cancel_payment',
       {},
-      () => hardwareClient.cancelPayment(),
-    )) as DriverResult;
+    );
     void refreshStatuses();
     return result;
   }, [refreshStatuses, dispatchViaAssignment]);

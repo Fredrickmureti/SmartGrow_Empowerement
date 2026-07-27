@@ -3,8 +3,8 @@
  * every print path) MUST dispatch thermal/label bytes through
  * `hardwareClient.execAssignment` when the caller supplied both
  * `organizationId` and `businessId`. Legacy role-only shims
- * (`printRawBytes`, `printLabelBytes`) are allowed ONLY as the
- * resolver-outage fallback path.
+ * (`printRawBytes`, `printLabelBytes`) were deleted in Phase 5 Step C —
+ * an unresolvable intent must fail loudly, never fall back to a role.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -45,14 +45,10 @@ describe('PrintClient — Phase 5 Step B per-assignment dispatch', () => {
     expect(printBlock).not.toMatch(/hardwareClient\.printLabelBytes\(bytes\)/);
   });
 
-  it('bounds the legacy role-only shims to the helper fallback (single call site each)', () => {
-    const rawHits = SRC.match(/hardwareClient\.printRawBytes\(/g) ?? [];
-    const labelHits = SRC.match(/hardwareClient\.printLabelBytes\(/g) ?? [];
-    // Exactly 1 each — inside the `legacy()` closure of `dispatchThermalBytes`.
-    // Any additional occurrence means someone reintroduced a direct
-    // role-only dispatch outside the resolver-outage fallback.
-    expect(rawHits.length).toBe(1);
-    expect(labelHits.length).toBe(1);
+  it('has no role-only shim fallback left (Phase 5 Step C)', () => {
+    expect(SRC).not.toMatch(/hardwareClient\.printRawBytes\(/);
+    expect(SRC).not.toMatch(/hardwareClient\.printLabelBytes\(/);
+    expect(SRC).toMatch(/no_device_bound/);
   });
 
   it('printKitchenTicket delegates to dispatchThermalBytes (no direct role-only shim)', () => {

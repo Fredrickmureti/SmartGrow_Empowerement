@@ -187,20 +187,23 @@ class PrintClient {
    * the `resolve_device` RPC which `device_assignments` row wins for the
    * (org, business, intent, branch) tuple, then dispatch via
    * `hardwareClient.execAssignment` so `TransportRouter` picks the
-   * transport from that row. Falls back to the legacy role-only shim on
-   * missing context, resolver outage, or no assignment — a shop must
-   * never brick on a transient RPC failure.
+   * transport from that row.
+   *
+   * Phase 5 Step C — there is no role-only fallback. Missing org context,
+   * a resolver outage, or an unbound intent fails loudly: a print that
+   * silently lands on an unknown device is worse than a visible refusal.
    */
   private async dispatchThermalBytes(
     bytes: Uint8Array | number[],
     req: PrintRequest,
     role: 'receipt_printer' | 'label_printer' | 'kitchen_printer',
   ): Promise<{ success: boolean; error?: string }> {
-    const legacy = () =>
-      role === 'label_printer'
-        ? hardwareClient.printLabelBytes(bytes)
-        : hardwareClient.printRawBytes(bytes);
-    if (!req.organizationId || !req.businessId) return legacy();
+    if (!req.organizationId || !req.businessId) {
+      return {
+        success: false,
+        error: `no_device_bound: printing '${req.intent}' requires organization and business context`,
+      };
+    }
     try {
       const { resolveDeviceForIntent } = await import('@/hooks/useDeviceForIntent');
       const resolved = await resolveDeviceForIntent({
@@ -208,7 +211,12 @@ class PrintClient {
         intentOrRole: req.intent,
         businessId: req.businessId,
       });
-      if (!resolved) return legacy();
+      if (!resolved) {
+        return {
+          success: false,
+          error: `no_device_bound: no ${role.replace('_', ' ')} is bound for '${req.intent}'. Bind one in Platform → Hardware.`,
+        };
+      }
       // eslint-disable-next-line no-console
       console.info('[hardware.route.decision]', {
         stage: 'print-client',
@@ -230,8 +238,11 @@ class PrintClient {
       });
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.warn('[hardware.route.decision] resolve_device failed in PrintClient, falling back', err);
-      return legacy();
+      console.warn('[hardware.route.decision] resolve_device failed in PrintClient', err);
+      return {
+        success: false,
+        error: `device resolver unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      };
     }
   }
 

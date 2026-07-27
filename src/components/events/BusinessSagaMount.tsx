@@ -11,7 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { BusinessSaga } from '@/services/events/BusinessSaga';
 import { printClient } from '@/services/printing/PrintClient';
-import { hardwareClient } from '@/services/hardware/HardwareClient';
+import { execForIntent } from '@/services/hardware/execForIntent';
 import { domainEventBus, type DomainEvent } from '@/services/events/domainEventBus';
 import { customerDisplayClient, type CustomerDisplayData } from '@/services/hardware/local-display/CustomerDisplayClient';
 import {
@@ -266,19 +266,26 @@ export function BusinessSagaMount({ orgId }: Props) {
         return;
       }
 
-      // Non-POS payment sources (manual cash receipts, etc.) keep the
-      // legacy direct-exec path. Only fires for explicit cash events.
       const method = (payload.method ?? '').toLowerCase();
       if (method !== 'cash') return;
-      await hardwareClient.exec({
-        role: 'cash_drawer',
+      // Phase 5 Step B — non-POS cash receipts (manual cash, counter
+      // takings) also resolve a `device_assignments` row before opening a
+      // drawer. No role-only guess: if no drawer is bound for this org the
+      // resolver refuses and the saga logs it.
+      const drawer = await execForIntent({
+        intentOrRole: 'cash_drawer',
         op: 'open',
         payload: {},
+        organizationId: e.orgId ?? orgId ?? null,
+        businessId: (e as { businessId?: string | null }).businessId ?? null,
         idempotencyKey: `payment-drawer:${e.sourceDocId}`,
         sourceDocType: e.sourceDocType,
         sourceDocId: e.sourceDocId,
         businessEventId: e.id,
       });
+      if (!drawer.success) {
+        console.warn('[saga payment.received] drawer not opened', drawer.error);
+      }
     });
 
 
