@@ -60,7 +60,7 @@ export interface SalesEstimateBusinessRow {
   phone?: string | null;
   address?: string | null;
   logo_url?: string | null;
-  currency?: string | null;
+  base_currency?: string | null;
 }
 
 export interface SalesEstimateHeaderRow {
@@ -188,7 +188,7 @@ export async function fetchAndBuildSalesEstimateSnapshot(
       organization_id, business_id, branch_id,
       customer_signature_url, signed_at,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, country),
-      business:businesses(id, name, legal_name, email, phone, address, logo_url, currency),
+      business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
       estimate_items(
         description, quantity, unit_price, tax_rate, tax_amount,
         discount_percent, line_total,
