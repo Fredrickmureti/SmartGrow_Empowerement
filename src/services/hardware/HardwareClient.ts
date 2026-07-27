@@ -623,58 +623,13 @@ const agent = {
  * POS-facing hardware API. Stable across the Electron / browser split.
  */
 export const hardwareClient = {
-  // === Receipt / kitchen printing ===
-  printReceipt(input: PrintReceiptInput): Promise<DriverResult> {
-    if (!payloadHasRawBytes(input.receiptData)) {
-      return Promise.resolve({
-        success: false,
-        error: 'Receipt printing requires server-rendered ESC/POS bytes. Structured receiptData is refused to prevent renderer divergence.',
-      });
-    }
-    return execAny("receipt_printer", "print_receipt", input.receiptData);
-  },
-  printKitchenOrder(input: PrintReceiptInput): Promise<DriverResult> {
-    return execAny("kitchen_printer", "print_receipt", input.receiptData);
-  },
-  printRawBytes(bytes: Uint8Array | number[]): Promise<DriverResult> {
-    return execAny("receipt_printer", "print_raw", Array.from(bytes));
-  },
-  /**
-   * Audit Wave 9d.3 — first-class label-printer entrypoint. Routes to the
-   * `label_printer` role (which now has a real driver + handler chain in
-   * Electron and a fallback path in the browser adapter) instead of
-   * piggy-backing on `receipt_printer:print_raw`. Cross-module callers
-   * (Inventory, Warehouse, Manufacturing) should use this.
-   */
-  printLabelBytes(bytes: Uint8Array | number[]): Promise<DriverResult> {
-    return execAny("label_printer", "print_raw", Array.from(bytes));
-  },
-
-  // === Cash drawer ===
-  openDrawer(input: OpenDrawerInput = {}): Promise<DriverResult> {
-    return execAny("cash_drawer", "open", { pin: input.pin });
-  },
-
-  // === Scale ===
-  readScale(): Promise<DriverResult> {
-    return execAny("scale", "read", {});
-  },
-  tareScale(): Promise<DriverResult> {
-    return execAny("scale", "tare", {});
-  },
-
-  // === Customer display (low-level driver op — prefer `customerDisplay.*`) ===
-  updateCustomerDisplay(data: DriverCommand["payload"]): Promise<DriverResult> {
-    return execAny("customer_display", "update", data);
-  },
-
-  // === Payment terminal ===
-  initiatePayment(input: InitiatePaymentInput): Promise<DriverResult> {
-    return execAny("payment_terminal", "initiate_payment", input);
-  },
-  cancelPayment(): Promise<DriverResult> {
-    return execAny("payment_terminal", "cancel_payment", {});
-  },
+  // Phase 5 Step C — the role-only shims (`printReceipt`, `printRawBytes`,
+  // `printLabelBytes`, `openDrawer`, `readScale`, `tareScale`,
+  // `updateCustomerDisplay`, `initiatePayment`, `cancelPayment`, ...) were
+  // deleted. They let applications name a *role* and let the driver seam
+  // guess a transport, which is the drift the audit flagged. Every caller
+  // now resolves a `device_assignments` row first (`execForIntent` /
+  // `useHardwareProxy`) and dispatches through `execAssignment`.
 
   // === Generic exec (Track 4b.4 + Track A audit linkage) ===
   exec(cmd: {
