@@ -75,14 +75,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
-  try {
-    await requireOrgMember(req, orgId);
-  } catch (err) {
-    return new Response(JSON.stringify({ error: "forbidden", detail: String(err) }), {
-      status: 403,
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
-  }
+  const authResult = await requireOrgMember(req, orgId, corsHeaders);
+  if (!authResult.ok) return authResult.response;
 
   try {
     const result = await renderDocument(body, supabase);
