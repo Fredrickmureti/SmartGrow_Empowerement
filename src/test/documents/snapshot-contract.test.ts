@@ -27,6 +27,9 @@ import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesRe
 import { buildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { buildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
 import { buildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
+import { buildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
+import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
+import { buildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -317,6 +320,54 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         vendor_id: "v-1",
         vendor: { name: "Widgets Supplier Ltd" },
         business: { id: "b", name: "Acme Buyer" },
+        items: [],
+      }),
+  },
+  {
+    file: "purchasesPo.ts",
+    run: () =>
+      buildPurchasesPoSnapshot({
+        id: "po-1",
+        po_number: "PO-2026-0001",
+        status: "sent",
+        order_date: "2026-07-27",
+        expected_date: null,
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        shipping_address: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        vendor_id: "v-1",
+        vendor: { name: "Widgets Supplier Ltd" },
+        business: { id: "b", name: "Acme Buyer" },
+        items: [],
+      }),
+  },
+  {
+    file: "purchasesReturn.ts",
+    run: () =>
+      buildPurchasesReturnSnapshot({
+        id: "pr-1",
+        return_number: "PR-2026-0001",
+        status: "approved",
+        return_date: "2026-07-27",
+        subtotal: 100,
+        tax_amount: 16,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        reason: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        vendor_id: "v-1",
+        contact: { name: "Widgets Supplier Ltd" },
+        business: { id: "b", name: "Acme Buyer", base_currency: "KES" },
         items: [],
       }),
   },
