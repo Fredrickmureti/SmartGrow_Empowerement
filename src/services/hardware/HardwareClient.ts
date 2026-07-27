@@ -33,7 +33,7 @@ import { customerDisplayClient, type CustomerDisplayData, type CustomerDisplayCo
 import type { AgentStatusResponse, AgentDeviceInfo } from "./local-agent/protocol";
 import { recordHardwareExec, getHardwareExecContext, getRecentExecLog } from "./HardwareExecLog";
 import { supabase } from "@/integrations/supabase/client";
-import { hostRouter, ipcAvailable, isElectronHost } from "./transport/HostRouter";
+import { hostRouter, hostBridge, ipcAvailable, isElectronHost } from "./transport/HostRouter";
 import { route as routeTransport, sniffHost, type RoutableAssignment, type RouteDecision } from "./transport/TransportRouter";
 
 export { getRecentExecLog, setHardwareExecContext } from "./HardwareExecLog";
@@ -60,7 +60,7 @@ function newKey(): string {
 }
 
 async function execElectron(role: DeviceRole, op: string, payload: unknown, idempotencyKey?: string, maxAttempts?: number): Promise<DriverResult> {
-  const pos = (window as unknown as { pos: { hardware: { exec: (cmd: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }> } } }).pos;
+  const pos = hostBridge<{ hardware: { exec: (cmd: unknown) => Promise<{ ok: boolean; result?: unknown; error?: string }> } }>();
   const res = await pos.hardware.exec({
     role,
     op,
@@ -329,10 +329,10 @@ export async function runtimeCapability(): Promise<RuntimeCapability> {
   let cap: RuntimeCapability;
   if (ipcAvailable()) {
     try {
-      const pos = (window as unknown as { pos: { hardware: { capabilities: () => Promise<{
+      const pos = hostBridge<{ hardware: { capabilities: () => Promise<{
         ok?: boolean; runtime?: string; platform?: string; preloadBuild?: string;
         transports?: RuntimeCapability['transports']; ops?: string[];
-      }> } } }).pos;
+      }> } }>()!;
       const snap = await pos.hardware.capabilities();
       const warnings: string[] = [];
       const t = snap.transports;
@@ -387,9 +387,9 @@ const devices = {
   /** Async, honest per-role liveness. Preferred over the sync availability check. */
   async getStatuses(): Promise<DeviceStatusDetail[]> {
     if (ipcAvailable()) {
-      const pos = (window as unknown as {
-        pos: { devices: { status: () => Promise<{ ok: boolean; statuses?: Array<DeviceStatusDetail & { role: string }>; error?: string }> } }
-      }).pos;
+      const pos = hostBridge<{
+        devices: { status: () => Promise<{ ok: boolean; statuses?: Array<DeviceStatusDetail & { role: string }>; error?: string }> }
+      }>()!;
       const r = await pos.devices.status();
       if (!r.ok || !r.statuses) return [];
       return r.statuses.map((s) => ({
@@ -420,7 +420,7 @@ const devices = {
   /** Force a reconnect of a single role; sibling handlers are not touched. */
   async reconnectRole(role: DeviceRole): Promise<DriverResult> {
     if (ipcAvailable()) {
-      const pos = (window as unknown as { pos: { devices: { reconnect: (role: string) => Promise<{ ok: boolean; error?: string }> } } }).pos;
+      const pos = hostBridge<{ devices: { reconnect: (role: string) => Promise<{ ok: boolean; error?: string }> } }>();
       const r = await pos.devices.reconnect(role);
       return r.ok ? { success: true } : { success: false, error: r.error ?? 'reconnect failed' };
     }
@@ -513,7 +513,7 @@ const customerDisplay = {
   async isOpen(): Promise<boolean> {
     if (isElectronMode()) {
       try {
-        const pos = (window as unknown as { pos?: { app?: { customerDisplay?: { isOpen?: () => Promise<boolean> } } } }).pos;
+        const pos = hostBridge<{ app?: { customerDisplay?: { isOpen?: () => Promise<boolean> } } }>();
         return Boolean(await pos?.app?.customerDisplay?.isOpen?.());
       } catch {
         return false;
@@ -761,32 +761,32 @@ export const hardwareClient = {
   bluetooth: {
     async radioAvailable(): Promise<boolean> {
       if (!ipcAvailable()) return false;
-      const pos = (window as unknown as { pos: { bluetooth: { radioAvailable: () => Promise<{ ok: boolean }> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { radioAvailable: () => Promise<{ ok: boolean }> } }>();
       try { return (await pos.bluetooth.radioAvailable()).ok; } catch { return false; }
     },
     async list() {
       if (!ipcAvailable()) return { ok: false as const, error: 'bluetooth requires Electron' };
-      const pos = (window as unknown as { pos: { bluetooth: { list: () => Promise<unknown> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { list: () => Promise<unknown> } }>();
       return pos.bluetooth.list() as Promise<{ ok: true; data?: unknown[] } | { ok: false; error: string }>;
     },
     async pair(input: { deviceId: string; mac: string; name?: string | null; role: string; autoReconnect?: boolean }) {
       if (!ipcAvailable()) return { ok: false as const, error: 'bluetooth requires Electron' };
-      const pos = (window as unknown as { pos: { bluetooth: { pair: (i: typeof input) => Promise<unknown> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { pair: (i: typeof input) => Promise<unknown> } }>();
       return pos.bluetooth.pair(input) as Promise<{ ok: true } | { ok: false; error: string }>;
     },
     async unpair(deviceId: string) {
       if (!ipcAvailable()) return { ok: false as const, error: 'bluetooth requires Electron' };
-      const pos = (window as unknown as { pos: { bluetooth: { unpair: (id: string) => Promise<unknown> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { unpair: (id: string) => Promise<unknown> } }>();
       return pos.bluetooth.unpair(deviceId) as Promise<{ ok: true } | { ok: false; error: string }>;
     },
     async connect(deviceId: string) {
       if (!ipcAvailable()) return { ok: false as const, error: 'bluetooth requires Electron' };
-      const pos = (window as unknown as { pos: { bluetooth: { connect: (id: string) => Promise<unknown> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { connect: (id: string) => Promise<unknown> } }>();
       return pos.bluetooth.connect(deviceId) as Promise<{ ok: true } | { ok: false; error: string }>;
     },
     async disconnect(deviceId: string) {
       if (!ipcAvailable()) return { ok: false as const, error: 'bluetooth requires Electron' };
-      const pos = (window as unknown as { pos: { bluetooth: { disconnect: (id: string) => Promise<unknown> } } }).pos;
+      const pos = hostBridge<{ bluetooth: { disconnect: (id: string) => Promise<unknown> } }>();
       return pos.bluetooth.disconnect(deviceId) as Promise<{ ok: true } | { ok: false; error: string }>;
     },
   },
@@ -811,7 +811,7 @@ export const hardwareClient = {
   /** ADR-0014 Track C2 — emit a sale-committed message; saga handles the rest. */
   emitSaleCommitted(payload: { saleId: string; receipt?: unknown; drawer?: unknown; display?: unknown; gl?: unknown }): Promise<{ ok: boolean; queued?: boolean; error?: string }> {
     if (!ipcAvailable()) return Promise.resolve({ ok: false, error: "not in Electron" });
-    const pos = (window as unknown as { pos: { sale: { committed: typeof hardwareClient.emitSaleCommitted } } }).pos;
+    const pos = hostBridge<{ sale: { committed: typeof hardwareClient.emitSaleCommitted } }>();
     return pos.sale.committed(payload) as Promise<{ ok: boolean; queued?: boolean; error?: string }>;
   },
 };
