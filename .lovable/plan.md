@@ -33,15 +33,33 @@ Verdict: Waves 1–7.1.5 are genuine. Wave 7.2 is roughly 3 of 32 call sites don
 
 Each step lands as one unit: snapshot builder + unit test + contract-suite entry + call-site rewrite (print *and* preview) + allowlist entry removal where the last file in a glob is done.
 
-1. **Gate 0 / 0b** — missing kinds + intents migration; scenario fallback check.
-2. **Sales cluster** — `Estimates`, `ProformaInvoices`, `DeliveryNotes`, `SalesOrders` (`sales.order_ack`), `SalesReturns`, `CustomerPayments` (`sales.payment_receipt`), `CustomerStatements` (`sales.statement`); then close out `CreditNotes` preview.
-3. **Purchases cluster** — `Bills`, `PurchaseOrders`, `PurchaseReturns`, `VendorStatements` + peek sheet + record page, GRN wizard. Then remove `src/pages/**` and `src/features/purchases/**` from the eslint allowlist.
-4. **HR** — `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`, `LegalRecipients`.
-5. **Inventory labels** — `Products.tsx`, `useLabelPrint.ts`, enforcing ADR-0088 (mm-relative geometry) and ADR-0089 (never emit a UUID as barcode); refuse to render when barcode resolution returns null.
-6. **POS terminal** — `PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer` (requires porting the drawer-slip ESC/POS renderer into the Wave 3 engine), `usePrinterStatus`. Guarded by the thermal + kitchen goldens.
-7. **Cross-cutting** — `useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient` (folded into `submitDocumentIntent({ triggeredSource: 'reprint' })` only after the audit-parity proof), `HardwareDevices`.
-8. **Wave 7.3** — delete `PrintClient.ts`, `usePrintOrPreview.ts`, `reprintClient.ts`, `BrowserHardwareAdapter.print`, and the now-dead eslint rules.
-9. **Waves 7.5 / 8 / 9** — architecture guards, transport-router consolidation, then destructive legacy removal and the `DOCUMENT_PRINT_HARDWARE.md` overview.
+1. **Gate 0 / 0b — DONE & VERIFIED.** Migration seeded the missing kinds (`sales.return`, `purchases.return`, `purchases.statement`, `pos.drawer_slip`, `inventory.product_label`) with intents/targets, corrected the Wave-4 kind-code typos that were routing thermal/label documents to a PDF download target, and added the scenario→`default` fallback in `resolve_output_intent`. Verified by DB query (`pos.receipt_customer`, `inventory.product_label` now resolve to hardware roles) plus two stale printing guardrails rewritten to the Phase 6 Step C contract.
+2. **Sales cluster — IN PROGRESS (active phase).**
+   - `Estimates` (`sales.estimate`) — **DONE & VERIFIED.** `snapshots/salesEstimate.ts` (pure + fetcher), 7 unit tests, contract entry, page off `usePrintOrPreview`.
+   - `ProformaInvoices` (`sales.proforma`) — **DONE & VERIFIED.** `snapshots/salesProforma.ts`, 7 unit tests, contract entry, page off the legacy hook.
+   - `DeliveryNotes` (`sales.delivery_note`) — **DONE & VERIFIED.** `snapshots/salesDeliveryNote.ts` carries the three DN business rules (structural amount suppression + `hide_amounts`, recipient chain contact→POD→staff→legacy with UUID guard, automation-token stripping), 11 unit tests, contract entry, page off the legacy hook.
+   - **NEXT:** `SalesOrders` (`sales.order_ack`), then `SalesReturns` (`sales.return`), `CustomerPayments` (`sales.payment_receipt`), `CustomerStatements` (`sales.statement`); finally close out the **`CreditNotes` preview path**, which still imports `usePrintOrPreview` and is the one knowingly half-migrated page in the tree.
+3. **Purchases cluster — PENDING** — `Bills`, `PurchaseOrders`, `PurchaseReturns`, `VendorStatements` + peek sheet + record page, GRN wizard. Then remove `src/pages/**` and `src/features/purchases/**` from the eslint allowlist.
+4. **HR — PENDING** — `Recruitment`, `ContractsListPage`, `LifecycleTimelinePage`, `LegalRecipients`.
+5. **Inventory labels — PENDING** — `Products.tsx`, `useLabelPrint.ts`, enforcing ADR-0088 (mm-relative geometry) and ADR-0089 (never emit a UUID as barcode); refuse to render when barcode resolution returns null.
+6. **POS terminal — PENDING** — `PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer` (requires porting the drawer-slip ESC/POS renderer into the Wave 3 engine — fork (2) is still open), `usePrinterStatus`. Guarded by the thermal + kitchen goldens.
+7. **Cross-cutting — PENDING** — `useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient` (folded into `submitDocumentIntent({ triggeredSource: 'reprint' })` only after the audit-parity proof), `HardwareDevices`.
+8. **Wave 7.3 — PENDING** — delete `PrintClient.ts`, `usePrintOrPreview.ts`, `reprintClient.ts`, `BrowserHardwareAdapter.print`, and the now-dead eslint rules.
+9. **Waves 7.5 / 8 / 9 — PENDING** — architecture guards, transport-router consolidation, then destructive legacy removal and the `DOCUMENT_PRINT_HARDWARE.md` overview.
+
+### Current status snapshot
+
+- **Active phase:** Wave 7.2, Sales cluster.
+- **Call sites migrated:** 6 of 32 (`Invoices`, `KitchenOrderTicket`, `CreditNotes` print-only, `Estimates`, `ProformaInvoices`, `DeliveryNotes`).
+- **Verification bar met by each of the above:** clean `tsgo` typecheck for touched files + green `src/test/documents` and `src/test/printing` (currently 33 files / 202 tests passing).
+- **Known outstanding debt (not regressions, carried deliberately):** `CreditNotes` preview path; no drawer-slip renderer; `docs/architecture/DOCUMENT_PRINT_HARDWARE.md` not yet written; `PrintPreviewDialog` still present on migrated pages as an operator fallback and is only retired in step 7.
+
+## Instructions for the next agent
+
+1. **Verify before you build.** Do not trust this file. Re-read `salesEstimate.ts`, `salesProforma.ts`, `salesDeliveryNote.ts` and their call sites and confirm: each page imports no `usePrintOrPreview`; each builder is pure + deterministic and has a `SUITE` entry; each `ensureDocumentRecord` call passes a `kindCode` that actually exists in `document_kinds`; the projection still matches the corresponding `generate-document` fetcher field for field. Run the documents + printing suites and a typecheck as your baseline. Note the repo has a pre-existing ~118-failure baseline outside those two suites — do not treat it as caused by this work, and do not widen scope to fix it.
+2. **Then resume at step 2's NEXT item — `SalesOrders` (`sales.order_ack`) — not anywhere else.** Land it as one complete unit (builder + tests + contract entry + call-site rewrite covering print *and* preview) before touching the following page.
+3. **Keep the invariants:** only `submit-document-intent` writes `print_jobs`; only `dispatch-print-jobs` claims them; hardware access only through `hardwareClient`; every new public table ships GRANT + RLS in the same migration.
+4. **Update this file immediately after each completed step**, moving the item to DONE & VERIFIED with the evidence, and re-pointing NEXT.
 
 ## Technical notes
 
