@@ -16,13 +16,12 @@ import type { SnapshotBlob } from "./index";
 export interface PurchasesGrnItemRow {
   description: string | null;
   quantity_received: number | null;
-  sku?: string | null;
-  pack_quantity?: number | null;
-  pack_size?: number | null;
-  unit_of_measure?: string | null;
+  display_quantity?: number | null;
+  uom_snapshot?: string | null;
   packaging?: { name: string | null; qty_in_base_uom: number | null } | null;
   product?: { base_uom?: { code: string | null; name: string | null } | null } | null;
 }
+
 
 export interface PurchasesGrnVendorRow {
   name: string | null;
