@@ -87631,7 +87631,14 @@ export type Database = {
         | "adyen"
         | "verifone"
         | "square_terminal"
-      print_job_status: "queued" | "sent" | "acked" | "failed" | "abandoned"
+      print_job_status:
+        | "queued"
+        | "sent"
+        | "acked"
+        | "failed"
+        | "abandoned"
+        | "processing"
+        | "dead_letter"
       printer_workflow:
         | "receiving"
         | "shipping"
@@ -88431,7 +88438,15 @@ export const Constants = {
         "verifone",
         "square_terminal",
       ],
-      print_job_status: ["queued", "sent", "acked", "failed", "abandoned"],
+      print_job_status: [
+        "queued",
+        "sent",
+        "acked",
+        "failed",
+        "abandoned",
+        "processing",
+        "dead_letter",
+      ],
       printer_workflow: [
         "receiving",
         "shipping",
