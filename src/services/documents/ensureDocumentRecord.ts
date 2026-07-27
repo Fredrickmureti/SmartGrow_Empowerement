@@ -27,6 +27,12 @@ export interface EnsureDocumentRecordInput {
   partyId?: string | null;
   currency?: string | null;
   locale?: string | null;
+  /** Human-readable id printed on the artifact, e.g. `INV-2026-0001`. */
+  documentNumber?: string | null;
+  /** ISO date (YYYY-MM-DD) shown on the artifact. */
+  documentDate?: string | null;
+  /** Frozen render snapshot; must match the renderer's expected shape for `kindCode`. */
+  snapshot?: Record<string, unknown> | null;
   /** Freeform metadata merged into `document_records.metadata`. */
   metadata?: Record<string, unknown>;
 }
@@ -47,6 +53,9 @@ export async function ensureDocumentRecord(
     p_currency: input.currency ?? null,
     p_locale: input.locale ?? null,
     p_metadata: (input.metadata ?? {}) as never,
+    p_document_number: input.documentNumber ?? null,
+    p_document_date: input.documentDate ?? null,
+    p_snapshot: (input.snapshot ?? null) as never,
   });
 
   if (error) {
