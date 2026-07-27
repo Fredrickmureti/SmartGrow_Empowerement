@@ -24,6 +24,7 @@ import { buildSalesProformaSnapshot } from "@/services/documents/snapshots/sales
 import { buildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
 import { buildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
+import { buildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -240,6 +241,29 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         business: { id: "b", name: "Widget Co" },
         items: [],
       }),
+  },
+  {
+    file: "salesPaymentReceipt.ts",
+    run: () =>
+      buildPaymentReceiptSnapshot(
+        {
+          id: "pay-1",
+          receipt_number: "RCP-2026-0001",
+          payment_date: "2026-07-27",
+          amount: 100,
+          status: "completed",
+          currency: "KES",
+          notes: null,
+          payment_method: "cash",
+          reference: null,
+          organization_id: "o",
+          business_id: "b",
+          branch_id: null,
+          contact: { name: "Acme Ltd" },
+          business: { id: "b", name: "Widget Co", base_currency: "KES" },
+        },
+        [],
+      ),
   },
 ];
 
