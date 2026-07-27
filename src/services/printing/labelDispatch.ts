@@ -6,9 +6,9 @@
  * payload through the canonical intent resolver (`execForIntent`) under
  * the `label_printer` / `a4_printer` role. Physical printer selection
  * lives inside `resolve_device` (`document_print_policies`) — Phase 6
- * Step C retired the parallel `resolve_device_for_workflow` path and
- * the `printer_workflow_bindings` table with it. The optional
- * `workflow` field is now advisory only (kept for audit / observability).
+ * Step C retired the parallel per-workflow resolver path and the
+ * `printer_workflow_bindings` table with it. The optional `workflow`
+ * field is now advisory only (kept for audit / observability).
  *
  * If no template is registered for `templateKey`, the function returns a
  * structured `{ ok: false, error }` rather than throwing — saga handlers
