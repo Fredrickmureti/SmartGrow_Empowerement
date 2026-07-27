@@ -229,14 +229,26 @@ export default function POSReports() {
   );
 
   const handleReceiptPdf = useCallback(
-    (transaction: POSTransactionRecord) => {
-      downloadPdf(
-        "pos_receipt",
-        transaction.id,
-        `receipt-${transaction.transaction_number}`,
-      );
+    async (transaction: POSTransactionRecord) => {
+      setIsDispatchingReceipt(true);
+      try {
+        await dispatchPosReceipt({
+          transactionId: transaction.id,
+          organizationId: currentOrg?.id ?? null,
+          triggeredSource: "reprint",
+        });
+        toast.success(
+          `Receipt ${transaction.transaction_number} queued for delivery`,
+        );
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to issue receipt copy",
+        );
+      } finally {
+        setIsDispatchingReceipt(false);
+      }
     },
-    [downloadPdf],
+    [currentOrg?.id],
   );
 
   const getExportConfig = useCallback((): ExportConfig => {
