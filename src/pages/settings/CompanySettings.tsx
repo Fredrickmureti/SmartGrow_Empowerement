@@ -43,7 +43,6 @@ import {
   Receipt,
   FileText,
   Wallet,
-  Printer,
   ArrowLeft,
   Mail as MailIcon,
   Package,
