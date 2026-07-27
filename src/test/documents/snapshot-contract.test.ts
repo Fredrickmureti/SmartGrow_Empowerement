@@ -19,6 +19,8 @@ import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posRecei
 import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
 import { buildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { buildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
+import { buildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
+
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
 
