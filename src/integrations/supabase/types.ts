@@ -30934,6 +30934,198 @@ export type Database = {
           },
         ]
       }
+      output_dispatch_log: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          document_id: string | null
+          document_kind: string
+          error: string | null
+          id: string
+          intent_id: string | null
+          organization_id: string
+          resolved_targets: Json
+          scenario: string
+          status: string
+          triggered_by: string | null
+          triggered_source: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          document_kind: string
+          error?: string | null
+          id?: string
+          intent_id?: string | null
+          organization_id: string
+          resolved_targets?: Json
+          scenario?: string
+          status?: string
+          triggered_by?: string | null
+          triggered_source?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          document_kind?: string
+          error?: string | null
+          id?: string
+          intent_id?: string | null
+          organization_id?: string
+          resolved_targets?: Json
+          scenario?: string
+          status?: string
+          triggered_by?: string | null
+          triggered_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "output_dispatch_log_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_dispatch_log_intent_id_fkey"
+            columns: ["intent_id"]
+            isOneToOne: false
+            referencedRelation: "output_intents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      output_intent_targets: {
+        Row: {
+          copies: number
+          created_at: string
+          disposition: Database["public"]["Enums"]["output_disposition"]
+          hardware_role: string | null
+          id: string
+          intent_id: string
+          is_active: boolean
+          medium: Database["public"]["Enums"]["output_medium"]
+          params: Json
+          priority: number
+          template_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          copies?: number
+          created_at?: string
+          disposition: Database["public"]["Enums"]["output_disposition"]
+          hardware_role?: string | null
+          id?: string
+          intent_id: string
+          is_active?: boolean
+          medium: Database["public"]["Enums"]["output_medium"]
+          params?: Json
+          priority?: number
+          template_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          copies?: number
+          created_at?: string
+          disposition?: Database["public"]["Enums"]["output_disposition"]
+          hardware_role?: string | null
+          id?: string
+          intent_id?: string
+          is_active?: boolean
+          medium?: Database["public"]["Enums"]["output_medium"]
+          params?: Json
+          priority?: number
+          template_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "output_intent_targets_intent_id_fkey"
+            columns: ["intent_id"]
+            isOneToOne: false
+            referencedRelation: "output_intents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      output_intents: {
+        Row: {
+          branch_id: string | null
+          conditions: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          document_kind: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string | null
+          priority: number
+          scenario: string
+          scope: Database["public"]["Enums"]["output_scope"]
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_kind: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id?: string | null
+          priority?: number
+          scenario?: string
+          scope: Database["public"]["Enums"]["output_scope"]
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_kind?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string | null
+          priority?: number
+          scenario?: string
+          scope?: Database["public"]["Enums"]["output_scope"]
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "output_intents_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "output_intents_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "output_intents_document_kind_fkey"
+            columns: ["document_kind"]
+            isOneToOne: false
+            referencedRelation: "document_kinds"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       overtime_requests: {
         Row: {
           approved_at: string | null
@@ -84915,6 +85107,15 @@ export type Database = {
         Args: { p_business: string; p_org: string }
         Returns: string
       }
+      resolve_output_intent: {
+        Args: {
+          p_branch_id?: string
+          p_document_kind: string
+          p_organization_id: string
+          p_scenario?: string
+        }
+        Returns: Json
+      }
       resolve_pack_rule_schema: {
         Args: { _computation_kind: string; _rule_type: string }
         Returns: Json
@@ -87019,6 +87220,15 @@ export type Database = {
         | "location_renamed"
         | "location_closed"
       org_entity_kind: "department" | "job_position" | "work_location"
+      output_disposition:
+        | "print"
+        | "email"
+        | "download"
+        | "archive"
+        | "fiscal"
+        | "webhook"
+      output_medium: "pdf" | "escpos" | "zpl" | "html"
+      output_scope: "system" | "tenant" | "organization" | "branch"
       pack_requirement_module:
         | "core"
         | "payroll"
@@ -87797,6 +88007,16 @@ export const Constants = {
         "location_closed",
       ],
       org_entity_kind: ["department", "job_position", "work_location"],
+      output_disposition: [
+        "print",
+        "email",
+        "download",
+        "archive",
+        "fiscal",
+        "webhook",
+      ],
+      output_medium: ["pdf", "escpos", "zpl", "html"],
+      output_scope: ["system", "tenant", "organization", "branch"],
       pack_requirement_module: [
         "core",
         "payroll",
