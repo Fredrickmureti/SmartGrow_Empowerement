@@ -361,10 +361,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   // promoted to top-level fields so HardwareClient writes them to
   // hardware_exec_log.source_doc_*.
   if (printer) {
-    // `deviceAssignmentId` name retained on the payload for backwards
-    // compatibility with drivers/log consumers — the value is now the
-    // resolved `device_assignments.id`.
-    payload.deviceAssignmentId = printer.device_assignment_id;
+    // Phase 6 — the payload carries the canonical `device_assignments.id`.
     payload.deviceAssignmentId = printer.device_assignment_id;
     payload.printerScope = printer.scope;
   }
@@ -430,7 +427,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   return {
     ...res,
     templateResolved: { engine: tpl.engine, version: tpl.version, scope: tpl.scope },
-    printerResolved: printer ? { profileId: printer.device_assignment_id, scope: printer.scope } : undefined,
+    printerResolved: printer ? { deviceAssignmentId: printer.device_assignment_id, scope: printer.scope } : undefined,
     mediaResolved: media ? { profileId: media.id, widthMm: media.widthMm, heightMm: media.heightMm, dpi: media.dpi } : undefined,
   };
 }
