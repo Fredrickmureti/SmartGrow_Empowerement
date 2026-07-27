@@ -494,7 +494,7 @@ export function useHardwareProxy(
   }, [refreshStatuses, organization?.id, currentBusiness?.id, registerId]);
 
   const openDrawer = useCallback(async (pin?: 2 | 5): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'cash_drawer',
       'open',
       { pin },
@@ -504,7 +504,7 @@ export function useHardwareProxy(
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const readScale = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'scale',
       'read',
       {},
@@ -514,7 +514,7 @@ export function useHardwareProxy(
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const tareScale = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'scale',
       'tare',
       {},
@@ -524,7 +524,7 @@ export function useHardwareProxy(
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const updateDisplay = useCallback(async (data: unknown): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'customer_display',
       'update',
       data,
@@ -536,7 +536,7 @@ export function useHardwareProxy(
   const initiatePayment = useCallback(async (
     amount: number, currency: string, reference: string,
   ): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'payment_terminal',
       'initiate_payment',
       { amount, currency, reference },
@@ -546,7 +546,7 @@ export function useHardwareProxy(
   }, [refreshStatuses, dispatchViaAssignment]);
 
   const cancelPayment = useCallback(async (): Promise<DriverResult> => {
-    const result = (await dispatchViaAssignment(
+    const result = await dispatchViaAssignment(
       'payment_terminal',
       'cancel_payment',
       {},
