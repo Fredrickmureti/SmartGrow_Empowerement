@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { ChevronDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { AppSwitcher } from "@/components/navigation/AppSwitcher";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { AppDefinition } from "@/lib/apps/types";
 import type { WorkspaceNav, WorkspaceNavItem } from "./types";
