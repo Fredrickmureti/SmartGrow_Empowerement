@@ -60,7 +60,7 @@ export class EscPosCashDrawerDriver implements IDriver {
 
     // Resolve transport (same as printer — drawer uses the printer's physical connection)
     const transportOpts: ResolveTransportOptions = {
-      connectionType: connectionType as ResolveTransportOptions['connectionType'],
+      transport: (params.transport as string | undefined) ?? connectionType ?? 'local_agent',
       ipAddress: params.ipAddress as string | undefined,
       port: params.port as number | undefined,
       vendorId: params.vendorId as number | undefined,
