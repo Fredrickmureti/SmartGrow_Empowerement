@@ -56,7 +56,10 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { fetchAndBuildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useToast } from "@/hooks/use-toast";
@@ -105,10 +108,72 @@ export default function DeliveryNotes() {
     dateRange,
   });
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   const { exportDeliveryNotes } = useExport();
   const { toast } = useToast();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = usePrintOrPreview();
+  // Wave 7.2 — print goes straight down the canonical document pipeline
+  // (snapshot → document_records → output intent). The preview dialog is
+  // kept as an operator-facing fallback surface only; it is no longer the
+  // print path.
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
+
+  const handlePrint = async (note: { id: string; delivery_number: string }) => {
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing delivery notes.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const built = await fetchAndBuildSalesDeliveryNoteSnapshot(supabase, note.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.delivery_note",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "delivery_note",
+        sourceDocId: note.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Delivery note ${note.delivery_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "delivery_note" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("delivery_note");
   
@@ -559,16 +624,7 @@ export default function DeliveryNotes() {
                               <ExternalLink className="mr-2 h-4 w-4" />
                               Open Full Page
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => generateDocument("delivery_note", note.id, `Delivery Note ${note.delivery_number}`, {
-                              entityType: "delivery_note",
-                              entityId: note.id,
-                              recipientPhone: (note as any).contact?.phone ?? null,
-                              recipientName: (note as any).contact?.name ?? null,
-                              variables: {
-                                delivery_number: note.delivery_number,
-                                customer_name: (note as any).contact?.name ?? "",
-                              },
-                            })}>
+                            <DropdownMenuItem onClick={() => handlePrint(note)}>
                               <Printer className="mr-2 h-4 w-4" />
                               Print
                             </DropdownMenuItem>
