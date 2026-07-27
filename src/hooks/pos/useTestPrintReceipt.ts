@@ -65,8 +65,8 @@ export interface TestPrintArgs {
   branding?: TestPrintBranding;
   registerName?: string | null;
   cashierName?: string | null;
-  /** Optional: physical printer profile id to resolve at the server. */
-  printerProfileId?: string | null;
+  /** Optional: `device_assignments.id` to resolve at the server. */
+  deviceAssignmentId?: string | null;
   /** Optional: stream bytes to a connected printer instead of downloading. */
   printRawBytes?: (
     bytes: Uint8Array,
@@ -95,7 +95,7 @@ async function fetchTestPrintBytes(args: TestPrintArgs): Promise<TestPrintRespon
     branding: args.branding ?? {},
     registerName: args.registerName ?? null,
     cashierName: args.cashierName ?? null,
-    printerProfileId: args.printerProfileId ?? null,
+    deviceAssignmentId: args.deviceAssignmentId ?? null,
     paperFormat:
       args.receiptSettings.paper_size === "40mm"
         ? "40mm"
