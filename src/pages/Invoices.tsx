@@ -46,7 +46,6 @@ import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
 import { submitDocumentIntent } from "@/services/documents/submitIntent";
 import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
-import { supabase } from "@/integrations/supabase/client";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
