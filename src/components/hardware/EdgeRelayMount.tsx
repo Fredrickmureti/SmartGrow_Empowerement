@@ -15,9 +15,9 @@ interface WorkstationRow {
   last_seen_at: string | null;
 }
 
-// Phase 2b — reads from the unified `device_assignments` registry (rows
-// scoped to a workstation by `workstation_id`) instead of the legacy
-// `workstation_devices` table.
+// Reads from the canonical `device_assignments` registry (rows scoped
+// to a workstation by `workstation_id`). The legacy
+// `workstation_devices` mirror table was retired in Phase 6 Step C.
 interface EdgeDeviceRow {
   id: string;
   workstation_id: string;
