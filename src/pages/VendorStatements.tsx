@@ -282,9 +282,29 @@ export default function VendorStatements() {
       }
       if (!statementId) throw new Error("Could not determine statement ID for PDF generation");
 
-      // Canonical client entrypoint (ADR-0086 / D3).
-      const filename = `Vendor_Statement_${dataToUse.contact.name.replace(/[^a-zA-Z0-9]/g, "_")}_${format(new Date(), "yyyy-MM-dd")}`;
-      await downloadPdf("vendor_statement", statementId, filename);
+      // Wave 7.2 — dispatch through the unified document engine so a manual
+      // "PDF" click cannot bypass archive / disposition rules.
+      const built = await fetchAndBuildVendorStatementSnapshot(supabase, statementId);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "purchases.statement",
+        organizationId: currentOrg?.id ?? built.organizationId,
+        sourceModule: "purchases",
+        sourceDocType: "vendor_statement",
+        sourceDocId: statementId,
+        businessId: built.businessId ?? currentBusiness?.id ?? null,
+        branchId: built.branchId ?? currentBranch?.id ?? null,
+        partyKind: "supplier",
+        partyId: built.vendorId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast.success(`Statement dispatched to ${result.target_count} target(s).`);
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
