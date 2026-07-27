@@ -52,7 +52,7 @@ describe("hardware not pos-scoped (Wave 9c)", () => {
   });
 
   it("no src/ file imports the legacy POS-scoped hardware paths", () => {
-    const re = /@\/(components\/pos\/DeviceRegistryCard|hooks\/pos\/useHardwareProxy)\b/;
+    const re = /@\/(components\/pos\/DeviceRegistryCard|hooks\/pos\/useHardwareProxy|hooks\/pos\/usePrinterStatus)\b/;
     const offenders: string[] = [];
     for (const abs of walk(ROOT)) {
       const rel = relative(ROOT, abs).split("\\").join("/");
