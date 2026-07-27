@@ -63,11 +63,20 @@ describe("saga + label dispatch always pass audit linkage", () => {
     }
   });
 
-  it("labelDispatch passes audit fields on its hardwareClient.exec call", () => {
+  it("labelDispatch passes audit fields on every dispatch path", () => {
     const f = read("services/printing/labelDispatch.ts");
-    const block = f.match(/hardwareClient\.exec\(\{[\s\S]*?\}\)/)?.[0] ?? "";
-    expect(block).toMatch(/sourceDocType/);
-    expect(block).toMatch(/sourceDocId/);
-    expect(block).toMatch(/businessEventId/);
+    // Phase 5 Step B — labelDispatch no longer dispatches at a bare role.
+    // Both paths (bound assignment, resolver fallback) must carry audit.
+    expect(f).not.toMatch(/hardwareClient\.exec\(\{/);
+    const blocks = [
+      f.match(/hardwareClient\.execAssignment\(\{[\s\S]*?\n  \}\)/)?.[0] ?? "",
+      f.match(/execForIntent\(\{[\s\S]*?\n    \}\)/)?.[0] ?? "",
+    ];
+    for (const block of blocks) {
+      expect(block.length, "dispatch block not found").toBeGreaterThan(0);
+      expect(block).toMatch(/sourceDocType/);
+      expect(block).toMatch(/sourceDocId/);
+      expect(block).toMatch(/businessEventId/);
+    }
   });
 });
