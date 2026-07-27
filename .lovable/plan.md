@@ -24,22 +24,36 @@ Everything the handoff notes claimed as landed was independently confirmed again
   - `src/services/documents/snapshots/salesInvoice.ts` — sales-invoice snapshot builder + `fetchAndBuildSalesInvoiceSnapshot` Supabase fetcher matching `generate-document::fetchInvoice`'s projection (5 unit tests green). Chosen **Path A** for fork (1): each page owns its snapshot; keeps `ensure_document_record` a pure upsert.
   - `src/test/documents/snapshot-contract.test.ts` — cross-builder contract test + meta-check that every file under `snapshots/` is covered (18 tests green across 4 suites).
   - `src/components/pos/restaurant/KitchenOrderTicket.tsx` rewritten off `printClient.printKitchenTicket` onto `ensureDocumentRecord` + `submitDocumentIntent`; removed from the `no-restricted-imports` grandfather allowlist in `eslint.config.js`.
-- **Remaining Wave 7.2 callers** (~33 files): POS terminal (`PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer`, `usePrinterStatus`), all sales pages (Invoices, CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, SalesOrders, SalesReturns, CustomerPayments, CustomerStatements), purchases (Bills, PurchaseOrders, PurchaseReturns, VendorStatements + peek + record page, GRN wizard), HR (Recruitment, ContractsList, LifecycleTimeline, LegalRecipients), inventory labels (Products, useLabelPrint), cross-cutting hooks (`useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient`), hardware admin (`HardwareDevices`).
+  - **`src/pages/Invoices.tsx::handlePrintInvoice` rewritten off `printClient.print` onto `fetchAndBuildSalesInvoiceSnapshot` → `ensureDocumentRecord({ kindCode: 'sales.invoice' })` → `submitDocumentIntent({ triggeredSource: 'manual' })`.** Typecheck clean; import of `PrintClient` removed from the file. `src/pages/**` still sits inside the `no-restricted-imports` grandfather allowlist because sibling pages have not migrated yet — the allowlist entry gets removed after the last sales/purchases page moves over.
+- **Remaining Wave 7.2 callers** (~32 files): POS terminal (`PostPaymentSurface`, `HistoryWorkspace`, `POSReports`, `usePOSCashDrawer`, `usePrinterStatus`), sales pages other than Invoices (CreditNotes, DeliveryNotes, Estimates, ProformaInvoices, SalesOrders, SalesReturns, CustomerPayments, CustomerStatements), purchases (Bills, PurchaseOrders, PurchaseReturns, VendorStatements + peek + record page, GRN wizard), HR (Recruitment, ContractsList, LifecycleTimeline, LegalRecipients), inventory labels (Products, useLabelPrint), cross-cutting hooks (`useDeviceForIntent`, `BusinessSagaMount`, `PrintPreviewDialog`, `reprintClient`), hardware admin (`HardwareDevices`).
 - Waves 7.3 / 7.4 / 7.5 / 7.6 / 8 / 9 untouched.
 
-Resume point: continue **Wave 7.2** with the POS terminal (protected by the 7.1 byte-parity golden). PostPaymentSurface is the largest single call site — it also uses `printClient.renderReceiptPdfBlob`, which is a distinct chokepoint (PDF pipeline, not thermal). Fold the PDF path through `submitDocumentIntent` with `scenario='save_pdf'` OR keep it as a `document_artifacts` fetch — decide once in a follow-up ADR before the PostPaymentSurface rewrite; do not free-form it.
+**Active phase:** Wave 7.2 — mechanical page rewrite. `Invoices.tsx` is the reference implementation for the sales/purchases cluster.
 
-**Architectural forks blocking further mechanical Wave 7.2 progress (surfaced this turn, unresolved):**
+**Next task (in strict order):**
+1. `src/pages/CreditNotes.tsx` — create `snapshots/salesCreditNote.ts` (builder + supabase fetcher + unit tests + contract-suite entry) then rewrite call site. `document_kinds.code = 'sales.credit_note'` already exists.
+2. `src/pages/Estimates.tsx` — `snapshots/salesEstimate.ts` + rewrite (`sales.estimate`).
+3. `src/pages/ProformaInvoices.tsx` — `snapshots/salesProforma.ts` + rewrite (`sales.proforma`).
+4. `src/pages/SalesOrders.tsx`, `src/pages/DeliveryNotes.tsx`, `src/pages/SalesReturns.tsx`, `src/pages/CustomerPayments.tsx`, `src/pages/CustomerStatements.tsx` — same pattern for each remaining sales kind.
+5. Then purchases (`purchases.bill`, `purchases.po`, `purchases.return`, `purchases.statement`) — same pattern; may reuse `SalesInvoiceItemRow` shape as a starting point.
+6. After all sales+purchases pages migrate, **remove `src/pages/**/*.{ts,tsx}` from the `no-restricted-imports` grandfather allowlist in `eslint.config.js`** so the ratchet gets tighter.
+7. Then POS terminal (`PostPaymentSurface` etc.) — protected by Wave 7.1 golden.
 
-1. **Sales/purchases page callers via `usePrintOrPreview`** (~11 pages, funnel through one hook). Each call passes only `(documentType, documentId)`. Migrating requires either:
-   - **(a) client-side snapshot builders per `document_kinds.code`** (sales.invoice, sales.credit_note, sales.delivery_note, sales.estimate, sales.proforma, sales.order_ack, sales.payment_receipt, sales.statement, purchases.bill, purchases.po) — 10 new builders + goldens. This is real Wave 7.2 work but non-trivial (each pulls party, line items, tax rows, fiscal fields, currency).
-   - **(b) extend `ensure_document_record` server-side** to materialize the snapshot from source rows when `p_snapshot IS NULL`, using the same fetchers that today live in `generate-document`. This preserves the mechanical-rewrite scope of Wave 7.2 (call sites become 2 lines) at the cost of coupling the RPC to per-module SQL.
-   - Rewriting `usePrintOrPreview` internally to call the new pipeline is a **one-line-per-call-site** migration IF (b) is taken. If (a) is taken, each page rewrites its own snapshot assembly.
-   - **Decision needed before proceeding.** Do not attempt page-by-page migration under path (a) without first landing at least the sales.invoice snapshot builder + golden.
+**Architectural forks still unresolved:**
+
+1. ~~**Path A vs B for page migrations.**~~ **Resolved this turn: Path A** (per-kind client-side snapshot builders). `salesInvoice.ts` is the reference implementation.
 2. **`usePOSCashDrawer` (drawer_slip)** — there is no `document_kinds.code = 'pos.drawer_slip'` row and no renderer for it in the new Wave 3 engine; today the ONLY renderer lives in `generate-document`'s short-circuit calling `_shared/escpos/drawer.ts`. Migration requires (i) inserting the kind, (ii) porting `buildDrawerSlipEscPos` into `supabase/functions/_shared/rendering/renderers/`, (iii) registering it in the coverage matrix, (iv) rewriting `src/test/printing/drawer-slip-wiring.test.ts` to lock the new seam, (v) building a snapshot from the mutation inputs (all fields are already in scope). Not blocked — pure work — but crosses into Wave 7.3 (renderer coverage) not Wave 7.2 (mechanical).
 3. **`reprintClient.dispatchReceiptReprint` / `dispatchLabelReprint`** — the "reprint audit" semantics are currently enforced by `execForIntent(..., isReprint: true)` at the hardware exec layer. `submitDocumentIntent({ triggeredSource: 'reprint' })` records the source at the intent layer but the downstream worker does NOT currently propagate `isReprint` onto the `print_jobs` → `hardware_command_log` chain. Need to confirm end-to-end that a Wave 5 reprint still lands a `hardware_command_log.is_reprint = true` row before folding this in, or the audit trail regresses.
 
-**Recommendation for next turn:** land the sales.invoice snapshot builder + golden (unblocks path (a) for the 11-page page cluster) OR resolve fork (1) via a written ADR choosing (b). Either is a discrete deliverable; do not attempt more mechanical page rewrites until one lands.
+**Instructions for the next agent:**
+- BEFORE writing any code, verify the previous slice actually landed correctly:
+  1. `bunx vitest run src/test/documents/` — MUST be 18/18 green with `sales-invoice-snapshot` and `snapshot-contract` both passing.
+  2. `bunx tsgo --noEmit -p tsconfig.app.json 2>&1 | rg -i 'invoices\.tsx|salesInvoice'` — MUST be empty.
+  3. `rg -n 'printClient' src/pages/Invoices.tsx` — MUST be empty (no residual PrintClient import).
+  4. `rg -n 'sales.invoice' supabase/migrations` OR the live `document_kinds` table — confirm the kind code still exists.
+- Only after verification passes, resume from **Next task step 1 (`CreditNotes.tsx`)**. Follow the salesInvoice.ts pattern exactly: pure `buildXSnapshot(row)` + `fetchAndBuildXSnapshot(supabase, id)` + unit test file + SUITE entry in `snapshot-contract.test.ts`. Do NOT skip any page to reach POS/hardware work — the roadmap is chronological.
+- Do NOT delete the `src/pages/**` allowlist entry until ALL sales+purchases pages have migrated; removing it prematurely will break sibling page builds.
+
 
 
 
