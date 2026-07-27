@@ -18,7 +18,7 @@
  */
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { resolveDeviceForIntent } from '@/hooks/useDeviceForIntent';
-import type { DeviceRole } from '@/services/hardware/types';
+import type { DeviceRole } from '@/services/hardware/drivers/DriverInterface';
 
 export interface ExecForIntentInput {
   /** `PrintIntent` (receipt | kitchen_ticket | label | a4_document | packing_slip) or a bare role. */
