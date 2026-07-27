@@ -762,7 +762,7 @@ export default function CustomerStatements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  const res = await printClient.downloadExport({
+                                  const res = await downloadExport({
                                     documentType: "customer_statement",
                                     documentId: statement.id,
                                     format: "csv",
