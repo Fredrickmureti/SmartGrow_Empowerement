@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
 import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
+import { buildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
 
