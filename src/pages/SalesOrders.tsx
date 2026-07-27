@@ -63,8 +63,10 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 
@@ -92,12 +94,68 @@ export default function SalesOrders() {
   const { formatCurrency, baseCurrency } = useCurrency();
   const { exportSalesOrders } = useExport();
   const { toast: shadcnToast } = useToast();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, isGeneratingPdf, generateDocument } = usePrintOrPreview();
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   const { contacts } = useContacts();
   const { products } = useProducts();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+
+  const handlePrint = useCallback(async (order: { id: string; so_number: string }) => {
+    if (!currentBusiness?.id) {
+      shadcnToast({
+        title: "No company selected",
+        description: "Pick a company before printing sales orders.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      shadcnToast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const built = await fetchAndBuildSalesOrderSnapshot(supabase, order.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.order_ack",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "sales_order",
+        sourceDocId: order.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      shadcnToast({
+        title: "Print dispatched",
+        description: `Sales order ${order.so_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      shadcnToast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  }, [currentBusiness?.id, currentOrg?.id, shadcnToast]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -698,17 +756,7 @@ export default function SalesOrders() {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
                   deleteSalesOrder(order.id);
                 }}
-                onPrint={(order) => generateDocument("sales_order", order.id, `Sales Order ${order.so_number}`, {
-                  entityType: "sales_order",
-                  entityId: order.id,
-                  recipientPhone: (order as any).contact?.phone ?? null,
-                  recipientName: (order as any).contact?.name ?? null,
-                  variables: {
-                    so_number: order.so_number,
-                    amount: String((order as any).total ?? 0),
-                    customer_name: (order as any).contact?.name ?? "",
-                  },
-                })}
+                onPrint={(order) => { void handlePrint(order); }}
                 onSendEmail={(order) => {
                   const contact = contacts.find(c => c.id === order.contact_id);
                   setEmailDocument({

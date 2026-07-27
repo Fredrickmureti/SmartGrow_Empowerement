@@ -22,6 +22,8 @@ import { buildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/sal
 import { buildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 import { buildSalesProformaSnapshot } from "@/services/documents/snapshots/salesProforma";
 import { buildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
+import { buildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
+import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -190,6 +192,52 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         is_backorder: false,
         contact: { name: "Acme Ltd" },
         business: { id: "b", name: "Widget Co", base_currency: "KES" },
+        items: [],
+      }),
+  },
+  {
+    file: "salesOrder.ts",
+    run: () =>
+      buildSalesOrderSnapshot({
+        id: "so-1",
+        so_number: "SO-2026-0001",
+        status: "confirmed",
+        order_date: "2026-07-27",
+        expected_date: null,
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        shipping_amount: 0,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        shipping_address: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        items: [],
+      }),
+  },
+  {
+    file: "salesReturn.ts",
+    run: () =>
+      buildSalesReturnSnapshot({
+        id: "sr-1",
+        return_number: "SR-2026-0001",
+        status: "approved",
+        return_date: "2026-07-27",
+        subtotal: 100,
+        tax_amount: 16,
+        total: 116,
+        currency: "KES",
+        reason: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
         items: [],
       }),
   },

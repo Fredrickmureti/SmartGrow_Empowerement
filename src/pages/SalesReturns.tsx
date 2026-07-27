@@ -49,8 +49,15 @@ import { Plus, Search, MoreHorizontal, CheckCircle, XCircle, Loader2, RotateCcw,
 import { format } from "date-fns";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { fetchAndBuildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { supabase } from "@/integrations/supabase/client";
+import { normalizeError } from "@/services/resilience";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useToast } from "@/hooks/use-toast";
+import { useCallback } from "react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -113,11 +120,61 @@ export default function SalesReturns() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const { toast: shadcnToast } = useToast();
   const { salesReturns, isLoading, deleteSalesReturn, approveReturn, rejectReturn } = useSalesReturns();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { contacts } = useContacts();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
-  const { printPreviewOpen, setPrintPreviewOpen, printPreviewTitle, printDocumentType, printDocumentId, printCommunication, generateDocument } = usePrintOrPreview();
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle] = useState("");
+  const [printDocumentType] = useState("");
+  const [printDocumentId] = useState("");
+  const [printCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
+
+  const handlePrint = useCallback(async (ret: { id: string; return_number: string }) => {
+    if (!currentBusiness?.id || !currentOrg?.id) {
+      shadcnToast({
+        title: "Cannot print",
+        description: "Pick an organization and company before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const built = await fetchAndBuildSalesReturnSnapshot(supabase, ret.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.return",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "sales_return",
+        sourceDocId: ret.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      shadcnToast({
+        title: "Print dispatched",
+        description: `Sales return ${ret.return_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      shadcnToast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  }, [currentBusiness?.id, currentOrg?.id, shadcnToast]);
+
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "sales_return" });
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters } = useCustomFieldFiltering("sales_return");
   const [searchQuery, setSearchQuery] = useState("");
@@ -441,20 +498,7 @@ export default function SalesReturns() {
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Open Full Page
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                const contact = contacts.find((c) => c.id === ret.contact_id);
-                                generateDocument("sales_return", ret.id, `Sales Return ${ret.return_number}`, {
-                                  entityType: "sales_return",
-                                  entityId: ret.id,
-                                  recipientPhone: contact?.phone ?? null,
-                                  recipientName: contact?.name ?? ret.contact?.name ?? null,
-                                  variables: {
-                                    return_number: ret.return_number,
-                                    amount: String((ret as any).total ?? 0),
-                                    customer_name: contact?.name ?? ret.contact?.name ?? "",
-                                  },
-                                });
-                              }}>
+                              <DropdownMenuItem onClick={() => { void handlePrint(ret); }}>
                                 <Printer className="mr-2 h-4 w-4" />
                                 Print A4
                               </DropdownMenuItem>
