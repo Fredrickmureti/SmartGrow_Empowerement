@@ -57,7 +57,7 @@ interface RowState {
   branch_scope: "business" | string; // "business" or branch id
 }
 
-export function PrintingSettings() {
+export default function PrintPoliciesEditor() {
   const { currentBusiness } = useBusinesses();
   const { branches } = useBranch();
   const permissions = usePermissions();
