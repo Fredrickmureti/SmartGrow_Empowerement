@@ -216,7 +216,7 @@ export default tseslint.config(
       "src/hooks/pos/**/*.{ts,tsx}",
       "src/hooks/usePrintOrPreview.ts",
       "src/hooks/useDeviceForIntent.ts",
-      "src/hooks/inventory/useLabelPrint.ts",
+      
       "src/services/printing/reprintClient.ts",
       "src/test/**/*.{ts,tsx}",
     ],
