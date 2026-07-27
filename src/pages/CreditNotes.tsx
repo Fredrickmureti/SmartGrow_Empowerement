@@ -73,8 +73,6 @@ import {
 import { useExport } from "@/hooks/useExport";
 import { format } from "date-fns";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
 import { usePeekParam } from "@/features/sales/record";
@@ -137,15 +135,6 @@ export default function CreditNotes() {
   // Issue confirmation dialog
   const [issueConfirmCN, setIssueConfirmCN] = useState<CreditNote | null>(null);
 
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
 
   // Handle ?action=create from global create menu or invoice dropdown —
   // redirect to the new create route with any pre-fill params.
@@ -483,16 +472,6 @@ export default function CreditNotes() {
         open={showEmailDialog}
         onOpenChange={setShowEmailDialog}
         document={emailDocument}
-      />
-
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        filename={`credit-note-${printPreviewTitle.replace('Credit Note ', '')}`}
-        communication={printCommunication}
       />
 
 
