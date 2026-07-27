@@ -624,16 +624,7 @@ export default function DeliveryNotes() {
                               <ExternalLink className="mr-2 h-4 w-4" />
                               Open Full Page
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => generateDocument("delivery_note", note.id, `Delivery Note ${note.delivery_number}`, {
-                              entityType: "delivery_note",
-                              entityId: note.id,
-                              recipientPhone: (note as any).contact?.phone ?? null,
-                              recipientName: (note as any).contact?.name ?? null,
-                              variables: {
-                                delivery_number: note.delivery_number,
-                                customer_name: (note as any).contact?.name ?? "",
-                              },
-                            })}>
+                            <DropdownMenuItem onClick={() => handlePrint(note)}>
                               <Printer className="mr-2 h-4 w-4" />
                               Print
                             </DropdownMenuItem>
