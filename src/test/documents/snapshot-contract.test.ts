@@ -112,8 +112,32 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         business: { id: "b", name: "Widget Co" },
         credit_note_items: [],
       }),
+  {
+    file: "salesEstimate.ts",
+    run: () =>
+      buildSalesEstimateSnapshot({
+        id: "est-1",
+        estimate_number: "EST-2026-0001",
+        status: "sent",
+        issue_date: "2026-07-27",
+        expiry_date: "2026-08-10",
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        terms: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        estimate_items: [],
+      }),
   },
 ];
+
 
 describe("snapshot builder contract", () => {
   for (const entry of SUITE) {
