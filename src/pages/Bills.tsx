@@ -18,9 +18,11 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { queryKeys } from "@/lib/queryKeys";
 
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBranches } from "@/hooks/useBranches";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DynamicViewsRenderer } from "@/components/common/DynamicViewsRenderer";
 import { CustomFieldFilters } from "@/components/common/CustomFieldFilters";
