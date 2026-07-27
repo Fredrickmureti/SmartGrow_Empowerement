@@ -714,12 +714,10 @@ export default function POSSettings() {
                             <span className="font-medium">
                               {resolvedReceiptDevice.display_name ?? `${resolvedReceiptDevice.role} (${resolvedReceiptDevice.transport})`}
                             </span>
-                          ) : resolvedReceiptProfile ? (
-                            <span className="font-medium text-amber-600 dark:text-amber-400">
-                              Profile "{resolvedReceiptProfile.label}" has no bound device — install one in Hardware → Devices.
-                            </span>
                           ) : (
-                            <span className="text-muted-foreground">No printer profile resolved.</span>
+                            <span className="font-medium text-amber-600 dark:text-amber-400">
+                              The configured device no longer exists — bind one in Hardware → Devices.
+                            </span>
                           )}
                         </div>
                       ) : null}
