@@ -58,7 +58,7 @@ export interface LabelDispatchInput {
    * Phase 2b: `printer_profiles` was consolidated into
    * `device_assignments`; the "printer" columns (dpi, supported_media_ids,
    * paper_size, command_language …) now live directly on the assignment
-   * row selected by `resolve_device_for_workflow`.
+   * row selected by `resolve_device` (via `document_print_policies`).
    */
   mediaProfileId?: string | null;
 }
