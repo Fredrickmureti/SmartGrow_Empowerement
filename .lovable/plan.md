@@ -1,93 +1,67 @@
-# Hardware Platform Consolidation — Verification Result & Completion Plan
 
-## Phase 0 — Verification of the previous engineer's claims (done, this turn)
+# Hardware Platform Consolidation — Verification & Phase 6 Step C Completion
 
-I re-checked every claim in `.lovable/plan.md` against the tree and the live database rather than trusting the log.
+## Phase 0 — Independent verification of the prior engineer's claims
 
-**Confirmed true:**
-- All 9 hardware architecture guards pass: 39/39 (`print-client-execAssignment`, `useHardwareProxy-execAssignment`, `useInventoryLabelPrinter-execAssignment`, `inventory-label-printer-binding`, `pos-receipt-resolver`, `intent-to-role-parity`, `transport-router-matrix`, `role-vocabulary`, `generate-document-resolver`).
-- `execAny(` appears only inside `HardwareClient.ts` — no external consumer of the role-only seam.
-- `/platform/hardware/*` is a full admin app (devices, wizard, capability, media, label templates, policies, print queue, diagnostics, topology).
-- Legacy shim calls outside the resolver-outage fallback closures are exactly the five sites the handoff listed.
+Re-checked `.lovable/plan.md` against tree and DB. All Phase 5B/5C/6A/6B claims verified against source:
 
-**Confirmed still pending (claims of "remaining" were accurate, not understated):**
-- `PrintClient.printReceiptThermal` (`PrintClient.ts:519`) still bypasses the chokepoint; caller `PostPaymentSurface.tsx:208`.
-- `labelDispatch.ts:387`, `reprintClient.ts:78,89`, `SharedCommandQueueWorker.ts:180`, `BusinessSagaMount.tsx:273` still use `hardwareClient.exec({role,…})`.
-- `PrintingSettings.tsx` (351 lines) still ships and still mounts `PrinterProfilesCard`.
-- Legacy DB objects still exist: `printer_profiles`, `printer_workflow_bindings`, `workstation_devices`, `device_assignments.source_config_id`.
+- Confirmed removed: `printReceiptThermal`, all 11 role-only shims in `HardwareClient`, `usePrinterProfiles`, `PrinterProfilesCard`, `legacyPrinterProfileFieldMap`. `execAny(` appears only inside `HardwareClient.ts`; every consumer routes via `execForIntent.ts` → `execAssignment`.
+- Confirmed dropped in DB: `printer_profiles`, `printer_workflow_bindings`, `device_assignments.source_config_id`, `print_jobs.printer_profile_id`.
+- Residual `printer_profiles` string hits are documentation/comments and test fixtures only — not live code paths.
 
-**Correction to the plan based on live DB inspection (previous engineer was wrong here):**
-- `SharedCommandQueueWorker` was listed as "needs a schema change (`assignment_id` column on queue)". It does not — `hardware_command_queue` **already has `device_assignment_id`**. Only the claim RPC's return shape and the worker's row mapping need to carry it. This removes a migration from the plan.
-- Migration risk is negligible: `printer_profiles` = 1 row, `printer_workflow_bindings` = 0 rows, `workstation_devices` = 1 row, `device_assignments.source_config_id` non-null = 0 rows. One `document_print_policies` row still points at `printer_profile_id` with no `device_assignment_id` — that single row needs a data backfill before the column drop, otherwise its policy silently loses its destination.
+Pending items on the prior plan are all still open and correctly scoped. Nothing to redo — resume at Phase 6 Step C.
 
-Architecture direction is correct and is not being re-opened: intent → `resolve_device` → `DeviceAssignment` → `TransportRouter` → driver.
+## Phase 6 Step C — final sweep (this plan)
 
-## Phase 5 Step B — finish consumer migration (in order)
+Four ordered work packages. Guard tests (`src/test/hardware`, `src/test/printing`, `src/test/architecture/*hardware*`, `*print*`, `host-state-single-owner`, `transport-decision-single-owner`) must stay green after each package.
 
-1. **Kill `printReceiptThermal`.** Delete the method from `PrintClient.ts`; migrate `PostPaymentSurface.tsx` to `printClient.print({ intent: 'pos_receipt', organizationId, businessId, branchId, … })`. Update `pos-renderer-ownership` and `pos-receipt-renderer-contract` guards (they currently *require* the method name) to require the chokepoint call instead.
-2. **`labelDispatch.ts:387`** — resolve the assignment, dispatch via `execAssignment`.
-3. **`reprintClient.ts:78,89`** — documents already carry `businessId`; straight rewrite to `execAssignment`.
-4. **`SharedCommandQueueWorker.ts:180`** — return `device_assignment_id` from `claim_next_hardware_command` (function-only migration, no table change) and dispatch with `execAssignment` so the drain never re-resolves a decision that was already made at enqueue time.
-5. **`BusinessSagaMount.tsx:273`** — event carries `businessId`; direct rewrite.
-6. **Host-state consolidation** — peel remaining inline `ipcAvailable()` reads in `HardwareClient.ts` onto `hostRouter.*`; add an arch guard that only `HostRouter.ts` / `TransportRouter.ts` may read `isElectron()`, `window.pos.hardware.exec`, `navigator.usb`, `navigator.hid`.
+### 1. Retire `workstation_devices`
 
-## Phase 5 Step C — delete the legacy transport seam
+Live readers (verified): `src/components/hardware/EdgeRelayMount.tsx`, `supabase/functions/edge/routes/workstation-manifest.ts`, mounted from `src/App.tsx:283`. `useInventoryLabelPrinter.ts` reference is a historical comment.
 
-Only once no consumer remains outside the outage-fallback closures:
-- Invert primacy in `HardwareClient.ts`: `execAssignment` becomes the implementation, `execAny` is deleted.
-- Delete the 11 role-only shims (`printReceipt`, `printKitchenOrder`, `printRawBytes`, `printLabelBytes`, `openDrawer`, `readScale`, `tareScale`, `updateCustomerDisplay`, `initiatePayment`, `cancelPayment`, `exec`) and the fallback closures that call them. Resolver outage becomes an explicit, surfaced error (an ERP must not silently print to a non-deterministic device) rather than a hidden legacy path — this is the mandate's "no hidden fallbacks" rule.
-- Delete `LocalAgentTransport.ts` and the legacy branch in `TransportAdapter.resolveTransport()`. Keep `AgentClient.ts` (ADR-0037).
+- Delete `EdgeRelayMount.tsx` and remove its mount from `src/App.tsx`. `ElectronHydratorMount` already hydrates `device_assignments` — the parallel workstation-based hydration is the exact "hidden legacy path" the mandate forbids.
+- Delete `supabase/functions/edge/routes/workstation-manifest.ts` and any route table entry.
+- Migration: `DROP TABLE public.workstation_devices` (1 row per prior audit; no FK dependents remain after prior phases).
+- Regenerate `src/integrations/supabase/types.ts`.
+- Update the comment in `useInventoryLabelPrinter.ts` for accuracy.
 
-## Phase 6 — legacy removal
+### 2. Delete workflow-binding legacy (`resolve_device_for_workflow`)
 
-Data first, then drops, in one migration:
-1. Backfill the one `document_print_policies` row: set `device_assignment_id` from the matching assignment for its `printer_profile_id`; if no match exists, null the policy's destination so it falls back to the system default rather than pointing at a dropped table.
-2. Drop `resolve_workflow_printer`, `resolve_device_for_workflow`, then `printer_workflow_bindings`, `printer_profiles`, `workstation_devices`, then `device_assignments.source_config_id` and `document_print_policies.printer_profile_id`.
-3. Code sweep: delete `useDeviceForWorkflow.ts`, `usePrinterProfiles.ts`, `PrinterProfilesCard.tsx`, `WorkflowBindingsCard.tsx`, `PrintingSettings.tsx` + its redirect stub, the Printing tab trigger in `CompanySettings.tsx`, `legacyPrinterProfileFieldMap.ts`, and `EdgeRelayMount` / `workstation-manifest` references to `workstation_devices`.
-4. Strip the `.or('id.eq.x,source_config_id.eq.x')` fan-outs in `useResolvedDeviceForDocument`, `PrinterProfilePaperMismatchAlert`, and `generate-document` (preview override + `profile_pin` branch).
-5. Regenerate `src/integrations/supabase/types.ts`; shrink the `no-hardware-client-outside-printclient` allow-list to `src/services/printing/**` + `src/services/hardware/transport/**`.
+Readers: `src/hooks/useDeviceForWorkflow.ts`, `src/components/hardware/WorkflowBindingsCard.tsx` (mounted in `HardwareDevices.tsx:500`), `src/services/printing/labelDispatch.ts:246`.
 
-## Added to the plan (gaps the previous engineer did not record)
+The canonical binding surface is `document_print_policies` edited at `/platform/hardware/policies`. `printer_workflow_bindings` was already dropped, so `resolve_device_for_workflow` is a shell over an empty table.
 
-- **Policy destination backfill** (above) — the plan's Phase 6 was a pure `DROP` and would have orphaned a live policy row.
-- **Two guards actively pin legacy** (`pos-renderer-ownership`, `pos-receipt-renderer-contract` assert `printReceiptThermal` exists). They must be rewritten in the same commit as step 1, or the correct change trips them.
-- **`device_workflow_bindings` vs `printer_workflow_bindings`** — both tables exist. Confirm the new one is the sole binding source and that no reader still hits the legacy one before dropping it.
-- **Failure semantics** — define what happens when `resolve_device` returns nothing: a named, user-visible "no device bound for this intent" outcome with a deep link to `/platform/hardware/devices`, not a silent role-based guess. This is what makes printing deterministic and is the root cause of the "random no receipt printer mapped" symptom.
+- `labelDispatch.ts`: remove the `resolve_device_for_workflow` RPC branch entirely; intent → `resolveDeviceForIntent` (same seam every other consumer uses) is the sole path. Label dispatch already carries `intent`, `businessId`, `branchId`.
+- Delete `useDeviceForWorkflow.ts`, `WorkflowBindingsCard.tsx`, and its import + usage in `HardwareDevices.tsx`.
+- Migration: `DROP FUNCTION resolve_device_for_workflow`, `DROP FUNCTION resolve_workflow_printer` (if either still exists).
+- Regenerate types.
 
-## Verification at each step
+### 3. Close the CompanySettings "Printing" tab
 
-- `bunx vitest run src/test/architecture src/test/hardware src/test/printing` after every step; the 9 hardware guards must stay green.
-- `bunx tsgo --noEmit -p tsconfig.app.json` clean on touched files.
-- Definition of done (unchanged from the prior plan, now enforceable): `rg 'printer_profiles|printer_workflow_bindings|workstation_devices|resolve_workflow_printer|source_config_id|execAny\('` over `src` + `supabase` returns zero hits outside archived migrations; `hardwareClient.*` grep hits only `src/services/printing/**`; every printable intent routes through `printClient` → `resolve_device` → `TransportRouter` → driver with exactly one `hardware.route.decision` log.
+`src/pages/settings/CompanySettings.tsx` still ships the `printing` `TabsTrigger` + `TabsContent` redirect stub. Canonical home is `/platform/hardware/policies`.
+
+- Remove the `printing` `TabsTrigger` and `TabsContent value="printing">` block.
+- If `?tab=printing` arrives in the URL, redirect (via `<Navigate>` or `useEffect`) to `/platform/hardware/policies` so bookmarks don't 404.
+- Rename `src/components/settings/PrintingSettings.tsx` → `src/apps/platform/hardware/PrintPoliciesEditor.tsx` and inline it into `HardwarePolicies.tsx` as its child (drops the last cross-tree import from `components/settings/` into the hardware app).
+- Remove the now-orphan `Printer` icon import + `PrintingSettings` import cleanup in `CompanySettings.tsx`.
+
+### 4. Shrink the hardware chokepoint allow-list
+
+`hardware-single-chokepoint.test.ts` currently permits any file under `src/services/hardware/**` to reach `hardwareClient`. Post-migration the only sanctioned callers are `src/services/printing/**` (dispatch layer) and `src/services/hardware/{HardwareClient,execForIntent,transport}.**` (internal wiring).
+
+- Rewrite the allow-list to that whitelist.
+- Run `rg 'hardwareClient\.' src` and fold any surviving legit call site into the whitelist explicitly; any hit not in the whitelist gets migrated to `execForIntent` in the same commit.
+
+### 5. Final grep / definition of done
+
+```
+rg 'workstation_devices|resolve_workflow_printer|resolve_device_for_workflow|source_config_id|execAny\('   \
+   src supabase/functions
+```
+must return only doc/comment lines under `docs/` and archived SQL under `supabase/migrations/`. `bunx tsgo --noEmit -p tsconfig.app.json` clean. `bunx vitest run src/test/hardware src/test/printing src/test/architecture` — the 9 hardware guards + `host-state-single-owner`, `transport-decision-single-owner`, `print-policies-canonical-home` all green.
+
+Pre-existing repo-wide failures unrelated to hardware (payroll/HR/inventory guards, `no-printservice-shim`) stay out of scope per the prior handoff — they are not caused by this track and folding them in would violate the "don't start unrelated modules" rule.
 
 ## Out of scope
 
-Byte-level driver rewrites, relay protocol changes, `document_templates` / `label_templates` schema changes beyond the FK re-point, attendance/biometric flows beyond role-vocabulary parity.
-
----
-
-# STATUS — updated end of Phase 6 Step A/B
-
-## Fully implemented and verified
-- **Phase 5 Step B (consumer migration)** — `printReceiptThermal` deleted; `PostPaymentSurface`, `labelDispatch`, `reprintClient`, `SharedCommandQueueWorker`, `BusinessSagaMount`, `useHardwareProxy`, `useInventoryLabelPrinter` all dispatch via `resolveDeviceForIntent` → `execAssignment` (canonical seam: `src/services/hardware/execForIntent.ts`).
-- **Host-state consolidation** — `hostBridge<T>()` in `HostRouter.ts` is the only sanctioned bridge access; guard `src/test/architecture/host-state-single-owner.test.ts`.
-- **Phase 5 Step C** — all 11 role-only shims removed from `HardwareClient.ts`; `resolveTransport()` now delegates to `TransportRouter.route()`; guard `transport-decision-single-owner.test.ts`.
-- **Phase 6 Step A/B** — legacy printer-profile model removed end to end:
-  - Deleted `usePrinterProfiles.ts`, `PrinterProfilesCard.tsx`, `legacyPrinterProfileFieldMap.ts`, `legacy-printer-profile-field-parity.test.ts`, `printer-profile-hardware-shape.test.ts`.
-  - `PrintClient`, `labelDispatch`, `useDeviceForWorkflow`, `ReceiptSettings`, `useTestPrintReceipt`, `generate-document`, `_shared/printing/resolvePolicy.ts` all use `device_assignment_id`.
-  - Migration applied: policy backfill to intent routing, `print_jobs.printer_profile_id` → `device_assignment_id`, `print_policies_resolve` / `print_job_insert` RPCs updated, `printer_profiles` + `printer_workflow_bindings` dropped, `device_assignments.source_config_id` dropped.
-  - Verified: `tsgo --noEmit` clean; `src/test/printing` + printing/hardware architecture guards 159/159 green.
-
-## Currently active phase
-Phase 6 — Step C (final sweep).
-
-## Pending
-1. `workstation_devices` table + `EdgeRelayMount` / `workstation-manifest` readers — still present, not yet retired.
-2. `PrintingSettings.tsx` redirect stub + Printing tab trigger in `CompanySettings.tsx` — decide keep vs delete now that it renders assignments.
-3. Drop `resolve_workflow_printer` / `resolve_device_for_workflow` RPCs if no reader remains.
-4. Shrink the `no-hardware-client-outside-printclient` allow-list to `src/services/printing/**` + `src/services/hardware/transport/**`.
-5. Pre-existing, unrelated to this track: `no-printservice-shim.test.ts` fails, plus ~110 repo-wide architecture guards failing in payroll/HR/inventory areas (not caused by this work — do not fold them into this roadmap).
-
-## Instructions for the next agent
-1. **Verify first.** Re-run `npx tsgo --noEmit` and `npx vitest run src/test/printing src/test/hardware src/test/architecture/print-policies-canonical-home.test.ts src/test/architecture/generate-document-resolver.test.ts src/test/architecture/host-state-single-owner.test.ts src/test/architecture/transport-decision-single-owner.test.ts`. Then grep: `rg 'printer_profiles|printer_workflow_bindings|source_config_id|execAny\(' src supabase/functions` must return zero hits. If any of this fails, fix it before adding new work.
-2. **Then resume at Phase 6 Step C pending item 1** (`workstation_devices` retirement), working the pending list in order. Do not start unrelated modules; do not leave a partially migrated surface.
+Byte-level driver rewrites, relay protocol changes, `document_templates` / `label_templates` schema changes beyond FK re-points, attendance/biometric flows. No new architecture is being introduced — this closes the migration the prior engineer opened.
