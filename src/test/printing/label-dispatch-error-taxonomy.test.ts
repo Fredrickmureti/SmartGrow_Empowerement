@@ -85,12 +85,18 @@ describe('labelDispatch · error taxonomy (ADR-0087 · Phase 13)', () => {
     }
   });
 
-  it('mentions the workflow name in the sharpened error so operators can locate the binding', () => {
-    // The sharpened error includes the workflow key so an operator on the
-    // Platform → Hardware page knows which workflow binding is missing.
+  it('names the failing scope + remediation surface in the sharpened error', () => {
+    // Phase 6 Step C retired the per-workflow printer resolver from
+    // labelDispatch (the physical device is chosen inside execForIntent via
+    // document_print_policies + resolve_device). The sharpened error must
+    // therefore report the scope that *was* resolved here — branch and media
+    // — plus the admin surface where the missing binding is fixed.
     const sharpIdx = SRC.indexOf('exists for this organization but could not be resolved');
-    const window = SRC.slice(sharpIdx, sharpIdx + 400);
-    expect(window).toMatch(/workflow/);
-    expect(window).toMatch(/input\.workflow/);
+    const window = SRC.slice(sharpIdx, sharpIdx + 500);
+    expect(window).toMatch(/branch=/);
+    expect(window).toMatch(/media=/);
+    expect(window).toMatch(/Platform → Hardware/);
+    expect(window).toMatch(/input\.templateKey/);
   });
 });
+
