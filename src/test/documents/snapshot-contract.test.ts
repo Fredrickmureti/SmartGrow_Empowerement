@@ -26,6 +26,7 @@ import { buildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrd
 import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { buildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { buildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
+import { buildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -292,6 +293,31 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         payments: [],
         creditNotes: [],
         now: new Date("2026-07-27T00:00:00Z"),
+      }),
+  },
+  {
+    file: "purchasesBill.ts",
+    run: () =>
+      buildPurchasesBillSnapshot({
+        id: "bill-1",
+        bill_number: "BILL-2026-0001",
+        status: "received",
+        bill_date: "2026-07-27",
+        due_date: "2026-08-27",
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        amount_paid: 0,
+        currency: "KES",
+        notes: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        vendor_id: "v-1",
+        vendor: { name: "Widgets Supplier Ltd" },
+        business: { id: "b", name: "Acme Buyer" },
+        items: [],
       }),
   },
 ];
