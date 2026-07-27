@@ -1,19 +1,21 @@
 /**
- * Transport Layer — Exports and transport resolution.
+ * Transport Layer — Exports and transport instantiation.
  *
- * `resolveTransport()` is the SINGLE place where the runtime decides
- * which transport to use. All `isPrivateIP` logic lives here.
- * No driver, service, or UI component should duplicate this logic.
+ * Wave 9d Phase 5 Step C: the transport *decision* is owned exclusively by
+ * `TransportRouter.route()`, which is a pure function of the persisted
+ * `device_assignments.transport` value plus host capabilities. This module
+ * no longer decides anything from `connectionType`/IP shape — it only turns
+ * a `RouteDecision` into a concrete `ITransport` instance.
  */
 
 export type { ITransport, TransportResult, NetworkTarget, USBTarget } from './TransportAdapter';
 export { LocalAgentNetworkTransport, LocalAgentUSBTransport } from './LocalAgentTransport';
 export { WebUSBTransport } from './WebUSBTransport';
 
-import { isElectron } from '@/lib/environment';
 import type { ITransport } from './TransportAdapter';
 import { LocalAgentNetworkTransport, LocalAgentUSBTransport } from './LocalAgentTransport';
 import { WebUSBTransport } from './WebUSBTransport';
+import { routeWithRuntimeHost, type AssignmentTransport } from './TransportRouter';
 
 // ── Private IP detection (single source of truth) ──
 
@@ -32,10 +34,16 @@ export function isPrivateIP(ip: string): boolean {
   return false;
 }
 
-// ── Transport resolution ──
+// ── Transport instantiation ──
 
 export interface ResolveTransportOptions {
-  connectionType: 'network' | 'usb' | 'serial' | 'bluetooth';
+  /**
+   * The persisted `device_assignments.transport` intent. Legacy aliases
+   * (`network`, `usb`, `serial`) are normalised by `TransportRouter`.
+   */
+  transport: AssignmentTransport | string | null | undefined;
+  /** `false` disables the assignment — the router returns `unavailable`. */
+  enabled?: boolean | null;
   /** Network target (required when connectionType === 'network') */
   ipAddress?: string;
   port?: number;
@@ -45,50 +53,34 @@ export interface ResolveTransportOptions {
 }
 
 /**
- * Resolve the correct transport for a device based on runtime environment
- * and connection configuration.
+ * Instantiate the transport for an assignment.
  *
- * Decision tree:
- *
- * 1. Electron running?
- *    → network: ElectronNetworkTransport
- *    → usb:     ElectronUSBTransport
- *
- * 2. Browser + network + any IP:
- *    → LocalAgentNetworkTransport (agent bridges to the printer)
- *    (Note: both private AND public IPs go through the local agent.
- *     There is no cloud edge function path. If the agent is not running,
- *     the transport will report unavailable.)
- *
- * 3. Browser + USB:
- *    → WebUSBTransport (direct browser USB)
- *    → Falls back to LocalAgentUSBTransport if WebUSB unavailable
+ * The decision itself comes from `TransportRouter.route()`. `null` means the
+ * renderer must not deliver bytes for this assignment — either the Electron
+ * main-process CommandRouter owns the IO (`electron_native`) or the requested
+ * transport is unusable in this host (`unavailable`). Callers surface that as
+ * an explicit error; there is no silent fallback to another transport.
  */
 export function resolveTransport(opts: ResolveTransportOptions): ITransport | null {
-  const { connectionType, ipAddress, port, vendorId, productId } = opts;
+  const { ipAddress, port, vendorId, productId } = opts;
+  const decision = routeWithRuntimeHost({ transport: opts.transport, enabled: opts.enabled });
 
-  // ── Electron ──
-  // Track H4 — the renderer-side `ElectronTransport` shell was deleted; in
-  // Electron, hardware IO is owned by the main-process CommandRouter and is
-  // invoked through `hardwareClient.exec` rather than this resolver. We
-  // return `null` here so the rare caller that still routes through this
-  // function in Electron mode falls through cleanly.
-  if (isElectron()) {
-    return null;
+  switch (decision.kind) {
+    case 'local_agent':
+      if (ipAddress && port) return new LocalAgentNetworkTransport({ ipAddress, port });
+      if (vendorId != null && productId != null) {
+        return new LocalAgentUSBTransport({ vendorId, productId });
+      }
+      return null;
+
+    case 'webusb':
+      if (vendorId == null || productId == null) return null;
+      return new WebUSBTransport({ vendorId, productId });
+
+    // `electron_native` → main-process CommandRouter owns IO.
+    // `webhid` → no renderer transport implementation.
+    // `unavailable` → explicit failure, never a fallback.
+    default:
+      return null;
   }
-
-  // ── Browser: Network ──
-  if (connectionType === 'network' && ipAddress && port) {
-    // All network printing in browser mode goes through the local agent.
-    return new LocalAgentNetworkTransport({ ipAddress, port });
-  }
-
-  // ── Browser: USB ──
-  if (connectionType === 'usb' && vendorId != null && productId != null) {
-    const webUsb = new WebUSBTransport({ vendorId, productId });
-    if (webUsb.isAvailable()) return webUsb;
-    return new LocalAgentUSBTransport({ vendorId, productId });
-  }
-
-  return null;
 }
