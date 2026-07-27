@@ -53,8 +53,10 @@ describe('ElectronAssignmentHydrator', () => {
     delete (window as unknown as { pos?: unknown }).pos;
   });
 
-  it('hydrates each enabled assignment exactly once and reports status', async () => {
-    const stop = startElectronAssignmentHydrator('org-1');
+  it('hydrates every terminal-visible assignment exactly once and reports status', async () => {
+    // Scoped to reg-1: the register row matches, the tenant default always
+    // passes through. Both must be pushed exactly once.
+    const stop = startElectronAssignmentHydrator({ orgId: 'org-1', terminalId: 'reg-1' });
     // Let hydrateOnce drain its awaits
     await new Promise((r) => setTimeout(r, 20));
 
@@ -70,6 +72,17 @@ describe('ElectronAssignmentHydrator', () => {
 
     stop();
     expect(getHydratorStatus().active).toBe(false);
+  });
+
+  it('excludes register-scoped rows when no terminal is bound', async () => {
+    const stop = startElectronAssignmentHydrator('org-1');
+    await new Promise((r) => setTimeout(r, 20));
+
+    const upsert = ((window as unknown as { pos: { devices: { upsert: ReturnType<typeof vi.fn> } } }).pos.devices.upsert);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(upsert.mock.calls[0]?.[0]).toMatchObject({ role: 'cash_drawer' });
+    expect(getHydratorStatus().rowsHydrated).toBe(1);
+    stop();
   });
 
   it('is a no-op when window.pos.devices is missing', async () => {
