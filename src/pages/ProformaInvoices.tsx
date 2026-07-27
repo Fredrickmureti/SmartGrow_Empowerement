@@ -48,7 +48,11 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { fetchAndBuildSalesProformaSnapshot } from "@/services/documents/snapshots/salesProforma";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { normalizeError } from "@/services/resilience";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
