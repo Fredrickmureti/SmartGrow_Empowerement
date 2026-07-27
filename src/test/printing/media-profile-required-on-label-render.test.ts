@@ -24,15 +24,18 @@ const SRC = readFileSync(
 );
 
 describe('labelDispatch · media flows through to the driver (ADR-0087)', () => {
-  it('resolves the printer before the template (call-site order)', () => {
-    // Look at the awaited call sites, not the top-level function
-    // declarations — those live in the file in the opposite order.
-    const printerIdx = SRC.indexOf('await resolvePrinter(');
+  it('resolves media before the template (call-site order)', () => {
+    // Phase 6 Step C: the physical printer is resolved downstream inside
+    // execForIntent, not here. What must still hold is that media geometry
+    // is resolved BEFORE the template, so the template resolver can pick
+    // the media-specific variant via p_media_profile_id.
+    const mediaIdx = SRC.indexOf('await resolvePrinterMedia(');
     const templateIdx = SRC.indexOf('await resolveTemplate(');
-    expect(printerIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeGreaterThan(-1);
     expect(templateIdx).toBeGreaterThan(-1);
-    expect(printerIdx).toBeLessThan(templateIdx);
+    expect(mediaIdx).toBeLessThan(templateIdx);
   });
+
 
   it('resolves media from the printer profile', () => {
     expect(SRC).toMatch(/resolvePrinterMedia\s*\(/);
