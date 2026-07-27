@@ -11,13 +11,13 @@
  * (the resolver's system fallback). This page only exists to OVERRIDE.
  */
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Printer, Trash2, AlertCircle, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -29,10 +29,11 @@ import {
   DOCUMENT_TYPES,
   type PaperFormat,
   type RenderMode,
+  type OutputTrigger,
   type PrintPolicy,
 } from "@/hooks/useDocumentPrintPolicies";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { useDeviceAssignments } from "@/hooks/useDeviceAssignments";
+import { supabase } from "@/integrations/supabase/client";
 
 const PAPER_OPTIONS: { value: PaperFormat; label: string }[] = [
   { value: "a4", label: "A4 (210 × 297 mm)" },
@@ -43,17 +44,23 @@ const PAPER_OPTIONS: { value: PaperFormat; label: string }[] = [
   { value: "40mm", label: "Thermal 40 mm — continuous roll" },
 ];
 
-
 const RENDER_OPTIONS: { value: RenderMode; label: string }[] = [
   { value: "pdf", label: "PDF" },
   { value: "escpos", label: "ESC/POS (raw)" },
 ];
 
+const TRIGGER_OPTIONS: { value: OutputTrigger; label: string; hint: string }[] = [
+  { value: "manual",         label: "Manual",         hint: "Operator clicks Print. Opens preview → dispatches." },
+  { value: "auto",           label: "Auto on commit", hint: "Fire immediately when the document is committed (POS receipts, kitchen tickets)." },
+  { value: "preview_only",   label: "Preview only",   hint: "Never auto-dispatch to hardware; force operator confirmation." },
+  { value: "download_only",  label: "Download only",  hint: "PDF download — never routed to a physical device." },
+];
+
 interface RowState {
   paper_format: PaperFormat;
   render_mode: RenderMode;
-  auto_print: boolean;
-  device_assignment_id: string | null;
+  trigger: OutputTrigger;
+  role_code: string | null;
   branch_scope: "business" | string; // "business" or branch id
 }
 
@@ -62,14 +69,27 @@ export default function PrintPoliciesEditor() {
   const { branches } = useBranch();
   const permissions = usePermissions();
   const businessId = currentBusiness?.id ?? null;
+  const orgId = currentBusiness?.organization_id ?? null;
   const { policies, loading, saving, upsert, remove, findPolicy } = useDocumentPrintPolicies(businessId);
 
-  // Phase 6 — the destination is a `device_assignments` row, not a legacy
-  // printer profile. Printers only; disabled rows are not selectable.
-  const { assignments } = useDeviceAssignments();
-  const activeProfiles = assignments.filter(
-    (a) => a.enabled && a.role.includes("printer"),
-  );
+  // Phase 1 — routing target is a *role* (see Printer roles module), not a
+  // device. Physical device is chosen at runtime by role→branch bindings.
+  const { data: roles = [] } = useQuery({
+    enabled: !!orgId,
+    queryKey: ["printer_roles_min", orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => { eq: (k2: string, v2: boolean) => { order: (c: string) => Promise<{ data: Array<{ code: string; label: string; hardware_kind: string }> | null; error: unknown }> } } } };
+      })
+        .from("printer_roles")
+        .select("code,label,hardware_kind")
+        .eq("organization_id", orgId as string)
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   // Per-row "draft" edits keyed by `${branch_scope}:${docType}`.
   const [drafts, setDrafts] = useState<Record<string, RowState>>({});
@@ -86,8 +106,9 @@ export default function PrintPoliciesEditor() {
     return {
       paper_format: existing?.paper_format ?? "a4",
       render_mode: existing?.render_mode ?? "pdf",
-      auto_print: existing?.auto_print ?? false,
-      device_assignment_id: existing?.device_assignment_id ?? null,
+      trigger: (existing?.trigger as OutputTrigger | undefined)
+        ?? (existing?.auto_print ? "auto" : "manual"),
+      role_code: existing?.role_code ?? null,
       branch_scope: branchScope,
     };
   };
@@ -100,15 +121,21 @@ export default function PrintPoliciesEditor() {
   const handleSave = async (branchScope: string, docType: string) => {
     if (!businessId) return;
     const draft = getDraft(branchScope, docType);
-    const autoPrint = docType === "pos_receipt" ? draft.auto_print : false;
+    // Physical routing needs a role for anything that isn't download-only /
+    // preview-only. If missing, warn via the "needs role" badge — Save is
+    // disabled by the same predicate below.
     const policy: Omit<PrintPolicy, "id"> = {
       business_id: businessId,
       branch_id: branchScope === "business" ? null : branchScope,
       document_type: docType,
       paper_format: draft.paper_format,
       render_mode: draft.render_mode,
-      device_assignment_id: autoPrint ? draft.device_assignment_id : null,
-      auto_print: autoPrint,
+      // Legacy columns kept in the row so the old resolver still returns
+      // during Phase 2 rollout. Phase 2 drops them.
+      device_assignment_id: null,
+      auto_print: draft.trigger === "auto",
+      trigger: draft.trigger,
+      role_code: draft.role_code,
     };
     const ok = await upsert(policy);
     if (ok) {
@@ -191,19 +218,14 @@ export default function PrintPoliciesEditor() {
               const existing = findPolicy(branchId, dt.value);
               const draftKey = `${branchScope}:${dt.value}`;
               const dirty = !!drafts[draftKey];
-              // Filter compatible printers: when render_mode is escpos, only thermal-capable printers.
-              const compatibleProfiles = activeProfiles.filter((p) =>
-                draft.render_mode === "escpos"
-                  ? String((p.config as { paper_size?: string })?.paper_size ?? "").endsWith("mm")
-                    || p.driver === "escpos"
-                  : true,
-              );
-              const autoPrintEnabled = dt.value === "pos_receipt";
-              const needsPrinter = autoPrintEnabled && draft.auto_print && !draft.device_assignment_id;
+              // A role is required whenever the trigger will actually reach
+              // hardware. Download-only and preview-only skip role selection.
+              const roleRequired = draft.trigger === "auto" || draft.trigger === "manual";
+              const needsRole = roleRequired && !draft.role_code;
               return (
                 <div
                   key={dt.value}
-                  className="grid grid-cols-1 md:grid-cols-[1.5fr_1.3fr_0.9fr_1.3fr_auto_auto_auto] gap-2 items-end pb-3 border-b last:border-b-0"
+                  className="grid grid-cols-1 md:grid-cols-[1.5fr_1.2fr_1fr_1.2fr_1.3fr_auto_auto] gap-2 items-end pb-3 border-b last:border-b-0"
                 >
                   <div>
                     <Label className="text-xs text-muted-foreground">{dt.label}</Label>
@@ -211,8 +233,8 @@ export default function PrintPoliciesEditor() {
                       <Badge variant="secondary" className="ml-2 text-[10px] h-4">configured</Badge>
                     )}
                     {dirty && <Badge variant="default" className="ml-2 text-[10px] h-4">unsaved</Badge>}
-                    {needsPrinter && (
-                      <Badge variant="destructive" className="ml-2 text-[10px] h-4">needs printer</Badge>
+                    {needsRole && (
+                      <Badge variant="destructive" className="ml-2 text-[10px] h-4">needs role</Badge>
                     )}
                   </div>
                   <Select
@@ -230,61 +252,71 @@ export default function PrintPoliciesEditor() {
                     value={draft.render_mode}
                     onValueChange={(v) => setDraft(branchScope, dt.value, { render_mode: v as RenderMode })}
                   >
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger
+                      className="h-8 text-xs"
+                      title="How the payload is encoded. PDF for laser/inkjet, ESC/POS for thermal. Phase 2 will derive this from the target device's capability."
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {RENDER_OPTIONS.map((r) => (
                         <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {/* Trigger — when this document reaches paper. */}
                   <Select
-                    value={draft.device_assignment_id ?? "__none__"}
+                    value={draft.trigger}
+                    onValueChange={(v) => setDraft(branchScope, dt.value, { trigger: v as OutputTrigger })}
+                  >
+                    <SelectTrigger
+                      className="h-8 text-xs"
+                      title={TRIGGER_OPTIONS.find((t) => t.value === draft.trigger)?.hint}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRIGGER_OPTIONS.map((t) => (
+                        <SelectItem key={t.value} value={t.value} className="text-xs">
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* Role — semantic routing. Physical device comes from Printer roles bindings. */}
+                  <Select
+                    value={draft.role_code ?? "__none__"}
                     onValueChange={(v) =>
                       setDraft(branchScope, dt.value, {
-                        device_assignment_id: v === "__none__" ? null : v,
+                        role_code: v === "__none__" ? null : v,
                       })
                     }
-                    disabled={!autoPrintEnabled || !draft.auto_print}
+                    disabled={!roleRequired}
                   >
                     <SelectTrigger
                       className="h-8 text-xs"
                       title={
-                        !autoPrintEnabled
-                          ? "Printer routing is only used when auto-print is enabled"
-                          : !draft.auto_print
-                            ? "Enable auto-print to pick a printer"
-                            : "Choose which physical printer auto-print targets"
+                        !roleRequired
+                          ? "Download / preview triggers do not need a printer role."
+                          : "Which printer role handles this document. Per-branch device is chosen in the Printer roles module."
                       }
                     >
-                      <SelectValue placeholder="— none —" />
+                      <SelectValue placeholder="— pick a role —" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__" className="text-xs">— none (operator confirms) —</SelectItem>
-                      {compatibleProfiles.map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.display_name} <span className="text-muted-foreground">· {p.transport}</span>
+                      <SelectItem value="__none__" className="text-xs">— none —</SelectItem>
+                      {roles.map((r) => (
+                        <SelectItem key={r.code} value={r.code} className="text-xs">
+                          {r.label} <span className="text-muted-foreground">· {r.code}</span>
                         </SelectItem>
                       ))}
-                      {compatibleProfiles.length === 0 && (
-                        <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
-                          No compatible printers. Add one above.
-                        </div>
-                      )}
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-1.5" title={autoPrintEnabled ? "Auto-print receipt on transaction commit" : "Reserved for printer profiles (V6)"}>
-                    <Switch
-                      checked={draft.auto_print}
-                      onCheckedChange={(v) => setDraft(branchScope, dt.value, { auto_print: v })}
-                      disabled={!autoPrintEnabled}
-                    />
-                    <span className="text-[10px] text-muted-foreground">Auto</span>
-                  </div>
                   <Button
                     size="sm"
                     variant={dirty ? "default" : "outline"}
                     onClick={() => handleSave(branchScope, dt.value)}
-                    disabled={saving || !dirty || needsPrinter}
+                    disabled={saving || !dirty || needsRole}
                   >
                     Save
                   </Button>
@@ -323,14 +355,16 @@ export default function PrintPoliciesEditor() {
     <div className="space-y-4">
       <Card className="border-dashed">
         <CardContent className="py-3 text-xs text-muted-foreground">
-          Document printing follows this resolution order:
-          <strong className="mx-1">explicit override</strong> ›
-          <strong className="mx-1">branch policy</strong> ›
-          <strong className="mx-1">business policy</strong> ›
-          <strong className="mx-1">system default (A4 PDF)</strong>.
-          Leave a row unconfigured to inherit. Auto-print is wired only for
-          POS receipts in this release; other document types will gain it
-          alongside printer profiles.
+          Every document flows through the same chain:
+          <strong className="mx-1">policy (this page)</strong> ›
+          <strong className="mx-1">printer role</strong> ›
+          <strong className="mx-1">per-branch device binding</strong> ›
+          <strong className="mx-1">device capability</strong> ›
+          <strong className="mx-1">hardware</strong>.
+          Set the paper format and trigger here; the physical printer is
+          chosen automatically from the role's branch bindings (see
+          <em className="mx-1">Printer roles</em>). Rows left blank inherit
+          from the business default; blank there means <em>A4 PDF, manual</em>.
         </CardContent>
       </Card>
 
