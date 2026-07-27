@@ -79282,6 +79282,23 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: undefined
       }
+      ensure_document_record: {
+        Args: {
+          p_branch_id?: string
+          p_business_id?: string
+          p_currency?: string
+          p_kind_code: string
+          p_locale?: string
+          p_metadata?: Json
+          p_organization_id: string
+          p_party_id?: string
+          p_party_kind?: string
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_source_module: string
+        }
+        Returns: string
+      }
       ensure_inventory_gl_accounts: {
         Args: { _business_id: string; _org_id: string }
         Returns: {
