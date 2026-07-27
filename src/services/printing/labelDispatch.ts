@@ -157,9 +157,6 @@ async function resolveTemplate(
   return row as ResolvedTemplate;
 }
 
-/** Post Phase 2b: the resolved id IS the device_assignments.id. */
-interface ResolvedPrinter { device_assignment_id: string; binding_id: string; scope: string }
-
 interface ResolvedMedia {
   id: string;
   widthMm: number;
