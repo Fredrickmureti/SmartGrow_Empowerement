@@ -21,8 +21,8 @@ import {
   lifecycleEventTone,
   type LifecycleEventType,
 } from "@/hooks/hr/useLifecycleEvents";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { toast } from "sonner";
+import { dispatchHrLetter } from "@/features/hr/letters/dispatchHrLetter";
 import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 /**
@@ -47,15 +47,30 @@ export default function LifecycleTimelinePage() {
   const [windowDays, setWindowDays] = useState<number>(30);
   const [eventType, setEventType] = useState<LifecycleEventType | "all">("all");
   const [search, setSearch] = useState("");
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+
+  /**
+   * Issue the letter through the document engine: the event row is frozen
+   * into a snapshot, archived as a document record, then routed. Reprints
+   * reproduce that archived record rather than re-reading the event.
+   */
+  async function issueLetter(
+    letterType: "promotion_letter" | "warning_letter",
+    eventId: string,
+    label: string,
+  ) {
+    setIssuingId(eventId);
+    try {
+      await dispatchHrLetter({ letterType, sourceId: eventId });
+      toast.success(`${label} queued`, { description: "Track it under Documents." });
+    } catch (e) {
+      toast.error(`Could not issue ${label.toLowerCase()}`, {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setIssuingId(null);
+    }
+  }
 
   const { events, isLoading } = useLifecycleEvents({
     sinceDays: windowDays,
@@ -179,16 +194,21 @@ export default function LifecycleTimelinePage() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              disabled={issuingId === e.id}
                               onClick={() =>
-                                generateDocument(
+                                issueLetter(
                                   lt,
                                   e.id,
                                   `${label} — ${e.employee_name ?? ""}`.trim(),
                                 )
                               }
-                              title={`Print ${label.toLowerCase()}`}
+                              title={`Issue ${label.toLowerCase()}`}
                             >
-                              <Printer className="mr-1 h-3.5 w-3.5" />
+                              {issuingId === e.id ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Printer className="mr-1 h-3.5 w-3.5" />
+                              )}
                               Print
                             </Button>
                             <DocumentHistorySheet
@@ -215,15 +235,6 @@ export default function LifecycleTimelinePage() {
           </Card>
         )}
       </PageBody>
-
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        communication={printCommunication}
-      />
     </>
   );
 }

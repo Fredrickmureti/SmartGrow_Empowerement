@@ -31,8 +31,8 @@ import {
   type ContractStatus,
 } from "@/hooks/hr/useContracts";
 import { RenewContractDialog } from "./RenewContractDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
-import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { toast } from "sonner";
+import { dispatchHrLetter } from "@/features/hr/letters/dispatchHrLetter";
 import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
 
 export interface ContractsListPageProps {
@@ -78,15 +78,26 @@ export function ContractsListPage(props: ContractsListPageProps) {
   const [search, setSearch] = useState("");
   const [renewTarget, setRenewTarget] = useState<Contract | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+
+  /**
+   * Freeze the contract into a document record and route it. The signed
+   * terms are captured at issue time so a reprint can never drift from what
+   * the employee actually agreed to.
+   */
+  async function issueContractLetter(contractId: string, label: string) {
+    setIssuingId(contractId);
+    try {
+      await dispatchHrLetter({ letterType: "contract_letter", sourceId: contractId });
+      toast.success(`${label} queued`, { description: "Track it under Documents." });
+    } catch (e) {
+      toast.error("Could not issue contract letter", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setIssuingId(null);
+    }
+  }
 
   const { contracts, isLoading } = useContracts({
     status,
@@ -214,16 +225,20 @@ export function ContractsListPage(props: ContractsListPageProps) {
                       <Button
                         variant="ghost"
                         size="sm"
+                        disabled={issuingId === c.id}
                         onClick={() =>
-                          generateDocument(
-                            "contract_letter",
+                          issueContractLetter(
                             c.id,
                             `Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim(),
                           )
                         }
-                        title="Print contract letter"
+                        title="Issue contract letter"
                       >
-                        <Printer className="mr-1 h-3.5 w-3.5" />
+                        {issuingId === c.id ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Printer className="mr-1 h-3.5 w-3.5" />
+                        )}
                         Print
                       </Button>
                       <DocumentHistorySheet
@@ -254,15 +269,6 @@ export function ContractsListPage(props: ContractsListPageProps) {
         contract={renewTarget}
         open={!!renewTarget}
         onOpenChange={(o) => !o && setRenewTarget(null)}
-      />
-
-      <PrintPreviewDialog
-        open={printPreviewOpen}
-        onOpenChange={setPrintPreviewOpen}
-        title={printPreviewTitle}
-        documentType={printDocumentType}
-        documentId={printDocumentId}
-        communication={printCommunication}
       />
     </>
   );
