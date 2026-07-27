@@ -39,7 +39,11 @@ export { usePOSSecuritySettings } from "./usePOSSecuritySettings";
 export { useTerminalSession } from "./useTerminalSession";
 export { usePOSSecurityAudit } from "./usePOSSecurityAudit";
 export { usePOSVoid } from "./usePOSVoid";
-export { usePrinterStatus, usePrintWithFallback } from "./usePrinterStatus";
+// Printer status is a hardware concern and print dispatch is a printing
+// concern — neither is POS-specific. Re-exported here only so existing POS
+// call sites keep working; import from the owning module in new code.
+export { usePrinterStatus } from "@/hooks/hardware/usePrinterStatus";
+export { usePrintWithFallback } from "@/hooks/printing/usePrintWithFallback";
 export { usePOSSessionsOffline } from "./usePOSSessionsOffline";
 // useHardwareSettings removed — use useHardwareProxy or useDeviceAssignments instead.
 export { usePOSZReport, usePOSXReport } from "./usePOSReportViews";
