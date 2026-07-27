@@ -18,7 +18,7 @@ I re-checked every claim in `.lovable/plan.md` against the live codebase and dat
 5. Renderer coverage is thinner than implied: `_shared/rendering/renderers/` contains only `escpos`, `html`, `pdf`, `zpl` plus the thermal golden — there is no drawer-slip renderer, confirming fork (2) is still open.
 6. `docs/architecture/DOCUMENT_PRINT_HARDWARE.md` (the Wave 9 deliverable) does not exist.
 
-Verdict: Waves 1–7.1.5 are genuine. Wave 7.2 is roughly 3 of 32 call sites done. The architecture direction is sound; I will continue it rather than restart.
+Verdict: Waves 1–7.1.5 are genuine. Wave 7.2 was roughly 3 of 32 call sites done at the time of this audit (now 6 of 32 — see the status snapshot in Phase 3). The architecture direction is sound; I will continue it rather than restart.
 
 ## Phase 2 — Plan corrections I am adding
 
