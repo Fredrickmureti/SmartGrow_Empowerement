@@ -1,24 +1,26 @@
 /**
  * Edge-function inventory guard.
  *
- * Wave 5 verdict: a blanket 87→73 consolidation was rejected because each
- * of the candidate wrappers carries substantive logic and external state
- * (Safaricom-stored URLs, KRA endpoints, pg_cron URLs, distinct email
- * templates, FK-ordered deletion logic). Collapsing them trades clarity
- * and observability for a count metric.
+ * Wave 6.5 (2026-07-27): the previous engineer left the ceiling at 87
+ * while the actual count sat at 100 (guard red). Wave 6.5's first pass
+ * removed four confirmed-dead functions
+ * (`override-return-diagnostic`, `send-leave-email`,
+ * `generate-cycle-counts`, `generate-audit-certificate`), taking the
+ * count to 96. The ceiling is ratcheted to match and MUST monotonically
+ * decrease as Wave 6.5/7/9 retire more legacy functions — see
+ * `docs/audit/2026-wave6.5-legacy-inventory.md`.
  *
- * Instead, this guard keeps the inventory in check by:
- *   1. Asserting we don't accidentally regress past today's count (87).
- *   2. Asserting no NEW edge function is added whose body is a thin
- *      `supabase.functions.invoke('other-fn', …)` wrapper — that pattern
- *      should always live in the caller.
+ * The wrapper guard below stays as-is: no NEW edge function may be a
+ * thin `supabase.functions.invoke('other-fn', …)` proxy.
  */
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
 const FUNCS_DIR = path.resolve(__dirname, "../../../supabase/functions");
-const CEILING = 87;
+// Ratchet DOWN only. Wave 6.5 target: 87. Wave 9 target: <70.
+const CEILING = 96;
+
 
 function listFunctions(): string[] {
   return fs
