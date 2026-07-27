@@ -1,163 +1,195 @@
 
-# Enterprise Hardware Operations Workspace — Engineering Report & Redesign Plan
+# Enterprise Document, Printing & Hardware Architecture — Reconstruction Plan
 
-## 1. Current information architecture — assessment
+This plan reconstructs the pipeline from **business event → printed byte** as a single, layered enterprise architecture (SAP/Oracle/Dynamics/NetSuite-shaped, not copied). Old implementations are deleted, not deprecated. Work proceeds one wave at a time; each wave lands its schema, code, guards, tests, and deletions before the next begins.
 
-### `/platform/hardware/print-queue` (`HardwarePrintQueue.tsx`)
-- Single flat table over `print_jobs`. Every column is a raw DB field.
-- Primary-surface fields include: `doc_type` enum (`legal_recipient_statement`), `intent`/`format`/`transport` enums (`receipt_printer`, `pdf-browser`), `correlation_id` UUID, `doc_id` UUID, `last_error` (full stack), `parent_job_id`.
-- No printer name, no requester name, no document number. Just IDs.
-- Filters: status, doc_type (raw enum values), free-text on IDs. No date range, no printer/branch/user filter, no saved views, hard cap of 500.
+---
 
-### `/platform/hardware/diagnostics` (`HardwareDiagnostics.tsx`)
-- One 720-line page rendering **7 stacked cards** with no navigation: DLQ, Runtime, Registries, Agent, Capabilities, Runtime decisions (25 rows), Recent commands (50 rows) — plus per-role health chips inside the last card.
-- Rows show `role` / `op` / `transport` as raw code identifiers (`receipt_printer`, `escpos_label`, `electron-bypass`).
-- Recent commands polls every 10 s and keeps growing vertically; no pagination, no drill-down, no date range.
-- "Copy diagnostics" dumps a JSON blob — clearly built for engineers, not operators.
+## 1. Target Architecture (Reference Model)
 
-**Verdict:** both pages are developer log viewers surfaced under an operator route. They optimise for "give me every field" instead of "what needs my attention?".
-
-## 2. Enterprise research findings (patterns common to SAP Output Management, Oracle Retail Xstore, MS Dynamics 365 Commerce Hardware Station, Odoo IoT, Square/Shopify/Toast POS, Zebra Printer Profile Manager, Epson Device Admin)
-
-Recurring principles:
-
-1. **Status-first summary strip** at the top: today's counts by outcome (succeeded / failed / retrying / offline printers) — the operator's "is anything on fire?" glance.
-2. **Business identity, not technical identity, in the primary column.** "Invoice INV-2026-0143 → Front Counter Receipt · Alice K." — never a UUID on the surface.
-3. **Progressive disclosure**: a click opens a **side drawer / detail panel** with the technical payload (correlation id, transport, raw error, retry history, hardware command id, payload hash). Row stays clean.
-4. **Faceted filtering + saved views**: date range, printer, workstation, branch, status, document class. Views persist per user.
-5. **Grouped diagnostics workspace**, not one endless scroll — a left-rail or tabbed layout: Overview · Devices & health · Activity · Errors & DLQ · Runtime · Support bundle.
-6. **Per-printer health cards** (queue depth, last success, error rate, p50 latency, "offline since") instead of per-role code chips.
-7. **Alerts and actions surfaced next to the problem** (Retry, Cancel, Mark reviewed, Open printer, Download support bundle). Read-only technical tables live under a "Raw" / "Support engineer" toggle.
-8. **Log surfaces are searchable and paginated**, never infinite lists. Enterprises page 25/50/100 with cursor/date navigation.
-
-## 3. Human-readable information strategy
-
-Introduce a small display-mapping layer, colocated with the hardware app:
-
-- `src/apps/platform/hardware/lib/humanize.ts` — pure functions:
-  - `docTypeLabel(docType)` → `"Invoice"`, `"Receipt"`, `"Statement to legal recipient"`, `"Delivery note"`, `"Payslip"`, …
-  - `intentLabel(intent)` → `"Customer copy"`, `"Merchant copy"`, `"Shelf label"`, …
-  - `formatLabel(format)` → `"PDF"`, `"ESC/POS"`, `"ZPL"`, `"EPL"`.
-  - `transportLabel(transport)` → `"Browser print dialog"`, `"USB (Electron)"`, `"Network 9100"`, `"IoT agent"`, `"CUPS"`.
-  - `statusLabel(status)` → `"Queued"`, `"Sent to printer"`, `"Printed"`, `"Failed"`, `"Cancelled"`.
-  - `runtimeReasonLabel(reason)` → already partially done, extend.
-  - `errorSummary(lastError)` → strip stack, pick the human sentence; classify into `{offline, out-of-paper, driver-missing, auth, unknown}`.
-- All raw enum keys stay accessible via `.title` tooltips and in the detail drawer.
-
-For business identity resolution, add `useDocumentDisplay(docType, docId)`:
-- Small union-typed resolver that batches lookups per doc_type (`invoices.invoice_number + contact_name`, `delivery_notes.dn_number`, `payslips.employee_name + period`, `legal_recipients.name`). Cached via react-query, 60 s stale.
-- Falls back to `docType humanized + short id (last 8)` when the source record is deleted or user lacks scope.
-
-Requester name: join `requested_by` → `profiles.display_name`. Also batched.
-
-Printer/workstation name: `printer_profile_id` → `device_assignments.label` (or the human label already stored). Batched.
-
-## 4. Technical information strategy
-
-- Detail drawer shows the raw fields grouped: **Job identifiers** (correlation, hw_command_id, parent), **Timeline** (requested → sent → acked/failed with deltas), **Transport & driver**, **Raw error** with copy button, **Retry history** (attempt_count + `last_error` snapshots).
-- A single "Support engineer view" toggle at page level shows a `Correlation` column in the table and unhides the JSON copy button.
-
-## 5. Proposed workspace layout
-
-### `/platform/hardware/print-queue` — Print activity
+Nine layers, one owner each, no upward calls:
 
 ```text
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Print activity   [Today ▾]  [All printers ▾]  [All statuses ▾]  ⚙ Views  │
-├───────────────────────────────────────────────────────────────────────────┤
-│  Printed 1 284    Failed 12 ⚠    Retrying 3    Offline printers 1        │
-├───────────────────────────────────────────────────────────────────────────┤
-│ Time · Document · Requested by · Destination · Status · Duration · ⋯     │
-│ 14:02  Invoice INV-2026-0143     Alice K.   Front Counter    Printed  1.2s│
-│ 14:01  Receipt #4471             POS-01     Kitchen Thermal  Failed ⚠ 3.8s│  ← click opens drawer
-│ …                                                                          │
-│                                              25 / 50 / 100  ‹ 1 2 3 4 ›   │
-└───────────────────────────────────────────────────────────────────────────┘
+1  Business Event Fabric        domain events (SO.confirmed, INV.issued, GRN.posted, PAY.received, ...)
+2  Document Domain              typed Document aggregate (kind, version, tenant, party, legal_class, lifecycle)
+3  Template Registry            per-kind templates, versioned, tenant-overridable, layout AST only
+4  Rendering Engine             AST -> bytes for one of {PDF/A, ESC/POS, ZPL, EPL, HTML, CSV}
+5  Artifact Store               immutable rendered bytes + manifest (document_artifacts, checksum, retention)
+6  Output Intent                what the user/system wants to *do* (view, download, email, print, archive, sign)
+7  Print Policy Resolver        (intent, doc_kind, org, branch, station, user) -> effective policy row
+8  Hardware Platform            device registry, capabilities, health, driver ownership, transport routing
+9  Delivery Queue & Audit       durable per-device queue, retries, DLQ, replay, operator feedback, audit trail
 ```
 
-- Top strip: KPI cards (Printed, Failed, Retrying, Offline printers) for the selected range (default: Today).
-- Filters: date range, printer, branch, status, document class, requester, free-text.
-- Table columns: **Time · Document · Requested by · Destination · Status · Duration · ⋯ (drawer)**.
-- Row expansion → side drawer with Overview / Timeline / Payload & transport / Raw error / History tabs; per-row actions: Retry, Cancel, Open printer, Copy correlation.
-- Parent/children (copies) collapsed by default into a "3 copies" pill; expand inline.
-- Pagination + cursor over `requested_at`; server-side ordering. 500-row cap removed.
-- Saved views: persist filter state in `report_saved_views` (existing table) keyed by `view_kind = 'hardware.print_queue'`.
+Rules:
+- No layer above may hand-craft bytes from a layer below (no raw ESC/POS in app code — enforced today, keep).
+- No layer below may know about the business event that produced the document — it sees only `Document` + `Artifact` + `Intent`.
+- Every enum (doc_kind, intent, format, transport, runtime_reason) has exactly one humanization table.
 
-### `/platform/hardware/diagnostics` — Diagnostics workspace
+### 1.1 Business events that produce documents (canonical map)
 
-Restructure into a **tabbed sub-workspace** with a persistent header (environment badge + refresh + Support-bundle download):
+| Domain        | Event                              | Document(s)                                     | Legal? | Typical media               |
+|---------------|------------------------------------|-------------------------------------------------|--------|-----------------------------|
+| Sales         | quote.issued / SO.confirmed        | Estimate, Proforma, Sales Order Ack             | no     | PDF A4, email               |
+| Sales         | SO.delivered                       | Delivery Note, Packing List                     | mixed  | PDF A4/A5, thermal 80mm     |
+| Sales         | invoice.issued / cn.issued         | Tax Invoice, Credit Note, Debit Note            | yes    | PDF A4 (fiscal), thermal    |
+| Sales         | payment.received                   | Payment Receipt                                 | yes    | PDF A4, thermal 80mm        |
+| Sales         | statement.run                      | Customer Statement                              | no     | PDF A4, email               |
+| POS           | pos.sale.committed                 | POS Receipt (customer + merchant), Kitchen tkt  | mixed  | thermal 58/80mm             |
+| Purchases     | PO.confirmed                       | Purchase Order                                  | no     | PDF A4, email               |
+| Purchases     | bill.approved                      | Vendor Bill copy                                | no     | PDF A4                      |
+| Inventory/WMS | GRN.posted                         | Goods Receipt Note, Putaway list, Pallet label  | mixed  | PDF A4, thermal, ZPL label  |
+| Inventory/WMS | pick.released / pack.completed     | Pick list, Packing slip, Shipping label         | mixed  | PDF, ZPL, carrier-specific  |
+| Inventory     | product.identified                 | Shelf label, Price label, Item barcode          | no     | ZPL/EPL label               |
+| Manufacturing | MO.released / MO.finished          | Work order, Route card, Finished-goods label    | no     | PDF, label                  |
+| HR            | employee.hired / letter.issued     | Offer, Contract, Employment letter, Certificate | mixed  | PDF A4                      |
+| Payroll       | payroll.finalized                  | Payslip, Bank file, Statutory return, Tax cert  | yes    | PDF A4, CSV, fiscal PDF     |
+| Finance       | jv.posted / period.closed          | Journal, Trial Balance, Financial Statements    | yes    | PDF A4                      |
+| Legal/Compliance | garnishment.remitted / etims.tx | Remittance advice, Fiscal receipt (ETIMS QR)    | yes    | PDF A4 + QR, fiscal path    |
 
-```text
-Diagnostics
-[ Overview | Devices & health | Activity | Errors & DLQ | Runtime | Support ]
-```
+Every entry above is a `Document` in the new domain. Nothing else in the codebase is allowed to invent a "document" outside this registry.
 
-- **Overview** — high-signal cards only: environment (Electron / Browser + preload build), agent reachability, canonical vs cache row parity, DLQ size, printers currently offline, per-printer health top 5.
-- **Devices & health** — one card per configured printer/device: label, transport, driver, last success/failure, error rate 1h/24h, queue depth, p50 latency, actions (test print, open in registry). Replaces raw "per-role chips" with named printers.
-- **Activity** — the full paginated `hardware_exec_log` with the same human-labelling and drawer pattern as Print activity; filters: role → **device**, op, result, date range.
-- **Errors & DLQ** — the DLQ card plus recent failures grouped by root cause (`offline`, `driver-missing`, `auth`, `unknown`), each with a "how to fix" hint and jump-to-device.
-- **Runtime** — current Runtime, Registries, Agent, Capabilities cards (technical detail belongs here, off the operator's first screen). Runtime-decisions ring stays here.
-- **Support** — copy diagnostics JSON, download support bundle, links to `HARDWARE_RUNTIME.md`, "Reset hydrator", contact-support prompt.
+---
 
-Tabs use URL search params (`?tab=devices`) so links from alerts land users on the right pane.
+## 2. Current-State Findings (from investigation)
 
-## 6. Navigation, filters, saved views
+- **Two parallel rendering stacks** confirmed: POS (browser HTML + ESC/POS) and non-POS (edge-function PDF). `docs/audit/2026-05-11-printing-architecture.md` §1–3.
+- **Policy surface is overloaded**: `HardwarePolicies.tsx` + `PrintPoliciesEditor.tsx` mix template concerns (paper, margins, columns) with routing (destination, silent, copies).
+- **Hardware platform is already close to correct** (`mem://features/hardware-platform`, ADRs 0014, 0037, 0099, 0100): keep the chokepoint (`hardwareClient`), registry (`device_assignments`), main-process drivers, capability probe. Reuse; do not rebuild.
+- **Existing good foundations to keep and formalize**: `document_artifacts` (ADR-0084), `_shared/pdf/PdfBuilder`, ESC/POS `Line[]` AST (ADR-0084), rendering ownership rules (ADR-0085), print router (ADR-0026), Enterprise Output Platform ADR-0086, media/capability (0087), label geometry (0088), barcode identity (0089), visual label designer (0090).
+- **Missing pieces**: unified Document aggregate + kind registry, single Template Registry, Output Intent object, Policy Resolver as an RPC, deletion of the split POS/non-POS rendering paths.
 
-- Date range: presets (Today, Last 24 h, Last 7 days, Custom) — default Today.
-- Printer filter: driven by `device_assignments` rows for the current business/branch, showing human label.
-- Branch filter: from `useBranches()`.
-- Status filter: business-labelled (`Queued`, `Sent`, `Printed`, `Failed`, `Cancelled`).
-- Free-text: matches document number, requester name, printer name, correlation id (advanced/engineer mode).
-- Saved views: persisted per user via existing `report_saved_views` (`view_kind` `hardware.print_queue` / `hardware.activity`).
+---
 
-## 7. Legacy cleanup
+## 3. Layered Design Details
 
-- Delete the 500-row hard cap and the current flat table body in `HardwarePrintQueue.tsx`.
-- Remove the "Copy diagnostics" button from the diagnostics header and move it into the **Support** tab (it is a support tool, not an operator action).
-- Move raw enum rendering out of the primary tables; replace with human labels + tooltip.
-- Retire the "per-role health" chip strip in favour of the **Devices & health** tab. Underlying computation is preserved and reused.
-- Retire the raw "Recent hardware commands" table from the Overview surface; it lives under **Activity** with human labels.
-- Keep `DeadLetterQueueCard` but move it into the **Errors & DLQ** tab.
-- No component is deleted outright — every current data source (`hardware_exec_log`, `print_jobs`, `getRecentRuntimeReasons`, `HydratorStatus`, agent status) is reused; only presentation changes.
+### 3.1 Business Event Fabric (Layer 1)
+- Reuse `src/services/events/domainEventBus` + `BusinessSaga`. All document-producing modules emit `DocumentRequested` after their own commit succeeds. No module calls the renderer directly.
 
-## 8. Migration plan (no regressions)
+### 3.2 Document Domain (Layer 2)
+- `public.documents` aggregate: `id, tenant_id, org_id, branch_id, kind, version, source_module, source_event_id, party_id, legal_class, currency, locale, status, created_at`.
+- `document_kinds` registry (seeded, code-owned): `code, label_i18n, legal_class, default_media_class, default_intents[], allowed_formats[]`.
+- Everything downstream keys off `documents.id`, not the source business row.
 
-Small, sequenced PR-sized steps. Each step keeps the current pages functional.
+### 3.3 Template Registry (Layer 3)
+- `document_templates` (rewritten): `id, kind_code, scope (system|tenant|org|branch), version, ast_jsonb, theme_jsonb, header_footer_refs, is_active`.
+- Layout AST is medium-neutral (blocks: header, party, table, totals, notes, barcode, qr, page-break, label). Renderers translate AST per medium.
+- One editor UI (`/platform/documents/templates`) covers **all** documents (invoice, receipt, label, payslip, statement, GRN, ...). No per-module template pages.
 
-**Step 1 — Presentation layer (pure, no route change).**
-- Add `src/apps/platform/hardware/lib/humanize.ts` (pure enum → label maps).
-- Add `useDocumentDisplay`, `useRequesterDisplay`, `usePrinterDisplay` hooks (batched react-query resolvers, cached 60 s).
-- Add `src/apps/platform/hardware/components/JobDetailDrawer.tsx` and `PrintKpiStrip.tsx`.
+### 3.4 Rendering Engine (Layer 4)
+- `supabase/functions/_shared/render/` with pluggable renderers keyed by `format`:
+  - `pdf` (existing `PdfBuilder`, extended for A3/A4/A5/Letter/Legal + custom)
+  - `escpos` (existing `Line[]` compiler)
+  - `zpl`, `epl` (label compilers, already in `src/services/printing/labelCompiler.ts` — moved server-side)
+  - `html`, `csv` (existing)
+- Input: `{ template, document, party, tokens, media }`. Output: `Artifact` bytes + `manifest`.
+- App code MUST NOT call renderers directly. Sole entry: `generate-document` edge function (existing, extended).
 
-**Step 2 — Print Queue redesign.**
-- Rewrite `HardwarePrintQueue.tsx` around: KPI strip → faceted filter bar → paginated table (human columns) → row drawer.
-- Server-side pagination via `requested_at` cursor; page sizes 25/50/100.
-- Saved views wired to `report_saved_views` (`view_kind='hardware.print_queue'`).
-- Copy retention: parent/child fan-out is now a "N copies" pill in the parent row, expandable inline.
+### 3.5 Artifact Store (Layer 5)
+- Keep `document_artifacts` + storage bucket (ADR-0084). Add `content_hash`, `media_class`, `format`, `retention_class`, `superseded_by`.
+- Any re-print reuses the artifact; regeneration only when template or source data changes (versioned).
 
-**Step 3 — Diagnostics workspace split.**
-- Introduce tab shell (`Tabs` from shadcn) with URL-synced tab.
-- Split existing cards into their new tabs (Overview, Devices & health, Activity, Errors & DLQ, Runtime, Support). Each moved card is imported unchanged first, then internally refactored to use human labels.
-- Build **Devices & health** by joining `hardware_exec_log` aggregates (already computed in `health` memo) with `device_assignments` (label, transport, driver) so each card is a named device, not a role code.
-- Move Runtime decisions + Recent commands into **Activity**; wire the same drawer + humanize layer as Print Queue.
+### 3.6 Output Intent (Layer 6)
+- New value object `OutputIntent { action: view|download|email|print|archive|sign, channel?, printer_hint?, copies?, requester }`.
+- All UI + server flows submit intents; nothing else. Preview/download/print buttons all become `submitIntent(document, intent)`.
 
-**Step 4 — Cleanup + guards.**
-- Remove the raw "Copy diagnostics" button from the page header (kept inside Support tab).
-- Delete unused code paths (500-row cap, `RUNTIME_REASON_LABELS` duplicate).
-- Add an architecture test `hardware-operator-workspace-humanized.test.ts` asserting:
-  - `HardwarePrintQueue.tsx` does not render raw `doc_type`/`intent`/`transport` identifiers as leaf text nodes (must go through `humanize.ts`).
-  - `HardwareDiagnostics.tsx` mounts a `Tabs` root and does not render more than one primary table at the top level.
-  - No raw `correlation_id` in the primary Print Queue table body (allowed only inside the drawer / engineer mode).
+### 3.7 Print Policy Resolver (Layer 7)
+- Slim `printer_policies` schema: `(kind_code, org_id, branch_id, station_id, user_id, intent) -> { format, media_class, printer_role, copies, auto_print, prompt, duplex, tray, fallback_role }`.
+- RPC `resolve_print_policy(document_id, intent, scope)` returns one row deterministically (most-specific-wins).
+- Removes template-shaped settings (paper, margins, columns) from policies — those move to Template Registry.
 
-**Step 5 — Docs.**
-- Add ADR `docs/architecture/decisions/0100-hardware-operator-workspace.md` capturing the operator-vs-engineer split and the humanize layer as the canonical presentation contract.
-- Update `mem/features/hardware-platform.md` "Platform surface" bullet to reference the tabbed diagnostics workspace and the humanize layer as required for any new operator screen.
+### 3.8 Hardware Platform (Layer 8) — keep
+- `device_assignments`, main-process drivers, transports, `hardwareClient`, capability probe, `/platform/hardware/*` operator surface (ADRs 0014/0037/0099/0100). No structural change.
+- Add: `printer_role` alias table so policies name roles (`fiscal_a4`, `warehouse_label`, `kitchen`, `receipt`, `back_office`) rather than device ids.
 
-## 9. Technical details (engineer-facing)
+### 3.9 Delivery Queue & Audit (Layer 9)
+- Keep `hw_command_queue` + POS outbox + saga replay. Add `print_jobs` view unifying: `(document_id, intent, policy_id, assignment_id, format, bytes_ref, status, attempts, error, timeline)`.
+- Operator surface `/platform/hardware/print-queue` already exists — becomes the sole job console.
 
-- **Data model:** no schema changes required. All redesign is presentational + query composition. `print_jobs`, `hardware_exec_log`, `device_assignments`, `profiles`, and the per-document tables already carry every field needed.
-- **Query strategy:** replace one-shot `.select('*').limit(500)` with keyset pagination `.order('requested_at', {ascending:false}).range(offset, offset+size-1)` plus a lightweight `count(*)` per filter change (cached).
-- **Batch resolvers:** `useDocumentDisplay(rows)` groups `doc_id`s by `doc_type`, issues one query per type, returns a `Map<doc_id, {label, subLabel}>`. Same pattern for requester (`profiles`) and printer (`device_assignments`).
-- **State persistence:** filter/tab state → URL search params; saved views → `report_saved_views` (existing).
-- **No new tables, no new RPCs, no new edge functions.** No RLS changes.
-- **Guard files touched:** add one new architecture test; existing hardware guards untouched.
+---
+
+## 4. UX Consolidation
+
+One obvious home per responsibility:
+
+| Concern                                | Location                                                |
+|----------------------------------------|---------------------------------------------------------|
+| Register/monitor hardware              | `/platform/hardware/devices`, `/diagnostics`            |
+| Media & printer capabilities           | `/platform/hardware/media`                              |
+| Print queue / DLQ / reprint            | `/platform/hardware/print-queue`                        |
+| Print policies (routing only)          | `/platform/documents/policies`                          |
+| Document templates (all kinds)         | `/platform/documents/templates`                         |
+| Document customization (branding)      | `/platform/documents/branding`                          |
+| Label designer                         | `/platform/documents/templates?kind=label` (unified)    |
+| Per-module document actions            | in-context "Print / Email / Download" using OutputIntent|
+
+Legacy locations (`/pos/hardware-*`, per-module template editors, `HardwarePolicies.tsx` mixed page) are deleted and redirected once for one release, then removed.
+
+---
+
+## 5. Delivery Waves (each wave: schema → code → guards → deletion)
+
+**Wave 1 — Document Domain foundation.** `documents`, `document_kinds`, `document_artifacts` v2 columns; seed all kinds from §1.1; grants + RLS. No UI yet.
+
+**Wave 2 — Template Registry rewrite.** `document_templates` v2 (AST), migration codemod from current per-module template rows into AST blocks; new `/platform/documents/templates` editor; delete per-module template pages.
+
+**Wave 3 — Rendering Engine consolidation.** Move label compilers into `_shared/render/`; extend `generate-document` to accept `(document_id, format, media_class)`; delete `ReceiptTemplateGenerator.ts` in favor of AST→ESC/POS renderer using the same template rows.
+
+**Wave 4 — Output Intent + Policy Resolver.** Introduce `OutputIntent`, new `printer_policies` schema, `resolve_print_policy` RPC, new `/platform/documents/policies` editor; migrate existing policy rows; delete template-shaped fields from old policy tables.
+
+**Wave 5 — Print job pipeline unification.** `print_jobs` unified view/table; every callsite (`useDocumentPrint`, POS commit saga, label dispatch, payroll doc generation, statutory return dispatch) submits through `submitIntent`. Delete `useDocumentPrint`'s direct edge invocation path.
+
+**Wave 6 — Hardware role aliases + resolver hookup.** `printer_roles` table, resolver returns role → `execForIntent` picks assignment (already implemented). Delete direct printer-id references in policies.
+
+**Wave 7 — POS receipt convergence.** POS receipt template becomes a `document_kind` template. `ReceiptTemplateGenerator`, `ReceiptEscPosBuilder`, `receiptConfig.ts` PAPER_CONFIGS deleted; POS renders through the shared engine. Two paper-widths (58/80) become media classes.
+
+**Wave 8 — Label pipeline convergence.** `labelCompiler`, `labelDispatch`, `labelBarcode` move server-side under `_shared/render/label/`; renderer app files deleted; visual designer (ADR-0090) writes AST into the same Template Registry.
+
+**Wave 9 — Legacy purge.** Remove: `PrintService.ts` shims, deprecated `usb:*`/`serial:*` IPC channels, `pos_hardware_configs` (already dropped, verify), `HardwarePolicies.tsx` legacy page, per-module template editors, unused edge functions (`generate-payslip-pdf` etc. rewritten as thin adapters that call `generate-document`).
+
+**Wave 10 — Guardrails & docs.** ESLint rules: `no-direct-renderer-call`, `no-direct-print-policy-read`, `no-per-module-template`; architecture tests for each; refresh ADR-0086 (Enterprise Output Platform) as the master doc; delete superseded ADRs' bodies with tombstones.
+
+Each wave ships its own destructive migration; no wave leaves a shadow path.
+
+---
+
+## 6. Deletion Manifest (targets, indicative)
+
+- `src/services/receipt/ReceiptTemplateGenerator.ts`, `ReceiptEscPosBuilder.ts` (Wave 7)
+- `src/lib/receiptConfig.ts` (Wave 7)
+- `src/hooks/useDocumentPrint.ts` direct path (Wave 5)
+- `src/services/printing/labelCompiler.ts`, `labelDispatch.ts`, `labelBarcode.ts` (Wave 8; moved server-side)
+- `src/services/printing/PrintClient.ts` legacy exports (Wave 9; replaced by `submitIntent`)
+- `src/apps/platform/hardware/pages/HardwarePolicies.tsx` template-shaped fields (Wave 4)
+- Per-module template editors under `src/features/**` (Wave 2)
+- Superseded edge functions: consolidate `generate-payroll-document`, `generate-payslip-pdf`, `generate-tax-certificate`, `generate-audit-certificate`, `generate-annual-earnings-statement` into `generate-document` with `kind_code` dispatch (Wave 3 & 9)
+- Deprecated preload IPC (`usb:print`, `usb:open-drawer`, `serial:write`) (Wave 9)
+
+Nothing on this list survives as a fallback.
+
+---
+
+## 7. Engineering Standards Applied
+
+- One owner per byte kind (ADR-0085 kept and extended to labels/CSV).
+- One chokepoint per layer: `submitIntent` (app), `generate-document` (render), `resolve_print_policy` (policy), `hardwareClient` (hardware), `pos:exec` (main).
+- Enum humanization stays centralized (`humanize.ts`); every new kind/format/intent added to it in the same migration.
+- All new tables ship with GRANTs + RLS + validation triggers (not CHECK constraints for time).
+- All new server logic is `createServerFn` (app-internal) or `/api/public/*` (webhooks); no new Supabase Edge Functions except for the render engine, which is already there.
+- Tests: architecture tests per wave; e2e for each document kind (issue → render → intent → job → artifact).
+
+---
+
+## 8. Definition of Done
+
+- A developer can trace any printed byte from event → document → template → renderer → artifact → intent → policy → role → device → transport in ≤ 5 files.
+- No module ships its own template editor, renderer, or policy screen.
+- Only one path exists to produce a PDF, one to produce ESC/POS, one to produce a label; POS and non-POS share it.
+- `/platform/documents/*` and `/platform/hardware/*` are the only surfaces users see for these concerns.
+- All legacy files listed in §6 are removed from `main`.
+
+---
+
+## Next Step
+
+On approval, begin **Wave 1** (Document Domain foundation): migration for `documents`, `document_kinds`, artifacts v2 columns, kind seed data, grants + RLS, plus the humanize entries. No UI or renderer changes in Wave 1 — foundation only, so every following wave has a stable spine to attach to.
