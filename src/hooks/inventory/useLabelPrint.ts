@@ -103,7 +103,7 @@ export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
         hri_flag: identity.hri,
         ...args.extraVars,
       };
-      const result = await printClient.printLabel({
+      const result = await printLabelByTemplate({
         orgId: currentOrg.id,
         branchId,
         warehouseId,
