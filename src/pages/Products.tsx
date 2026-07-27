@@ -185,122 +185,35 @@ export default function Products() {
   const { flatTreeList: categoryOptions, categories } = useProductCategories();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const labelPrinter = useInventoryLabelPrinter();
+  const labelPrint = useLabelPrint({ branchId: currentBranch?.id ?? null });
+  const labelPrinter = { missingDeviceCta: labelPrint.missingDeviceCta };
 
-  // Wave B2.2 — template-driven product label printing.
+  // Template-driven product label printing.
   //
-  // The label body, dimensions, and engine are owned by `label_templates`
-  // (resolved server-side via `resolve_label_template`, branch override →
-  // org default → none). This page only contributes the *vars* (product
-  // name, SKU, barcode) — never the raw ZPL/ESCPOS bytes. That keeps every
-  // tenant free to swap layouts, sizes, barcode formats, and promotional
-  // tokens without code changes, and keeps the page out of the way of the
-  // ESLint guard `no-raw-zpl-outside-printing`.
-  //
-  // We still consume `useInventoryLabelPrinter` for the missing-device CTA
-  // (it pre-flights the `label_printer` role binding and surfaces the
-  // Platform → Hardware link when nothing is bound). The actual print
-  // dispatch goes through `printLabelByTemplate`, which resolves the
-  // workflow-bound printer (`product_tag`) and emits via `hardwareClient`
-  // under the `label_printer` role with full Track-1 audit linkage.
-  const handlePrintLabel = async (product: Product) => {
-    if (labelPrinter.missingDeviceCta) {
-      toast({
-        title: "No label printer assigned",
-        description: labelPrinter.missingDeviceCta.message,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!currentOrg?.id) {
-      toast({
-        title: "No active organization",
-        description: "Select an organization before printing labels.",
-        variant: "destructive",
-      });
-      return;
-    }
-    // ADR-0089 — never fall back to product.id (UUID). Refuse and route
-    // the operator to enrollment when there's nothing scannable to print.
-    const identity = resolveLabelBarcode(product as any);
-    if (!identity) {
-      toast({
-        title: LABEL_BARCODE_REFUSAL.title,
-        description: LABEL_BARCODE_REFUSAL.description,
-        variant: "destructive",
-      });
-      return;
-    }
-    const result = await printClient.printLabel({
-      orgId: currentOrg.id,
-      branchId: currentBranch?.id ?? null,
+  // This page contributes *vars* only (product name, SKU, price) and the
+  // template/workflow keys. Everything else — missing-device refusal,
+  // ADR-0089 barcode-identity refusal, ADR-0088 mm-relative geometry,
+  // template resolution, and operator toasts — is owned by the shared
+  // `useLabelPrint` seam. Duplicating any of it here is what previously
+  // let this page drift away from the rest of the label call sites.
+  const handlePrintLabel = (product: Product) =>
+    labelPrint.print({
       templateKey: "product_label",
       workflow: "product_tag",
-      vars: {
-        name: (product.name || "").slice(0, 80),
-        sku: identity.skuDisplay,
-        sku_display: identity.skuDisplay,
-        barcode: identity.code,
-        hri_flag: identity.hri,
-      },
-      sourceDocType: "product",
-      sourceDocId: product.id,
-      idempotencyKey: `product_label:${product.id}:${Date.now()}`,
+      product: product as PrintableProduct,
     });
-    toast({
-      title: result.success ? "Label sent to printer" : "Print failed",
-      description: result.success
-        ? `Sent label for ${product.name} to ${labelPrinter.device?.display_name ?? "printer"}.`
-        : result.error ?? "Unknown printer error",
-      variant: result.success ? "default" : "destructive",
-    });
-  };
+
   // Shelf-edge label — goes to the shelf_edge workflow-bound printer, not
-  // the general product_tag one (ADR-0086). Same barcode-identity rules.
-  const handlePrintShelfLabel = async (product: Product) => {
-    if (labelPrinter.missingDeviceCta) {
-      toast({
-        title: "No label printer assigned",
-        description: labelPrinter.missingDeviceCta.message,
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!currentOrg?.id) return;
-    const identity = resolveLabelBarcode(product as any);
-    if (!identity) {
-      toast({
-        title: LABEL_BARCODE_REFUSAL.title,
-        description: LABEL_BARCODE_REFUSAL.description,
-        variant: "destructive",
-      });
-      return;
-    }
-    const result = await printClient.printLabel({
-      orgId: currentOrg.id,
-      branchId: currentBranch?.id ?? null,
+  // the general product_tag one (ADR-0086). Same barcode-identity rules,
+  // enforced once inside the seam.
+  const handlePrintShelfLabel = (product: Product) =>
+    labelPrint.print({
       templateKey: "shelf_label",
       workflow: "shelf_edge",
-      vars: {
-        name: (product.name || "").slice(0, 80),
-        sku: identity.skuDisplay,
-        sku_display: identity.skuDisplay,
-        barcode: identity.code,
-        hri_flag: identity.hri,
-        price: formatCurrency(product.unit_price ?? 0),
-      },
-      sourceDocType: "product",
-      sourceDocId: product.id,
-      idempotencyKey: `shelf_label:${product.id}:${Date.now()}`,
+      product: product as PrintableProduct,
+      extraVars: { price: formatCurrency(product.unit_price ?? 0) },
     });
-    toast({
-      title: result.success ? "Shelf label sent" : "Print failed",
-      description: result.success
-        ? `Sent shelf label for ${product.name}.`
-        : result.error ?? "Unknown printer error",
-      variant: result.success ? "default" : "destructive",
-    });
-  };
+
   const { isComplianceAvailable, complianceInfo } = useTaxCompliance();
   const categoryResolverRef = useRef<CategoryResolver | null>(null);
 
