@@ -9,8 +9,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const rpcMock = vi.fn();
-const printRawBytesMock = vi.fn().mockResolvedValue({ success: true });
-const printLabelBytesMock = vi.fn().mockResolvedValue({ success: true });
+// Phase 5 Step C — thermal dispatch is resolve-then-execAssignment; the
+// role-only shims no longer exist.
+const execAssignmentMock = vi.fn().mockResolvedValue({ success: true });
+const resolveDeviceMock = vi.fn().mockResolvedValue({
+  id: 'assign-1', role: 'receipt_printer', transport: 'electron', enabled: true,
+});
 const generatePdfMock = vi.fn().mockResolvedValue(new Blob(['pdf'], { type: 'application/pdf' }));
 const generateEscPosMock = vi.fn().mockResolvedValue(new Uint8Array([0x1b, 0x40]));
 const printPdfInPageMock = vi.fn().mockResolvedValue(undefined);
@@ -21,9 +25,12 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 vi.mock('@/services/hardware/HardwareClient', () => ({
   hardwareClient: {
-    printRawBytes: (...a: unknown[]) => printRawBytesMock(...a),
-    printLabelBytes: (...a: unknown[]) => printLabelBytesMock(...a),
+    execAssignment: (...a: unknown[]) => execAssignmentMock(...a),
   },
+}));
+
+vi.mock('@/hooks/useDeviceForIntent', () => ({
+  resolveDeviceForIntent: (...a: unknown[]) => resolveDeviceMock(...a),
 }));
 
 vi.mock('@/services/printing/pdfUtils', () => ({
@@ -36,8 +43,8 @@ vi.mock('@/services/printing/pdfUtils', () => ({
 
 beforeEach(async () => {
   rpcMock.mockReset();
-  printRawBytesMock.mockClear();
-  printLabelBytesMock.mockClear();
+  execAssignmentMock.mockClear();
+  resolveDeviceMock.mockClear();
   generatePdfMock.mockClear();
   generateEscPosMock.mockClear();
   printPdfInPageMock.mockClear();
@@ -64,7 +71,7 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
     expect(result.success).toBe(false);
     expect(result.policy?.askUser).toBe(true);
     expect(generatePdfMock).not.toHaveBeenCalled();
-    expect(printRawBytesMock).not.toHaveBeenCalled();
+    expect(execAssignmentMock).not.toHaveBeenCalled();
   });
 
   it('routes to thermal when policy.render_mode=escpos and ask_user=false', async () => {
@@ -77,13 +84,14 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
       intent: 'a4_document', // intent says PDF, policy overrides to ESC/POS
       documentType: 'invoice',
       documentId: 'inv-2',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       branchId: 'br-1',
     });
     expect(result.transport).toBe('thermal');
     expect(result.success).toBe(true);
     expect(generateEscPosMock).toHaveBeenCalledWith('invoice', 'inv-2');
-    expect(printRawBytesMock).toHaveBeenCalled();
+    expect(execAssignmentMock).toHaveBeenCalled();
   });
 
   it('falls back to intent-only routing when businessId is omitted', async () => {
@@ -144,10 +152,11 @@ describe('PrintClient.print policy resolution (ADR-0026 Step 2)', () => {
       intent: 'receipt',
       documentType: 'pos_receipt',
       documentId: 'tx-9',
+      organizationId: 'org-1',
       businessId: 'biz-1',
       branchId: 'br-1',
     });
-    expect(printRawBytesMock).toHaveBeenCalledTimes(3);
+    expect(execAssignmentMock).toHaveBeenCalledTimes(3);
   });
 
   it('caches resolved policies so repeated prints hit the RPC once', async () => {
