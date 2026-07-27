@@ -32,13 +32,17 @@ Goal: bring edge-fn count from 100 → ≤ 87, mark client-side legacy shims `@d
 - ✅ ESLint `no-restricted-imports` blocks new imports of the two shims; existing importers grandfathered via a ratchet allowlist in `eslint.config.js` that must shrink in Wave 7.
 - ✅ `edge-fn-inventory.test.ts::CEILING` ratcheted 87 → 96 with a documented monotonic-decrease invariant.
 
-### Pass 2 (next)
+### Pass 2 (2026-07-27) — BLOCKED on publish
 
-1. Verify the three candidate deletions in the audit doc (`app-lifecycle`, `post-loan-interest-accrual`, `activate-organization`) against marketplace flows, outbox producers, and emailed activation links.
-2. Retire additional zero-caller fns to drive `CEILING ≤ 87`.
-3. Repoint any remaining callers onto `submitIntent({ documentKind: … })`.
-4. Lower `CEILING` on every retirement; guard must stay green.
-5. When `CEILING` hits 87, flip Wave 6.5 → ✅ and Wave 7 → ▶ ACTIVE.
+Re-verified `app-lifecycle`, `post-loan-interest-accrual`, and `activate-organization`: zero code invokers, zero `cron.job` references. `supabase--delete_edge_functions` refused with: "codebase is mid-migration to TanStack Start, the migrated app has not been published yet; leave deployed functions live as rollback coverage; publish and verify first."
+
+**Unblock sequence**
+
+1. Publish the current TanStack build; smoke-test cron, print pipeline, and auth flows.
+2. Confirm with ops that no emailed activation link still targets `activate-organization`.
+3. Delete the three candidates → count 96 → 93; ratchet `CEILING`.
+4. Continue retiring zero-caller fns toward `CEILING ≤ 87`, then flip Wave 6.5 → ✅ and Wave 7 → ▶ ACTIVE.
+
 
 Exit criteria: audit doc up-to-date, edge-fn count ≤ 87, guard green, deprecated shims still functional, `dispatch-print-jobs` cron still firing.
 
