@@ -53,7 +53,10 @@ Deno.serve(async (req) => {
     .select("organization_id")
     .eq("id", body.document_record_id)
     .maybeSingle();
-  if (docErr) return json({ error: "lookup_failed", detail: docErr.message }, 500);
+  if (docErr) {
+    console.error("[submit-document-intent] lookup_failed", docErr);
+    return json({ error: "lookup_failed", detail: docErr.message }, 500);
+  }
   if (!doc) return json({ error: "document_record_not_found" }, 404);
 
   const gate = await requireOrgMember(req, doc.organization_id, corsHeaders);
@@ -66,7 +69,23 @@ Deno.serve(async (req) => {
     p_override_targets: null,
   });
 
-  if (error) return json({ error: "submit_failed", detail: error.message }, 500);
+  if (error) {
+    console.error("[submit-document-intent] submit_failed", {
+      document_record_id: body.document_record_id,
+      scenario: body.scenario ?? "default",
+      triggered_source: body.triggered_source ?? "api",
+      message: error.message,
+      details: (error as { details?: string }).details,
+      hint: (error as { hint?: string }).hint,
+      code: (error as { code?: string }).code,
+    });
+    return json({
+      error: "submit_failed",
+      detail: error.message,
+      hint: (error as { hint?: string }).hint ?? null,
+      code: (error as { code?: string }).code ?? null,
+    }, 500);
+  }
   return json(data, 200);
 });
 
