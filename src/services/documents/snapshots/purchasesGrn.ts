@@ -73,23 +73,34 @@ export function buildPurchasesGrnSnapshot(
   if (!grn.receipt_date)
     throw new Error("buildPurchasesGrnSnapshot: receipt_date required");
 
-  const items = (grn.items ?? []).map((item) => ({
-    description: item.description,
-    quantity: Number(item.quantity_received ?? 0),
-    // Quantity-only document — see file header.
-    unit_price: 0,
-    tax_rate: 0,
-    tax_amount: 0,
-    line_total: 0,
-    sku: item.sku ?? null,
-    pack_quantity: item.pack_quantity ?? null,
-    pack_size: item.pack_size ?? null,
-    unit_of_measure:
-      item.unit_of_measure ??
-      item.packaging?.name ??
-      item.product?.base_uom?.code ??
-      null,
-  }));
+  const items = (grn.items ?? []).map((item) => {
+    // Packaging projection identical to `generate-document::packFields`, so
+    // the GRN reads the same UoM story as the PO it was received against.
+    const packName = item.packaging?.name ?? null;
+    const factor = Number(item.packaging?.qty_in_base_uom);
+    const baseUom = item.product?.base_uom?.code || item.product?.base_uom?.name || "ea";
+    const dq = item.display_quantity == null ? null : Number(item.display_quantity);
+    return {
+      description: item.description,
+      quantity: Number(item.quantity_received ?? 0),
+      // Quantity-only document — see file header.
+      unit_price: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: 0,
+      display_quantity: Number.isFinite(dq as number) ? (dq as number) : null,
+      packaging_label: packName,
+      base_uom_label: baseUom,
+      uom_snapshot:
+        item.uom_snapshot ??
+        (packName
+          ? Number.isFinite(factor) && factor > 1
+            ? `${packName} × ${factor} ${baseUom}`
+            : packName
+          : null),
+    };
+  });
+
 
   // Currency is carried for tenancy/report grouping only; no priced column
   // is rendered on a GRN.
