@@ -42,10 +42,12 @@ function extractUnionMembers(src: string, typeName: string): string[] {
 }
 
 describe('intent → role mapping parity', () => {
-  const printClientSrc = readSource('src/services/printing/PrintClient.ts');
+  // `PrintIntent` lives in the shared printing vocabulary, not in the
+  // dispatch client, so intent-based routing has no dependency on it.
+  const intentSrc = readSource('src/services/printing/types.ts');
   const driverSrc = readSource('src/services/hardware/drivers/DriverInterface.ts');
 
-  const intents = extractUnionMembers(printClientSrc, 'PrintIntent');
+  const intents = extractUnionMembers(intentSrc, 'PrintIntent');
   const roles = extractUnionMembers(driverSrc, 'DeviceRole');
 
   it('covers every PrintIntent union member', () => {
