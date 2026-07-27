@@ -4,7 +4,7 @@
  * The legacy `printService` singleton has been replaced by:
  *   - `printClient` (`@/services/printing/PrintClient`) — the single
  *     chokepoint for every print path (PDF, ESC/POS, ZPL).
- *   - `usePrinterStatus` (`@/hooks/pos/usePrinterStatus`) — UI-facing
+ *   - `usePrinterStatus` (`@/hooks/hardware/usePrinterStatus`) — UI-facing
  *     hook backed by `hardwareClient.devices.getStatuses()` with
  *     polling and "fallback dialog" plumbing.
  *   - Shared types in `@/services/printing/types`.

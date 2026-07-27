@@ -43,8 +43,8 @@ const PIPELINE_ALLOWED = new Set<string>([
   // through printClient.print()/download()/printDocument() internally.
   "hooks/usePrintOrPreview.ts",
 
-  // POS printer status probe (uses PDF path for A4 fallback).
-  "hooks/pos/usePrinterStatus.ts",
+  // Print-with-fallback hook (uses PDF path for A4 fallback).
+  "hooks/printing/usePrintWithFallback.ts",
   // POS receipt saga (event-driven; runs its own single-flight).
   "components/events/BusinessSagaMount.tsx",
   // POS terminal post-payment surface (deterministic, owns its own queue).
