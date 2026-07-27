@@ -37,9 +37,14 @@ describe("Wave 6: print job dispatcher invariants", () => {
       const body = readFileSync(f, "utf8");
       if (body.includes("claim_print_jobs")) offenders.push(relative(ROOT, f));
     }
-    // Allow this guard file itself.
-    const filtered = offenders.filter((p) => !p.endsWith("wave6-dispatcher.test.ts"));
+    // Allow this guard file + generated Supabase types.
+    const filtered = offenders.filter(
+      (p) =>
+        !p.endsWith("wave6-dispatcher.test.ts") &&
+        !p.endsWith("integrations/supabase/types.ts"),
+    );
     expect(filtered).toEqual([]);
+
   });
 
   it("print_jobs INSERT is confined to submitIntent chokepoint + drainer", () => {
