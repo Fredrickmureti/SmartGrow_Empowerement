@@ -20,6 +20,7 @@ import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKi
 import { buildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { buildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
 import { buildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
+import { buildSalesProformaSnapshot } from "@/services/documents/snapshots/salesProforma";
 
 
 const SNAPSHOTS_DIR = path.join(process.cwd(), "src/services/documents/snapshots");
@@ -136,6 +137,30 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         contact: { name: "Acme Ltd" },
         business: { id: "b", name: "Widget Co" },
         estimate_items: [],
+      }),
+  },
+  {
+    file: "salesProforma.ts",
+    run: () =>
+      buildSalesProformaSnapshot({
+        id: "pf-1",
+        proforma_number: "PF-2026-0001",
+        status: "sent",
+        issue_date: "2026-07-27",
+        expiry_date: "2026-08-10",
+        subtotal: 100,
+        tax_amount: 16,
+        discount_amount: 0,
+        total: 116,
+        currency: "KES",
+        notes: null,
+        terms: null,
+        organization_id: "o",
+        business_id: "b",
+        branch_id: null,
+        contact: { name: "Acme Ltd" },
+        business: { id: "b", name: "Widget Co" },
+        proforma_invoice_items: [],
       }),
   },
 ];

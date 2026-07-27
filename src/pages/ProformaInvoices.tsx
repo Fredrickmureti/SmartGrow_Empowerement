@@ -48,7 +48,11 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
-import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { fetchAndBuildSalesProformaSnapshot } from "@/services/documents/snapshots/salesProforma";
+import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { normalizeError } from "@/services/resilience";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
@@ -59,6 +63,7 @@ import { usePeekParam } from "@/features/sales/record";
 export default function ProformaInvoices() {
   const navigate = useNavigate();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
   const [searchParams, setSearchParams] = useSearchParams();
   const { proformaInvoices, isLoading, deleteProformaInvoice, updateProformaInvoice, convertToInvoice, refresh } = useProformaInvoices();
   const { formatCurrency } = useCurrency();
@@ -88,17 +93,18 @@ export default function ProformaInvoices() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, setPeekId]);
 
-  
-  // Unified document print
-  const {
-    printPreviewOpen,
-    setPrintPreviewOpen,
-    printPreviewTitle,
-    printDocumentType,
-    printDocumentId,
-    printCommunication,
-    generateDocument,
-  } = usePrintOrPreview();
+
+  // Wave 7.2 — print goes straight down the canonical document pipeline
+  // (snapshot → document_records → output intent). The preview dialog is
+  // kept as an operator-facing fallback surface only; it is no longer the
+  // print path, so rapid Sales prints can't get bounced off the raw FIFO
+  // hardware route by an ask_user/error branch.
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [printPreviewTitle, setPrintPreviewTitle] = useState("");
+  const [printDocumentType, setPrintDocumentType] = useState("");
+  const [printDocumentId, setPrintDocumentId] = useState("");
+  const [printCommunication, setPrintCommunication] =
+    useState<Parameters<typeof PrintPreviewDialog>[0]["communication"]>(undefined);
 
   const handleSendEmail = (inv: typeof proformaInvoices[0]) => {
     setEmailDocument({
@@ -114,17 +120,54 @@ export default function ProformaInvoices() {
   };
 
   const handlePrint = async (inv: typeof proformaInvoices[0]) => {
-    await generateDocument("proforma", inv.id, `Proforma ${inv.proforma_number}`, {
-      entityType: "proforma",
-      entityId: inv.id,
-      recipientPhone: (inv as any).contact?.phone ?? null,
-      recipientName: inv.contact?.name ?? null,
-      variables: {
-        proforma_number: inv.proforma_number,
-        amount: String(inv.total ?? 0),
-        customer_name: inv.contact?.name ?? "",
-      },
-    });
+    if (!currentBusiness?.id) {
+      toast({
+        title: "No company selected",
+        description: "Pick a company before printing proforma invoices.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentOrg?.id) {
+      toast({
+        title: "No organization",
+        description: "Sign in to an organization before printing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const built = await fetchAndBuildSalesProformaSnapshot(supabase, inv.id);
+      const documentRecordId = await ensureDocumentRecord({
+        kindCode: "sales.proforma",
+        organizationId: currentOrg.id,
+        sourceModule: "sales",
+        sourceDocType: "proforma",
+        sourceDocId: inv.id,
+        businessId: built.businessId ?? currentBusiness.id,
+        branchId: built.branchId ?? null,
+        partyKind: "customer",
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
+      });
+      const result = await submitDocumentIntent({
+        documentRecordId,
+        triggeredSource: "manual",
+      });
+      toast({
+        title: "Print dispatched",
+        description: `Proforma ${inv.proforma_number} queued to ${result.target_count} target(s).`,
+      });
+    } catch (err) {
+      toast({
+        title: "Print failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredInvoices = useMemo(() => proformaInvoices.filter(inv => {
