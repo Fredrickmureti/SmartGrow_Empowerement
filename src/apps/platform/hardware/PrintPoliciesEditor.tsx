@@ -102,6 +102,39 @@ export default function PrintPoliciesEditor() {
     },
   });
 
+  // Audit 2026-07-28: surface the *second* silent fallback — a thermal
+  // policy pointed at a role whose device physically can't take that width.
+  // Read-only capability probe; `resolve_output_intent` is untouched.
+  const { data: devices = [] } = useQuery({
+    enabled: !!orgId,
+    queryKey: ["hardware_devices_capability", orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ role: string; display_name: string; supported_media_ids: string[] | null; enabled: boolean }> | null; error: unknown }> } };
+      })
+        .from("device_assignments")
+        .select("role,display_name,supported_media_ids,enabled")
+        .eq("organization_id", orgId as string);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: mediaProfiles = [] } = useQuery({
+    enabled: !!orgId,
+    queryKey: ["media_profiles_widths", orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ id: string; width_mm: number }> | null; error: unknown }> } };
+      })
+        .from("media_profiles")
+        .select("id,width_mm")
+        .eq("org_id", orgId as string);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   // Per-row "draft" edits keyed by `${branch_scope}:${docType}`.
   const [drafts, setDrafts] = useState<Record<string, RowState>>({});
   const [previewDocType, setPreviewDocType] = useState<string | null>(null);
