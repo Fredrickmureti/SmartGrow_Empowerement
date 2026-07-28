@@ -489,9 +489,13 @@ export function HardwareDevicesPage() {
                   </Card>
                 );
               })}
+              {/* Label media capability — the only runtime-consumed slice
+                  of the retired Printer capability page. */}
+              <LabelMediaCapabilityCard />
             </div>
           )}
         </TabsContent>
+
 
         <TabsContent value="discover" className="space-y-4">
           <Card data-testid="hardware-scan-card">
