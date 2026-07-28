@@ -35,6 +35,7 @@ import {
   type JobHandle,
   type PrintFormat,
   type PrintTransport,
+  type QueuedJob,
 } from './jobs';
 import { renderSourceDocument, renderDocumentRecord, type RenderedArtifact } from './render';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
