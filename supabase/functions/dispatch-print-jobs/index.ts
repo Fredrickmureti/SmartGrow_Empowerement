@@ -10,7 +10,7 @@
  *   2. For each claimed job:
  *        a. Ensure a rendered artifact exists (invoke render-document).
  *        b. Route by disposition:
- *             print    → resolve role → hardware_command_queue
+ *             print    → resolve role → edge_jobs workstation relay
  *             email    → email_event_outbox
  *             fiscal   → fiscal_transmissions
  *             webhook  → business_event_outbox
@@ -218,34 +218,113 @@ async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<
     throw new Error(`no_device_bound_for_role:${job.hardware_role}`);
   }
 
-  const idempotencyKey = `job:${job.id}`;
-  const { data: cmdRows, error: enqErr } = await admin
-    .from("hardware_command_queue")
+  const relayJob = await buildRelayJob(chosen, job, artifactId);
+  const idempotencyKey = `print_job:${job.id}`;
+  const { error: enqErr } = await admin
+    .from("edge_jobs")
     .insert({
-      org_id: doc.organization_id,
-      branch_id: job.branch_id,
-      device_assignment_id: chosen.id,
-      role: job.hardware_role,
-      op: job.medium === "escpos" || job.medium === "zpl" ? "print_raw" : "print",
-      payload: {
-        artifact_id: artifactId,
-        medium: job.medium,
-        copies: job.copies,
-        correlation_id: job.correlation_id,
-        doc_type: job.doc_type,
-        doc_id: job.doc_id,
-      },
+      organization_id: doc.organization_id,
+      workstation_id: relayJob.workstationId,
+      role: relayJob.role,
+      op: relayJob.op,
+      payload: relayJob.payload,
       idempotency_key: idempotencyKey,
-      source_doc_type: job.doc_type,
-      source_doc_id: job.doc_id,
-    })
-    .select("id")
-    .single();
+      deadline_at: new Date(Date.now() + relayJob.deadlineMs).toISOString(),
+    });
 
-  if (enqErr) throw new Error(`hw_queue_enqueue_failed:${enqErr.message}`);
+  if (enqErr) throw new Error(`edge_relay_enqueue_failed:${enqErr.message}`);
 
-  await markDispatched(job.id, artifactId, cmdRows.id as number);
-  return "dispatched_to_hardware";
+  await markDispatched(job.id, artifactId, null);
+  return "dispatched_to_edge_agent";
+}
+
+async function buildRelayJob(
+  device: Record<string, unknown>,
+  job: PrintJob,
+  artifactId: string | null,
+): Promise<{
+  workstationId: string;
+  role: "print" | "usb_print";
+  op: string;
+  payload: Record<string, unknown>;
+  deadlineMs: number;
+}> {
+  const workstationId = typeof device.workstation_id === "string" ? device.workstation_id : null;
+  if (!workstationId) {
+    throw new Error(`device_missing_workstation:${String(device.id ?? "unknown")}`);
+  }
+  if (!artifactId) {
+    throw new Error("print_missing_artifact");
+  }
+
+  const bytes = await loadArtifactBytes(artifactId);
+  const data = Array.from(bytes);
+  const config = (device.config && typeof device.config === "object")
+    ? device.config as Record<string, unknown>
+    : {};
+  const transport = String(device.transport ?? "network").toLowerCase();
+
+  const vendorId = numberFrom(config.vendorId ?? config.vendor_id);
+  const productId = numberFrom(config.productId ?? config.product_id);
+  if (transport === "usb" || (vendorId && productId)) {
+    if (!vendorId || !productId) {
+      throw new Error(`usb_device_missing_vendor_product:${String(device.id ?? "unknown")}`);
+    }
+    return {
+      workstationId,
+      role: "usb_print",
+      op: "exec",
+      payload: { vendorId, productId, data, copies: job.copies },
+      deadlineMs: deadlineFor(bytes.byteLength, job.copies),
+    };
+  }
+
+  const ipAddress = stringFrom(config.ipAddress ?? config.ip_address ?? device.address);
+  const port = numberFrom(config.port) ?? 9100;
+  if (!ipAddress) {
+    throw new Error(`network_device_missing_ip:${String(device.id ?? "unknown")}`);
+  }
+
+  return {
+    workstationId,
+    role: "print",
+    op: "exec",
+    payload: { ipAddress, port, data, timeout: 15000, copies: job.copies },
+    deadlineMs: deadlineFor(bytes.byteLength, job.copies),
+  };
+}
+
+async function loadArtifactBytes(artifactId: string): Promise<Uint8Array> {
+  const { data: artifact, error } = await admin
+    .from("document_artifacts")
+    .select("storage_bucket, storage_path")
+    .eq("id", artifactId)
+    .maybeSingle();
+  if (error) throw new Error(`artifact_lookup_failed:${error.message}`);
+  if (!artifact?.storage_bucket || !artifact?.storage_path) {
+    throw new Error(`artifact_not_found:${artifactId}`);
+  }
+
+  const { data, error: downloadErr } = await admin.storage
+    .from(artifact.storage_bucket)
+    .download(artifact.storage_path);
+  if (downloadErr) throw new Error(`artifact_download_failed:${downloadErr.message}`);
+  if (!data) throw new Error(`artifact_download_empty:${artifactId}`);
+  return new Uint8Array(await data.arrayBuffer());
+}
+
+function stringFrom(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberFrom(value: unknown): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function deadlineFor(byteLength: number, copies: number): number {
+  const copyCount = Math.max(1, copies || 1);
+  return Math.min(120_000, 30_000 + copyCount * 10_000 + Math.ceil(byteLength / 50_000) * 5_000);
 }
 
 async function dispatchEmail(job: PrintJob, artifactId: string | null): Promise<string> {
