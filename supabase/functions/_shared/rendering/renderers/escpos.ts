@@ -20,7 +20,7 @@ export function renderAstToEscPos(args: {
   blocks: AstBlock[];
 }): Uint8Array {
   const opts = args.context.options as Record<string, unknown>;
-  const width = (opts["width"] as ThermalWidth | undefined) ?? "80mm";
+  const width = thermalWidthFromOptions(opts) ?? "80mm";
   const capabilities =
     (opts["capabilities"] as RenderDocumentEscPosOptions["capabilities"]) ?? null;
   const receiptSettings = (opts["receiptSettings"] as Record<string, unknown> | undefined) ?? null;
@@ -48,4 +48,11 @@ export function renderAstToEscPos(args: {
     font,
   });
   return bytes;
+}
+
+function thermalWidthFromOptions(opts: Record<string, unknown>): ThermalWidth | null {
+  const width = opts["width"] ?? opts["paper_format"] ?? opts["paperFormat"];
+  return width === "40mm" || width === "58mm" || width === "80mm"
+    ? width
+    : null;
 }

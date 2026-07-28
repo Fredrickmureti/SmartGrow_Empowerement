@@ -36,6 +36,7 @@ The shadow path:
 - Operators stop seeing the preview dialog on every print at sites where IT has configured policies — measurable productivity win at supermarket scale.
 - One fewer parallel print pipeline to maintain.
 - The `useDocumentPrint` hook is retained (not deleted) so `PrintPreviewDialog` can still drive the manual fallback when policy explicitly defers to the operator.
+- Sales and Purchases documents are policy-routed artifacts, not A4-only artifacts: invoices, orders, bills, delivery notes, returns, and statements may render as ESC/POS bytes when the configured policy is thermal paper plus a thermal printer role. A4/Letter/A5 PDF remains the default and explicit office-print path.
 
 ## Migration plan (wave B1)
 
