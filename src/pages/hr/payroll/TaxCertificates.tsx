@@ -301,7 +301,7 @@ export default function TaxCertificates() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header — title + FY selector + collapsed localization status chip */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-bold tracking-tight">Tax Certificates</h1>
           <p className="text-muted-foreground">
