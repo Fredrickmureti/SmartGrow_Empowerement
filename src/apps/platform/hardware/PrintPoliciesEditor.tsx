@@ -271,6 +271,29 @@ export default function PrintPoliciesEditor() {
                 draft.render_mode === "escpos" || THERMAL_PAPER_FORMATS.has(draft.paper_format);
               const thermalMismatch =
                 roleRequired && wantsThermal && !!roleKind && !THERMAL_ROLE_KINDS.has(roleKind);
+              // Second silent fallback: the role is thermal-capable, but no
+              // enabled device with that role can physically take this width.
+              const widthMm = PAPER_WIDTH_MM[draft.paper_format] ?? null;
+              const roleDevices = roleKind
+                ? devices.filter((d) => d.role === roleKind && d.enabled)
+                : [];
+              const constrainedDevices = roleDevices.filter(
+                (d) => (d.supported_media_ids?.length ?? 0) > 0,
+              );
+              const deviceMediaMismatch =
+                roleRequired &&
+                !thermalMismatch &&
+                widthMm != null &&
+                roleDevices.length > 0 &&
+                constrainedDevices.length > 0 &&
+                constrainedDevices.length === roleDevices.length &&
+                !constrainedDevices.some((d) =>
+                  (d.supported_media_ids ?? []).some((id) => {
+                    const mp = mediaProfiles.find((m) => m.id === id);
+                    return mp ? Math.abs(mp.width_mm - widthMm) <= 2 : false;
+                  }),
+                );
+
               return (
                 <div
                   key={dt.value}
