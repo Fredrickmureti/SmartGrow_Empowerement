@@ -58,6 +58,18 @@ const THERMAL_ROLE_KINDS: ReadonlySet<string> = new Set([
   "label_printer",
 ]);
 
+// Nominal media width per paper format, used only to warn when a policy's
+// width can't be honoured by any device bound to the selected role.
+const PAPER_WIDTH_MM: Partial<Record<PaperFormat, number>> = {
+  a4: 210,
+  letter: 216,
+  a5: 148,
+  "80mm": 80,
+  "58mm": 58,
+  "40mm": 40,
+};
+
+
 
 
 const TRIGGER_OPTIONS: { value: OutputTrigger; label: string; hint: string }[] = [
