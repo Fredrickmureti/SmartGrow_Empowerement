@@ -58,6 +58,15 @@ describe("coercePaperRenderMode (Phase 4)", () => {
     }
   });
 
+  it("allows Sales/Purchases business documents to stream ESC/POS on thermal paper", () => {
+    for (const docType of ["invoice", "purchase_order", "bill", "sales_order"] as const) {
+      const out = coercePaperRenderMode(docType, "80mm", "escpos");
+      expect(out.render_mode).toBe("escpos");
+      expect(out.paper_format).toBe("80mm");
+      expect(out.coerced).toBe(false);
+    }
+  });
+
   it("explicit PDF for pos_receipt on thermal renders as receipt-width PDF", () => {
     for (const paper of THERMAL_PAPER as Set<PaperFormat>) {
       const out = coercePaperRenderMode("pos_receipt", paper, "pdf", "pdf");
@@ -99,6 +108,6 @@ describe("coercePaperRenderMode (Phase 4)", () => {
     const out = coercePaperRenderMode("pos_receipt", "80mm", "pdf");
     expect(out.coerced).toBe(true);
     expect(out.reason).toBeTruthy();
-    expect(out.reason!.length).toBeGreaterThan(10);
+    expect(out.reason?.length ?? 0).toBeGreaterThan(10);
   });
 });
