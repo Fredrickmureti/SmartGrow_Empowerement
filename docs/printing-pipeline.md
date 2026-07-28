@@ -1,7 +1,7 @@
 # Printing Pipeline
 
 Single source of truth for how this ERP renders, previews, prints, and
-downloads PDF documents. Read this before touching anything under
+downloads PDF and thermal ESC/POS documents. Read this before touching anything under
 `src/services/printing/`, `src/hooks/useDocumentPrint.ts`,
 `supabase/functions/generate-document/`, or `supabase/functions/_shared/pdf/`.
 
@@ -58,6 +58,20 @@ generate-document (edge fn)
 - **Thermal density.** When the builder runs in `density: "narrow"`
   (receipt printers), it overrides the theme to a 6 pt margin. Wide-paper
   output always uses the theme's 72 pt.
+
+## Thermal policy routing for business documents
+
+Sales and Purchases documents are not A4-only. The operator's
+`document_print_policies` row is authoritative:
+
+- `a4` / `letter` / `a5` + `pdf` routes through the browser or office-printer PDF path.
+- `40mm` / `58mm` / `80mm` + `escpos` + a thermal printer role routes through the shared ESC/POS row producer and then `dispatch.toDevice`.
+- Invalid combinations remain auditable in `print_jobs.render_params.coerced_to_pdf`; valid thermal invoice/PO policies must not set that flag.
+
+Do not add Sales/Purchases-specific print buttons, renderer forks, or fallbacks.
+They must continue to use snapshot → `document_records` → `printDocumentIntent`
+→ `print_jobs` → `render.ts` → `dispatch.ts`, the same pipeline used by POS
+receipts.
 
 ### Adding a new document type
 

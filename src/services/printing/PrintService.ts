@@ -400,12 +400,19 @@ export async function dispatchQueuedJob(
   let transport: PrintTransport = 'none';
   try {
     const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
+    const renderOptions = renderOptionsForJob(job);
     const artifact = job.document_record_id
-      ? await renderDocumentRecord({ documentRecordId: job.document_record_id, medium })
+      ? await renderDocumentRecord({
+          documentRecordId: job.document_record_id,
+          medium,
+          options: renderOptions,
+        })
       : await renderSourceDocument({
           documentType: job.doc_type ?? 'document',
           documentId: job.doc_id ?? '',
           medium,
+          paperFormat: paperFormatFromRenderOptions(renderOptions),
+          extraBody: renderOptions,
         });
 
     const copies = Math.max(1, job.copies ?? 1);
@@ -432,6 +439,31 @@ export async function dispatchQueuedJob(
     await handle.markFailed(error);
     return { transport, error };
   }
+}
+
+function renderOptionsForJob(job: QueuedJob): Record<string, unknown> {
+  return {
+    ...(job.render_params ?? {}),
+    copies: job.copies ?? 1,
+    intent: job.disposition ?? 'print',
+  };
+}
+
+function paperFormatFromRenderOptions(
+  options: Record<string, unknown>,
+): PaperFormatOption | null {
+  const paper = options.paper_format;
+  if (
+    paper === '40mm' ||
+    paper === '58mm' ||
+    paper === '80mm' ||
+    paper === 'a4' ||
+    paper === 'a5' ||
+    paper === 'letter'
+  ) {
+    return paper;
+  }
+  return null;
 }
 
 export { resolveOrganizationId };
