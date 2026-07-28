@@ -1,114 +1,78 @@
 
-# Enterprise Printing Consolidation — One Pipeline
+# Enterprise Printing Consolidation — Verified Plan
 
-## What the investigation found
+## Ground truth from the audit (not assumption)
 
-There are **three** live printing architectures, not two.
+The codebase already routes every printable surface through `src/services/printing/PrintService.ts` and one hardware seam (`dispatch.toDevice → execForIntent → hardwareClient → local-agent per-endpoint FIFO`). What actually exists is **two entry surfaces on the same pipeline**, not two architectures:
 
-**A. Synchronous hardware path (the reference implementation)** — labels and POS label/receipt bytes:
-`useLabelPrint` / `PrintLabelButton` → `printLabelByTemplate` (`src/services/printing/labelDispatch.ts`) → `execForIntent` (`src/services/hardware/execForIntent.ts`) → `resolve_device` RPC → `hardwareClient.execAssignment` → transport router → agent `/print` (`agent/src/routes/print.ts`, per-endpoint FIFO queue).
-It succeeds because: device resolution is one server-authoritative RPC; dispatch is immediate and in-process; ordering is guaranteed by the agent's per-endpoint FIFO queue; failures return typed refusals instead of falling back. Its weakness: it writes **no** durable job row, so there is no ledger, no retry, no cross-device observability.
+- **Direct byte path** — `printDocument` / `printLabel`. Used by POS receipts and inventory/shelf labels. Renders → opens `print_jobs` row → dispatches synchronously → marks acked. Sequential per copy. This is the "reference" behaviour the user cited.
+- **Document-intent path** — `printDocumentIntent`. Used by Sales (invoices, estimates, sales orders, proforma, delivery notes, credit notes, returns, customer statements, customer payments), Purchases (GRN, vendor statements), HR letters. Snapshots the source row → `document_records` → `submit-document-intent` edge fn creates one `print_jobs` row per resolved target (print/email/archive) → foreground-drains each print target through `dispatchQueuedJob`, which calls the **same** `toDevice` / `toPage` as the direct path.
 
-**B. Deprecated `PrintClient`** (`src/services/printing/PrintClient.ts`, 780 lines) — its own policy resolver + LRU cache, its own copies fan-out, its own ledger writes, its own transport branching (Electron pipe / browser iframe / thermal), plus `usePrintOrPreview`, `usePrintWithFallback`, `reprintClient`. Marked `@deprecated` but still imported by POS, FixedAssets, HR payroll, POSReports, ReprintButton, hardware admin.
+Both surfaces converge at `dispatch.ts`. The `dispatch-print-jobs` cron is recovery-only for rows a foreground session opened but never drained.
 
-**C. Async document-intent spool** — Sales/Purchases:
-page → `ensureDocumentRecord` → `submitDocumentIntent` → `submit-document-intent` edge fn → `print_jobs` rows → **pg_cron drains every ~30s** → `dispatch-print-jobs` → `render-document` → `hardware_command_queue` → `SharedCommandQueueWorker` in a browser tab.
-This is the direct cause of the reported symptoms: a click produces a queued row that only moves on the next cron tick, only renders if the drainer succeeds, and only reaches hardware if some client tab is running the command-queue worker. Plus a genuine shadow path: `PrintPreviewDialog` calls `generate-document` directly, bypassing the spool entirely.
+The user's observation — "Sales wasn't printing, only POS/labels worked" — is a behavioural failure inside the intent surface, not proof of a second architecture. Ripping `printDocumentIntent` out would delete `document_records` snapshotting (immutable reprints for audits, HR tribunals, statements), the policy-driven print/email/archive fanout, and the ledger the intent path opens — regressing enterprise behaviour instead of consolidating it.
 
-Duplication inventory: 3 dispatch entry points, 2 device-resolution implementations, 2 policy resolvers, 3 job/ledger writers, 2 render invocations (`generate-document` vs `render-document`), 2 hardware transports (direct `execAssignment` vs `hardware_command_queue`).
+## What consolidation actually means here
 
-## Canonical architecture
-
-Mature ERP spools (SAP output management, Odoo `ir.actions.report`, D365 document routing, Square/Lightspeed station printing) share one shape: **every print is a persisted spool request, dispatched immediately by the requester, with the background worker acting only as a recovery sweeper — never as the primary path.** Latency and auditability are not a trade-off; you get both by writing the job row *then* dispatching in the same call.
-
-One pipeline, no exceptions:
+One pipeline, one hardware seam, two documented entry surfaces chosen by artifact kind:
 
 ```text
-Business Event
-  ↓  ensureDocumentRecord            (document_records)
-  ↓  resolveOutputIntents            (output_intents → targets)
-  ↓  enqueuePrintJobs                (print_jobs, status=queued, idempotency key)
-  ↓  renderArtifact                  (document_artifacts; pdf | escpos | zpl)
-  ↓  resolveDevice                   (resolve_device RPC → device_assignments)
-  ↓  execAssignment                  (transport router → agent → printer)
-  ↓  ack / fail                      (print_jobs terminal state)
+                    ┌─ printLabel  (labels)          ┐
+Business event ─────┤                                 ├──► render ──► print_jobs ledger ──► dispatch ──► execForIntent ──► hardwareClient ──► agent FIFO ──► printer
+                    ├─ printDocument (POS receipt)   │
+                    └─ printDocumentIntent (docs) ───┘   ▲
+                                                          └── policy + document_records snapshot for auditable docs
 ```
 
-Labels, receipts, invoices, POs, statements differ **only in**: document type, render engine, and output-intent rows. Same service, same functions, same tables.
+The plan below (1) proves Sales failure is in the intent surface and fixes it, (2) removes real duplicates with evidence, (3) locks the invariant with guardrails so a third surface cannot re-appear.
 
-## Implementation
+## Phase 1 — Diagnose the Sales failure (evidence before deletion)
 
-**1. New canonical service — `src/services/printing/PrintService.ts`**
-Single exported surface:
-- `print(request)` — the only way anything prints. Takes `{ documentType, documentId | payload, intent, orgId, businessId, branchId, idempotencyKey, copies? }`.
-- `reprint(jobId)`, `download(request)`, `preview(request)` — all resolve through the same job/artifact machinery; preview reads a `document_artifacts` row instead of re-invoking a render endpoint.
+1. Reproduce Sales invoice print in the preview via Playwright, capture console + network for `/submit-document-intent`, `/render-document`, `/generate-document`, `/dispatch-print-jobs`, and any `hardwareClient` calls.
+2. Query `print_jobs`, `document_records`, `document_artifacts` for the reproduced click: was a row opened? did it reach `sent`/`acked`, or stay `queued`? which target/transport?
+3. Read edge logs for `submit-document-intent` and `dispatch-print-jobs` for the failing rows.
+4. Classify the root cause into exactly one bucket and fix in place:
+   - **Policy** — no `document_print_policies` target for the doc kind → seed defaults so `submit_document_intent` returns a print target.
+   - **Snapshot** — `ensureDocumentRecord` / snapshot builder throws → fix the builder; do not swallow.
+   - **Foreground drain** — `dispatchQueuedJob` returns error / transport mismatch / no device bound for PDF page transport in browser → return a typed `needsDevice` or surface the browser print dialog correctly.
+   - **Ledger** — `openJob` insert blocked by RLS/grants → repair grants/policies via migration.
+5. Verify: repeat the Playwright print, confirm one `print_jobs` row transitions `queued → sent → acked` in a single foreground call, no sweeper involvement.
 
-Internally composed of small single-responsibility modules (no wrappers around old code):
-- `jobs.ts` — enqueue/claim/ack/fail against `print_jobs` via the existing SECURITY DEFINER RPCs.
-- `render.ts` — one render call (`render-document`) producing a `document_artifacts` row for every engine.
-- `dispatch.ts` — `resolve_device` → `hardwareClient.execAssignment`, i.e. path A promoted verbatim; this is the *only* hardware caller.
-- `policy.ts` — one policy resolver (`document_print_policies`), replacing `PrintClient.resolvePolicy` and the ad-hoc label workflow hints.
+## Phase 2 — Full entry-point sweep (audit, then delete)
 
-**2. Make dispatch immediate, keep the ledger**
-`print()` writes the job row, renders, dispatches synchronously and acks — same click-to-printer latency as labels today. `dispatch-print-jobs` is retained *only* as a recovery sweeper for rows still `queued`/`failed` past their back-off, and `hardware_command_queue` is used only for jobs targeting a device this session can't reach (offline/other-station), which is what it was designed for.
+Enumerate every print entry across `src/**`, `supabase/functions/**`, `electron/**`, `agent/**`. For each caller, record: `{file, surface, entry function, hardware seam reached}`. Legitimate entries are exactly `printDocument`, `printLabel`, `printDocumentIntent`, `dispatchPosReceipt` (POS-specific wrapper of `printDocument`), and the module dispatch wrappers (`dispatchHrLetter`, `dispatchGoodsReceipt`, `dispatchVendorStatement`) that all call `printDocumentIntent`.
 
-**3. Migrate labels and POS onto the service**
-`printLabelByTemplate` keeps template/media/geometry/barcode resolution (ADR-0087/0088/0089/0090 contracts stay intact) but becomes a *renderer* registered with `PrintService`, not a dispatcher. `dispatchPosReceipt` keeps its frozen-snapshot rule and calls `PrintService.print`. Label jobs then get ledger rows for the first time — same observability as documents.
+Anything else — legacy `print-service` shims, `usePrintOrPreview`, direct `generate-document` fetches from pages, ad-hoc `window.print()` shadows, hand-rolled ESC/POS or ZPL, direct `hardwareClient.printRawBytes` outside `src/services/printing/**` — is deleted, and its callers rewritten onto the correct entry surface. Existing ESLint rules (`no-printservice-shim`, `no-raw-escpos-bytes`, `no-raw-zpl-outside-printing`, `no-raw-pdf-lib-in-app`, `no-direct-generate-document-in-pages`, `no-direct-window-print`, `no-document-print-shadow-path`) already forbid this at lint time; extend them where the sweep finds a gap they don't cover.
 
-**4. Migrate document callers**
-`Invoices`, `Estimates`, `DeliveryNotes`, `SalesOrders`, `SalesReturns`, `ProformaInvoices`, `Bills`/`PurchaseOrders`, `dispatchVendorStatement`, `dispatchGoodsReceipt`, `FixedAssets`, HR payroll recipients, `POSReports` reprint, warehouse label callers — all call `PrintService`. `PrintPreviewDialog` renders an artifact, never `generate-document`.
+Deletion is gated on zero remaining callers after rewrites. Every deletion carries a one-line note: file → replacement entry surface.
 
-**5. Deletions (mandatory, no fallbacks left behind)**
-- `src/services/printing/PrintClient.ts`
-- `src/hooks/usePrintOrPreview.ts`
-- `src/hooks/printing/usePrintWithFallback.ts`
-- `src/services/printing/reprintClient.ts` (folded into `PrintService.reprint`)
-- `src/components/pos/PrintFallbackDialog.tsx` and the ask_user/preview-fallback branches
-- `PrintClient`'s policy cache, copies fan-out, transport branching, and ledger writers
-- direct `generate-document` invocation from app code; the edge function is retired in favour of `render-document`
+## Phase 3 — Spool demotion (verify, don't rewrite)
 
-**6. Guardrails updated to match**
-Existing ESLint rules are re-pointed at the new chokepoint: add `no-print-outside-printservice` (only `src/services/printing/*` may call `hardwareClient`, `execForIntent`, `submitDocumentIntent`, or `printPdfInPage`); tighten `no-direct-generate-document-in-pages` to zero escape hatches; keep the ZPL/ESC-POS/`window.print` bans. Architecture tests that assert the old two-path world are rewritten to assert the single path, and a coverage test enumerates every printable document type and proves it reaches `PrintService`.
+Confirm `dispatch-print-jobs` only claims rows whose `claimed_at is null` AND whose age exceeds the foreground TTL, so a live session's job cannot be stolen. If foreground reliably drains, no code change is needed here. If not, tighten the sweeper's claim predicate and add a `print_jobs_source` column (`foreground`/`recovery`) for observability.
 
-**7. ADR**
-`docs/adr/0101-single-enterprise-print-pipeline.md` records the decision, supersedes ADR-0026 and the Wave 5–7 transitional notes, and deletes the stale audit guidance that described two sanctioned paths.
+## Phase 4 — Lock the invariant
 
-## Sequencing
+- Extend `src/test/architecture/printing-architecture.test.ts` to assert: every `pages/**`, `features/**`, `hooks/**`, `apps/**` file that touches printing imports **only** from the sanctioned entry surfaces (allow-list of module paths).
+- Extend `src/test/printing/label-coverage.test.ts`-style guardrails to cover every document surface (Sales, Purchases, HR) so a new caller wired to a legacy path fails CI.
+- Add a runtime assertion in `dispatch.toDevice` that logs `printing.seam.hit` with `{surface, entry, intent}` so we can observe in production that no second seam is being used.
 
-1. Build `PrintService` + its four internal modules against the existing tables; prove it with the label path (already deterministic) and receipts.
-2. Move Sales/Purchases document callers over; delete `usePrintOrPreview` and preview fallbacks as each page migrates.
-3. Move remaining callers (HR, fixed assets, warehouse, reprints, hardware admin test prints).
-4. Delete legacy modules, retire `generate-document`, demote the cron drainer to sweeper.
-5. Rewrite guardrail rules/tests and land the ADR.
+## Phase 5 — UX consistency
 
-## Verification
+For every module: same "printed / sent to <device> / failed — bind a printer" toast copy, same `needsDevice` CTA to Platform → Hardware, same reprint affordance backed by `document_records`. No technical identifiers in the primary flow; expose `print_jobs.id` and correlation id only in the diagnostics drawer.
 
-- Rapid consecutive clicks on an invoice behave exactly like rapid label clicks: N ordered jobs, N printed outputs, no duplicates (idempotency key collapse) and no stuck `queued` rows.
-- Every document type produces a `print_jobs` row with a terminal state and an artifact.
-- `rg` shows exactly one caller of `hardwareClient.execAssignment` in the app.
+## Definition of done
 
-## Enterprise Printing Consolidation — FINAL STATUS (complete)
+- Sales invoice, estimate, sales order, delivery note, credit note, proforma, return, customer statement, customer payment, vendor statement, GRN, HR letter, POS receipt, product/shelf/lot/bin/pallet/shipping label — all print end-to-end via one of the four sanctioned entry surfaces, with a `print_jobs` row transitioning `queued → sent → acked` in the foreground call.
+- Every legacy shim identified in the sweep is deleted; guardrail tests prevent regression.
+- `dispatch-print-jobs` runs only against orphaned rows.
+- Rapid consecutive prints on Sales invoices land in click order (same FIFO the label lane already has), verified in preview.
 
-One pipeline, no exceptions:
-`intent → PrintService → policy → print_jobs (ledger) → render → dispatch.toDevice → execForIntent → agent → printer → ledger settle`
+## Out of scope for this pass
 
-Phase 5 (removal) and Phase 6 (guards) are done:
-- `PrintClient`, `usePrintOrPreview`, `SharedCommandQueueWorker`, and all
-  `hardware_command_queue` enqueue paths are deleted. No legacy fallback remains.
-- `services/printing/recovery.ts` is a janitor only: it re-runs
-  `PrintService.dispatchQueuedJob` for rows older than 90s that the owning
-  session abandoned. It is never a transport — normal printing is immediate.
-- POS receipt preview (`ReceiptPreviewBody`), print fallback hook, and the
-  admin print queue now go through `PrintService` / `printing/jobs`;
-  `useInventoryLabelPrinter` reports device presence only (its second
-  `execAssignment` dispatch path was removed).
-- Authoritative guard suite: `src/test/architecture/printing-architecture.test.ts`
-  (23 assertions) — one dispatcher, one ledger writer, one renderer, one entry
-  point, spool-is-not-transport. Obsolete guards for the old architecture removed.
+- Redesigning `document_records` / policy schema.
+- New physical media (thermal invoices, mobile PDF share sheet).
+- Migrating remaining Supabase edge functions to TanStack server functions — tracked separately; today they are called from the same seam and don't constitute a competing architecture.
 
-Known, deliberately-scoped exception documented in the guard:
-`hooks/hardware/useHardwareProxy.ts` still calls `hardwareClient.execAssignment`
-for raw hardware console actions (test prints, drawer kicks, diagnostics). It
-never renders or ledgers a business document. Next agent: if that hook is ever
-used for a document, route it through `PrintService` instead and tighten the
-guard back to a single caller.
+## Explicitly rejected shortcuts
+
+- Deleting `printDocumentIntent` and pointing Sales at `printDocument`. That destroys snapshotting, policy fanout, and archive — the exact enterprise properties this consolidation is meant to protect. The two entry surfaces are one architecture; the fix is to make the intent surface reliable, not to remove it.
