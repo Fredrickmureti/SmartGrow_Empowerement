@@ -66,7 +66,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 
@@ -139,7 +139,7 @@ export default function SalesOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

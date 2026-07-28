@@ -44,7 +44,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
@@ -356,7 +356,7 @@ export default function Invoices() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

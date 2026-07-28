@@ -1,24 +1,25 @@
 /**
- * labelDispatch — Track 2 entry point for printing a label-template by key.
+ * labelDispatch — label rendering for the enterprise print pipeline.
  *
- * Resolves the org/branch-scoped label template body, performs
- * `{{token}}` substitution against `vars`, and dispatches the rendered
- * payload through the canonical intent resolver (`execForIntent`) under
- * the `label_printer` / `a4_printer` role. Physical printer selection
- * lives inside `resolve_device` (`document_print_policies`) — Phase 6
- * Step C retired the parallel per-workflow resolver path and the
- * `printer_workflow_bindings` table with it. The optional `workflow`
- * field is now advisory only (kept for audit / observability).
+ * Resolves the org/branch-scoped label template body and media geometry,
+ * performs `{{token}}` substitution against `vars`, and compiles the
+ * result into a driver payload. It does NOT talk to hardware: the payload
+ * is handed to `PrintService.printLabel`, which opens the print-job
+ * ledger row and dispatches through the same hardware seam every other
+ * printable document uses.
  *
- * If no template is registered for `templateKey`, the function returns a
- * structured `{ ok: false, error }` rather than throwing — saga handlers
- * can rely on that to keep `business_event_outbox` rows recoverable.
+ * Physical printer selection lives inside `resolve_device`
+ * (`document_print_policies`). The optional `workflow` field is advisory
+ * only (kept for audit / observability).
+ *
+ * Failures are returned as a structured `{ ok: false, error }` rather
+ * than thrown — saga handlers rely on that to keep
+ * `business_event_outbox` rows recoverable.
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { execForIntent } from '@/services/hardware/execForIntent';
-import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
 import { compileLabelDoc, isLabelDoc, type LabelDoc } from './labelCompiler';
+
 
 export type LabelEngine = 'zpl' | 'epl' | 'escpos' | 'pdf';
 export type PrinterWorkflow =
@@ -63,10 +64,31 @@ export interface LabelDispatchInput {
   mediaProfileId?: string | null;
 }
 
-export interface LabelDispatchResult extends DriverResult {
-  templateResolved?: { engine: LabelEngine; version: number; scope: string };
-  mediaResolved?: { profileId: string; widthMm: number; heightMm: number | null; dpi: number };
+export interface LabelTemplateResolution {
+  engine: LabelEngine;
+  version: number;
+  scope: string;
 }
+
+export interface LabelMediaResolution {
+  profileId: string;
+  widthMm: number;
+  heightMm: number | null;
+  dpi: number;
+}
+
+/** Compiled label ready for dispatch, or a structured refusal. */
+export type LabelRenderResult =
+  | {
+      ok: true;
+      payload: Record<string, unknown>;
+      role: 'label_printer' | 'a4_printer';
+      idempotencyKey: string;
+      templateResolved: LabelTemplateResolution;
+      mediaResolved?: LabelMediaResolution;
+    }
+  | { ok: false; error: string };
+
 
 /**
  * Substitute `{{token}}` (whitespace tolerated) with `vars[token]`.
@@ -236,11 +258,19 @@ async function resolvePrinterMedia(
   return null;
 }
 
-export async function printLabelByTemplate(input: LabelDispatchInput): Promise<LabelDispatchResult> {
-  // Phase 6 Step C — the physical printer is chosen inside execForIntent
-  // via document_print_policies + resolve_device. Media geometry is
-  // resolved org-scoped so an org with a default media_profile always
-  // gets a valid envelope.
+/**
+ * Resolve template + media and compile the label into a driver payload.
+ *
+ * This function renders; it does not print. `PrintService.printLabel`
+ * takes the payload from here, opens the ledger row, and dispatches it
+ * through the same hardware seam every other document uses — a label is
+ * data, not a separate architecture.
+ */
+export async function renderLabelPayload(input: LabelDispatchInput): Promise<LabelRenderResult> {
+  // The physical printer is chosen at dispatch time via
+  // document_print_policies + resolve_device. Media geometry is resolved
+  // org-scoped so an org with a default media_profile always gets a valid
+  // envelope.
   const media: ResolvedMedia | null = await resolvePrinterMedia(
     null,
     input.orgId,
@@ -265,7 +295,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
       .eq('active', true);
     if ((count ?? 0) > 0) {
       return {
-        success: false,
+        ok: false,
         error:
           `Label template '${input.templateKey}' exists for this organization but could not be resolved for the requested scope ` +
           `(branch=${input.branchId ?? 'none'}, media=${media?.id ?? input.mediaProfileId ?? 'none'}). ` +
@@ -273,18 +303,17 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
       };
     }
     return {
-      success: false,
+      ok: false,
       error: `no label template registered for key '${input.templateKey}' in this organization`,
     };
   }
 
   // ADR-0087 — envelope-emitting engines (ZPL, EPL) require a resolved
   // media profile. Failing loud here prevents silent unscaled prints when
-  // a printer_profile.supported_media_ids array is empty and no override
-  // was passed.
+  // a device has no pinned media list and no override was passed.
   if ((tpl.engine === 'zpl' || tpl.engine === 'epl') && !media) {
     return {
-      success: false,
+      ok: false,
       error: `NO_MEDIA_RESOLVED: label template '${input.templateKey}' (engine=${tpl.engine}) requires a media profile, but this organization has no active media_profiles rows. Create one in Platform → Hardware → Media (or mark an existing profile as default), or pass mediaProfileId explicitly.`,
     };
   }
@@ -328,7 +357,7 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
       payload = { pdfUrl: rendered };
       break;
     default:
-      return { success: false, error: `unsupported label engine '${tpl.engine}'` };
+      return { ok: false, error: `unsupported label engine '${tpl.engine}'` };
   }
 
   // ADR-0087 — carry media geometry + dpi so the label driver emits the
@@ -342,27 +371,18 @@ export async function printLabelByTemplate(input: LabelDispatchInput): Promise<L
   }
 
   const lotSuffix = input.lotNumber ? `:lot:${input.lotNumber}` : '';
-  const idem = input.idempotencyKey ??
+  const idempotencyKey = input.idempotencyKey ??
     `${input.templateKey}:${input.sourceDocType ?? 'manual'}:${input.sourceDocId ?? Date.now()}${lotSuffix}`;
 
-  const role = tpl.engine === 'pdf' ? 'a4_printer' : 'label_printer';
-
-  // Phase 6 Step C — single dispatch path: intent → role → assignment via
-  // `resolve_device`. Deterministic printing, no shadow branches.
-  const res: DriverResult = await execForIntent({
-    intentOrRole: role,
-    op: 'print_label',
-    payload,
-    organizationId: input.orgId,
-    idempotencyKey: idem,
-    sourceDocType: input.sourceDocType ?? null,
-    sourceDocId: input.sourceDocId ?? null,
-    businessEventId: input.businessEventId ?? null,
-  });
-
   return {
-    ...res,
+    ok: true,
+    payload,
+    role: tpl.engine === 'pdf' ? 'a4_printer' : 'label_printer',
+    idempotencyKey,
     templateResolved: { engine: tpl.engine, version: tpl.version, scope: tpl.scope },
-    mediaResolved: media ? { profileId: media.id, widthMm: media.widthMm, heightMm: media.heightMm, dpi: media.dpi } : undefined,
+    mediaResolved: media
+      ? { profileId: media.id, widthMm: media.widthMm, heightMm: media.heightMm, dpi: media.dpi }
+      : undefined,
   };
 }
+

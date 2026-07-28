@@ -14,7 +14,7 @@ import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
@@ -363,7 +363,7 @@ export default function CustomerPayments() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

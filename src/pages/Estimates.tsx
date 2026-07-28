@@ -92,7 +92,7 @@ import { AdditionalCost } from "@/components/common/AdditionalCostsSection";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -421,7 +421,7 @@ export default function Estimates() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

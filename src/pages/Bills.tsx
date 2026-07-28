@@ -20,7 +20,7 @@ import { queryKeys } from "@/lib/queryKeys";
 
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
@@ -202,7 +202,7 @@ export default function Bills() {
   const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
 
   // Print & Email support — routed through the Wave 7.2 canonical
-  // pipeline (snapshot → ensureDocumentRecord → submitDocumentIntent).
+  // pipeline (snapshot → ensureDocumentRecord → printDocumentIntent).
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailDocument, setEmailDocument] = useState<DocumentEmailData | null>(null);
   const [isPrinting, setIsPrinting] = useState<string | null>(null);
@@ -268,7 +268,7 @@ export default function Bills() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

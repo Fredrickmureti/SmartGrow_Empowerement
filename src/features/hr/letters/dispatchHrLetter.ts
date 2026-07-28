@@ -17,7 +17,7 @@ import {
   type HrLetterType,
 } from "@/services/documents/snapshots/hrLetter";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 
 /** `documents.source_doc_type` per letter — the row the letter was cut from. */
 const SOURCE_DOC_TYPE: Record<HrLetterType, string> = {
@@ -76,7 +76,7 @@ export async function dispatchHrLetter({
     snapshot: built.snapshot,
   });
 
-  const result = await submitDocumentIntent({ documentRecordId, triggeredSource });
+  const result = await printDocumentIntent({ documentRecordId, triggeredSource });
 
   return { documentRecordId, targetCount: result.target_count };
 }

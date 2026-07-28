@@ -46,7 +46,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
-import { printLabelByTemplate } from "@/services/printing/labelDispatch";
+import { printLabel } from "@/services/printing/PrintService";
 
 const ROLE_LABELS: Record<string, { label: string; description: string }> = {
   receipt_printer: { label: "Receipt printer", description: "Customer receipt slips at sale commit." },
@@ -121,7 +121,7 @@ const TEST_OPS: Partial<Record<DeviceRole, TestSpec>> = {
     payload: { amount: 1, currency: "USD", reference: "hw-test" },
     successCopy: "Payment probe initiated — cancel from PED.",
   },
-  // Label printer test dispatch is routed through printLabelByTemplate
+  // Label printer test dispatch is routed through PrintService.printLabel
   // (see handleTest) so it exercises the full workflow-binding + media
   // resolution pipeline, not just raw byte transport. This sentinel
   // entry only enables the Test button in the UI.
@@ -251,7 +251,7 @@ export function HardwareDevicesPage() {
     setTesting(key);
     try {
       // Label printers exercise the whole workflow-binding + media
-      // resolution pipeline via `printLabelByTemplate` — the owner of
+      // resolution pipeline via `PrintService.printLabel` — the owner of
       // label dispatch — so a "Test print" here matches exactly what the
       // app dispatches at runtime, with no shim in between.
       if ((role as string) === "label_printer") {
@@ -259,7 +259,7 @@ export function HardwareDevicesPage() {
           toast.error("Select an organization before test-printing a label.");
           return;
         }
-        const res = await printLabelByTemplate({
+        const res = await printLabel({
           orgId: currentOrg.id,
           branchId: currentBranch?.id ?? null,
           templateKey: "product_label",

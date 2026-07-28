@@ -22,7 +22,7 @@ import { useActiveOrDefaultRegister } from "@/hooks/pos/useActiveOrDefaultRegist
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
-import { printClient } from "@/services/printing/PrintClient";
+import { openInteractiveJob } from "@/services/printing/PrintService";
 import { isElectron as runtimeIsElectron, openPdfPreview } from "@/services/printing/previewSurface";
 import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 import { SafeHtmlPreview } from "@/components/common/SafeHtmlPreview";
@@ -369,19 +369,20 @@ export function PrintPreviewDialog({
         // Wave B3 (Plan P2 Step 1) — ledger-cover interactive thermal
         // prints so the audit view sees every dispatch, not just the
         // auto_print branch.
-        const ledger = await printClient.recordInteractivePrint({
+        const ledger = await openInteractiveJob({
           documentType: documentType ?? "unknown",
           documentId: documentId ?? null,
           intent: "receipt",
           format: "escpos",
+          transport: "thermal",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
-          idempotencyKey: clickIdempotencyKey,
+          correlationId: clickIdempotencyKey,
         });
         try {
           const result = await printRawBytes(bytes);
           if (result.success) {
-            await ledger.markSent();
+            await ledger.markSent(null);
             await ledger.markAcked();
             toast({
               title: "Sent to printer",
@@ -413,18 +414,18 @@ export function PrintPreviewDialog({
         // prints. `printPdfInPage`'s FIFO queue guarantees the browser
         // print dialog opens for this job before the next one starts,
         // so `markSent` after `await` is a truthful ack.
-        const ledger = await printClient.recordInteractivePrint({
+        const ledger = await openInteractiveJob({
           documentType: documentType ?? "unknown",
           documentId: documentId ?? null,
           intent: "a4_document",
           format: "pdf",
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
-          idempotencyKey: clickIdempotencyKey,
+          correlationId: clickIdempotencyKey,
         });
         try {
           await printPdfInPage(pdfBlob);
-          await ledger.markSent();
+          await ledger.markSent(null);
           await ledger.markAcked();
           toast({ title: "Print dialog opened" });
         } catch (err) {

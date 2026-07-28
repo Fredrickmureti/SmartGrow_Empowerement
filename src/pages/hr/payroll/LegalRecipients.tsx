@@ -44,7 +44,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument } from "@/services/printing/PrintService";
 import { useState as useLocalState } from "react";
 import { useBusinesses } from "@/contexts/BusinessContext";
 
@@ -250,22 +250,19 @@ export default function LegalRecipients() {
                     if (!selected) return;
                     setIsGeneratingPdf(true);
                     try {
-                      await printClient.download(
-                        {
-                          intent: "a4_document",
-                          documentType: "legal_recipient_statement",
-                          documentId: selected.recipient_id,
-                          businessId: currentBusiness?.id ?? null,
+                      await printDocument({
+                        documentType: "legal_recipient_statement",
+                        documentId: selected.recipient_id,
+                        intent: "a4_document",
+                        disposition: "download",
+                        businessId: currentBusiness?.id ?? null,
+                        filename: `recipient-statement-${selected.display_name}-${from}-${to}`,
+                        extraBody: {
+                          periodStart: from,
+                          periodEnd: to,
+                          businessId: currentBusiness?.id,
                         },
-                        `recipient-statement-${selected.display_name}-${from}-${to}`,
-                        {
-                          extraBody: {
-                            periodStart: from,
-                            periodEnd: to,
-                            businessId: currentBusiness?.id,
-                          },
-                        },
-                      );
+                      });
                     } finally {
                       setIsGeneratingPdf(false);
                     }
@@ -280,22 +277,18 @@ export default function LegalRecipients() {
                     if (!selected) return;
                     setIsGeneratingPdf(true);
                     try {
-                      await printClient.printDocument(
-                        {
-                          intent: "a4_document",
-                          documentType: "legal_recipient_statement",
-                          documentId: selected.recipient_id,
-                          title: `Recipient Statement — ${selected.display_name}`,
-                          businessId: currentBusiness?.id ?? null,
+                      await printDocument({
+                        documentType: "legal_recipient_statement",
+                        documentId: selected.recipient_id,
+                        intent: "a4_document",
+                        businessId: currentBusiness?.id ?? null,
+                        filename: `Recipient Statement — ${selected.display_name}`,
+                        extraBody: {
+                          periodStart: from,
+                          periodEnd: to,
+                          businessId: currentBusiness?.id,
                         },
-                        {
-                          extraBody: {
-                            periodStart: from,
-                            periodEnd: to,
-                            businessId: currentBusiness?.id,
-                          },
-                        },
-                      );
+                      });
                     } finally {
                       setIsGeneratingPdf(false);
                     }

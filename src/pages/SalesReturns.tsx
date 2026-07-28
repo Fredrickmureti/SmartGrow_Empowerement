@@ -52,7 +52,7 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { fetchAndBuildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -158,7 +158,7 @@ export default function SalesReturns() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

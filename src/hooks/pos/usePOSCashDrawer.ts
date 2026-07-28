@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument } from "@/services/printing/PrintService";
 
 
 export type CashMovementType =
@@ -114,11 +114,11 @@ export function usePOSCashDrawer(shiftId?: string) {
       // silently drop — auditors reconcile from `pos_cash_movements`.
       const movementId = result?.movement_id as string | undefined;
       if (movementId && businessId) {
-        void printClient.print({
-          intent: "receipt",
+        void printDocument({
           documentType: "drawer_slip",
           documentId: movementId,
-          title: `Drawer slip ${variables.movement_type}`,
+          intent: "receipt",
+          filename: `Drawer slip ${variables.movement_type}`,
           organizationId: variables.organization_id,
           businessId,
           branchId: null,
