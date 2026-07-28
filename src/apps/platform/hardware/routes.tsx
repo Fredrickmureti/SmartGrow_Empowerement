@@ -9,12 +9,13 @@
  * without depending on POS being installed.
  *
  * Audit 2026-07-28 — surface consolidation:
- *   - `roles` (Printer roles) removed. Its bindings half wrote to
- *     `printer_role_branch_bindings`, a table dropped in migration
- *     20260727234102 along with `resolve_hardware_assignment`, so it was
- *     non-functional. The `printer_roles` dictionary it also edited is
- *     already surfaced as the role dropdown inside Output policies, which
- *     is where operators actually route documents. → redirects to policies.
+ *   - `roles` (Printer roles) removed. Its bindings half wrote to a
+ *     per-branch role-binding table that migration 20260727234102 dropped
+ *     together with its resolver RPC, so it was non-functional. The
+ *     `printer_roles` dictionary it also edited is already surfaced as the
+ *     role dropdown inside Output policies, which is where operators
+ *     actually route documents. → redirects to policies.
+
  *   - `capability` (Printer capability) removed. Only `dpi` and
  *     `supported_media_ids` were read at runtime (label dispatch); those
  *     now live on the Devices page as `LabelMediaCapabilityCard`.
