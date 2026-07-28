@@ -317,6 +317,16 @@ export default function PrintPoliciesEditor() {
                         falls back to A4
                       </Badge>
                     )}
+                    {deviceMediaMismatch && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 text-[10px] h-4 border-destructive text-destructive"
+                        title="No enabled device for this role lists media matching this paper width. Either widen the device's supported media on the Devices page, or pick a paper width the printer actually takes."
+                      >
+                        device media mismatch
+                      </Badge>
+                    )}
+
                   </div>
 
                   <Select
