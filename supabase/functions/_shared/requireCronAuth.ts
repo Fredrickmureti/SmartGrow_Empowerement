@@ -18,7 +18,8 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 export function requireCronAuth(req: Request): Response | null {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!serviceKey) {
+  const cronToken = Deno.env.get("CRON_CALLER_JWT") ?? "";
+  if (!serviceKey && !cronToken) {
     return new Response(
       JSON.stringify({ error: "server_misconfigured" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -28,7 +29,11 @@ export function requireCronAuth(req: Request): Response | null {
   const header = req.headers.get("Authorization") ?? req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : header;
 
-  if (!token || !constantTimeEqual(token, serviceKey)) {
+  const ok =
+    !!token &&
+    ((serviceKey && constantTimeEqual(token, serviceKey)) ||
+      (cronToken && constantTimeEqual(token, cronToken)));
+  if (!ok) {
     return new Response(
       JSON.stringify({ error: "unauthorized" }),
       { status: 401, headers: { "Content-Type": "application/json" } },
