@@ -275,7 +275,20 @@ export default function TaxCertificates() {
       if (errCount) toast.error(`${errCount} certificate(s) failed — see logs`);
       if (!okCount && !skippedCount && !errCount) toast.info("No certificates created");
     } catch (e: any) {
-      toast.error(normalizeError(e).message ?? "Generation failed");
+      // Surface the structured business-error envelope from
+      // generate-tax-certificate (code / message / recovery) before
+      // falling back to the generic normalizer — otherwise a 422
+      // LIFECYCLE_REFUSED or TEMPLATE_STRUCTURAL_INVALID collapses into
+      // a useless "An unexpected error occurred" toast.
+      const payload = e?.payload ?? e?.body;
+      const serverMsg =
+        payload?.message ?? payload?.error ?? e?.message;
+      const recovery = payload?.recovery ?? payload?.hint;
+      const title =
+        typeof serverMsg === "string" && serverMsg.length > 0
+          ? serverMsg
+          : normalizeError(e).message ?? "Generation failed";
+      toast.error(title, recovery ? { description: String(recovery) } : undefined);
     }
   };
 
