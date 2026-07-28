@@ -76,7 +76,7 @@ import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendD
 // /purchases/orders/new. See src/features/purchases/orders/PurchaseOrderCreatePage.tsx.
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -314,7 +314,7 @@ export default function PurchaseOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

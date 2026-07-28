@@ -12,7 +12,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 
 export interface DispatchVendorStatementArgs {
   /** `vendor_statements.id` of the saved statement. */
@@ -55,7 +55,7 @@ export async function dispatchVendorStatement({
     snapshot: built.snapshot,
   });
 
-  const result = await submitDocumentIntent({
+  const result = await printDocumentIntent({
     documentRecordId,
     triggeredSource,
   });

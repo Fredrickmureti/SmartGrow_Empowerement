@@ -59,7 +59,7 @@ import {
 } from "@/lib/pos/receipt/renderers";
 import { buildReceiptLines } from "@/lib/receipt/preview/buildReceiptLines";
 import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument, renderDocumentBlob } from "@/services/printing/PrintService";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 
@@ -189,7 +189,7 @@ export function PostPaymentSurface({
   const renderAndShowPdf = useCallback(async () => {
     if (!model) return;
     try {
-      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
+      const blob = await renderDocumentBlob("pos_receipt", model.meta.transaction_id);
       await printPdfInPage(blob);
       setPrintState({ kind: "printed", channel: "pdf" });
     } catch (err) {
@@ -204,16 +204,14 @@ export function PostPaymentSurface({
     setPrintState({ kind: "printing" });
     try {
       if (thermalAvailable) {
-        // Phase 5 Step B — the receipt path goes through the single
-        // chokepoint. `printClient.print` resolves the winning
-        // `device_assignments` row via `resolve_device` and dispatches
-        // through `TransportRouter`; the register-scoped `printRawBytes`
-        // callback is gone with it.
-        const res = await printClient.print({
-          intent: "receipt",
+        // One pipeline. `printDocument` opens the ledger row, renders the
+        // receipt, resolves the winning `device_assignments` row via
+        // `resolve_device`, and dispatches through `TransportRouter`.
+        const res = await printDocument({
           documentType: "pos_receipt",
           documentId: model.meta.transaction_id,
-          format: "escpos",
+          intent: "receipt",
+          medium: "escpos",
           organizationId: currentOrg?.id ?? null,
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
@@ -232,7 +230,7 @@ export function PostPaymentSurface({
         return;
       }
       // No thermal printer at all → server PDF in-page.
-      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
+      const blob = await renderDocumentBlob("pos_receipt", model.meta.transaction_id);
       await printPdfInPage(blob);
       setPrintState({ kind: "printed", channel: "pdf" });
     } catch (err) {
@@ -259,7 +257,7 @@ export function PostPaymentSurface({
     if (!model) return;
     setIsSavingPdf(true);
     try {
-      const blob = await printClient.renderReceiptPdfBlob(model.meta.transaction_id);
+      const blob = await renderDocumentBlob("pos_receipt", model.meta.transaction_id);
       downloadPdfBlob(blob, `receipt-${model.meta.transaction_number}.pdf`);
       toast({ title: "Receipt saved", description: "PDF downloaded" });
     } catch (err) {

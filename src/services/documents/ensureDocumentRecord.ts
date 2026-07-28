@@ -3,7 +3,7 @@
  *
  * Materializes (idempotently) a `document_records` row for a given source
  * document (module + doc type + id) and returns its id. Callers pass the id
- * to {@link submitDocumentIntent} to enqueue the routing plan.
+ * to {@link printDocumentIntent} to enqueue the routing plan.
  *
  * This is the ONLY sanctioned way for app code to obtain a
  * `document_record_id`. Direct inserts into `public.document_records` from

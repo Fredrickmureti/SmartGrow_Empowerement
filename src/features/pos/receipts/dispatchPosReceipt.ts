@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 
 export interface DispatchPosReceiptArgs {
   /** `pos_transactions.id` of the receipt being re-issued. */
@@ -94,7 +94,7 @@ export async function dispatchPosReceipt({
     snapshot: built.snapshot,
   });
 
-  const result = await submitDocumentIntent({
+  const result = await printDocumentIntent({
     documentRecordId,
     triggeredSource,
   });

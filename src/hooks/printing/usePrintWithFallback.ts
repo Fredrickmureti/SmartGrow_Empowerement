@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useState } from "react";
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument } from "@/services/printing/PrintService";
 import { printerStatusSnapshot } from "@/hooks/hardware/usePrinterStatus";
 import {
   printPdfInPage,
@@ -58,7 +58,11 @@ export function usePrintWithFallback() {
       setPending({ ...req, filename });
       const status = await printerStatusSnapshot();
       setCurrentPrinterStatus(status);
-      const result = await printClient.print(req);
+      const result = await printDocument({
+        documentType: req.documentType,
+        documentId: req.documentId,
+        intent: req.intent,
+      });
       if (!result.success) {
         setShowFallbackDialog(true);
         return { success: false, error: result.error, fallbackUsed: "none" };
@@ -91,7 +95,11 @@ export function usePrintWithFallback() {
           setCurrentPrinterStatus(s);
           if (s.available) {
             setShowFallbackDialog(false);
-            await printClient.print(pending);
+            await printDocument({
+              documentType: pending.documentType,
+              documentId: pending.documentId,
+              intent: pending.intent,
+            });
           }
         } else {
           // 'cancel' | 'email' | 'preview' — caller handles UI side effects.

@@ -15,10 +15,9 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { execForIntent } from '@/services/hardware/execForIntent';
-import { printClient } from '@/services/printing/PrintClient';
+import { printLabel, printDocument } from '@/services/printing/PrintService';
+import { toDevice } from '@/services/printing/dispatch';
 import type { LabelDispatchInput } from '@/services/printing/labelDispatch';
-import { generateDocumentEscPosBytes } from '@/services/printing/pdfUtils';
 
 export interface RequestReprintInput {
   orgId: string;
@@ -56,8 +55,9 @@ export async function dispatchLabelReprint(
   reprintRequestId: string,
   input: Omit<LabelDispatchInput, 'idempotencyKey'>,
 ) {
-  return printClient.printLabel({
+  return printLabel({
     ...input,
+    isReprint: true,
     idempotencyKey: `reprint:${reprintRequestId}`,
   });
 }
@@ -78,28 +78,26 @@ export async function dispatchReceiptReprint(
     businessId?: string | null;
   },
 ) {
-  // Phase 5 Step B — reprints resolve a `device_assignments` row through
-  // `execForIntent` (intent = receipt) instead of dispatching at the bare
-  // `receipt_printer` role, so a reprint lands on exactly the device the
-  // original print used.
+  // A reprintable document goes through the same pipeline as its
+  // original print — policy, ledger, render, dispatch — with the audit
+  // flag set, so the reprint lands on exactly the device the original
+  // used and shows up in `print_jobs` as a distinct, reasoned event.
   if (input.sourceDocType === 'pos_receipt') {
-    const bytes = await generateDocumentEscPosBytes('pos_receipt', input.sourceDocId, {
-      forceRefreshSettings: false,
-    });
-    return execForIntent({
-      intentOrRole: 'receipt',
-      op: 'print_raw',
-      payload: Array.from(bytes),
+    return printDocument({
+      documentType: 'pos_receipt',
+      documentId: input.sourceDocId,
+      intent: 'receipt',
+      medium: 'escpos',
       organizationId: input.organizationId,
       businessId: input.businessId ?? null,
-      idempotencyKey: `reprint:${reprintRequestId}`,
-      sourceDocType: input.sourceDocType,
-      sourceDocId: input.sourceDocId,
+      correlationId: `reprint:${reprintRequestId}`,
       isReprint: true,
     });
   }
 
-  return execForIntent({
+  // Ad-hoc payload reprints (no document renderer) still leave through
+  // the single hardware seam rather than touching a driver directly.
+  return toDevice({
     intentOrRole: 'receipt',
     op: 'print_receipt',
     payload: { receiptData: input.receiptData },

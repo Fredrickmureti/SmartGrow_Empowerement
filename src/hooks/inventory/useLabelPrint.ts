@@ -7,7 +7,7 @@
  *      missing-device CTA (`useInventoryLabelPrinter`).
  *   2. Never encode a UUID — go through `resolveLabelBarcode`
  *      (ADR-0089); on refusal show the standard toast and CTA.
- *   3. Dispatch through `printLabelByTemplate` with a workflow key so
+ *   3. Dispatch through `PrintService.printLabel` with a workflow key so
  *      the workflow-bound printer resolver picks the right physical
  *      device per branch/warehouse (ADR-0086).
  *   4. Emit a consistent success/failure toast so operators don't
@@ -29,11 +29,8 @@ import { toast } from "sonner";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
 import { useInventoryLabelPrinter } from "@/hooks/inventory/useInventoryLabelPrinter";
-import {
-  printLabelByTemplate,
-  type PrinterWorkflow,
-  type LabelDispatchResult,
-} from "@/services/printing/labelDispatch";
+import { printLabel, type LabelPrintResult } from "@/services/printing/PrintService";
+import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 import {
   resolveLabelBarcode,
   LABEL_BARCODE_REFUSAL,
@@ -62,7 +59,9 @@ export interface PrintLabelArgs {
   idempotencyKey?: string;
 }
 
-export interface PrintLabelResult extends LabelDispatchResult {
+export interface PrintLabelResult extends Partial<LabelPrintResult> {
+  success: boolean;
+  error?: string;
   refused?: "no-printer" | "no-org" | "no-identity";
 }
 
@@ -103,7 +102,7 @@ export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
         hri_flag: identity.hri,
         ...args.extraVars,
       };
-      const result = await printLabelByTemplate({
+      const result = await printLabel({
         orgId: currentOrg.id,
         branchId,
         warehouseId,

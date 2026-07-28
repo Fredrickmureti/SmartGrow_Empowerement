@@ -10,7 +10,7 @@
  *   1. Load the source entity with the module's usual query.
  *   2. Call the matching `buildXSnapshot(...)`.
  *   3. Pass the result to {@link ensureDocumentRecord} as `snapshot`.
- *   4. Pass the returned id to {@link submitDocumentIntent}.
+ *   4. Pass the returned id to {@link printDocumentIntent}.
  *
  * Snapshots are FROZEN at submit time — never mutate a snapshot after it
  * lands in `document_records`. Reprints replay the same bytes.

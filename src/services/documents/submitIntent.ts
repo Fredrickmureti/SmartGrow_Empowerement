@@ -1,7 +1,12 @@
 /**
- * Wave 5 — submitDocumentIntent client shim.
+ * enqueueDocumentIntent — server-side routing-plan enqueue.
  *
- * The ONLY sanctioned way for app code to dispatch a Document Record.
+ * INTERNAL to the printing pipeline: the only sanctioned caller is
+ * `PrintService.printDocumentIntent`. App code never enqueues jobs
+ * directly, because an enqueue on its own leaves the operator waiting
+ * for the recovery sweeper instead of printing now.
+ *
+ * It asks the server to dispatch a Document Record.
  * It never renders bytes, never opens a print dialog, never touches
  * hardware directly. All it does is ask the server to:
  *   1. Resolve the Wave 4 routing plan (which media and dispositions apply).
@@ -31,7 +36,7 @@ export interface SubmitDocumentIntentResult {
   target_count: number;
 }
 
-export async function submitDocumentIntent(
+export async function enqueueDocumentIntent(
   input: SubmitDocumentIntentInput,
 ): Promise<SubmitDocumentIntentResult> {
   const { data, error } = await supabase.functions.invoke(
@@ -46,7 +51,7 @@ export async function submitDocumentIntent(
   );
 
   if (error) {
-    throw new Error(`submitDocumentIntent failed: ${error.message}`);
+    throw new Error(`document intent enqueue failed: ${error.message}`);
   }
   return data as SubmitDocumentIntentResult;
 }

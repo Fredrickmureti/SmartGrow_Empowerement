@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useCustomerStatements, CustomerStatementData } from "@/hooks/useCustomerStatements";
 import { fetchAndBuildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -330,7 +330,7 @@ export default function CustomerStatements() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await submitDocumentIntent({
+      const result = await printDocumentIntent({
         documentRecordId,
         triggeredSource: "manual",
       });

@@ -11,7 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { submitDocumentIntent } from "@/services/documents/submitIntent";
+import { printDocumentIntent } from "@/services/printing/PrintService";
 
 export interface DispatchGoodsReceiptArgs {
   /** `goods_receipts.id` of the saved receipt. */
@@ -54,7 +54,7 @@ export async function dispatchGoodsReceipt({
     snapshot: built.snapshot,
   });
 
-  const result = await submitDocumentIntent({
+  const result = await printDocumentIntent({
     documentRecordId,
     triggeredSource,
   });

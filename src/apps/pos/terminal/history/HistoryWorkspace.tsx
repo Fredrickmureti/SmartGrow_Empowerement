@@ -50,7 +50,7 @@ import { PostPaymentSurface } from "../receipt/PostPaymentSurface";
 import { VoidTransactionDialog } from "@/components/pos/VoidTransactionDialog";
 import { CardPaymentActions } from "@/components/pos/transaction-detail/CardPaymentActions";
 import { TransactionActionMenu } from "./TransactionActionMenu";
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument } from "@/services/printing/PrintService";
 import { useResolvedPrintPolicyWithDevice } from "@/hooks/useDocumentPrintPolicies";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
@@ -161,14 +161,13 @@ export function HistoryWorkspace({ shiftId, registerId }: HistoryWorkspaceProps)
   const handleDownloadPdf = async (details: POSTransactionRecord) => {
     setIsGeneratingPdf(true);
     try {
-      // ADR-0026 — route receipt PDF renders through PrintClient so
-      // policy resolution and job telemetry stay unified.
-      await printClient.print({
-        intent: "receipt",
+      // One pipeline: policy → ledger → render → dispatch.
+      await printDocument({
         documentType: "pos_receipt",
         documentId: details.id,
-        format: "pdf",
-        title: `receipt-${details.transaction_number}`,
+        intent: "receipt",
+        medium: "pdf",
+        filename: `receipt-${details.transaction_number}`,
         organizationId: currentOrg?.id ?? null,
         businessId: currentBusiness?.id ?? null,
         branchId: (currentBusiness as unknown as { branch_id?: string | null })?.branch_id ?? null,

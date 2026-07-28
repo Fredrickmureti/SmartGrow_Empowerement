@@ -1,109 +1,88 @@
 
-# Hardware app — routing model consolidation
+# Enterprise Printing Consolidation — One Pipeline
 
-## The real problem
+## What the investigation found
 
-The hardware app currently expresses "how does a document reach a printer" **three different ways**, built in three different waves, all still wired in parallel:
+There are **three** live printing architectures, not two.
 
-| # | Surface | Table | What it decides | Wave |
-|---|---|---|---|---|
-| 1 | **Print policies** | `document_print_policies` | (doc_type, branch) → paper format + render_mode + optional `device_assignment_id` + `auto_print` | V3 |
-| 2 | **Printer roles** | `printer_roles` + `printer_role_branch_bindings` | doc intent → role → per-branch device (with priority + primary + fallback) | Wave 6 |
-| 3 | **Output intent** | `output_intent_targets` | doc_type → (medium, disposition, hardware_role) | Wave 7 |
+**A. Synchronous hardware path (the reference implementation)** — labels and POS label/receipt bytes:
+`useLabelPrint` / `PrintLabelButton` → `printLabelByTemplate` (`src/services/printing/labelDispatch.ts`) → `execForIntent` (`src/services/hardware/execForIntent.ts`) → `resolve_device` RPC → `hardwareClient.execAssignment` → transport router → agent `/print` (`agent/src/routes/print.ts`, per-endpoint FIFO queue).
+It succeeds because: device resolution is one server-authoritative RPC; dispatch is immediate and in-process; ordering is guaranteed by the agent's per-endpoint FIFO queue; failures return typed refusals instead of falling back. Its weakness: it writes **no** durable job row, so there is no ledger, no retry, no cross-device observability.
 
-Sales/Purchases/Inventory don't "know their hardware." They call `submitDocumentIntent(doc_type, doc_id)`. The server-side resolver is supposed to walk **one** of these chains to a device. Today it walks a hybrid: it reads `output_intent_targets` for the medium/disposition, sometimes reads `print_policies` for a device, and Printer Roles are only consulted from POS/Labels via a different code path (`resolve_hardware_assignment`).
+**B. Deprecated `PrintClient`** (`src/services/printing/PrintClient.ts`, 780 lines) — its own policy resolver + LRU cache, its own copies fan-out, its own ledger writes, its own transport branching (Electron pipe / browser iframe / thermal), plus `usePrintOrPreview`, `usePrintWithFallback`, `reprintClient`. Marked `@deprecated` but still imported by POS, FixedAssets, HR payroll, POSReports, ReprintButton, hardware admin.
 
-That is why:
-- POS receipt + labels work — they go through Printer Roles + `SharedCommandQueueWorker`.
-- Invoice/Estimate print returns "queued to 1 target(s)" — the intent row is written, but no worker knows how to convert `disposition:download` (default) or a `hardware_role` (that isn't bound) into a physical target.
-- The Printer column and Auto switch in Print Policies are disabled for everything except `pos_receipt` — the UI is honest that this part was never finished.
-- The "Reserved for printer profiles (V6)" tooltip is a fossil: V6 = Printer Roles, which already exists as its own module. The Print Policies row was left in place as a placeholder that never got deleted.
+**C. Async document-intent spool** — Sales/Purchases:
+page → `ensureDocumentRecord` → `submitDocumentIntent` → `submit-document-intent` edge fn → `print_jobs` rows → **pg_cron drains every ~30s** → `dispatch-print-jobs` → `render-document` → `hardware_command_queue` → `SharedCommandQueueWorker` in a browser tab.
+This is the direct cause of the reported symptoms: a click produces a queued row that only moves on the next cron tick, only renders if the drainer succeeds, and only reaches hardware if some client tab is running the command-queue worker. Plus a genuine shadow path: `PrintPreviewDialog` calls `generate-document` directly, bypassing the spool entirely.
 
-## How big platforms actually model this
+Duplication inventory: 3 dispatch entry points, 2 device-resolution implementations, 2 policy resolvers, 3 job/ledger writers, 2 render invocations (`generate-document` vs `render-document`), 2 hardware transports (direct `execAssignment` vs `hardware_command_queue`).
 
-Every mature system separates **four independent axes**. Our three tables mash them together.
+## Canonical architecture
 
-| Axis | Answers | Example values | Where it belongs |
-|---|---|---|---|
-| **Format** | What does the document look like on paper? | A4 / A5 / Letter / 80mm / 58mm / 40mm | Document template (media profile) |
-| **Rendering** | How is it encoded for the device? | PDF / ESC/POS / ZPL / HTML-print | Derived from printer capability, not user-chosen |
-| **Routing** | Which physical device handles this class of output? | "receipt_thermal", "office_a4", "shipping_label" → device per branch | Printer role + branch binding |
-| **Trigger** | When does it print vs preview vs download? | manual preview / auto on commit / email / download | Per (doc_type, branch) policy |
+Mature ERP spools (SAP output management, Odoo `ir.actions.report`, D365 document routing, Square/Lightspeed station printing) share one shape: **every print is a persisted spool request, dispatched immediately by the requester, with the background worker acting only as a recovery sweeper — never as the primary path.** Latency and auditability are not a trade-off; you get both by writing the job row *then* dispatching in the same call.
 
-- **Square / Toast / Lightspeed**: printer *roles* (receipt / kitchen / bar / expo / label). Each device subscribes to roles. Documents ask for a role, never for a device. Fallback is by priority order among devices bound to the same role.
-- **Odoo**: paper format lives on the report/template; IoT-box printer is picked per (company, report). No separate "role" concept, but effectively one printer per report is a degenerate role.
-- **NetSuite / SAP / QuickBooks**: format template ≠ output channel. User picks "print / email / save PDF" at action time; browser/OS default printer handles physical routing. No app-level device registry.
-- **Shopify POS**: hard split between "receipt printer" (role) and "label/shipping printer" (role). No user-visible device list per document.
-
-The consistent pattern: **format is a template property, routing is a role, rendering is a driver detail, trigger is a policy.** We currently have all four fighting each other across three tables.
-
-## Target model (Square-style, one coherent chain)
+One pipeline, no exceptions:
 
 ```text
-Document (invoice INV-00001)
-        │
-        ▼  submitDocumentIntent(doc_type='invoice', doc_id, action='print'|'preview'|'download'|'email')
-        │
-        ▼  Output policy   (doc_type, branch) → { format, trigger, target_role }
-        │                    - format:  A4 / 80mm / ...          (from Media profiles)
-        │                    - trigger: auto | manual | preview-only
-        │                    - role:    printer_role code        (from Printer roles)
-        │
-        ▼  Role binding   (role, branch)      → device_assignment (priority + fallback)
-        │
-        ▼  Capability      (device)            → render_mode + driver bytes
-        │
-        ▼  Transport router (device.transport) → electron | agent | webusb | ...
-        │
-        ▼  hardware_command_queue → physical print
+Business Event
+  ↓  ensureDocumentRecord            (document_records)
+  ↓  resolveOutputIntents            (output_intents → targets)
+  ↓  enqueuePrintJobs                (print_jobs, status=queued, idempotency key)
+  ↓  renderArtifact                  (document_artifacts; pdf | escpos | zpl)
+  ↓  resolveDevice                   (resolve_device RPC → device_assignments)
+  ↓  execAssignment                  (transport router → agent → printer)
+  ↓  ack / fail                      (print_jobs terminal state)
 ```
 
-One resolver walks this chain. Every module in the hardware app maps to exactly one hop:
+Labels, receipts, invoices, POs, statements differ **only in**: document type, render engine, and output-intent rows. Same service, same functions, same tables.
 
-| Hardware module | Owns | Answers |
-|---|---|---|
-| Devices | `device_assignments` | What physical hardware exists per branch? |
-| Media profiles | media geometry catalog | What paper sizes/labels are defined? |
-| Printer capability | driver + DPI + supported media per device | Can this printer render this format? |
-| Label templates | template AST | How does the payload lay out for a given media? |
-| **Printer roles** | `printer_roles` + bindings | Which device handles a given semantic role, per branch? |
-| **Output policies** (renamed from "Print policies") | (doc_type, branch) → format + trigger + role | For this document type, what should happen and where does it go? |
-| Print queue | `print_jobs` | Live status of ongoing dispatches. |
+## Implementation
 
-## What has to change
+**1. New canonical service — `src/services/printing/PrintService.ts`**
+Single exported surface:
+- `print(request)` — the only way anything prints. Takes `{ documentType, documentId | payload, intent, orgId, businessId, branchId, idempotencyKey, copies? }`.
+- `reprint(jobId)`, `download(request)`, `preview(request)` — all resolve through the same job/artifact machinery; preview reads a `document_artifacts` row instead of re-invoking a render endpoint.
 
-### 1. Print Policies → Output Policies (rewrite the row semantics)
-Row becomes `{ business, branch, doc_type, format, trigger, role_code }`. Drop the `device_assignment_id` column (that decision moved to role bindings) and drop `render_mode` (derived from role's device capability). The disabled printer dropdown and disabled Auto switch **go away entirely** — they were placeholders for role work that is now done in the Printer roles module.
+Internally composed of small single-responsibility modules (no wrappers around old code):
+- `jobs.ts` — enqueue/claim/ack/fail against `print_jobs` via the existing SECURITY DEFINER RPCs.
+- `render.ts` — one render call (`render-document`) producing a `document_artifacts` row for every engine.
+- `dispatch.ts` — `resolve_device` → `hardwareClient.execAssignment`, i.e. path A promoted verbatim; this is the *only* hardware caller.
+- `policy.ts` — one policy resolver (`document_print_policies`), replacing `PrintClient.resolvePolicy` and the ad-hoc label workflow hints.
 
-### 2. Resolver becomes single-pass
-Server-side `resolve_output_intent` is rewritten to walk exactly one chain: policy → role → binding → device → capability. If any hop is missing, the intent stops at `preview` (never silently `download`) and the reason is stored on `print_jobs.status_reason` so the "Print queue" surface actually shows why nothing printed.
+**2. Make dispatch immediate, keep the ledger**
+`print()` writes the job row, renders, dispatches synchronously and acks — same click-to-printer latency as labels today. `dispatch-print-jobs` is retained *only* as a recovery sweeper for rows still `queued`/`failed` past their back-off, and `hardware_command_queue` is used only for jobs targeting a device this session can't reach (offline/other-station), which is what it was designed for.
 
-### 3. Sales / Purchases / Inventory stay untouched
-They already call `submitDocumentIntent(doc_type, doc_id, action)`. They never see roles or devices. This is the load-bearing contract and it's already correct — the fix is entirely under it.
+**3. Migrate labels and POS onto the service**
+`printLabelByTemplate` keeps template/media/geometry/barcode resolution (ADR-0087/0088/0089/0090 contracts stay intact) but becomes a *renderer* registered with `PrintService`, not a dispatcher. `dispatchPosReceipt` keeps its frozen-snapshot rule and calls `PrintService.print`. Label jobs then get ledger rows for the first time — same observability as documents.
 
-### 4. Delete the shadow paths
-- Remove the `device_assignment_id` column reference from `document_print_policies` (migrate any existing rows into a role binding first).
-- Remove the Auto switch + Printer dropdown from the Print Policies editor.
-- Remove the "Reserved for printer profiles (V6)" tooltip fossil.
-- The POS receipt "auto-print on commit" trigger moves onto the new `output_policies.trigger = 'auto'` field, so POS uses the same model as everything else.
+**4. Migrate document callers**
+`Invoices`, `Estimates`, `DeliveryNotes`, `SalesOrders`, `SalesReturns`, `ProformaInvoices`, `Bills`/`PurchaseOrders`, `dispatchVendorStatement`, `dispatchGoodsReceipt`, `FixedAssets`, HR payroll recipients, `POSReports` reprint, warehouse label callers — all call `PrintService`. `PrintPreviewDialog` renders an artifact, never `generate-document`.
 
-### 5. Print queue surface must show failures
-Today a stuck `queued` row is invisible from the originating document. The Print queue module already exists; wire `print_jobs.status_reason` into it and add a "See failed jobs" link inside every document action toast, so "queued to 1 target(s)" is either followed by a success toast or by a visible failure with a jump link.
+**5. Deletions (mandatory, no fallbacks left behind)**
+- `src/services/printing/PrintClient.ts`
+- `src/hooks/usePrintOrPreview.ts`
+- `src/hooks/printing/usePrintWithFallback.ts`
+- `src/services/printing/reprintClient.ts` (folded into `PrintService.reprint`)
+- `src/components/pos/PrintFallbackDialog.tsx` and the ask_user/preview-fallback branches
+- `PrintClient`'s policy cache, copies fan-out, transport branching, and ledger writers
+- direct `generate-document` invocation from app code; the edge function is retired in favour of `render-document`
 
-## Technical details (server + tables)
+**6. Guardrails updated to match**
+Existing ESLint rules are re-pointed at the new chokepoint: add `no-print-outside-printservice` (only `src/services/printing/*` may call `hardwareClient`, `execForIntent`, `submitDocumentIntent`, or `printPdfInPage`); tighten `no-direct-generate-document-in-pages` to zero escape hatches; keep the ZPL/ESC-POS/`window.print` bans. Architecture tests that assert the old two-path world are rewritten to assert the single path, and a coverage test enumerates every printable document type and proves it reaches `PrintService`.
 
-- New/renamed table: `output_policies` (business_id, branch_id nullable, document_type, media_profile_id, trigger enum('auto','manual','preview_only','download_only'), role_code nullable). Backfill from `document_print_policies` + inferred role for POS rows.
-- New RPC: `resolve_output_route(doc_type, doc_id, branch_id) → { format, trigger, role_code, device_assignment_id | null, render_mode, reason }`. Called once from `submit-document-intent`.
-- Deprecate `print_policies_resolve` and the mixed `resolve_output_intent` — one entry point only.
-- `dispatch-print-jobs` worker no longer inspects intent targets to guess a device; it only reads the resolved route stamped onto `print_jobs` at enqueue time.
-- Keep `SharedCommandQueueWorker` as the last-mile executor. Both POS and non-POS jobs flow through `print_jobs` → `hardware_command_queue` after this change, killing the split-brain.
+**7. ADR**
+`docs/adr/0101-single-enterprise-print-pipeline.md` records the decision, supersedes ADR-0026 and the Wave 5–7 transitional notes, and deletes the stale audit guidance that described two sanctioned paths.
 
-## Out of scope (explicitly)
+## Sequencing
 
-- No changes to Devices, Media profiles, Printer capability, or Label templates modules. Their models are already correct.
-- No new drivers, no Bluetooth work, no changes to the Electron main-process orchestrator (ADR-0014 stays).
-- No UI theming or navigation changes beyond renaming "Print policies" → "Output policies".
+1. Build `PrintService` + its four internal modules against the existing tables; prove it with the label path (already deterministic) and receipts.
+2. Move Sales/Purchases document callers over; delete `usePrintOrPreview` and preview fallbacks as each page migrates.
+3. Move remaining callers (HR, fixed assets, warehouse, reprints, hardware admin test prints).
+4. Delete legacy modules, retire `generate-document`, demote the cron drainer to sweeper.
+5. Rewrite guardrail rules/tests and land the ADR.
 
-## Open decision I'd like your call on before I start
+## Verification
 
-**Do we hard-migrate `document_print_policies` rows into the new `output_policies` shape and drop the old table, or run both side-by-side for one release with a read shim?** Hard migration is cleaner and matches how the rest of your codebase treats deprecations; the shim is safer if there are external integrations reading `document_print_policies` directly. My default is hard-migrate unless you tell me otherwise.
+- Rapid consecutive clicks on an invoice behave exactly like rapid label clicks: N ordered jobs, N printed outputs, no duplicates (idempotency key collapse) and no stuck `queued` rows.
+- Every document type produces a `print_jobs` row with a terminal state and an artifact.
+- `rg` shows exactly one caller of `hardwareClient.execAssignment` in the app.
