@@ -62,6 +62,8 @@ export interface LabelDispatchInput {
    * row selected by `resolve_device` (via `document_print_policies`).
    */
   mediaProfileId?: string | null;
+  /** Audit flag — set true when the print originates from a reprint action. */
+  isReprint?: boolean;
 }
 
 export interface LabelTemplateResolution {

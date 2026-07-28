@@ -16,14 +16,26 @@ export async function renderAstToPdf(args: {
   context: RenderContext;
   blocks: AstBlock[];
 }): Promise<Uint8Array> {
+  // The snapshot IS the DocumentData shape (produced by the per-kind
+  // builders in src/services/documents/snapshots/*). Flat, not wrapped
+  // under `document`. Previously this adapter wrapped it (leaving
+  // top-level `document_number` etc. undefined) and passed
+  // `context.document.kind_code` in the `template` argument slot — two
+  // shape bugs that made every render-document call for A4 kinds
+  // (invoice, estimate, PO, GRN, bill, delivery note, credit note…)
+  // crash inside pdf-lib with `text must be of type string, but was
+  // actually of type undefined`. Consume the snapshot flat and attach
+  // `organization` from context when the snapshot doesn't carry it.
   const snap = args.context.document.snapshot as Record<string, unknown>;
   const documentData = {
-    organization: args.context.business as Record<string, unknown> | null,
-    document: { ...snap, id: args.context.document.id },
-    items: (snap["items"] as unknown[]) ?? [],
-    contact: snap["contact"] ?? null,
-    payment_terms: snap["payment_terms"] ?? null,
+    ...snap,
+    id: args.context.document.id,
+    organization:
+      (snap["organization"] as unknown) ??
+      (args.context.business as unknown) ??
+      null,
     metadata: {
+      ...((snap["metadata"] as Record<string, unknown> | undefined) ?? {}),
       template_id: args.template.id,
       template_version: args.template.version,
       block_types: args.blocks.map((b) => b.type),
@@ -31,7 +43,7 @@ export async function renderAstToPdf(args: {
   } as unknown as Parameters<typeof generateDocumentPdf>[0];
   const bytes = await generateDocumentPdf(
     documentData,
-    (args.context.document.kind_code as unknown) as Parameters<typeof generateDocumentPdf>[1],
+    {},
     (args.context.options as Parameters<typeof generateDocumentPdf>[2]) ?? undefined,
   );
   return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);

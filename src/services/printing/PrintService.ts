@@ -35,6 +35,7 @@ import {
   type JobHandle,
   type PrintFormat,
   type PrintTransport,
+  type QueuedJob,
 } from './jobs';
 import { renderSourceDocument, renderDocumentRecord, type RenderedArtifact } from './render';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
@@ -255,7 +256,7 @@ export interface LabelPrintResult {
  */
 export async function printLabel(req: PrintLabelRequest): Promise<LabelPrintResult> {
   const rendered = await renderLabelPayload(req);
-  if (!rendered.ok) {
+  if (rendered.ok === false) {
     return {
       success: false,
       error: rendered.error,
