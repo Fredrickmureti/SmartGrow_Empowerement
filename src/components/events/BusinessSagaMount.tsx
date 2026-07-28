@@ -11,7 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { BusinessSaga } from '@/services/events/BusinessSaga';
 import { printLabel } from '@/services/printing/PrintService';
-import { execForIntent } from '@/services/hardware/execForIntent';
+import { dispatchToDevice } from '@/services/printing/dispatch';
 import { domainEventBus, type DomainEvent } from '@/services/events/domainEventBus';
 import { customerDisplayClient, type CustomerDisplayData } from '@/services/hardware/local-display/CustomerDisplayClient';
 import {
@@ -272,7 +272,7 @@ export function BusinessSagaMount({ orgId }: Props) {
       // takings) also resolve a `device_assignments` row before opening a
       // drawer. No role-only guess: if no drawer is bound for this org the
       // resolver refuses and the saga logs it.
-      const drawer = await execForIntent({
+      const drawer = await dispatchToDevice({
         intentOrRole: 'cash_drawer',
         op: 'open',
         payload: {},
