@@ -363,7 +363,7 @@
         "npm:@rsbuild/core@2",
         "npm:@sentry/react@^10.56.0",
         "npm:@supabase/auth-js@^2.105.1",
-        "npm:@supabase/supabase-js@^2.110.8",
+        "npm:@supabase/supabase-js@^2.110.9",
         "npm:@tailwindcss/typography@~0.5.16",
         "npm:@tanstack/query-core@^5.83.0",
         "npm:@tanstack/react-query@^5.56.2",

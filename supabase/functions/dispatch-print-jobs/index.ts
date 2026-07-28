@@ -21,9 +21,11 @@
  * never writes `print_jobs.status` directly — this keeps the DLQ /
  * back-off contract in one place.
  */
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
+import { renderDocument } from "../_shared/rendering/engine.ts";
+import type { RenderMedium } from "../_shared/rendering/types.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -140,34 +142,37 @@ async function processJob(job: PrintJob): Promise<string> {
 }
 
 async function renderArtifact(job: PrintJob): Promise<string> {
-  const resp = await fetch(`${SUPABASE_URL}/functions/v1/render-document`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-      apikey: SERVICE_ROLE_KEY,
-    },
-    body: JSON.stringify({
-      medium: job.medium ?? "pdf",
+  if (!job.document_record_id) {
+    throw new Error("render_requires_document_record_id");
+  }
+
+  const result = await renderDocument(
+    {
+      medium: normaliseRenderMedium(job.medium),
       document_id: job.document_record_id,
       options: job.render_params ?? {},
       persist: true,
-    }),
-  });
+    },
+    admin,
+  );
 
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => resp.statusText);
-    throw new Error(`render_failed:${resp.status}:${detail.slice(0, 200)}`);
-  }
-
-  const envelope = await resp.json().catch(() => null);
-  const artifactId: string | undefined =
-    envelope?.artifact_id ?? envelope?.artifact?.id;
+  const artifactId = result.artifact_id;
   if (!artifactId) {
     throw new Error("render_returned_no_artifact_id");
   }
   return artifactId;
+}
+
+function normaliseRenderMedium(medium: string | null | undefined): RenderMedium {
+  switch (medium) {
+    case "escpos":
+    case "zpl":
+    case "html":
+    case "pdf":
+      return medium;
+    default:
+      return "pdf";
+  }
 }
 
 async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<string> {
@@ -181,10 +186,15 @@ async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<
     throw new Error("print_requires_branch_id");
   }
 
+  const documentRecordId = job.document_record_id;
+  if (!documentRecordId) {
+    throw new Error("print_missing_document_record");
+  }
+
   const { data: doc } = await admin
     .from("document_records")
     .select("organization_id")
-    .eq("id", job.document_record_id!)
+    .eq("id", documentRecordId)
     .maybeSingle();
 
   if (!doc?.organization_id) {
@@ -239,10 +249,15 @@ async function dispatchPrint(job: PrintJob, artifactId: string | null): Promise<
 }
 
 async function dispatchEmail(job: PrintJob, artifactId: string | null): Promise<string> {
+  const documentRecordId = job.document_record_id;
+  if (!documentRecordId) {
+    throw new Error("email_missing_document_record_id");
+  }
+
   const { data: doc } = await admin
     .from("document_records")
     .select("organization_id, business_id, party_kind, party_id, kind_code")
-    .eq("id", job.document_record_id!)
+    .eq("id", documentRecordId)
     .maybeSingle();
   if (!doc) throw new Error("email_missing_document_record");
 
@@ -251,10 +266,10 @@ async function dispatchEmail(job: PrintJob, artifactId: string | null): Promise<
     business_id: doc.business_id,
     event_type: `document.${doc.kind_code}.dispatch`,
     entity_type: "document_record",
-    entity_id: job.document_record_id,
+    entity_id: documentRecordId,
     template_variables: {
       artifact_id: artifactId,
-      document_record_id: job.document_record_id,
+      document_record_id: documentRecordId,
       correlation_id: job.correlation_id,
       scenario: job.scenario,
     },
@@ -267,10 +282,15 @@ async function dispatchEmail(job: PrintJob, artifactId: string | null): Promise<
 }
 
 async function dispatchFiscal(job: PrintJob, artifactId: string | null): Promise<string> {
+  const documentRecordId = job.document_record_id;
+  if (!documentRecordId) {
+    throw new Error("fiscal_missing_document_record_id");
+  }
+
   const { data: doc } = await admin
     .from("document_records")
     .select("organization_id, business_id, branch_id, kind_code, source_doc_type, source_doc_id")
-    .eq("id", job.document_record_id!)
+    .eq("id", documentRecordId)
     .maybeSingle();
   if (!doc) throw new Error("fiscal_missing_document_record");
 
@@ -280,7 +300,7 @@ async function dispatchFiscal(job: PrintJob, artifactId: string | null): Promise
     branch_id: doc.branch_id,
     document_kind: doc.kind_code,
     source_doc_type: doc.source_doc_type ?? doc.kind_code,
-    source_doc_id: doc.source_doc_id ?? job.document_record_id,
+    source_doc_id: doc.source_doc_id ?? documentRecordId,
     idempotency_key: `job:${job.id}`,
     state: "pending",
     payload: {
@@ -296,10 +316,15 @@ async function dispatchFiscal(job: PrintJob, artifactId: string | null): Promise
 }
 
 async function dispatchWebhook(job: PrintJob): Promise<string> {
+  const documentRecordId = job.document_record_id;
+  if (!documentRecordId) {
+    throw new Error("webhook_missing_document_record_id");
+  }
+
   const { data: doc } = await admin
     .from("document_records")
     .select("organization_id, branch_id, kind_code")
-    .eq("id", job.document_record_id!)
+    .eq("id", documentRecordId)
     .maybeSingle();
   if (!doc) throw new Error("webhook_missing_document_record");
 
@@ -308,7 +333,7 @@ async function dispatchWebhook(job: PrintJob): Promise<string> {
     branch_id: doc.branch_id,
     event_type: `document.${doc.kind_code}.dispatched`,
     source_doc_type: "document_record",
-    source_doc_id: job.document_record_id,
+    source_doc_id: documentRecordId,
     payload: {
       correlation_id: job.correlation_id,
       scenario: job.scenario,
