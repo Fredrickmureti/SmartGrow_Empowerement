@@ -105,11 +105,16 @@ export function shouldPersistArtifact(
   opts: { persistOptIn?: boolean } = {},
 ): boolean {
   if (opts.persistOptIn === false) return false;
-  return PERSIST_ALLOWLIST.has(documentType);
+  return PERSIST_ALLOWLIST.has(documentType) || PERSIST_ALLOWLIST.has(baseDocumentType(documentType));
 }
 
 export function isBlockingType(documentType: string): boolean {
-  return BLOCKING_TYPES.has(documentType);
+  return BLOCKING_TYPES.has(documentType) || BLOCKING_TYPES.has(baseDocumentType(documentType));
+}
+
+function baseDocumentType(documentType: string): string {
+  const parts = documentType.split(".");
+  return parts[parts.length - 1] ?? documentType;
 }
 
 export async function persistArtifact(
