@@ -222,10 +222,6 @@ export default function TaxCertificates() {
   const blockedReasons: string[] = [];
   if (readiness) {
     if (readiness.committedRuns === 0) blockedReasons.push("No committed payroll runs in this year");
-    if (readiness.draftRuns > 0)
-      blockedReasons.push(
-        `${readiness.draftRuns} unapproved payroll run(s) in FY ${fiscalYear} — approve or reverse them in Payroll → Runs before issuing statutory documents`,
-      );
     if (readiness.blockingFindings > 0)
       blockedReasons.push(`${readiness.blockingFindings} blocking readiness finding(s)`);
   }

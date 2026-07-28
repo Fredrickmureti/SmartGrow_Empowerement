@@ -499,23 +499,34 @@ Deno.serve(async (req) => {
     // `_shared/payrollLifecycleGate.ts` so every generator uses the exact
     // same rules — no per-generator drift.
     if (!isCertificateOfServiceTemplate(template)) {
-      const gate = await requireApprovedRunsForYear(admin, {
-        organization_id: body.organization_id,
-        business_id: body.business_id,
-        fy: body.fiscal_year,
-      });
-      if (!gate.ok) {
-        return businessError(
-          gate.code === "LIFECYCLE_QUERY_FAILED" ? 500 : 422,
-          gate.code ?? "LIFECYCLE_REFUSED",
-          gate.message ?? "Payroll lifecycle preconditions were not met.",
-          gate.recovery ?? "Complete the outstanding payroll approvals, then retry.",
-          {
-            template_code: body.template_code,
-            fiscal_year: body.fiscal_year,
-            ...(gate.details ?? {}),
-          },
-        );
+      // Tax certificates are YTD projections of *approved* payroll history.
+      // Unapproved (draft/processing) runs simply don't count — the YTD
+      // rollup RPC scopes to approved runs — so we only refuse when the
+      // fiscal year has *zero* approved runs (nothing to certify at all).
+      // When the user later approves more runs, they can regenerate and
+      // the new figures flow through automatically.
+      const yearStart = `${body.fiscal_year}-01-01`;
+      const yearEnd = `${body.fiscal_year}-12-31`;
+      const { data: approvedRuns, error: approvedErr } = await admin
+        .from("payroll_runs")
+        .select("id")
+        .eq("organization_id", body.organization_id)
+        .eq("business_id", body.business_id)
+        .gte("pay_period_start", yearStart)
+        .lte("pay_period_end", yearEnd)
+        .not("approved_at", "is", null)
+        .limit(1);
+      if (approvedErr) {
+        return businessError(500, "LIFECYCLE_QUERY_FAILED",
+          "Could not verify payroll run status for the requested year.",
+          "Retry generation. If this repeats, ask an administrator to check payroll_runs access.",
+          { detail: approvedErr.message, fy: body.fiscal_year, template_code: body.template_code });
+      }
+      if ((approvedRuns ?? []).length === 0) {
+        return businessError(422, "NO_APPROVED_RUNS",
+          `Fiscal year ${body.fiscal_year} has no approved payroll runs. There is nothing to certify yet.`,
+          "Approve at least one payroll run for this year in Payroll → Runs, then regenerate.",
+          { template_code: body.template_code, fiscal_year: body.fiscal_year });
       }
     }
 
