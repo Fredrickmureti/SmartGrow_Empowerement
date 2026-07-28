@@ -42,6 +42,7 @@ import { runtimeCapability, type RuntimeCapability } from "@/services/hardware/H
 import type { DeviceRole } from "@/services/hardware/drivers/DriverInterface";
 import { useDeviceAssignments, type DeviceAssignment } from "@/hooks/useDeviceAssignments";
 import { DeviceRegistryCard } from "@/components/hardware/DeviceRegistryCard";
+import { LabelMediaCapabilityCard } from "@/components/hardware/LabelMediaCapabilityCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Cpu, Radar, ListChecks, PlugZap } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -488,9 +489,13 @@ export function HardwareDevicesPage() {
                   </Card>
                 );
               })}
+              {/* Label media capability — the only runtime-consumed slice
+                  of the retired Printer capability page. */}
+              <LabelMediaCapabilityCard />
             </div>
           )}
         </TabsContent>
+
 
         <TabsContent value="discover" className="space-y-4">
           <Card data-testid="hardware-scan-card">

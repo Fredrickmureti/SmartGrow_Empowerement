@@ -201,12 +201,14 @@ export default function HardwareMedia() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Media profiles</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Label media</h1>
           <p className="text-sm text-muted-foreground">
-            Physical paper &amp; label geometry. Drivers inject the paper envelope
-            from the media profile bound to the printer — adding a new size never
-            requires editing a template body. See ADR-0087.
+            Physical label geometry for ZPL/EPL label printers. Drivers inject the
+            paper envelope from the media profile bound to the printer — adding a new
+            size never requires editing a template body. See ADR-0087. Document paper
+            sizes (80 mm, 58 mm, A4, …) are set in Output policies, not here.
           </p>
+
         </div>
         <Button onClick={startCreate}>
           <Plus className="mr-2 h-4 w-4" /> New media profile

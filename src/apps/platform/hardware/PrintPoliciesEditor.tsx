@@ -58,6 +58,18 @@ const THERMAL_ROLE_KINDS: ReadonlySet<string> = new Set([
   "label_printer",
 ]);
 
+// Nominal media width per paper format, used only to warn when a policy's
+// width can't be honoured by any device bound to the selected role.
+const PAPER_WIDTH_MM: Partial<Record<PaperFormat, number>> = {
+  a4: 210,
+  letter: 216,
+  a5: 148,
+  "80mm": 80,
+  "58mm": 58,
+  "40mm": 40,
+};
+
+
 
 
 const TRIGGER_OPTIONS: { value: OutputTrigger; label: string; hint: string }[] = [
@@ -97,6 +109,39 @@ export default function PrintPoliciesEditor() {
         .eq("organization_id", orgId as string)
         .eq("is_active", true)
         .order("code");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Audit 2026-07-28: surface the *second* silent fallback — a thermal
+  // policy pointed at a role whose device physically can't take that width.
+  // Read-only capability probe; `resolve_output_intent` is untouched.
+  const { data: devices = [] } = useQuery({
+    enabled: !!orgId,
+    queryKey: ["hardware_devices_capability", orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ role: string; display_name: string; supported_media_ids: string[] | null; enabled: boolean }> | null; error: unknown }> } };
+      })
+        .from("device_assignments")
+        .select("role,display_name,supported_media_ids,enabled")
+        .eq("organization_id", orgId as string);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: mediaProfiles = [] } = useQuery({
+    enabled: !!orgId,
+    queryKey: ["media_profiles_widths", orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => { select: (c: string) => { eq: (k: string, v: string) => Promise<{ data: Array<{ id: string; width_mm: number }> | null; error: unknown }> } };
+      })
+        .from("media_profiles")
+        .select("id,width_mm")
+        .eq("org_id", orgId as string);
       if (error) throw error;
       return data ?? [];
     },
@@ -238,6 +283,29 @@ export default function PrintPoliciesEditor() {
                 draft.render_mode === "escpos" || THERMAL_PAPER_FORMATS.has(draft.paper_format);
               const thermalMismatch =
                 roleRequired && wantsThermal && !!roleKind && !THERMAL_ROLE_KINDS.has(roleKind);
+              // Second silent fallback: the role is thermal-capable, but no
+              // enabled device with that role can physically take this width.
+              const widthMm = PAPER_WIDTH_MM[draft.paper_format] ?? null;
+              const roleDevices = roleKind
+                ? devices.filter((d) => d.role === roleKind && d.enabled)
+                : [];
+              const constrainedDevices = roleDevices.filter(
+                (d) => (d.supported_media_ids?.length ?? 0) > 0,
+              );
+              const deviceMediaMismatch =
+                roleRequired &&
+                !thermalMismatch &&
+                widthMm != null &&
+                roleDevices.length > 0 &&
+                constrainedDevices.length > 0 &&
+                constrainedDevices.length === roleDevices.length &&
+                !constrainedDevices.some((d) =>
+                  (d.supported_media_ids ?? []).some((id) => {
+                    const mp = mediaProfiles.find((m) => m.id === id);
+                    return mp ? Math.abs(mp.width_mm - widthMm) <= 2 : false;
+                  }),
+                );
+
               return (
                 <div
                   key={dt.value}
@@ -261,6 +329,16 @@ export default function PrintPoliciesEditor() {
                         falls back to A4
                       </Badge>
                     )}
+                    {deviceMediaMismatch && (
+                      <Badge
+                        variant="outline"
+                        className="ml-2 text-[10px] h-4 border-destructive text-destructive"
+                        title="No enabled device for this role lists media matching this paper width. Either widen the device's supported media on the Devices page, or pick a paper width the printer actually takes."
+                      >
+                        device media mismatch
+                      </Badge>
+                    )}
+
                   </div>
 
                   <Select
@@ -385,11 +463,12 @@ export default function PrintPoliciesEditor() {
           <strong className="mx-1">policy (this page)</strong> ›
           <strong className="mx-1">printer role</strong> ›
           <strong className="mx-1">matching device assignment</strong> ›
-          <strong className="mx-1">device capability</strong> ›
           <strong className="mx-1">hardware</strong>.
-          Set the paper format and trigger here; the physical printer is chosen
-          automatically from the selected role. Rows left blank inherit
+          Set the paper format, medium and trigger here; the physical printer is
+          chosen automatically from the selected role (the first enabled device
+          registered for that role, scoped to this branch). Rows left blank inherit
           from the business default; blank there means <em>A4 PDF, manual</em>.
+
         </CardContent>
       </Card>
 

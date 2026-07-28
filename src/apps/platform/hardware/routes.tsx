@@ -8,6 +8,19 @@
  * (Inventory, Warehouse, HR, Manufacturing) can consume the same registry
  * without depending on POS being installed.
  *
+ * Audit 2026-07-28 — surface consolidation:
+ *   - `roles` (Printer roles) removed. Its bindings half wrote to a
+ *     per-branch role-binding table that migration 20260727234102 dropped
+ *     together with its resolver RPC, so it was non-functional. The
+ *     `printer_roles` dictionary it also edited is already surfaced as the
+ *     role dropdown inside Output policies, which is where operators
+ *     actually route documents. → redirects to policies.
+
+ *   - `capability` (Printer capability) removed. Only `dpi` and
+ *     `supported_media_ids` were read at runtime (label dispatch); those
+ *     now live on the Devices page as `LabelMediaCapabilityCard`.
+ *     `command_language` / `margins_mm` were never read. → redirects to devices.
+ *
  * Legacy `/pos/hardware-devices` and `/pos/hardware-diagnostics` paths
  * still resolve via redirects in `src/App.tsx`.
  */
@@ -19,11 +32,9 @@ const HardwareDevices = lazy(() => import("@/apps/platform/hardware/HardwareDevi
 const HardwareDiagnostics = lazy(() => import("@/apps/platform/hardware/HardwareDiagnostics"));
 const HardwareTopology = lazy(() => import("@/apps/platform/hardware/HardwareTopology"));
 const HardwareMedia = lazy(() => import("@/apps/platform/hardware/HardwareMedia"));
-const HardwareCapability = lazy(() => import("@/apps/platform/hardware/HardwareCapability"));
 const HardwareLabelTemplates = lazy(() => import("@/apps/platform/hardware/HardwareLabelTemplates"));
 const HardwarePrintQueue = lazy(() => import("@/apps/platform/hardware/HardwarePrintQueue"));
 const HardwarePolicies = lazy(() => import("@/apps/platform/hardware/HardwarePolicies"));
-const HardwareRoles = lazy(() => import("@/apps/platform/hardware/HardwareRoles"));
 
 
 import HardwareAppLayout from "@/apps/platform/hardware/HardwareAppLayout";
@@ -40,12 +51,13 @@ function PlatformHardwareApp() {
               surface (DeviceRegistryCard). Redirect any bookmarks. */}
           <Route path="devices/new" element={<Navigate to="../devices" replace />} />
           <Route path="media" element={<HardwareMedia />} />
-          <Route path="capability" element={<HardwareCapability />} />
+          {/* Retired surfaces — see header note. */}
+          <Route path="capability" element={<Navigate to="../devices" replace />} />
+          <Route path="roles" element={<Navigate to="../policies" replace />} />
           <Route path="labels" element={<HardwareLabelTemplates />} />
           <Route path="diagnostics" element={<HardwareDiagnostics />} />
           <Route path="print-queue" element={<HardwarePrintQueue />} />
           <Route path="policies" element={<HardwarePolicies />} />
-          <Route path="roles" element={<HardwareRoles />} />
 
           <Route path="topology" element={<HardwareTopology />} />
           <Route path="*" element={<Navigate to="devices" replace />} />
