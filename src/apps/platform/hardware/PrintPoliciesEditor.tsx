@@ -49,6 +49,17 @@ const RENDER_OPTIONS: { value: RenderMode; label: string }[] = [
   { value: "escpos", label: "ESC/POS (raw)" },
 ];
 
+// Mirrors `resolve_output_intent`: thermal paper / ESC/POS only survives when
+// the resolved role maps to a thermal-capable hardware kind.
+const THERMAL_PAPER_FORMATS: ReadonlySet<PaperFormat> = new Set<PaperFormat>(["80mm", "58mm", "40mm"]);
+const THERMAL_ROLE_KINDS: ReadonlySet<string> = new Set([
+  "receipt_printer",
+  "kitchen_printer",
+  "label_printer",
+]);
+
+
+
 const TRIGGER_OPTIONS: { value: OutputTrigger; label: string; hint: string }[] = [
   { value: "manual",         label: "Manual",         hint: "Operator clicks Print. Opens preview → dispatches." },
   { value: "auto",           label: "Auto on commit", hint: "Fire immediately when the document is committed (POS receipts, kitchen tickets)." },
