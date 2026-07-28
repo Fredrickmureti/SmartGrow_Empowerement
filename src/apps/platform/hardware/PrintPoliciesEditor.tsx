@@ -218,6 +218,15 @@ export default function PrintPoliciesEditor() {
               // hardware. Download-only and preview-only skip role selection.
               const roleRequired = draft.trigger === "auto" || draft.trigger === "manual";
               const needsRole = roleRequired && !draft.role_code;
+              // Thermal paper / ESC/POS only reaches a physical printer when
+              // the selected role maps to a thermal-capable device kind.
+              // Otherwise `resolve_output_intent` falls back to A4 PDF — make
+              // that visible instead of letting it fail silently.
+              const roleKind = roles.find((r) => r.code === draft.role_code)?.hardware_kind ?? null;
+              const wantsThermal =
+                draft.render_mode === "escpos" || THERMAL_PAPER_FORMATS.has(draft.paper_format);
+              const thermalMismatch =
+                roleRequired && wantsThermal && !!roleKind && !THERMAL_ROLE_KINDS.has(roleKind);
               return (
                 <div
                   key={dt.value}
@@ -232,7 +241,17 @@ export default function PrintPoliciesEditor() {
                     {needsRole && (
                       <Badge variant="destructive" className="ml-2 text-[10px] h-4">needs role</Badge>
                     )}
+                    {thermalMismatch && (
+                      <Badge
+                        variant="destructive"
+                        className="ml-2 text-[10px] h-4"
+                        title="This document is set to thermal paper / ESC/POS, but the selected printer role targets an A4 device. It will be printed as an A4 PDF instead. Pick a thermal role (e.g. Receipt Printer) to send it to the thermal printer."
+                      >
+                        falls back to A4
+                      </Badge>
+                    )}
                   </div>
+
                   <Select
                     value={draft.paper_format}
                     onValueChange={(v) => setDraft(branchScope, dt.value, { paper_format: v as PaperFormat })}
