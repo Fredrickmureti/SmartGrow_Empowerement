@@ -51,7 +51,7 @@ const STATE_TONE = {
 
 export default function ExceptionsInbox() {
   const qc = useQueryClient();
-  const { data: warehouses = [] } = useWarehouses();
+  const { warehouses } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [stateFilter, setStateFilter] = useState<string>("open");
   const [active, setActive] = useState<ExceptionRow | null>(null);
@@ -72,7 +72,7 @@ export default function ExceptionsInbox() {
       if (stateFilter !== "all") q = q.eq("state", stateFilter);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as ExceptionRow[];
+      return ((data ?? []) as unknown) as ExceptionRow[];
     },
   });
 
@@ -103,8 +103,7 @@ export default function ExceptionsInbox() {
     <>
       <PageHeader
         title="Exceptions Inbox"
-        subtitle="Every blocked task, discrepancy, and QC fail lands here."
-        icon={AlertTriangle}
+        description="Every blocked task, discrepancy, and QC fail lands here."
       />
       <PageBody>
         <Section
