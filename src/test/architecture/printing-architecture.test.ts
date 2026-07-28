@@ -123,7 +123,12 @@ describe('printing architecture — one hardware dispatch implementation', () =>
     const callers = filesMatching(/hardwareClient\.execAssignment\s*\(/, [
       'services/hardware/HardwareClient.ts',
     ]);
-    expect(callers).toEqual(['services/hardware/execForIntent.ts']);
+    // `useHardwareProxy` is the raw hardware console seam (test prints,
+    // drawer kicks, device diagnostics) — it never renders or ledgers a
+    // business document. Document printing has exactly one caller.
+    expect(callers.sort()).toEqual(
+      ['hooks/hardware/useHardwareProxy.ts', 'services/hardware/execForIntent.ts'].sort(),
+    );
   });
 
   it('dispatch.ts is the only module that decides pdf/thermal/download transport', () => {
