@@ -463,11 +463,12 @@ export default function PrintPoliciesEditor() {
           <strong className="mx-1">policy (this page)</strong> ›
           <strong className="mx-1">printer role</strong> ›
           <strong className="mx-1">matching device assignment</strong> ›
-          <strong className="mx-1">device capability</strong> ›
           <strong className="mx-1">hardware</strong>.
-          Set the paper format and trigger here; the physical printer is chosen
-          automatically from the selected role. Rows left blank inherit
+          Set the paper format, medium and trigger here; the physical printer is
+          chosen automatically from the selected role (the first enabled device
+          registered for that role, scoped to this branch). Rows left blank inherit
           from the business default; blank there means <em>A4 PDF, manual</em>.
+
         </CardContent>
       </Card>
 
