@@ -256,7 +256,7 @@ export interface LabelPrintResult {
  */
 export async function printLabel(req: PrintLabelRequest): Promise<LabelPrintResult> {
   const rendered = await renderLabelPayload(req);
-  if (!rendered.ok) {
+  if (rendered.ok === false) {
     return {
       success: false,
       error: rendered.error,
