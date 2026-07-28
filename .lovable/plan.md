@@ -86,3 +86,29 @@ Existing ESLint rules are re-pointed at the new chokepoint: add `no-print-outsid
 - Rapid consecutive clicks on an invoice behave exactly like rapid label clicks: N ordered jobs, N printed outputs, no duplicates (idempotency key collapse) and no stuck `queued` rows.
 - Every document type produces a `print_jobs` row with a terminal state and an artifact.
 - `rg` shows exactly one caller of `hardwareClient.execAssignment` in the app.
+
+## Enterprise Printing Consolidation — FINAL STATUS (complete)
+
+One pipeline, no exceptions:
+`intent → PrintService → policy → print_jobs (ledger) → render → dispatch.toDevice → execForIntent → agent → printer → ledger settle`
+
+Phase 5 (removal) and Phase 6 (guards) are done:
+- `PrintClient`, `usePrintOrPreview`, `SharedCommandQueueWorker`, and all
+  `hardware_command_queue` enqueue paths are deleted. No legacy fallback remains.
+- `services/printing/recovery.ts` is a janitor only: it re-runs
+  `PrintService.dispatchQueuedJob` for rows older than 90s that the owning
+  session abandoned. It is never a transport — normal printing is immediate.
+- POS receipt preview (`ReceiptPreviewBody`), print fallback hook, and the
+  admin print queue now go through `PrintService` / `printing/jobs`;
+  `useInventoryLabelPrinter` reports device presence only (its second
+  `execAssignment` dispatch path was removed).
+- Authoritative guard suite: `src/test/architecture/printing-architecture.test.ts`
+  (23 assertions) — one dispatcher, one ledger writer, one renderer, one entry
+  point, spool-is-not-transport. Obsolete guards for the old architecture removed.
+
+Known, deliberately-scoped exception documented in the guard:
+`hooks/hardware/useHardwareProxy.ts` still calls `hardwareClient.execAssignment`
+for raw hardware console actions (test prints, drawer kicks, diagnostics). It
+never renders or ledgers a business document. Next agent: if that hook is ever
+used for a document, route it through `PrintService` instead and tighten the
+guard back to a single caller.

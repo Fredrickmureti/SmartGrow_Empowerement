@@ -10,15 +10,14 @@
 
 import { useEffect, useRef } from 'react';
 import { BusinessSaga } from '@/services/events/BusinessSaga';
-import { printLabel } from '@/services/printing/PrintService';
+import { printLabel, printDocument } from '@/services/printing/PrintService';
 import { toDevice } from '@/services/printing/dispatch';
 import { domainEventBus, type DomainEvent } from '@/services/events/domainEventBus';
 import { customerDisplayClient, type CustomerDisplayData } from '@/services/hardware/local-display/CustomerDisplayClient';
-import {
-  startSharedCommandQueueWorker,
-  reclaimStaleBusinessEvents,
-} from '@/services/hardware/SharedCommandQueueWorker';
+import { reclaimStaleBusinessEvents } from '@/services/events/reclaimStaleEvents';
+import { startPrintRecoverySweeper } from '@/services/printing/recovery';
 import { useBranches } from '@/hooks/useBranches';
+import { useBusinesses } from '@/hooks/useBusinesses';
 
 
 
@@ -29,6 +28,8 @@ interface Props {
 export function BusinessSagaMount({ orgId }: Props) {
   const { currentBranch } = useBranches();
   const branchId = currentBranch?.id ?? null;
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id ?? null;
 
   // Customer-display saga (Loop B1). The domain bus is the single writer
   // to `customerDisplayClient`; POSTerminal only emits intent. A small
@@ -221,47 +222,43 @@ export function BusinessSagaMount({ orgId }: Props) {
         transaction_number?: string;
       };
 
-      // POS sales (Group D #6): the saga is the single owner of POS
-      // hardware side-effects. Enqueue onto `hardware_command_queue`
-      // so the shared worker on whichever host has the drawer / receipt
-      // printer attached drains the row. Idempotency keys mirror the
-      // browser-mode shape so any in-flight rows during the transition
-      // window are deduped at the (org_id, idempotency_key) unique index.
+      // POS sales: the saga is the single owner of POS hardware
+      // side-effects, and it owns them the same way every other module
+      // does — by calling PrintService. The receipt is rendered, ledgered
+      // and dispatched immediately on this host; there is no hardware
+      // command queue and no worker in between.
       if (e.sourceDocType === 'pos_transaction' && e.sourceDocId) {
         const txId = e.sourceDocId;
         const hasCash = Boolean(payload.has_cash ?? (Number(payload.cash_total ?? 0) > 0));
-        const supabase = (await import('@/integrations/supabase/client')).supabase;
-        try {
-          if (hasCash) {
-            await supabase.rpc('enqueue_hardware_command', {
-              p_org_id: e.orgId,
-              p_branch_id: e.branchId ?? null,
-              p_device_assignment_id: null,
-              p_role: 'cash_drawer',
-              p_op: 'open',
-              p_payload: { pin: 2, transaction_id: txId },
-              p_idempotency_key: `pos-drawer:${txId}`,
-              p_business_event_id: e.id ?? null,
-              p_source_doc_type: 'pos_transaction',
-              p_source_doc_id: txId,
-            });
-          }
-          const { generateDocumentEscPosBytes } = await import('@/services/printing/pdfUtils');
-          const receiptBytes = await generateDocumentEscPosBytes('pos_receipt', txId);
-          await supabase.rpc('enqueue_hardware_command', {
-            p_org_id: e.orgId,
-            p_branch_id: e.branchId ?? null,
-            p_device_assignment_id: null,
-            p_role: 'receipt_printer',
-            p_op: 'print_raw',
-            p_payload: Array.from(receiptBytes),
-            p_idempotency_key: `pos-receipt:${txId}`,
-            p_business_event_id: e.id ?? null,
-            p_source_doc_type: 'pos_transaction',
-            p_source_doc_id: txId,
+        const businessId = (e as { businessId?: string | null }).businessId ?? null;
+        if (hasCash) {
+          const drawer = await toDevice({
+            intentOrRole: 'cash_drawer',
+            op: 'open',
+            payload: { pin: 2, transaction_id: txId },
+            organizationId: e.orgId ?? orgId ?? null,
+            businessId,
+            idempotencyKey: `pos-drawer:${txId}`,
+            sourceDocType: 'pos_transaction',
+            sourceDocId: txId,
+            businessEventId: e.id,
           });
-        } catch (err) {
-          console.warn('[saga payment.received] enqueue failed', err);
+          if (!drawer.success) {
+            console.warn('[saga payment.received] drawer not opened', drawer.error);
+          }
+        }
+        const receipt = await printDocument({
+          documentType: 'pos_receipt',
+          documentId: txId,
+          medium: 'escpos',
+          organizationId: e.orgId ?? orgId ?? null,
+          businessId,
+          branchId: e.branchId ?? null,
+          correlationId: `pos-receipt:${txId}`,
+          businessEventId: e.id,
+        });
+        if (!receipt.success) {
+          console.warn('[saga payment.received] receipt not printed', receipt.error);
         }
         return;
       }
@@ -391,16 +388,17 @@ export function BusinessSagaMount({ orgId }: Props) {
       void reclaimStaleBusinessEvents();
     }, 60_000);
 
-    // Start the shared hardware command-queue worker so cross-host
-    // print/drawer jobs queued via enqueue_hardware_command actually run.
-    const stopWorker = startSharedCommandQueueWorker(orgId, branchId);
+    // Recovery only. Normal prints never reach this sweeper — it exists
+    // to re-dispatch ledger rows abandoned by a session that died
+    // mid-print, and to bring offline workstations back into sync.
+    const stopWorker = businessId ? startPrintRecoverySweeper(businessId) : () => {};
 
     return () => {
       saga.stop();
       clearInterval(reclaimTimer);
       stopWorker();
     };
-  }, [orgId, branchId]);
+  }, [orgId, branchId, businessId]);
 
   return null;
 }

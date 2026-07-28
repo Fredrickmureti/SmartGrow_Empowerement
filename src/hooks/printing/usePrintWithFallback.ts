@@ -26,10 +26,7 @@
 import { useCallback, useState } from "react";
 import { printDocument } from "@/services/printing/PrintService";
 import { printerStatusSnapshot } from "@/hooks/hardware/usePrinterStatus";
-import {
-  printPdfInPage,
-  generateDocumentPdf,
-} from "@/services/printing/pdfUtils";
+
 import type {
   PrintIntent,
   PrinterStatus,
@@ -84,11 +81,15 @@ export function usePrintWithFallback() {
       setIsProcessing(true);
       try {
         if (action === "pdf") {
-          const blob = await generateDocumentPdf(
-            pending.documentType,
-            pending.documentId,
-          );
-          await printPdfInPage(blob);
+          // Same pipeline, download disposition — the operator keeps a
+          // PDF when hardware is unavailable.
+          await printDocument({
+            documentType: pending.documentType,
+            documentId: pending.documentId,
+            medium: "pdf",
+            disposition: "download",
+            filename: pending.filename,
+          });
           setShowFallbackDialog(false);
         } else if (action === "retry") {
           const s = await printerStatusSnapshot();

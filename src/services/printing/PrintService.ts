@@ -69,6 +69,9 @@ export interface PrintDocumentRequest {
   station?: string | null;
   course?: string | null;
   table?: string | null;
+  /** Rebuild layout settings from the current editor rather than the snapshot. */
+  forceRefreshSettings?: boolean;
+
   correlationId?: string;
   isReprint?: boolean;
   businessEventId?: string | null;
@@ -156,7 +159,9 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
       station: req.station ?? null,
       course: req.course ?? null,
       table: req.table ?? null,
+      forceRefreshSettings: req.forceRefreshSettings,
     });
+
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     await Promise.all(handles.map((h) => h.markFailed(error)));
@@ -357,45 +362,11 @@ export async function printDocumentIntent(input: {
 
   for (const job of jobs) {
     if ((job.disposition ?? 'print') !== 'print') continue;
-    const handle = await claimForForeground(job);
-    if (!handle) continue; // sweeper owns it
-
-    try {
-      const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
-      const artifact = job.document_record_id
-        ? await renderDocumentRecord({
-            documentRecordId: job.document_record_id,
-            medium,
-          })
-        : await renderSourceDocument({
-            documentType: job.doc_type ?? 'document',
-            documentId: job.doc_id ?? '',
-            medium,
-          });
-
-      const copies = Math.max(1, job.copies ?? 1);
-      for (let i = 0; i < copies; i++) {
-        const outcome = artifact.medium === 'pdf' && artifact.blob
-          ? await toPage(artifact.blob)
-          : await toDevice({
-              intentOrRole: job.hardware_role ?? 'receipt',
-              op: 'print_raw',
-              payload: { bytes: Array.from(artifact.bytes) },
-              organizationId,
-              businessId: job.business_id,
-              idempotencyKey: `${job.id}:${i + 1}`,
-              sourceDocType: job.doc_type ?? null,
-              sourceDocId: job.doc_id ?? null,
-            });
-        transport = outcome.transport;
-        if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
-      }
-      await handle.markAcked();
-      printed += 1;
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      await handle.markFailed(lastError);
-    }
+    const outcome = await dispatchQueuedJob(job, organizationId);
+    if (outcome === null) continue; // sweeper owns it
+    transport = outcome.transport;
+    if (outcome.error) lastError = outcome.error;
+    else printed += 1;
   }
 
   return {
@@ -408,6 +379,61 @@ export async function printDocumentIntent(input: {
     copies: printed,
   };
 }
+
+/**
+ * Dispatch ONE ledger row through the canonical path: claim → render →
+ * resolve device → dispatch → settle. Both the foreground (interactive
+ * print) and the recovery sweeper call this and only this, so a recovered
+ * job takes the exact same code path as a fresh one — there is no second
+ * dispatcher to drift from.
+ *
+ * Returns null when the row was already claimed by someone else.
+ */
+export async function dispatchQueuedJob(
+  job: QueuedJob,
+  organizationId: string | null,
+): Promise<{ transport: PrintTransport; error?: string } | null> {
+  const handle = await claimForForeground(job);
+  if (!handle) return null;
+
+  let transport: PrintTransport = 'none';
+  try {
+    const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
+    const artifact = job.document_record_id
+      ? await renderDocumentRecord({ documentRecordId: job.document_record_id, medium })
+      : await renderSourceDocument({
+          documentType: job.doc_type ?? 'document',
+          documentId: job.doc_id ?? '',
+          medium,
+        });
+
+    const copies = Math.max(1, job.copies ?? 1);
+    for (let i = 0; i < copies; i++) {
+      const outcome = artifact.medium === 'pdf' && artifact.blob
+        ? await toPage(artifact.blob)
+        : await toDevice({
+            intentOrRole: job.hardware_role ?? 'receipt',
+            op: 'print_raw',
+            payload: { bytes: Array.from(artifact.bytes) },
+            organizationId,
+            businessId: job.business_id,
+            idempotencyKey: `${job.id}:${i + 1}`,
+            sourceDocType: job.doc_type ?? null,
+            sourceDocId: job.doc_id ?? null,
+          });
+      transport = outcome.transport;
+      if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
+    }
+    await handle.markAcked();
+    return { transport };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await handle.markFailed(error);
+    return { transport, error };
+  }
+}
+
+export { resolveOrganizationId };
 
 const orgByBusiness = new Map<string, string | null>();
 

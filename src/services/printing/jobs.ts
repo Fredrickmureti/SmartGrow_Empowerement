@@ -160,3 +160,13 @@ export async function claimForForeground(job: QueuedJob): Promise<JobHandle | nu
   await handle.markSent(null);
   return handle;
 }
+
+/**
+ * Re-dispatch a settled row by asking the ledger to open a child job.
+ * Admin surfaces call this instead of poking `print_jobs` themselves; the
+ * recovery sweeper or the next foreground drain picks the child up.
+ */
+export async function resendJob(jobId: string): Promise<void> {
+  const { error } = await supabase.rpc('print_job_resend', { p_id: jobId });
+  if (error) throw error;
+}
