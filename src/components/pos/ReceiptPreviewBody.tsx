@@ -32,7 +32,6 @@ import { useDocumentBranding } from "@/hooks/useDocumentBranding";
 import { useMergedReceiptSettings } from "@/hooks/pos/useMergedReceiptSettings";
 import { useReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import { mergeReceiptSettings } from "@/lib/pos/mergeReceiptSettings";
-import { hardwareClient } from "@/services/hardware/HardwareClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrintFallbackDialog } from "./PrintFallbackDialog";
 import { buildReceiptLines } from "@/lib/receipt/preview/buildReceiptLines";
@@ -41,12 +40,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 import { buildReceiptDocument } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
-import {
-  generateDocumentEscPosBytes,
-  generateDocumentPdf,
-  printPdfInPage,
-  downloadPdfBlob,
-} from "@/services/printing/pdfUtils";
+import { printDocument } from "@/services/printing/PrintService";
 import type { ReceiptCompanyData } from "@/types/receipt";
 import type { PrintFallbackAction } from "@/services/printing/types";
 import { normalizeError } from "@/services/resilience";
@@ -146,7 +140,7 @@ export function ReceiptPreviewBody({
   const [useCurrentSettings, setUseCurrentSettings] = useState(false);
 
   // Unified hardware proxy (System A) — single source of truth.
-  const { printerStatus: getProxyPrinterStatus, isRoleAvailable, printRawBytes } = useHardwareProxy(transaction.register_id);
+  const { printerStatus: getProxyPrinterStatus, isRoleAvailable } = useHardwareProxy(transaction.register_id);
   const proxyPrinterStatus = getProxyPrinterStatus();
   const isPrinterConnectedViaProxy = proxyPrinterStatus === "connected";
 
@@ -196,63 +190,28 @@ export function ReceiptPreviewBody({
   };
   void companyData;
 
-  // W4b (ADR-0008): single rendering pipeline. Thermal hardware → fetch
-  // ESC/POS bytes from `generate-document` and stream via the hardware
-  // proxy. No fallback to a client-side byte builder.
-  const printToHardwarePrinter = async (): Promise<boolean> => {
-    try {
-      const bytes = await generateDocumentEscPosBytes("pos_receipt", transaction.id, {
-        forceRefreshSettings: useCurrentSettings,
-      });
-      const result = await printRawBytes(bytes);
-      return result.success;
-    } catch (error) {
-      console.error("[ReceiptPreviewBody] Hardware print failed:", error);
-      throw error;
-    }
-  };
-
-  // W4b: single rendering pipeline. Order of preference:
-  //   1) thermal printer reachable  → ESC/POS bytes from generate-document
-  //   2) no thermal printer         → server PDF + in-page print
-  //   3) PDF generation fails       → show fallback dialog (PDF download / email)
+  // One pipeline (ADR-0008 / enterprise printing consolidation). This
+  // surface states the business intent — "print this receipt" — and
+  // PrintService owns policy, the ledger row, rendering, device
+  // resolution and dispatch. The receipt therefore prints exactly the
+  // way a shelf label or an invoice does: no local thermal-vs-PDF fork,
+  // no direct hardware call, no second byte source.
   const handlePrint = async () => {
     setIsPrinting(true);
     try {
-      if (isNetworkPrinterConnected) {
-        const success = await printToHardwarePrinter();
-        if (success) {
-          toast({
-            title: "Receipt printed",
-            description: `Sent to ${networkConfig ?? "thermal printer"}`,
-          });
-          onPrint?.();
-        } else {
-          toast({
-            title: "Print failed",
-            description: "Failed to print to thermal printer",
-            variant: "destructive",
-          });
-        }
-        setIsPrinting(false);
-        return;
-      }
-
-      // No thermal printer → render on a real A4 sheet, not a tall 80 mm
-      // strip. Paper size is a property of the target device, not of the
-      // document: if we're about to hand this to Chrome's native print
-      // dialog on a desktop/laptop, it must be shaped like a sheet.
-      try {
-        const blob = await generateDocumentPdf("pos_receipt", transaction.id, {
-          forceRefreshSettings: useCurrentSettings,
-          paperFormat: "a4",
+      const result = await printDocument({
+        documentType: "pos_receipt",
+        documentId: transaction.id,
+        forceRefreshSettings: useCurrentSettings,
+      });
+      if (result.success) {
+        toast({
+          title: "Receipt printed",
+          description: result.transport === "thermal" ? "Sent to receipt printer" : "Sent to printer",
         });
-        await printPdfInPage(blob);
         onPrint?.();
-      } catch (err) {
-        console.error("[ReceiptPreviewBody] Unified PDF print failed:", err);
-        // Last resort — show the fallback dialog so the operator can
-        // download / email instead of failing silently.
+      } else {
+        // Never fail silently — the operator chooses PDF / email / retry.
         setShowFallbackDialog(true);
       }
     } catch (error) {
@@ -266,6 +225,19 @@ export function ReceiptPreviewBody({
     setIsPrinting(false);
   };
 
+  const saveReceiptPdf = async (): Promise<boolean> => {
+    const result = await printDocument({
+      documentType: "pos_receipt",
+      documentId: transaction.id,
+      medium: "pdf",
+      disposition: "download",
+      filename: `receipt-${transaction.transaction_number}`,
+      forceRefreshSettings: useCurrentSettings,
+    });
+    if (!result.success) throw new Error(result.error ?? "Could not generate receipt PDF");
+    return true;
+  };
+
   // Fallback dialog action handler. Legacy HTML download path removed —
   // the server engine is the only byte source.
   const handleFallbackAction = async (action: PrintFallbackAction) => {
@@ -275,8 +247,7 @@ export function ReceiptPreviewBody({
     if (action === "pdf") {
       setIsSavingPdf(true);
       try {
-        const blob = await generateDocumentPdf("pos_receipt", transaction.id, { forceRefreshSettings: useCurrentSettings });
-        downloadPdfBlob(blob, `receipt-${transaction.transaction_number}.pdf`);
+        await saveReceiptPdf();
         toast({ title: "Receipt saved", description: "PDF downloaded successfully" });
         setShowFallbackDialog(false);
       } catch (err) {
@@ -294,18 +265,8 @@ export function ReceiptPreviewBody({
     } else if (action === "preview") {
       setShowFallbackDialog(false);
     } else if (action === "retry") {
-      const statuses = await hardwareClient.devices.getStatuses();
-      const available = statuses.some((s) => s.role === "receipt_printer" && s.connected);
-      if (available) {
-        setShowFallbackDialog(false);
-        handlePrint();
-      } else {
-        toast({
-          title: "Still no printer",
-          description: "No printer detected. Try connecting a printer.",
-          variant: "destructive",
-        });
-      }
+      setShowFallbackDialog(false);
+      await handlePrint();
     } else {
       setShowFallbackDialog(false);
     }
@@ -316,12 +277,11 @@ export function ReceiptPreviewBody({
     }
   };
 
-  // Direct "Save PDF" button — always uses server-side generation.
+  // Direct "Save PDF" button — same pipeline, download disposition.
   const handleSavePdf = async () => {
     setIsSavingPdf(true);
     try {
-      const blob = await generateDocumentPdf("pos_receipt", transaction.id, { forceRefreshSettings: useCurrentSettings });
-      downloadPdfBlob(blob, `receipt-${transaction.transaction_number}.pdf`);
+      await saveReceiptPdf();
       toast({ title: "Receipt saved", description: "PDF downloaded successfully" });
     } catch (error) {
       console.error("[ReceiptPreviewBody] Save PDF failed:", error);
@@ -334,6 +294,7 @@ export function ReceiptPreviewBody({
       setIsSavingPdf(false);
     }
   };
+
 
   const hasAnyPrinter = isNetworkPrinterConnected || isRoleAvailable("receipt_printer");
 

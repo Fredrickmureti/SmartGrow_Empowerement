@@ -8,15 +8,16 @@
  * lived on a separate mirror table; that mirror has been retired (Phase 6
  * Step C) and a single query against `device_assignments` now covers
  * both business-scoped and workstation-scoped rows.
+ *
+ * This hook reports *presence* only. Dispatch belongs to PrintService —
+ * a hook that both resolved a device and talked to the agent would be a
+ * second printing pipeline.
  */
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDeviceForRole } from '@/hooks/useDeviceForRole';
 import { useOrganization } from '@/hooks/useOrganization';
 import { supabase } from '@/integrations/supabase/client';
-import { hardwareClient } from '@/services/hardware/HardwareClient';
-import type { DriverResult } from '@/services/hardware/drivers/DriverInterface';
-import type { DeviceRole } from '@/services/hardware/drivers/DriverInterface';
 
 export interface MissingLabelPrinterCta {
   message: string;
@@ -28,7 +29,6 @@ export interface InventoryLabelPrinterApi {
   hasDevice: boolean;
   isLoading: boolean;
   missingDeviceCta: MissingLabelPrinterCta | null;
-  printLabelBytes: (bytes: Uint8Array | number[]) => Promise<DriverResult>;
 }
 
 const PLATFORM_HARDWARE_HREF = '/platform/hardware/devices';
@@ -73,50 +73,10 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
     };
   }, [loadingAny, hasDevice]);
 
-  const printLabelBytes = useCallback(
-    async (bytes: Uint8Array | number[]): Promise<DriverResult> => {
-      if (!hasDevice) {
-        return {
-          success: false,
-          error:
-            'No label printer assigned. Open Platform → Hardware to bind one.',
-        };
-      }
-      // Phase 5 Step B — per-assignment dispatch. When the platform
-      // resolver picked a concrete `device_assignments` row, route via
-      // `execAssignment` so `TransportRouter` sees the row's persisted
-      // `transport` (electron | local_agent | webusb | webhid) instead
-      // of a role-only fan-out at the driver seam.
-      if (device) {
-        return hardwareClient.execAssignment({
-          assignment: {
-            id: device.id,
-            role: device.role as DeviceRole,
-            transport: device.transport,
-            enabled: device.enabled,
-          },
-          op: 'print_raw',
-          payload: Array.from(bytes),
-        });
-      }
-      // Phase 5 Step C — no role-only fallback. The relay probe only
-      // proves *some* workstation printer exists org-wide; it does not
-      // identify which row wins for this scope. Refuse instead of
-      // guessing.
-      return {
-        success: false,
-        error:
-          'No label printer is bound to this scope. Open Platform → Hardware to bind one.',
-      };
-    },
-    [hasDevice, device],
-  );
-
   return {
     device,
     hasDevice,
     isLoading: loadingAny,
     missingDeviceCta,
-    printLabelBytes,
   };
 }

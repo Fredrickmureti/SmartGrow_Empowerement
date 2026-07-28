@@ -91,11 +91,18 @@ export async function renderSourceDocument(input: {
   station?: string | null;
   course?: string | null;
   table?: string | null;
+  /**
+   * Rebuild presentation settings from the current editor instead of the
+   * snapshot frozen at issue time. Document identity stays frozen either
+   * way — this only affects layout.
+   */
+  forceRefreshSettings?: boolean;
 }): Promise<RenderedArtifact> {
   if (input.medium === 'pdf') {
     const blob = await generateDocumentPdf(input.documentType, input.documentId, {
       paperFormat: input.paperFormat ?? undefined,
       extraBody: input.extraBody,
+      forceRefreshSettings: input.forceRefreshSettings,
     });
     return {
       medium: 'pdf',
@@ -110,7 +117,9 @@ export async function renderSourceDocument(input: {
     course: input.course ?? null,
     table: input.table ?? null,
     paperFormat: normaliseThermalPaper(input.paperFormat),
+    forceRefreshSettings: input.forceRefreshSettings,
   });
+
   return {
     medium: 'escpos',
     mimeType: 'application/octet-stream',

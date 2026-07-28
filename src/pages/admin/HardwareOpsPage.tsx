@@ -5,7 +5,7 @@
  *   - Retry button → `retry_failed_business_event`
  *   - Reclaim stuck running rows → `reclaim_stale_business_events`
  *   - Live counters from `v_business_event_outbox_health`
- *   - Recent worker activity from `getWorkerStatus()`
+ *   - Print-recovery sweeper activity from `getRecoveryStatus()`
  *
  * Visibility: admin/owner — RPC is server-side gated.
  */
@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useBusinesses } from '@/hooks/useBusinesses';
 import { Loader2, RefreshCw, RotateCcw, Activity, AlertTriangle, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { getWorkerStatus } from '@/services/hardware/SharedCommandQueueWorker';
+import { getRecoveryStatus, sweepAbandonedPrintJobs } from '@/services/printing/recovery';
 
 interface OutboxRow {
   id: string;
@@ -54,7 +54,8 @@ export default function HardwareOpsPage() {
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [reclaiming, setReclaiming] = useState(false);
-  const [workerStatus, setWorkerStatus] = useState(getWorkerStatus());
+  const [workerStatus, setWorkerStatus] = useState(getRecoveryStatus());
+  const [sweeping, setSweeping] = useState(false);
 
   const load = useCallback(async () => {
     if (!orgId) return;
@@ -87,7 +88,7 @@ export default function HardwareOpsPage() {
   useEffect(() => {
     void load();
     const t = setInterval(load, 15_000);
-    const w = setInterval(() => setWorkerStatus(getWorkerStatus()), 3_000);
+    const w = setInterval(() => setWorkerStatus(getRecoveryStatus()), 3_000);
     return () => { clearInterval(t); clearInterval(w); };
   }, [load]);
 
@@ -154,28 +155,52 @@ export default function HardwareOpsPage() {
         <HealthCard icon={Clock} label="Oldest pending" value={`${Math.floor((health?.oldest_pending_age_seconds ?? 0) / 60)}m`} tone="info" />
       </div>
 
-      {/* Worker status */}
+      {/* Print recovery sweeper */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Local hardware worker</CardTitle>
+          <CardTitle className="text-sm font-medium">Print recovery sweeper</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm">
+        <CardContent className="text-sm space-y-3">
+          <p className="text-muted-foreground text-xs">
+            Normal prints dispatch immediately from the session that requested
+            them. This sweeper only re-dispatches ledger rows abandoned by a
+            session that closed mid-print.
+          </p>
           {workerStatus ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div><span className="text-muted-foreground">Worker:</span> <code>{workerStatus.workerId.slice(0, 20)}…</code></div>
-              <div><span className="text-muted-foreground">Role:</span> {workerStatus.isLeader ? <Badge>Leader</Badge> : <Badge variant="secondary">Observer</Badge>}</div>
-              <div><span className="text-muted-foreground">Completed:</span> {workerStatus.totalCompleted}</div>
-              <div><span className="text-muted-foreground">Failed:</span> {workerStatus.totalFailed}</div>
-              <div><span className="text-muted-foreground">Reclaimed:</span> {workerStatus.totalReclaimed}</div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground">In flight:</span>{' '}
-                {workerStatus.inFlight ? `${workerStatus.inFlight.role}.${workerStatus.inFlight.op}` : <em className="text-muted-foreground">idle</em>}
+              <div><span className="text-muted-foreground">State:</span> {workerStatus.running ? <Badge>Sweeping</Badge> : <Badge variant="secondary">Idle</Badge>}</div>
+              <div><span className="text-muted-foreground">Recovered:</span> {workerStatus.recovered}</div>
+              <div><span className="text-muted-foreground">Failed:</span> {workerStatus.failed}</div>
+              <div>
+                <span className="text-muted-foreground">Last sweep:</span>{' '}
+                {workerStatus.lastSweepAt
+                  ? formatDistanceToNow(workerStatus.lastSweepAt, { addSuffix: true })
+                  : <em className="text-muted-foreground">never</em>}
               </div>
               <div><span className="text-muted-foreground">Up since:</span> {formatDistanceToNow(workerStatus.startedAt, { addSuffix: true })}</div>
             </div>
           ) : (
-            <p className="text-muted-foreground text-xs">Worker not running on this tab.</p>
+            <p className="text-muted-foreground text-xs">Sweeper not running on this tab.</p>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={sweeping || !orgId}
+            onClick={async () => {
+              if (!orgId) return;
+              setSweeping(true);
+              try {
+                const res = await sweepAbandonedPrintJobs(orgId);
+                toast({ title: `Recovered ${res.recovered} job${res.recovered === 1 ? '' : 's'}`, description: res.failed ? `${res.failed} still failing` : undefined });
+              } catch (e) {
+                toast({ variant: 'destructive', title: 'Replay failed', description: e instanceof Error ? e.message : String(e) });
+              } finally {
+                setSweeping(false);
+              }
+            }}
+          >
+            {sweeping ? 'Replaying…' : 'Replay abandoned print jobs'}
+          </Button>
         </CardContent>
       </Card>
 

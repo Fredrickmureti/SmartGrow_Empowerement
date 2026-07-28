@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { resendJob } from '@/services/printing/jobs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -99,8 +100,7 @@ export default function PrintQueuePage() {
   async function handleResend(id: string) {
     setBusyId(id);
     try {
-      const { error } = await supabase.rpc('print_job_resend', { p_id: id });
-      if (error) throw error;
+      await resendJob(id);
       toast({ title: 'Re-dispatch queued', description: 'A follow-up job was created — check status momentarily.' });
       await load();
     } catch (e) {
