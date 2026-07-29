@@ -131,11 +131,10 @@ export default function LicensePlateView() {
     mutationFn: async (input: { toState: string; reason?: string }) => {
       if (!id) throw new Error("No plate");
       const { error } = await supabase.rpc("wms_transition_lpn" as any, {
-        p_lpn_id: id,
-        p_to_state: input.toState,
-        p_row_version: (lpn as any)?.row_version ?? 0,
-        p_reason: input.reason ?? null,
-        p_payload: {},
+        _lpn_id: id,
+        _to_status: input.toState,
+        _expected_version: (lpn as any)?.row_version ?? 0,
+        _reason: input.reason ?? null,
       });
       if (error) throw error;
     },
