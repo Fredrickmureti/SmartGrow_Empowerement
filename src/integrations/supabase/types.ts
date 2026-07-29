@@ -65647,6 +65647,7 @@ export type Database = {
           organization_id: string
           posted_at: string | null
           posted_by: string | null
+          row_version: number
           state: Database["public"]["Enums"]["wms_count_state"]
           strategy: Database["public"]["Enums"]["wms_count_strategy"]
           updated_at: string
@@ -65663,6 +65664,7 @@ export type Database = {
           organization_id: string
           posted_at?: string | null
           posted_by?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_count_state"]
           strategy?: Database["public"]["Enums"]["wms_count_strategy"]
           updated_at?: string
@@ -65679,6 +65681,7 @@ export type Database = {
           organization_id?: string
           posted_at?: string | null
           posted_by?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_count_state"]
           strategy?: Database["public"]["Enums"]["wms_count_strategy"]
           updated_at?: string
@@ -66132,6 +66135,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           planned_departure_at: string | null
+          row_version: number
           state: Database["public"]["Enums"]["wms_manifest_state"]
           updated_at: string
           warehouse_id: string
@@ -66153,6 +66157,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           planned_departure_at?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
           updated_at?: string
           warehouse_id: string
@@ -66174,6 +66179,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           planned_departure_at?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
           updated_at?: string
           warehouse_id?: string
@@ -66259,6 +66265,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          row_version: number
           sales_order_id: string
           sealed_at: string | null
           sealed_by: string | null
@@ -66281,6 +66288,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id: string
+          row_version?: number
           sales_order_id: string
           sealed_at?: string | null
           sealed_by?: string | null
@@ -66303,6 +66311,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id?: string
+          row_version?: number
           sales_order_id?: string
           sealed_at?: string | null
           sealed_by?: string | null
@@ -66435,6 +66444,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           released_at: string | null
+          row_version: number
           state: Database["public"]["Enums"]["wms_wave_state"]
           strategy: string
           updated_at: string
@@ -66451,6 +66461,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           released_at?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_wave_state"]
           strategy?: string
           updated_at?: string
@@ -66467,6 +66478,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           released_at?: string | null
+          row_version?: number
           state?: Database["public"]["Enums"]["wms_wave_state"]
           strategy?: string
           updated_at?: string
@@ -66649,6 +66661,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          row_version: number
           sample_size: number
           sample_strategy: string
           serial_number: string | null
@@ -66676,6 +66689,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           rejected_qty?: number
+          row_version?: number
           sample_size?: number
           sample_strategy?: string
           serial_number?: string | null
@@ -66703,6 +66717,7 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           rejected_qty?: number
+          row_version?: number
           sample_size?: number
           sample_strategy?: string
           serial_number?: string | null
@@ -75556,6 +75571,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          row_version: number
           sample_size: number
           sample_strategy: string
           serial_number: string | null
@@ -76693,6 +76709,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          row_version: number
           sales_order_id: string
           sealed_at: string | null
           sealed_by: string | null
@@ -77312,6 +77329,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          row_version: number
           sample_size: number
           sample_strategy: string
           serial_number: string | null
@@ -82396,6 +82414,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          row_version: number
           sample_size: number
           sample_strategy: string
           serial_number: string | null
@@ -85611,6 +85630,7 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          row_version: number
           sample_size: number
           sample_strategy: string
           serial_number: string | null
