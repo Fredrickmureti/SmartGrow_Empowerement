@@ -62,6 +62,7 @@ describe("Phase 3.7 — wms_* RPC grants audit", () => {
       if (seen.has(fn.name)) continue;
       seen.add(fn.name);
       if (INTERNAL_PREFIX.test(fn.name)) continue;
+      if (SCHEDULED_ONLY.has(fn.name)) continue;
       const grantRe = new RegExp(
         `GRANT\\s+EXECUTE\\s+ON\\s+FUNCTION\\s+public\\.${fn.name}\\s*\\([^)]*\\)\\s+TO\\s+[^;]*authenticated`,
         "i",
