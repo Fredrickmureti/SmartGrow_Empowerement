@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -272,6 +273,7 @@ export default function QCInspectionDetail() {
             </Card>
           </Section>
         </div>
+        <ActivitySection aggregateId={id} title="Inspection activity" description="Lifecycle events emitted for this QC inspection." />
       </PageBody>
     </>
   );

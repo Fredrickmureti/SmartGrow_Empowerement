@@ -38,6 +38,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck } from "lucide-react";
+import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 
 type RcvState = "open" | "unloading" | "captured" | "discrepant" | "posted" | "closed" | "cancelled";
 
@@ -346,6 +347,7 @@ export default function ReceivingSessions() {
                         <TableCell className="text-sm text-muted-foreground">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.closed_at ? new Date(r.closed_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-right space-x-1">
+                          <ActivityHistoryButton aggregateId={r.id} recordLabel={r.code} />
                           {nextActions(r).map((a, i) => (
                             <Button key={i} size="sm" variant={a.label.startsWith("Post") || a.label === "Close" ? "default" : "outline"} onClick={a.run}>
                               <a.icon className="h-3.5 w-3.5 mr-1" />{a.label}

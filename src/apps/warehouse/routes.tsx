@@ -11,6 +11,9 @@ import { SubscriptionProtectedRoute } from "@/components/subscription/Subscripti
 import { WarehouseLayout } from "./WarehouseLayout";
 
 const WarehouseDashboard = lazy(() => import("@/pages/warehouse/WarehouseDashboard"));
+const InboundDashboard = lazy(() => import("@/pages/warehouse/InboundDashboard"));
+const OutboundDashboard = lazy(() => import("@/pages/warehouse/OutboundDashboard"));
+const SupervisorDashboard = lazy(() => import("@/pages/warehouse/SupervisorDashboard"));
 const WarehouseLayoutPage = lazy(() => import("@/pages/warehouse/WarehouseLayoutPage"));
 // Warehouse master-data pages (ADR 0080). Warehouse app is the canonical
 // author of `warehouses` rows; Inventory consumes read-only.
@@ -66,6 +69,31 @@ export function WarehouseApp() {
               <LazyRoute module="Warehouse Dashboard">
                 <WarehouseDashboard />
               </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        <Route
+          path="dashboard/inbound"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Inbound Control Tower"><InboundDashboard /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="dashboard/outbound"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Outbound Control Tower"><OutboundDashboard /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="dashboard/supervisor"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Supervisor Control Tower"><SupervisorDashboard /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />

@@ -21,6 +21,9 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
       label: "Operations",
       items: [
         { to: "/warehouse-app/dashboard", label: "Overview", icon: LayoutGrid, end: true },
+        { to: "/warehouse-app/dashboard/inbound", label: "Inbound tower", icon: Inbox },
+        { to: "/warehouse-app/dashboard/outbound", label: "Outbound tower", icon: Send },
+        { to: "/warehouse-app/dashboard/supervisor", label: "Supervisor tower", icon: Users },
         { to: "/warehouse-app/tasks", label: "Operator tasks", icon: ListChecks },
         { to: "/warehouse-app/receiving", label: "Receiving", icon: Inbox },
         { to: "/warehouse-app/returns", label: "Returns", icon: Undo2 },
