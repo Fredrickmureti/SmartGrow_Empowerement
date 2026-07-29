@@ -30,14 +30,21 @@ I re-ran the previous engineer's claims against the code and DB rather than trus
 - No code changes needed in `domainEventBus.ts` / `BusinessSagaMount.tsx` — both already consume `WMS_TOPIC` dynamically (Phase 2.6 landed the dynamic registration loop); only the hard-coded guard was drifting.
 - **Full `wms-*` suite: 25 files / 94 tests green** (verified this turn).
 
-## Phase 3.2 — Cross-dock subscriber — NO-OP (finding corrected)
+## Phase 3.3 — Receiving line-captured emission — ✅ DONE
 
-DB-side reality: `evaluate_crossdock_on_grn` and trigger `_trg_wms_crossdock_on_grn_complete` already fan out opportunities on GRN completion. **No producer emits `warehouse.receiving.line_captured`** (verified via `pg_proc` scan). Wiring a saga subscriber for a topic no one publishes would be dead code. The correct sequencing is:
+- New trigger `trg_wms_recv_lines_emit_captured` on `public.wms_receiving_lines` (AFTER INSERT OR UPDATE OF `received_qty`) invokes `_wms_emit_receiving_line_captured`, which publishes `warehouse.receiving.line_captured` to `business_event_outbox` via `_wms_emit_event`. Idempotency key `wms.receiving_line:{id}:captured`.
+- Payload includes session/product/lpn/lot/serial/uom/qty/staging + upstream `source_doc_type|id`, appointment, dock — everything downstream cross-dock / put-away / replenishment needs without a follow-up query.
+- Skips zero/negative quantities and no-op quantity updates.
 
-1. Phase 3.3 (Receiving) must land first: `wms_transition_receiving` / the receiving-session line-capture path must actually emit `warehouse.receiving.line_captured` (add to the appropriate `_wms_emit_*` trigger or as a per-line INSERT trigger on `wms_receiving_session_lines`).
-2. Only then does a saga subscriber have anything to consume — at that point it can either delegate to `evaluate_crossdock_on_grn` for per-line evaluation or replace the GRN-complete trigger entirely.
+## Phase 3.2 — Cross-dock subscriber — ✅ DONE
 
-The plan's original ordering (Cross-dock before Receiving) is therefore inverted. **Reorder Phase 3 to: 3.3 Receiving → 3.2 Cross-dock → 3.1 QC → 3.4 Replenishment → 3.5 Yard → 3.6 Labour/3PL → 3.7 Wave/Pick/Pack/Dispatch → 3.8 Offline replay.** The rest of Phase 3 remains scoped as previously described.
+- Schema: `wms_crossdock_opportunities` now accepts either `grn_line_id` (legacy GRN-close path) or `receiving_line_id` (new per-line path). `wms_crossdock_source_present` CHECK enforces one-of; per-source partial unique indexes replace the old single unique.
+- New RPC `evaluate_crossdock_on_receiving_line(uuid)` picks the oldest open sales-order line for the same business+product, inserts the opportunity, and emits `warehouse.crossdock.matched` via `emit_crossdock_event`.
+- `BusinessSagaMount` subscribes `WMS_TOPIC.RECEIVING_LINE_CAPTURED` and calls the RPC with the receiving-line id from the event payload.
+- Guard `wms-crossdock-subscriber.test.ts` pins topic + RPC + payload param, so refactors can't silently unwire N8.
+- Verified: 5 relevant guard files / 19 tests green.
+
+## Phase 3.1 — QC lifecycle (next)
 
 ---
 

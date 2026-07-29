@@ -19,6 +19,7 @@ import { startPrintRecoverySweeper } from '@/services/printing/recovery';
 import { useBranches } from '@/hooks/useBranches';
 import { useBusinesses } from '@/hooks/useBusinesses';
 import { WMS_TOPIC } from '@/features/warehouse/events/topics';
+import { supabase } from '@/integrations/supabase/client';
 
 
 
@@ -352,6 +353,27 @@ export function BusinessSagaMount({ orgId }: Props) {
     for (const topic of Object.values(WMS_TOPIC)) {
       saga.register(topic, wmsHandler);
     }
+
+    // Cross-dock subscriber (ADR 0079 · N8): whenever a receiving line
+    // is captured, ask the DB to evaluate whether the freshly-received
+    // stock matches an open sales-order line, and record a cross-dock
+    // opportunity if so. The RPC is idempotent via a unique index on
+    // (business_id, receiving_line_id) and emits
+    // `warehouse.crossdock.matched` on success.
+    saga.register(WMS_TOPIC.RECEIVING_LINE_CAPTURED, async (e: DomainEvent) => {
+      const lineId =
+        (e.payload as { aggregate_id?: string } | undefined)?.aggregate_id ??
+        (e.aggregateId as string | undefined);
+      if (!lineId) return;
+      try {
+        await supabase.rpc('evaluate_crossdock_on_receiving_line' as never, {
+          p_line_id: lineId,
+        } as never);
+      } catch (err) {
+        console.warn('[saga crossdock] evaluate failed', err);
+      }
+    });
+
 
 
     saga.start();
