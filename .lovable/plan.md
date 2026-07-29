@@ -91,7 +91,7 @@ Unchanged. Adds:
 - Update the Execution Ledger in `.lovable/plan.md` after each sub-phase.
 
 ## Execution ledger (post-verification)
-- **Active:** Phase 2, starting at 2.0 hardening → 2.1 Scan Intents.
-- **Green:** All Phase 1 items listed in prior ledger (independently verified).
-- **Pending (was flagged):** `PutawayQueue` FSM migration, module ownership doc, Wave/Pack/Manifest/QC/CountSession RPCs.
-- **Pending (new, from audit):** guard test N1, outbox unique index N2, task reaper schedule N3, transition Playwright smoke N4, catalog/TS sync test N5, realtime publication membership N6.
+- **Active:** Phase 2, at 2.2 (label templates) next; 2.0 hardening and 2.1 Scan Intents (Receiving) landed.
+- **Green:** All Phase 1 items. Phase 2.0 §1 (PutawayQueue via useTaskEngine), §2 (`wms-no-direct-state-writes` guard), §3 (outbox `idempotency_key` already globally UNIQUE + `_wms_emit_outbox` upserts on conflict), §4 (`wms-topic-catalog-sync` guard + migrations mirror task/lpn/receiving/return/exception seeds). Phase 2.1 first consumer: `ReceivingSessions` mounts `receiving.lpn` + `receiving.item` intents via `useWmsScanIntent`; GS1 pre-parse applied; ambiguous state → `scanFeedbackBus` error.
+- **Pending (was flagged):** module ownership doc, Wave/Pack/Manifest/QC/CountSession RPCs (2.4).
+- **Pending (new, from audit):** task reaper schedule (N3, 2.5), transition Playwright smoke (N4), realtime consumers wired to boards (2.3 consumers — publication + REPLICA IDENTITY landed).
