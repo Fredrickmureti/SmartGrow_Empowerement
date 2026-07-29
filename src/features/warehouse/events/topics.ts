@@ -96,6 +96,7 @@ export const WMS_TOPIC = {
   TRAILER_ARRIVED: "warehouse.trailer.arrived",
   TRAILER_DOCKED: "warehouse.trailer.docked",
   TRAILER_DEPARTED: "warehouse.trailer.departed",
+  TRAILER_NO_SHOW: "warehouse.trailer.no_show",
 
   // ---- Dock appointments ----------------------------------------------
   APPOINTMENT_SCHEDULED: "warehouse.appointment.scheduled",
