@@ -35,5 +35,5 @@ Seeds must be idempotent — every spec calls
 
 See `.lovable/plan.md` — Phase 14 is landing sub-phase by sub-phase.
 14a scaffolds this folder; 14b–14g bring each spec to green one at a
-time. Skipped specs use `test.describe.skip(...)` with a "Phase 14x
+time. No spec is scaffolded out any more; the only skips are env guards
 pending" reason so it's obvious which flows are still stubs.
