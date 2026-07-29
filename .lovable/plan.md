@@ -1,5 +1,9 @@
 # Warehouse plan — verification + resume
 
+**Active phase → Phase 4 (UX & error-proofing).** Phases 3.6 / 3.7 / 3.8 are all complete and pinned by architecture guards. Next agent: first re-run `bunx vitest run src/test/architecture/wms-` and `bunx tsgo --noEmit` to confirm the 30 guard files / 113 tests + typecheck are still green, then start Phase 4 §1 (`<OutboxTimeline aggregateId />`). Do NOT skip ahead to §2 (typed exception triage) or §6 (dashboards) — §1 is the shared primitive the later steps consume.
+
+
+
 ## Phase 0 · Verification of previous engineer's Round 5 claims
 
 Ran the ledger claims against the codebase before drafting new work.
