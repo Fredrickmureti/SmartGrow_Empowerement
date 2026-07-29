@@ -1,145 +1,102 @@
-## Verification results
+# Warehouse plan — verification + resume
 
-Ran the previous engineer's Round 4 claims against the code and DB. All items marked ✅ hold up:
+## Phase 0 · Verification of previous engineer's Round 5 claims
 
-- **Guard suite:** `bunx vitest run src/test/architecture/wms-` → **26 files / 97 tests green** (matches ledger; Phase 2.7 reconciliation stuck).
-- **Phase 3.1 QC lifecycle:** `qc_resolution_kind` enum and `wms_qc_inspections.resolution_kind` column both present.
-- **Phase 3.2 Cross-dock:** `evaluate_crossdock_on_receiving_line` RPC present; `wms-crossdock-subscriber` guard passes.
-- **Phase 3.3 Receiving:** `trg_wms_recv_lines_emit_captured` trigger present.
-- **Phase 3.4 Replenishment:** `_wms_maybe_enqueue_replen` helper + `trg_stock_quants_replen` trigger present.
-- **Phase 3.5 Yard/trailer:** `mark_trailer_no_show` RPC present alongside the other trailer RPCs.
+Ran the ledger claims against the codebase before drafting new work.
 
-No false or partial claims found this round. **Genuine resume point = Phase 3.6.** Phases 3.7, 3.8, and Phase 4 UX from Round 4 remain untouched and carry forward unchanged.
+| Claim | Verification | Result |
+|---|---|---|
+| Guard suite 27 files / 103 tests green | `bunx vitest run src/test/architecture/wms-` | ✅ 27/103 green |
+| `_wms_emit_task_event` is single producer for `warehouse.task.*` | grepped migrations for in-body emitters in `assign_wms_task`, `claim_pick_task`, `complete_pick_task`, `complete_pack_task`, `complete_putaway_task` | ✅ stripped in `20260729092007` |
+| `TASK_PAUSED` / `TASK_RESUMED` topics + FSM edges + version-scoped idempotency key | `src/features/warehouse/events/topics.ts` + guard `wms-phase-labour-lifecycle` (6/6) | ✅ present |
+| `wms_labour_queue_view` includes paused/resumed rows, cross-dock seeds pack task | guard pins `security_invoker=true` + evaluator seed | ✅ present |
+| `LabourBoard` live queue panel + mobile `/warehouse/mobile/next` | files present, type-check clean | ✅ present |
+| `e2e/wms/labour-claim.spec.ts` race spec | 152 LOC, real assertions on distinct winners + single outbox row per winner | ✅ real, not scaffold |
+| Phase 3.7 items (scan-out enforcement, cancellation cascade, replaced e2e specs) | `wms-load-verification-enforced.test.ts` does not exist; `dispatch_loading_manifest` migrations do not enforce scanned≥expected; `wave.spec.ts` / `pick-pack-dispatch.spec.ts` are already substantive (200–333 LOC) so the "replace scaffolds" framing is stale | ⏭ Phase 3.7 genuinely pending; adjust framing (specs exist, enforcement + cancel cascade missing) |
+| Phase 3.8 (offline replay idempotency) | no client_scan_id uniqueness constraint verified yet | ⏭ pending |
+| Phase 4 UX (`OutboxTimeline`, typed exception triage, `useScanFeedback`, unified realtime dashboards) | none of the components exist | ⏭ pending |
 
-## Phase 3.6 — Labour / task orchestration (in progress)
-
-### Landed this round
-
-- **Migration `20260729142339`** (+ precedence bugfix migration): unified `wms_labour_queue_view` (security_invoker=true) over `wms_tasks` open states, and extended `evaluate_crossdock_on_receiving_line` to seed a `pack` task with `source_doc_type = 'wms_crossdock_opportunity'` — cross-dock now surfaces in the same labour queue as normal pick/pack work, no phantom putaway.
-- **Guard `wms-phase-labour-lifecycle.test.ts`** — pins (a) the view exists, (b) `security_invoker=true`, (c) cross-dock evaluator seeds the stage-for-dispatch task. 3/3 green.
-- Confirmed `wms_claim_next_task(warehouse_id, task_types, zone_id, lease_seconds)` and `_wms_emit_task_event` already exist; no re-invention needed.
-- **Task-lifecycle pause/resume (this round):**
-  - Migration adds `paused` + `resumed` to `wms_task_state`, extends `wms_transition_task` FSM allow-list (`in_progress↔paused↔resumed↔in_progress`, `paused→cancelled`), maps both onto canonical topics in `_wms_emit_task_event`, and version-scopes the outbox idempotency key (`wms.task:{id}:{state}:v{row_version}`) so pause→resume→pause loops each emit a distinct event instead of colliding on the outbox unique index.
-  - `WMS_TOPIC.TASK_PAUSED` / `TASK_RESUMED` + `TASK_STATES` extended; `wms_events_catalog` seeded (`producers=[wms_transition_task]`, `consumers=[operator_ui, supervisor, labour]`); `WMS_MODULE_OWNERSHIP.md` register updated.
-  - `wms_labour_queue_view` now includes `paused|resumed` rows so suspended work stays on the supervisor board.
-  - Guard `wms-phase-labour-lifecycle` extended to 6/6 (topic mapping, version-scoped idempotency key, and the four new FSM edges); guard suite is **27 files / 103 tests, all green**.
-  - `transition_seq` column deliberately **not added** — `row_version` already increments monotonically per FSM transition and is now embedded in the idempotency key, so a separate counter would be redundant.
-
-### Still open (next agent picks up here)
-
-### Round 5 closes Phase 3.6
-
-1. **Legacy in-body task emissions are gone** — audited migration `20260729092007`; `_wms_strip_emit` already excised `emit_business_event` / direct outbox inserts from `assign_wms_task`, `claim_pick_task`, `complete_pick_task`, `complete_pack_task`, `complete_putaway_task`. Pinned by extending `wms-outbox-parity.test.ts` `TRIGGER_OWNED_RPCS` with `assign_wms_task` + `claim_pick_task`; the FSM RPCs (`wms_transition_task`, `wms_transition_lpn`, `wms_claim_next_task`) were already covered. `_wms_emit_task_event` is now the single producer for every `warehouse.task.*` topic.
-2. **Mobile RF next-task** — shipped in Round 4 at `/warehouse/mobile/next`.
-3. **Realtime device fan-out** — `useWmsRealtimeSync` now opens a per-user channel `user-<uid>-wms-tasks` that filters `wms_tasks` on `assignee_user_id=eq.<me>`. Leading-edge `assigned` transitions pop a `useToast` notification ("New warehouse task assigned · PICK · tap Next Task to start"). De-dupes per `${task_id}:${state}` with a 200-entry rolling set so a re-render or reconnect can't spam the operator. Channel is scoped to `user?.id` (torn down on sign-out only), independent of the org-scoped WMS channel so a business switch doesn't drop assignment toasts.
-4. **Playwright race spec** — `e2e/wms/labour-claim.spec.ts`: two browser contexts race `wms_claim_next_task` in parallel against 4 seeded pick tasks, then assert (a) winners are distinct, (b) both winners belong to the seeded set, (c) exactly one `warehouse.task.assigned` outbox row exists per winning `source_doc_id` (single-producer proof).
-5. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
-
-**Phase 3.6 exit:** WMS guard suite **27 files / 103 tests green** (`bunx vitest run src/test/architecture/wms-`). Type-check clean. Phase 3.6 is now officially closed.
-
-### Handoff to the next agent
-
-**Verify first (don't just trust the ledger):**
-1. `bunx vitest run src/test/architecture/wms-` — must stay 27/103 green.
-2. `rg -n "PERFORM\s+public\._wms_emit_event" supabase/migrations/ | rg -v "^supabase/migrations/(20260729085747|20260729090006|20260729143131|20260729130352|20260729130803|20260729124818)"` — confirm no NEW in-body emitters have appeared in later migrations for `assign_wms_task` / `complete_pick_task` / `complete_pack_task` / `complete_putaway_task` / `claim_pick_task`. Only the FSM RPCs and the AFTER triggers may emit.
-3. Spot-check: open `LabourBoard`, confirm the "Live labour queue" panel renders with SLA/unassigned badges and 15 s refetch; open `/warehouse/mobile/next` on a device, confirm the "Claim next task" button routes to the correct capture surface for the returned `task_type`.
-4. (Optional against a real Supabase env) drive `e2e/wms/labour-claim.spec.ts` — must land exactly one `warehouse.task.assigned` outbox row per claimed task.
-
-**Resume point:** Phase 3.7 — Wave / Pick / Pack / Dispatch hardening (see below). Do **not** jump into Phase 4 UX; Phase 3.7 replaces empty e2e scaffolds and adds the scan-out enforcement + cancellation cascade before UX polish.
-
-### Also landed this round
-
-- **`LabourBoard` — Live labour queue section**: new supervisor grid backed by `wms_labour_queue_view` with task-type filter, SLA-breached / unassigned / total badges, 15s refetch, priority + SLA ordering. Reuses existing warehouse filter. Type-checks clean.
-- **Mobile RF `/warehouse/mobile/next`**: single-screen operator entry point that calls `wms_claim_next_task` via `useTaskEngine`. Remembers the warehouse per-device in `localStorage`, disables the button while claiming, and hands the claimed task off to the OperatorTasks capture surface (`?claimed=<id>`). `routeForTaskType()` helper exported and centralises the task_type → capture-screen map so a new task type only needs one edit. Route wired at `mobile/next` under `SubscriptionProtectedRoute`. Type-checks + 27/103 guards green.
-
-### Original spec (kept for reference)
-
-**Pre-flight (do first, no code):**
-1. `bunx vitest run src/test/architecture/wms-` — must stay 26/97 green.
-2. `SELECT event_type, count(*) FROM public.business_event_outbox WHERE event_type LIKE 'warehouse.trailer.%' GROUP BY 1;` — canonical only, no `warehouse.yard.*`.
-3. `\df+ public.mark_trailer_no_show` — confirm `GRANT EXECUTE` to `authenticated` only.
-
-**Problem:** `wms_tasks` / `wms_task_assignments` transitions (`assigned`, `paused`, `resumed`, `completed`) don't publish canonical outbox events, so the realtime task board and headset-first pickers can't fan out. Replen/putaway/pick queues are also fragmented per module — no single "next task" surface.
-
-**Objectives:** trigger-owned task-lifecycle emission + one unified labour queue + one `claim_next_task` RPC.
-
-**Steps (standard vertical — migration → RPC → hook → page → realtime → Playwright → guard):**
-
-1. **Migration — task lifecycle emission**
-   - Add `WMS_TOPIC.TASK_ASSIGNED|PAUSED|RESUMED|COMPLETED` (`warehouse.task.*`) to `src/features/warehouse/events/topics.ts` and `wms_events_catalog`. Bus + saga pick them up via existing `Object.values(WMS_TOPIC)` loop.
-   - `_wms_emit_task_lifecycle()` trigger on `wms_tasks` (AFTER UPDATE OF `state`, `assignee_user_id`, `paused_at`). Idempotency key `wms.task:{id}:{state}:{transition_seq}`.
-   - Payload: task_id, task_type, warehouse_id, business_id, assignee_user_id, prior_state, new_state, product_id/lpn/from_location/to_location where relevant, so headsets don't need a follow-up query.
-   - Add `transition_seq bigint` counter column so paused→resumed→paused loops each get a unique idempotency key.
-   - Extend `wms-outbox-parity.test.ts` with the four new transitions.
-
-2. **Transition RPCs**
-   - `wms_transition_task(task_id, target_state, payload jsonb)` — accepts `assigned|paused|resumed|completed|cancelled`; enforces FSM allow-list matching the existing `_wms_emit_state_change` pattern.
-   - Retire in-body emissions from `assign_wms_task`, `complete_pick_task`, etc.; they route through `wms_transition_task` so the trigger owns emission (no double publish).
-   - `claim_next_task(warehouse_id uuid, capabilities text[])` — atomically picks the highest-priority open task the caller is capable of, stamps `assignee_user_id = auth.uid()`, transitions to `assigned`, returns the row. `FOR UPDATE SKIP LOCKED` on the priority queue to survive concurrent claim storms.
-   - `GRANT EXECUTE ... TO authenticated` only; both RPCs assert business membership via existing helper.
-
-3. **Typed hooks**
-   - `useClaimNextTask()` and `useTransitionTask()` in `src/hooks/warehouse/`; both use the shared error/toast shell.
-   - No component may call `supabase.rpc('wms_transition_task', …)` directly (extend `wms-no-direct-domain-rpc` guard).
-
-4. **Unified labour queue view + page**
-   - View `wms_labour_queue_view` (security_invoker) unions replen + putaway + pick + pack + count + qc tasks with columns `(task_id, task_type, priority, sla_due_by, warehouse_id, business_id, assignee_user_id, state, required_capabilities[])`.
-   - Refactor `LabourBoard` (already the sole writer to `wms_task_standards` per Phase 10) to consume this view; supervisors see slack across all task types in one grid grouped by capability + SLA.
-   - Mobile RF: single `/wms/mobile/next` screen that calls `claim_next_task`, routes to the correct capture screen based on `task_type`.
-
-5. **Realtime device fan-out**
-   - `useWmsRealtimeSync` subscribes to `warehouse.task.assigned`; when `payload.assignee_user_id === auth.uid()` and the current device is idle, push a browser/RF notification ("Next task: Pick #123 @ A-04-02").
-   - Contention: subscribing to `warehouse.task.assigned` where `assignee_user_id != me` for a task I claimed = someone reclaimed it (should be prevented by RPC, but surface a toast + auto-return-to-queue for defense in depth).
-
-6. **Playwright**
-   - `e2e/wms/labour-claim.spec.ts` — two browser contexts race `claim_next_task` for the same warehouse; assert exactly one succeeds, the other gets the next-priority task, and both receive `warehouse.task.assigned` events for their own claim.
-
-7. **Guards**
-   - `wms-phase-labour-lifecycle.test.ts`: every `wms_task_assignments` state has an outbox topic; `wms_tasks` write path guard forbids bare `UPDATE ... SET state = ...` outside `wms_transition_task`.
-   - Extend `wms-outbox-parity.test.ts` with the four topics.
-
-**Exit criteria:** guard suite 27+ files green; `SELECT event_type, count(*) FROM business_event_outbox WHERE event_type LIKE 'warehouse.task.%' GROUP BY 1;` returns non-zero for all four transitions after driving the Playwright spec.
+**Genuine resume point = Phase 3.7.** Ledger is honest; no rework required. The only correction to the ledger is that `e2e/wms/wave.spec.ts` and `pick-pack-dispatch.spec.ts` are already real integration specs — the remaining Phase 3.7 work is enforcement + cascade + a load-verification guard, not spec authoring.
 
 ---
 
-## Phase 3.7 — Wave / Pick / Pack / Dispatch hardening (carries over unchanged)
+## Phase 3.7 · Wave / Pick / Pack / Dispatch hardening (resume here)
 
-- No schema changes. Replace scaffolded `e2e/wms/wave-*.spec.ts` and `dispatch-*.spec.ts` files with real assertions.
-- Enforce full scan-out: `wms_transition_manifest(..., 'dispatched')` refuses when `wms_load_scan_lines.scanned_qty < expected_qty`. Guard: `wms-load-verification-enforced.test.ts`.
-- Add cancellation cascade: manifest cancel emits `warehouse.wave.reopened` for reserved lines to be unallocated.
+**Problem.** `dispatch_loading_manifest` transitions a manifest to `dispatched` without checking that every expected line has been physically scanned onto the truck. Cancelling a manifest also leaves reserved wave lines allocated — nothing emits `warehouse.wave.reopened`, so inventory stays locked and orphan `load` / `pick` tasks linger.
 
-## Phase 3.8 — Offline mobile replay idempotency (carries over unchanged)
+**Objectives.**
+1. Refuse dispatch until scanned_qty ≥ expected_qty for every manifest line.
+2. Cascade manifest cancellation into wave unallocation + task cancellation, all through outbox triggers (no in-body emits).
+3. Prove both invariants with a guard test and extend the existing pick-pack-dispatch e2e spec.
 
-- Playwright + IndexedDB harness enqueues the same `(device_id, client_scan_id)` twice while offline, comes online, asserts exactly one `business_event_outbox` row.
-- Requires adding `client_scan_id` to `wms_receive_scans` / `wms_pick_scans` uniqueness constraint (if not already present — verify before migrating).
+**Steps.**
+
+1. **Migration — enforce full scan-out.**
+   - Extend `dispatch_loading_manifest` (or introduce `wms_transition_manifest`) to raise `WMS_SCAN_SHORTAGE` when any `wms_load_scan_lines.scanned_qty < expected_qty` for the manifest. Include the offending `manifest_line_id`s in the error detail so the UI can highlight them.
+   - Backfill safety: for any manifest already in `dispatched` with a shortage, log to `wms_exceptions` under a new `resolution_kind = 'legacy_short_dispatch'` for audit; do not retro-block.
+   - Add `REVOKE ALL … / GRANT EXECUTE TO authenticated`.
+
+2. **Migration — manifest cancellation cascade.**
+   - In `wms_transition_manifest(..., 'cancelled')` (or the equivalent RPC): unreserve wave lines linked to the manifest's cartons, set matching `wms_tasks` (`load`, open `pack` waiting on this manifest) to `cancelled` via `wms_transition_task` so the task-lifecycle trigger fires, and open a `warehouse.wave.reopened` outbox event per touched wave.
+   - Add `WMS_TOPIC.WAVE_REOPENED = 'warehouse.wave.reopened'` to `topics.ts` and seed `wms_events_catalog` (producer `wms_transition_manifest`, consumer `wave_planner`, `labour`).
+
+3. **Guard — `src/test/architecture/wms-load-verification-enforced.test.ts`.**
+   - Parses `dispatch_loading_manifest` / `wms_transition_manifest` source and asserts a `scanned_qty < expected_qty` guard exists.
+   - Asserts `WMS_TOPIC.WAVE_REOPENED` is present in `topics.ts` and registered in `wms_events_catalog`.
+   - Extends `wms-outbox-parity.test.ts` `TRIGGER_OWNED_RPCS` with `wms_transition_manifest`.
+
+4. **Typed hooks + UI feedback.**
+   - `useDispatchManifest()` surfaces the `WMS_SCAN_SHORTAGE` error via `useToast` with a "Show short lines" action that scrolls the manifest detail to the offending rows.
+   - `LoadingManifestDetail` renders a scan-progress bar per line and disables the Dispatch button until 100 %.
+
+5. **E2E — extend `e2e/wms/pick-pack-dispatch.spec.ts`.**
+   - Negative branch: call `dispatch_loading_manifest` after loading only N-1 cartons → expect the RPC error, expect manifest still in `closed`, expect exactly zero `warehouse.manifest.dispatched` outbox rows.
+   - Cancel branch: cancel a `closed` manifest → assert wave rolls back to `released`, all pick tasks stay `cancelled`, one `warehouse.wave.reopened` row per wave.
+
+**Exit criteria.** Guard suite 28+ files green, `wms-load-verification-enforced` passing, `pick-pack-dispatch.spec.ts` negative + cancel branches green.
 
 ---
 
-## Phase 4 — UX & error-proofing (carries over unchanged from Round 4)
+## Phase 3.8 · Offline mobile replay idempotency
 
-- `<OutboxTimeline aggregate id />` reused on LPN, wave, manifest, QC, count, receiving-session detail pages.
-- Typed exception triage: `wms_exceptions.resolution_kind` enum + `due_by timestamptz`; `ExceptionsInbox` grouped by SLA breach.
-- Contention toast wired on `wms_tasks.claimed_by` change (dovetails with Phase 3.6 §5).
-- Unified `useScanFeedback()` hook (audio + haptic + visual) across Receive, Putaway, Pick, Pack, Load, Count, QC mobile screens.
-- Two-context realtime Playwright smoke.
-- De-scaffold remaining `e2e/wms/` and `e2e/wm/` specs.
-- Role-based real-time dashboards fed by outbox subscription layer only (no per-table polling).
+- Verify current `wms_receive_scans` and `wms_pick_scans` schemas for a `client_scan_id` column. If absent, add via migration with a unique index on `(device_id, client_scan_id)` scoped by scan kind; if present, confirm the uniqueness and skip the migration.
+- Add `useOfflineScanQueue()` (IndexedDB) that stamps `client_scan_id = crypto.randomUUID()` and dequeues via the existing RPCs.
+- Playwright harness under `e2e/wms/offline-replay.spec.ts`: enqueue the same `(device_id, client_scan_id)` receive scan twice while `context.setOffline(true)`, come online, assert exactly one `wms_receive_scans` row and one `warehouse.receiving.line_captured` outbox row.
+- Guard `wms-client-scan-id-unique.test.ts` pins the uniqueness index.
 
 ---
 
-## Newly identified gaps (appended per review remit)
+## Phase 4 · UX & error-proofing
 
-- **Task-lifecycle FSM guard is missing.** Phase 3.6 §7 adds it — without it, hand-written `UPDATE wms_tasks SET state=...` code paths will silently reappear (same drift class Phase 2.6 warned about with topics).
-- **Cross-dock ↔ labour interaction.** When `evaluate_crossdock_on_receiving_line` inserts an opportunity, it should also insert a `stage-for-dispatch` task (not a putaway task) so the unified labour queue picks it up. Fold into Phase 3.6 §4 view definition.
-- **Trailer no-show → labour reclaim.** `mark_trailer_no_show` cancels the dock appointment but leaves any pre-generated pick/load tasks orphaned. Add a cascade: cancel `open|assigned` tasks whose `linked_manifest_id.trailer_visit_id = visit_id`, emit `warehouse.task.cancelled` for each. Fold into Phase 3.6 §2.
-- **Grants audit.** Every new RPC in 3.6 and 3.7 must have `REVOKE ALL FROM public; GRANT EXECUTE TO authenticated;` — add a `wms-rpc-grants.test.ts` guard that scans `pg_proc` for any `warehouse.*` / `wms_*` function without `authenticated`-only execution.
+1. **`<OutboxTimeline aggregate id />`** — reads `business_event_outbox` filtered by `aggregate_id`, renders ordered event chips (topic, actor, elapsed). Mounted on LPN, wave, manifest, QC, count, and receiving-session detail pages. One component, six call sites.
+2. **Typed exception triage.**
+   - Migration: `wms_exceptions.resolution_kind` enum (`short_scan`, `damaged`, `wrong_bin`, `wrong_lp`, `legacy_short_dispatch`, `other`) and `due_by timestamptz`.
+   - `ExceptionsInbox` grouped by SLA breach (`due_by < now()`), filter by kind, `resolve_exception` RPC transitions with mandatory `resolution_kind`.
+3. **Contention toast.** `useWmsRealtimeSync` fires a toast when a `wms_tasks` row I am claiming flips to another user's `claimed_by`.
+4. **`useScanFeedback()`** — one hook wrapping success/error audio (Web Audio), haptic (`navigator.vibrate`), and visual flash. Adopt across Receive, Putaway, Pick, Pack, Load, Count, QC mobile screens; delete per-screen `beep()` helpers.
+5. **Two-context realtime Playwright smoke.** Driver A completes a task, Driver B sees it disappear from the labour queue within one realtime tick.
+6. **Role-based dashboards.**
+   - Inbound: appointments, receiving sessions, discrepancies, cross-dock opportunities.
+   - Outbound: waves by state, pack station load, manifests awaiting dispatch, short-scan exceptions.
+   - Supervisor: labour queue with SLA breach + unassigned + assigned productivity.
+   - All fed by `business_event_outbox` subscription only, no per-table polling.
+7. **De-scaffold audit.** Grep `e2e/wm/` and `e2e/wms/` for `test.skip` / `TODO` / empty bodies; either implement or delete.
 
 ---
 
-## Operating rules (unchanged, restated)
+## Newly identified gaps carried forward (unchanged from Round 5 review)
 
-- Never write `state`/`status` directly to a WMS aggregate — always a `wms_transition_*` RPC.
+- Task-lifecycle FSM guard — landed in Round 5; keep enforced.
+- Cross-dock ↔ labour interaction — landed in Round 5; keep enforced.
+- Trailer no-show → labour reclaim — deferred; requires adding `wms_loading_manifests.trailer_visit_id` (or joining through `wms_dock_appointments`). **Include in Phase 3.7 §2 cancellation cascade** so a no-show cancels open load/pick tasks the same way a manual manifest cancel does.
+- RPC grants audit — add `wms-rpc-grants.test.ts` in Phase 3.7 §3 that scans `pg_proc` for any `wms_*` function without `authenticated`-only execution.
+
+---
+
+## Operating rules (unchanged)
+
+- Never write `state` / `status` directly to a WMS aggregate — always a `wms_transition_*` RPC.
 - Every sanctioned RPC emits onto `business_event_outbox` via trigger, never in-body.
 - Run the entire `wms-*` guard suite before declaring a phase green.
 - Replace legacy paths in the same change — never build on defective architecture.
-- Update the ledger with evidence (query output, test output), not assertions.
+- Update `.lovable/plan.md` with evidence (query output, test output), not assertions.
