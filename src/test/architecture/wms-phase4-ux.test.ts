@@ -90,7 +90,10 @@ describe("Phase 4 · scan feedback is centralised", () => {
 
 describe("Phase 4 · outbox emission is real and loud", () => {
   const sql = allMigrationSql();
-  const lastEmitter = sql.slice(sql.lastIndexOf("FUNCTION public._wms_emit_outbox"));
+  // Anchor on the last CREATE (not the COMMENT ON, which mentions the same name).
+  const lastEmitter = sql.slice(
+    sql.lastIndexOf("CREATE OR REPLACE FUNCTION public._wms_emit_outbox"),
+  );
 
   it("_wms_emit_outbox targets the actual business_event_outbox columns", () => {
     expect(lastEmitter).toMatch(/INSERT INTO public\.business_event_outbox/);
