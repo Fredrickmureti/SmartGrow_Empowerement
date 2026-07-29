@@ -242,6 +242,23 @@ export default function ReceivingSessions() {
     label: "receiving-sessions.item",
   });
 
+  // Irreversible post confirmation. `captured → posted` = two-tap; `discrepant → posted` = typed ack.
+  type PostConfirm = { session: SessionRow; from: "captured" | "discrepant" };
+  const [postConfirm, setPostConfirm] = useState<PostConfirm | null>(null);
+  const [postAck, setPostAck] = useState("");
+  const requiresTyped = postConfirm?.from === "discrepant";
+  const canConfirm = !requiresTyped || postAck.trim().toUpperCase() === "POST";
+  const confirmPost = () => {
+    if (!postConfirm || !canConfirm) return;
+    const reason = postConfirm.from === "discrepant" ? "Posted with discrepancies" : undefined;
+    transition.mutate(
+      { id: postConfirm.session.id, to: "posted", rowVersion: postConfirm.session.row_version, reason },
+      { onSuccess: () => toast.success(`Posted ${postConfirm.session.code} to inventory`) },
+    );
+    setPostConfirm(null);
+    setPostAck("");
+  };
+
   const nextActions = (r: SessionRow) => {
     const t = (to: RcvState, reason?: string) =>
       transition.mutate({ id: r.id, to, rowVersion: r.row_version, reason });
@@ -252,17 +269,18 @@ export default function ReceivingSessions() {
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant", "Marked discrepant during unload") },
       ];
       case "captured":   return [
-        { label: "Post to inventory", icon: Check, run: () => t("posted") },
+        { label: "Post to inventory", icon: Check, run: () => setPostConfirm({ session: r, from: "captured" }) },
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant") },
       ];
       case "discrepant": return [
-        { label: "Post anyway", icon: Check, run: () => t("posted", "Posted with discrepancies") },
+        { label: "Post anyway", icon: Check, run: () => setPostConfirm({ session: r, from: "discrepant" }) },
         { label: "Close", icon: Check, run: () => t("closed") },
       ];
       case "posted":     return [{ label: "Close", icon: Check, run: () => t("closed") }];
       default: return [];
     }
   };
+
 
   return (
     <>
