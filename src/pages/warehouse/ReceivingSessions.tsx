@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
+import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
 import {
   PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
 } from "@/design-system";
