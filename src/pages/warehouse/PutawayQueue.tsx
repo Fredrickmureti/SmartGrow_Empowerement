@@ -33,7 +33,7 @@ import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 
 interface PutawayRow {
   id: string;
-  state: "pending" | "assigned" | "in_progress" | "done" | "cancelled";
+  state: "pending" | "available" | "assigned" | "claimed" | "in_progress" | "done" | "completed" | "cancelled" | "exception";
   priority: number;
   quantity: number | null;
   lpn_id: string | null;
@@ -45,6 +45,7 @@ interface PutawayRow {
   completed_at: string | null;
   warehouse_id: string;
   assignee_user_id: string | null;
+  row_version: number;
   lpn: { code: string } | null;
   source_loc: { code: string } | null;
   dest_loc: { code: string } | null;
