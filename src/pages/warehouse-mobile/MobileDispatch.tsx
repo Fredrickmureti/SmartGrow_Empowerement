@@ -130,6 +130,22 @@ export default function MobileDispatch() {
     }
   };
 
+  // Phase 3.7 §4 — translate WMS_SCAN_SHORTAGE into a plain
+  // "load the remaining cartons first" message instead of the raw code.
+  // We deliberately do NOT preview shortage via `supabase.rpc` here — the
+  // Phase 13 mobile guard forbids direct RPCs on the RF shell, so the
+  // enforcement RPC itself is the source of truth on close/dispatch.
+  const handleShortageError = (msg: string, verb: "close" | "dispatch") => {
+    if (!msg.includes("WMS_SCAN_SHORTAGE")) return false;
+    toast.error(
+      verb === "close"
+        ? "Cannot close: sealed cartons are still on the floor."
+        : "Cannot dispatch: sealed cartons are missing from this manifest.",
+      { description: "Scan every sealed carton for this wave/SO onto the manifest first." },
+    );
+    return true;
+  };
+
   const close = async () => {
     if (!manifest || busy) return;
     setBusy(true);
@@ -138,7 +154,8 @@ export default function MobileDispatch() {
       toast.success(r.queued ? "Queued (offline)" : "Manifest closed");
       invalidate();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Close failed");
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!handleShortageError(msg, "close")) toast.error(msg || "Close failed");
     } finally {
       setBusy(false);
     }
@@ -156,7 +173,8 @@ export default function MobileDispatch() {
       invalidate();
       if (!r.queued) nav("/wm");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Dispatch failed");
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!handleShortageError(msg, "dispatch")) toast.error(msg || "Dispatch failed");
     } finally {
       setBusy(false);
     }
@@ -201,6 +219,9 @@ export default function MobileDispatch() {
           <div className="font-mono">{manifest.code}</div>
           <div className="text-xs mt-1">State: {manifest.state}</div>
         </div>
+
+
+
 
         {canLoad && (
           <div>
