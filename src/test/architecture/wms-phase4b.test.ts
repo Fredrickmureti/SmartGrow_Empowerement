@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { checkRpcOwnership, pageCallsRpc } from "./wmsGuardUtils";
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
@@ -89,10 +90,11 @@ describe("wms phase 4b architecture", () => {
   });
 
   it("PackStation calls the sanctioned carton RPCs", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
-    expect(/rpc\(\s*["']open_pack_carton["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']assign_line_to_carton["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']seal_pack_carton["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']complete_pack_task["']/.test(src)).toBe(true);
+    // Not on the domain-RPC ban list — PackStation still owns these.
+    expect(pageCallsRpc("PackStation.tsx", "open_pack_carton")).toBe(true);
+    expect(pageCallsRpc("PackStation.tsx", "assign_line_to_carton")).toBe(true);
+    expect(pageCallsRpc("PackStation.tsx", "complete_pack_task")).toBe(true);
+    // seal_pack_carton moved behind the typed wrapper (Phase 2.4 §3).
+    expect(checkRpcOwnership("PackStation.tsx", "useSealCarton", "seal_pack_carton")).toBe("");
   });
 });
