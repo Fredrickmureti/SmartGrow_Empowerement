@@ -65570,6 +65570,45 @@ export type Database = {
         }
         Relationships: []
       }
+      wms_client_scan_receipts: {
+        Row: {
+          actor_user_id: string | null
+          business_id: string | null
+          client_scan_id: string
+          created_at: string
+          device_id: string
+          id: string
+          organization_id: string | null
+          rpc_name: string
+          rpc_result: Json
+          warehouse_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          business_id?: string | null
+          client_scan_id: string
+          created_at?: string
+          device_id: string
+          id?: string
+          organization_id?: string | null
+          rpc_name: string
+          rpc_result: Json
+          warehouse_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          business_id?: string | null
+          client_scan_id?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          organization_id?: string | null
+          rpc_name?: string
+          rpc_result?: Json
+          warehouse_id?: string | null
+        }
+        Relationships: []
+      }
       wms_count_lines: {
         Row: {
           business_id: string
@@ -75689,6 +75728,22 @@ export type Database = {
           business_id: string
           organization_id: string
         }[]
+      }
+      _wms_client_scan_lookup: {
+        Args: { p_client_scan_id: string; p_device_id: string }
+        Returns: Json
+      }
+      _wms_client_scan_record: {
+        Args: {
+          p_business_id: string
+          p_client_scan_id: string
+          p_device_id: string
+          p_organization_id: string
+          p_result: Json
+          p_rpc_name: string
+          p_warehouse_id: string
+        }
+        Returns: undefined
       }
       _wms_default_putaway: {
         Args: { p_warehouse_id: string }
@@ -88330,6 +88385,23 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
+      wms_capture_receiving_line: {
+        Args: {
+          p_client_scan_id?: string
+          p_device_id?: string
+          p_expected_qty?: number
+          p_lot_number?: string
+          p_lpn_id?: string
+          p_notes?: string
+          p_product_id: string
+          p_received_qty: number
+          p_serial_number?: string
+          p_session_id: string
+          p_staging_location_id?: string
+          p_uom?: string
+        }
+        Returns: Json
+      }
       wms_claim_next_task: {
         Args: {
           _lease_seconds?: number
@@ -88382,6 +88454,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_complete_pick_scan: {
+        Args: {
+          p_client_scan_id?: string
+          p_device_id?: string
+          p_lpn_id?: string
+          p_picked_qty: number
+          p_task_id: string
+        }
+        Returns: Json
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
       wms_manifest_short_cartons: {
