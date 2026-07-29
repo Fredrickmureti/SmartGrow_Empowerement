@@ -5,9 +5,10 @@
  * adjustment RPC. The client never touches `stock_quants` directly.
  */
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOperations";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +27,6 @@ interface Line {
 export default function CountReview() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const nav = useNavigate();
-  const qc = useQueryClient();
 
   const { data: session, isLoading } = useQuery({
     queryKey: ["wms-count-session", sessionId],
@@ -58,20 +58,14 @@ export default function CountReview() {
     },
   });
 
-  const post = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.rpc("post_count_session", { p_session_id: sessionId! });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Session posted");
-      qc.invalidateQueries({ queryKey: ["wms-count-session", sessionId] });
-      qc.invalidateQueries({ queryKey: ["wms-count-lines-review", sessionId] });
-      nav("/warehouse-app/counts");
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Post failed"),
-  });
+  const post = usePostCountSession(sessionId);
+  const handlePost = () =>
+    post.mutate(undefined, {
+      onSuccess: () => {
+        toast.success("Session posted");
+        nav("/warehouse-app/counts");
+      },
+    });
 
   if (isLoading) return <LoadingState />;
   if (!session) {
