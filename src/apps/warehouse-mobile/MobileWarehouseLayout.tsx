@@ -4,10 +4,11 @@
  */
 import { ReactNode, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home } from "lucide-react";
+import { ArrowLeft, Home, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QueueIndicator } from "./QueueIndicator";
 import { startDrainLoop } from "./offlineQueue";
+import { useScanFeedbackBridge } from "@/features/warehouse/scanning/useScanFeedback";
 
 interface Props {
   title: string;
@@ -18,11 +19,15 @@ interface Props {
 
 export function MobileWarehouseLayout({ title, back, children, bottomBar }: Props) {
   const nav = useNavigate();
+  // Subscribes once for the whole /wm/* surface: the offline queue emits a
+  // scan outcome, this renders the tone + haptic + colour flash.
+  const { Flash, muted, setMuted } = useScanFeedbackBridge();
   useEffect(() => {
     startDrainLoop();
   }, []);
   return (
     <div className="fixed inset-0 flex flex-col bg-background text-foreground">
+      <Flash />
       <header className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2 min-w-0">
           {back ? (
@@ -45,7 +50,19 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar }: Prop
             <div className="font-semibold truncate">{title}</div>
           </div>
         </div>
-        <QueueIndicator />
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-9 w-9 p-0"
+            aria-label={muted ? "Unmute scan sounds" : "Mute scan sounds"}
+            aria-pressed={muted}
+            onClick={() => setMuted(!muted)}
+          >
+            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </Button>
+          <QueueIndicator />
+        </div>
       </header>
       <main className="flex-1 overflow-y-auto p-3">{children}</main>
       {bottomBar && (
