@@ -23,6 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { BusinessContext } from "@/contexts/BusinessContext";
 import { connectivityManager } from "@/services/resilience/ConnectivityManager";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 type PostgresPayload = {
   new: Record<string, unknown> | null;
@@ -129,6 +131,7 @@ export function useWmsRealtimeSync(): void {
   const { currentOrg } = useOrganization();
   const businessCtx = useContext(BusinessContext);
   const currentBusiness = businessCtx?.currentBusiness ?? null;
+  const { user } = useAuth();
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const reconnectAttemptRef = useRef(0);
@@ -137,10 +140,13 @@ export function useWmsRealtimeSync(): void {
   const queryClientRef = useRef(queryClient);
   const orgIdRef = useRef<string | undefined>(currentOrg?.id);
   const businessIdRef = useRef<string | null | undefined>(currentBusiness?.id);
+  const userIdRef = useRef<string | undefined>(user?.id);
+  const seenAssignRef = useRef<Set<string>>(new Set());
 
   useEffect(() => { queryClientRef.current = queryClient; }, [queryClient]);
   useEffect(() => { orgIdRef.current = currentOrg?.id; }, [currentOrg?.id]);
   useEffect(() => { businessIdRef.current = currentBusiness?.id; }, [currentBusiness?.id]);
+  useEffect(() => { userIdRef.current = user?.id; }, [user?.id]);
 
   const handleChange = useCallback((payload: PostgresPayload) => {
     const orgId = orgIdRef.current;
@@ -249,6 +255,55 @@ export function useWmsRealtimeSync(): void {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentOrg?.id]);
+
+  // ---------------------------------------------------------------------
+  // Phase 3.6 — per-operator task fan-out.
+  // A dedicated channel scoped to the currently authenticated user
+  // listens for `wms_tasks` rows where `assignee_user_id = me`. When a
+  // new assignment lands we pop a toast on the operator device so the
+  // headset/RF user sees the "next task" instantly without a poll.
+  // Kept on its own channel so a business switch never tears it down.
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    const channel = supabase.channel(`user-${uid}-wms-tasks`);
+    channel.on(
+      "postgres_changes" as never,
+      {
+        event: "*",
+        schema: "public",
+        table: "wms_tasks",
+        filter: `assignee_user_id=eq.${uid}`,
+      },
+      (payload: PostgresPayload) => {
+        const row = (payload.new ?? payload.old) as
+          | { id?: string; state?: string; task_type?: string; assignee_user_id?: string }
+          | null;
+        if (!row?.id) return;
+        invalidateForTable(queryClientRef.current, "wms_tasks");
+        // Only surface a notification on the leading edge of `assigned`.
+        const key = `${row.id}:${row.state ?? ""}`;
+        if (row.state !== "assigned") return;
+        if (row.assignee_user_id !== userIdRef.current) return;
+        if (seenAssignRef.current.has(key)) return;
+        seenAssignRef.current.add(key);
+        if (seenAssignRef.current.size > 200) {
+          seenAssignRef.current = new Set(
+            Array.from(seenAssignRef.current).slice(-100),
+          );
+        }
+        toast({
+          title: "New warehouse task assigned",
+          description: `${(row.task_type ?? "task").toUpperCase()} · tap Next Task to start`,
+        });
+      },
+    );
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 }
 
 export default useWmsRealtimeSync;
