@@ -30,12 +30,18 @@ function walkTs(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Every file in the typed wrapper layer, concatenated. */
+/** Strip block and line comments so prose can't be mistaken for a call site. */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
+/** Every file in the typed wrapper layer, concatenated, comments removed. */
 export function wrapperLayerSource(): string {
   return walkTs(AGGREGATES_DIR)
-    .map((f) => readFileSync(f, "utf8"))
+    .map((f) => stripComments(readFileSync(f, "utf8")))
     .join("\n");
 }
+
 
 /** Source of a page under `src/pages/warehouse/`. */
 export function pageSource(fileName: string): string {
