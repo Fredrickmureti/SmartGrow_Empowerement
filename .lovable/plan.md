@@ -56,12 +56,32 @@ Ran the ledger claims against the codebase before drafting new work.
 
 ---
 
-## Phase 3.8 · Offline mobile replay idempotency
+## Phase 3.8 · Offline mobile replay idempotency — COMPLETE
 
-- Verify current `wms_receive_scans` and `wms_pick_scans` schemas for a `client_scan_id` column. If absent, add via migration with a unique index on `(device_id, client_scan_id)` scoped by scan kind; if present, confirm the uniqueness and skip the migration.
-- Add `useOfflineScanQueue()` (IndexedDB) that stamps `client_scan_id = crypto.randomUUID()` and dequeues via the existing RPCs.
-- Playwright harness under `e2e/wms/offline-replay.spec.ts`: enqueue the same `(device_id, client_scan_id)` receive scan twice while `context.setOffline(true)`, come online, assert exactly one `wms_receive_scans` row and one `warehouse.receiving.line_captured` outbox row.
-- Guard `wms-client-scan-id-unique.test.ts` pins the uniqueness index.
+**Status.** DB ledger, wrapper RPCs, IndexedDB hook, guard, and E2E replay spec all landed. Guard suite 30 files / 113 tests green ✅; typecheck clean ✅.
+
+**Shipped this phase.**
+
+1. **Ledger + wrappers migration.**
+   - New table `wms_client_scan_receipts` with `UNIQUE (device_id, client_scan_id)`. Readable under business-scoped RLS; writes go only through the SECURITY DEFINER wrappers.
+   - Internal helpers `_wms_client_scan_lookup(device, key)` and `_wms_client_scan_record(...)`. The lookup takes a `pg_advisory_xact_lock(hashtextextended(device||':'||key))` so two concurrent replays cannot both slip past the check.
+   - Public RPC `wms_capture_receiving_line(session, product, qty, …, client_scan_id, device_id)` — inserts one `wms_receiving_lines` row, records the receipt, returns `{ line_id, session_id, received_qty, replayed }`.
+   - Public RPC `wms_complete_pick_scan(task_id, qty, lpn, client_scan_id, device_id)` — wraps `complete_pick_task` with the same replay guard.
+   - Both RPCs: `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO authenticated, service_role`. Note: because the receiving-line trigger emits `warehouse.receiving.line_captured` with an idempotency key derived from `line_id`, dedup is doubly enforced — the ledger prevents second insert, and the outbox key would collapse it anyway.
+
+2. **Client hook.**
+   - `src/features/warehouse/scanning/useOfflineScanQueue.ts` — IndexedDB store (`wms_offline_scans`, keyPath `client_scan_id`), stamps `client_scan_id = crypto.randomUUID()`, stable per-device id in `localStorage.wms_client_device_id` (`device-<uuid>`).
+   - `enqueueReceivingLine(args)` / `enqueuePickCompletion(args)` return the client_scan_id and trigger a drain when `navigator.onLine`.
+   - Auto-drains on `online` events and every 5s. FIFO with stop-on-first-failure so ordering is preserved. Server ack (including `replayed: true`) clears the entry.
+   - Phase 13 mobile guard respected: this hook is the ONLY module in the RF shell that touches `supabase.rpc` for these two RPCs. Screens must go through `enqueue*` rather than reaching for `supabase` directly.
+
+3. **Guard.**
+   - `src/test/architecture/wms-client-scan-id-unique.test.ts` (5 tests) pins: the table + unique index, the lookup/record helpers, the advisory-lock serialisation, GRANT/REVOKE on both wrappers, and that `useOfflineScanQueue` stamps `client_scan_id` via `crypto.randomUUID()` and forwards both replay args to both RPCs.
+
+4. **E2E replay spec.**
+   - `e2e/wms/offline-replay.spec.ts` — opens a receiving session, fires `wms_capture_receiving_line` three times with the same `(device_id, client_scan_id)`, asserts (i) first call `replayed=false`, (ii) both follow-ups `replayed=true`, (iii) all three responses point to the same `line_id`, (iv) exactly one `wms_receiving_lines` row and exactly one `warehouse.receiving.line_captured` outbox row exist for that scan.
+
+**Exit criteria.** 30 guard files / 113 tests green ✅ (added `wms-client-scan-id-unique`); typecheck clean ✅; E2E spec authored.
 
 ---
 
