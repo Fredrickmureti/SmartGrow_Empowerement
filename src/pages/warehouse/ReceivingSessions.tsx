@@ -28,6 +28,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -237,6 +242,23 @@ export default function ReceivingSessions() {
     label: "receiving-sessions.item",
   });
 
+  // Irreversible post confirmation. `captured → posted` = two-tap; `discrepant → posted` = typed ack.
+  type PostConfirm = { session: SessionRow; from: "captured" | "discrepant" };
+  const [postConfirm, setPostConfirm] = useState<PostConfirm | null>(null);
+  const [postAck, setPostAck] = useState("");
+  const requiresTyped = postConfirm?.from === "discrepant";
+  const canConfirm = !requiresTyped || postAck.trim().toUpperCase() === "POST";
+  const confirmPost = () => {
+    if (!postConfirm || !canConfirm) return;
+    const reason = postConfirm.from === "discrepant" ? "Posted with discrepancies" : undefined;
+    transition.mutate(
+      { id: postConfirm.session.id, to: "posted", rowVersion: postConfirm.session.row_version, reason },
+      { onSuccess: () => toast.success(`Posted ${postConfirm.session.code} to inventory`) },
+    );
+    setPostConfirm(null);
+    setPostAck("");
+  };
+
   const nextActions = (r: SessionRow) => {
     const t = (to: RcvState, reason?: string) =>
       transition.mutate({ id: r.id, to, rowVersion: r.row_version, reason });
@@ -247,17 +269,18 @@ export default function ReceivingSessions() {
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant", "Marked discrepant during unload") },
       ];
       case "captured":   return [
-        { label: "Post to inventory", icon: Check, run: () => t("posted") },
+        { label: "Post to inventory", icon: Check, run: () => setPostConfirm({ session: r, from: "captured" }) },
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant") },
       ];
       case "discrepant": return [
-        { label: "Post anyway", icon: Check, run: () => t("posted", "Posted with discrepancies") },
+        { label: "Post anyway", icon: Check, run: () => setPostConfirm({ session: r, from: "discrepant" }) },
         { label: "Close", icon: Check, run: () => t("closed") },
       ];
       case "posted":     return [{ label: "Close", icon: Check, run: () => t("closed") }];
       default: return [];
     }
   };
+
 
   return (
     <>
@@ -377,6 +400,54 @@ export default function ReceivingSessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!postConfirm}
+        onOpenChange={(o) => { if (!o) { setPostConfirm(null); setPostAck(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {requiresTyped ? "Post discrepant session to inventory?" : "Post to inventory?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Session <span className="font-mono font-medium">{postConfirm?.session.code}</span> will
+                  commit received quantities to stock. This writes ledger movements, fires
+                  replenishment and cross-dock evaluation, and <strong>cannot be undone</strong> from
+                  this screen — reversal requires a compensating inventory movement.
+                </p>
+                {requiresTyped && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                    <p className="text-destructive font-medium">
+                      This session is flagged discrepant. You are committing known-mismatched data.
+                    </p>
+                    <Label className="text-xs">Type <span className="font-mono">POST</span> to confirm</Label>
+                    <Input
+                      value={postAck}
+                      onChange={(e) => setPostAck(e.target.value)}
+                      placeholder="POST"
+                      className="font-mono"
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmPost(); }}
+              disabled={!canConfirm || transition.isPending}
+              className={requiresTyped ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {requiresTyped ? "Post anyway" : "Post to inventory"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
