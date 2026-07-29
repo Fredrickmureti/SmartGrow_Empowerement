@@ -26,7 +26,7 @@ I re-audited every claim in the previous engineer's ledger against the live code
 7. **N9** — `wms_exceptions` already has `severity` and `resolution` columns (plus `row_version`), but `resolution` is free text, not the typed enum the plan calls for. No SLA/due-by column.
 8. **N10 / Phase 4** — no contention toast, no `<OutboxTimeline>` component anywhere in `src/`.
 
-**True resume point:** not "Phase 2.3 §5". It is **Phase 2.4 §4 — reconcile the contradictory guards and close the outbox emission gap** — because the suite is currently red and eleven state transitions are invisible to the event fabric that every later phase depends on.
+**True resume point:** not "Phase 2.3 §5". It was **Phase 2.4 §4 — reconcile the contradictory guards and close the outbox emission gap** — because the suite is currently red and eleven state transitions are invisible to the event fabric that every later phase depends on.
 
 ---
 
@@ -79,7 +79,7 @@ Re-ordered because verification changed what is actually weak:
 3. **Yard / trailer** — same, three silent RPCs; add the trailer FSM state machine on top of the emissions.
 4. **Receiving → putaway** — finish ASN → GRN → task fan-out; slotting-rule-driven destination ranking with scan-guarded bin validation.
 5. **Replenishment** — event-driven trigger on `stock_quants` change rather than manual generation.
-6. **Labour / 3PL billing** — re-meter over the now-complete outbox stream (billing is currently under-counting because 11 event types never fire).
+6. **Labour / 3PL billing** — re-meter over the now-complete outbox stream (billing is currently under-counting because most WMS event types never fired until Phase 2.4 §5).
 7. **Wave / pick / pack / dispatch** — hardening only; these are the most complete flows.
 
 Each module ships the standard vertical: migration → transition RPC (+ emit) → typed wrapper → page consumption → realtime subscription → real Playwright spec → guard test.
