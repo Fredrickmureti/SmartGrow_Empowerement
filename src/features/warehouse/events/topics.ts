@@ -15,6 +15,7 @@
 export const WMS_TOPIC = {
   // ---- Task lifecycle -------------------------------------------------
   TASK_AVAILABLE: "warehouse.task.available",
+  TASK_ASSIGNED: "warehouse.task.assigned",
   TASK_CLAIMED: "warehouse.task.claimed",
   TASK_IN_PROGRESS: "warehouse.task.in_progress",
   TASK_COMPLETED: "warehouse.task.completed",
@@ -27,10 +28,12 @@ export const WMS_TOPIC = {
   LPN_STORED: "warehouse.lpn.stored",
   LPN_PICKED: "warehouse.lpn.picked",
   LPN_PACKED: "warehouse.lpn.packed",
+  LPN_SEALED: "warehouse.lpn.sealed",
   LPN_STAGED: "warehouse.lpn.staged",
   LPN_LOADED: "warehouse.lpn.loaded",
   LPN_SHIPPED: "warehouse.lpn.shipped",
   LPN_QUARANTINED: "warehouse.lpn.quarantined",
+  LPN_MOVED: "warehouse.lpn.moved",
   LPN_VOIDED: "warehouse.lpn.voided",
 
   // ---- Carton / manifest linkage -------------------------------------
@@ -83,6 +86,11 @@ export const WMS_TOPIC = {
   COUNT_REVIEW: "warehouse.count.review",
   COUNT_POSTED: "warehouse.count.posted",
   COUNT_CANCELLED: "warehouse.count.cancelled",
+
+  // ---- Yard / trailer visits (trigger-emitted, Phase 2.4 §5) ----------
+  TRAILER_ARRIVED: "warehouse.trailer.arrived",
+  TRAILER_DOCKED: "warehouse.trailer.docked",
+  TRAILER_DEPARTED: "warehouse.trailer.departed",
 } as const;
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
@@ -99,7 +107,8 @@ export const idempotencyKey = (
     | "wave"
     | "manifest"
     | "qc"
-    | "count",
+    | "count"
+    | "trailer",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;
