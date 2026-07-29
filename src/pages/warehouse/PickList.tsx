@@ -107,28 +107,13 @@ export default function PickList() {
     },
   });
 
-  const complete = useMutation({
-    mutationFn: async ({ id, qty }: { id: string; qty: number }) => {
-      const { error } = await supabase.rpc("complete_pick_task", {
-        p_task_id: id,
-        p_picked_qty: qty,
-        p_lpn_id: null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pick confirmed");
-      qc.invalidateQueries({ queryKey: ["wms-pick-tasks", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-wave", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
-      // Clear the scan strip so the operator moves to the next bin.
-      setBinCode("");
-      setProductCode("");
-      setScanProductId(null);
-      setScanError(null);
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Pick failed"),
-  });
+  const onPickSuccess = () => {
+    toast.success("Pick confirmed");
+    setBinCode("");
+    setProductCode("");
+    setScanProductId(null);
+    setScanError(null);
+  };
 
   const open = useMemo(
     () => (tasks ?? []).filter((t) => t.state !== "done" && t.state !== "cancelled"),
