@@ -78801,6 +78801,13 @@ export type Database = {
         }
         Returns: string
       }
+      emit_yard_event: {
+        Args: {
+          p_type: string
+          p_visit: Database["public"]["Tables"]["wms_trailer_visits"]["Row"]
+        }
+        Returns: undefined
+      }
       employee_loan_apply_repayment:
         | {
             Args: {
@@ -82187,6 +82194,40 @@ export type Database = {
       mark_timesheets_invoiced: {
         Args: { _invoice_id: string; _timesheet_ids: string[] }
         Returns: number
+      }
+      mark_trailer_no_show: {
+        Args: { p_reason?: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       mask_sensitive_value: { Args: { p_value: string }; Returns: string }
       match_bill_atomic: {
