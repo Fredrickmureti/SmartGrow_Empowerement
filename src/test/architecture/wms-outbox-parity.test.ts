@@ -1,7 +1,7 @@
 /**
  * Architecture guard — Phase 2.4 §5/§6 (event emission parity).
  *
- * Three invariants that were each violated in production before this
+ * Four invariants that were each violated in production before this
  * phase, and would be easy to silently re-break:
  *
  * 1. Emission is trigger-based. Twenty-one legacy domain RPCs mutate the
@@ -9,11 +9,16 @@
  *    triggers are the only reason those transitions reach the outbox.
  *    Dropping a trigger makes an aggregate go silent with no test
  *    failure anywhere else.
- * 2. One vocabulary. `warehouse.plate.*` / `warehouse.task.started` were
+ * 2. Single producer. The FSM RPCs used to ALSO emit in-body, from a
+ *    record refreshed by `UPDATE ... RETURNING` — so their `from_status`
+ *    / `from_state` was always the *new* value. Triggers see OLD, so
+ *    emission now lives there exclusively; an in-body `_wms_emit_event`
+ *    on these functions reintroduces both the duplicate and the defect.
+ * 3. One vocabulary. `warehouse.plate.*` / `warehouse.task.started` were
  *    a rival naming scheme whose idempotency keys collided with the
  *    catalogued topics, making the published `event_type` for an
  *    `in_progress` transition non-deterministic. They must stay retired.
- * 3. The task lease reaper is scheduled. `wms_task_reap_expired` existed
+ * 4. The task lease reaper is scheduled. `wms_task_reap_expired` existed
  *    for months but was never wired to pg_cron, so a task claimed by a
  *    device that went offline stayed claimed forever.
  */
@@ -26,12 +31,26 @@ const SRC = path.resolve(__dirname, "../..");
 
 function allMigrations(): string {
   let all = "";
-  for (const name of readdirSync(MIGRATIONS)) {
+  for (const name of readdirSync(MIGRATIONS).sort()) {
     const p = path.join(MIGRATIONS, name);
     if (!statSync(p).isFile() || !name.endsWith(".sql")) continue;
     all += "\n" + readFileSync(p, "utf8");
   }
   return all;
+}
+
+/**
+ * Body of the *last* definition of a function across the migration
+ * history — i.e. the one that is live in the database.
+ */
+function latestFunctionBody(sql: string, name: string): string {
+  const marker = `CREATE OR REPLACE FUNCTION public.${name}(`;
+  const start = sql.lastIndexOf(marker);
+  if (start === -1) return "";
+  const bodyOpen = sql.indexOf("$function$", start);
+  if (bodyOpen === -1) return "";
+  const bodyClose = sql.indexOf("$function$", bodyOpen + 10);
+  return sql.slice(bodyOpen, bodyClose === -1 ? undefined : bodyClose);
 }
 
 /** Aggregate table -> the trigger that must emit its state changes. */
@@ -45,6 +64,14 @@ const EMIT_TRIGGERS: Array<[string, string]> = [
   ["wms_count_sessions", "trg_wms_counts_emit"],
   ["wms_trailer_visits", "trg_wms_trailers_emit"],
 ];
+
+/** FSM RPCs whose emission was moved out to the triggers above. */
+const TRIGGER_OWNED_RPCS = [
+  "wms_transition_task",
+  "wms_transition_lpn",
+  "wms_claim_next_task",
+];
+
 
 describe("wms outbox emission parity", () => {
   const sql = allMigrations();
