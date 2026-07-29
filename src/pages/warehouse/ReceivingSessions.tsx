@@ -171,12 +171,16 @@ export default function ReceivingSessions() {
   const handleLpnScan = useCallback(
     (p: WmsScanPayload) => {
       if (openSessions.length !== 1) {
-        lpnIntent.reportUnexpected(
-          p.raw,
-          openSessions.length === 0
-            ? "No open receiving session — create one first"
-            : "Multiple open sessions — pick one before scanning",
-        );
+        scanFeedbackBus.emit({
+          kind: "error",
+          raw: p.raw,
+          source: "field",
+          workflow: "receive",
+          detail:
+            openSessions.length === 0
+              ? "No open receiving session — create one first"
+              : "Multiple open sessions — pick one before scanning",
+        });
         return;
       }
       const target = openSessions[0];
@@ -188,20 +192,22 @@ export default function ReceivingSessions() {
         },
       );
     },
-    // lpnIntent is defined below; eslint-disabled to allow the forward ref
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [openSessions, transition],
   );
 
   const handleItemScan = useCallback(
     (p: WmsScanPayload) => {
       if (unloadingSessions.length !== 1) {
-        itemIntent.reportUnexpected(
-          p.raw,
-          unloadingSessions.length === 0
-            ? "No session unloading — scan an LPN to start"
-            : "Multiple sessions unloading — pick one before scanning items",
-        );
+        scanFeedbackBus.emit({
+          kind: "error",
+          raw: p.raw,
+          source: "field",
+          workflow: "receive",
+          detail:
+            unloadingSessions.length === 0
+              ? "No session unloading — scan an LPN to start"
+              : "Multiple sessions unloading — pick one before scanning items",
+        });
         return;
       }
       const target = unloadingSessions[0];
@@ -217,16 +223,15 @@ export default function ReceivingSessions() {
         },
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [unloadingSessions, transition],
   );
 
-  const lpnIntent = useWmsScanIntent({
+  useWmsScanIntent({
     intent: "receiving.lpn",
     onScan: handleLpnScan,
     label: "receiving-sessions.lpn",
   });
-  const itemIntent = useWmsScanIntent({
+  useWmsScanIntent({
     intent: "receiving.item",
     onScan: handleItemScan,
     label: "receiving-sessions.item",
