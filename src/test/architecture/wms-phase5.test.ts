@@ -8,6 +8,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { checkRpcOwnership, pageCallsRpc } from "./wmsGuardUtils";
+
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
@@ -60,11 +62,14 @@ describe("wms phase 5 architecture", () => {
   });
 
   it("dispatch pages call the sanctioned RPCs", () => {
-    const planner = readFileSync(path.join(SRC, "pages/warehouse/LoadingManifestPlanner.tsx"), "utf8");
-    const bay = readFileSync(path.join(SRC, "pages/warehouse/LoadingBay.tsx"), "utf8");
-    expect(/rpc\(\s*["']open_loading_manifest["']/.test(planner)).toBe(true);
-    expect(/rpc\(\s*["']load_carton_onto_manifest["']/.test(bay)).toBe(true);
-    expect(/rpc\(\s*["']close_loading_manifest["']/.test(bay)).toBe(true);
-    expect(/rpc\(\s*["']dispatch_loading_manifest["']/.test(bay)).toBe(true);
+    // open_loading_manifest / close_loading_manifest are not on the
+    // domain-RPC ban list — those pages still own their call sites.
+    expect(pageCallsRpc("LoadingManifestPlanner.tsx", "open_loading_manifest")).toBe(true);
+    expect(pageCallsRpc("LoadingBay.tsx", "close_loading_manifest")).toBe(true);
+    // Loading + dispatch moved behind typed wrappers (Phase 2.4 §3).
+    const a = checkRpcOwnership("LoadingBay.tsx", "useLoadCartonOntoManifest", "load_carton_onto_manifest");
+    const b = checkRpcOwnership("LoadingBay.tsx", "useDispatchManifest", "dispatch_loading_manifest");
+    expect([a, b].filter(Boolean).join("\n")).toBe("");
   });
 });
+

@@ -9,6 +9,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { checkRpcOwnership, pageCallsRpc } from "./wmsGuardUtils";
+
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
@@ -80,11 +82,12 @@ describe("wms phase 4c architecture", () => {
   });
 
   it("cycle-count screens call the sanctioned RPCs", () => {
-    const planner = readFileSync(path.join(SRC, "pages/warehouse/CycleCountPlanner.tsx"), "utf8");
-    const sessionSrc = readFileSync(path.join(SRC, "pages/warehouse/CountSession.tsx"), "utf8");
-    const review = readFileSync(path.join(SRC, "pages/warehouse/CountReview.tsx"), "utf8");
-    expect(/rpc\(\s*["']create_count_session["']/.test(planner)).toBe(true);
-    expect(/rpc\(\s*["']record_count["']/.test(sessionSrc)).toBe(true);
-    expect(/rpc\(\s*["']post_count_session["']/.test(review)).toBe(true);
+    // create_count_session / record_count are not on the domain-RPC ban
+    // list — those pages still own their call sites.
+    expect(pageCallsRpc("CycleCountPlanner.tsx", "create_count_session")).toBe(true);
+    expect(pageCallsRpc("CountSession.tsx", "record_count")).toBe(true);
+    // post_count_session moved behind the typed wrapper (Phase 2.4 §3).
+    expect(checkRpcOwnership("CountReview.tsx", "usePostCountSession", "post_count_session")).toBe("");
   });
 });
+
