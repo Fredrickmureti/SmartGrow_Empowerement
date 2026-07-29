@@ -36,14 +36,18 @@ export const WMS_TOPIC = {
   LPN_MOVED: "warehouse.lpn.moved",
   LPN_VOIDED: "warehouse.lpn.voided",
 
-  // ---- Carton / manifest linkage -------------------------------------
+  // ---- Cartons (pack station -> manifest -> dispatch) -----------------
+  CARTON_OPENED: "warehouse.carton.opened",
+  CARTON_SEALED: "warehouse.carton.sealed",
   CARTON_LOADED: "warehouse.carton.loaded",
+  CARTON_SHIPPED: "warehouse.carton.shipped",
 
   // ---- Receiving ------------------------------------------------------
   RECEIVING_OPENED: "warehouse.receiving.opened",
   RECEIVING_LINE_CAPTURED: "warehouse.receiving.line_captured",
   RECEIVING_CLOSED: "warehouse.receiving.closed",
   RECEIVING_DISCREPANT: "warehouse.receiving.discrepant",
+  RECEIPT_STAGED: "warehouse.receipt.staged",
 
   // ---- Returns --------------------------------------------------------
   RETURN_OPENED: "warehouse.return.opened",
@@ -84,6 +88,7 @@ export const WMS_TOPIC = {
   COUNT_DRAFT: "warehouse.count.draft",
   COUNT_COUNTING: "warehouse.count.counting",
   COUNT_REVIEW: "warehouse.count.review",
+  COUNT_RECORDED: "warehouse.count.recorded",
   COUNT_POSTED: "warehouse.count.posted",
   COUNT_CANCELLED: "warehouse.count.cancelled",
 
@@ -91,6 +96,18 @@ export const WMS_TOPIC = {
   TRAILER_ARRIVED: "warehouse.trailer.arrived",
   TRAILER_DOCKED: "warehouse.trailer.docked",
   TRAILER_DEPARTED: "warehouse.trailer.departed",
+
+  // ---- Dock appointments ----------------------------------------------
+  APPOINTMENT_SCHEDULED: "warehouse.appointment.scheduled",
+  APPOINTMENT_ARRIVED: "warehouse.appointment.arrived",
+  APPOINTMENT_IN_PROGRESS: "warehouse.appointment.in_progress",
+  APPOINTMENT_COMPLETED: "warehouse.appointment.completed",
+  APPOINTMENT_CANCELLED: "warehouse.appointment.cancelled",
+
+  // ---- Cross-docking ---------------------------------------------------
+  CROSSDOCK_MATCHED: "warehouse.crossdock.matched",
+  CROSSDOCK_STAGED: "warehouse.crossdock.staged",
+  CROSSDOCK_CANCELLED: "warehouse.crossdock.cancelled",
 } as const;
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
@@ -108,7 +125,9 @@ export const idempotencyKey = (
     | "manifest"
     | "qc"
     | "count"
-    | "trailer",
+    | "trailer"
+    | "appointment"
+    | "crossdock",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;

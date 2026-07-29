@@ -14,6 +14,8 @@
  * to fire — that path is durable, retried, and audited.
  */
 
+import type { WmsTopic } from '@/features/warehouse/events/topics';
+
 export type DomainEventType =
   | 'sale.committed'
   | 'goods_receipt.posted'
@@ -50,47 +52,11 @@ export type DomainEventType =
   | 'stock.transfer.completed'
   | 'stock.count.completed'
   | 'stock.count.cancelled'
-  // Warehouse (WMS) — Phase 1. Emitted by DB triggers on wms_tasks and
-  // wms_license_plates. See ADR 0079.
-  | 'warehouse.task.assigned'
-  | 'warehouse.task.available'
-  | 'warehouse.task.claimed'
-  | 'warehouse.task.in_progress'
-  | 'warehouse.task.completed'
-  | 'warehouse.task.exception'
-  | 'warehouse.task.cancelled'
-  | 'warehouse.lpn.moved'
-  | 'warehouse.lpn.sealed'
-  | 'warehouse.receipt.staged'
-  | 'warehouse.putaway.suggested'
-  | 'warehouse.putaway.completed'
-  // Warehouse (WMS) — Phase 3. Emitted by pick-wave, pick, pack RPCs.
-  | 'warehouse.wave.released'
-  | 'warehouse.pick.completed'
-  | 'warehouse.pack.completed'
-  // Warehouse (WMS) — Phase 4b. Per-SO shipment cartons under a wave.
-  | 'warehouse.carton.opened'
-  | 'warehouse.carton.sealed'
-  // Warehouse (WMS) — Phase 4c. Cycle counting.
-  | 'warehouse.count.opened'
-  | 'warehouse.count.recorded'
-  | 'warehouse.count.posted'
-  // Warehouse (WMS) — Phase 5. Loading & dispatch.
-  | 'warehouse.manifest.opened'
-  | 'warehouse.manifest.closed'
-  | 'warehouse.manifest.dispatched'
-  | 'warehouse.carton.shipped'
-  // Warehouse (WMS) — Phase 6. Dock scheduling & appointments.
-  | 'warehouse.appointment.scheduled'
-  | 'warehouse.appointment.arrived'
-  | 'warehouse.appointment.in_progress'
-  | 'warehouse.appointment.completed'
-  | 'warehouse.appointment.cancelled'
-  // Warehouse (WMS) — Phase 7. QC inspection lifecycle.
-  | 'warehouse.qc.opened'
-  | 'warehouse.qc.accepted'
-  | 'warehouse.qc.rejected'
-  | 'warehouse.qc.cancelled';
+  // Warehouse (WMS). The canonical topic vocabulary lives in
+  // `src/features/warehouse/events/topics.ts` and mirrors the
+  // `wms_events_catalog` table — never re-declare warehouse topics here.
+  | WmsTopic;
+
 
 export interface DomainEvent<P = unknown> {
   id?: string;

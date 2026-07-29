@@ -18,6 +18,7 @@ import { reclaimStaleBusinessEvents } from '@/services/events/reclaimStaleEvents
 import { startPrintRecoverySweeper } from '@/services/printing/recovery';
 import { useBranches } from '@/hooks/useBranches';
 import { useBusinesses } from '@/hooks/useBusinesses';
+import { WMS_TOPIC } from '@/features/warehouse/events/topics';
 
 
 
@@ -341,47 +342,17 @@ export function BusinessSagaMount({ orgId }: Props) {
     // Warehouse (WMS) — log-only handlers so the outbox → saga path is
     // exercised end-to-end. Feature modules can register additional
     // consumers (label print, dock scheduling, replenishment) at any
-    // time. See ADR 0079 for the Inventory/Warehouse split.
+    // time. See ADR 0079 and docs/architecture/WMS_MODULE_OWNERSHIP.md.
+    //
+    // Registration is driven off the canonical topic catalog so a new
+    // topic can never be emitted without a subscriber wired up.
     const wmsHandler = async (e: DomainEvent) => {
       console.debug('[saga warehouse]', e.type, e.sourceDocType, e.sourceDocId);
     };
-    saga.register('warehouse.task.assigned', wmsHandler);
-    saga.register('warehouse.task.available', wmsHandler);
-    saga.register('warehouse.task.claimed', wmsHandler);
-    saga.register('warehouse.task.in_progress', wmsHandler);
-    saga.register('warehouse.task.completed', wmsHandler);
-    saga.register('warehouse.task.exception', wmsHandler);
-    saga.register('warehouse.task.cancelled', wmsHandler);
-    saga.register('warehouse.lpn.moved', wmsHandler);
-    saga.register('warehouse.lpn.sealed', wmsHandler);
-    saga.register('warehouse.receipt.staged', wmsHandler);
-    saga.register('warehouse.putaway.suggested', wmsHandler);
-    saga.register('warehouse.putaway.completed', wmsHandler);
-    saga.register('warehouse.wave.released', wmsHandler);
-    saga.register('warehouse.pick.completed', wmsHandler);
-    saga.register('warehouse.pack.completed', wmsHandler);
-    saga.register('warehouse.carton.opened', wmsHandler);
-    saga.register('warehouse.carton.sealed', wmsHandler);
-    saga.register('warehouse.count.opened', wmsHandler);
-    saga.register('warehouse.count.recorded', wmsHandler);
-    saga.register('warehouse.count.posted', wmsHandler);
-    saga.register('warehouse.manifest.opened', wmsHandler);
-    saga.register('warehouse.manifest.closed', wmsHandler);
-    saga.register('warehouse.manifest.dispatched', wmsHandler);
-    saga.register('warehouse.carton.shipped', wmsHandler);
+    for (const topic of Object.values(WMS_TOPIC)) {
+      saga.register(topic, wmsHandler);
+    }
 
-    // Phase 6 — Dock scheduling & appointments.
-    saga.register('warehouse.appointment.scheduled', wmsHandler);
-    saga.register('warehouse.appointment.arrived', wmsHandler);
-    saga.register('warehouse.appointment.in_progress', wmsHandler);
-    saga.register('warehouse.appointment.completed', wmsHandler);
-    saga.register('warehouse.appointment.cancelled', wmsHandler);
-
-    // Phase 7 — QC inspection lifecycle.
-    saga.register('warehouse.qc.opened', wmsHandler);
-    saga.register('warehouse.qc.accepted', wmsHandler);
-    saga.register('warehouse.qc.rejected', wmsHandler);
-    saga.register('warehouse.qc.cancelled', wmsHandler);
 
     saga.start();
 
