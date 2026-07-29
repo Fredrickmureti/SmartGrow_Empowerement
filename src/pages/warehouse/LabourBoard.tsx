@@ -36,6 +36,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Gauge, Plus, Trash2 } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
@@ -67,6 +68,20 @@ interface ProductivityRow {
   utilisation_ratio: number | null;
 }
 
+interface LabourQueueRow {
+  task_id: string;
+  task_type: TaskType;
+  state: string;
+  priority: number | null;
+  sla_at: string | null;
+  sla_breached: boolean | null;
+  warehouse_id: string | null;
+  assignee_user_id: string | null;
+  source_doc_type: string | null;
+  quantity: number | null;
+  created_at: string | null;
+}
+
 function daysAgo(n: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - n);
@@ -86,6 +101,7 @@ export default function LabourBoard() {
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [standardOpen, setStandardOpen] = useState(false);
+  const [queueTypeFilter, setQueueTypeFilter] = useState<TaskType | "all">("all");
 
   const [form, setForm] = useState({
     task_type: "pick" as TaskType,
@@ -207,6 +223,43 @@ export default function LabourBoard() {
   const overallUtil =
     totals.actual > 0 ? totals.earned / totals.actual : null;
 
+  // ---------- Unified live labour queue (Phase 3.6) ----------
+  const { data: queue, isLoading: queueLoading } = useQuery({
+    queryKey: ["wms-labour-queue-view", currentBusiness?.id, warehouseFilter, queueTypeFilter],
+    enabled: !!currentBusiness?.id,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      let q = supabase
+        .from("wms_labour_queue_view")
+        .select(
+          "task_id,task_type,state,priority,sla_at,sla_breached,warehouse_id,assignee_user_id,source_doc_type,quantity,created_at",
+        )
+        .eq("business_id", currentBusiness!.id)
+        .order("sla_breached", { ascending: false })
+        .order("priority", { ascending: false })
+        .order("sla_at", { ascending: true, nullsFirst: false })
+        .limit(200);
+      if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
+      if (queueTypeFilter !== "all") q = q.eq("task_type", queueTypeFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as LabourQueueRow[];
+    },
+  });
+
+  const queueSummary = useMemo(() => {
+    const rows = queue ?? [];
+    const byType = new Map<string, number>();
+    let breached = 0;
+    let unassigned = 0;
+    for (const r of rows) {
+      byType.set(r.task_type, (byType.get(r.task_type) ?? 0) + 1);
+      if (r.sla_breached) breached += 1;
+      if (!r.assignee_user_id) unassigned += 1;
+    }
+    return { total: rows.length, breached, unassigned, byType };
+  }, [queue]);
+
   return (
     <>
       <PageHeader
@@ -246,6 +299,94 @@ export default function LabourBoard() {
             </Select>
           </div>
         </div>
+
+        <Section
+          title="Live labour queue"
+          description="Unified open tasks across pick / pack / putaway / replenish / count / qc / move / load — sourced from wms_labour_queue_view."
+        >
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <div className="w-56">
+              <Label>Task type</Label>
+              <Select
+                value={queueTypeFilter}
+                onValueChange={(v) => setQueueTypeFilter(v as TaskType | "all")}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {TASK_TYPES.map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-6">
+              <Badge variant="secondary">Open: {queueSummary.total}</Badge>
+              <Badge variant={queueSummary.breached > 0 ? "destructive" : "secondary"}>
+                SLA breached: {queueSummary.breached}
+              </Badge>
+              <Badge variant="outline">Unassigned: {queueSummary.unassigned}</Badge>
+            </div>
+          </div>
+
+          {queueLoading ? (
+            <LoadingState />
+          ) : (queue ?? []).length === 0 ? (
+            <EmptyState
+              title="No open tasks"
+              description="The unified labour queue is empty for the current filters."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead className="text-right">Priority</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead>SLA</TableHead>
+                  <TableHead>Assignee</TableHead>
+                  <TableHead>Source</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(queue ?? []).map((r) => {
+                  const sla = r.sla_at ? new Date(r.sla_at) : null;
+                  return (
+                    <TableRow key={r.task_id} className={r.sla_breached ? "bg-destructive/5" : undefined}>
+                      <TableCell className="font-mono text-xs">{r.task_id.slice(0, 8)}…</TableCell>
+                      <TableCell className="capitalize">{r.task_type}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            r.state === "paused" ? "outline" :
+                            r.state === "in_progress" || r.state === "resumed" ? "default" :
+                            "secondary"
+                          }
+                          className="capitalize"
+                        >
+                          {r.state}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{r.priority ?? "—"}</TableCell>
+                      <TableCell className="text-right">{r.quantity ?? "—"}</TableCell>
+                      <TableCell className={r.sla_breached ? "text-destructive font-medium" : ""}>
+                        {sla ? sla.toLocaleString() : "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {r.assignee_user_id ? `${r.assignee_user_id.slice(0, 8)}…` : "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {r.source_doc_type ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
