@@ -100,7 +100,7 @@ export default function OperatorTasks() {
         .order("priority", { ascending: false })
         .order("sla_at", { ascending: true, nullsFirst: false })
         .limit(500);
-      if (typeFilter !== "all") q = q.eq("task_type", typeFilter as WmsTaskType);
+      if (typeFilter !== "all") q = q.eq("task_type", typeFilter as any);
       if (stateFilter === "open") q = q.in("state", ["pending", "available", "assigned", "claimed", "in_progress"] as any);
       else if (stateFilter !== "all") q = q.eq("state", stateFilter as any);
       if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
@@ -200,7 +200,7 @@ export default function OperatorTasks() {
         business_id: currentBusiness.id,
         branch_id: wh?.branch_id ?? null,
         warehouse_id: form.warehouse_id,
-        task_type: form.task_type,
+        task_type: form.task_type as any,
         state: "available" as any,
         priority: Number(form.priority) || 100,
         source_location_id: form.source_location_id || null,
