@@ -184,7 +184,7 @@ export default function LicensePlateView() {
                 <Lock className="mr-2 h-4 w-4" /> Seal
               </Button>
             )}
-            {status !== "retired" && status !== "voided" && (
+            {(status as string) !== "retired" && (status as string) !== "voided" && (
               <Button variant="outline" onClick={() => setStatus.mutate({ toState: "voided", reason: "Manual retire" })}>
                 <Archive className="mr-2 h-4 w-4" /> Retire
               </Button>
