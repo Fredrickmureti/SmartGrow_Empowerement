@@ -361,9 +361,8 @@ export function BusinessSagaMount({ orgId }: Props) {
     // (business_id, receiving_line_id) and emits
     // `warehouse.crossdock.matched` on success.
     saga.register(WMS_TOPIC.RECEIVING_LINE_CAPTURED, async (e: DomainEvent) => {
-      const lineId =
-        (e.payload as { aggregate_id?: string } | undefined)?.aggregate_id ??
-        (e.aggregateId as string | undefined);
+      const payload = (e.payload ?? {}) as { aggregate_id?: string; receiving_line_id?: string };
+      const lineId = payload.aggregate_id ?? payload.receiving_line_id ?? e.sourceDocId;
       if (!lineId) return;
       try {
         await supabase.rpc('evaluate_crossdock_on_receiving_line' as never, {
