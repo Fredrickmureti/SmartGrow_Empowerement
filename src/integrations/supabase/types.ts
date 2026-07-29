@@ -89289,6 +89289,8 @@ export type Database = {
         | "claimed"
         | "completed"
         | "exception"
+        | "paused"
+        | "resumed"
       wms_task_type:
         | "putaway"
         | "pick"
@@ -90212,6 +90214,8 @@ export const Constants = {
         "claimed",
         "completed",
         "exception",
+        "paused",
+        "resumed",
       ],
       wms_task_type: [
         "putaway",
