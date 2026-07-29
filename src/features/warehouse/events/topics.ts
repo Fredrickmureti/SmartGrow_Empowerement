@@ -33,6 +33,9 @@ export const WMS_TOPIC = {
   LPN_QUARANTINED: "warehouse.lpn.quarantined",
   LPN_VOIDED: "warehouse.lpn.voided",
 
+  // ---- Carton / manifest linkage -------------------------------------
+  CARTON_LOADED: "warehouse.carton.loaded",
+
   // ---- Receiving ------------------------------------------------------
   RECEIVING_OPENED: "warehouse.receiving.opened",
   RECEIVING_LINE_CAPTURED: "warehouse.receiving.line_captured",
