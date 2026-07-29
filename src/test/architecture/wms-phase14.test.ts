@@ -15,7 +15,7 @@
  * assert no `describe.skip` remains in `e2e/`.
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, readdirSync } from "fs";
 import path from "path";
 
 const ROOT = path.resolve(__dirname, "../../..");
@@ -65,6 +65,10 @@ const SPECS: Array<{ file: string; rpcs: string[] }> = [
     ],
   },
   {
+    file: "e2e/wms/realtime-contention.spec.ts",
+    rpcs: ["wms_claim_next_task", "wms_transition_task"],
+  },
+  {
     file: "e2e/wms/count.spec.ts",
     rpcs: [
       "create_count_session",
@@ -111,7 +115,17 @@ describe("wms phase 14 — E2E harness scaffolding", () => {
   });
 
   it("no e2e spec still uses describe.skip (Phase 14i)", () => {
-    const allSpecs = [...SPECS.map((s) => s.file), MOBILE_SPEC];
+    // Enumerate the directory rather than the SPECS table so a newly added
+    // spec cannot ship scaffolded-out.
+    const allSpecs = [
+      ...readdirSync(path.join(ROOT, "e2e/wms"))
+        .filter((f) => f.endsWith(".spec.ts"))
+        .map((f) => `e2e/wms/${f}`),
+      ...readdirSync(path.join(ROOT, "e2e/wm"))
+        .filter((f) => f.endsWith(".spec.ts"))
+        .map((f) => `e2e/wm/${f}`),
+    ];
+    expect(allSpecs.length).toBeGreaterThanOrEqual(SPECS.length + 1);
     for (const f of allSpecs) {
       const src = readFileSync(path.join(ROOT, f), "utf8");
       expect(src, `${f} still uses describe.skip — unskip when the sub-phase ships`)

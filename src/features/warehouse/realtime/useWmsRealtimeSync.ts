@@ -87,6 +87,11 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-count-session"],
     ["wms-count-lines"],
   ],
+  // Phase 4 §6 — the Inbound control tower tiles appointment state.
+  wms_dock_appointments: [
+    ["wms-dock-appointments"],
+    ["wms-dock-appointment"],
+  ],
 };
 
 /** Public list of subscribed tables — exported so the guard test can

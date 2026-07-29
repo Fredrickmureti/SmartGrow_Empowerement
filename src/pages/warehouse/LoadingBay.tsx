@@ -12,6 +12,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -248,6 +249,7 @@ export default function LoadingBay() {
             </CardContent></Card>
           </Section>
         )}
+        <ActivitySection aggregateId={manifestId} title="Manifest activity" description="Lifecycle events emitted for this loading manifest." />
       </PageBody>
     </>
   );

@@ -14,6 +14,7 @@
  */
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -232,6 +233,7 @@ export default function CountSession() {
             </CardContent>
           </Card>
         </Section>
+        <ActivitySection aggregateId={sessionId} title="Session activity" description="Lifecycle events emitted for this count session." />
       </PageBody>
     </>
   );

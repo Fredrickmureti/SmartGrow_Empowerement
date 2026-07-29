@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -365,6 +366,7 @@ export default function PickList() {
             </Card>
           </Section>
         )}
+        <ActivitySection aggregateId={waveId} title="Wave activity" description="Lifecycle events emitted for this pick wave." />
       </PageBody>
     </>
   );

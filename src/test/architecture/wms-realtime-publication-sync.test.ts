@@ -27,6 +27,8 @@ const PUBLISHED_WMS_TABLES = [
   "wms_qc_inspections",
   "wms_count_sessions",
   "wms_count_lines",
+  // Phase 4 §6 — Inbound control tower tiles appointment state live.
+  "wms_dock_appointments",
 ] as const;
 
 describe("WMS realtime subscription ↔ publication parity", () => {

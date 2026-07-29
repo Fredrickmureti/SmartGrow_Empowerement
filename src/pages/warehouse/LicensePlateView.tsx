@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PackageOpen, ArrowLeft, MoveRight, Lock, Archive, Printer } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
+import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 
 type LpnStatus = "open" | "sealed" | "shipped" | "retired";
 
@@ -273,6 +274,8 @@ export default function LicensePlateView() {
             </CardContent>
           </Card>
         </Section>
+
+        <ActivitySection aggregateId={id} description="Lifecycle events emitted for this license plate." />
       </PageBody>
 
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>

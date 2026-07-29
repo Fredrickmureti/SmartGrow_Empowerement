@@ -145,3 +145,87 @@ describe("Phase 4 · exception triage is typed", () => {
 
 // Keep the unused-import linter honest about the helper above.
 void readMigrations;
+
+describe("Phase 4 §1 · every WMS aggregate exposes its event trail", () => {
+  const CALL_SITES: Array<[string, string]> = [
+    ["src/pages/warehouse/LicensePlateView.tsx", "ActivitySection"],
+    ["src/pages/warehouse/PickList.tsx", "ActivitySection"],
+    ["src/pages/warehouse/LoadingBay.tsx", "ActivitySection"],
+    ["src/pages/warehouse/QCInspectionDetail.tsx", "ActivitySection"],
+    ["src/pages/warehouse/CountSession.tsx", "ActivitySection"],
+    ["src/pages/warehouse/ReceivingSessions.tsx", "ActivityHistoryButton"],
+  ];
+
+  it("all six aggregate surfaces render the timeline", () => {
+    for (const [file, symbol] of CALL_SITES) {
+      const src = readFileSync(file, "utf8");
+      expect(src, `${file} must render <${symbol} />`).toMatch(
+        new RegExp(`<${symbol}[\\s/>]`),
+      );
+    }
+  });
+
+  it("OutboxTimeline is the only reader of business_event_outbox in warehouse UI", () => {
+    const files = [
+      ...walk("src/pages/warehouse"),
+      ...walk("src/pages/warehouse-mobile"),
+      ...walk("src/features/warehouse"),
+      ...walk("src/apps/warehouse"),
+      ...walk("src/apps/warehouse-mobile"),
+    ].filter((f) => !f.endsWith("OutboxTimeline.tsx"));
+    for (const f of files) {
+      const src = readFileSync(f, "utf8");
+      expect(src, `${f} must not query business_event_outbox directly`).not.toMatch(
+        /from\(\s*["']business_event_outbox["']/,
+      );
+    }
+  });
+});
+
+describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
+  const DASHBOARDS = [
+    "src/pages/warehouse/InboundDashboard.tsx",
+    "src/pages/warehouse/OutboundDashboard.tsx",
+    "src/pages/warehouse/SupervisorDashboard.tsx",
+  ];
+  const routes = readFileSync("src/apps/warehouse/routes.tsx", "utf8");
+  const nav = readFileSync("src/apps/warehouse/nav.ts", "utf8");
+
+  it("each dashboard exists, is routed, and is reachable from the nav", () => {
+    for (const f of DASHBOARDS) {
+      expect(readFileSync(f, "utf8").length, `${f} missing`).toBeGreaterThan(0);
+    }
+    for (const path of ["dashboard/inbound", "dashboard/outbound", "dashboard/supervisor"]) {
+      expect(routes, `route ${path} not wired`).toContain(`path="${path}"`);
+      expect(nav, `nav entry for ${path} missing`).toContain(`/warehouse-app/${path}`);
+    }
+  });
+
+  it("dashboard queries use realtime-invalidated key prefixes (no polling)", () => {
+    const ALLOWED_PREFIXES = [
+      "wms_tasks",
+      "wms_exceptions",
+      "wms-pick-waves",
+      "wms-pack-cartons",
+      "wms-loading-manifests",
+      "wms-receiving-sessions",
+      "wms-dock-appointments",
+    ];
+    for (const f of DASHBOARDS) {
+      const src = readFileSync(f, "utf8");
+      expect(src, `${f} must not poll`).not.toMatch(/refetchInterval/);
+      const keys = [...src.matchAll(/queryKey:\s*\[\s*"([a-z_0-9-]+)"/g)].map((m) => m[1]);
+      expect(keys.length, `${f} has no queries`).toBeGreaterThan(0);
+      for (const k of keys) {
+        expect(ALLOWED_PREFIXES, `${f} uses un-invalidated key prefix "${k}"`).toContain(k);
+      }
+    }
+  });
+
+  it("dashboards are business-scoped", () => {
+    for (const f of DASHBOARDS) {
+      const src = readFileSync(f, "utf8");
+      expect(src, `${f} must filter by business_id`).toMatch(/eq\("business_id"/);
+    }
+  });
+});
