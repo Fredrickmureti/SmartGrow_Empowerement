@@ -153,6 +153,84 @@ export default function ReceivingSessions() {
     [stateFilter],
   );
 
+  // Phase 2.1 — WMS scan intents.
+  // The topmost `open` session receives `receiving.lpn` scans (start unloading);
+  // the topmost `unloading` session receives `receiving.item` scans (mark captured).
+  // Ambiguous state (0 or >1 candidates) reports the scan as unexpected so the
+  // operator gets audio+haptic feedback instead of a silent no-op.
+  const openSessions = useMemo(
+    () => (rows ?? []).filter((r) => r.state === "open"),
+    [rows],
+  );
+  const unloadingSessions = useMemo(
+    () => (rows ?? []).filter((r) => r.state === "unloading"),
+    [rows],
+  );
+
+  const handleLpnScan = useCallback(
+    (p: WmsScanPayload) => {
+      if (openSessions.length !== 1) {
+        lpnIntent.reportUnexpected(
+          p.raw,
+          openSessions.length === 0
+            ? "No open receiving session — create one first"
+            : "Multiple open sessions — pick one before scanning",
+        );
+        return;
+      }
+      const target = openSessions[0];
+      transition.mutate(
+        { id: target.id, to: "unloading", rowVersion: target.row_version, reason: `LPN ${p.resolveCode}` },
+        {
+          onSuccess: () =>
+            toast.success(`Unloading ${target.code}`, { description: `LPN ${p.resolveCode}` }),
+        },
+      );
+    },
+    // lpnIntent is defined below; eslint-disabled to allow the forward ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openSessions, transition],
+  );
+
+  const handleItemScan = useCallback(
+    (p: WmsScanPayload) => {
+      if (unloadingSessions.length !== 1) {
+        itemIntent.reportUnexpected(
+          p.raw,
+          unloadingSessions.length === 0
+            ? "No session unloading — scan an LPN to start"
+            : "Multiple sessions unloading — pick one before scanning items",
+        );
+        return;
+      }
+      const target = unloadingSessions[0];
+      transition.mutate(
+        { id: target.id, to: "captured", rowVersion: target.row_version, reason: `Item ${p.resolveCode}` },
+        {
+          onSuccess: () =>
+            toast.success(`Captured on ${target.code}`, {
+              description: p.isGs1
+                ? `GTIN ${p.gs1.gtin ?? p.resolveCode}${p.gs1.lot ? ` · lot ${p.gs1.lot}` : ""}${p.gs1.expiry ? ` · exp ${p.gs1.expiry}` : ""}`
+                : p.resolveCode,
+            }),
+        },
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unloadingSessions, transition],
+  );
+
+  const lpnIntent = useWmsScanIntent({
+    intent: "receiving.lpn",
+    onScan: handleLpnScan,
+    label: "receiving-sessions.lpn",
+  });
+  const itemIntent = useWmsScanIntent({
+    intent: "receiving.item",
+    onScan: handleItemScan,
+    label: "receiving-sessions.item",
+  });
+
   const nextActions = (r: SessionRow) => {
     const t = (to: RcvState, reason?: string) =>
       transition.mutate({ id: r.id, to, rowVersion: r.row_version, reason });
