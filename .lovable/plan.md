@@ -60,7 +60,28 @@ I re-ran the previous engineer's claims against the code and DB rather than trus
 - Topic registered in `WMS_TOPIC.REPLEN_ENQUEUED`, `wms_events_catalog`, and `WMS_MODULE_OWNERSHIP.md`; bus + saga pick it up via the existing `Object.values(WMS_TOPIC)` loop.
 - Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
 
-## Phase 3.5 — Yard / trailer FSM (next)
+## Phase 3.5 — Yard / trailer FSM canonicalisation — ✅ DONE
+
+- Root-cause fix: `emit_yard_event` was publishing `warehouse.yard.*` while `WMS_TOPIC` + `wms_events_catalog` had already been canonicalised to `warehouse.trailer.*` in Phase 2.6 — no consumer was ever wired to the old strings, so trailer arrivals/dockings/departures were silently un-observed.
+- Rewrote `public.emit_yard_event` to remap legacy input strings to canonical `warehouse.trailer.arrived|docked|departed|no_show` before publishing via `_wms_emit_outbox`. Idempotency key: `wms.trailer_visit:<visit_id>:<status>`.
+- New RPC `public.mark_trailer_no_show(visit_id, reason)`: closes an `arrived`/`in_yard` visit, frees its yard slot, cascades a `cancelled` state onto the linked `wms_dock_appointments` row with `cancelled_reason='trailer no-show'`, then emits `warehouse.trailer.no_show`.
+- Registered `WMS_TOPIC.TRAILER_NO_SHOW` in `topics.ts`; added catalog row + documented in `WMS_MODULE_OWNERSHIP.md`. Bus/saga pick it up via the existing `Object.values(WMS_TOPIC)` loop.
+- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
+
+## Phase 3.6 — Labour / task orchestration (next)
+
+**Verification before starting (next agent, do this first):**
+1. Re-run `bunx vitest run src/test/architecture/wms-` — expect 26 files / 97 tests green.
+2. Spot-check the yard rewrite: `SELECT event_type, count(*) FROM public.business_event_outbox WHERE event_type LIKE 'warehouse.trailer.%' GROUP BY 1;` should show only canonical `warehouse.trailer.*` — never `warehouse.yard.*`.
+3. Confirm `mark_trailer_no_show` sits alongside the other three trailer RPCs in `pg_proc` and is `GRANT EXECUTE` to `authenticated` only.
+
+**Scope for 3.6:**
+- Audit `wms_tasks` / `wms_task_assignments` — task lifecycle currently lacks canonical outbox emission for `assigned` / `paused` / `resumed` / `completed` transitions.
+- Fold replen + putaway + pick tasks into a single labour queue view feeding a "next task" RPC (`claim_next_task(user_id, warehouse_id)`).
+- Emit `warehouse.task.assigned|paused|resumed|completed` topics; wire scanner UI to listen for `task.assigned` broadcasts (device fan-out for headset-first pickers).
+- Extend `wms-outbox-parity.test.ts` with the four new task transitions.
+
+
 
 
 

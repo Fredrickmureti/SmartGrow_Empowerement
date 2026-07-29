@@ -26,7 +26,7 @@ the build.
 | Loading manifest | `wms_loading_manifests` | `wms_transition_manifest`, `open/close/dispatch_loading_manifest` | `aggregates/manifest/*` |
 | QC inspection | `wms_qc_inspections` | `wms_transition_qc`, `open/accept/reject/cancel_qc_inspection` | `aggregates/qc/*` |
 | Count session | `wms_count_sessions` | `wms_transition_count_session`, `create_count_session`, `record_count(_scan)`, `post_count_session` | `aggregates/count/*` |
-| Trailer visit | `wms_trailer_visits` | `check_in_trailer`, `assign_trailer_to_dock`, `depart_trailer` | `aggregates/yard/*` |
+| Trailer visit | `wms_trailer_visits` | `check_in_trailer`, `assign_trailer_to_dock`, `depart_trailer`, `mark_trailer_no_show` | `aggregates/yard/*` |
 | Dock appointment | `wms_dock_appointments` | `schedule_dock_appointment`, `_appt_transition` wrappers | `aggregates/yard/*` |
 | Cross-dock | `wms_crossdock_opportunities` | `evaluate_crossdock_on_grn`, `confirm_crossdock_stage`, `cancel_crossdock_opportunity` | `aggregates/crossdock/*` |
 | Exception | `wms_exceptions` | `wms_raise_exception`, `wms_resolve_exception` | `aggregates/exception/*` |
@@ -174,6 +174,7 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.trailer.arrived` | trailer checked in | yard board |
 | `warehouse.trailer.docked` | trailer at a dock | yard board, loading board |
 | `warehouse.trailer.departed` | trailer left | yard board, 3PL billing (dwell) |
+| `warehouse.trailer.no_show` | trailer abandoned before docking | yard board, appointments |
 
 ### Dock appointments — `wms_dock_appointments` (in-body)
 
