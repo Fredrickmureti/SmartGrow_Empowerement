@@ -65996,6 +65996,7 @@ export type Database = {
           business_id: string
           created_at: string
           details: Json
+          due_by: string | null
           id: string
           kind: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id: string | null
@@ -66003,6 +66004,9 @@ export type Database = {
           raised_by: string | null
           reason: string
           resolution: string | null
+          resolution_kind:
+            | Database["public"]["Enums"]["wms_exception_resolution_kind"]
+            | null
           resolved_at: string | null
           resolved_by: string | null
           row_version: number
@@ -66020,6 +66024,7 @@ export type Database = {
           business_id: string
           created_at?: string
           details?: Json
+          due_by?: string | null
           id?: string
           kind: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id?: string | null
@@ -66027,6 +66032,9 @@ export type Database = {
           raised_by?: string | null
           reason: string
           resolution?: string | null
+          resolution_kind?:
+            | Database["public"]["Enums"]["wms_exception_resolution_kind"]
+            | null
           resolved_at?: string | null
           resolved_by?: string | null
           row_version?: number
@@ -66044,6 +66052,7 @@ export type Database = {
           business_id?: string
           created_at?: string
           details?: Json
+          due_by?: string | null
           id?: string
           kind?: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id?: string | null
@@ -66051,6 +66060,9 @@ export type Database = {
           raised_by?: string | null
           reason?: string
           resolution?: string | null
+          resolution_kind?:
+            | Database["public"]["Enums"]["wms_exception_resolution_kind"]
+            | null
           resolved_at?: string | null
           resolved_by?: string | null
           row_version?: number
@@ -75776,6 +75788,13 @@ export type Database = {
         Returns: undefined
       }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
+      _wms_exception_sla_minutes: {
+        Args: {
+          p_kind: Database["public"]["Enums"]["wms_exception_kind"]
+          p_severity: number
+        }
+        Returns: number
+      }
       _wms_map_event_to_activity: {
         Args: { p_event_type: string; p_payload?: Json }
         Returns: string
@@ -88487,6 +88506,7 @@ export type Database = {
         Args: {
           p_exception_id: string
           p_resolution?: string
+          p_resolution_kind?: Database["public"]["Enums"]["wms_exception_resolution_kind"]
           p_row_version: number
           p_to_state: Database["public"]["Enums"]["wms_exception_state"]
         }
@@ -89301,6 +89321,16 @@ export type Database = {
         | "invalid_bin"
         | "capacity_exceeded"
         | "stale_task"
+        | "other"
+      wms_exception_resolution_kind:
+        | "short_scan"
+        | "damaged"
+        | "wrong_bin"
+        | "wrong_lp"
+        | "legacy_short_dispatch"
+        | "miscount"
+        | "process_error"
+        | "system_error"
         | "other"
       wms_exception_state:
         | "open"
@@ -90218,6 +90248,17 @@ export const Constants = {
         "invalid_bin",
         "capacity_exceeded",
         "stale_task",
+        "other",
+      ],
+      wms_exception_resolution_kind: [
+        "short_scan",
+        "damaged",
+        "wrong_bin",
+        "wrong_lp",
+        "legacy_short_dispatch",
+        "miscount",
+        "process_error",
+        "system_error",
         "other",
       ],
       wms_exception_state: [
