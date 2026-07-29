@@ -53,11 +53,14 @@ export type DomainEventType =
   // Warehouse (WMS) — Phase 1. Emitted by DB triggers on wms_tasks and
   // wms_license_plates. See ADR 0079.
   | 'warehouse.task.assigned'
-  | 'warehouse.task.started'
+  | 'warehouse.task.available'
+  | 'warehouse.task.claimed'
+  | 'warehouse.task.in_progress'
   | 'warehouse.task.completed'
+  | 'warehouse.task.exception'
   | 'warehouse.task.cancelled'
-  | 'warehouse.plate.moved'
-  | 'warehouse.plate.sealed'
+  | 'warehouse.lpn.moved'
+  | 'warehouse.lpn.sealed'
   | 'warehouse.receipt.staged'
   | 'warehouse.putaway.suggested'
   | 'warehouse.putaway.completed'

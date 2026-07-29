@@ -346,11 +346,14 @@ export function BusinessSagaMount({ orgId }: Props) {
       console.debug('[saga warehouse]', e.type, e.sourceDocType, e.sourceDocId);
     };
     saga.register('warehouse.task.assigned', wmsHandler);
-    saga.register('warehouse.task.started', wmsHandler);
+    saga.register('warehouse.task.available', wmsHandler);
+    saga.register('warehouse.task.claimed', wmsHandler);
+    saga.register('warehouse.task.in_progress', wmsHandler);
     saga.register('warehouse.task.completed', wmsHandler);
+    saga.register('warehouse.task.exception', wmsHandler);
     saga.register('warehouse.task.cancelled', wmsHandler);
-    saga.register('warehouse.plate.moved', wmsHandler);
-    saga.register('warehouse.plate.sealed', wmsHandler);
+    saga.register('warehouse.lpn.moved', wmsHandler);
+    saga.register('warehouse.lpn.sealed', wmsHandler);
     saga.register('warehouse.receipt.staged', wmsHandler);
     saga.register('warehouse.putaway.suggested', wmsHandler);
     saga.register('warehouse.putaway.completed', wmsHandler);

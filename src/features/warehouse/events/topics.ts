@@ -15,6 +15,7 @@
 export const WMS_TOPIC = {
   // ---- Task lifecycle -------------------------------------------------
   TASK_AVAILABLE: "warehouse.task.available",
+  TASK_ASSIGNED: "warehouse.task.assigned",
   TASK_CLAIMED: "warehouse.task.claimed",
   TASK_IN_PROGRESS: "warehouse.task.in_progress",
   TASK_COMPLETED: "warehouse.task.completed",
@@ -27,6 +28,7 @@ export const WMS_TOPIC = {
   LPN_STORED: "warehouse.lpn.stored",
   LPN_PICKED: "warehouse.lpn.picked",
   LPN_PACKED: "warehouse.lpn.packed",
+  LPN_SEALED: "warehouse.lpn.sealed",
   LPN_STAGED: "warehouse.lpn.staged",
   LPN_LOADED: "warehouse.lpn.loaded",
   LPN_SHIPPED: "warehouse.lpn.shipped",
