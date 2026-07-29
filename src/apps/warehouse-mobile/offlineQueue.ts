@@ -25,6 +25,7 @@
  */
 import { openDB, type IDBPDatabase } from "idb";
 import { supabase } from "@/integrations/supabase/client";
+import { emitScanOutcome } from "@/features/warehouse/scanning/useScanFeedback";
 
 export type QueueStatus = "synced" | "pending" | "error";
 
