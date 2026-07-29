@@ -88455,16 +88455,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      wms_complete_pick_scan: {
-        Args: {
-          p_client_scan_id?: string
-          p_device_id?: string
-          p_lpn_id?: string
-          p_picked_qty: number
-          p_task_id: string
-        }
-        Returns: Json
-      }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
       wms_manifest_short_cartons: {
         Args: { p_manifest_id: string }
@@ -88483,6 +88473,15 @@ export type Database = {
           p_warehouse_id: string
         }
         Returns: string
+      }
+      wms_replay_guarded_call: {
+        Args: {
+          p_args: Json
+          p_client_scan_id?: string
+          p_device_id?: string
+          p_rpc: string
+        }
+        Returns: Json
       }
       wms_resolve_exception: {
         Args: {
