@@ -69,19 +69,22 @@ describe("wms phase 3 architecture", () => {
     ).toEqual([]);
   });
 
-  it("WavePlanner calls create_pick_wave and release_pick_wave", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/WavePlanner.tsx"), "utf8");
-    expect(/rpc\(\s*["']create_pick_wave["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']release_pick_wave["']/.test(src)).toBe(true);
+  // Phase 2.4 §4 — layering changed: pages call typed hooks, the wrapper
+  // layer owns the single RPC call site. The invariant ("this RPC is the
+  // only write path") is unchanged; only the caller moved.
+  it("create_pick_wave / release_pick_wave are owned by the wrapper layer and consumed by WavePlanner", () => {
+    const a = checkRpcOwnership("WavePlanner.tsx", "useCreateAndReleaseWave", "create_pick_wave");
+    const b = checkRpcOwnership("WavePlanner.tsx", "useCreateAndReleaseWave", "release_pick_wave");
+    expect([a, b].filter(Boolean).join("\n")).toBe("");
   });
 
-  it("PickList calls complete_pick_task", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/PickList.tsx"), "utf8");
-    expect(/rpc\(\s*["']complete_pick_task["']/.test(src)).toBe(true);
+  it("complete_pick_task is owned by the wrapper layer and consumed by PickList", () => {
+    expect(checkRpcOwnership("PickList.tsx", "useCompletePickTask", "complete_pick_task")).toBe("");
   });
 
   it("PackStation calls complete_pack_task", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
-    expect(/rpc\(\s*["']complete_pack_task["']/.test(src)).toBe(true);
+    // Not on the domain-RPC ban list — PackStation still owns this call site.
+    expect(pageCallsRpc("PackStation.tsx", "complete_pack_task")).toBe(true);
   });
 });
+
