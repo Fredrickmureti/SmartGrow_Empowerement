@@ -28,11 +28,14 @@ No false or partial claims found this round. **Genuine resume point = Phase 3.6.
 ### Still open (next agent picks up here)
 
 1. **Retire in-body emissions from legacy task RPCs** (`assign_wms_task`, `complete_pick_task`, etc.) so `wms_transition_task` + trigger are the single producer — audit with a `pg_proc`-based extension of `wms-outbox-parity` before deleting bodies.
-2. **Refactor `LabourBoard`** to read from `wms_labour_queue_view` (currently reads per-task-type tables).
-3. **Mobile RF `/wms/mobile/next`** route that calls `wms_claim_next_task` and routes to the right capture screen by `task_type`.
-4. **Realtime device fan-out** — extend `useWmsRealtimeSync` to subscribe to `warehouse.task.assigned` on `business_event_outbox` (or `wms_tasks` filtered by `assignee_user_id=eq.<me>`) and notify the owner device.
-5. **Playwright** `e2e/wms/labour-claim.spec.ts` — two contexts race `wms_claim_next_task`, assert one-and-only-one winner + both receive their own `warehouse.task.assigned` event.
-6. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
+2. **Mobile RF `/wms/mobile/next`** route that calls `wms_claim_next_task` and routes to the right capture screen by `task_type`.
+3. **Realtime device fan-out** — extend `useWmsRealtimeSync` to subscribe to `warehouse.task.assigned` on `business_event_outbox` (or `wms_tasks` filtered by `assignee_user_id=eq.<me>`) and notify the owner device.
+4. **Playwright** `e2e/wms/labour-claim.spec.ts` — two contexts race `wms_claim_next_task`, assert one-and-only-one winner + both receive their own `warehouse.task.assigned` event.
+5. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
+
+### Also landed this round
+
+- **`LabourBoard` — Live labour queue section**: new supervisor grid backed by `wms_labour_queue_view` with task-type filter, SLA-breached / unassigned / total badges, 15s refetch, priority + SLA ordering. Reuses existing warehouse filter. Type-checks clean.
 
 ### Original spec (kept for reference)
 
