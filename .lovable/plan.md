@@ -53,7 +53,7 @@ Rather than patch 21 function bodies, emission moved to **AFTER triggers on the 
 3. `_wms_emit_task_event()` — task-specific, folds `done` and `completed` onto the single catalogued `warehouse.task.completed`.
 4. **Rival vocabulary retired.** Discovered mid-phase: legacy `tg_wms_task_emit_event` / `tg_wms_lpn_emit_event` published a *second* naming scheme (`warehouse.plate.moved/.sealed`, `warehouse.task.started`) and the task one used the **same idempotency key** as the canonical producer while writing a different `event_type` — so with `ON CONFLICT DO NOTHING` the published topic for an `in_progress` transition was non-deterministic. Both triggers dropped, their richer payload folded into the canonical emitter, `domainEventBus.ts` + `BusinessSagaMount.tsx` repointed (consumers were log-only placeholders).
 5. New topics catalogued + mirrored into `WMS_TOPIC`: `warehouse.lpn.moved`, `warehouse.lpn.sealed`, `warehouse.task.assigned`, `warehouse.trailer.arrived|docked|departed`.
-6. `wms-outbox-parity.test.ts` pins all three invariants (triggers live, rival vocabulary stays retired, reaper scheduled).
+6. `wms-outbox-parity.test.ts` pins four invariants (triggers live, no in-body emitters, rival vocabulary stays retired, reaper scheduled).
 
 ## Phase 2.5 — Lease reaper — PARTIALLY DONE
 
@@ -61,9 +61,21 @@ Rather than patch 21 function bodies, emission moved to **AFTER triggers on the 
 2. **DONE by construction.** The reaper flips `state` to `available`, which the `wms_tasks` trigger now turns into `warehouse.task.available` — the reaper body needed no change.
 3. **TODO.** Prove offline replay idempotency: replay the same `(device_id, client_scan_id)` twice through the mobile queue and assert exactly one outbox row survives.
 
-## Phase 2.5b — Known defect, next up
+## Phase 2.5b — Single producer + `from_*` defect — DONE
 
-`wms_transition_lpn` and `wms_transition_task` build their event payload **after** the `UPDATE … RETURNING` has already overwritten the local record, so `from_status` / `from_state` always equal the *new* state. Every FSM-emitted event in the outbox has a wrong `from_*` field. Fix by capturing the prior state into a local before the UPDATE. (The new triggers report `from_state` correctly, so the two producers currently disagree.)
+The defect and the duplication were the same problem, so they were fixed together rather than by patching the payload in place.
+
+`wms_transition_lpn`, `wms_transition_task`, and `wms_claim_next_task` each emitted **in-body, after `UPDATE … RETURNING`** had already overwritten the local record — so `from_status` / `from_state` was always the *new* value. Once the §5 triggers landed, those in-body calls were also a second producer racing the trigger on the same idempotency key (the trigger fires first; `ON CONFLICT DO UPDATE` only touches `updated_at`, so the in-body call was already a no-op writing a wrong payload nobody read).
+
+Resolution — **triggers are the only producer**:
+
+1. In-body `PERFORM public._wms_emit_event(...)` removed from all three RPCs; each carries a comment naming the trigger that owns its emission. Verified: the only functions in `public` that still reference `_wms_emit_event` are the four trigger functions.
+2. Nothing lost in the removal. The generic `_wms_emit_state_change` on `wms_license_plates` was replaced by a dedicated `_wms_emit_lpn_event()` carrying `code` + `from_location_id` / `to_location_id`, and `_wms_emit_task_event()` gained `cancel_reason` and the real `source_doc_type` / `source_doc_id` linkage. `from_*` is now read from `OLD`, so it is correct by construction — the value simply is not reachable from the FSM body.
+3. Only genuine loss: the free-text `_reason` argument on the LPN transition, which is never persisted to a column. Task `_reason` survives via `cancel_reason`.
+4. New guard invariant #2 in `wms-outbox-parity.test.ts` parses the **last** definition of each of the three RPCs out of the migration history and fails if an in-body emit reappears.
+
+**Suite: 23 files / 85 tests green.**
+
 
 
 ## Phase 2.6 — Ownership doc
