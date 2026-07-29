@@ -38,12 +38,17 @@ export function useTaskEngine() {
   const claimNext = useMutation({
     mutationFn: async (input: ClaimNextInput) => {
       const { data, error } = await supabase.rpc("wms_claim_next_task" as any, {
-        p_warehouse_id: input.warehouseId,
-        p_task_types: input.taskTypes ?? null,
-        p_lease_seconds: input.leaseSeconds ?? 300,
+        _warehouse_id: input.warehouseId,
+        _task_types: input.taskTypes ?? null,
+        _lease_seconds: input.leaseSeconds ?? 300,
       });
       if (error) throw error;
-      return data as { task_id: string | null; row_version: number | null };
+      // SETOF wms_tasks — grab first row (or null when queue is empty)
+      const row = Array.isArray(data) ? data[0] : data;
+      return {
+        task_id: (row?.id as string | undefined) ?? null,
+        row_version: (row?.row_version as number | undefined) ?? null,
+      };
     },
     onSuccess: (res) => {
       invalidate();
@@ -55,14 +60,15 @@ export function useTaskEngine() {
   const transition = useMutation({
     mutationFn: async (input: TransitionInput) => {
       const { data, error } = await supabase.rpc("wms_transition_task" as any, {
-        p_task_id: input.taskId,
-        p_to_state: input.toState,
-        p_row_version: input.rowVersion,
-        p_reason: input.reason ?? null,
-        p_payload: input.payload ?? {},
+        _task_id: input.taskId,
+        _to_state: input.toState,
+        _expected_version: input.rowVersion,
+        _reason: input.reason ?? null,
+        _payload_patch: input.payload ?? {},
       });
       if (error) throw error;
-      return data as { row_version: number };
+      const row = Array.isArray(data) ? data[0] : data;
+      return { row_version: (row?.row_version as number) ?? input.rowVersion + 1 };
     },
     onSuccess: invalidate,
     onError: (e: any) => toast.error(e?.message ?? "Transition rejected"),
@@ -71,7 +77,7 @@ export function useTaskEngine() {
   const heartbeat = useCallback(
     async (taskId: string) => {
       const { error } = await supabase.rpc("wms_task_heartbeat" as any, {
-        p_task_id: taskId,
+        _task_id: taskId,
       });
       if (error) console.warn("[task-engine] heartbeat failed", error);
     },
@@ -79,12 +85,11 @@ export function useTaskEngine() {
   );
 
   const reapExpired = useMutation({
-    mutationFn: async (warehouseId: string) => {
-      const { data, error } = await supabase.rpc("wms_task_reap_expired" as any, {
-        p_warehouse_id: warehouseId,
-      });
+    // wms_task_reap_expired() takes no args and returns the number of tasks released.
+    mutationFn: async (_warehouseId: string) => {
+      const { data, error } = await supabase.rpc("wms_task_reap_expired" as any);
       if (error) throw error;
-      return data as { released: number };
+      return { released: typeof data === "number" ? data : 0 };
     },
     onSuccess: (res) => {
       invalidate();
