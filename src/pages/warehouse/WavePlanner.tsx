@@ -146,7 +146,7 @@ export default function WavePlanner() {
                 </Select>
                 <div className="text-sm text-muted-foreground">{selected.size} selected</div>
                 <div className="flex-1" />
-                <Button disabled={!canRelease || createAndRelease.isPending} onClick={() => createAndRelease.mutate()}>
+                <Button disabled={!canRelease || createAndRelease.isPending} onClick={handleRelease}>
                   <Rocket className="h-4 w-4 mr-2" /> Create &amp; release
                 </Button>
               </div>
