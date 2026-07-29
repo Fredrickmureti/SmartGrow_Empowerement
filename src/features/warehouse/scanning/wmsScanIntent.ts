@@ -126,7 +126,7 @@ export function useWmsScanIntent(opts: UseWmsScanIntentOptions) {
       priority,
       workflow,
       intent: scanIntent,
-      allowRepeats: allowRepeats ?? intent.startsWith("receiving.") || intent.startsWith("count."),
+      allowRepeats: allowRepeats ?? (intent.startsWith("receiving.") || intent.startsWith("count.")),
       label: label ?? `wms:${intent}`,
       onScan: (event) => {
         const parsed = interpretScan(event.code || event.raw);
