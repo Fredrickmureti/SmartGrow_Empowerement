@@ -193,6 +193,13 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.crossdock.staged` | `confirm_crossdock_stage` | cross-dock board, shipping |
 | `warehouse.crossdock.cancelled` | `cancel_crossdock_opportunity` | cross-dock board |
 
+### Replenishment — `wms_replenishment_rules` (trigger)
+
+| Topic | Producer | Consumers |
+| --- | --- | --- |
+| `warehouse.replen.enqueued` | `_wms_maybe_enqueue_replen` via `trg_stock_quants_replen` | replenishment board, labour |
+
+
 ## 4. Inventory consumption rules
 
 Inventory treats WMS topics as facts, never as commands:

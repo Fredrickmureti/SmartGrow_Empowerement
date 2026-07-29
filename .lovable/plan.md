@@ -52,7 +52,16 @@ I re-ran the previous engineer's claims against the code and DB rather than trus
 - `wms_transition_qc` now accepts optional `resolution_kind` / `resolution_notes` in the payload (only on `passed|failed|conditional|closed`), validates against the enum, stamps the row, and includes the resolution in the emitted `warehouse.qc.<state>` outbox event so downstream consumers (inventory hold release, supplier-claim automation) can branch on a typed value.
 - Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
 
-## Phase 3.4 — Replenishment (next)
+## Phase 3.4 — Event-driven replenishment — ✅ DONE
+
+- `_wms_maybe_enqueue_replen(product, location)` evaluates matching active pick-face rules, skips when open replen task exists or source empty, otherwise inserts a `replenish` task and publishes `warehouse.replen.enqueued` via `_wms_emit_outbox`.
+- Trigger `trg_stock_quants_replen` on `stock_quants` (AFTER INSERT OR UPDATE OF quantity, reserved_quantity) invokes the helper; the "Generate" button is now a redundant manual fallback.
+- Idempotency: outbox key `wms.replen:{product}:{pick_location}:{minute_bucket}` collapses noisy stock-quant churn to one event per minute per pick face.
+- Topic registered in `WMS_TOPIC.REPLEN_ENQUEUED`, `wms_events_catalog`, and `WMS_MODULE_OWNERSHIP.md`; bus + saga pick it up via the existing `Object.values(WMS_TOPIC)` loop.
+- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
+
+## Phase 3.5 — Yard / trailer FSM (next)
+
 
 
 ---
