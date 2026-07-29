@@ -75494,6 +75494,16 @@ export type Database = {
         }
         Returns: string
       }
+      _wms_emit_outbox: {
+        Args: {
+          p_business_id: string
+          p_idempotency_key: string
+          p_organization_id: string
+          p_payload: Json
+          p_topic: string
+        }
+        Returns: undefined
+      }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
       _wms_map_event_to_activity: {
         Args: { p_event_type: string }
@@ -88100,6 +88110,29 @@ export type Database = {
         }
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
+      wms_raise_exception: {
+        Args: {
+          p_aggregate_id?: string
+          p_aggregate_type?: string
+          p_details?: Json
+          p_kind: Database["public"]["Enums"]["wms_exception_kind"]
+          p_lpn_id?: string
+          p_reason: string
+          p_severity?: number
+          p_task_id?: string
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
+      wms_resolve_exception: {
+        Args: {
+          p_exception_id: string
+          p_resolution?: string
+          p_row_version: number
+          p_to_state: Database["public"]["Enums"]["wms_exception_state"]
+        }
+        Returns: Json
+      }
       wms_task_heartbeat: {
         Args: { _lease_seconds?: number; _task_id: string }
         Returns: boolean
@@ -88139,6 +88172,26 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_transition_receiving: {
+        Args: {
+          p_payload?: Json
+          p_reason?: string
+          p_row_version: number
+          p_session_id: string
+          p_to_state: Database["public"]["Enums"]["wms_receiving_state"]
+        }
+        Returns: Json
+      }
+      wms_transition_return: {
+        Args: {
+          p_payload?: Json
+          p_reason?: string
+          p_return_id: string
+          p_row_version: number
+          p_to_state: Database["public"]["Enums"]["wms_return_state"]
+        }
+        Returns: Json
       }
       wms_transition_task: {
         Args: {
