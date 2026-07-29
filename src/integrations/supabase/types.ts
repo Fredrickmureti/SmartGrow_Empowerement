@@ -65806,6 +65806,13 @@ export type Database = {
             foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
             columns: ["stage_task_id"]
             isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
+            columns: ["stage_task_id"]
+            isOneToOne: false
             referencedRelation: "wms_tasks"
             referencedColumns: ["id"]
           },
@@ -66021,6 +66028,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wms_license_plates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_exceptions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
           },
           {
             foreignKeyName: "wms_exceptions_task_id_fkey"
@@ -66556,6 +66570,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_putaway_suggestions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
           },
           {
             foreignKeyName: "wms_putaway_suggestions_task_id_fkey"
@@ -74975,6 +74996,164 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+        ]
+      }
+      wms_labour_queue_view: {
+        Row: {
+          assignee_user_id: string | null
+          branch_id: string | null
+          business_id: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string | null
+          destination_location_id: string | null
+          expires_at: string | null
+          lot_number: string | null
+          lpn_id: string | null
+          organization_id: string | null
+          priority: number | null
+          product_id: string | null
+          quantity: number | null
+          row_version: number | null
+          sla_at: string | null
+          sla_breached: boolean | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_location_id: string | null
+          state: Database["public"]["Enums"]["wms_task_state"] | null
+          task_id: string | null
+          task_type: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at: string | null
+          warehouse_id: string | null
+          zone_id: string | null
+        }
+        Insert: {
+          assignee_user_id?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string | null
+          destination_location_id?: string | null
+          expires_at?: string | null
+          lot_number?: string | null
+          lpn_id?: string | null
+          organization_id?: string | null
+          priority?: number | null
+          product_id?: string | null
+          quantity?: number | null
+          row_version?: number | null
+          sla_at?: string | null
+          sla_breached?: never
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_location_id?: string | null
+          state?: Database["public"]["Enums"]["wms_task_state"] | null
+          task_id?: string | null
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at?: string | null
+          warehouse_id?: string | null
+          zone_id?: string | null
+        }
+        Update: {
+          assignee_user_id?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string | null
+          destination_location_id?: string | null
+          expires_at?: string | null
+          lot_number?: string | null
+          lpn_id?: string | null
+          organization_id?: string | null
+          priority?: number | null
+          product_id?: string | null
+          quantity?: number | null
+          row_version?: number | null
+          sla_at?: string | null
+          sla_breached?: never
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_location_id?: string | null
+          state?: Database["public"]["Enums"]["wms_task_state"] | null
+          task_id?: string | null
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at?: string | null
+          warehouse_id?: string | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_tasks_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_lpn_id_fkey"
+            columns: ["lpn_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_source_location_id_fkey"
+            columns: ["source_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
         ]
       }
