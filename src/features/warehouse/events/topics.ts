@@ -69,6 +69,7 @@ export const WMS_TOPIC = {
   WAVE_PACKING: "warehouse.wave.packing",
   WAVE_PACKED: "warehouse.wave.packed",
   WAVE_CANCELLED: "warehouse.wave.cancelled",
+  WAVE_REOPENED: "warehouse.wave.reopened",
 
   // ---- Loading manifests (wms_transition_manifest) --------------------
   MANIFEST_DRAFT: "warehouse.manifest.draft",
