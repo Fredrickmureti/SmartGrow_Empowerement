@@ -44,7 +44,16 @@ I re-ran the previous engineer's claims against the code and DB rather than trus
 - Guard `wms-crossdock-subscriber.test.ts` pins topic + RPC + payload param, so refactors can't silently unwire N8.
 - Verified: 5 relevant guard files / 19 tests green.
 
-## Phase 3.1 — QC lifecycle (next)
+## Phase 3.1 — QC lifecycle (typed resolution) — ✅ DONE
+
+- New enum `public.qc_resolution_kind` (accept, reject_return_to_supplier, reject_scrap, conditional_release, rework, use_as_is).
+- `wms_qc_inspections.resolution_kind` + `resolution_notes` columns added and backfilled from legacy free-text `disposition`.
+- `accept_qc_inspection` stamps `accept` (full) or `conditional_release` (partial); `reject_qc_inspection` maps disposition → typed enum without changing existing stock-move / RTV / scrap side effects.
+- `wms_transition_qc` now accepts optional `resolution_kind` / `resolution_notes` in the payload (only on `passed|failed|conditional|closed`), validates against the enum, stamps the row, and includes the resolution in the emitted `warehouse.qc.<state>` outbox event so downstream consumers (inventory hold release, supplier-claim automation) can branch on a typed value.
+- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
+
+## Phase 3.4 — Replenishment (next)
+
 
 ---
 
