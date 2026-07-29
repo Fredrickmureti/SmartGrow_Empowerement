@@ -19,6 +19,7 @@ import { startPrintRecoverySweeper } from '@/services/printing/recovery';
 import { useBranches } from '@/hooks/useBranches';
 import { useBusinesses } from '@/hooks/useBusinesses';
 import { WMS_TOPIC } from '@/features/warehouse/events/topics';
+import { supabase } from '@/integrations/supabase/client';
 
 
 
