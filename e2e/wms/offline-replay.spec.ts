@@ -125,4 +125,40 @@ test.describe("wms/offline-replay — Phase 3.8", () => {
     expect(result.line_count).toBe(1);
     expect(result.outbox_count).toBe(1);
   });
+
+  test("dispatcher rejects any RPC that is not replay-whitelisted", async ({ page, context }) => {
+    await restoreSupabaseSession(context, page);
+
+    const status = await page.evaluate(
+      async ({ url, anon }) => {
+        const storageKey = Object.keys(window.localStorage).find(
+          (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
+        );
+        const raw = storageKey ? window.localStorage.getItem(storageKey) : null;
+        const token: string = raw ? JSON.parse(raw)?.access_token : "";
+        if (!token) throw new Error("no supabase session");
+
+        const res = await fetch(`${url}/rest/v1/rpc/wms_replay_guarded_call`, {
+          method: "POST",
+          headers: {
+            apikey: anon,
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            p_rpc: "drop_everything",
+            p_args: {},
+            p_client_scan_id: crypto.randomUUID(),
+            p_device_id: `e2e-reject-${crypto.randomUUID()}`,
+          }),
+        });
+        return { ok: res.ok, body: await res.text() };
+      },
+      { url, anon },
+    );
+
+    expect(status.ok).toBe(false);
+    expect(status.body).toContain("WMS_REPLAY_UNSUPPORTED_RPC");
+  });
 });
+
