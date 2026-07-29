@@ -13,12 +13,17 @@ import { WAREHOUSE_APP } from "@/lib/apps/registry";
 import { BranchScopeGate } from "@/components/inventory/BranchScopeGate";
 import { ActiveBranchBadge } from "@/components/inventory/ActiveBranchBadge";
 import { WAREHOUSE_NAV } from "./nav";
+import { useWmsRealtimeSync } from "@/features/warehouse/realtime/useWmsRealtimeSync";
 
 interface WarehouseLayoutProps {
   children: ReactNode;
 }
 
 export function WarehouseLayout({ children }: WarehouseLayoutProps) {
+  // Phase 2.3 — WMS realtime board fabric. Mounted here so the channel
+  // only opens for users actually working inside the warehouse app.
+  useWmsRealtimeSync();
+
   return (
     <PlatformShell app={WAREHOUSE_APP} nav={WAREHOUSE_NAV}>
       <div className="flex justify-end pb-2">
