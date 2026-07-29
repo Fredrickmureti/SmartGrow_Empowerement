@@ -400,6 +400,54 @@ export default function ReceivingSessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!postConfirm}
+        onOpenChange={(o) => { if (!o) { setPostConfirm(null); setPostAck(""); } }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {requiresTyped ? "Post discrepant session to inventory?" : "Post to inventory?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Session <span className="font-mono font-medium">{postConfirm?.session.code}</span> will
+                  commit received quantities to stock. This writes ledger movements, fires
+                  replenishment and cross-dock evaluation, and <strong>cannot be undone</strong> from
+                  this screen — reversal requires a compensating inventory movement.
+                </p>
+                {requiresTyped && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-2">
+                    <p className="text-destructive font-medium">
+                      This session is flagged discrepant. You are committing known-mismatched data.
+                    </p>
+                    <Label className="text-xs">Type <span className="font-mono">POST</span> to confirm</Label>
+                    <Input
+                      value={postAck}
+                      onChange={(e) => setPostAck(e.target.value)}
+                      placeholder="POST"
+                      className="font-mono"
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmPost(); }}
+              disabled={!canConfirm || transition.isPending}
+              className={requiresTyped ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {requiresTyped ? "Post anyway" : "Post to inventory"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
