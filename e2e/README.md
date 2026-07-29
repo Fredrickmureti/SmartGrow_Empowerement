@@ -35,5 +35,5 @@ Seeds must be idempotent — every spec calls
 
 See `.lovable/plan.md` — Phase 14 is landing sub-phase by sub-phase.
 14a scaffolds this folder; 14b–14g bring each spec to green one at a
-time. No spec is scaffolded out any more; the only skips are env guards
-pending" reason so it's obvious which flows are still stubs.
+time. No spec is scaffolded out any more; the only skips left are env guards
+that fire when no Supabase session is injected into the sandbox.
