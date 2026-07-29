@@ -26,7 +26,7 @@ I re-audited every claim in the previous engineer's ledger against the live code
 7. **N9** — `wms_exceptions` already has `severity` and `resolution` columns (plus `row_version`), but `resolution` is free text, not the typed enum the plan calls for. No SLA/due-by column.
 8. **N10 / Phase 4** — no contention toast, no `<OutboxTimeline>` component anywhere in `src/`.
 
-**True resume point:** not "Phase 2.3 §5". It was **Phase 2.4 §4 — reconcile the contradictory guards and close the outbox emission gap** — because the suite is currently red and eleven state transitions are invisible to the event fabric that every later phase depends on.
+**True resume point:** not "Phase 2.3 §5". It was **Phase 2.4 §4 — reconcile the contradictory guards and close the outbox emission gap** — the suite was red and most WMS state transitions were invisible to the event fabric that every later phase depends on. Both are now closed; the live resume point is **Phase 2.5b** (the `from_state` payload defect) followed by **Phase 2.6**.
 
 ---
 
