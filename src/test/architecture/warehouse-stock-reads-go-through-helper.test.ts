@@ -32,6 +32,12 @@ const ALLOWLIST = new Set<string>([
   "src/components/inventory/StockMovementPeekSheet.tsx",
   "src/components/inventory/WarehouseStockPeekSheet.tsx",
   "src/components/inventory/AdjustmentDetailDrawer.tsx",
+  // Forecast is a multi-product roll-up: it reads on-hand + reserved for the
+  // whole product set in one query, which the per-product getProductOnHand()
+  // helper cannot express without N round-trips. The query applies the same
+  // guards the helper does — organization_id, business_id, and branch_id when
+  // a branch is active — so the leak pattern this test targets is closed.
+  "src/pages/inventory/Forecast.tsx",
   // ProductDetailPanel reads warehouse_stock filtered by org+business+branch
   // via useProductDetailData. Validated by inventory-branch-filter.
   "src/hooks/inventory/useProductDetailData.ts",
