@@ -196,8 +196,7 @@ export function useWmsRealtimeSync(): void {
 
       for (const table of WMS_REALTIME_TABLES) {
         channel.on(
-          // @ts-expect-error — realtime types not exported
-          "postgres_changes",
+          "postgres_changes" as never,
           {
             event: "*",
             schema: "public",
