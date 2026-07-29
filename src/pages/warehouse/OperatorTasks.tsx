@@ -1,13 +1,11 @@
 /**
- * OperatorTasks — universal WMS task queue (ADR 0079, Phase 1).
+ * OperatorTasks — universal WMS task queue (ADR 0079 + ADR 0101).
  *
- * Every physical action in the warehouse — putaway, pick, pack, load,
- * count, replenish, move, QC — is a row in `wms_tasks`. This queue is
- * the operator's single work surface.
- *
- * Phase 1 ships the queue substrate + ad-hoc "move" task creation so
- * operators can exercise the workflow before receiving/put-away land in
- * Phase 2/3.
+ * Every physical action in the warehouse is a row in `wms_tasks`. This is
+ * the operator's single work surface. Phase 1.3 rewires all state
+ * mutations through the FSM RPCs (`wms_transition_task`,
+ * `wms_claim_next_task`) so `row_version` optimistic concurrency and the
+ * outbox event stay in sync. Direct `.update({ state })` is forbidden.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,15 +37,14 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
-import { ListChecks, Plus, Play, Check, X, UserPlus } from "lucide-react";
-
-type TaskType = "putaway" | "pick" | "pack" | "load" | "count" | "replenish" | "move" | "qc";
-type TaskState = "pending" | "assigned" | "in_progress" | "done" | "cancelled";
+import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
+import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
+import { ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
 
 interface TaskRow {
   id: string;
-  task_type: TaskType;
-  state: TaskState;
+  task_type: WmsTaskType;
+  state: WmsTaskState;
   priority: number;
   sla_at: string | null;
   assignee_user_id: string | null;
@@ -62,19 +59,22 @@ interface TaskRow {
   created_at: string;
   notes: string | null;
   cancel_reason: string | null;
+  row_version: number;
   source_loc: { code: string } | null;
   dest_loc: { code: string } | null;
 }
 
-const STATE_TONE: Record<TaskState, "info" | "warning" | "success" | "neutral" | "danger"> = {
+const STATE_TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"> = {
   pending: "neutral",
+  available: "neutral",
   assigned: "info",
+  claimed: "info",
   in_progress: "warning",
   done: "success",
+  completed: "success",
   cancelled: "danger",
+  exception: "danger",
 };
-
-const TASK_TYPES: TaskType[] = ["putaway", "pick", "pack", "load", "count", "replenish", "move", "qc"];
 
 export default function OperatorTasks() {
   const qc = useQueryClient();
@@ -82,6 +82,7 @@ export default function OperatorTasks() {
   const { currentBusiness } = useBusinesses();
   const { currentOrg } = useOrganization();
   const { user } = useAuth();
+  const engine = useTaskEngine();
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("open");
@@ -89,42 +90,25 @@ export default function OperatorTasks() {
   const [mineOnly, setMineOnly] = useState(false);
 
   const { data: rows, isLoading } = useQuery({
-    queryKey: ["wms-tasks", currentBusiness?.id, typeFilter, stateFilter, warehouseFilter, mineOnly, user?.id],
+    queryKey: ["wms_tasks", currentBusiness?.id, typeFilter, stateFilter, warehouseFilter, mineOnly, user?.id],
     enabled: !!currentBusiness?.id,
     queryFn: async () => {
       let q = supabase
         .from("wms_tasks")
-        .select("id, task_type, state, priority, sla_at, assignee_user_id, warehouse_id, source_location_id, destination_location_id, product_id, lot_number, quantity, started_at, completed_at, created_at, notes, cancel_reason, source_loc:source_location_id(code), dest_loc:destination_location_id(code)")
+        .select("id, task_type, state, priority, sla_at, assignee_user_id, warehouse_id, source_location_id, destination_location_id, product_id, lot_number, quantity, started_at, completed_at, created_at, notes, cancel_reason, row_version, source_loc:source_location_id(code), dest_loc:destination_location_id(code)")
         .eq("business_id", currentBusiness!.id)
         .order("priority", { ascending: false })
         .order("sla_at", { ascending: true, nullsFirst: false })
         .limit(500);
-      if (typeFilter !== "all") q = q.eq("task_type", typeFilter as TaskType);
-      if (stateFilter === "open") q = q.in("state", ["pending", "assigned", "in_progress"]);
-      else if (stateFilter !== "all") q = q.eq("state", stateFilter as TaskState);
+      if (typeFilter !== "all") q = q.eq("task_type", typeFilter as any);
+      if (stateFilter === "open") q = q.in("state", ["pending", "available", "assigned", "claimed", "in_progress"] as any);
+      else if (stateFilter !== "all") q = q.eq("state", stateFilter as any);
       if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
       if (mineOnly && user?.id) q = q.eq("assignee_user_id", user.id);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as TaskRow[];
     },
-  });
-
-  type TaskPatch = {
-    state?: TaskState;
-    assignee_user_id?: string | null;
-    started_at?: string | null;
-    completed_at?: string | null;
-    cancel_reason?: string | null;
-  };
-
-  const patch = useMutation({
-    mutationFn: async (input: { id: string; patch: TaskPatch }) => {
-      const { error } = await supabase.from("wms_tasks").update(input.patch).eq("id", input.id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-tasks"] }),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
 
   const completePutaway = useMutation({
@@ -134,51 +118,55 @@ export default function OperatorTasks() {
     },
     onSuccess: () => {
       toast.success("Putaway completed");
-      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+      qc.invalidateQueries({ queryKey: ["wms_tasks"] });
       qc.invalidateQueries({ queryKey: ["wms-lpns"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Putaway failed"),
   });
 
-  const claim = (t: TaskRow) => {
-    if (!user?.id) return;
-    patch.mutate({ id: t.id, patch: { assignee_user_id: user.id, state: "assigned" } });
-  };
-  const start = (t: TaskRow) => patch.mutate({
-    id: t.id,
-    patch: {
-      state: "in_progress",
-      started_at: new Date().toISOString(),
-      assignee_user_id: t.assignee_user_id ?? user?.id ?? null,
-    },
-  });
+  const transition = (t: TaskRow, to: WmsTaskState, reason?: string) =>
+    engine.transition.mutate({ taskId: t.id, toState: to, rowVersion: t.row_version, reason });
+
+  const claim = (t: TaskRow) => transition(t, "claimed");
+  const start = (t: TaskRow) => transition(t, "in_progress");
   const complete = (t: TaskRow) => {
-    // Putaway tasks must go through the RPC — it moves the LPN atomically
-    // and emits the outbox event. See wms-phase2 architecture guard.
     if (t.task_type === "putaway") {
       completePutaway.mutate(t.id);
       return;
     }
-    patch.mutate({
-      id: t.id,
-      patch: { state: "done", completed_at: new Date().toISOString() },
-    });
+    transition(t, "completed");
   };
 
   const [cancelOpen, setCancelOpen] = useState<TaskRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const cancel = () => {
     if (!cancelOpen) return;
-    patch.mutate(
-      { id: cancelOpen.id, patch: { state: "cancelled", cancel_reason: cancelReason || null, completed_at: new Date().toISOString() } },
+    engine.transition.mutate(
+      { taskId: cancelOpen.id, toState: "cancelled", rowVersion: cancelOpen.row_version, reason: cancelReason || undefined },
       { onSuccess: () => { setCancelOpen(null); setCancelReason(""); toast.success("Task cancelled"); } },
     );
+  };
+
+  // ---------- claim-next ----------------------------------------------
+  const claimNext = () => {
+    const warehouseId = warehouseFilter !== "all" ? warehouseFilter : warehouses[0]?.id;
+    if (!warehouseId) { toast.error("Choose a warehouse first"); return; }
+    engine.claimNext.mutate({
+      warehouseId,
+      taskTypes: typeFilter !== "all" ? [typeFilter as WmsTaskType] : undefined,
+    });
+  };
+
+  const reapExpired = () => {
+    const warehouseId = warehouseFilter !== "all" ? warehouseFilter : warehouses[0]?.id;
+    if (!warehouseId) { toast.error("Choose a warehouse first"); return; }
+    engine.reapExpired.mutate(warehouseId);
   };
 
   // ---------- ad-hoc create ------------------------------------------
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
-    task_type: "move" as TaskType,
+    task_type: "move" as WmsTaskType,
     warehouse_id: "",
     source_location_id: "",
     destination_location_id: "",
@@ -212,8 +200,8 @@ export default function OperatorTasks() {
         business_id: currentBusiness.id,
         branch_id: wh?.branch_id ?? null,
         warehouse_id: form.warehouse_id,
-        task_type: form.task_type,
-        state: "pending",
+        task_type: form.task_type as any,
+        state: "available" as any,
         priority: Number(form.priority) || 100,
         source_location_id: form.source_location_id || null,
         destination_location_id: form.destination_location_id || null,
@@ -227,7 +215,7 @@ export default function OperatorTasks() {
       toast.success("Task created");
       setCreateOpen(false);
       setForm({ task_type: "move", warehouse_id: "", source_location_id: "", destination_location_id: "", quantity: "", priority: "100", notes: "" });
-      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+      qc.invalidateQueries({ queryKey: ["wms_tasks"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Create failed"),
   });
@@ -241,8 +229,18 @@ export default function OperatorTasks() {
     <>
       <PageHeader
         title="Operator tasks"
-        description="Universal queue of physical work — putaway, pick, pack, load, count, replenish, move, QC."
-        actions={<Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> New task</Button>}
+        description="Universal queue of physical work — putaway, pick, pack, load, count, replenish, move, QC, receive, return."
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={reapExpired} disabled={engine.reapExpired.isPending}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Reap expired
+            </Button>
+            <Button variant="outline" onClick={claimNext} disabled={engine.claimNext.isPending}>
+              <Zap className="mr-2 h-4 w-4" /> Claim next
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> New task</Button>
+          </div>
+        }
       />
       <PageBody>
         <Section>
@@ -254,10 +252,13 @@ export default function OperatorTasks() {
                   <SelectContent>
                     <SelectItem value="open">Open (default)</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="available">Available</SelectItem>
                     <SelectItem value="assigned">Assigned</SelectItem>
+                    <SelectItem value="claimed">Claimed</SelectItem>
                     <SelectItem value="in_progress">In progress</SelectItem>
-                    <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="exception">Exception</SelectItem>
                     <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
@@ -283,7 +284,7 @@ export default function OperatorTasks() {
               {isLoading ? (
                 <LoadingState />
               ) : (rows ?? []).length === 0 ? (
-                <EmptyState icon={ListChecks} title={emptyLabel} description="Create an ad-hoc task or wait for downstream workflows to seed one." />
+                <EmptyState icon={ListChecks} title={emptyLabel} description="Claim next, create an ad-hoc task, or wait for downstream workflows to seed one." />
               ) : (
                 <Table>
                   <TableHeader>
@@ -301,7 +302,7 @@ export default function OperatorTasks() {
                     {(rows ?? []).map((t) => (
                       <TableRow key={t.id}>
                         <TableCell className="capitalize">{t.task_type}</TableCell>
-                        <TableCell><StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge></TableCell>
+                        <TableCell><StatusBadge tone={STATE_TONE[t.state] ?? "neutral"}>{t.state.replace("_", " ")}</StatusBadge></TableCell>
                         <TableCell>{t.priority}</TableCell>
                         <TableCell className="text-sm">
                           <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
@@ -313,16 +314,16 @@ export default function OperatorTasks() {
                           {t.sla_at ? new Date(t.sla_at).toLocaleString() : "—"}
                         </TableCell>
                         <TableCell className="text-right space-x-1">
-                          {t.state === "pending" && (
+                          {(t.state === "pending" || t.state === "available") && (
                             <Button size="sm" variant="outline" onClick={() => claim(t)}><UserPlus className="h-3.5 w-3.5" /></Button>
                           )}
-                          {(t.state === "pending" || t.state === "assigned") && (
+                          {(t.state === "assigned" || t.state === "claimed") && (
                             <Button size="sm" variant="outline" onClick={() => start(t)}><Play className="h-3.5 w-3.5" /></Button>
                           )}
-                          {(t.state === "assigned" || t.state === "in_progress") && (
+                          {(t.state === "claimed" || t.state === "in_progress" || t.state === "assigned") && (
                             <Button size="sm" onClick={() => complete(t)}><Check className="h-3.5 w-3.5" /></Button>
                           )}
-                          {t.state !== "done" && t.state !== "cancelled" && (
+                          {t.state !== "done" && t.state !== "completed" && t.state !== "cancelled" && (
                             <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
                           )}
                         </TableCell>
@@ -354,7 +355,7 @@ export default function OperatorTasks() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Type</Label>
-                <Select value={form.task_type} onValueChange={(v) => setForm({ ...form, task_type: v as TaskType })}>
+                <Select value={form.task_type} onValueChange={(v) => setForm({ ...form, task_type: v as WmsTaskType })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {TASK_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
@@ -408,7 +409,7 @@ export default function OperatorTasks() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => create.mutate()} disabled={create.isPending || !form.warehouse_id}>Create</Button>
+            <Button onClick={() => create.mutate()} disabled={create.isPending}>Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
