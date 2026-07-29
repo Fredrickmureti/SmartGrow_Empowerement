@@ -1,26 +1,33 @@
 /**
- * Phase 3.8 architecture guard — Offline scan-replay idempotency.
+ * Phase 3.9 architecture guard — unified offline scan-replay idempotency.
  *
  * Pins:
  *   1. `wms_client_scan_receipts` exists with a UNIQUE (device_id,
- *      client_scan_id) index.
- *   2. The two mobile-facing wrappers (`wms_capture_receiving_line`,
- *      `wms_complete_pick_scan`) short-circuit on prior receipts and
- *      record a receipt at end.
- *   3. Both wrappers REVOKE from PUBLIC and GRANT EXECUTE to
- *      `authenticated, service_role`.
- *   4. `useOfflineScanQueue` is the only WMS module that stamps
- *      `client_scan_id` for these RPCs, and it uses
- *      `crypto.randomUUID()`.
+ *      client_scan_id) index and an advisory-locked lookup helper.
+ *   2. `wms_replay_guarded_call` is the single server-side chokepoint: it
+ *      short-circuits on a prior receipt, records a receipt, rejects
+ *      non-whitelisted RPC names, and is granted to authenticated only.
+ *   3. The live mobile queue (`src/apps/warehouse-mobile/offlineQueue.ts`)
+ *      is the module that stamps `client_scan_id` via `crypto.randomUUID()`
+ *      and routes every call through the dispatcher.
+ *   4. Every `enqueue("<rpc>")` literal used by the mobile screens appears
+ *      in the dispatcher whitelist — a new mobile RPC cannot ship without a
+ *      replay decision.
+ *   5. No second IndexedDB scan queue exists (the Phase 3.8 dead hook is
+ *      gone and must not come back).
  *
  * Source-level guard (no DB round-trip).
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
+const ROOT = path.resolve(__dirname, "../../..");
+const QUEUE_PATH = path.join(ROOT, "src/apps/warehouse-mobile/offlineQueue.ts");
+const MOBILE_PAGES = path.join(ROOT, "src/pages/warehouse-mobile");
+
 function migrationsContaining(needle: string): string {
-  const dir = path.resolve(__dirname, "../../../supabase/migrations");
+  const dir = path.join(ROOT, "supabase/migrations");
   let all = "";
   for (const name of readdirSync(dir)) {
     const p = path.join(dir, name);
@@ -31,7 +38,11 @@ function migrationsContaining(needle: string): string {
   return all;
 }
 
-describe("Phase 3.8 — offline scan replay idempotency", () => {
+function dispatcherSql(): string {
+  return migrationsContaining("wms_replay_guarded_call");
+}
+
+describe("Phase 3.9 — unified offline scan replay idempotency", () => {
   it("wms_client_scan_receipts table exists with unique (device_id, client_scan_id) index", () => {
     const sql = migrationsContaining("wms_client_scan_receipts");
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS public\.wms_client_scan_receipts/);
@@ -40,48 +51,64 @@ describe("Phase 3.8 — offline scan replay idempotency", () => {
     );
   });
 
-  it("wms_capture_receiving_line short-circuits on prior receipt and records receipt", () => {
-    const sql = migrationsContaining("wms_capture_receiving_line");
-    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.wms_capture_receiving_line/);
-    expect(sql).toMatch(/_wms_client_scan_lookup\(\s*p_device_id\s*,\s*p_client_scan_id\s*\)/);
-    expect(sql).toMatch(/_wms_client_scan_record\(/);
-    expect(sql).toMatch(
-      /REVOKE ALL ON FUNCTION public\.wms_capture_receiving_line[\s\S]{0,200}?FROM PUBLIC/,
-    );
-    expect(sql).toMatch(
-      /GRANT EXECUTE ON FUNCTION public\.wms_capture_receiving_line[\s\S]{0,200}?TO authenticated, service_role/,
-    );
-  });
-
-  it("wms_complete_pick_scan wraps complete_pick_task with replay guard", () => {
-    const sql = migrationsContaining("wms_complete_pick_scan");
-    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.wms_complete_pick_scan/);
-    expect(sql).toMatch(/_wms_client_scan_lookup\(/);
-    expect(sql).toMatch(/public\.complete_pick_task\(\s*p_task_id\s*,\s*p_picked_qty/);
-    expect(sql).toMatch(/_wms_client_scan_record\(/);
-    expect(sql).toMatch(
-      /REVOKE ALL ON FUNCTION public\.wms_complete_pick_scan[\s\S]{0,200}?FROM PUBLIC/,
-    );
-    expect(sql).toMatch(
-      /GRANT EXECUTE ON FUNCTION public\.wms_complete_pick_scan[\s\S]{0,200}?TO authenticated, service_role/,
-    );
-  });
-
   it("advisory lock serialises concurrent replays inside the lookup helper", () => {
     const sql = migrationsContaining("_wms_client_scan_lookup");
     expect(sql).toMatch(/pg_advisory_xact_lock\(/);
   });
 
-  it("useOfflineScanQueue stamps client_scan_id via crypto.randomUUID and passes it to both RPCs", () => {
-    const hookPath = path.resolve(
-      __dirname,
-      "../../features/warehouse/scanning/useOfflineScanQueue.ts",
+  it("wms_replay_guarded_call short-circuits, records, and rejects unknown RPCs", () => {
+    const sql = dispatcherSql();
+    expect(sql).toMatch(/CREATE OR REPLACE FUNCTION public\.wms_replay_guarded_call/);
+    expect(sql).toMatch(/_wms_client_scan_lookup\(\s*p_device_id\s*,\s*p_client_scan_id\s*\)/);
+    expect(sql).toMatch(/_wms_client_scan_record\(/);
+    expect(sql).toMatch(/WMS_REPLAY_UNSUPPORTED_RPC/);
+    // Whitelist must be a static CASE, never dynamic SQL.
+    expect(sql).not.toMatch(/EXECUTE\s+format\(/);
+  });
+
+  it("wms_replay_guarded_call is revoked from PUBLIC and granted to authenticated", () => {
+    const sql = dispatcherSql();
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.wms_replay_guarded_call[\s\S]{0,120}?FROM PUBLIC/,
     );
-    const src = readFileSync(hookPath, "utf8");
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.wms_replay_guarded_call[\s\S]{0,120}?TO authenticated, service_role/,
+    );
+  });
+
+  it("the live mobile queue stamps client_scan_id and calls the dispatcher", () => {
+    const src = readFileSync(QUEUE_PATH, "utf8");
     expect(src).toMatch(/crypto\.randomUUID\(\)/);
-    expect(src).toMatch(/wms_capture_receiving_line/);
-    expect(src).toMatch(/wms_complete_pick_scan/);
-    expect(src).toMatch(/p_client_scan_id:\s*entry\.client_scan_id/);
-    expect(src).toMatch(/p_device_id:\s*deviceId/);
+    expect(src).toMatch(/wms_replay_guarded_call/);
+    expect(src).toMatch(/p_client_scan_id:\s*row\.id/);
+    expect(src).toMatch(/p_device_id:\s*row\.device_id/);
+    // No bare RPC path may survive alongside the guarded dispatcher.
+    expect(src).not.toMatch(/supabase\.rpc\s+as\s+any/);
+  });
+
+  it("every mobile enqueue() RPC is whitelisted in the dispatcher", () => {
+    const sql = dispatcherSql();
+    const used = new Set<string>();
+    for (const name of readdirSync(MOBILE_PAGES)) {
+      if (!name.endsWith(".tsx")) continue;
+      const src = readFileSync(path.join(MOBILE_PAGES, name), "utf8");
+      for (const m of src.matchAll(/enqueue(?:<[^>]*>)?\(\s*"([a-z0-9_]+)"/g)) {
+        used.add(m[1]);
+      }
+    }
+    expect(used.size).toBeGreaterThan(5);
+    const missing = [...used].filter((rpc) => !sql.includes(`WHEN '${rpc}' THEN`));
+    expect(missing, `not replay-whitelisted: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("no duplicate IndexedDB scan queue exists outside offlineQueue.ts", () => {
+    expect(
+      existsSync(path.join(ROOT, "src/features/warehouse/scanning/useOfflineScanQueue.ts")),
+    ).toBe(false);
+    const scanningDir = path.join(ROOT, "src/features/warehouse/scanning");
+    for (const name of readdirSync(scanningDir)) {
+      const src = readFileSync(path.join(scanningDir, name), "utf8");
+      expect(src, `${name} must not open an IndexedDB scan store`).not.toMatch(/openDB\(/);
+    }
   });
 });
