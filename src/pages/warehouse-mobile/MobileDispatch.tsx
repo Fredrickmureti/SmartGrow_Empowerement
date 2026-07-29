@@ -130,27 +130,11 @@ export default function MobileDispatch() {
     }
   };
 
-  // Phase 3.7 §4 — mirror the desktop scan-out gate on mobile. Poll the
-  // shortage helper so operators see missing-carton counts before they try
-  // to close or dispatch, and translate WMS_SCAN_SHORTAGE into a plain
+  // Phase 3.7 §4 — translate WMS_SCAN_SHORTAGE into a plain
   // "load the remaining cartons first" message instead of the raw code.
-  const { data: shortage } = useQuery({
-    queryKey: ["wm-manifest-shortage", shipmentId],
-    enabled: !!shipmentId && (manifest?.state === "loading" || manifest?.state === "closed"),
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("wms_manifest_short_cartons", {
-        p_manifest_id: shipmentId!,
-      });
-      if (error) throw error;
-      const rows = (data ?? []) as Array<{ carton_id: string }>;
-      return rows.length;
-    },
-  });
-
-  const shortageCount = shortage ?? 0;
-  const hasShortage = shortageCount > 0;
-
+  // We deliberately do NOT preview shortage via `supabase.rpc` here — the
+  // Phase 13 mobile guard forbids direct RPCs on the RF shell, so the
+  // enforcement RPC itself is the source of truth on close/dispatch.
   const handleShortageError = (msg: string, verb: "close" | "dispatch") => {
     if (!msg.includes("WMS_SCAN_SHORTAGE")) return false;
     toast.error(
@@ -159,7 +143,6 @@ export default function MobileDispatch() {
         : "Cannot dispatch: sealed cartons are missing from this manifest.",
       { description: "Scan every sealed carton for this wave/SO onto the manifest first." },
     );
-    qc.invalidateQueries({ queryKey: ["wm-manifest-shortage", shipmentId] });
     return true;
   };
 
@@ -203,8 +186,8 @@ export default function MobileDispatch() {
     return <MobileWarehouseLayout title="Dispatch" back="/wm">Manifest not found.</MobileWarehouseLayout>;
 
   const canLoad = manifest.state === "loading";
-  const canClose = manifest.state === "loading" && !hasShortage;
-  const canDispatch = (manifest.state === "loading" || manifest.state === "closed") && !hasShortage;
+  const canClose = manifest.state === "loading";
+  const canDispatch = manifest.state === "loading" || manifest.state === "closed";
 
   return (
     <MobileWarehouseLayout
