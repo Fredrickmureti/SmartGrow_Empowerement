@@ -155,17 +155,27 @@ export async function enqueue<T = unknown>(
   if (online) {
     try {
       const data = await execute(row);
+      // Phase 4 §4: one chokepoint emits operator feedback, so every /wm
+      // screen beeps/buzzes/flashes identically without per-screen wiring.
+      emitScanOutcome("success");
       return { queued: false, data: data as T, client_scan_id: row.id };
     } catch (err) {
       const message = (err as { message?: string })?.message;
       // Network-shape errors (fetch failure, offline mid-flight) → queue.
       // Server-side errors (RLS, validation) → throw so the UI surfaces it.
-      if (!isNetworkError(message)) throw err;
+      if (!isNetworkError(message)) {
+        emitScanOutcome("error");
+        throw err;
+      }
       await persist(row);
+      // Queued, not committed — a distinct tone so the operator knows the
+      // work is held rather than done.
+      emitScanOutcome("warn");
       return { queued: true, client_scan_id: row.id };
     }
   }
   await persist(row);
+  emitScanOutcome("warn");
   return { queued: true, client_scan_id: row.id };
 }
 
