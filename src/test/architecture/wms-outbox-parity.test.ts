@@ -90,7 +90,20 @@ describe("wms outbox emission parity", () => {
     ).toEqual([]);
   });
 
+  it("FSM RPCs do not emit in-body — the triggers are the single producer", () => {
+    const offenders = TRIGGER_OWNED_RPCS.filter((fn) => {
+      const body = latestFunctionBody(sql, fn);
+      expect(body, `${fn} has no CREATE OR REPLACE in the migration history`).not.toBe("");
+      return /PERFORM\s+public\._wms_emit_event/i.test(body);
+    });
+    expect(
+      offenders,
+      "these RPCs emit in-body as well as via trigger — duplicate producer, and their from_* is read after UPDATE ... RETURNING so it is always the new value",
+    ).toEqual([]);
+  });
+
   it("the retired rival topic vocabulary is not reintroduced", () => {
+
     const retired = ["warehouse.plate.moved", "warehouse.plate.sealed", "warehouse.task.started"];
     const offenders: string[] = [];
     for (const topic of retired) {
