@@ -21,6 +21,7 @@ const WarehouseView = lazy(() => import("@/pages/warehouse/WarehouseView"));
 const LicensePlates = lazy(() => import("@/pages/warehouse/LicensePlates"));
 const LicensePlateView = lazy(() => import("@/pages/warehouse/LicensePlateView"));
 const OperatorTasks = lazy(() => import("@/pages/warehouse/OperatorTasks"));
+const MobileNextTask = lazy(() => import("@/pages/warehouse/MobileNextTask"));
 const PutawayQueue = lazy(() => import("@/pages/warehouse/PutawayQueue"));
 const WavePlanner = lazy(() => import("@/pages/warehouse/WavePlanner"));
 const PickList = lazy(() => import("@/pages/warehouse/PickList"));
@@ -134,6 +135,14 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Operator Tasks"><OperatorTasks /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="mobile/next"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Next Task"><MobileNextTask /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
