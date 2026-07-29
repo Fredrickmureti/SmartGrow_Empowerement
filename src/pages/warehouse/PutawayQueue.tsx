@@ -4,7 +4,7 @@
  * Three-column board (Pending / In progress / Done today) filtered to
  * `task_type = 'putaway'`. Kicks off receive-to-WMS staging and
  * completes putaway tasks via `complete_putaway_task` (the RPC that
- * atomically moves the LPN and emits `warehouse.putaway.completed`).
+ * atomically moves the LPN; the table triggers emit `warehouse.task.completed` + `warehouse.lpn.stored`).
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -196,7 +196,7 @@ export default function PutawayQueue() {
     <>
       <PageHeader
         title="Putaway"
-        description="Move staged receipts to their storage bin. Complete moves the plate atomically and posts a warehouse.putaway.completed event."
+        description="Move staged receipts to their storage bin. Complete moves the plate atomically and posts warehouse.task.completed and warehouse.lpn.stored events."
         actions={
           <div className="flex gap-2">
             <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>

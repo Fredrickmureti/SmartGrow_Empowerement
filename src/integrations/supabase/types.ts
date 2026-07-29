@@ -75521,7 +75521,7 @@ export type Database = {
       }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
       _wms_map_event_to_activity: {
-        Args: { p_event_type: string }
+        Args: { p_event_type: string; p_payload?: Json }
         Returns: string
       }
       _wms_qc_post_move: {
@@ -78764,20 +78764,6 @@ export type Database = {
           p_user_agent?: string
         }
         Returns: string
-      }
-      emit_qc_event: {
-        Args: {
-          p_insp: Database["public"]["Tables"]["wms_qc_inspections"]["Row"]
-          p_type: string
-        }
-        Returns: undefined
-      }
-      emit_yard_event: {
-        Args: {
-          p_type: string
-          p_visit: Database["public"]["Tables"]["wms_trailer_visits"]["Row"]
-        }
-        Returns: undefined
       }
       employee_loan_apply_repayment:
         | {

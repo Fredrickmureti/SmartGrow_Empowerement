@@ -111,3 +111,53 @@ Each module ships the standard vertical: migration → transition RPC (+ emit) �
 - Every sanctioned RPC emits onto `business_event_outbox`. No exceptions after Phase 2.4 §5.
 - **Run the entire `wms-*` guard suite, not a subset, before declaring a phase green.** This is the specific failure that produced the red CI in this handoff.
 - Update the ledger with evidence (query output, test output), not assertions.
+
+---
+
+## Phase 2.6 — Ownership & Event Vocabulary Unification — ✅ COMPLETE (verified)
+
+**Implemented & verified**
+- DB migration removed the *rival* legacy vocabulary entirely. In-body emissions of
+  `warehouse.qc.opened/accepted/rejected/cancelled`, `warehouse.yard.*`,
+  `warehouse.task.assigned` (assign/claim), `warehouse.count.opened`,
+  `warehouse.count.posted`, `warehouse.manifest.opened/closed/dispatched`,
+  `warehouse.wave.released` (release + the buggy cancel path) and
+  `warehouse.pick|pack|putaway.completed` were stripped from 20 RPCs; those facts are
+  now published solely by the aggregate AFTER triggers.
+- `emit_qc_event` / `emit_yard_event` helpers dropped (no callers left).
+- Genuinely distinct facts were **catalogued** instead of deleted:
+  `warehouse.receipt.staged`, `warehouse.count.recorded`,
+  `warehouse.carton.opened|sealed|shipped`, `warehouse.appointment.*`,
+  `warehouse.crossdock.*` → `wms_events_catalog` now holds 70 topics.
+- 3PL billing repointed: `_wms_map_event_to_activity(event_type, payload)` maps the
+  canonical vocabulary (task_type-aware); all call sites pass the payload. The 1-arg
+  overload is gone.
+- TS layer unified: `WMS_TOPIC` mirrors the DB catalog (70 topics);
+  `domainEventBus.DomainEventType` now imports `WmsTopic` instead of re-declaring
+  warehouse strings; `BusinessSagaMount` registers consumers by iterating the catalog.
+- `docs/architecture/WMS_MODULE_OWNERSHIP.md` created: write-owner per aggregate,
+  emission ownership rules (trigger vs in-body), full topic register with
+  producers/consumers, Inventory consumption rules, billing mapping.
+- New guard `src/test/architecture/wms-topic-vocabulary.test.ts` (5 tests) +
+  existing `wms-outbox-parity.test.ts` (4 tests) — all green.
+- DB verification: no function references any uncatalogued `warehouse.*` topic.
+
+**Still open (carried forward)**
+- Phase 2.5 leftover: prove offline replay idempotency through the mobile RF queue.
+- Contention toasts / audit timeline components (proposed in Phase 4) are absent.
+
+**Currently active phase:** none — 2.6 closed.
+**Next milestone:** Phase 3 — module deep-dives, starting with Receiving
+(`receiving session → LPN → putaway`) end-to-end coherence.
+
+### Instructions for the next agent
+1. **Verify before building.** Confirm Phase 2.6 holds: run
+   `bunx vitest run src/test/architecture/wms-topic-vocabulary.test.ts src/test/architecture/wms-outbox-parity.test.ts`,
+   and re-run the DB check that every emitted `warehouse.*` literal in `pg_proc`
+   exists in `wms_events_catalog` and in `WMS_TOPIC`. Spot-check that no RPC emits a
+   topic its table trigger already emits (no double publication).
+2. Then resume **chronologically at Phase 3 (Receiving deep-dive)** — do not jump to
+   unrelated modules, and finish each module (RPC + wrapper hook + page + guard +
+   docs) before moving to the next.
+3. Keep the rule established this round: when a modern implementation replaces a
+   legacy one, delete the legacy path in the same change — no competing duplicates.
