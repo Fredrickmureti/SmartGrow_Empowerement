@@ -87,6 +87,6 @@ Each module lands the standard vertical: migration → transition/domain RPC →
 - Update the Execution Ledger after each sub-phase.
 
 ## Execution ledger
-- **Active next:** Phase 2.3 step 1 (N7 outbox audit), then 2.3 steps 2–5.
-- **Green:** All Phase 1; Phase 2.0, 2.1, 2.2 verified against codebase.
-- **Pending:** 2.3 (this turn on), 2.4, 2.5, 2.6, Phase 3 module deep-dives, Phase 4 UX.
+- **Active next:** Phase 2.3 step 5 (two-context Playwright smoke), then Phase 2.4 concurrency RPCs.
+- **Green:** All Phase 1; Phase 2.0, 2.1, 2.2 verified against codebase. Phase 2.3 §1 outbox audit (create_pick_wave / load_carton_onto_manifest gaps carried to 2.4; suggest_carton is read-only, assign_* are intra-carton line ops — non-blockers). Phase 2.3 §2 publication membership + REPLICA IDENTITY FULL added for wms_pick_waves / wms_pack_cartons / wms_loading_manifests / wms_manifest_cartons / wms_qc_inspections / wms_count_sessions / wms_count_lines. Phase 2.3 §3 `src/features/warehouse/realtime/useWmsRealtimeSync.ts` shipped — single channel per org, ref-stable handler, refetchType 'active', exponential backoff, `removeChannel` cleanup. Phase 2.3 §4 mounted in `WarehouseLayout` so OperatorTasks / ReceivingSessions / ReturnOrders / ExceptionsInbox / LicensePlates auto-refresh via their existing `["wms_tasks"] / ["wms-lpns"] / ["wms_exceptions"] / ["wms-receiving-sessions"] / ["wms-return-orders"]` query prefixes. Guard test `wms-realtime-publication-sync.test.ts` pins TS ↔ SQL parity; passes.
+- **Pending:** 2.3 §5 Playwright smoke (N4), 2.4 concurrency RPCs (Wave/Pack/Manifest/QC/CountSession + covering the `create_pick_wave` / `load_carton_onto_manifest` outbox gaps), 2.5 reaper schedule + offline queue, 2.6 ownership doc, Phase 3 module deep-dives, Phase 4 UX.
