@@ -1,143 +1,97 @@
-# WMS Continuation Plan — Round 4 (verified handoff)
+## Verification results
 
-## Phase 0 — Verification results
+Ran the previous engineer's Round 4 claims against the code and DB. All items marked ✅ hold up:
 
-I re-ran the previous engineer's claims against the code and DB rather than trusting the ledger. Findings:
+- **Guard suite:** `bunx vitest run src/test/architecture/wms-` → **26 files / 97 tests green** (matches ledger; Phase 2.7 reconciliation stuck).
+- **Phase 3.1 QC lifecycle:** `qc_resolution_kind` enum and `wms_qc_inspections.resolution_kind` column both present.
+- **Phase 3.2 Cross-dock:** `evaluate_crossdock_on_receiving_line` RPC present; `wms-crossdock-subscriber` guard passes.
+- **Phase 3.3 Receiving:** `trg_wms_recv_lines_emit_captured` trigger present.
+- **Phase 3.4 Replenishment:** `_wms_maybe_enqueue_replen` helper + `trg_stock_quants_replen` trigger present.
+- **Phase 3.5 Yard/trailer:** `mark_trailer_no_show` RPC present alongside the other trailer RPCs.
 
-### Genuinely green (evidence)
-- Ownership doc `docs/architecture/WMS_MODULE_OWNERSHIP.md` present.
-- `wms-outbox-parity.test.ts` and `wms-topic-vocabulary.test.ts` pass (9 tests).
-- `pg_cron` job `wms-task-lease-reaper` scheduled `* * * * *`, `active=true`.
-- 24 WMS aggregate/master pages and 8 mobile RF pages present as claimed.
-- `WMS_TOPIC` includes the new state-based QC topics (`warehouse.qc.pending|passed|failed|conditional|closed|cancelled`).
+No false or partial claims found this round. **Genuine resume point = Phase 3.6.** Phases 3.7, 3.8, and Phase 4 UX from Round 4 remain untouched and carry forward unchanged.
 
-### FALSE / contradictory (now pending)
-1. **"Full `wms-*` suite green" is wrong.** Running all 24 `wms-*` guards: **1 failure** — `wms-phase7` still requires `warehouse.qc.opened|accepted|rejected|cancelled` in `domainEventBus.ts` and `BusinessSagaMount.tsx`, but Phase 2.6 deliberately retired that legacy vocabulary in favour of trigger-emitted state topics. Guard and implementation contradict each other. Same class of drift the plan warned against in its own operating rules.
-2. **Cross-dock (N8) still lacks the receiving-line subscriber.** `warehouse.receiving.line_captured` has no consumer in `BusinessSagaMount.tsx` or `domainEventBus.ts`. Board is still operator-triggered only, as previously flagged.
-3. **Offline replay idempotency** (Phase 2.5 §3) still unproven — no mobile-queue replay test.
-4. **UX artifacts absent** — no `<OutboxTimeline>`, no contention toast, no typed `resolution_kind` enum on `wms_exceptions`, no SLA `due_by` column, no unified scan-feedback layer.
-5. **E2E specs under `e2e/wms/` and `e2e/wm/`** are still scaffolds without real assertions.
+## Phase 3.6 — Labour / task orchestration (resume here)
 
-### Corrected resume point
-**Phase 2.7 — reconcile Phase 7 guard with the unified vocabulary**, then chronologically **Phase 3 (module deep-dives)** starting with QC + Cross-dock (the two remaining event-fabric gaps), then Receiving → Putaway, Replenishment, Yard/Trailer FSM, Labour/3PL re-metering, and finally Phase 4 UX.
+**Pre-flight (do first, no code):**
+1. `bunx vitest run src/test/architecture/wms-` — must stay 26/97 green.
+2. `SELECT event_type, count(*) FROM public.business_event_outbox WHERE event_type LIKE 'warehouse.trailer.%' GROUP BY 1;` — canonical only, no `warehouse.yard.*`.
+3. `\df+ public.mark_trailer_no_show` — confirm `GRANT EXECUTE` to `authenticated` only.
 
----
+**Problem:** `wms_tasks` / `wms_task_assignments` transitions (`assigned`, `paused`, `resumed`, `completed`) don't publish canonical outbox events, so the realtime task board and headset-first pickers can't fan out. Replen/putaway/pick queues are also fragmented per module — no single "next task" surface.
 
-## Phase 2.7 — Guard reconciliation (blocker) — ✅ DONE
+**Objectives:** trigger-owned task-lifecycle emission + one unified labour queue + one `claim_next_task` RPC.
 
-- `wms-phase7.test.ts` rewritten to derive the QC topic expectation from `WMS_TOPIC` (mirrors the technique used by `wms-topic-vocabulary`), and to assert the bus/saga consume the topics module rather than string-matching a retired vocabulary.
-- Generic guard `wms-domain-bus-topic-parity.test.ts` added: pins that `domainEventBus.ts` imports `WmsTopic`, that `BusinessSagaMount.tsx` iterates `Object.values(WMS_TOPIC)`, that `WMS_TOPIC` has no duplicates, and that every value is a `warehouse.*` topic.
-- No code changes needed in `domainEventBus.ts` / `BusinessSagaMount.tsx` — both already consume `WMS_TOPIC` dynamically (Phase 2.6 landed the dynamic registration loop); only the hard-coded guard was drifting.
-- **Full `wms-*` suite: 25 files / 94 tests green** (verified this turn).
+**Steps (standard vertical — migration → RPC → hook → page → realtime → Playwright → guard):**
 
-## Phase 3.3 — Receiving line-captured emission — ✅ DONE
+1. **Migration — task lifecycle emission**
+   - Add `WMS_TOPIC.TASK_ASSIGNED|PAUSED|RESUMED|COMPLETED` (`warehouse.task.*`) to `src/features/warehouse/events/topics.ts` and `wms_events_catalog`. Bus + saga pick them up via existing `Object.values(WMS_TOPIC)` loop.
+   - `_wms_emit_task_lifecycle()` trigger on `wms_tasks` (AFTER UPDATE OF `state`, `assignee_user_id`, `paused_at`). Idempotency key `wms.task:{id}:{state}:{transition_seq}`.
+   - Payload: task_id, task_type, warehouse_id, business_id, assignee_user_id, prior_state, new_state, product_id/lpn/from_location/to_location where relevant, so headsets don't need a follow-up query.
+   - Add `transition_seq bigint` counter column so paused→resumed→paused loops each get a unique idempotency key.
+   - Extend `wms-outbox-parity.test.ts` with the four new transitions.
 
-- New trigger `trg_wms_recv_lines_emit_captured` on `public.wms_receiving_lines` (AFTER INSERT OR UPDATE OF `received_qty`) invokes `_wms_emit_receiving_line_captured`, which publishes `warehouse.receiving.line_captured` to `business_event_outbox` via `_wms_emit_event`. Idempotency key `wms.receiving_line:{id}:captured`.
-- Payload includes session/product/lpn/lot/serial/uom/qty/staging + upstream `source_doc_type|id`, appointment, dock — everything downstream cross-dock / put-away / replenishment needs without a follow-up query.
-- Skips zero/negative quantities and no-op quantity updates.
+2. **Transition RPCs**
+   - `wms_transition_task(task_id, target_state, payload jsonb)` — accepts `assigned|paused|resumed|completed|cancelled`; enforces FSM allow-list matching the existing `_wms_emit_state_change` pattern.
+   - Retire in-body emissions from `assign_wms_task`, `complete_pick_task`, etc.; they route through `wms_transition_task` so the trigger owns emission (no double publish).
+   - `claim_next_task(warehouse_id uuid, capabilities text[])` — atomically picks the highest-priority open task the caller is capable of, stamps `assignee_user_id = auth.uid()`, transitions to `assigned`, returns the row. `FOR UPDATE SKIP LOCKED` on the priority queue to survive concurrent claim storms.
+   - `GRANT EXECUTE ... TO authenticated` only; both RPCs assert business membership via existing helper.
 
-## Phase 3.2 — Cross-dock subscriber — ✅ DONE
+3. **Typed hooks**
+   - `useClaimNextTask()` and `useTransitionTask()` in `src/hooks/warehouse/`; both use the shared error/toast shell.
+   - No component may call `supabase.rpc('wms_transition_task', …)` directly (extend `wms-no-direct-domain-rpc` guard).
 
-- Schema: `wms_crossdock_opportunities` now accepts either `grn_line_id` (legacy GRN-close path) or `receiving_line_id` (new per-line path). `wms_crossdock_source_present` CHECK enforces one-of; per-source partial unique indexes replace the old single unique.
-- New RPC `evaluate_crossdock_on_receiving_line(uuid)` picks the oldest open sales-order line for the same business+product, inserts the opportunity, and emits `warehouse.crossdock.matched` via `emit_crossdock_event`.
-- `BusinessSagaMount` subscribes `WMS_TOPIC.RECEIVING_LINE_CAPTURED` and calls the RPC with the receiving-line id from the event payload.
-- Guard `wms-crossdock-subscriber.test.ts` pins topic + RPC + payload param, so refactors can't silently unwire N8.
-- Verified: 5 relevant guard files / 19 tests green.
+4. **Unified labour queue view + page**
+   - View `wms_labour_queue_view` (security_invoker) unions replen + putaway + pick + pack + count + qc tasks with columns `(task_id, task_type, priority, sla_due_by, warehouse_id, business_id, assignee_user_id, state, required_capabilities[])`.
+   - Refactor `LabourBoard` (already the sole writer to `wms_task_standards` per Phase 10) to consume this view; supervisors see slack across all task types in one grid grouped by capability + SLA.
+   - Mobile RF: single `/wms/mobile/next` screen that calls `claim_next_task`, routes to the correct capture screen based on `task_type`.
 
-## Phase 3.1 — QC lifecycle (typed resolution) — ✅ DONE
+5. **Realtime device fan-out**
+   - `useWmsRealtimeSync` subscribes to `warehouse.task.assigned`; when `payload.assignee_user_id === auth.uid()` and the current device is idle, push a browser/RF notification ("Next task: Pick #123 @ A-04-02").
+   - Contention: subscribing to `warehouse.task.assigned` where `assignee_user_id != me` for a task I claimed = someone reclaimed it (should be prevented by RPC, but surface a toast + auto-return-to-queue for defense in depth).
 
-- New enum `public.qc_resolution_kind` (accept, reject_return_to_supplier, reject_scrap, conditional_release, rework, use_as_is).
-- `wms_qc_inspections.resolution_kind` + `resolution_notes` columns added and backfilled from legacy free-text `disposition`.
-- `accept_qc_inspection` stamps `accept` (full) or `conditional_release` (partial); `reject_qc_inspection` maps disposition → typed enum without changing existing stock-move / RTV / scrap side effects.
-- `wms_transition_qc` now accepts optional `resolution_kind` / `resolution_notes` in the payload (only on `passed|failed|conditional|closed`), validates against the enum, stamps the row, and includes the resolution in the emitted `warehouse.qc.<state>` outbox event so downstream consumers (inventory hold release, supplier-claim automation) can branch on a typed value.
-- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
+6. **Playwright**
+   - `e2e/wms/labour-claim.spec.ts` — two browser contexts race `claim_next_task` for the same warehouse; assert exactly one succeeds, the other gets the next-priority task, and both receive `warehouse.task.assigned` events for their own claim.
 
-## Phase 3.4 — Event-driven replenishment — ✅ DONE
+7. **Guards**
+   - `wms-phase-labour-lifecycle.test.ts`: every `wms_task_assignments` state has an outbox topic; `wms_tasks` write path guard forbids bare `UPDATE ... SET state = ...` outside `wms_transition_task`.
+   - Extend `wms-outbox-parity.test.ts` with the four topics.
 
-- `_wms_maybe_enqueue_replen(product, location)` evaluates matching active pick-face rules, skips when open replen task exists or source empty, otherwise inserts a `replenish` task and publishes `warehouse.replen.enqueued` via `_wms_emit_outbox`.
-- Trigger `trg_stock_quants_replen` on `stock_quants` (AFTER INSERT OR UPDATE OF quantity, reserved_quantity) invokes the helper; the "Generate" button is now a redundant manual fallback.
-- Idempotency: outbox key `wms.replen:{product}:{pick_location}:{minute_bucket}` collapses noisy stock-quant churn to one event per minute per pick face.
-- Topic registered in `WMS_TOPIC.REPLEN_ENQUEUED`, `wms_events_catalog`, and `WMS_MODULE_OWNERSHIP.md`; bus + saga pick it up via the existing `Object.values(WMS_TOPIC)` loop.
-- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
-
-## Phase 3.5 — Yard / trailer FSM canonicalisation — ✅ DONE
-
-- Root-cause fix: `emit_yard_event` was publishing `warehouse.yard.*` while `WMS_TOPIC` + `wms_events_catalog` had already been canonicalised to `warehouse.trailer.*` in Phase 2.6 — no consumer was ever wired to the old strings, so trailer arrivals/dockings/departures were silently un-observed.
-- Rewrote `public.emit_yard_event` to remap legacy input strings to canonical `warehouse.trailer.arrived|docked|departed|no_show` before publishing via `_wms_emit_outbox`. Idempotency key: `wms.trailer_visit:<visit_id>:<status>`.
-- New RPC `public.mark_trailer_no_show(visit_id, reason)`: closes an `arrived`/`in_yard` visit, frees its yard slot, cascades a `cancelled` state onto the linked `wms_dock_appointments` row with `cancelled_reason='trailer no-show'`, then emits `warehouse.trailer.no_show`.
-- Registered `WMS_TOPIC.TRAILER_NO_SHOW` in `topics.ts`; added catalog row + documented in `WMS_MODULE_OWNERSHIP.md`. Bus/saga pick it up via the existing `Object.values(WMS_TOPIC)` loop.
-- Verified: full `wms-*` guard suite — **26 files / 97 tests green**.
-
-## Phase 3.6 — Labour / task orchestration (next)
-
-**Verification before starting (next agent, do this first):**
-1. Re-run `bunx vitest run src/test/architecture/wms-` — expect 26 files / 97 tests green.
-2. Spot-check the yard rewrite: `SELECT event_type, count(*) FROM public.business_event_outbox WHERE event_type LIKE 'warehouse.trailer.%' GROUP BY 1;` should show only canonical `warehouse.trailer.*` — never `warehouse.yard.*`.
-3. Confirm `mark_trailer_no_show` sits alongside the other three trailer RPCs in `pg_proc` and is `GRANT EXECUTE` to `authenticated` only.
-
-**Scope for 3.6:**
-- Audit `wms_tasks` / `wms_task_assignments` — task lifecycle currently lacks canonical outbox emission for `assigned` / `paused` / `resumed` / `completed` transitions.
-- Fold replen + putaway + pick tasks into a single labour queue view feeding a "next task" RPC (`claim_next_task(user_id, warehouse_id)`).
-- Emit `warehouse.task.assigned|paused|resumed|completed` topics; wire scanner UI to listen for `task.assigned` broadcasts (device fan-out for headset-first pickers).
-- Extend `wms-outbox-parity.test.ts` with the four new task transitions.
-
-
-
-
+**Exit criteria:** guard suite 27+ files green; `SELECT event_type, count(*) FROM business_event_outbox WHERE event_type LIKE 'warehouse.task.%' GROUP BY 1;` returns non-zero for all four transitions after driving the Playwright spec.
 
 ---
 
-## Phase 3 — Module deep-dives (dependency-first order)
+## Phase 3.7 — Wave / Pick / Pack / Dispatch hardening (carries over unchanged)
 
-Each module ships a standard vertical: **migration → transition RPC (with trigger-owned emission) → typed hook wrapper → page consumption → realtime subscription → Playwright spec with real assertions → guard test**.
+- No schema changes. Replace scaffolded `e2e/wms/wave-*.spec.ts` and `dispatch-*.spec.ts` files with real assertions.
+- Enforce full scan-out: `wms_transition_manifest(..., 'dispatched')` refuses when `wms_load_scan_lines.scanned_qty < expected_qty`. Guard: `wms-load-verification-enforced.test.ts`.
+- Add cancellation cascade: manifest cancel emits `warehouse.wave.reopened` for reserved lines to be unallocated.
 
-### 3.1 QC lifecycle
-- Add typed `qc_resolution_kind` enum (`accept`, `reject_return_to_supplier`, `reject_scrap`, `conditional_release`, `rework`).
-- `wms_qc_inspections.resolution_kind` + `resolution_notes`; migrate free-text `resolution` values.
-- Wire QC pass → `warehouse.qc.passed` → Inventory hold release; QC fail → inventory quarantine hold via existing `stock_quants` status column.
-- Purchasing claim hook: `warehouse.qc.failed` for goods-receipt-linked inspections opens a supplier-claim draft.
+## Phase 3.8 — Offline mobile replay idempotency (carries over unchanged)
 
-### 3.2 Cross-dock (closes N8)
-- Subscribe `warehouse.receiving.line_captured` in `BusinessSagaMount`; match against open sales/transfer allocations; on match, INSERT into `wms_crossdock_opportunities` and emit `warehouse.crossdock.matched`.
-- On operator accept, short-circuit putaway task generation (skip putaway, create pack/stage task directly).
-- Guard: `wms-crossdock-subscriber.test.ts` asserts the saga handler exists.
-
-### 3.3 Receiving → Putaway coherence
-- Finish ASN → GRN → putaway task fan-out inside a single receiving-session commit.
-- Slotting-rule-driven destination ranking (`wms_slotting_rules` already exists) with scan-guarded bin validation on the mobile Putaway screen.
-- Every LP capture emits `warehouse.lpn.created`; every completed putaway emits `warehouse.putaway.completed` via trigger.
-
-### 3.4 Replenishment
-- Replace manual generation button with event trigger: subscribe `stock_quants` change events (postgres trigger → outbox), evaluate `wms_replen_rules`, generate replenishment tasks when pick-face below min.
-- Idempotency key `wms.replen:{item}:{bin}:{trigger_ts_bucket}` to collapse duplicate triggers.
-
-### 3.5 Yard / trailer FSM
-- Formalise trailer state machine (`expected → arrived → docked → unloading|loading → departed`) using the same transition-RPC + trigger-emit pattern already used for wave/manifest/QC.
-- Emissions now come from `_wms_emit_state_change` on `wms_trailer_visits` (trigger already exists per Phase 2.4 §5); RPC bodies stop emitting.
-- Dock schedule realtime board reads outbox events for live truck lifecycle.
-
-### 3.6 Labour / 3PL billing re-metering
-- Backfill `_wms_map_event_to_activity` counters over the full outbox stream now that all lifecycle facts publish.
-- Nightly reconciliation job compares billed activities vs outbox counts per 3PL client; drift emits `warehouse.billing.drift`.
-
-### 3.7 Wave / Pick / Pack / Dispatch
-- Hardening only: add real Playwright assertions, no schema changes.
-- Load verification enforces full scan-out before manifest can transition to `dispatched`.
-
-### 3.8 Offline mobile replay idempotency
-- Playwright + IndexedDB harness: enqueue the same `(device_id, client_scan_id)` twice while offline, come online, assert exactly one outbox row.
+- Playwright + IndexedDB harness enqueues the same `(device_id, client_scan_id)` twice while offline, comes online, asserts exactly one `business_event_outbox` row.
+- Requires adding `client_scan_id` to `wms_receive_scans` / `wms_pick_scans` uniqueness constraint (if not already present — verify before migrating).
 
 ---
 
-## Phase 4 — UX & error-proofing
+## Phase 4 — UX & error-proofing (carries over unchanged from Round 4)
 
-- **OutboxTimeline component**: `<OutboxTimeline aggregate={"wave"} id={id} />` reads `business_event_outbox` filtered by `wms.<aggregate>:<id>:` prefix. Reused on LPN, wave, manifest, QC, count, receiving-session detail pages.
-- **Typed exception triage**: add `resolution_kind` enum column + `due_by` timestamptz to `wms_exceptions`; ExceptionsInbox page grouped by SLA breach.
-- **Contention toast** (N10): realtime subscriber on `wms_tasks.claimed_by` change compares against current `assignee_user_id`; if another operator claims a task I am viewing, show toast + auto-return to queue.
-- **Unified scan feedback**: single `useScanFeedback()` hook (audio + haptic + visual) consumed by Receive, Putaway, Pick, Pack, Load, Count, QC mobile screens.
-- **Two-context realtime Playwright smoke** (moved from Phase 2.3 §5): open two browser contexts, transition an aggregate in one, assert the other's UI updates without reload.
-- **De-scaffold** the seven `e2e/wms/` and `e2e/wm/` specs into real assertions, one per module vertical.
-- **Role-based real-time dashboards**: inbound, outbound, inventory, tasks, exceptions — all fed by the outbox subscription layer, no per-table polling.
+- `<OutboxTimeline aggregate id />` reused on LPN, wave, manifest, QC, count, receiving-session detail pages.
+- Typed exception triage: `wms_exceptions.resolution_kind` enum + `due_by timestamptz`; `ExceptionsInbox` grouped by SLA breach.
+- Contention toast wired on `wms_tasks.claimed_by` change (dovetails with Phase 3.6 §5).
+- Unified `useScanFeedback()` hook (audio + haptic + visual) across Receive, Putaway, Pick, Pack, Load, Count, QC mobile screens.
+- Two-context realtime Playwright smoke.
+- De-scaffold remaining `e2e/wms/` and `e2e/wm/` specs.
+- Role-based real-time dashboards fed by outbox subscription layer only (no per-table polling).
+
+---
+
+## Newly identified gaps (appended per review remit)
+
+- **Task-lifecycle FSM guard is missing.** Phase 3.6 §7 adds it — without it, hand-written `UPDATE wms_tasks SET state=...` code paths will silently reappear (same drift class Phase 2.6 warned about with topics).
+- **Cross-dock ↔ labour interaction.** When `evaluate_crossdock_on_receiving_line` inserts an opportunity, it should also insert a `stage-for-dispatch` task (not a putaway task) so the unified labour queue picks it up. Fold into Phase 3.6 §4 view definition.
+- **Trailer no-show → labour reclaim.** `mark_trailer_no_show` cancels the dock appointment but leaves any pre-generated pick/load tasks orphaned. Add a cascade: cancel `open|assigned` tasks whose `linked_manifest_id.trailer_visit_id = visit_id`, emit `warehouse.task.cancelled` for each. Fold into Phase 3.6 §2.
+- **Grants audit.** Every new RPC in 3.6 and 3.7 must have `REVOKE ALL FROM public; GRANT EXECUTE TO authenticated;` — add a `wms-rpc-grants.test.ts` guard that scans `pg_proc` for any `warehouse.*` / `wms_*` function without `authenticated`-only execution.
 
 ---
 
@@ -145,18 +99,6 @@ Each module ships a standard vertical: **migration → transition RPC (with trig
 
 - Never write `state`/`status` directly to a WMS aggregate — always a `wms_transition_*` RPC.
 - Every sanctioned RPC emits onto `business_event_outbox` via trigger, never in-body.
-- Run the entire `wms-*` guard suite (24 files) before declaring a phase green.
-- When a modern implementation replaces a legacy one, delete the legacy path in the same change.
+- Run the entire `wms-*` guard suite before declaring a phase green.
+- Replace legacy paths in the same change — never build on defective architecture.
 - Update the ledger with evidence (query output, test output), not assertions.
-
----
-
-## Technical details (for the implementing engineer)
-
-- Failing test: `src/test/architecture/wms-phase7.test.ts:57` — hard-codes `["opened","accepted","rejected","cancelled"]`. Replace with a loop over `Object.entries(WMS_TOPIC).filter(([k]) => k.startsWith("QC_"))`.
-- `BusinessSagaMount.tsx` currently registers only the legacy QC topic strings; add the six new state topics with placeholder handlers so both guard and DB catalog agree.
-- Cross-dock subscriber: add case for `warehouse.receiving.line_captured` in `BusinessSagaMount.tsx` calling a new `handleReceivingLineCaptured` in `src/features/warehouse/crossdock/`.
-- Enum migration example: `CREATE TYPE public.qc_resolution_kind AS ENUM (...); ALTER TABLE public.wms_qc_inspections ADD COLUMN resolution_kind qc_resolution_kind;` + backfill from the free-text `resolution` values via `CASE` mapping, then `NOT NULL` in a follow-up migration once backfilled.
-- Replenishment trigger: `AFTER UPDATE OF quantity ON public.stock_quants` calling `_wms_maybe_enqueue_replen(NEW.item_id, NEW.location_id)`; helper INSERTs into `wms_tasks` with dedupe on `idempotency_key`.
-- Trailer FSM: reuse `_wms_emit_state_change` allow-list; extend catalog with `warehouse.trailer.unloading` / `.loading` if not already present.
-- OutboxTimeline query: `select event_type, payload, created_at from business_event_outbox where idempotency_key like $1 order by created_at`.
