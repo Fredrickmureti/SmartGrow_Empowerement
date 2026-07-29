@@ -45,8 +45,10 @@ describe("wms-phase-labour-lifecycle (Phase 3.6)", () => {
   it("cross-dock evaluator seeds a stage-for-dispatch task", () => {
     // Latest definition of evaluate_crossdock_on_receiving_line must
     // insert into wms_tasks with the crossdock opportunity as source.
+    // Match each definition up to the closing dollar-quote tag ($$ or
+    // $function$); the latest one must seed the stage-for-dispatch task.
     const defs = sql.match(
-      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.evaluate_crossdock_on_receiving_line[\s\S]*?\$function\$/gi,
+      /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.evaluate_crossdock_on_receiving_line[\s\S]*?END\s*\$(?:function)?\$\s*;/gi,
     );
     expect(defs?.length ?? 0).toBeGreaterThan(0);
     const latest = defs![defs!.length - 1];
