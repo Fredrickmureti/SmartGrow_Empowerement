@@ -108,6 +108,9 @@ export const WMS_TOPIC = {
   CROSSDOCK_MATCHED: "warehouse.crossdock.matched",
   CROSSDOCK_STAGED: "warehouse.crossdock.staged",
   CROSSDOCK_CANCELLED: "warehouse.crossdock.cancelled",
+
+  // ---- Replenishment (stock_quants trigger, Phase 3.4) ----------------
+  REPLEN_ENQUEUED: "warehouse.replen.enqueued",
 } as const;
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
@@ -127,7 +130,8 @@ export const idempotencyKey = (
     | "count"
     | "trailer"
     | "appointment"
-    | "crossdock",
+    | "crossdock"
+    | "replen",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;

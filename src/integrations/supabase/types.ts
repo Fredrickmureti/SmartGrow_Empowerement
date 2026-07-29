@@ -75546,6 +75546,10 @@ export type Database = {
         Args: { p_event_type: string; p_payload?: Json }
         Returns: string
       }
+      _wms_maybe_enqueue_replen: {
+        Args: { p_location_id: string; p_product_id: string }
+        Returns: number
+      }
       _wms_qc_post_move: {
         Args: {
           p_dest_location: string
