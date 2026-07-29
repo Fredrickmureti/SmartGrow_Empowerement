@@ -142,6 +142,57 @@ export function useWmsRealtimeSync(): void {
   const businessIdRef = useRef<string | null | undefined>(currentBusiness?.id);
   const userIdRef = useRef<string | undefined>(user?.id);
   const seenAssignRef = useRef<Set<string>>(new Set());
+  const seenContentionRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Phase 4 §3 — multi-operator contention.
+   *
+   * Two pickers can reach for the same task. The loser's screen would
+   * otherwise keep showing the task as theirs until the next refetch, and
+   * they'd walk the aisle for nothing. When a task that WAS claimed by (or
+   * assigned to) me flips to somebody else, say so immediately.
+   */
+  const detectContention = useCallback((payload: PostgresPayload) => {
+    if (payload.table !== "wms_tasks") return;
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const before = payload.old as
+      | { id?: string; claimed_by?: string | null; assignee_user_id?: string | null }
+      | null;
+    const after = payload.new as
+      | {
+          id?: string;
+          claimed_by?: string | null;
+          assignee_user_id?: string | null;
+          task_type?: string | null;
+          state?: string | null;
+        }
+      | null;
+    if (!after?.id) return;
+
+    const wasMine =
+      before?.claimed_by === uid || before?.assignee_user_id === uid;
+    const nowTheirs =
+      (after.claimed_by != null && after.claimed_by !== uid) ||
+      (after.assignee_user_id != null && after.assignee_user_id !== uid);
+    if (!wasMine || !nowTheirs) return;
+
+    // Realtime can redeliver; one warning per (task, new owner) is enough.
+    const key = `${after.id}:${after.claimed_by ?? after.assignee_user_id}`;
+    if (seenContentionRef.current.has(key)) return;
+    seenContentionRef.current.add(key);
+    if (seenContentionRef.current.size > 200) {
+      seenContentionRef.current = new Set(
+        Array.from(seenContentionRef.current).slice(-100),
+      );
+    }
+
+    toast({
+      variant: "destructive",
+      title: "Task taken by another operator",
+      description: `${(after.task_type ?? "task").toUpperCase()} · it left your queue — pull the next task.`,
+    });
+  }, []);
 
   useEffect(() => { queryClientRef.current = queryClient; }, [queryClient]);
   useEffect(() => { orgIdRef.current = currentOrg?.id; }, [currentOrg?.id]);
@@ -160,6 +211,7 @@ export function useWmsRealtimeSync(): void {
       );
     }
     invalidateForTable(queryClientRef.current, payload.table);
+    detectContention(payload);
   }, []);
 
   useEffect(() => {
