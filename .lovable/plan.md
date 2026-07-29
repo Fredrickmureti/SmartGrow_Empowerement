@@ -18,17 +18,21 @@ No false or partial claims found this round. **Genuine resume point = Phase 3.6.
 - **Migration `20260729142339`** (+ precedence bugfix migration): unified `wms_labour_queue_view` (security_invoker=true) over `wms_tasks` open states, and extended `evaluate_crossdock_on_receiving_line` to seed a `pack` task with `source_doc_type = 'wms_crossdock_opportunity'` — cross-dock now surfaces in the same labour queue as normal pick/pack work, no phantom putaway.
 - **Guard `wms-phase-labour-lifecycle.test.ts`** — pins (a) the view exists, (b) `security_invoker=true`, (c) cross-dock evaluator seeds the stage-for-dispatch task. 3/3 green.
 - Confirmed `wms_claim_next_task(warehouse_id, task_types, zone_id, lease_seconds)` and `_wms_emit_task_event` already exist; no re-invention needed.
+- **Task-lifecycle pause/resume (this round):**
+  - Migration adds `paused` + `resumed` to `wms_task_state`, extends `wms_transition_task` FSM allow-list (`in_progress↔paused↔resumed↔in_progress`, `paused→cancelled`), maps both onto canonical topics in `_wms_emit_task_event`, and version-scopes the outbox idempotency key (`wms.task:{id}:{state}:v{row_version}`) so pause→resume→pause loops each emit a distinct event instead of colliding on the outbox unique index.
+  - `WMS_TOPIC.TASK_PAUSED` / `TASK_RESUMED` + `TASK_STATES` extended; `wms_events_catalog` seeded (`producers=[wms_transition_task]`, `consumers=[operator_ui, supervisor, labour]`); `WMS_MODULE_OWNERSHIP.md` register updated.
+  - `wms_labour_queue_view` now includes `paused|resumed` rows so suspended work stays on the supervisor board.
+  - Guard `wms-phase-labour-lifecycle` extended to 6/6 (topic mapping, version-scoped idempotency key, and the four new FSM edges); guard suite is **27 files / 103 tests, all green**.
+  - `transition_seq` column deliberately **not added** — `row_version` already increments monotonically per FSM transition and is now embedded in the idempotency key, so a separate counter would be redundant.
 
 ### Still open (next agent picks up here)
 
-1. **Task-lifecycle topics** — `_wms_emit_task_event` currently maps `done/completed → warehouse.task.completed` but does not publish distinct `warehouse.task.paused|resumed`. Enum `wms_task_state` also lacks `paused|resumed`; add via migration + extend `WMS_TOPIC` + extend `wms-outbox-parity` test.
-2. **`transition_seq` column** on `wms_tasks` for idempotency of paused↔resumed loops.
-3. **`wms_transition_task(task_id, target_state, payload)`** wrapper RPC + retire in-body emissions from `complete_pick_task` etc. — trigger owns emission.
-4. **Refactor `LabourBoard`** to read from `wms_labour_queue_view` (currently reads per-task-type tables).
-5. **Mobile RF `/wms/mobile/next`** route that calls `wms_claim_next_task` and routes to the right capture screen by `task_type`.
-6. **Realtime device fan-out** — extend `useWmsRealtimeSync` to subscribe to `warehouse.task.assigned` on `business_event_outbox` (or `wms_tasks` filtered by `assignee_user_id=eq.<me>`) and notify the owner device.
-7. **Playwright** `e2e/wms/labour-claim.spec.ts` — two contexts race `wms_claim_next_task`, assert one-and-only-one winner + both receive their own `warehouse.task.assigned` event.
-8. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
+1. **Retire in-body emissions from legacy task RPCs** (`assign_wms_task`, `complete_pick_task`, etc.) so `wms_transition_task` + trigger are the single producer — audit with a `pg_proc`-based extension of `wms-outbox-parity` before deleting bodies.
+2. **Refactor `LabourBoard`** to read from `wms_labour_queue_view` (currently reads per-task-type tables).
+3. **Mobile RF `/wms/mobile/next`** route that calls `wms_claim_next_task` and routes to the right capture screen by `task_type`.
+4. **Realtime device fan-out** — extend `useWmsRealtimeSync` to subscribe to `warehouse.task.assigned` on `business_event_outbox` (or `wms_tasks` filtered by `assignee_user_id=eq.<me>`) and notify the owner device.
+5. **Playwright** `e2e/wms/labour-claim.spec.ts` — two contexts race `wms_claim_next_task`, assert one-and-only-one winner + both receive their own `warehouse.task.assigned` event.
+6. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
 
 ### Original spec (kept for reference)
 
