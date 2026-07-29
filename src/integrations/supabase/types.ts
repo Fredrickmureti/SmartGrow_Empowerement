@@ -88162,6 +88162,16 @@ export type Database = {
         Returns: boolean
       }
       wms_task_reap_expired: { Args: never; Returns: number }
+      wms_transition_count_session: {
+        Args: {
+          p_payload?: Json
+          p_reason?: string
+          p_row_version: number
+          p_session_id: string
+          p_to_state: Database["public"]["Enums"]["wms_count_state"]
+        }
+        Returns: Json
+      }
       wms_transition_lpn: {
         Args: {
           _actor?: string
@@ -88196,6 +88206,26 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_transition_manifest: {
+        Args: {
+          p_manifest_id: string
+          p_payload?: Json
+          p_reason?: string
+          p_row_version: number
+          p_to_state: Database["public"]["Enums"]["wms_manifest_state"]
+        }
+        Returns: Json
+      }
+      wms_transition_qc: {
+        Args: {
+          p_payload?: Json
+          p_qc_id: string
+          p_reason?: string
+          p_row_version: number
+          p_to_state: string
+        }
+        Returns: Json
       }
       wms_transition_receiving: {
         Args: {
@@ -88271,6 +88301,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_transition_wave: {
+        Args: {
+          p_payload?: Json
+          p_reason?: string
+          p_row_version: number
+          p_to_state: Database["public"]["Enums"]["wms_wave_state"]
+          p_wave_id: string
+        }
+        Returns: Json
       }
     }
     Enums: {
