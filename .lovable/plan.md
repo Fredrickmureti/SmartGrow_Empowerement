@@ -23,15 +23,21 @@ I re-ran the previous engineer's claims against the code and DB rather than trus
 
 ---
 
-## Phase 2.7 — Guard reconciliation (blocker)
+## Phase 2.7 — Guard reconciliation (blocker) — ✅ DONE
 
-Objective: one truthful vocabulary across DB triggers, `WMS_TOPIC`, `domainEventBus`, `BusinessSagaMount`, and the phase-7 guard. No parallel vocabularies.
+- `wms-phase7.test.ts` rewritten to derive the QC topic expectation from `WMS_TOPIC` (mirrors the technique used by `wms-topic-vocabulary`), and to assert the bus/saga consume the topics module rather than string-matching a retired vocabulary.
+- Generic guard `wms-domain-bus-topic-parity.test.ts` added: pins that `domainEventBus.ts` imports `WmsTopic`, that `BusinessSagaMount.tsx` iterates `Object.values(WMS_TOPIC)`, that `WMS_TOPIC` has no duplicates, and that every value is a `warehouse.*` topic.
+- No code changes needed in `domainEventBus.ts` / `BusinessSagaMount.tsx` — both already consume `WMS_TOPIC` dynamically (Phase 2.6 landed the dynamic registration loop); only the hard-coded guard was drifting.
+- **Full `wms-*` suite: 25 files / 94 tests green** (verified this turn).
 
-Steps:
-1. Rewrite `wms-phase7.test.ts` to derive the expected QC topic set from `WMS_TOPIC` (the same technique `wms-topic-vocabulary.test.ts` already uses), not from a hard-coded legacy list. Assert every `QC_*` value in `WMS_TOPIC` is present in both `domainEventBus.ts` and `BusinessSagaMount.tsx`.
-2. Register the state-based QC topics in `domainEventBus.DomainEventType` and add matching no-op handlers in `BusinessSagaMount` (subscribers can remain log-only until Phase 3 QC deep-dive wires business consequences).
-3. Add a generic guard `wms-domain-bus-topic-parity.test.ts` that iterates every `WMS_TOPIC` value and asserts bus + saga registration — prevents this drift class from recurring for any aggregate.
-4. Re-run full `wms-*` guard suite; must be 24/24 files green before moving on.
+## Phase 3.2 — Cross-dock subscriber — NO-OP (finding corrected)
+
+DB-side reality: `evaluate_crossdock_on_grn` and trigger `_trg_wms_crossdock_on_grn_complete` already fan out opportunities on GRN completion. **No producer emits `warehouse.receiving.line_captured`** (verified via `pg_proc` scan). Wiring a saga subscriber for a topic no one publishes would be dead code. The correct sequencing is:
+
+1. Phase 3.3 (Receiving) must land first: `wms_transition_receiving` / the receiving-session line-capture path must actually emit `warehouse.receiving.line_captured` (add to the appropriate `_wms_emit_*` trigger or as a per-line INSERT trigger on `wms_receiving_session_lines`).
+2. Only then does a saga subscriber have anything to consume — at that point it can either delegate to `evaluate_crossdock_on_grn` for per-line evaluation or replace the GRN-complete trigger entirely.
+
+The plan's original ordering (Cross-dock before Receiving) is therefore inverted. **Reorder Phase 3 to: 3.3 Receiving → 3.2 Cross-dock → 3.1 QC → 3.4 Replenishment → 3.5 Yard → 3.6 Labour/3PL → 3.7 Wave/Pick/Pack/Dispatch → 3.8 Offline replay.** The rest of Phase 3 remains scoped as previously described.
 
 ---
 
