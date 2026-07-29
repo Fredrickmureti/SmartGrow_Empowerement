@@ -22,6 +22,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSealCarton } from "@/features/warehouse/aggregates/useDomainOperations";
 import {
   PageHeader,
   PageBody,
@@ -245,24 +246,28 @@ export default function PackStation() {
   const [widCm, setWidCm] = useState("");
   const [hgtCm, setHgtCm] = useState("");
 
-  const sealCarton = useMutation({
-    mutationFn: async (v: { carton_id: string }) => {
-      const { error } = await supabase.rpc("seal_pack_carton", {
-        p_carton_id: v.carton_id,
-        p_weight_kg: weightKg ? Number(weightKg) : null,
-        p_dims: (lenCm || widCm || hgtCm)
-          ? { length_cm: Number(lenCm) || null, width_cm: Number(widCm) || null, height_cm: Number(hgtCm) || null }
-          : null,
-      });
-      if (error) throw error;
+  const sealMut = useSealCarton(waveId);
+  const sealCarton = {
+    isPending: sealMut.isPending,
+    mutate: (v: { carton_id: string }) => {
+      sealMut.mutate(
+        {
+          cartonId: v.carton_id,
+          weightKg: weightKg ? Number(weightKg) : null,
+          dims: (lenCm || widCm || hgtCm)
+            ? { length_cm: Number(lenCm) || null, width_cm: Number(widCm) || null, height_cm: Number(hgtCm) || null }
+            : null,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Carton sealed");
+            setSealDialog(null); setWeightKg(""); setLenCm(""); setWidCm(""); setHgtCm("");
+            invalidateAll();
+          },
+        },
+      );
     },
-    onSuccess: () => {
-      toast.success("Carton sealed");
-      setSealDialog(null); setWeightKg(""); setLenCm(""); setWidCm(""); setHgtCm("");
-      invalidateAll();
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Seal failed"),
-  });
+  };
 
   const completePack = useMutation({
     mutationFn: async (task_id: string) => {

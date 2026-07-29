@@ -13,6 +13,11 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  useAcceptQcInspection,
+  useCancelQcInspection,
+  useRejectQcInspection,
+} from "@/features/warehouse/aggregates/useDomainOperations";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,61 +128,41 @@ export default function QCInspectionDetail() {
   const [disposition, setDisposition] = useState<string>("return_to_vendor");
   const [notes, setNotes] = useState("");
 
-  const accept = useMutation({
-    mutationFn: async () => {
+  const acceptMut = useAcceptQcInspection(id);
+  const accept = {
+    isPending: acceptMut.isPending,
+    mutate: () => {
       const qty = Number(acceptQty);
-      if (!Number.isFinite(qty) || qty < 0) throw new Error("valid accepted qty required");
-      const { error } = await supabase.rpc("accept_qc_inspection", {
-        p_inspection_id: id,
-        p_accepted_qty: qty,
-        p_notes: notes || null,
-      });
-      if (error) throw error;
+      if (!Number.isFinite(qty) || qty < 0) return toast.error("valid accepted qty required");
+      acceptMut.mutate(
+        { acceptedQty: qty, notes: notes || null },
+        { onSuccess: () => toast.success("Inspection accepted") },
+      );
     },
-    onSuccess: () => {
-      toast.success("Inspection accepted");
-      qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
-      qc.invalidateQueries({ queryKey: ["wms-qc-inspections"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  };
 
-  const reject = useMutation({
-    mutationFn: async () => {
+  const rejectMut = useRejectQcInspection(id);
+  const reject = {
+    isPending: rejectMut.isPending,
+    mutate: () => {
       const qty = Number(rejectQty);
-      if (!Number.isFinite(qty) || qty <= 0) throw new Error("valid rejected qty required");
-      const { error } = await supabase.rpc("reject_qc_inspection", {
-        p_inspection_id: id,
-        p_rejected_qty: qty,
-        p_disposition: disposition,
-        p_notes: notes || null,
-      });
-      if (error) throw error;
+      if (!Number.isFinite(qty) || qty <= 0) return toast.error("valid rejected qty required");
+      rejectMut.mutate(
+        { rejectedQty: qty, disposition, notes: notes || null },
+        { onSuccess: () => toast.success("Inspection rejected") },
+      );
     },
-    onSuccess: () => {
-      toast.success("Inspection rejected");
-      qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
-      qc.invalidateQueries({ queryKey: ["wms-qc-inspections"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  };
 
-  const cancel = useMutation({
-    mutationFn: async () => {
+  const cancelMut = useCancelQcInspection(id);
+  const cancel = {
+    isPending: cancelMut.isPending,
+    mutate: () => {
       const reason = window.prompt("Cancellation reason?") ?? "";
       if (!reason) return;
-      const { error } = await supabase.rpc("cancel_qc_inspection", {
-        p_inspection_id: id,
-        p_reason: reason,
-      });
-      if (error) throw error;
+      cancelMut.mutate(reason, { onSuccess: () => toast.success("Inspection cancelled") });
     },
-    onSuccess: () => {
-      toast.success("Inspection cancelled");
-      qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  };
 
   if (insp.isLoading) return <LoadingState />;
   const row = insp.data;

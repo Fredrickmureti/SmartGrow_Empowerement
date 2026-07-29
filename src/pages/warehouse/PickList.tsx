@@ -15,9 +15,10 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCompletePickTask } from "@/features/warehouse/aggregates/useDomainOperations";
 import {
   PageHeader,
   PageBody,
@@ -60,7 +61,7 @@ const STATE_TONE = {
 
 export default function PickList() {
   const { waveId } = useParams<{ waveId: string }>();
-  const qc = useQueryClient();
+  const complete = useCompletePickTask(waveId);
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
   const { resolveTagged } = useResolveBarcode(currentBusiness?.id, currentBranch?.id ?? null);
@@ -106,28 +107,13 @@ export default function PickList() {
     },
   });
 
-  const complete = useMutation({
-    mutationFn: async ({ id, qty }: { id: string; qty: number }) => {
-      const { error } = await supabase.rpc("complete_pick_task", {
-        p_task_id: id,
-        p_picked_qty: qty,
-        p_lpn_id: null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pick confirmed");
-      qc.invalidateQueries({ queryKey: ["wms-pick-tasks", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-wave", waveId] });
-      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
-      // Clear the scan strip so the operator moves to the next bin.
-      setBinCode("");
-      setProductCode("");
-      setScanProductId(null);
-      setScanError(null);
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Pick failed"),
-  });
+  const onPickSuccess = () => {
+    toast.success("Pick confirmed");
+    setBinCode("");
+    setProductCode("");
+    setScanProductId(null);
+    setScanError(null);
+  };
 
   const open = useMemo(
     () => (tasks ?? []).filter((t) => t.state !== "done" && t.state !== "cancelled"),
@@ -283,10 +269,13 @@ export default function PickList() {
                       size="sm"
                       disabled={complete.isPending}
                       onClick={() =>
-                        complete.mutate({
-                          id: matched.id,
-                          qty: Number(pickedQty[matched.id] ?? matched.quantity ?? 0),
-                        })
+                        complete.mutate(
+                          {
+                            taskId: matched.id,
+                            pickedQty: Number(pickedQty[matched.id] ?? matched.quantity ?? 0),
+                          },
+                          { onSuccess: onPickSuccess },
+                        )
                       }
                     >
                       <Check className="h-3.5 w-3.5 mr-1" /> Confirm pick
@@ -345,7 +334,7 @@ export default function PickList() {
                           size="sm"
                           variant={isMatch ? "default" : "outline"}
                           disabled={complete.isPending}
-                          onClick={() => complete.mutate({ id: t.id, qty: Number(val || 0) })}
+                          onClick={() => complete.mutate({ taskId: t.id, pickedQty: Number(val || 0) }, { onSuccess: onPickSuccess })}
                         >
                           <Check className="h-3.5 w-3.5 mr-1" /> Confirm
                         </Button>

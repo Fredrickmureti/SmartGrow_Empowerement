@@ -8,9 +8,10 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCreateAndReleaseWave } from "@/features/warehouse/aggregates/useDomainOperations";
 import {
   PageHeader,
   PageBody,
@@ -60,7 +61,6 @@ const WAVE_TONE: Record<string, "neutral" | "info" | "warning" | "success" | "da
 };
 
 export default function WavePlanner() {
-  const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState<string>("");
@@ -103,30 +103,20 @@ export default function WavePlanner() {
     return next;
   });
 
-  const createAndRelease = useMutation({
-    mutationFn: async () => {
-      if (!warehouseId) throw new Error("Pick a warehouse");
-      if (selected.size === 0) throw new Error("Select at least one sales order");
-      const { data: waveRes, error: e1 } = await supabase.rpc("create_pick_wave", {
-        p_warehouse_id: warehouseId,
-        p_sales_order_ids: Array.from(selected),
-        p_notes: null,
-      });
-      if (e1) throw e1;
-      const waveId = (waveRes as { wave_id: string } | null)?.wave_id;
-      if (!waveId) throw new Error("Wave not created");
-      const { error: e2 } = await supabase.rpc("release_pick_wave", { p_wave_id: waveId });
-      if (e2) throw e2;
-      return waveId;
-    },
-    onSuccess: () => {
-      toast.success("Wave released — pick tasks generated");
-      setSelected(new Set());
-      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
-      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Release failed"),
-  });
+  const createAndRelease = useCreateAndReleaseWave();
+  const handleRelease = () => {
+    if (!warehouseId) return toast.error("Pick a warehouse");
+    if (selected.size === 0) return toast.error("Select at least one sales order");
+    createAndRelease.mutate(
+      { warehouseId, salesOrderIds: Array.from(selected) },
+      {
+        onSuccess: () => {
+          toast.success("Wave released — pick tasks generated");
+          setSelected(new Set());
+        },
+      },
+    );
+  };
 
   const canRelease = warehouseId && selected.size > 0;
   const warehouseName = useMemo(
@@ -156,7 +146,7 @@ export default function WavePlanner() {
                 </Select>
                 <div className="text-sm text-muted-foreground">{selected.size} selected</div>
                 <div className="flex-1" />
-                <Button disabled={!canRelease || createAndRelease.isPending} onClick={() => createAndRelease.mutate()}>
+                <Button disabled={!canRelease || createAndRelease.isPending} onClick={handleRelease}>
                   <Rocket className="h-4 w-4 mr-2" /> Create &amp; release
                 </Button>
               </div>
