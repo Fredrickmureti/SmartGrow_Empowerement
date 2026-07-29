@@ -1,9 +1,9 @@
 /**
  * ReceivingSessions — WMS receiving unit of work (ADR 0101).
  *
- * A receiving session groups the physical unload of an appointment / ASN
- * into a supervised block. Transitions go through `wms_transition_receiving`
- * so state changes emit outbox events atomically.
+ * States: open → unloading → captured → posted → closed (+ discrepant, cancelled).
+ * All transitions go through `wms_transition_receiving` — FSM-guarded,
+ * row_version optimistic, emits `warehouse.receiving.*` to outbox.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,9 +30,9 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
-import { PackageOpen, Plus, Play, Check, AlertTriangle } from "lucide-react";
+import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck } from "lucide-react";
 
-type RcvState = "planned" | "in_progress" | "closed" | "discrepant" | "cancelled";
+type RcvState = "open" | "unloading" | "captured" | "discrepant" | "posted" | "closed" | "cancelled";
 
 interface SessionRow {
   id: string;
@@ -49,12 +49,16 @@ interface SessionRow {
 }
 
 const TONE: Record<RcvState, "info" | "warning" | "success" | "neutral" | "danger"> = {
-  planned: "neutral",
-  in_progress: "warning",
-  closed: "success",
+  open: "neutral",
+  unloading: "info",
+  captured: "warning",
   discrepant: "danger",
+  posted: "success",
+  closed: "success",
   cancelled: "neutral",
 };
+
+const OPEN_STATES: RcvState[] = ["open", "unloading", "captured", "discrepant"];
 
 function newCode(): string {
   const d = new Date();
@@ -70,7 +74,7 @@ export default function ReceivingSessions() {
   const { user } = useAuth();
 
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
-  const [stateFilter, setStateFilter] = useState<string>("open");
+  const [stateFilter, setStateFilter] = useState<string>("open_all");
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["wms-receiving-sessions", currentBusiness?.id, warehouseFilter, stateFilter],
@@ -83,7 +87,7 @@ export default function ReceivingSessions() {
         .order("created_at", { ascending: false })
         .limit(500);
       if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      if (stateFilter === "open") q = q.in("state", ["planned", "in_progress", "discrepant"]);
+      if (stateFilter === "open_all") q = q.in("state", OPEN_STATES);
       else if (stateFilter !== "all") q = q.eq("state", stateFilter);
       const { data, error } = await q;
       if (error) throw error;
@@ -128,7 +132,7 @@ export default function ReceivingSessions() {
         code: form.code.trim(),
         source_doc_type: form.source_doc_type || null,
         source_doc_id: form.source_doc_id || null,
-        state: "planned",
+        state: "open",
         notes: form.notes || null,
         created_by: user?.id ?? null,
       });
@@ -144,15 +148,37 @@ export default function ReceivingSessions() {
   });
 
   const emptyLabel = useMemo(
-    () => (stateFilter === "open" ? "No open receiving sessions" : "No sessions match these filters"),
+    () => (stateFilter === "open_all" ? "No open receiving sessions" : "No sessions match these filters"),
     [stateFilter],
   );
+
+  const nextActions = (r: SessionRow) => {
+    const t = (to: RcvState, reason?: string) =>
+      transition.mutate({ id: r.id, to, rowVersion: r.row_version, reason });
+    switch (r.state) {
+      case "open":       return [{ label: "Start unloading", icon: Play, run: () => t("unloading") }];
+      case "unloading":  return [
+        { label: "Mark captured", icon: PackageCheck, run: () => t("captured") },
+        { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant", "Marked discrepant during unload") },
+      ];
+      case "captured":   return [
+        { label: "Post to inventory", icon: Check, run: () => t("posted") },
+        { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant") },
+      ];
+      case "discrepant": return [
+        { label: "Post anyway", icon: Check, run: () => t("posted", "Posted with discrepancies") },
+        { label: "Close", icon: Check, run: () => t("closed") },
+      ];
+      case "posted":     return [{ label: "Close", icon: Check, run: () => t("closed") }];
+      default: return [];
+    }
+  };
 
   return (
     <>
       <PageHeader
         title="Receiving sessions"
-        description="Supervised unload blocks. Group ASN/appointment work into a session so putaway fan-out can be traced."
+        description="Supervised unload blocks. Group ASN/appointment work into a session so putaway fan-out and discrepancies can be traced."
         actions={
           <Button onClick={() => { setForm((f) => ({ ...f, code: newCode() })); setCreateOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> New session
@@ -165,12 +191,14 @@ export default function ReceivingSessions() {
             <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open">Open (default)</SelectItem>
-                    <SelectItem value="planned">Planned</SelectItem>
-                    <SelectItem value="in_progress">In progress</SelectItem>
+                    <SelectItem value="open_all">Open (default)</SelectItem>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="unloading">Unloading</SelectItem>
+                    <SelectItem value="captured">Captured</SelectItem>
                     <SelectItem value="discrepant">Discrepant</SelectItem>
+                    <SelectItem value="posted">Posted</SelectItem>
                     <SelectItem value="closed">Closed</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="all">All</SelectItem>
@@ -210,21 +238,11 @@ export default function ReceivingSessions() {
                         <TableCell className="text-sm text-muted-foreground">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.closed_at ? new Date(r.closed_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-right space-x-1">
-                          {r.state === "planned" && (
-                            <Button size="sm" variant="outline" onClick={() => transition.mutate({ id: r.id, to: "in_progress", rowVersion: r.row_version })}>
-                              <Play className="h-3.5 w-3.5" />
+                          {nextActions(r).map((a, i) => (
+                            <Button key={i} size="sm" variant={a.label.startsWith("Post") || a.label === "Close" ? "default" : "outline"} onClick={a.run}>
+                              <a.icon className="h-3.5 w-3.5 mr-1" />{a.label}
                             </Button>
-                          )}
-                          {(r.state === "in_progress" || r.state === "discrepant") && (
-                            <Button size="sm" onClick={() => transition.mutate({ id: r.id, to: "closed", rowVersion: r.row_version })}>
-                              <Check className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {r.state === "in_progress" && (
-                            <Button size="sm" variant="ghost" onClick={() => transition.mutate({ id: r.id, to: "discrepant", rowVersion: r.row_version, reason: "Marked discrepant" })}>
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          ))}
                         </TableCell>
                       </TableRow>
                     ))}
