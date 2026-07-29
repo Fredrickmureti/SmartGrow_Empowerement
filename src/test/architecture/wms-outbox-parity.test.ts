@@ -70,6 +70,15 @@ const TRIGGER_OWNED_RPCS = [
   "wms_transition_task",
   "wms_transition_lpn",
   "wms_claim_next_task",
+  // Phase 3.6 regression guard — these legacy task RPCs had their
+  // in-body `emit_business_event` / direct outbox INSERT stripped by
+  // migration 20260729092007 so `_wms_emit_task_event` (the AFTER
+  // trigger) is the single producer of `warehouse.task.assigned`.
+  // A re-added in-body emit would silently double-produce and, worse,
+  // publish `from_state = new_state` (record read after `UPDATE
+  // ... RETURNING`), so pin them here.
+  "assign_wms_task",
+  "claim_pick_task",
 ];
 
 
