@@ -128,20 +128,24 @@ export default function LicensePlateView() {
   });
 
   const setStatus = useMutation({
-    mutationFn: async (patch: { status: LpnStatus; sealed_at?: string | null }) => {
+    mutationFn: async (input: { toState: string; reason?: string }) => {
       if (!id) throw new Error("No plate");
-      const { error } = await supabase
-        .from("wms_license_plates")
-        .update(patch)
-        .eq("id", id);
+      const { error } = await supabase.rpc("wms_transition_lpn" as any, {
+        p_lpn_id: id,
+        p_to_state: input.toState,
+        p_row_version: (lpn as any)?.row_version ?? 0,
+        p_reason: input.reason ?? null,
+        p_payload: {},
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-lpn", id] });
       qc.invalidateQueries({ queryKey: ["wms-lpns"] });
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Transition rejected"),
   });
+
 
   const currentLoc = useMemo(
     () => (lpn?.stock_locations ? `${lpn.stock_locations.code} · ${lpn.stock_locations.name}` : "—"),
@@ -176,15 +180,16 @@ export default function LicensePlateView() {
               <MoveRight className="mr-2 h-4 w-4" /> Move
             </Button>
             {status === "open" && (
-              <Button variant="outline" onClick={() => setStatus.mutate({ status: "sealed", sealed_at: new Date().toISOString() })}>
+              <Button variant="outline" onClick={() => setStatus.mutate({ toState: "sealed" })}>
                 <Lock className="mr-2 h-4 w-4" /> Seal
               </Button>
             )}
-            {status !== "retired" && (
-              <Button variant="outline" onClick={() => setStatus.mutate({ status: "retired" })}>
+            {status !== "retired" && status !== "voided" && (
+              <Button variant="outline" onClick={() => setStatus.mutate({ toState: "voided", reason: "Manual retire" })}>
                 <Archive className="mr-2 h-4 w-4" /> Retire
               </Button>
             )}
+
           </div>
         }
       />

@@ -12,7 +12,7 @@
  * a phase ships (receiving, putaway, picking, packing, dispatch, QC,
  * operators), append its entry here — never point at a placeholder.
  */
-import { LayoutGrid, Warehouse, Network, PackageOpen, ListChecks, Truck, Waves, ClipboardCheck, Send, CalendarClock, ShieldCheck, Repeat, Gauge, ParkingSquare, Users, Receipt, Box, Split, AlertTriangle } from "lucide-react";
+import { LayoutGrid, Warehouse, Network, PackageOpen, ListChecks, Truck, Waves, ClipboardCheck, Send, CalendarClock, ShieldCheck, Repeat, Gauge, ParkingSquare, Users, Receipt, Box, Split, AlertTriangle, Inbox, Undo2 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
 export const WAREHOUSE_NAV: WorkspaceNav = {
@@ -22,6 +22,9 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
       items: [
         { to: "/warehouse-app/dashboard", label: "Overview", icon: LayoutGrid, end: true },
         { to: "/warehouse-app/tasks", label: "Operator tasks", icon: ListChecks },
+        { to: "/warehouse-app/receiving", label: "Receiving", icon: Inbox },
+        { to: "/warehouse-app/returns", label: "Returns", icon: Undo2 },
+
         { to: "/warehouse-app/putaway", label: "Putaway", icon: Truck },
         { to: "/warehouse-app/waves", label: "Wave planner", icon: Waves },
         { to: "/warehouse-app/replenishment", label: "Replenishment", icon: Repeat },
