@@ -15,6 +15,7 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useDispatchManifest, useLoadCartonOntoManifest } from "@/features/warehouse/aggregates/useDomainOperations";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,17 +87,7 @@ export default function LoadingBay() {
 
   const loadedIds = useMemo(() => new Set((loaded ?? []).map((l) => l.carton?.id).filter(Boolean) as string[]), [loaded]);
 
-  const load = useMutation({
-    mutationFn: async (cartonId: string) => {
-      const { error } = await supabase.rpc("load_carton_onto_manifest", { p_manifest_id: manifestId!, p_carton_id: cartonId });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["wms-manifest-cartons", manifestId] });
-      qc.invalidateQueries({ queryKey: ["wms-cartons-available"] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Load failed"),
-  });
+  const load = useLoadCartonOntoManifest(manifestId);
 
   const close = useMutation({
     mutationFn: async () => {
@@ -107,18 +98,8 @@ export default function LoadingBay() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Close failed"),
   });
 
-  const dispatch = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc("dispatch_loading_manifest", { p_manifest_id: manifestId!, p_departure_at: null });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Manifest dispatched");
-      qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] });
-      qc.invalidateQueries({ queryKey: ["wms-manifest-cartons", manifestId] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Dispatch failed"),
-  });
+  const dispatch = useDispatchManifest(manifestId);
+  const handleDispatch = () => dispatch.mutate(null, { onSuccess: () => toast.success("Manifest dispatched") });
 
   const submitScan = () => {
     if (!scanCode.trim()) return;
