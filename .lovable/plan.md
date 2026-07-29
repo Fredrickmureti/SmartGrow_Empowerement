@@ -30,29 +30,41 @@ I re-audited every claim in the previous engineer's ledger against the live code
 
 ---
 
-## Phase 2.4 §4 — Guard reconciliation (do first, blocks everything)
+## Phase 2.4 §4 — Guard reconciliation — DONE
 
-The rule the codebase now follows is: *pages call typed hooks; hooks call RPCs*. The old guards encode the superseded rule *pages call RPCs directly*. Rewrite, don't delete.
+The rule the codebase now follows is: *pages call typed hooks; hooks call RPCs*. The old guards encoded the superseded rule *pages call RPCs directly*. Rewritten, not deleted.
 
-1. For `wms-phase3`, `wms-phase4c`, `wms-phase5`: replace each "page X calls rpc Y" assertion with a two-part assertion — (a) the sanctioned RPC name appears exactly once in the `src/features/warehouse/aggregates/**` wrapper layer, and (b) the page imports and calls the corresponding typed hook. This preserves the original intent (that RPC is the only write path) under the new layering.
-2. Keep the negative assertions (no direct table writes) untouched — they all pass and remain the real safety net.
-3. Add a single meta-guard asserting that every RPC named in `wms-no-direct-domain-rpc.test.ts`'s ban list has a wrapper in the aggregates layer, so the two guard families can never drift apart again.
-4. Acceptance: full `bunx vitest run src/test/architecture/wms-` is green, `tsgo --noEmit` clean.
+1. `src/test/architecture/wmsGuardUtils.ts` provides `checkRpcOwnership(page, hook, rpc)` — asserts the RPC has exactly one call site in `src/features/warehouse/aggregates/**` AND the page calls the typed hook. Comments are stripped before counting so prose can't be mistaken for a call site.
+2. `wms-phase3`, `wms-phase4b`, `wms-phase4c`, `wms-phase5` migrated onto it. RPCs *not* on the domain-RPC ban list (`create_count_session`, `record_count`, `open_loading_manifest`, `close_loading_manifest`, `open_pack_carton`, `assign_line_to_carton`, `complete_pack_task`) keep their page-level call sites and are asserted with `pageCallsRpc`.
+3. `wms-guard-parity.test.ts` parses the ban list out of `wms-no-direct-domain-rpc.test.ts` and asserts each banned RPC has exactly one wrapper — the two guard families can no longer drift.
+4. **Result:** full `wms-*` suite green (23 files / 84 tests), `tsgo --noEmit` clean.
 
-## Phase 2.4 §5 — Outbox emission parity (the real N7)
+## Phase 2.4 §5 — Outbox emission parity — DONE (findings corrected)
 
-One migration, no piecemeal patching:
+**The Round-2 audit was wrong.** It grepped for `_wms_emit_outbox`; the actual emitter helper is `_wms_emit_event`. Re-audited:
 
-1. Add `_wms_emit_outbox` calls to the 11 silent RPCs listed above, each with the canonical `wms.<aggregate>:<id>:<transition>` idempotency key.
-2. New topics required in `wms_events_catalog` + mirrored into `WMS_TOPIC`: `warehouse.lpn.moved`, `warehouse.wave.created`, `warehouse.carton.line_assigned`, `warehouse.replen.tasks_generated`, `warehouse.qc.opened|accepted|rejected|cancelled`, `warehouse.trailer.checked_in|docked|departed`.
-3. Extend `wms-topic-catalog-sync` (already green) to also assert the reverse direction: every RPC in the sanctioned list appears as a `producer` on at least one catalog row.
-4. Acceptance: a SQL assertion in the migration's companion test proving zero sanctioned RPCs lack an outbox emit.
+- The `wms_transition_*` FSMs **do** emit (wave, manifest, qc, count_session, receiving, return, lpn, task, claim_next_task, raise/resolve_exception).
+- **21** legacy domain RPCs — not 11 — mutate the same aggregate tables directly, emit nothing, and **none of them delegate** to the emitting FSMs.
 
-## Phase 2.5 — Lease reaper + offline replay proof
+Rather than patch 21 function bodies, emission moved to **AFTER triggers on the aggregate tables**, so it cannot be bypassed by any writer, present or future. The triggers reuse the FSMs' exact `wms.<aggregate>:<id>:<transition>` key, so an FSM emission and a trigger emission collapse into one outbox row.
 
-1. `cron.schedule('wms-task-reap-expired', '* * * * *', $$ select public.wms_task_reap_expired() $$)` in a migration, alongside the 46 existing jobs.
-2. Ensure the reaper emits `warehouse.task.available` per released task (the catalog row already declares it as a producer — verify the function body actually does it).
-3. Prove offline replay idempotency: replay the same `(device_id, client_scan_id)` twice through the mobile queue and assert exactly one outbox row survives the `wms.*` unique index.
+1. `_wms_emit_state_change()` — generic, arg-driven (aggregate, topic prefix, state column, allow-list). The allow-list stops a future enum value from publishing an uncatalogued topic. Wired on `wms_tasks`, `wms_license_plates`, `wms_pick_waves`, `wms_loading_manifests`, `wms_qc_inspections`, `wms_count_sessions`, `wms_trailer_visits`.
+2. `_wms_emit_lpn_moved()` — relocation without a status change (`move_lpn`), keyed on `row_version`.
+3. `_wms_emit_task_event()` — task-specific, folds `done` and `completed` onto the single catalogued `warehouse.task.completed`.
+4. **Rival vocabulary retired.** Discovered mid-phase: legacy `tg_wms_task_emit_event` / `tg_wms_lpn_emit_event` published a *second* naming scheme (`warehouse.plate.moved/.sealed`, `warehouse.task.started`) and the task one used the **same idempotency key** as the canonical producer while writing a different `event_type` — so with `ON CONFLICT DO NOTHING` the published topic for an `in_progress` transition was non-deterministic. Both triggers dropped, their richer payload folded into the canonical emitter, `domainEventBus.ts` + `BusinessSagaMount.tsx` repointed (consumers were log-only placeholders).
+5. New topics catalogued + mirrored into `WMS_TOPIC`: `warehouse.lpn.moved`, `warehouse.lpn.sealed`, `warehouse.task.assigned`, `warehouse.trailer.arrived|docked|departed`.
+6. `wms-outbox-parity.test.ts` pins all three invariants (triggers live, rival vocabulary stays retired, reaper scheduled).
+
+## Phase 2.5 — Lease reaper — PARTIALLY DONE
+
+1. **DONE.** `cron.schedule('wms-task-lease-reaper', '* * * * *', …)` is live and `active = true`.
+2. **DONE by construction.** The reaper flips `state` to `available`, which the `wms_tasks` trigger now turns into `warehouse.task.available` — the reaper body needed no change.
+3. **TODO.** Prove offline replay idempotency: replay the same `(device_id, client_scan_id)` twice through the mobile queue and assert exactly one outbox row survives.
+
+## Phase 2.5b — Known defect, next up
+
+`wms_transition_lpn` and `wms_transition_task` build their event payload **after** the `UPDATE … RETURNING` has already overwritten the local record, so `from_status` / `from_state` always equal the *new* state. Every FSM-emitted event in the outbox has a wrong `from_*` field. Fix by capturing the prior state into a local before the UPDATE. (The new triggers report `from_state` correctly, so the two producers currently disagree.)
+
 
 ## Phase 2.6 — Ownership doc
 
