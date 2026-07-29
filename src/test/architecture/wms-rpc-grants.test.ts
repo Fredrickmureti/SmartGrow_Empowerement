@@ -38,6 +38,12 @@ function collectWmsFunctions(): FnDef[] {
  */
 const INTERNAL_PREFIX = /^wms_(emit_|resolve_|is_)/;
 
+/**
+ * Scheduled/maintenance sweeps that run under pg_cron with owner rights
+ * and must NOT be exposed to authenticated callers.
+ */
+const SCHEDULED_ONLY = new Set<string>(["wms_task_reap_expired"]);
+
 describe("Phase 3.7 — wms_* RPC grants audit", () => {
   it("every public wms_* function has EXECUTE granted to authenticated", () => {
     const fns = collectWmsFunctions();
