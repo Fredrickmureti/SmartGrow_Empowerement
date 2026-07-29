@@ -66671,6 +66671,10 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          resolution_kind:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes: string | null
           row_version: number
           sample_size: number
           sample_strategy: string
@@ -66699,6 +66703,10 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           rejected_qty?: number
+          resolution_kind?:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes?: string | null
           row_version?: number
           sample_size?: number
           sample_strategy?: string
@@ -66727,6 +66735,10 @@ export type Database = {
           product_id?: string | null
           quantity?: number
           rejected_qty?: number
+          resolution_kind?:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes?: string | null
           row_version?: number
           sample_size?: number
           sample_strategy?: string
@@ -75581,6 +75593,10 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          resolution_kind:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes: string | null
           row_version: number
           sample_size: number
           sample_strategy: string
@@ -77340,6 +77356,10 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          resolution_kind:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes: string | null
           row_version: number
           sample_size: number
           sample_strategy: string
@@ -82416,6 +82436,10 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          resolution_kind:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes: string | null
           row_version: number
           sample_size: number
           sample_strategy: string
@@ -85632,6 +85656,10 @@ export type Database = {
           product_id: string | null
           quantity: number
           rejected_qty: number
+          resolution_kind:
+            | Database["public"]["Enums"]["qc_resolution_kind"]
+            | null
+          resolution_notes: string | null
           row_version: number
           sample_size: number
           sample_strategy: string
@@ -88844,6 +88872,13 @@ export type Database = {
         | "plu"
         | "alias"
       product_type: "product" | "service"
+      qc_resolution_kind:
+        | "accept"
+        | "reject_return_to_supplier"
+        | "reject_scrap"
+        | "conditional_release"
+        | "rework"
+        | "use_as_is"
       requisition_status:
         | "draft"
         | "open"
@@ -89739,6 +89774,14 @@ export const Constants = {
         "alias",
       ],
       product_type: ["product", "service"],
+      qc_resolution_kind: [
+        "accept",
+        "reject_return_to_supplier",
+        "reject_scrap",
+        "conditional_release",
+        "rework",
+        "use_as_is",
+      ],
       requisition_status: [
         "draft",
         "open",
