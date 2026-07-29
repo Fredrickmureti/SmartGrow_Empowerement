@@ -36,6 +36,7 @@ No false or partial claims found this round. **Genuine resume point = Phase 3.6.
 ### Also landed this round
 
 - **`LabourBoard` — Live labour queue section**: new supervisor grid backed by `wms_labour_queue_view` with task-type filter, SLA-breached / unassigned / total badges, 15s refetch, priority + SLA ordering. Reuses existing warehouse filter. Type-checks clean.
+- **Mobile RF `/warehouse/mobile/next`**: single-screen operator entry point that calls `wms_claim_next_task` via `useTaskEngine`. Remembers the warehouse per-device in `localStorage`, disables the button while claiming, and hands the claimed task off to the OperatorTasks capture surface (`?claimed=<id>`). `routeForTaskType()` helper exported and centralises the task_type → capture-screen map so a new task type only needs one edit. Route wired at `mobile/next` under `SubscriptionProtectedRoute`. Type-checks + 27/103 guards green.
 
 ### Original spec (kept for reference)
 
