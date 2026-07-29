@@ -53,7 +53,7 @@ Rather than patch 21 function bodies, emission moved to **AFTER triggers on the 
 3. `_wms_emit_task_event()` — task-specific, folds `done` and `completed` onto the single catalogued `warehouse.task.completed`.
 4. **Rival vocabulary retired.** Discovered mid-phase: legacy `tg_wms_task_emit_event` / `tg_wms_lpn_emit_event` published a *second* naming scheme (`warehouse.plate.moved/.sealed`, `warehouse.task.started`) and the task one used the **same idempotency key** as the canonical producer while writing a different `event_type` — so with `ON CONFLICT DO NOTHING` the published topic for an `in_progress` transition was non-deterministic. Both triggers dropped, their richer payload folded into the canonical emitter, `domainEventBus.ts` + `BusinessSagaMount.tsx` repointed (consumers were log-only placeholders).
 5. New topics catalogued + mirrored into `WMS_TOPIC`: `warehouse.lpn.moved`, `warehouse.lpn.sealed`, `warehouse.task.assigned`, `warehouse.trailer.arrived|docked|departed`.
-6. `wms-outbox-parity.test.ts` pins all three invariants (triggers live, rival vocabulary stays retired, reaper scheduled).
+6. `wms-outbox-parity.test.ts` pins four invariants (triggers live, no in-body emitters, rival vocabulary stays retired, reaper scheduled).
 
 ## Phase 2.5 — Lease reaper — PARTIALLY DONE
 
