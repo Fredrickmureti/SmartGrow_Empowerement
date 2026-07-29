@@ -51,13 +51,55 @@ export const WMS_TOPIC = {
   // ---- Exception inbox ------------------------------------------------
   EXCEPTION_RAISED: "warehouse.exception.raised",
   EXCEPTION_RESOLVED: "warehouse.exception.resolved",
+
+  // ---- Pick waves (Phase 2.4 §2 — wms_transition_wave) ----------------
+  WAVE_DRAFT: "warehouse.wave.draft",
+  WAVE_RELEASED: "warehouse.wave.released",
+  WAVE_PICKING: "warehouse.wave.picking",
+  WAVE_PICKED: "warehouse.wave.picked",
+  WAVE_PACKING: "warehouse.wave.packing",
+  WAVE_PACKED: "warehouse.wave.packed",
+  WAVE_CANCELLED: "warehouse.wave.cancelled",
+
+  // ---- Loading manifests (wms_transition_manifest) --------------------
+  MANIFEST_DRAFT: "warehouse.manifest.draft",
+  MANIFEST_LOADING: "warehouse.manifest.loading",
+  MANIFEST_CLOSED: "warehouse.manifest.closed",
+  MANIFEST_DISPATCHED: "warehouse.manifest.dispatched",
+  MANIFEST_CANCELLED: "warehouse.manifest.cancelled",
+
+  // ---- QC inspections (wms_transition_qc) -----------------------------
+  QC_PENDING: "warehouse.qc.pending",
+  QC_IN_PROGRESS: "warehouse.qc.in_progress",
+  QC_PASSED: "warehouse.qc.passed",
+  QC_FAILED: "warehouse.qc.failed",
+  QC_CONDITIONAL: "warehouse.qc.conditional",
+  QC_CLOSED: "warehouse.qc.closed",
+  QC_CANCELLED: "warehouse.qc.cancelled",
+
+  // ---- Cycle counts (wms_transition_count_session) --------------------
+  COUNT_DRAFT: "warehouse.count.draft",
+  COUNT_COUNTING: "warehouse.count.counting",
+  COUNT_REVIEW: "warehouse.count.review",
+  COUNT_POSTED: "warehouse.count.posted",
+  COUNT_CANCELLED: "warehouse.count.cancelled",
 } as const;
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
 
 /** Canonical idempotency key shape used across producers. */
 export const idempotencyKey = (
-  aggregate: "task" | "lpn" | "receiving" | "return" | "exception",
+  aggregate:
+    | "task"
+    | "lpn"
+    | "carton"
+    | "receiving"
+    | "return"
+    | "exception"
+    | "wave"
+    | "manifest"
+    | "qc"
+    | "count",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;
