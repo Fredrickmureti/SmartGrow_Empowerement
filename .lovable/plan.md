@@ -65,16 +65,28 @@ Ancillary streams: `warehouse.labour.task.time.captured` (feeds Labour). `wareho
 
 ### Phase 1 — Formalize the domain (architecture & event model)
 Objectives: name the aggregates, publish the event catalog, codify FSMs, close module gaps.
-Steps:
-1. Add `docs/adr/0101-wms-domain-and-event-catalog.md` enumerating aggregates in A.4 and the topic/payload/idempotency contract in A.5.
-2. Introduce a `wms_events` view + typed TS enum (`src/features/warehouse/events/topics.ts`) so producers/consumers reference constants, not strings.
-3. Add server-side transition guards as SQL functions per aggregate (`_wms_lpn_transition`, `_wms_appt_transition` (already exists), `_wms_task_transition`, `_wms_wave_transition`, `_wms_pack_transition`, `_wms_manifest_transition`, `_wms_qc_transition`, `_wms_count_transition`) — every state write goes through the function which validates the edge and emits the outbox row atomically.
-4. Introduce three missing modules as thin bounded contexts:
-   - **Receiving** (`/warehouse-app/receiving`): appointment → unload → GRN capture, feeding existing tables; replaces the ad-hoc `ReceiveToWMSDialog`.
-   - **Returns/RMA** (`/warehouse-app/returns`): return-appointment → receive → QC → disposition.
-   - **Exception queue** (`/warehouse-app/exceptions`): single inbox for discrepancies, short-picks, QC fails, count variances, damaged LPNs.
-5. Promote **Operator tasks** to a polymorphic task engine: one `wms_tasks` row per unit of work with `kind` (putaway|pick|replen|count|qc|move|loopback), typed `payload_jsonb`, `claimed_by`, `claimed_at`, `heartbeat_at`, `expires_at`, `priority`, `zone_id`. Add `claim_task(kind, zone, device)` RPC that is a single-row `SELECT … FOR UPDATE SKIP LOCKED`.
-6. Document module ownership matrix (who writes what, who subscribes to what) in `docs/architecture/WMS_MODULE_OWNERSHIP.md`.
+
+**Status: ✅ COMPLETE (Phases 1.1–1.4 shipped 2026-07-29).**
+
+Delivered:
+1. ✅ **ADR 0101** (`docs/adr/0101-wms-domain-and-event-catalog.md`) — aggregates, FSM guards, event catalog, idempotency key contract.
+2. ✅ **Event topic catalog** — SQL table `wms_events_catalog` (seeded) + TS constants `src/features/warehouse/events/topics.ts`. All producers/consumers reference constants, not raw strings.
+3. ✅ **Server-side transition guards (SECURITY DEFINER + row_version optimistic lock + outbox emit):**
+   - `wms_transition_task` + `wms_claim_next_task` (SKIP LOCKED) + `wms_task_heartbeat` + `wms_task_reap_expired`
+   - `wms_transition_lpn`
+   - `wms_transition_receiving`
+   - `wms_transition_return`
+   - `wms_raise_exception` + `wms_resolve_exception`
+   - Shared `_wms_emit_outbox` helper writes `warehouse.<aggregate>.<transition>` events with canonical `wms.<aggregate>:<id>:<state>` idempotency keys.
+4. ✅ **Three new bounded contexts wired end-to-end:**
+   - **Receiving Sessions** (`/warehouse-app/receiving`) — `open → unloading → captured → posted → closed` (+ discrepant, cancelled).
+   - **Return Orders** (`/warehouse-app/returns`) — `draft → authorized → in_transit → received → inspecting → disposed → closed` (+ cancelled). Disposition (return_to_stock / quarantine / scrap / refurbish) carried in outbox payload.
+   - **Exceptions Inbox** (`/warehouse-app/exceptions`) — `open → acknowledged → investigating → escalated → resolved | wont_fix` triage surface, wired to `wms_resolve_exception`. `wms_raise_exception` callable from any code path.
+5. ✅ **Polymorphic task engine** — `wms_tasks` with `row_version`, `payload`, `assignee_user_id`, `lease_expires_at`, priority/SLA. UI (`OperatorTasks`) fully migrated off direct `.update()` onto `useTaskEngine` (claim / claim-next / transition / heartbeat / reap). Cancel flow can optionally raise a `stale_task` exception.
+6. ⏳ **Module ownership matrix** (`docs/architecture/WMS_MODULE_OWNERSHIP.md`) — deferred; roll into Phase 2 documentation pass.
+
+Direct `.update({ state })` calls on `wms_tasks` and `wms_license_plates` from page code have been swept. All state mutations now flow through the guarded RPCs.
+
 
 ### Phase 2 — Hardware & real-time integration
 Objectives: one scan contract, one label pipeline, one live event stream to every board.
@@ -160,7 +172,52 @@ Steps: add barcode print for zones/bins from layout editor; carton catalogue lin
 - No changes to `warehouses` table ownership (remains Warehouse app per ADR 0080).
 
 ## Deliverables per phase
-- Phase 1: ADR 0101, event catalog module, FSM SQL functions, three new bounded contexts scaffolded (Receiving, Returns, Exceptions), polymorphic task engine.
+- Phase 1: ✅ ADR 0101, event catalog module (SQL + TS), FSM SQL functions (task/LPN/receiving/return/exception + raise/resolve), three new bounded contexts (Receiving, Returns, Exceptions) live in nav/routes, polymorphic task engine wired end-to-end.
 - Phase 2: scan intent registry, four label templates, print queue integration, WMS realtime hook, row-version + offline queue.
 - Phase 3: per-module upgrades listed above.
 - Phase 4: role dashboards, mobile operator shell, exception triage, audit timelines, validation pass.
+
+---
+
+## Execution ledger & handoff
+
+### Currently active phase
+**Phase 2 — Hardware & real-time integration.** Phase 1 is closed.
+
+### What ships in this repo right now (verified)
+- DB: `wms_transition_{task,lpn,receiving,return}`, `wms_{claim_next_task,task_heartbeat,task_reap_expired,raise_exception,resolve_exception}`, `_wms_emit_outbox`. Tables `wms_exceptions`, `wms_receiving_sessions`, `wms_return_orders`, `wms_events_catalog`, `wms_replen_rules`, `wms_slotting_rules` (created in Phase 1.1) with row_version + FSM enums (`wms_task_state`, `wms_lpn_status`, `wms_receiving_state`, `wms_return_state`, `wms_exception_state`, `wms_exception_kind`).
+- TS: `src/features/warehouse/events/topics.ts` (WMS_TOPIC + idempotencyKey + TASK_TYPES/TASK_STATES), `src/features/warehouse/tasks/useTaskEngine.ts`.
+- Pages migrated to guarded RPCs: `OperatorTasks.tsx`, `LicensePlateView.tsx`, `ExceptionsInbox.tsx`, plus new `ReceivingSessions.tsx` and `ReturnOrders.tsx`. All wired in `src/apps/warehouse/routes.tsx` + `src/apps/warehouse/nav.ts`.
+- ADR: `docs/adr/0101-wms-domain-and-event-catalog.md`.
+
+### Still pending inside Phase 1 (deferred to Phase 2 doc pass)
+- `docs/architecture/WMS_MODULE_OWNERSHIP.md` — the who-writes-what/who-subscribes-to-what matrix. Small doc job; folded into Phase 2 §1 kickoff.
+- Sweep the remaining pages that still do direct `.update({ state })` on WMS aggregates (`PutawayQueue`, `WavePlanner`, `PickList`, `PackStation`, `LoadingBay`, `QCQueue`) — those aggregates get transition RPCs during Phase 2 §5 (concurrency pass). They are functionally correct today but not yet FSM-guarded.
+
+### Next agent — start here (in order)
+
+**Step 0 (mandatory verification, before writing any code).**
+1. Re-read `docs/adr/0101-wms-domain-and-event-catalog.md` and this section.
+2. Confirm the RPCs exist and are grant-scoped correctly:
+   `SELECT proname FROM pg_proc WHERE proname IN ('wms_transition_task','wms_transition_lpn','wms_transition_receiving','wms_transition_return','wms_raise_exception','wms_resolve_exception','wms_claim_next_task','wms_task_heartbeat','wms_task_reap_expired','_wms_emit_outbox');`
+3. Open `OperatorTasks`, `LicensePlateView`, `ReceivingSessions`, `ReturnOrders`, `ExceptionsInbox` in the preview and walk one transition per page. Every state change must land in `business_event_outbox` with topic `warehouse.<aggregate>.<state>` and idempotency key `wms.<aggregate>:<id>:<state>`. If any page still calls `supabase.from(...).update({ state })` directly, that's a Phase 1 regression — fix before proceeding.
+4. Run `bunx tsgo --noEmit` and confirm zero errors introduced by Phase 1 files.
+
+**Step 1 — Phase 2.1: Scan Intent registry.**
+Define the scan-intent contract in `src/services/scanner/scanRouter.ts` and add per-screen registrations for the intents listed in Part B §Phase 2 step 1. Every WMS screen declares its expected intent on mount; unexpected scans surface a typed error via `scanFeedbackBus` (never a silent no-op).
+
+**Step 2 — Phase 2.2: Standard label templates.**
+Author the four `document_templates` + AST rows (`wms.label.lpn`, `wms.label.bin`, `wms.label.shipping`, `wms.label.packing_slip`) via the document-template pipeline. Do NOT hand-render — reuse the existing barcode/PDF engine per ADR 0084/0085.
+
+**Step 3 — Phase 2.3: Realtime board fabric.**
+Add `useWmsRealtimeSync` mirroring `useInventoryRealtime` structure: subscribe (in `useEffect` with `removeChannel` cleanup) to `wms_tasks`, `wms_license_plates`, `wms_exceptions`, `wms_receiving_sessions`, `wms_return_orders`, `receiving_appointments`, `pick_waves`, `shipment_packages`, `loading_manifests`, `qc_inspections`, `wms_count_sessions`. Channel narrowed by `business_id`. Invalidate matching query keys with `refetchType: 'active'`.
+
+**Step 4 — Phase 2.4: Concurrency sweep.**
+Add `wms_transition_{wave,pack,manifest,qc,count_session}` RPCs following the same shape as `wms_transition_receiving`. Migrate `WavePlanner`, `PackStation`, `LoadingBay`, `QCQueue`, `CountSession` off direct updates onto the new RPCs.
+
+### Operating rules for the next agent
+- **Chronological.** Do not skip ahead to Phase 3/4 modules until every Phase 2 step above is production-ready.
+- **No shallow scaffolds.** Each step must ship the DB migration + typed TS wrapper + at least one page consuming it + a working transition demonstrated in the preview.
+- **Never** write `state` directly to a WMS aggregate — always through its `wms_transition_*` RPC.
+- **After each sub-phase completes:** update this "Execution ledger" section (move items from pending to shipped, advance the "currently active" pointer, refresh the "Next agent — start here" list) so the plan remains the authoritative status source.
+
