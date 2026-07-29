@@ -30,6 +30,7 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
 import { ReceiveToWMSDialog } from "./ReceiveToWMSDialog";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 
 interface PutawayRow {
   id: string;
@@ -52,13 +53,17 @@ interface PutawayRow {
   product: { name: string; sku: string | null } | null;
 }
 
-const STATE_TONE = {
+const STATE_TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"> = {
   pending: "neutral",
+  available: "neutral",
   assigned: "info",
+  claimed: "info",
   in_progress: "warning",
   done: "success",
+  completed: "success",
   cancelled: "danger",
-} as const;
+  exception: "danger",
+};
 
 function isToday(iso: string | null): boolean {
   if (!iso) return false;
@@ -81,7 +86,7 @@ export default function PutawayQueue() {
     queryFn: async () => {
       let q = supabase
         .from("wms_tasks")
-        .select("id, state, priority, quantity, lpn_id, product_id, lot_number, destination_location_id, source_location_id, created_at, completed_at, warehouse_id, assignee_user_id, lpn:lpn_id(code), source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(name, sku)")
+        .select("id, state, priority, quantity, lpn_id, product_id, lot_number, destination_location_id, source_location_id, created_at, completed_at, warehouse_id, assignee_user_id, row_version, lpn:lpn_id(code), source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(name, sku)")
         .eq("business_id", currentBusiness!.id)
         .eq("task_type", "putaway")
         .order("priority", { ascending: false })
@@ -108,23 +113,24 @@ export default function PutawayQueue() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Putaway failed"),
   });
 
-  const startAndClaim = useMutation({
-    mutationFn: async (id: string) => {
-      if (!user?.id) throw new Error("Sign in required");
-      const { error } = await supabase
-        .from("wms_tasks")
-        .update({ state: "in_progress", started_at: new Date().toISOString(), assignee_user_id: user.id })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-putaway"] }),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
+  const engine = useTaskEngine();
+
+  const startAndClaim = (row: PutawayRow) => {
+    if (!user?.id) { toast.error("Sign in required"); return; }
+    // Route through the FSM RPC — enforces row_version optimistic lock and
+    // emits `warehouse.task.in_progress` to the outbox.
+    engine.transition.mutate({
+      taskId: row.id,
+      toState: "in_progress",
+      rowVersion: row.row_version,
+      reason: "started from putaway board",
+    });
+  };
 
   const cols = useMemo(() => {
-    const pending = (rows ?? []).filter((r) => r.state === "pending" || r.state === "assigned");
+    const pending = (rows ?? []).filter((r) => r.state === "pending" || r.state === "available" || r.state === "assigned" || r.state === "claimed");
     const inProgress = (rows ?? []).filter((r) => r.state === "in_progress");
-    const doneToday = (rows ?? []).filter((r) => r.state === "done" && isToday(r.completed_at));
+    const doneToday = (rows ?? []).filter((r) => (r.state === "done" || r.state === "completed") && isToday(r.completed_at));
     return { pending, inProgress, doneToday };
   }, [rows]);
 
@@ -133,7 +139,7 @@ export default function PutawayQueue() {
       <CardContent className="p-3 space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-sm font-mono">{t.lpn?.code ?? "—"}</div>
-          <StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge>
+          <StatusBadge tone={STATE_TONE[t.state] ?? "neutral"}>{t.state.replace("_", " ")}</StatusBadge>
         </div>
         <div className="text-sm">
           {t.product?.name ?? "—"}
@@ -171,8 +177,8 @@ export default function PutawayQueue() {
               extraVars={{ bin_code: t.dest_loc.code }}
             />
           )}
-          {(t.state === "pending" || t.state === "assigned") && (
-            <Button size="sm" variant="outline" onClick={() => startAndClaim.mutate(t.id)}>
+          {(t.state === "pending" || t.state === "available" || t.state === "assigned" || t.state === "claimed") && (
+            <Button size="sm" variant="outline" onClick={() => startAndClaim(t)} disabled={engine.transition.isPending}>
               <Play className="h-3.5 w-3.5 mr-1" /> Start
             </Button>
           )}
