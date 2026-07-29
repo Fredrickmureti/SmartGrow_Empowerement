@@ -25,7 +25,9 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { PackageOpen, ArrowLeft, MoveRight, Lock, Archive } from "lucide-react";
+import { PackageOpen, ArrowLeft, MoveRight, Lock, Archive, Printer } from "lucide-react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
 type LpnStatus = "open" | "sealed" | "shipped" | "retired";
 
@@ -33,6 +35,7 @@ export default function LicensePlateView() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const qc = useQueryClient();
+  const { currentOrg } = useOrganization();
 
   const { data: lpn, isLoading } = useQuery({
     queryKey: ["wms-lpn", id],
@@ -174,6 +177,31 @@ export default function LicensePlateView() {
           <div className="flex gap-2">
             <Button variant="outline" asChild>
               <Link to="/warehouse-app/plates"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!currentOrg?.id) {
+                  toast.error("No active organization");
+                  return;
+                }
+                const res = await printWmsLabel({
+                  key: WMS_LABEL_KEY.LPN,
+                  orgId: currentOrg.id,
+                  sourceDocType: "wms_license_plate",
+                  sourceDocId: lpn.id,
+                  vars: {
+                    lpn_code: lpn.code,
+                    warehouse_name: (lpn as { warehouse_name?: string | null }).warehouse_name ?? "",
+                    current_location: currentLoc,
+                    created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+                  },
+                });
+                if (res.success) toast.success("Label sent to printer");
+                else toast.error(res.error ?? "Print failed");
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" /> Print label
             </Button>
             <Button onClick={() => setMoveOpen(true)} disabled={status === "retired" || status === "shipped"}>
               <MoveRight className="mr-2 h-4 w-4" /> Move

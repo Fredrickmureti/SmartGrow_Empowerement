@@ -88133,6 +88133,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_seed_default_label_templates: {
+        Args: { _actor?: string; _org_id: string }
+        Returns: undefined
+      }
       wms_task_heartbeat: {
         Args: { _lease_seconds?: number; _task_id: string }
         Returns: boolean
