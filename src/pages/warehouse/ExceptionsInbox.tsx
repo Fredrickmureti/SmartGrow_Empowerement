@@ -1,10 +1,13 @@
 /**
- * Exceptions Inbox (ADR 0101 — Phase 1.2).
+ * Exceptions Inbox (ADR 0101 — Phase 1.4).
  *
  * Single triage surface for every WMS blocker: receiving discrepancies,
- * QC fails, short-picks, count variances, damaged LPNs, missing bins.
- * Rows are inserted into `wms_exceptions` by RPCs and page code; this
- * page is the resolver UI.
+ * QC fails, short-picks, count variances, damaged LPNs, missing bins,
+ * stale tasks.
+ *
+ * Rows are inserted by `wms_raise_exception` (called from cancel flows,
+ * discrepancy handlers, count post) and moved through their FSM via
+ * `wms_resolve_exception` with row_version optimistic locking.
  */
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,37 +28,51 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useWarehouses } from "@/hooks/useWarehouses";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+
+type ExceptionState = "open" | "acknowledged" | "investigating" | "resolved" | "wont_fix" | "escalated";
 
 type ExceptionRow = {
   id: string;
   warehouse_id: string;
-  aggregate: string;
-  aggregate_id: string;
-  code: string;
-  severity: "low" | "medium" | "high" | "critical";
-  state: "open" | "in_review" | "resolved" | "dismissed";
+  kind: string;
+  aggregate_type: string | null;
+  aggregate_id: string | null;
+  task_id: string | null;
+  lpn_id: string | null;
+  severity: number;
+  state: ExceptionState;
   reason: string | null;
-  resolution_notes: string | null;
+  details: Record<string, unknown> | null;
+  resolution: string | null;
   created_at: string;
   resolved_at: string | null;
   row_version: number;
 };
 
-const SEVERITY_TONE = {
-  low: "neutral", medium: "info", high: "warning", critical: "danger",
-} as const;
-const STATE_TONE = {
-  open: "warning", in_review: "info", resolved: "success", dismissed: "neutral",
-} as const;
+const STATE_TONE: Record<ExceptionState, "info" | "warning" | "success" | "neutral" | "danger"> = {
+  open: "warning",
+  acknowledged: "info",
+  investigating: "info",
+  escalated: "danger",
+  resolved: "success",
+  wont_fix: "neutral",
+};
+
+const severityTone = (n: number) =>
+  n >= 4 ? "danger" : n === 3 ? "warning" : n === 2 ? "info" : "neutral";
+const severityLabel = (n: number) =>
+  ({ 1: "low", 2: "medium", 3: "high", 4: "critical", 5: "critical" } as Record<number, string>)[n] ?? "medium";
+
+const OPEN_STATES: ExceptionState[] = ["open", "acknowledged", "investigating", "escalated"];
 
 export default function ExceptionsInbox() {
   const qc = useQueryClient();
   const { warehouses } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState<string>("");
-  const [stateFilter, setStateFilter] = useState<string>("open");
+  const [stateFilter, setStateFilter] = useState<string>("open_all");
   const [active, setActive] = useState<ExceptionRow | null>(null);
-  const [notes, setNotes] = useState("");
+  const [resolution, setResolution] = useState("");
 
   const effectiveWh = warehouseId || warehouses[0]?.id || "";
 
@@ -69,32 +86,36 @@ export default function ExceptionsInbox() {
         .eq("warehouse_id", effectiveWh)
         .order("created_at", { ascending: false })
         .limit(200);
-      if (stateFilter !== "all") q = q.eq("state", stateFilter);
+      if (stateFilter === "open_all") q = q.in("state", OPEN_STATES);
+      else if (stateFilter !== "all") q = q.eq("state", stateFilter);
       const { data, error } = await q;
       if (error) throw error;
       return ((data ?? []) as unknown) as ExceptionRow[];
     },
   });
 
-  const resolve = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "resolved" | "dismissed" }) => {
+  const transition = useMutation({
+    mutationFn: async (input: { id: string; to: ExceptionState; rowVersion: number; resolution?: string }) => {
       const { error } = await supabase.rpc("wms_resolve_exception" as any, {
-        p_exception_id: id,
-        p_to_state: action,
-        p_notes: notes || null,
+        p_exception_id: input.id,
+        p_to_state: input.to,
+        p_row_version: input.rowVersion,
+        p_resolution: input.resolution ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Exception updated.");
-      setActive(null); setNotes("");
+      toast.success("Exception updated");
+      setActive(null); setResolution("");
       qc.invalidateQueries({ queryKey: ["wms_exceptions"] });
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not update exception."),
+    onError: (e: any) => toast.error(e?.message ?? "Could not update exception"),
   });
 
   const summary = useMemo(() => {
-    const c = { open: 0, in_review: 0, resolved: 0, dismissed: 0 } as Record<string, number>;
+    const c: Record<string, number> = {
+      open: 0, acknowledged: 0, investigating: 0, escalated: 0, resolved: 0, wont_fix: 0,
+    };
     rows.forEach((r) => { c[r.state] = (c[r.state] ?? 0) + 1; });
     return c;
   }, [rows]);
@@ -103,7 +124,7 @@ export default function ExceptionsInbox() {
     <>
       <PageHeader
         title="Exceptions Inbox"
-        description="Every blocked task, discrepancy, and QC fail lands here."
+        description="Every blocked task, discrepancy, and QC fail lands here. Triage moves the row through open → acknowledged → investigating → resolved."
       />
       <PageBody>
         <Section
@@ -119,20 +140,23 @@ export default function ExceptionsInbox() {
                 </SelectContent>
               </Select>
               <Select value={stateFilter} onValueChange={setStateFilter}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="open_all">Open (default)</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_review">In review</SelectItem>
+                  <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                  <SelectItem value="investigating">Investigating</SelectItem>
+                  <SelectItem value="escalated">Escalated</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="dismissed">Dismissed</SelectItem>
+                  <SelectItem value="wont_fix">Won't fix</SelectItem>
                   <SelectItem value="all">All</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           }
         >
-          <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            {(["open", "in_review", "resolved", "dismissed"] as const).map((s) => (
+          <div className="mb-4 grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+            {(["open", "acknowledged", "investigating", "escalated", "resolved", "wont_fix"] as const).map((s) => (
               <div key={s} className="rounded-md border border-border bg-card p-3">
                 <div className="text-muted-foreground capitalize">{s.replace("_", " ")}</div>
                 <div className="text-2xl font-semibold">{summary[s] ?? 0}</div>
@@ -149,8 +173,8 @@ export default function ExceptionsInbox() {
               <TableHeader>
                 <TableRow>
                   <TableHead>When</TableHead>
+                  <TableHead>Kind</TableHead>
                   <TableHead>Aggregate</TableHead>
-                  <TableHead>Code</TableHead>
                   <TableHead>Severity</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Reason</TableHead>
@@ -163,23 +187,25 @@ export default function ExceptionsInbox() {
                     <TableCell className="whitespace-nowrap text-xs">
                       {new Date(r.created_at).toLocaleString()}
                     </TableCell>
+                    <TableCell className="text-xs font-medium">{r.kind}</TableCell>
                     <TableCell className="text-xs">
-                      <div className="font-medium">{r.aggregate}</div>
-                      <div className="text-muted-foreground font-mono">{r.aggregate_id.slice(0, 8)}</div>
+                      <div>{r.aggregate_type ?? "—"}</div>
+                      {r.aggregate_id && <div className="text-muted-foreground font-mono">{r.aggregate_id.slice(0, 8)}</div>}
                     </TableCell>
-                    <TableCell className="text-xs font-mono">{r.code}</TableCell>
-                    <TableCell><StatusBadge tone={SEVERITY_TONE[r.severity]}>{r.severity}</StatusBadge></TableCell>
-                    <TableCell><StatusBadge tone={STATE_TONE[r.state]}>{r.state}</StatusBadge></TableCell>
+                    <TableCell><StatusBadge tone={severityTone(r.severity)}>{severityLabel(r.severity)}</StatusBadge></TableCell>
+                    <TableCell><StatusBadge tone={STATE_TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
                     <TableCell className="max-w-md truncate text-xs">{r.reason}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={r.state === "resolved" || r.state === "dismissed"}
-                        onClick={() => { setActive(r); setNotes(r.resolution_notes ?? ""); }}
-                      >
-                        Triage
-                      </Button>
+                    <TableCell className="text-right space-x-1">
+                      {r.state === "open" && (
+                        <Button size="sm" variant="outline" onClick={() => transition.mutate({ id: r.id, to: "acknowledged", rowVersion: r.row_version })}>
+                          Ack
+                        </Button>
+                      )}
+                      {r.state !== "resolved" && r.state !== "wont_fix" && (
+                        <Button size="sm" onClick={() => { setActive(r); setResolution(r.resolution ?? ""); }}>
+                          Triage
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -192,34 +218,48 @@ export default function ExceptionsInbox() {
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Resolve exception</DialogTitle>
+            <DialogTitle>Triage exception</DialogTitle>
           </DialogHeader>
           {active && (
             <div className="space-y-3 text-sm">
-              <div><span className="text-muted-foreground">Code:</span> <span className="font-mono">{active.code}</span></div>
-              <div><span className="text-muted-foreground">Aggregate:</span> {active.aggregate} <span className="font-mono">{active.aggregate_id}</span></div>
+              <div><span className="text-muted-foreground">Kind:</span> {active.kind}</div>
+              <div><span className="text-muted-foreground">Aggregate:</span> {active.aggregate_type ?? "—"} <span className="font-mono">{active.aggregate_id ?? ""}</span></div>
               <div><span className="text-muted-foreground">Reason:</span> {active.reason ?? "—"}</div>
               <Textarea
                 placeholder="Resolution notes (what did you do?)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
                 rows={4}
               />
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-wrap gap-2">
             <Button
               variant="outline"
-              onClick={() => active && resolve.mutate({ id: active.id, action: "dismissed" })}
-              disabled={resolve.isPending}
+              onClick={() => active && transition.mutate({ id: active.id, to: "investigating", rowVersion: active.row_version, resolution })}
+              disabled={transition.isPending}
             >
-              Dismiss
+              Investigating
             </Button>
             <Button
-              onClick={() => active && resolve.mutate({ id: active.id, action: "resolved" })}
-              disabled={resolve.isPending || notes.trim().length === 0}
+              variant="outline"
+              onClick={() => active && transition.mutate({ id: active.id, to: "escalated", rowVersion: active.row_version, resolution })}
+              disabled={transition.isPending}
             >
-              Mark resolved
+              Escalate
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => active && transition.mutate({ id: active.id, to: "wont_fix", rowVersion: active.row_version, resolution })}
+              disabled={transition.isPending}
+            >
+              Won't fix
+            </Button>
+            <Button
+              onClick={() => active && transition.mutate({ id: active.id, to: "resolved", rowVersion: active.row_version, resolution })}
+              disabled={transition.isPending || resolution.trim().length === 0}
+            >
+              Resolve
             </Button>
           </DialogFooter>
         </DialogContent>

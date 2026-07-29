@@ -1,9 +1,10 @@
 /**
  * ReturnOrders — RMA execution surface (ADR 0101).
  *
- * State transitions flow through `wms_transition_return` so disposition
- * fan-out (return_to_stock / quarantine / scrap / refurbish) can emit
- * outbox events uniformly.
+ * States: draft → authorized → in_transit → received → inspecting → disposed → closed (+ cancelled).
+ * All transitions go through `wms_transition_return` — FSM-guarded,
+ * row_version optimistic, emits `warehouse.return.*` to outbox.
+ * Disposition outcome is carried in the outbox payload extra.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,9 +31,10 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
-import { Undo2, Plus, Play, Check, AlertTriangle } from "lucide-react";
+import { Undo2, Plus, Play, Check, AlertTriangle, Truck } from "lucide-react";
 
-type ReturnState = "expected" | "receiving" | "inspecting" | "dispositioned" | "closed" | "cancelled";
+type ReturnState = "draft" | "authorized" | "in_transit" | "received" | "inspecting" | "disposed" | "closed" | "cancelled";
+type Disposition = "return_to_stock" | "quarantine" | "scrap" | "refurbish";
 
 interface ReturnRow {
   id: string;
@@ -53,13 +55,17 @@ interface ReturnRow {
 }
 
 const TONE: Record<ReturnState, "info" | "warning" | "success" | "neutral" | "danger"> = {
-  expected: "neutral",
-  receiving: "info",
+  draft: "neutral",
+  authorized: "info",
+  in_transit: "info",
+  received: "warning",
   inspecting: "warning",
-  dispositioned: "warning",
+  disposed: "success",
   closed: "success",
   cancelled: "neutral",
 };
+
+const OPEN_STATES: ReturnState[] = ["draft", "authorized", "in_transit", "received", "inspecting", "disposed"];
 
 function newCode(): string {
   const d = new Date();
@@ -75,7 +81,7 @@ export default function ReturnOrders() {
   const { user } = useAuth();
 
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
-  const [stateFilter, setStateFilter] = useState<string>("open");
+  const [stateFilter, setStateFilter] = useState<string>("open_all");
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["wms-return-orders", currentBusiness?.id, warehouseFilter, stateFilter],
@@ -88,7 +94,7 @@ export default function ReturnOrders() {
         .order("created_at", { ascending: false })
         .limit(500);
       if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      if (stateFilter === "open") q = q.in("state", ["expected", "receiving", "inspecting", "dispositioned"]);
+      if (stateFilter === "open_all") q = q.in("state", OPEN_STATES);
       else if (stateFilter !== "all") q = q.eq("state", stateFilter);
       const { data, error } = await q;
       if (error) throw error;
@@ -135,7 +141,7 @@ export default function ReturnOrders() {
         rma_reference: form.rma_reference || null,
         source_doc_type: form.source_doc_type || null,
         source_doc_id: form.source_doc_id || null,
-        state: "expected",
+        state: "draft",
         notes: form.notes || null,
         created_by: user?.id ?? null,
       });
@@ -151,13 +157,13 @@ export default function ReturnOrders() {
   });
 
   const [dispositionFor, setDispositionFor] = useState<ReturnRow | null>(null);
-  const [disposition, setDisposition] = useState<string>("return_to_stock");
+  const [disposition, setDisposition] = useState<Disposition>("return_to_stock");
   const applyDisposition = () => {
     if (!dispositionFor) return;
     transition.mutate(
       {
         id: dispositionFor.id,
-        to: "dispositioned",
+        to: "disposed",
         rowVersion: dispositionFor.row_version,
         reason: `Dispositioned: ${disposition}`,
         payload: { disposition },
@@ -167,15 +173,32 @@ export default function ReturnOrders() {
   };
 
   const emptyLabel = useMemo(
-    () => (stateFilter === "open" ? "No open return orders" : "No returns match these filters"),
+    () => (stateFilter === "open_all" ? "No open return orders" : "No returns match these filters"),
     [stateFilter],
   );
+
+  const nextActions = (r: ReturnRow) => {
+    const t = (to: ReturnState, reason?: string) =>
+      transition.mutate({ id: r.id, to, rowVersion: r.row_version, reason });
+    switch (r.state) {
+      case "draft":      return [{ label: "Authorize", icon: Check, run: () => t("authorized") }];
+      case "authorized": return [
+        { label: "In transit", icon: Truck, run: () => t("in_transit") },
+        { label: "Mark received", icon: Play, run: () => t("received") },
+      ];
+      case "in_transit": return [{ label: "Mark received", icon: Play, run: () => t("received") }];
+      case "received":   return [{ label: "Inspect", icon: AlertTriangle, run: () => t("inspecting") }];
+      case "inspecting": return [{ label: "Disposition", icon: Check, run: () => setDispositionFor(r) }];
+      case "disposed":   return [{ label: "Close", icon: Check, run: () => t("closed") }];
+      default: return [];
+    }
+  };
 
   return (
     <>
       <PageHeader
         title="Return orders"
-        description="RMA execution surface. Receive, inspect, and disposition returns with a uniform event trail."
+        description="RMA execution surface. Authorize, receive, inspect, and disposition returns with a uniform event trail."
         actions={
           <Button onClick={() => { setForm((f) => ({ ...f, code: newCode() })); setCreateOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" /> New return
@@ -188,13 +211,15 @@ export default function ReturnOrders() {
             <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open">Open (default)</SelectItem>
-                    <SelectItem value="expected">Expected</SelectItem>
-                    <SelectItem value="receiving">Receiving</SelectItem>
+                    <SelectItem value="open_all">Open (default)</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="authorized">Authorized</SelectItem>
+                    <SelectItem value="in_transit">In transit</SelectItem>
+                    <SelectItem value="received">Received</SelectItem>
                     <SelectItem value="inspecting">Inspecting</SelectItem>
-                    <SelectItem value="dispositioned">Dispositioned</SelectItem>
+                    <SelectItem value="disposed">Disposed</SelectItem>
                     <SelectItem value="closed">Closed</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                     <SelectItem value="all">All</SelectItem>
@@ -230,30 +255,15 @@ export default function ReturnOrders() {
                       <TableRow key={r.id}>
                         <TableCell className="font-mono">{r.code}</TableCell>
                         <TableCell className="text-sm">{r.rma_reference ?? "—"}</TableCell>
-                        <TableCell><StatusBadge tone={TONE[r.state]}>{r.state}</StatusBadge></TableCell>
+                        <TableCell><StatusBadge tone={TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.expected_at ? new Date(r.expected_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.received_at ? new Date(r.received_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-right space-x-1">
-                          {r.state === "expected" && (
-                            <Button size="sm" variant="outline" onClick={() => transition.mutate({ id: r.id, to: "receiving", rowVersion: r.row_version })}>
-                              <Play className="h-3.5 w-3.5" />
+                          {nextActions(r).map((a, i) => (
+                            <Button key={i} size="sm" variant={a.label === "Close" || a.label === "Disposition" ? "default" : "outline"} onClick={a.run}>
+                              <a.icon className="h-3.5 w-3.5 mr-1" />{a.label}
                             </Button>
-                          )}
-                          {r.state === "receiving" && (
-                            <Button size="sm" variant="outline" onClick={() => transition.mutate({ id: r.id, to: "inspecting", rowVersion: r.row_version })}>
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {r.state === "inspecting" && (
-                            <Button size="sm" onClick={() => setDispositionFor(r)}>
-                              Disposition
-                            </Button>
-                          )}
-                          {r.state === "dispositioned" && (
-                            <Button size="sm" onClick={() => transition.mutate({ id: r.id, to: "closed", rowVersion: r.row_version })}>
-                              <Check className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
+                          ))}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -315,7 +325,7 @@ export default function ReturnOrders() {
           <DialogHeader><DialogTitle>Disposition return</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <Label>Outcome</Label>
-            <Select value={disposition} onValueChange={setDisposition}>
+            <Select value={disposition} onValueChange={(v) => setDisposition(v as Disposition)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="return_to_stock">Return to stock</SelectItem>

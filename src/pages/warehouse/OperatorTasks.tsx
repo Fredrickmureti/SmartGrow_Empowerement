@@ -139,13 +139,49 @@ export default function OperatorTasks() {
 
   const [cancelOpen, setCancelOpen] = useState<TaskRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [alsoRaiseException, setAlsoRaiseException] = useState(false);
+
+  const raiseException = useMutation({
+    mutationFn: async (input: { task: TaskRow; reason: string }) => {
+      const { error } = await supabase.rpc("wms_raise_exception" as any, {
+        p_warehouse_id: input.task.warehouse_id,
+        p_kind: "stale_task",
+        p_reason: input.reason || `Task ${input.task.task_type} cancelled`,
+        p_aggregate_type: "wms_task",
+        p_aggregate_id: input.task.id,
+        p_task_id: input.task.id,
+        p_lpn_id: null,
+        p_severity: 2,
+        p_details: { task_type: input.task.task_type },
+      });
+      if (error) throw error;
+    },
+  });
+
   const cancel = () => {
     if (!cancelOpen) return;
+    const target = cancelOpen;
     engine.transition.mutate(
-      { taskId: cancelOpen.id, toState: "cancelled", rowVersion: cancelOpen.row_version, reason: cancelReason || undefined },
-      { onSuccess: () => { setCancelOpen(null); setCancelReason(""); toast.success("Task cancelled"); } },
+      { taskId: target.id, toState: "cancelled", rowVersion: target.row_version, reason: cancelReason || undefined },
+      {
+        onSuccess: async () => {
+          if (alsoRaiseException) {
+            try {
+              await raiseException.mutateAsync({ task: target, reason: cancelReason });
+              toast.success("Task cancelled and exception raised");
+            } catch (e: unknown) {
+              toast.error(e instanceof Error ? e.message : "Cancelled, but could not raise exception");
+            }
+          } else {
+            toast.success("Task cancelled");
+          }
+          setCancelOpen(null); setCancelReason(""); setAlsoRaiseException(false);
+          qc.invalidateQueries({ queryKey: ["wms_exceptions"] });
+        },
+      },
     );
   };
+
 
   // ---------- claim-next ----------------------------------------------
   const claimNext = () => {
@@ -341,12 +377,17 @@ export default function OperatorTasks() {
         <DialogContent>
           <DialogHeader><DialogTitle>Cancel task</DialogTitle></DialogHeader>
           <Textarea placeholder="Reason (recommended)" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input type="checkbox" checked={alsoRaiseException} onChange={(e) => setAlsoRaiseException(e.target.checked)} />
+            Also raise an exception for triage
+          </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCancelOpen(null)}>Keep</Button>
             <Button variant="destructive" onClick={cancel}>Cancel task</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
