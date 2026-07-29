@@ -126,7 +126,7 @@ export default function LoadingBay() {
             <Button variant="outline" disabled={!canClose || close.isPending} onClick={() => close.mutate()}>
               <PackageCheck className="h-4 w-4 mr-2" /> Close
             </Button>
-            <Button disabled={!canDispatch || dispatch.isPending} onClick={() => dispatch.mutate()}>
+            <Button disabled={!canDispatch || dispatch.isPending} onClick={handleDispatch}>
               <Truck className="h-4 w-4 mr-2" /> Dispatch
             </Button>
           </div>
