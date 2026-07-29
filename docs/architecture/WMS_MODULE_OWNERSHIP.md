@@ -66,6 +66,8 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.task.assigned` | assigned to a worker | RF queue, labor |
 | `warehouse.task.claimed` | claimed from the pool | RF queue |
 | `warehouse.task.in_progress` | execution started | labor |
+| `warehouse.task.paused` | operator suspended the task (row_version-scoped idempotency) | labor, RF queue |
+| `warehouse.task.resumed` | operator resumed a paused task | labor, RF queue |
 | `warehouse.task.completed` | work done (`task_type` on payload) | labor, 3PL billing |
 | `warehouse.task.exception` | worker raised a blocker | exception inbox |
 | `warehouse.task.cancelled` | withdrawn (`cancel_reason`) | RF queue |
