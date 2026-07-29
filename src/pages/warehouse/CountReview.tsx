@@ -92,7 +92,7 @@ export default function CountReview() {
             <Button variant="outline" asChild>
               <Link to={`/warehouse-app/counts/${sessionId}`}><ArrowLeft className="h-4 w-4 mr-2" /> Back to counting</Link>
             </Button>
-            <Button disabled={!canPost || post.isPending} onClick={() => post.mutate()}>
+            <Button disabled={!canPost || post.isPending} onClick={handlePost}>
               <CheckCircle2 className="h-4 w-4 mr-2" /> Post {variances.length} variance{variances.length === 1 ? "" : "s"}
             </Button>
           </div>
