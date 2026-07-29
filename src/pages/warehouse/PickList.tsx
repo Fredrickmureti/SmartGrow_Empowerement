@@ -61,7 +61,7 @@ const STATE_TONE = {
 
 export default function PickList() {
   const { waveId } = useParams<{ waveId: string }>();
-  const qc = useQueryClient();
+  const complete = useCompletePickTask(waveId);
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
   const { resolveTagged } = useResolveBarcode(currentBusiness?.id, currentBranch?.id ?? null);
