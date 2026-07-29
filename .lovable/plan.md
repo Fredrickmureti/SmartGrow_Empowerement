@@ -20,9 +20,9 @@ Ran the ledger claims against the codebase before drafting new work.
 
 ---
 
-## Phase 3.7 · Wave / Pick / Pack / Dispatch hardening (§1–4 shipped)
+## Phase 3.7 · Wave / Pick / Pack / Dispatch hardening (§1–4 complete)
 
-**Status.** DB enforcement + hooks + desktop UI feedback landed. Remaining: mobile-dispatch parity toast and the E2E cancel/negative branches.
+**Status.** DB enforcement, cancellation cascade, guards, desktop + mobile UI feedback, and E2E negative/cancel branches all landed.
 
 **Shipped this phase.**
 
@@ -42,13 +42,15 @@ Ran the ledger claims against the codebase before drafting new work.
 4. **UI feedback.**
    - `useDispatchManifest` detects `WMS_SCAN_SHORTAGE`, shows a distinct "sealed cartons missing" toast, and invalidates the shortage query so the banner refreshes.
    - `LoadingBay` reads `wms_manifest_short_cartons(id)` on a 15s interval, renders a scan-out progress bar (loaded / missing, amber → emerald at 100%), and disables both Close and Dispatch until shortage is 0.
+   - `MobileDispatch` (`enqueue`) catches the same RPC error and surfaces a plain-language "Scan every sealed carton for this wave/SO onto the manifest first" toast, with distinct wording for close vs dispatch. Shortage *preview* is deliberately not fetched on the RF shell — the Phase 13 mobile guard forbids direct `supabase.rpc` there, so the RPC itself is the source of truth on close/dispatch.
 
-**Still open in Phase 3.7.**
+5. **E2E negative + cancel branches.**
+   - New spec `e2e/wms/dispatch-scan-out-and-cancel.spec.ts` builds two independent packed waves per run:
+     - *Scenario A* — seals 2 cartons for the same (wave, SO), loads only 1, asserts `close_loading_manifest` returns non-OK with `WMS_SCAN_SHORTAGE`, manifest stays `loading`, then loads the second carton and confirms close + dispatch recover to `dispatched`.
+     - *Scenario B* — loads 1 sealed carton, calls `wms_transition_manifest(..., 'cancelled')`, and asserts (i) manifest → `cancelled`, (ii) `wms_pack_cartons.manifest_id` cleared, (iii) every prior `load` task → `cancelled`, (iv) at least one `warehouse.wave.reopened` outbox row for the wave id.
 
-- Mobile `MobileDispatch` (`useOfflineOutbox.enqueue`) shows the same shortage toast — inherits the RPC error but the wording is generic.
-- E2E `e2e/wms/pick-pack-dispatch.spec.ts` negative branch (dispatch with N-1 loaded → `WMS_SCAN_SHORTAGE`) + cancel branch (assert one `warehouse.wave.reopened` row per wave + load tasks → `cancelled`).
+**Exit criteria.** 29 guard files / 108 tests green ✅; typecheck clean ✅; E2E spec added and typechecks ✅.
 
-**Exit criteria.** 29 guard files / 108 tests green ✅. E2E extension deferred to a follow-up turn (requires seed builder for a full wave→pack→partial-load flow).
 
 
 
