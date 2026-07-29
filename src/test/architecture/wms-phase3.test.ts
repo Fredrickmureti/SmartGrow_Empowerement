@@ -17,6 +17,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { checkRpcOwnership, pageCallsRpc } from "./wmsGuardUtils";
+
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
