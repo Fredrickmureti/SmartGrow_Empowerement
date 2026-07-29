@@ -269,10 +269,13 @@ export default function PickList() {
                       size="sm"
                       disabled={complete.isPending}
                       onClick={() =>
-                        complete.mutate({
-                          id: matched.id,
-                          qty: Number(pickedQty[matched.id] ?? matched.quantity ?? 0),
-                        })
+                        complete.mutate(
+                          {
+                            taskId: matched.id,
+                            pickedQty: Number(pickedQty[matched.id] ?? matched.quantity ?? 0),
+                          },
+                          { onSuccess: onPickSuccess },
+                        )
                       }
                     >
                       <Check className="h-3.5 w-3.5 mr-1" /> Confirm pick
@@ -331,7 +334,7 @@ export default function PickList() {
                           size="sm"
                           variant={isMatch ? "default" : "outline"}
                           disabled={complete.isPending}
-                          onClick={() => complete.mutate({ id: t.id, qty: Number(val || 0) })}
+                          onClick={() => complete.mutate({ taskId: t.id, pickedQty: Number(val || 0) }, { onSuccess: onPickSuccess })}
                         >
                           <Check className="h-3.5 w-3.5 mr-1" /> Confirm
                         </Button>
