@@ -135,6 +135,7 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.wave.packing` | packing underway | pack station |
 | `warehouse.wave.packed` | ready to stage | loading board |
 | `warehouse.wave.cancelled` | wave withdrawn | wave board |
+| `warehouse.wave.reopened` | manifest cancel released reservations — planner may re-allocate | wave planner, labour |
 
 ### Loading manifests — `wms_loading_manifests` (trigger)
 
