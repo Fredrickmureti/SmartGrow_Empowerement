@@ -27,11 +27,25 @@ No false or partial claims found this round. **Genuine resume point = Phase 3.6.
 
 ### Still open (next agent picks up here)
 
-1. **Retire in-body emissions from legacy task RPCs** (`assign_wms_task`, `complete_pick_task`, etc.) so `wms_transition_task` + trigger are the single producer — audit with a `pg_proc`-based extension of `wms-outbox-parity` before deleting bodies.
-2. **Mobile RF `/wms/mobile/next`** route that calls `wms_claim_next_task` and routes to the right capture screen by `task_type`.
-3. **Realtime device fan-out** — extend `useWmsRealtimeSync` to subscribe to `warehouse.task.assigned` on `business_event_outbox` (or `wms_tasks` filtered by `assignee_user_id=eq.<me>`) and notify the owner device.
-4. **Playwright** `e2e/wms/labour-claim.spec.ts` — two contexts race `wms_claim_next_task`, assert one-and-only-one winner + both receive their own `warehouse.task.assigned` event.
+### Round 5 closes Phase 3.6
+
+1. **Legacy in-body task emissions are gone** — audited migration `20260729092007`; `_wms_strip_emit` already excised `emit_business_event` / direct outbox inserts from `assign_wms_task`, `claim_pick_task`, `complete_pick_task`, `complete_pack_task`, `complete_putaway_task`. Pinned by extending `wms-outbox-parity.test.ts` `TRIGGER_OWNED_RPCS` with `assign_wms_task` + `claim_pick_task`; the FSM RPCs (`wms_transition_task`, `wms_transition_lpn`, `wms_claim_next_task`) were already covered. `_wms_emit_task_event` is now the single producer for every `warehouse.task.*` topic.
+2. **Mobile RF next-task** — shipped in Round 4 at `/warehouse/mobile/next`.
+3. **Realtime device fan-out** — `useWmsRealtimeSync` now opens a per-user channel `user-<uid>-wms-tasks` that filters `wms_tasks` on `assignee_user_id=eq.<me>`. Leading-edge `assigned` transitions pop a `useToast` notification ("New warehouse task assigned · PICK · tap Next Task to start"). De-dupes per `${task_id}:${state}` with a 200-entry rolling set so a re-render or reconnect can't spam the operator. Channel is scoped to `user?.id` (torn down on sign-out only), independent of the org-scoped WMS channel so a business switch doesn't drop assignment toasts.
+4. **Playwright race spec** — `e2e/wms/labour-claim.spec.ts`: two browser contexts race `wms_claim_next_task` in parallel against 4 seeded pick tasks, then assert (a) winners are distinct, (b) both winners belong to the seeded set, (c) exactly one `warehouse.task.assigned` outbox row exists per winning `source_doc_id` (single-producer proof).
 5. **Cascade gap left as-is:** `mark_trailer_no_show` does not cancel open `load` tasks — `wms_loading_manifests` has no `trailer_visit_id` column, so linkage would need a new column or route through `wms_dock_appointments`. Deferred until Phase 3.7 loading-manifest hardening.
+
+**Phase 3.6 exit:** WMS guard suite **27 files / 103 tests green** (`bunx vitest run src/test/architecture/wms-`). Type-check clean. Phase 3.6 is now officially closed.
+
+### Handoff to the next agent
+
+**Verify first (don't just trust the ledger):**
+1. `bunx vitest run src/test/architecture/wms-` — must stay 27/103 green.
+2. `rg -n "PERFORM\s+public\._wms_emit_event" supabase/migrations/ | rg -v "^supabase/migrations/(20260729085747|20260729090006|20260729143131|20260729130352|20260729130803|20260729124818)"` — confirm no NEW in-body emitters have appeared in later migrations for `assign_wms_task` / `complete_pick_task` / `complete_pack_task` / `complete_putaway_task` / `claim_pick_task`. Only the FSM RPCs and the AFTER triggers may emit.
+3. Spot-check: open `LabourBoard`, confirm the "Live labour queue" panel renders with SLA/unassigned badges and 15 s refetch; open `/warehouse/mobile/next` on a device, confirm the "Claim next task" button routes to the correct capture surface for the returned `task_type`.
+4. (Optional against a real Supabase env) drive `e2e/wms/labour-claim.spec.ts` — must land exactly one `warehouse.task.assigned` outbox row per claimed task.
+
+**Resume point:** Phase 3.7 — Wave / Pick / Pack / Dispatch hardening (see below). Do **not** jump into Phase 4 UX; Phase 3.7 replaces empty e2e scaffolds and adds the scan-out enforcement + cancellation cascade before UX polish.
 
 ### Also landed this round
 
