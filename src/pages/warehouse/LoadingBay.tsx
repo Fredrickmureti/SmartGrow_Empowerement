@@ -85,6 +85,26 @@ export default function LoadingBay() {
     },
   });
 
+  // Phase 3.7 §4 — scan-out preview. If any sealed carton for the manifest's
+  // (wave, SO) pairs is missing, `dispatch_loading_manifest` refuses; show
+  // the gap to the operator so they can go finish loading before hitting the
+  // dispatch button.
+  const { data: shortCartonIds } = useQuery({
+    queryKey: ["wms-manifest-shortage", manifestId],
+    enabled: !!manifestId && manifest?.state !== "dispatched",
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("wms_manifest_short_cartons", { p_manifest_id: manifestId! });
+      if (error) throw error;
+      return (data ?? []) as string[];
+    },
+    refetchInterval: 15_000,
+  });
+  const shortCount = shortCartonIds?.length ?? 0;
+  const loadedCount = (loaded ?? []).length;
+  const scannedPct = loadedCount + shortCount === 0
+    ? 100
+    : Math.round((loadedCount / (loadedCount + shortCount)) * 100);
+
   const loadedIds = useMemo(() => new Set((loaded ?? []).map((l) => l.carton?.id).filter(Boolean) as string[]), [loaded]);
 
   const load = useLoadCartonOntoManifest(manifestId);
@@ -95,7 +115,15 @@ export default function LoadingBay() {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Manifest closed"); qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] }); },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Close failed"),
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("WMS_SCAN_SHORTAGE")) {
+        toast.error("Cannot close: sealed cartons are missing from this manifest.");
+        qc.invalidateQueries({ queryKey: ["wms-manifest-shortage", manifestId] });
+        return;
+      }
+      toast.error(msg || "Close failed");
+    },
   });
 
   const dispatch = useDispatchManifest(manifestId);
@@ -111,9 +139,11 @@ export default function LoadingBay() {
   if (isLoading) return <LoadingState />;
   if (!manifest) return <EmptyState icon={Truck} title="Manifest not found" action={<Button asChild><Link to="/warehouse-app/dispatch">Back</Link></Button>} />;
 
+  const isComplete = shortCount === 0;
   const canLoad = manifest.state === "loading";
-  const canClose = manifest.state === "loading";
-  const canDispatch = manifest.state === "loading" || manifest.state === "closed";
+  const canClose = manifest.state === "loading" && isComplete;
+  const canDispatch = (manifest.state === "loading" || manifest.state === "closed") && isComplete;
+
 
   return (
     <>
