@@ -5,10 +5,12 @@
  * All transitions go through `wms_transition_receiving` — FSM-guarded,
  * row_version optimistic, emits `warehouse.receiving.*` to outbox.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
+import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
 import {
   PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
 } from "@/design-system";
@@ -151,6 +153,89 @@ export default function ReceivingSessions() {
     () => (stateFilter === "open_all" ? "No open receiving sessions" : "No sessions match these filters"),
     [stateFilter],
   );
+
+  // Phase 2.1 — WMS scan intents.
+  // The topmost `open` session receives `receiving.lpn` scans (start unloading);
+  // the topmost `unloading` session receives `receiving.item` scans (mark captured).
+  // Ambiguous state (0 or >1 candidates) reports the scan as unexpected so the
+  // operator gets audio+haptic feedback instead of a silent no-op.
+  const openSessions = useMemo(
+    () => (rows ?? []).filter((r) => r.state === "open"),
+    [rows],
+  );
+  const unloadingSessions = useMemo(
+    () => (rows ?? []).filter((r) => r.state === "unloading"),
+    [rows],
+  );
+
+  const handleLpnScan = useCallback(
+    (p: WmsScanPayload) => {
+      if (openSessions.length !== 1) {
+        scanFeedbackBus.emit({
+          kind: "error",
+          raw: p.raw,
+          source: "field",
+          workflow: "receive",
+          detail:
+            openSessions.length === 0
+              ? "No open receiving session — create one first"
+              : "Multiple open sessions — pick one before scanning",
+        });
+        return;
+      }
+      const target = openSessions[0];
+      transition.mutate(
+        { id: target.id, to: "unloading", rowVersion: target.row_version, reason: `LPN ${p.resolveCode}` },
+        {
+          onSuccess: () =>
+            toast.success(`Unloading ${target.code}`, { description: `LPN ${p.resolveCode}` }),
+        },
+      );
+    },
+    [openSessions, transition],
+  );
+
+  const handleItemScan = useCallback(
+    (p: WmsScanPayload) => {
+      if (unloadingSessions.length !== 1) {
+        scanFeedbackBus.emit({
+          kind: "error",
+          raw: p.raw,
+          source: "field",
+          workflow: "receive",
+          detail:
+            unloadingSessions.length === 0
+              ? "No session unloading — scan an LPN to start"
+              : "Multiple sessions unloading — pick one before scanning items",
+        });
+        return;
+      }
+      const target = unloadingSessions[0];
+      transition.mutate(
+        { id: target.id, to: "captured", rowVersion: target.row_version, reason: `Item ${p.resolveCode}` },
+        {
+          onSuccess: () =>
+            toast.success(`Captured on ${target.code}`, {
+              description: p.isGs1
+                ? `GTIN ${p.gs1.gtin ?? p.resolveCode}${p.gs1.lot ? ` · lot ${p.gs1.lot}` : ""}${p.gs1.expiry ? ` · exp ${p.gs1.expiry}` : ""}`
+                : p.resolveCode,
+            }),
+        },
+      );
+    },
+    [unloadingSessions, transition],
+  );
+
+  useWmsScanIntent({
+    intent: "receiving.lpn",
+    onScan: handleLpnScan,
+    label: "receiving-sessions.lpn",
+  });
+  useWmsScanIntent({
+    intent: "receiving.item",
+    onScan: handleItemScan,
+    label: "receiving-sessions.item",
+  });
 
   const nextActions = (r: SessionRow) => {
     const t = (to: RcvState, reason?: string) =>
