@@ -220,20 +220,7 @@ export default function MobileDispatch() {
           <div className="text-xs mt-1">State: {manifest.state}</div>
         </div>
 
-        {(manifest.state === "loading" || manifest.state === "closed") && (
-          <div
-            className={
-              "rounded border p-3 text-sm " +
-              (hasShortage
-                ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300")
-            }
-          >
-            {hasShortage
-              ? `${shortageCount} sealed carton${shortageCount === 1 ? "" : "s"} still on the floor — Close/Dispatch disabled.`
-              : "All sealed cartons scanned onto this manifest."}
-          </div>
-        )}
+
 
 
         {canLoad && (
