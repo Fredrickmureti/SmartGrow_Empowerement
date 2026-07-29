@@ -163,6 +163,25 @@ export default function LoadingBay() {
         }
       />
       <PageBody>
+        {manifest.state !== "dispatched" && (
+          <Section title={`Scan-out progress · ${scannedPct}%`}
+            description={isComplete
+              ? "All sealed cartons for this manifest's waves are loaded."
+              : `${shortCount} sealed carton(s) still missing — dispatch is blocked until every one is loaded.`}>
+            <Card><CardContent className="p-4">
+              <div className="h-2 w-full rounded bg-muted overflow-hidden">
+                <div
+                  className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
+                  style={{ width: `${scannedPct}%` }}
+                />
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Loaded {loadedCount} · Missing {shortCount}
+              </div>
+            </CardContent></Card>
+          </Section>
+        )}
+
         {canLoad && (
           <Section title="Scan carton LPN">
             <Card><CardContent className="p-4 flex gap-2 items-end">
