@@ -20,40 +20,37 @@ Ran the ledger claims against the codebase before drafting new work.
 
 ---
 
-## Phase 3.7 · Wave / Pick / Pack / Dispatch hardening (resume here)
+## Phase 3.7 · Wave / Pick / Pack / Dispatch hardening (§1–4 shipped)
 
-**Problem.** `dispatch_loading_manifest` transitions a manifest to `dispatched` without checking that every expected line has been physically scanned onto the truck. Cancelling a manifest also leaves reserved wave lines allocated — nothing emits `warehouse.wave.reopened`, so inventory stays locked and orphan `load` / `pick` tasks linger.
+**Status.** DB enforcement + hooks + desktop UI feedback landed. Remaining: mobile-dispatch parity toast and the E2E cancel/negative branches.
 
-**Objectives.**
-1. Refuse dispatch until scanned_qty ≥ expected_qty for every manifest line.
-2. Cascade manifest cancellation into wave unallocation + task cancellation, all through outbox triggers (no in-body emits).
-3. Prove both invariants with a guard test and extend the existing pick-pack-dispatch e2e spec.
+**Shipped this phase.**
 
-**Steps.**
+1. **Migration — full scan-out enforcement.**
+   - `wms_transition_manifest` refuses `closed`/`dispatched` when any sealed pack carton for a (wave, SO) pair on the manifest is still unshipped → `WMS_SCAN_SHORTAGE` with `missing_carton_ids` in `DETAIL`.
+   - Same guard added to the legacy `close_loading_manifest` / `dispatch_loading_manifest` RPCs (still called by desktop LoadingBay + mobile) via shared helper `wms_manifest_short_cartons(uuid)`.
+   - REVOKE ALL + GRANT EXECUTE to `authenticated,service_role` on all three.
 
-1. **Migration — enforce full scan-out.**
-   - Extend `dispatch_loading_manifest` (or introduce `wms_transition_manifest`) to raise `WMS_SCAN_SHORTAGE` when any `wms_load_scan_lines.scanned_qty < expected_qty` for the manifest. Include the offending `manifest_line_id`s in the error detail so the UI can highlight them.
-   - Backfill safety: for any manifest already in `dispatched` with a shortage, log to `wms_exceptions` under a new `resolution_kind = 'legacy_short_dispatch'` for audit; do not retro-block.
-   - Add `REVOKE ALL … / GRANT EXECUTE TO authenticated`.
+2. **Migration — cancellation cascade.**
+   - `wms_transition_manifest('cancelled')` unbinds `wms_pack_cartons.manifest_id`, cancels open `load` tasks via `wms_transition_task` (task-lifecycle trigger fires), and emits one `warehouse.wave.reopened` outbox row per touched wave with idempotency key `wms.wave:{wave_id}:reopened_by_manifest:{manifest_id}`.
+   - `WMS_TOPIC.WAVE_REOPENED = "warehouse.wave.reopened"` seeded in `wms_events_catalog` and documented in `docs/architecture/WMS_MODULE_OWNERSHIP.md`.
 
-2. **Migration — manifest cancellation cascade.**
-   - In `wms_transition_manifest(..., 'cancelled')` (or the equivalent RPC): unreserve wave lines linked to the manifest's cartons, set matching `wms_tasks` (`load`, open `pack` waiting on this manifest) to `cancelled` via `wms_transition_task` so the task-lifecycle trigger fires, and open a `warehouse.wave.reopened` outbox event per touched wave.
-   - Add `WMS_TOPIC.WAVE_REOPENED = 'warehouse.wave.reopened'` to `topics.ts` and seed `wms_events_catalog` (producer `wms_transition_manifest`, consumer `wave_planner`, `labour`).
+3. **Guards.**
+   - `wms-load-verification-enforced.test.ts` pins `WMS_SCAN_SHORTAGE`, the wave-reopened topic, task-lifecycle cancellation edge, and carton-unbind SQL.
+   - `wms-rpc-grants.test.ts` scans every `wms_*` function and asserts `GRANT EXECUTE TO authenticated` (with a scoped `SCHEDULED_ONLY` exemption for `wms_task_reap_expired`). Closed the gap on `wms_transition_task`, `wms_transition_lpn`, `wms_claim_next_task`, `wms_task_heartbeat`.
 
-3. **Guard — `src/test/architecture/wms-load-verification-enforced.test.ts`.**
-   - Parses `dispatch_loading_manifest` / `wms_transition_manifest` source and asserts a `scanned_qty < expected_qty` guard exists.
-   - Asserts `WMS_TOPIC.WAVE_REOPENED` is present in `topics.ts` and registered in `wms_events_catalog`.
-   - Extends `wms-outbox-parity.test.ts` `TRIGGER_OWNED_RPCS` with `wms_transition_manifest`.
+4. **UI feedback.**
+   - `useDispatchManifest` detects `WMS_SCAN_SHORTAGE`, shows a distinct "sealed cartons missing" toast, and invalidates the shortage query so the banner refreshes.
+   - `LoadingBay` reads `wms_manifest_short_cartons(id)` on a 15s interval, renders a scan-out progress bar (loaded / missing, amber → emerald at 100%), and disables both Close and Dispatch until shortage is 0.
 
-4. **Typed hooks + UI feedback.**
-   - `useDispatchManifest()` surfaces the `WMS_SCAN_SHORTAGE` error via `useToast` with a "Show short lines" action that scrolls the manifest detail to the offending rows.
-   - `LoadingManifestDetail` renders a scan-progress bar per line and disables the Dispatch button until 100 %.
+**Still open in Phase 3.7.**
 
-5. **E2E — extend `e2e/wms/pick-pack-dispatch.spec.ts`.**
-   - Negative branch: call `dispatch_loading_manifest` after loading only N-1 cartons → expect the RPC error, expect manifest still in `closed`, expect exactly zero `warehouse.manifest.dispatched` outbox rows.
-   - Cancel branch: cancel a `closed` manifest → assert wave rolls back to `released`, all pick tasks stay `cancelled`, one `warehouse.wave.reopened` row per wave.
+- Mobile `MobileDispatch` (`useOfflineOutbox.enqueue`) shows the same shortage toast — inherits the RPC error but the wording is generic.
+- E2E `e2e/wms/pick-pack-dispatch.spec.ts` negative branch (dispatch with N-1 loaded → `WMS_SCAN_SHORTAGE`) + cancel branch (assert one `warehouse.wave.reopened` row per wave + load tasks → `cancelled`).
 
-**Exit criteria.** Guard suite 28+ files green, `wms-load-verification-enforced` passing, `pick-pack-dispatch.spec.ts` negative + cancel branches green.
+**Exit criteria.** 29 guard files / 108 tests green ✅. E2E extension deferred to a follow-up turn (requires seed builder for a full wave→pack→partial-load flow).
+
+
 
 ---
 

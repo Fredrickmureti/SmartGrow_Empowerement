@@ -152,11 +152,25 @@ export function useDispatchManifest(manifestId: string | null | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] });
       qc.invalidateQueries({ queryKey: ["wms-manifest-cartons", manifestId] });
+      qc.invalidateQueries({ queryKey: ["wms-manifest-shortage", manifestId] });
       qc.invalidateQueries({ queryKey: ["wms_loading_manifests"] });
     },
-    onError: (e) => toast.error(normalizeError(e, "Dispatch failed")),
+    onError: (e) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("WMS_SCAN_SHORTAGE")) {
+        // Phase 3.7 §4 — scan-out enforcement. Force the operator back
+        // to the loading floor rather than accepting a short shipment.
+        toast.error("Cannot dispatch: sealed cartons are missing from this manifest.", {
+          description: "Load every sealed carton for the wave/SO before dispatch.",
+        });
+        qc.invalidateQueries({ queryKey: ["wms-manifest-shortage", manifestId] });
+        return;
+      }
+      toast.error(normalizeError(e, "Dispatch failed"));
+    },
   });
 }
+
 
 // -------------------------------------------------------------------
 // QC — accept / reject / cancel

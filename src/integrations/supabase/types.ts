@@ -88384,6 +88384,10 @@ export type Database = {
         }
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
+      wms_manifest_short_cartons: {
+        Args: { p_manifest_id: string }
+        Returns: string[]
+      }
       wms_raise_exception: {
         Args: {
           p_aggregate_id?: string
