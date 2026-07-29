@@ -65698,12 +65698,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           grn_id: string
-          grn_line_id: string
+          grn_line_id: string | null
           id: string
           matched_at: string
           organization_id: string
           product_id: string
           quantity: number
+          receiving_line_id: string | null
           sales_order_id: string | null
           sales_order_item_id: string | null
           stage_task_id: string | null
@@ -65720,12 +65721,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           grn_id: string
-          grn_line_id: string
+          grn_line_id?: string | null
           id?: string
           matched_at?: string
           organization_id: string
           product_id: string
           quantity: number
+          receiving_line_id?: string | null
           sales_order_id?: string | null
           sales_order_item_id?: string | null
           stage_task_id?: string | null
@@ -65742,12 +65744,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           grn_id?: string
-          grn_line_id?: string
+          grn_line_id?: string | null
           id?: string
           matched_at?: string
           organization_id?: string
           product_id?: string
           quantity?: number
+          receiving_line_id?: string | null
           sales_order_id?: string | null
           sales_order_item_id?: string | null
           stage_task_id?: string | null
@@ -65777,6 +65780,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "goods_receipt_lines_with_suspect_cost"
             referencedColumns: ["goods_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_receiving_line_id_fkey"
+            columns: ["receiving_line_id"]
+            isOneToOne: false
+            referencedRelation: "wms_receiving_lines"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wms_crossdock_opportunities_sales_order_id_fkey"
@@ -77221,12 +77231,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           grn_id: string
-          grn_line_id: string
+          grn_line_id: string | null
           id: string
           matched_at: string
           organization_id: string
           product_id: string
           quantity: number
+          receiving_line_id: string | null
           sales_order_id: string | null
           sales_order_item_id: string | null
           stage_task_id: string | null
@@ -78131,12 +78142,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           grn_id: string
-          grn_line_id: string
+          grn_line_id: string | null
           id: string
           matched_at: string
           organization_id: string
           product_id: string
           quantity: number
+          receiving_line_id: string | null
           sales_order_id: string | null
           sales_order_item_id: string | null
           stage_task_id: string | null
@@ -79987,6 +79999,10 @@ export type Database = {
         Returns: Json
       }
       evaluate_crossdock_on_grn: { Args: { p_grn_id: string }; Returns: number }
+      evaluate_crossdock_on_receiving_line: {
+        Args: { p_line_id: string }
+        Returns: number
+      }
       evaluate_missing_je_drift_alerts: { Args: never; Returns: Json }
       evaluate_payroll_readiness: {
         Args: {
