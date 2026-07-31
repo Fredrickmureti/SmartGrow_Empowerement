@@ -48,10 +48,23 @@ export function pageSource(fileName: string): string {
   return readFileSync(path.join(SRC, "pages/warehouse", fileName), "utf8");
 }
 
+/**
+ * A sanctioned domain RPC may be issued either directly (`supabase.rpc`)
+ * or — since Phase 5.1 — through the replay-guarded dispatcher seam
+ * `replayGuardedCall()`, which stamps a client_scan_id so a retried or
+ * double-clicked mutation is deduped server-side. Both are the same
+ * "call site" for ownership purposes.
+ */
+function callSiteRe(rpc: string, flags = ""): RegExp {
+  return new RegExp(
+    `(?:supabase\\.rpc|replayGuardedCall(?:<[^>]*>)?)\\(\\s*\\n?\\s*["'\`]${rpc}["'\`]`,
+    flags,
+  );
+}
+
 /** True when the RPC is invoked exactly once, from the wrapper layer. */
 export function rpcCallSitesInWrapperLayer(rpc: string): number {
-  const re = new RegExp(`supabase\\.rpc\\(\\s*["'\`]${rpc}["'\`]`, "g");
-  return (wrapperLayerSource().match(re) ?? []).length;
+  return (wrapperLayerSource().match(callSiteRe(rpc, "g")) ?? []).length;
 }
 
 /**
@@ -88,5 +101,5 @@ export function checkRpcOwnership(page: string, hook: string, rpc: string): stri
  * RPCs that are not on the `wms-no-direct-domain-rpc` ban list).
  */
 export function pageCallsRpc(page: string, rpc: string): boolean {
-  return new RegExp(`rpc\\(\\s*["'\`]${rpc}["'\`]`).test(pageSource(page));
+  return callSiteRe(rpc).test(pageSource(page));
 }
