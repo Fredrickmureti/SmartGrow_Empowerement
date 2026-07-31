@@ -1,10 +1,14 @@
 /**
  * Typed WMS domain-operation wrappers (ADR 0101 — Phase 2.4 §3).
  *
+ * Phase 5.1: every mutating call here dispatches through
+ * `replayGuardedCall()` so a double-click, a React-Query retry, or a
+ * resubmitted form can never apply the same quantity movement twice.
+ *
  * These hooks wrap the sanctioned domain RPCs that perform lifecycle
  * transitions *plus* side effects (task fan-out, stock reservation,
  * LPN status flips, adjustment posting, outbox emits). Pages must
- * consume these hooks — direct `supabase.rpc("release_pick_wave", …)`
+ * consume these hooks — direct domain-RPC calls from pages
  * calls from `src/pages/**` are forbidden and enforced by the
  * `wms-no-direct-domain-rpc.test.ts` architecture guard.
  *
