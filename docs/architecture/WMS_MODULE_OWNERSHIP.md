@@ -178,6 +178,7 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.trailer.docked` | trailer at a dock | yard board, loading board |
 | `warehouse.trailer.departed` | trailer left | yard board, 3PL billing (dwell) |
 | `warehouse.trailer.no_show` | trailer abandoned before docking | yard board, appointments |
+| `warehouse.labour.reclaimed` | no-show cancelled the trailer's open manifests, releasing their `load` tasks | labour/task boards, 3PL billing |
 
 ### Dock appointments — `wms_dock_appointments` (in-body)
 
