@@ -58,6 +58,25 @@ const REQUIRED_BYPASS_TRIGGERS = [
   "payroll_runs_paid_path_guard",
   "payslips_paid_path_guard",
   "payroll_remittances_read_only_guard",
+  // Wave G3 — append-only history tables + period/lifecycle guards that
+  // fire on DELETE. These aborted "Wipe All Transactional Data" with
+  // errors like "loan_lifecycle_events is append-only" (2026-07-31).
+  "loan_lifecycle_events_immutable",
+  "tg_loan_skip_override_events_immutable",
+  "attendance_events_block_mutation",
+  "payslip_events_forbid_mutation",
+  "tg_prevent_locked_timesheet_mutation",
+  "payroll_periods_guard",
+  "trg_guard_payroll_runs_period",
+  "trg_guard_payroll_return_runs_period",
+  "trg_guard_payroll_bank_export_files_period",
+  "tg_prlso_no_destructive_delete",
+  "tg_prlso_protect_terminal",
+  "salary_components_freeze_when_used",
+  "assert_no_branch_context_for_period_mutation",
+  "check_payment_allocation_sum",
+  "check_bill_payment_allocation_sum",
+  "_pc_immutable_after_post",
 ];
 
 describe("Teardown-context guard (Wave 1)", () => {
