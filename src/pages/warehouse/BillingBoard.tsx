@@ -214,6 +214,33 @@ export default function BillingBoard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /**
+   * Phase 5.4 — storage is time-based, so it can never arrive on the event
+   * outbox. `wms_accrue_storage_days` snapshots occupying license plates for
+   * a given day and writes one `storage_lpn_day` line per warehouse. The RPC
+   * is idempotent, so re-running for the same day is a no-op.
+   */
+  const accrueStorage = useMutation({
+    mutationFn: async (asOf: string) => {
+      if (!currentBusiness?.id) throw new Error("No active business");
+      const { data, error } = await supabase.rpc("wms_accrue_storage_days", {
+        p_business_id: currentBusiness.id,
+        p_as_of: asOf,
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (n) => {
+      toast.success(
+        n === 0
+          ? "Storage already accrued for that date"
+          : `Accrued storage for ${n} warehouse${n === 1 ? "" : "s"}`,
+      );
+      qc.invalidateQueries({ queryKey: ["wms-billable-summary"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const generateInvoice = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id) throw new Error("No active business");
