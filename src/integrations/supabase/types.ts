@@ -88411,6 +88411,10 @@ export type Database = {
           work_entry_type_id: string
         }[]
       }
+      wms_accrue_storage_days: {
+        Args: { p_as_of?: string; p_business_id: string }
+        Returns: number
+      }
       wms_apply_gr_stock: {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
