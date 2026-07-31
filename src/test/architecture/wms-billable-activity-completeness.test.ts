@@ -56,7 +56,7 @@ describe("3PL billable activity completeness", () => {
       // Producer = the activity string appears on the right-hand side of a
       // mapper branch, or is inserted by an accrual function.
       const mapped = new RegExp(`THEN\\s+'${a}'`).test(sql);
-      const accrued = new RegExp(`'${a}'[^\\n]*--|,\\s*'${a}',`).test(sql);
+      const accrued = new RegExp(`,\\s*'${a}',`).test(sql);
       return !mapped && !accrued;
     });
 
