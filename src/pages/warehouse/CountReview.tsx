@@ -5,7 +5,7 @@
  * adjustment RPC. The client never touches `stock_quants` directly.
  */
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOperations";
@@ -13,6 +13,7 @@ import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, CheckCircle2, ClipboardCheck } from "lucide-react";
+import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 
 interface Line {
   id: string;
@@ -27,6 +28,7 @@ interface Line {
 export default function CountReview() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const nav = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: session, isLoading } = useQuery({
     queryKey: ["wms-count-session", sessionId],
@@ -34,7 +36,7 @@ export default function CountReview() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_count_sessions")
-        .select("id, code, state, posted_at")
+        .select("id, code, state, row_version, posted_at")
         .eq("id", sessionId!)
         .maybeSingle();
       if (error) throw error;
@@ -92,6 +94,18 @@ export default function CountReview() {
             <Button variant="outline" asChild>
               <Link to={`/warehouse-app/counts/${sessionId}`}><ArrowLeft className="h-4 w-4 mr-2" /> Back to counting</Link>
             </Button>
+            <CancelAggregateButton
+              aggregate="count"
+              id={session.id}
+              rowVersion={session.row_version}
+              state={session.state}
+              size="default"
+              variant="outline"
+              onCancelled={() => {
+                queryClient.invalidateQueries({ queryKey: ["wms-count-session", sessionId] });
+                nav("/warehouse-app/counts");
+              }}
+            />
             <Button disabled={!canPost || post.isPending} onClick={handlePost}>
               <CheckCircle2 className="h-4 w-4 mr-2" /> Post {variances.length} variance{variances.length === 1 ? "" : "s"}
             </Button>
