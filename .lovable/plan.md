@@ -37,8 +37,15 @@ Every quantity- or state-mutating desktop RPC is now idempotent under double-cli
 - Guard: `src/test/architecture/wms-noshow-labour-reclaim.test.ts` (6 assertions) pins the cascade shape, the reclaim payload, and topic registration. 32 WMS guard files / 139 tests green; typecheck clean.
 - Remaining: Playwright `yard-no-show.spec.ts` still to be written (tracked under Phase 6 E2E).
 
-### 5.3 Orphan-module guard
-- `src/test/architecture/wms-no-orphan-modules.test.ts`: fail when any file under `src/features/warehouse/**` has no importer outside `src/test/**`. Fix or delete whatever it flags rather than allow-listing.
+### 5.3 Orphan-module guard — DONE
+- `src/test/architecture/wms-no-orphan-modules.test.ts`: builds the real import graph over `src/**` (static, re-export and dynamic imports; `@/` + relative resolution) and fails when any file under `src/features/warehouse/**` has no importer outside `src/test/**`. No allow-list by design.
+- Orphan found and fixed rather than deleted: `aggregates/useAggregateTransitions.ts` (typed `wms_transition_*` FSM hooks, ADR 0101) had zero production call sites — no screen could cancel a wave, manifest or count session even though the server supported it.
+- New shared UI seam `src/features/warehouse/aggregates/CancelAggregateButton.tsx`: mandatory reason, per-aggregate consequence copy, hides itself when the FSM has no `cancelled` edge from the current state, passes `row_version` so concurrent supervisors get a typed conflict instead of a lost update.
+- Mounted on `WavePlanner.tsx`, `LoadingManifests.tsx` and `CountReview.tsx`; those queries now select `row_version` and invalidate on success.
+- Evidence: 33 WMS guard files / 142 tests green; orphan scan returns empty; typecheck clean.
+
+### CURRENTLY ACTIVE → 5.4 3PL billing event coverage
+
 
 ### 5.4 3PL billing event coverage
 - Enumerate the billable activities (receipt lines, storage days, picks, packs, shipments) and confirm each emits a topic that `BillingBoard` consumes; where a topic is missing, add the trigger emission and a topic-catalog entry.
@@ -65,4 +72,11 @@ Every quantity- or state-mutating desktop RPC is now idempotent under double-cli
 
 ## Order of work
 
-Step 0 → 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → Phase 6 in listed order, updating `.lovable/plan.md` with evidence after each item.
+Step 0 → 5.1 ✅ → 5.2 ✅ → 5.3 ✅ → **5.4 (next)** → 5.5 → Phase 6 in listed order, updating `.lovable/plan.md` with evidence after each item.
+
+## Instructions for the next agent
+
+1. **Verify 5.3 before extending anything.** Run `bunx vitest run $(ls src/test/architecture/wms-*.test.ts)` (expect 33 files / 142 tests) and `bunx tsgo --noEmit -p tsconfig.json`. Then open Wave Planner, Loading Manifests and Count Review in the preview and confirm Cancel appears only in cancellable states, requires a reason, and that a stale `row_version` surfaces a conflict rather than silently winning.
+2. **Then resume at 5.4**, not elsewhere: enumerate billable activities, confirm each emits a topic `BillingBoard` consumes, add missing trigger emissions plus catalog rows, and extend `wms-topic-catalog-sync.test.ts` with a billable-topic completeness assertion.
+3. Keep the execution rules above: no direct `state` writes, no in-body event emission, no partially wired features, and record real command output as evidence in this file after each item.
+

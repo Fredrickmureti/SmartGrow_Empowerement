@@ -3,17 +3,19 @@
  * mutation lives in the planner / loading bay pages via sanctioned RPCs.
  */
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
+import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 
 interface Manifest {
   id: string;
   code: string;
   state: string;
+  row_version: number;
   planned_departure_at: string | null;
   dispatched_at: string | null;
   created_at: string;
@@ -21,12 +23,13 @@ interface Manifest {
 }
 
 export default function LoadingManifests() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["wms-manifests"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_loading_manifests")
-        .select("id, code, state, planned_departure_at, dispatched_at, created_at, dock:dock_id(code, name)")
+        .select("id, code, state, row_version, planned_departure_at, dispatched_at, created_at, dock:dock_id(code, name)")
         .order("created_at", { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -60,7 +63,14 @@ export default function LoadingManifests() {
                       <td className="p-2">{m.dock?.code ?? "—"}</td>
                       <td className="p-2"><StatusBadge tone={m.state === "dispatched" ? "success" : m.state === "cancelled" ? "warning" : "info"}>{m.state}</StatusBadge></td>
                       <td className="p-2 text-muted-foreground">{new Date(m.created_at).toLocaleString()}</td>
-                      <td className="p-2 text-right">
+                      <td className="p-2 text-right space-x-2 whitespace-nowrap">
+                        <CancelAggregateButton
+                          aggregate="manifest"
+                          id={m.id}
+                          rowVersion={m.row_version}
+                          state={m.state}
+                          onCancelled={() => qc.invalidateQueries({ queryKey: ["wms-manifests"] })}
+                        />
                         <Button size="sm" variant="outline" asChild>
                           <Link to={`/warehouse-app/dispatch/${m.id}`}>Open</Link>
                         </Button>
