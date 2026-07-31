@@ -78,11 +78,11 @@ describe("3PL billable activity completeness", () => {
   it("task-completion events carry the task_type the mapper branches on", () => {
     // The mapper prices putaway/pick/pack off `payload->>'task_type'`;
     // an emitter that omits it silently drops billable work on the floor.
-    const sql = migrationsText((s) =>
-      s.includes("'warehouse.task.completed'"),
-    );
-    expect(sql).toMatch(/jsonb_build_object\(\s*'task_type'/);
+    const sql = migrationsText((s) => s.includes("_wms_emit_task_event"));
+    expect(sql).toMatch(/'warehouse\.task\.'\s*\|\|/);
+    expect(sql).toMatch(/jsonb_build_object\(\s*'task_type',/);
   });
+
 
   it("the accrual is reachable from the BillingBoard UI", () => {
     const src = readFileSync(
