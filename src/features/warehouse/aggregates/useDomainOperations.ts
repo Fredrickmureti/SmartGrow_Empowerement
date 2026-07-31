@@ -13,7 +13,7 @@
  * `wms_transition_<aggregate>` RPCs directly.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 
 function normalizeError(e: unknown, fallback: string) {
@@ -39,16 +39,14 @@ export function useCreateAndReleaseWave() {
     mutationFn: async (input: CreateAndReleaseWaveInput) => {
       if (!input.warehouseId) throw new Error("Pick a warehouse");
       if (input.salesOrderIds.length === 0) throw new Error("Select at least one sales order");
-      const { data, error } = await supabase.rpc("create_pick_wave", {
+      const { data } = await replayGuardedCall<{ wave_id?: string } | null>("create_pick_wave", {
         p_warehouse_id: input.warehouseId,
         p_sales_order_ids: input.salesOrderIds,
         p_notes: input.notes ?? null,
       });
-      if (error) throw error;
-      const waveId = (data as { wave_id: string } | null)?.wave_id;
+      const waveId = data?.wave_id;
       if (!waveId) throw new Error("Wave not created");
-      const { error: e2 } = await supabase.rpc("release_pick_wave", { p_wave_id: waveId });
-      if (e2) throw e2;
+      await replayGuardedCall("release_pick_wave", { p_wave_id: waveId });
       return waveId;
     },
     onSuccess: () => {
@@ -72,12 +70,11 @@ export function useCompletePickTask(waveId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CompletePickTaskInput) => {
-      const { error } = await supabase.rpc("complete_pick_task", {
+      await replayGuardedCall("complete_pick_task", {
         p_task_id: input.taskId,
         p_picked_qty: input.pickedQty,
         p_lpn_id: input.lpnId ?? null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-pick-tasks", waveId] });
@@ -102,12 +99,11 @@ export function useSealCarton(waveId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: SealCartonInput) => {
-      const { error } = await supabase.rpc("seal_pack_carton", {
+      await replayGuardedCall("seal_pack_carton", {
         p_carton_id: input.cartonId,
         p_weight_kg: input.weightKg ?? null,
         p_dims: input.dims ?? null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-pack-cartons", waveId] });
@@ -125,11 +121,10 @@ export function useLoadCartonOntoManifest(manifestId: string | null | undefined)
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (cartonId: string) => {
-      const { error } = await supabase.rpc("load_carton_onto_manifest", {
+      await replayGuardedCall("load_carton_onto_manifest", {
         p_manifest_id: manifestId!,
         p_carton_id: cartonId,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-manifest-cartons", manifestId] });
@@ -143,11 +138,10 @@ export function useDispatchManifest(manifestId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (departureAt?: string | null) => {
-      const { error } = await supabase.rpc("dispatch_loading_manifest", {
+      await replayGuardedCall("dispatch_loading_manifest", {
         p_manifest_id: manifestId!,
         p_departure_at: departureAt ?? null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] });
@@ -179,12 +173,11 @@ export function useAcceptQcInspection(id: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { acceptedQty: number; notes?: string | null }) => {
-      const { error } = await supabase.rpc("accept_qc_inspection", {
+      await replayGuardedCall("accept_qc_inspection", {
         p_inspection_id: id!,
         p_accepted_qty: input.acceptedQty,
         p_notes: input.notes ?? null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
@@ -198,13 +191,12 @@ export function useRejectQcInspection(id: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { rejectedQty: number; disposition: string; notes?: string | null }) => {
-      const { error } = await supabase.rpc("reject_qc_inspection", {
+      await replayGuardedCall("reject_qc_inspection", {
         p_inspection_id: id!,
         p_rejected_qty: input.rejectedQty,
         p_disposition: input.disposition,
         p_notes: input.notes ?? null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
@@ -218,11 +210,10 @@ export function useCancelQcInspection(id: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (reason: string) => {
-      const { error } = await supabase.rpc("cancel_qc_inspection", {
+      await replayGuardedCall("cancel_qc_inspection", {
         p_inspection_id: id!,
         p_reason: reason,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wms-qc-inspection", id] });
@@ -239,10 +230,9 @@ export function usePostCountSession(sessionId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc("post_count_session", {
+      const { data } = await replayGuardedCall("post_count_session", {
         p_session_id: sessionId!,
       });
-      if (error) throw error;
       return data;
     },
     onSuccess: () => {
