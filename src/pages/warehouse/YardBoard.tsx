@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ParkingSquare, Plus, LogIn, LogOut, Truck, MapPin } from "lucide-react";
+import { ParkingSquare, Plus, LogIn, LogOut, Truck, MapPin, Ban } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
@@ -100,6 +100,7 @@ export default function YardBoard() {
   const [slotOpen, setSlotOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState<TrailerVisit | null>(null);
   const [departOpen, setDepartOpen] = useState<TrailerVisit | null>(null);
+  const [noShowOpen, setNoShowOpen] = useState<TrailerVisit | null>(null);
 
   const effectiveWarehouseId = useMemo(() => {
     if (warehouseFilter !== "all") return warehouseFilter;
@@ -249,6 +250,11 @@ export default function YardBoard() {
                                     <MapPin className="h-3.5 w-3.5 mr-1" /> To dock
                                   </Button>
                                 )}
+                                {v.status !== "at_dock" && (
+                                  <Button size="sm" variant="ghost" onClick={() => setNoShowOpen(v)}>
+                                    <Ban className="h-3.5 w-3.5 mr-1" /> No-show
+                                  </Button>
+                                )}
                                 <Button size="sm" variant="ghost" onClick={() => setDepartOpen(v)}>
                                   <LogOut className="h-3.5 w-3.5 mr-1" /> Depart
                                 </Button>
@@ -384,6 +390,14 @@ export default function YardBoard() {
       <DepartDialog
         visit={departOpen}
         onClose={() => setDepartOpen(null)}
+        onDone={() => {
+          qc.invalidateQueries({ queryKey: ["wms-trailer-visits"] });
+          qc.invalidateQueries({ queryKey: ["wms-yard-slots"] });
+        }}
+      />
+      <NoShowDialog
+        visit={noShowOpen}
+        onClose={() => setNoShowOpen(null)}
         onDone={() => {
           qc.invalidateQueries({ queryKey: ["wms-trailer-visits"] });
           qc.invalidateQueries({ queryKey: ["wms-yard-slots"] });
@@ -733,6 +747,79 @@ function DepartDialog({
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={() => submit.mutate()} disabled={submit.isPending}>
             {submit.isPending ? "Departing…" : "Depart"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * No-show closes a visit that never made it to a dock. The server
+ * cascade also cancels that trailer's open loading manifests, which
+ * unlinks staged cartons and releases the `load` tasks booked against
+ * them — otherwise the labour board keeps counting work nobody can do.
+ */
+function NoShowDialog({
+  visit,
+  onClose,
+  onDone,
+}: {
+  visit: TrailerVisit | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  const submit = useMutation({
+    mutationFn: async () => {
+      if (!visit) return;
+      const { error } = await supabase.rpc("mark_trailer_no_show", {
+        p_visit_id: visit.id,
+        p_reason: reason.trim() || "No-show recorded from yard board",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Marked no-show", {
+        description: "Open loading manifests cancelled and loading work released.",
+      });
+      setReason("");
+      onDone();
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!visit} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Mark trailer no-show</DialogTitle></DialogHeader>
+        {visit && (
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Trailer <span className="font-mono">{visit.trailer_ref}</span> will be closed
+              without departing. Any open loading manifest for this visit is cancelled and
+              its loading tasks return to the queue.
+            </div>
+            <div>
+              <Label>Reason</Label>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Carrier cancelled, driver never arrived…"
+              />
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="destructive"
+            onClick={() => submit.mutate()}
+            disabled={submit.isPending}
+          >
+            {submit.isPending ? "Marking…" : "Mark no-show"}
           </Button>
         </DialogFooter>
       </DialogContent>

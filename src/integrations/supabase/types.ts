@@ -66212,6 +66212,7 @@ export type Database = {
           planned_departure_at: string | null
           row_version: number
           state: Database["public"]["Enums"]["wms_manifest_state"]
+          trailer_visit_id: string | null
           updated_at: string
           warehouse_id: string
         }
@@ -66234,6 +66235,7 @@ export type Database = {
           planned_departure_at?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
+          trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id: string
         }
@@ -66256,6 +66258,7 @@ export type Database = {
           planned_departure_at?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
+          trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id?: string
         }
@@ -66272,6 +66275,13 @@ export type Database = {
             columns: ["dock_id"]
             isOneToOne: false
             referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_trailer_visit_id_fkey"
+            columns: ["trailer_visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visits"
             referencedColumns: ["id"]
           },
         ]

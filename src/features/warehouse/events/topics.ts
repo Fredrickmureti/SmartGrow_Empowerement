@@ -100,6 +100,12 @@ export const WMS_TOPIC = {
   TRAILER_DOCKED: "warehouse.trailer.docked",
   TRAILER_DEPARTED: "warehouse.trailer.departed",
   TRAILER_NO_SHOW: "warehouse.trailer.no_show",
+  /**
+   * Phase 5.2 — a no-show cancelled the trailer's open loading manifests,
+   * so the `load` tasks booked against them return to the labour queue.
+   * Payload: { trailer_visit_id, cancelled_manifests, released_load_tasks }.
+   */
+  LABOUR_RECLAIMED: "warehouse.labour.reclaimed",
 
   // ---- Dock appointments ----------------------------------------------
   APPOINTMENT_SCHEDULED: "warehouse.appointment.scheduled",
