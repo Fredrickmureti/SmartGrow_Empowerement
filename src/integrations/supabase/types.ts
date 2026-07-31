@@ -75381,6 +75381,7 @@ export type Database = {
       _execute_organization_delete:
         | { Args: { _job_id: string; _org_id: string }; Returns: undefined }
         | { Args: { p_org_id: string }; Returns: Json }
+      _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
       _loan_assert_transition: {
         Args: { _event: string; _loan_id: string }
