@@ -24,6 +24,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { scanFeedbackBus } from "@/services/scanner";
 import { playPOSSound } from "@/lib/pos/sounds";
 import type { AwaitingBarcodeProduct } from "@/hooks/inventory/useProductsAwaitingBarcode";
+import type { IdentificationTarget } from "@/hooks/inventory/useIdentificationQueue";
+
+/**
+ * A queue entry. Level-aware callers pass an `IdentificationTarget`
+ * (product + packaging level); the legacy product-level shape is still
+ * accepted and is treated as "base unit".
+ */
+export type EnrollmentTarget = AwaitingBarcodeProduct &
+  Partial<Pick<IdentificationTarget, "key" | "packagingId" | "levelName" | "qtyInBaseUom" | "ladder">>;
 
 export type EnrollmentStatus = "ready" | "validating" | "duplicate" | "invalid";
 
@@ -41,7 +50,7 @@ export interface EnrollmentError {
 }
 
 interface State {
-  queue: AwaitingBarcodeProduct[];      // active (un-enrolled) products
+  queue: EnrollmentTarget[];            // active (un-identified) levels
   doneCount: number;
   status: EnrollmentStatus;
   lastError: EnrollmentError | null;
@@ -53,14 +62,15 @@ interface State {
 }
 
 type Action =
-  | { type: "QUEUE_LOADED"; products: AwaitingBarcodeProduct[] }
+  | { type: "QUEUE_LOADED"; products: EnrollmentTarget[] }
   | { type: "SCAN_START" }
   | { type: "SCAN_OK"; outcome: EnrollmentOutcome; seq: number }
   | { type: "SCAN_DUPLICATE"; err: EnrollmentError; seq: number }
   | { type: "SCAN_INVALID"; err: EnrollmentError; seq: number }
   | { type: "FLAG_FAILED"; err: EnrollmentError }
   | { type: "SKIP" }
-  | { type: "UNDO_RESTORE"; product: AwaitingBarcodeProduct }
+  | { type: "UNDO_RESTORE"; product: EnrollmentTarget }
+  | { type: "DROP_HEAD" }
   | { type: "ADVANCE_BACK"; productId: string }    // for re-insert after duplicate "reassign"
   | { type: "CLEAR_FEEDBACK" }
   | { type: "JUMP"; delta: number };
@@ -122,6 +132,12 @@ function reducer(state: State, action: Action): State {
       // No-op placeholder reserved for future "reassign" flow.
       return state;
     }
+    case "DROP_HEAD": {
+      // Level waived / resolved without enrollment — remove it outright.
+      if (state.queue.length === 0) return state;
+      const [, ...rest] = state.queue;
+      return { ...state, queue: rest, status: "ready", lastError: null, seq: state.seq + 1 };
+    }
     case "CLEAR_FEEDBACK":
       return { ...state, status: "ready", lastError: null };
     case "JUMP": {
@@ -154,7 +170,7 @@ const INITIAL: State = {
 
 export interface UseEnrollmentArgs {
   businessId: string | null | undefined;
-  products: AwaitingBarcodeProduct[];
+  products: EnrollmentTarget[];
   /** Disable sounds (per-user preference). */
   silent?: boolean;
   /** Override the RPC call — test seam. */
@@ -162,6 +178,8 @@ export interface UseEnrollmentArgs {
     businessId: string;
     productId: string;
     code: string;
+    packagingId?: string | null;
+    kind?: "gtin" | "pack";
   }) => Promise<EnrollRpcResult>;
 }
 
@@ -174,11 +192,16 @@ async function defaultEnroll(args: {
   businessId: string;
   productId: string;
   code: string;
+  packagingId?: string | null;
+  kind?: "gtin" | "pack";
 }): Promise<EnrollRpcResult> {
   const { data, error } = await supabase.rpc("enroll_product_barcode" as any, {
     p_business_id: args.businessId,
     p_product_id: args.productId,
     p_code: args.code,
+    // Above the base unit the code identifies a pack, not the item.
+    p_kind: args.kind ?? (args.packagingId ? "pack" : "gtin"),
+    p_packaging_id: args.packagingId ?? null,
   } as any);
   if (error) return { status: "invalid", reason: error.message };
   return data as EnrollRpcResult;
@@ -226,6 +249,8 @@ export function useEnrollmentWorkflow({
           businessId,
           productId: head.id,
           code,
+          packagingId: head.packagingId ?? null,
+          kind: head.packagingId ? "pack" : "gtin",
         });
         if (res.status === "ok") {
           dispatch({
@@ -341,6 +366,45 @@ export function useEnrollmentWorkflow({
     });
   }, [businessId]);
 
+  /**
+   * Record that this packaging level deliberately carries no code. The
+   * level leaves the queue only after the server confirms — UI and DB
+   * must not diverge (same contract as `flag`).
+   */
+  const waive = useCallback(
+    async (reason?: string) => {
+      const head = stateRef.current.queue[0];
+      if (!head || !businessId) return;
+      try {
+        const { data, error } = await supabase.rpc("waive_product_identification" as any, {
+          p_business_id: businessId,
+          p_product_id: head.id,
+          p_packaging_id: head.packagingId ?? null,
+          p_reason: reason ?? "No code at this packaging level",
+          p_waive: true,
+        } as any);
+        const status = (data as any)?.status;
+        if (error || status !== "ok") {
+          const detail = error?.message ?? status ?? "unknown";
+          if (!silentRef.current) playPOSSound("error");
+          dispatch({
+            type: "FLAG_FAILED",
+            err: { kind: "invalid", message: `Could not waive — ${detail}` },
+          });
+          return;
+        }
+        dispatch({ type: "DROP_HEAD" });
+      } catch (err: any) {
+        if (!silentRef.current) playPOSSound("error");
+        dispatch({
+          type: "FLAG_FAILED",
+          err: { kind: "invalid", message: `Could not waive — ${err?.message ?? "network error"}` },
+        });
+      }
+    },
+    [businessId],
+  );
+
   const flag = useCallback(
     async (reason: string) => {
       const head = stateRef.current.queue[0];
@@ -402,9 +466,10 @@ export function useEnrollmentWorkflow({
       skip,
       undo,
       flag,
+      waive,
       jump,
       clearFeedback,
     }),
-    [current, state, submit, skip, undo, flag, jump, clearFeedback],
+    [current, state, submit, skip, undo, flag, waive, jump, clearFeedback],
   );
 }
