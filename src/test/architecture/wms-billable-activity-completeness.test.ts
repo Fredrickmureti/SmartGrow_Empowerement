@@ -75,6 +75,15 @@ describe("3PL billable activity completeness", () => {
     expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.wms_accrue_storage_days/);
   });
 
+  it("task-completion events carry the task_type the mapper branches on", () => {
+    // The mapper prices putaway/pick/pack off `payload->>'task_type'`;
+    // an emitter that omits it silently drops billable work on the floor.
+    const sql = migrationsText((s) =>
+      s.includes("'warehouse.task.completed'"),
+    );
+    expect(sql).toMatch(/jsonb_build_object\(\s*'task_type'/);
+  });
+
   it("the accrual is reachable from the BillingBoard UI", () => {
     const src = readFileSync(
       path.join(ROOT, "src/pages/warehouse/BillingBoard.tsx"),
