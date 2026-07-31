@@ -20,13 +20,15 @@ Everything below that asserts runtime behaviour (tests green, billing topics emi
 
 ## Phase 5 — the open gaps
 
-### 5.1 Desktop replay safety
-Every quantity- or state-mutating desktop RPC must be idempotent under double-click, retry and reconnect, exactly like the mobile queue.
+### 5.1 Desktop replay safety — DONE
+Every quantity- or state-mutating desktop RPC is now idempotent under double-click, retry and reconnect, exactly like the mobile queue.
 
-- Add a shared client seam (`src/features/warehouse/scanning/replayGuardedCall.ts`) that stamps `client_scan_id` + `device_id` and dispatches through `wms_replay_guarded_call`.
-- Route `CountSession.record_count`, `PackStation` (`open_pack_carton`, `assign_carton_to_pack`, `assign_line_to_carton`, `complete_pack_task`), `LoadingBay.close_loading_manifest`, and the mutating calls in `PickList` through it.
-- Extend the server-side `CASE` whitelist in `wms_replay_guarded_call` with any RPC not already listed (migration).
-- Extend `wms-client-scan-id-unique.test.ts` into a whitelist-parity + "no direct mutating `supabase.rpc` in WMS pages" guard.
+- Shared client seam `src/features/warehouse/scanning/replayGuardedCall.ts` stamps `client_scan_id` (intent identity, 30 s TTL over the canonicalised args) + `device_id` and dispatches through `wms_replay_guarded_call`.
+- Routed through it: `useDomainOperations` (waves, pick, seal, load, dispatch, QC accept/reject/cancel, post count), `CountSession.record_count`, `PackStation` (open/assign carton, assign line, complete pack), `LoadingBay.close_loading_manifest`, `PutawayQueue` + `OperatorTasks` (`complete_putaway_task`), `ReceiveToWMSDialog.receive_goods_to_wms`.
+- Server-side `CASE` whitelist extended by migration (`assign_line_to_carton`, `post_count_session`, `create_pick_wave`, `release_pick_wave`, …).
+- `deviceId()` now has exactly one definition; `offlineQueue.ts` re-exports it from the seam.
+- Guards: `wms-client-scan-id-unique.test.ts` gained a "Phase 5.1 — desktop replay safety" block (seam shape, single device identity, no mutating bare `supabase.rpc` in desktop WMS modules, whitelist parity). `wmsGuardUtils.domainCallRe()` now treats `replayGuardedCall(...)` as a sanctioned call site, so all 133 WMS architecture guards pass.
+
 
 ### 5.2 Trailer no-show → labour reclaim
 - Migration: add `wms_loading_manifests.trailer_visit_id` referencing the yard trailer visit, backfilled where a dock appointment link already implies it.

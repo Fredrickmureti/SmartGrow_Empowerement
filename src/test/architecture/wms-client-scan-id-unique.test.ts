@@ -112,3 +112,88 @@ describe("Phase 3.9 — unified offline scan replay idempotency", () => {
     }
   });
 });
+
+describe("Phase 5.1 — desktop replay safety", () => {
+  const SEAM = path.join(ROOT, "src/features/warehouse/scanning/replayGuardedCall.ts");
+  const DESKTOP_DIRS = [
+    path.join(ROOT, "src/pages/warehouse"),
+    path.join(ROOT, "src/features/warehouse/aggregates"),
+  ];
+
+  /** RPCs that mutate quantities or aggregate state and therefore must not be
+   *  callable from a desktop screen outside the replay dispatcher. */
+  const MUTATING_RPCS = [
+    "record_count",
+    "post_count_session",
+    "open_pack_carton",
+    "assign_carton_to_pack",
+    "assign_line_to_carton",
+    "seal_pack_carton",
+    "complete_pack_task",
+    "complete_pick_task",
+    "complete_putaway_task",
+    "create_pick_wave",
+    "release_pick_wave",
+    "load_carton_onto_manifest",
+    "close_loading_manifest",
+    "dispatch_loading_manifest",
+    "accept_qc_inspection",
+    "reject_qc_inspection",
+    "cancel_qc_inspection",
+    "receive_goods_to_wms",
+  ];
+
+  function desktopFiles(): Array<{ name: string; src: string }> {
+    const out: Array<{ name: string; src: string }> = [];
+    for (const dir of DESKTOP_DIRS) {
+      if (!existsSync(dir)) continue;
+      for (const name of readdirSync(dir)) {
+        if (!/\.(ts|tsx)$/.test(name)) continue;
+        out.push({ name, src: readFileSync(path.join(dir, name), "utf8") });
+      }
+    }
+    return out;
+  }
+
+  it("the desktop seam stamps a stable intent id and calls the dispatcher", () => {
+    const src = readFileSync(SEAM, "utf8");
+    expect(src).toMatch(/wms_replay_guarded_call/);
+    expect(src).toMatch(/p_client_scan_id:\s*clientScanId/);
+    expect(src).toMatch(/p_device_id:\s*deviceId\(\)/);
+    // Intent identity, not a fresh uuid per call — otherwise a double-click
+    // produces two ids and the ledger cannot dedupe it.
+    expect(src).toMatch(/function intentId\(/);
+    expect(src).toMatch(/INTENT_TTL_MS/);
+  });
+
+  it("device identity has exactly one definition", () => {
+    const seam = readFileSync(SEAM, "utf8");
+    expect(seam).toMatch(/wms_client_device_id/);
+    const queue = readFileSync(QUEUE_PATH, "utf8");
+    expect(queue).not.toMatch(/localStorage\.getItem\("wms_client_device_id"\)/);
+    expect(queue).toMatch(/replayGuardedCall/);
+  });
+
+  it("no desktop warehouse module calls a mutating RPC outside the seam", () => {
+    const offenders: string[] = [];
+    for (const { name, src } of desktopFiles()) {
+      for (const m of src.matchAll(/supabase\.rpc\(\s*"([a-z0-9_]+)"/g)) {
+        if (MUTATING_RPCS.includes(m[1])) offenders.push(`${name}: ${m[1]}`);
+      }
+    }
+    expect(offenders, `route through replayGuardedCall(): ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("every RPC the desktop seam dispatches is whitelisted server-side", () => {
+    const sql = dispatcherSql();
+    const used = new Set<string>();
+    for (const { src } of desktopFiles()) {
+      for (const m of src.matchAll(/replayGuardedCall(?:<[^>]*>)?\(\s*\n?\s*"([a-z0-9_]+)"/g)) {
+        used.add(m[1]);
+      }
+    }
+    expect(used.size).toBeGreaterThan(8);
+    const missing = [...used].filter((rpc) => !sql.includes(`WHEN '${rpc}' THEN`));
+    expect(missing, `not replay-whitelisted: ${missing.join(", ")}`).toEqual([]);
+  });
+});

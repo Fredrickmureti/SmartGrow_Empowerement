@@ -21,6 +21,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { domainCallRe } from "./wmsGuardUtils";
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
@@ -65,7 +66,7 @@ describe("wms phase 2 architecture", () => {
       const touchesTasks = /from\(\s*["']wms_tasks["']\s*\)/.test(src);
       const mentionsPutaway = /task_type\s*[=:]?\s*=?\s*["']putaway["']|["']putaway["']/.test(src);
       const bareDoneUpdate = /\.update\s*\(\s*\{[^}]*state\s*:\s*["']done["']/s.test(src);
-      const callsRpc = /rpc\(\s*["']complete_putaway_task["']/.test(src);
+      const callsRpc = domainCallRe("complete_putaway_task").test(src);
       if (touchesTasks && mentionsPutaway && bareDoneUpdate && !callsRpc) {
         offenders.push(path.relative(SRC, f));
       }
@@ -78,11 +79,11 @@ describe("wms phase 2 architecture", () => {
 
   it("PutawayQueue calls the completion RPC", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/PutawayQueue.tsx"), "utf8");
-    expect(/rpc\(\s*["']complete_putaway_task["']/.test(src)).toBe(true);
+    expect(domainCallRe("complete_putaway_task").test(src)).toBe(true);
   });
 
   it("ReceiveToWMSDialog calls the staging RPC", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/ReceiveToWMSDialog.tsx"), "utf8");
-    expect(/rpc\(\s*["']receive_goods_to_wms["']/.test(src)).toBe(true);
+    expect(domainCallRe("receive_goods_to_wms").test(src)).toBe(true);
   });
 });

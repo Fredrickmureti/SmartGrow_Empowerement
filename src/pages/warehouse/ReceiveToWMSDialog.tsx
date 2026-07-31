@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -119,12 +120,15 @@ export function ReceiveToWMSDialog({ open, onOpenChange, onStaged, fixedGoodsRec
     mutationFn: async () => {
       if (!goodsReceiptId) throw new Error("Choose a goods receipt");
       if (!stagingId) throw new Error("Choose a staging bin");
-      const { data, error } = await supabase.rpc("receive_goods_to_wms", {
+      // Phase 5.1 — replay-guarded: staging the same receipt twice would
+      // mint a second set of LPs and putaway tasks.
+      const { data } = await replayGuardedCall<{
+        tasks_created: number; lpns_created: number; task_ids: string[];
+      }>("receive_goods_to_wms", {
         p_goods_receipt_id: goodsReceiptId,
         p_staging_location_id: stagingId,
       });
-      if (error) throw error;
-      return data as { tasks_created: number; lpns_created: number; task_ids: string[] };
+      return data;
     },
     onSuccess: (r) => {
       toast.success(`Staged ${r.lpns_created} plates · ${r.tasks_created} putaway tasks`);

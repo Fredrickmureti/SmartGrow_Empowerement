@@ -15,6 +15,7 @@ import { Link, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 import { useDispatchManifest, useLoadCartonOntoManifest } from "@/features/warehouse/aggregates/useDomainOperations";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
@@ -112,8 +113,7 @@ export default function LoadingBay() {
 
   const close = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("close_loading_manifest", { p_manifest_id: manifestId! });
-      if (error) throw error;
+      await replayGuardedCall("close_loading_manifest", { p_manifest_id: manifestId! });
     },
     onSuccess: () => { toast.success("Manifest closed"); qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] }); },
     onError: (e: unknown) => {
