@@ -36,7 +36,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, RefreshCw, FileText } from "lucide-react";
+import { Plus, Trash2, RefreshCw, FileText, CalendarClock } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 
 const ACTIVITIES = [
@@ -94,6 +94,9 @@ export default function BillingBoard() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tariffOpen, setTariffOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [accrualDate, setAccrualDate] = useState<string>(
+    () => new Date().toISOString().slice(0, 10),
+  );
 
   const [tariffForm, setTariffForm] = useState({
     client_business_id: "",
@@ -214,6 +217,33 @@ export default function BillingBoard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  /**
+   * Phase 5.4 — storage is time-based, so it can never arrive on the event
+   * outbox. `wms_accrue_storage_days` snapshots occupying license plates for
+   * a given day and writes one `storage_lpn_day` line per warehouse. The RPC
+   * is idempotent, so re-running for the same day is a no-op.
+   */
+  const accrueStorage = useMutation({
+    mutationFn: async (asOf: string) => {
+      if (!currentBusiness?.id) throw new Error("No active business");
+      const { data, error } = await supabase.rpc("wms_accrue_storage_days", {
+        p_business_id: currentBusiness.id,
+        p_as_of: asOf,
+      });
+      if (error) throw error;
+      return data as number;
+    },
+    onSuccess: (n) => {
+      toast.success(
+        n === 0
+          ? "Storage already accrued for that date"
+          : `Accrued storage for ${n} warehouse${n === 1 ? "" : "s"}`,
+      );
+      qc.invalidateQueries({ queryKey: ["wms-billable-summary"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const generateInvoice = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id) throw new Error("No active business");
@@ -263,9 +293,24 @@ export default function BillingBoard() {
         title="3PL activity billing"
         description="Turn warehouse events into billable 3PL activity. Tariffs, activity ledger, and month-end invoice generation."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => captureDrain.mutate()} disabled={captureDrain.isPending}>
               <RefreshCw className="h-4 w-4 mr-2" /> Capture events
+            </Button>
+            <Input
+              type="date"
+              className="w-40"
+              aria-label="Storage accrual date"
+              value={accrualDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setAccrualDate(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              onClick={() => accrueStorage.mutate(accrualDate)}
+              disabled={accrueStorage.isPending || !accrualDate}
+            >
+              <CalendarClock className="h-4 w-4 mr-2" /> Accrue storage
             </Button>
             <Button variant="outline" onClick={() => setInvoiceOpen(true)}>
               <FileText className="h-4 w-4 mr-2" /> Generate invoice
