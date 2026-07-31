@@ -30,10 +30,12 @@ Every quantity- or state-mutating desktop RPC is now idempotent under double-cli
 - Guards: `wms-client-scan-id-unique.test.ts` gained a "Phase 5.1 — desktop replay safety" block (seam shape, single device identity, no mutating bare `supabase.rpc` in desktop WMS modules, whitelist parity). `wmsGuardUtils.domainCallRe()` now treats `replayGuardedCall(...)` as a sanctioned call site, so all 133 WMS architecture guards pass.
 
 
-### 5.2 Trailer no-show → labour reclaim
-- Migration: add `wms_loading_manifests.trailer_visit_id` referencing the yard trailer visit, backfilled where a dock appointment link already implies it.
-- Extend the no-show transition RPC so marking a visit no-show cancels open load/pick tasks through the same cancellation cascade as a manual manifest cancel, emitting the existing cancellation topics.
-- E2E: extend `dispatch-scan-out-and-cancel.spec.ts` (or a new `yard-no-show.spec.ts`) covering the cascade.
+### 5.2 Trailer no-show → labour reclaim — DONE
+- `wms_loading_manifests.trailer_visit_id` added and `open_loading_manifest` now resolves the visit (appointment link first, trailer at the dock as fallback), so every new manifest is keyed to a trailer.
+- `mark_trailer_no_show` cancels the visit's `draft`/`loading` manifests through `wms_transition_manifest` — the same cascade as a manual cancel, so cartons unlink, waves reopen, and each `load` task emits `warehouse.task.cancelled` once. Emits `warehouse.labour.reclaimed` with `cancelled_manifests` / `released_load_tasks`.
+- UI: Yard Board gained a "No-show" action (hidden once a trailer is at a dock) with a reason prompt — the RPC was previously unreachable from the app.
+- Guard: `src/test/architecture/wms-noshow-labour-reclaim.test.ts` (6 assertions) pins the cascade shape, the reclaim payload, and topic registration. 32 WMS guard files / 139 tests green; typecheck clean.
+- Remaining: Playwright `yard-no-show.spec.ts` still to be written (tracked under Phase 6 E2E).
 
 ### 5.3 Orphan-module guard
 - `src/test/architecture/wms-no-orphan-modules.test.ts`: fail when any file under `src/features/warehouse/**` has no importer outside `src/test/**`. Fix or delete whatever it flags rather than allow-listing.
