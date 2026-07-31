@@ -44,7 +44,15 @@ Every quantity- or state-mutating desktop RPC is now idempotent under double-cli
 - Mounted on `WavePlanner.tsx`, `LoadingManifests.tsx` and `CountReview.tsx`; those queries now select `row_version` and invalidate on success.
 - Evidence: 33 WMS guard files / 142 tests green; orphan scan returns empty; typecheck clean.
 
+### Interrupt (2026-07-31) — Tenant data wipe blocked by approval_history guard — DONE
+- Symptom: `/settings/workspace?tab=data` → "Wipe all transactional data" failed with `[reset_organization_data] approval_history is append-only (42501, GOV_APPEND_ONLY)`.
+- Root cause (verified in the live DB, not assumed): `approval_history_request_id_fkey` is `ON DELETE CASCADE` (`confdeltype='c'`). `reset_module__ancillaries` deletes `approval_requests`; the cascade fires `_approval_history_chain` on the child rows *after* the parent is gone, so the guard's `SELECT organization_id FROM approval_requests` returned NULL, the teardown bypass never matched, and the whole reset transaction aborted.
+- Fix (migration): new `public._is_teardown_active()` helper; `_approval_history_chain` now bypasses when the parent org matches the reset GUC **or** the parent row is already gone and a teardown is active. Outside a reset the append-only/immutability semantics are unchanged. `reset_module__ancillaries` additionally clears `approval_history` and `approval_rule_logs` explicitly, in teardown context, before deleting the requests.
+- Regression pin: `supabase/tests/approval_history_teardown_bypass_test.sql`.
+
 ### CURRENTLY ACTIVE → 5.4 3PL billing event coverage
+
+
 
 
 ### 5.4 3PL billing event coverage
