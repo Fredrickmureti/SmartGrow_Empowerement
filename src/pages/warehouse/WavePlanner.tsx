@@ -84,6 +84,8 @@ export default function WavePlanner() {
     },
   });
 
+  const queryClient = useQueryClient();
+
   const { data: waves, isLoading: wavesLoading } = useQuery({
     queryKey: ["wms-pick-waves", currentBusiness?.id],
     enabled: !!currentBusiness?.id,
@@ -222,7 +224,7 @@ export default function WavePlanner() {
                         id={w.id}
                         rowVersion={w.row_version}
                         state={w.state}
-                        onCancelled={() => queryClient.invalidateQueries({ queryKey: ["wms-waves"] })}
+                        onCancelled={() => queryClient.invalidateQueries({ queryKey: ["wms-pick-waves"] })}
                       />
                     </li>
                   ))}
