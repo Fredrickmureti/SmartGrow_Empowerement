@@ -17,6 +17,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -80,12 +81,13 @@ export default function CountSession() {
 
   const record = useMutation({
     mutationFn: async (v: { line_id: string; counted_qty: number }) => {
-      const { error } = await supabase.rpc("record_count", {
+      // Phase 5.1 — replay-guarded: a double-tapped "Record" cannot post
+      // the same count twice.
+      await replayGuardedCall("record_count", {
         p_line_id: v.line_id,
         p_counted_qty: v.counted_qty,
         p_note: null,
       });
-      if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-count-lines", sessionId] }),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),

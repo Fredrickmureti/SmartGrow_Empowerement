@@ -21,6 +21,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 import { useSealCarton } from "@/features/warehouse/aggregates/useDomainOperations";
 import {
@@ -193,18 +194,21 @@ export default function PackStation() {
         }
       }
       // 2. Open the carton
-      const { data: cartonId, error } = await supabase.rpc("open_pack_carton", {
-        p_wave_id: waveId!,
-        p_sales_order_id: sales_order_id,
-      });
-      if (error) throw error;
+      const { data: opened } = await replayGuardedCall<{ carton_id?: string } | null>(
+        "open_pack_carton",
+        { p_wave_id: waveId!, p_sales_order_id: sales_order_id },
+      );
+      const cartonId = opened?.carton_id ?? null;
       // 3. Stamp the suggested carton type (best effort — do not fail the open)
       if (cartonId && suggestedTypeId) {
-        const { error: aErr } = await supabase.rpc("assign_carton_to_pack", {
-          p_carton_id: cartonId as string,
-          p_carton_type_id: suggestedTypeId,
-        });
-        if (aErr) console.warn("assign_carton_to_pack failed", aErr);
+        try {
+          await replayGuardedCall("assign_carton_to_pack", {
+            p_carton_id: cartonId,
+            p_carton_type_id: suggestedTypeId,
+          });
+        } catch (aErr) {
+          console.warn("assign_carton_to_pack failed", aErr);
+        }
       }
       return { cartonId, suggestedCode };
     },
@@ -217,11 +221,10 @@ export default function PackStation() {
 
   const assignCartonType = useMutation({
     mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
-      const { error } = await supabase.rpc("assign_carton_to_pack", {
+      await replayGuardedCall("assign_carton_to_pack", {
         p_carton_id: v.carton_id,
         p_carton_type_id: v.carton_type_id,
       });
-      if (error) throw error;
     },
     onSuccess: () => { toast.success("Carton type updated"); invalidateAll(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
@@ -229,12 +232,11 @@ export default function PackStation() {
 
   const assignLine = useMutation({
     mutationFn: async (v: { carton_id: string; wave_line_id: string; qty: number }) => {
-      const { error } = await supabase.rpc("assign_line_to_carton", {
+      await replayGuardedCall("assign_line_to_carton", {
         p_carton_id: v.carton_id,
         p_wave_line_id: v.wave_line_id,
         p_qty: v.qty,
       });
-      if (error) throw error;
     },
     onSuccess: () => invalidateAll(),
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Assign failed"),
@@ -271,8 +273,7 @@ export default function PackStation() {
 
   const completePack = useMutation({
     mutationFn: async (task_id: string) => {
-      const { error } = await supabase.rpc("complete_pack_task", { p_task_id: task_id });
-      if (error) throw error;
+      await replayGuardedCall("complete_pack_task", { p_task_id: task_id });
     },
     onSuccess: () => {
       toast.success("Pack task complete");

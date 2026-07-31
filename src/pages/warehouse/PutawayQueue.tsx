@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 import {
   PageHeader,
@@ -101,8 +102,7 @@ export default function PutawayQueue() {
 
   const complete = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("complete_putaway_task", { p_task_id: id });
-      if (error) throw error;
+      await replayGuardedCall("complete_putaway_task", { p_task_id: id });
     },
     onSuccess: () => {
       toast.success("Putaway completed");
