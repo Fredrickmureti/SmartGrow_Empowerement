@@ -22,6 +22,8 @@ import {
   ChevronRight,
   Flag,
   ScanLine,
+  Ban,
+  Layers,
   SkipForward,
   Undo2,
   Volume2,
@@ -41,7 +43,7 @@ import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { usePOSSound } from "@/hooks/pos/usePOSSound";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
-import { useProductsAwaitingBarcode } from "@/hooks/inventory/useProductsAwaitingBarcode";
+import { useIdentificationQueue } from "@/hooks/inventory/useIdentificationQueue";
 import { useEnrollmentWorkflow } from "@/hooks/inventory/useEnrollmentWorkflow";
 import { cn } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,7 +64,7 @@ export default function BarcodeEnrollment() {
   // `scan_events` via the `workspace_id` lane.
   useActiveScanContext({ workspace_id: "enrollment" });
 
-  const { data: products = [], isLoading } = useProductsAwaitingBarcode({
+  const { data: products = [], isLoading } = useIdentificationQueue({
     businessId,
     search,
   });
@@ -77,7 +79,7 @@ export default function BarcodeEnrollment() {
   // realtime tick can't bring the same row back from a stale cache.
   useEffect(() => {
     if (wf.lastEnrolled) {
-      queryClient.invalidateQueries({ queryKey: ["products-awaiting-barcode"] });
+      queryClient.invalidateQueries({ queryKey: ["identification-queue"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     }
   }, [wf.lastEnrolled, queryClient]);
@@ -89,7 +91,7 @@ export default function BarcodeEnrollment() {
   const prevDoneRef = useRef(doneCount);
   useEffect(() => {
     if (doneCount < prevDoneRef.current) {
-      queryClient.invalidateQueries({ queryKey: ["products-awaiting-barcode"] });
+      queryClient.invalidateQueries({ queryKey: ["identification-queue"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     }
     prevDoneRef.current = doneCount;
@@ -143,6 +145,9 @@ export default function BarcodeEnrollment() {
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         void wf.flag("Flagged in enrollment workspace");
+      } else if (e.key === "w" || e.key === "W") {
+        e.preventDefault();
+        void wf.waive();
       } else if (e.key === "/") {
         e.preventDefault();
         manualInputRef.current?.focus();
@@ -182,13 +187,13 @@ export default function BarcodeEnrollment() {
           </Link>
         </Button>
         <div className="flex-1 min-w-[200px]">
-          <h1 className="text-lg font-semibold leading-tight">Barcode Enrollment</h1>
+          <h1 className="text-lg font-semibold leading-tight">Product Identification</h1>
           <p className="text-xs text-muted-foreground">
             {isLoading
               ? "Loading queue…"
               : total === 0
-                ? "All products have barcodes. Nothing to enroll."
-                : `${total} product${total === 1 ? "" : "s"} awaiting barcode${
+                ? "Every packaging level is identified. Nothing to enroll."
+                : `${total} packaging level${total === 1 ? "" : "s"} awaiting a code${
                     currentBranch ? ` · ${currentBranch.name}` : ""
                   }`}
           </p>
@@ -222,18 +227,18 @@ export default function BarcodeEnrollment() {
           <ul className="divide-y">
             {wf.queue.slice(0, 50).map((p, idx) => (
               <li
-                key={p.id}
+                key={p.key ?? p.id}
                 className={cn(
                   "px-3 py-2 text-sm",
                   idx === 0 && "bg-primary/5 border-l-2 border-l-primary font-medium",
                 )}
               >
                 <div className="truncate">{p.name}</div>
-                {p.sku && (
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {p.sku}
-                  </div>
-                )}
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {p.levelName ?? "Base unit"}
+                  {p.qtyInBaseUom && p.qtyInBaseUom > 1 ? ` · ${p.qtyInBaseUom} base` : ""}
+                  {p.sku ? ` · ${p.sku}` : ""}
+                </div>
               </li>
             ))}
             {wf.queue.length > 50 && (
@@ -258,7 +263,7 @@ export default function BarcodeEnrollment() {
           {wf.current ? (
             <>
               <div className="text-xs text-muted-foreground">
-                Now enrolling — {position} of {total}
+                Now identifying — {position} of {total}
               </div>
 
               <Card
@@ -295,12 +300,47 @@ export default function BarcodeEnrollment() {
                     </div>
                   </div>
 
+                  {wf.current.ladder && wf.current.ladder.length > 0 && (
+                    <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5" /> Packaging ladder
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {wf.current.ladder.map((lvl) => {
+                          const isCurrent =
+                            (lvl.packagingId ?? null) === (wf.current!.packagingId ?? null);
+                          const done = lvl.identifierCount > 0;
+                          return (
+                            <Badge
+                              key={lvl.packagingId ?? "base"}
+                              variant={isCurrent ? "default" : done ? "secondary" : "outline"}
+                              className={cn(
+                                "text-[11px] font-normal",
+                                !isCurrent && !done && !lvl.isWaived && "border-dashed",
+                              )}
+                            >
+                              {lvl.levelName}
+                              {lvl.qtyInBaseUom > 1 ? ` ×${lvl.qtyInBaseUom}` : ""}
+                              {done ? " ✓" : lvl.isWaived ? " —" : ""}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <Separator />
 
                   <form onSubmit={handleManualSubmit} className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                       <ScanLine className="h-3.5 w-3.5" />
-                      Scan barcode now
+                      Scan the code on{" "}
+                      <span className="text-foreground font-semibold">
+                        {wf.current.levelName ?? "the base unit"}
+                      </span>
+                      {wf.current.qtyInBaseUom && wf.current.qtyInBaseUom > 1
+                        ? ` (${wf.current.qtyInBaseUom} base units)`
+                        : ""}
                     </label>
                     <div className="flex gap-2">
                       <Input
@@ -349,6 +389,16 @@ export default function BarcodeEnrollment() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => void wf.waive()}
+                      className="gap-1.5"
+                      data-testid="enroll-waive"
+                    >
+                      <Ban className="h-3.5 w-3.5" /> No code at this level
+                      <kbd className="ml-1 text-[10px] text-muted-foreground">W</kbd>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => void wf.flag("Flagged in enrollment workspace")}
                       className="gap-1.5"
                       data-testid="enroll-flag"
@@ -389,7 +439,7 @@ export default function BarcodeEnrollment() {
 
               <div className="mt-auto text-[11px] text-muted-foreground border-t pt-3">
                 Shortcuts: scan or type + Enter to assign · <kbd>Esc</kbd> skip ·{" "}
-                <kbd>F</kbd> flag · <kbd>Ctrl+Z</kbd> undo · <kbd>/</kbd> focus field ·{" "}
+                <kbd>W</kbd> no code at this level · <kbd>F</kbd> flag · <kbd>Ctrl+Z</kbd> undo · <kbd>/</kbd> focus field ·{" "}
                 <kbd>[</kbd>/<kbd>]</kbd> previous / next
               </div>
             </>
@@ -398,16 +448,16 @@ export default function BarcodeEnrollment() {
               <div className="max-w-sm space-y-3">
                 <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-500" />
                 <h2 className="text-lg font-semibold">
-                  {isLoading ? "Loading…" : "Queue cleared"}
+                  {isLoading ? "Loading…" : "Every level identified"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {isLoading
-                    ? "Looking for products that need barcodes."
-                    : "Every product in this business has an assigned barcode."}
+                    ? "Looking for packaging levels that need codes."
+                    : "Every packaging level in this business carries a scannable code, or has been explicitly waived."}
                 </p>
                 {wf.doneCount > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    You enrolled {wf.doneCount} product{wf.doneCount === 1 ? "" : "s"} this session.
+                    You identified {wf.doneCount} level{wf.doneCount === 1 ? "" : "s"} this session.
                   </p>
                 )}
                 <Button variant="outline" asChild>
