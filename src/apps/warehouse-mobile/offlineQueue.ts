@@ -26,6 +26,11 @@
 import { openDB, type IDBPDatabase } from "idb";
 import { supabase } from "@/integrations/supabase/client";
 import { emitScanOutcome } from "@/features/warehouse/scanning/useScanFeedback";
+// Single definition of the per-device identity, shared with the desktop
+// replay seam so a phone and a desktop tab never disagree about device_id.
+import { deviceId } from "@/features/warehouse/scanning/replayGuardedCall";
+
+export { deviceId };
 
 export type QueueStatus = "synced" | "pending" | "error";
 
@@ -45,7 +50,6 @@ const DB_NAME = "wm-offline-queue";
 const STORE = "scans";
 /** v1 store (autoincrement, no scan id). Drained once, then emptied. */
 const LEGACY_STORE = "calls";
-const DEVICE_KEY = "wms_client_device_id";
 
 let dbP: Promise<IDBPDatabase> | null = null;
 
@@ -63,17 +67,6 @@ function db() {
     });
   }
   return dbP;
-}
-
-/** Stable per-device identifier, paired with client_scan_id for dedup. */
-export function deviceId(): string {
-  if (typeof localStorage === "undefined") return "device-ssr";
-  let id = localStorage.getItem(DEVICE_KEY);
-  if (!id) {
-    id = `device-${crypto.randomUUID()}`;
-    localStorage.setItem(DEVICE_KEY, id);
-  }
-  return id;
 }
 
 function newScanId(): string {
