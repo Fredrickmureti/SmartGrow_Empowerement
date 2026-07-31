@@ -36,7 +36,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, RefreshCw, FileText } from "lucide-react";
+import { Plus, Trash2, RefreshCw, FileText, CalendarClock } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 
 const ACTIVITIES = [
