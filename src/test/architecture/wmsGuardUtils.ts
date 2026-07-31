@@ -55,7 +55,7 @@ export function pageSource(fileName: string): string {
  * double-clicked mutation is deduped server-side. Both are the same
  * "call site" for ownership purposes.
  */
-function callSiteRe(rpc: string, flags = ""): RegExp {
+export function domainCallRe(rpc: string, flags = ""): RegExp {
   return new RegExp(
     `(?:supabase\\.rpc|replayGuardedCall(?:<[^>]*>)?)\\(\\s*\\n?\\s*["'\`]${rpc}["'\`]`,
     flags,
@@ -64,7 +64,7 @@ function callSiteRe(rpc: string, flags = ""): RegExp {
 
 /** True when the RPC is invoked exactly once, from the wrapper layer. */
 export function rpcCallSitesInWrapperLayer(rpc: string): number {
-  return (wrapperLayerSource().match(callSiteRe(rpc, "g")) ?? []).length;
+  return (wrapperLayerSource().match(domainCallRe(rpc, "g")) ?? []).length;
 }
 
 /**
@@ -101,5 +101,5 @@ export function checkRpcOwnership(page: string, hook: string, rpc: string): stri
  * RPCs that are not on the `wms-no-direct-domain-rpc` ban list).
  */
 export function pageCallsRpc(page: string, rpc: string): boolean {
-  return callSiteRe(rpc).test(pageSource(page));
+  return domainCallRe(rpc).test(pageSource(page));
 }

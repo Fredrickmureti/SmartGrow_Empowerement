@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
+import { domainCallRe } from "./wmsGuardUtils";
 
 const SRC = path.resolve(__dirname, "../..");
 const SELF = __filename;
@@ -73,7 +74,7 @@ describe("wms phase 12 architecture", () => {
   it("PackStation wires suggest_carton + assign_carton_to_pack (Phase 12.1)", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
     expect(src).toMatch(/rpc\(\s*["']suggest_carton["']/);
-    expect(src).toMatch(/rpc\(\s*["']assign_carton_to_pack["']/);
+    expect(src).toMatch(domainCallRe("assign_carton_to_pack"));
   });
 
   it("route and nav wire /crossdock and /cartons", () => {
