@@ -48,7 +48,26 @@ WITH expected(fname) AS (
     ('payroll_runs_immutability_guard'),
     ('payroll_runs_paid_path_guard'),
     ('payslips_paid_path_guard'),
-    ('payroll_remittances_read_only_guard')
+    ('payroll_remittances_read_only_guard'),
+    -- Wave G3 (2026-07-31) — append-only history + period/lifecycle guards
+    -- that aborted "Wipe All Transactional Data" with
+    -- "loan_lifecycle_events is append-only" and friends.
+    ('loan_lifecycle_events_immutable'),
+    ('tg_loan_skip_override_events_immutable'),
+    ('attendance_events_block_mutation'),
+    ('payslip_events_forbid_mutation'),
+    ('tg_prevent_locked_timesheet_mutation'),
+    ('payroll_periods_guard'),
+    ('trg_guard_payroll_runs_period'),
+    ('trg_guard_payroll_return_runs_period'),
+    ('trg_guard_payroll_bank_export_files_period'),
+    ('tg_prlso_no_destructive_delete'),
+    ('tg_prlso_protect_terminal'),
+    ('salary_components_freeze_when_used'),
+    ('assert_no_branch_context_for_period_mutation'),
+    ('check_payment_allocation_sum'),
+    ('check_bill_payment_allocation_sum'),
+    ('_pc_immutable_after_post')
 )
 SELECT ok(
   (
