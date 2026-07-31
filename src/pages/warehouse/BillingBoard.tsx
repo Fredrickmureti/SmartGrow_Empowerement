@@ -293,9 +293,24 @@ export default function BillingBoard() {
         title="3PL activity billing"
         description="Turn warehouse events into billable 3PL activity. Tariffs, activity ledger, and month-end invoice generation."
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => captureDrain.mutate()} disabled={captureDrain.isPending}>
               <RefreshCw className="h-4 w-4 mr-2" /> Capture events
+            </Button>
+            <Input
+              type="date"
+              className="w-40"
+              aria-label="Storage accrual date"
+              value={accrualDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setAccrualDate(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              onClick={() => accrueStorage.mutate(accrualDate)}
+              disabled={accrueStorage.isPending || !accrualDate}
+            >
+              <CalendarClock className="h-4 w-4 mr-2" /> Accrue storage
             </Button>
             <Button variant="outline" onClick={() => setInvoiceOpen(true)}>
               <FileText className="h-4 w-4 mr-2" /> Generate invoice
