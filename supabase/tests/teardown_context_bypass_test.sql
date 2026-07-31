@@ -15,7 +15,7 @@
 -- forge teardown context.
 
 BEGIN;
-SELECT plan(29);
+SELECT plan(45);
 
 -- ── (A) Every guard listed below honors the teardown bypass ──────────
 WITH expected(fname) AS (
