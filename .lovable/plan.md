@@ -72,4 +72,11 @@ Every quantity- or state-mutating desktop RPC is now idempotent under double-cli
 
 ## Order of work
 
-Step 0 → 5.1 → 5.2 → 5.3 → 5.4 → 5.5 → Phase 6 in listed order, updating `.lovable/plan.md` with evidence after each item.
+Step 0 → 5.1 ✅ → 5.2 ✅ → 5.3 ✅ → **5.4 (next)** → 5.5 → Phase 6 in listed order, updating `.lovable/plan.md` with evidence after each item.
+
+## Instructions for the next agent
+
+1. **Verify 5.3 before extending anything.** Run `bunx vitest run $(ls src/test/architecture/wms-*.test.ts)` (expect 33 files / 142 tests) and `bunx tsgo --noEmit -p tsconfig.json`. Then open Wave Planner, Loading Manifests and Count Review in the preview and confirm Cancel appears only in cancellable states, requires a reason, and that a stale `row_version` surfaces a conflict rather than silently winning.
+2. **Then resume at 5.4**, not elsewhere: enumerate billable activities, confirm each emits a topic `BillingBoard` consumes, add missing trigger emissions plus catalog rows, and extend `wms-topic-catalog-sync.test.ts` with a billable-topic completeness assertion.
+3. Keep the execution rules above: no direct `state` writes, no in-body event emission, no partially wired features, and record real command output as evidence in this file after each item.
+
