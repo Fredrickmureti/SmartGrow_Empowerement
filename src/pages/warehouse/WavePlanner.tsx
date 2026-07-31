@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useCreateAndReleaseWave } from "@/features/warehouse/aggregates/useDomainOperations";
@@ -27,6 +27,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ListChecks, Rocket } from "lucide-react";
+import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
@@ -43,6 +44,7 @@ interface WaveRow {
   id: string;
   wave_number: string;
   state: string;
+  row_version: number;
   strategy: string;
   released_at: string | null;
   completed_at: string | null;
@@ -88,7 +90,7 @@ export default function WavePlanner() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pick_waves")
-        .select("id, wave_number, state, strategy, released_at, completed_at, created_at, warehouse_id")
+        .select("id, wave_number, state, row_version, strategy, released_at, completed_at, created_at, warehouse_id")
         .eq("business_id", currentBusiness!.id)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -215,6 +217,13 @@ export default function WavePlanner() {
                       {w.state === "picked" ? (
                         <Button asChild size="sm" variant="outline"><Link to={`/warehouse-app/pack/${w.id}`}>Pack</Link></Button>
                       ) : null}
+                      <CancelAggregateButton
+                        aggregate="wave"
+                        id={w.id}
+                        rowVersion={w.row_version}
+                        state={w.state}
+                        onCancelled={() => queryClient.invalidateQueries({ queryKey: ["wms-waves"] })}
+                      />
                     </li>
                   ))}
                 </ul>
