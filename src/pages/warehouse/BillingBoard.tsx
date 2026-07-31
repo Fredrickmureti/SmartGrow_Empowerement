@@ -94,6 +94,9 @@ export default function BillingBoard() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tariffOpen, setTariffOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [accrualDate, setAccrualDate] = useState<string>(
+    () => new Date().toISOString().slice(0, 10),
+  );
 
   const [tariffForm, setTariffForm] = useState({
     client_business_id: "",
