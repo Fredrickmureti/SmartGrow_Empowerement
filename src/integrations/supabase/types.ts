@@ -49300,6 +49300,64 @@ export type Database = {
           },
         ]
       }
+      product_identification_waivers: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          packaging_id: string | null
+          product_id: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          packaging_id?: string | null
+          product_id: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          packaging_id?: string | null
+          product_id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_identification_waivers_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_identification_waivers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "product_identification_waivers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_identifiers: {
         Row: {
           business_id: string
@@ -49313,6 +49371,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           pack_quantity: number | null
+          packaging_id: string | null
           product_id: string
           updated_at: string
         }
@@ -49328,6 +49387,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           pack_quantity?: number | null
+          packaging_id?: string | null
           product_id: string
           updated_at?: string
         }
@@ -49343,10 +49403,18 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           pack_quantity?: number | null
+          packaging_id?: string | null
           product_id?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "product_identifiers_packaging_id_fkey"
+            columns: ["packaging_id"]
+            isOneToOne: false
+            referencedRelation: "product_packaging"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_identifiers_product_id_fkey"
             columns: ["product_id"]
@@ -80204,15 +80272,26 @@ export type Database = {
         }
         Returns: string
       }
-      enroll_product_barcode: {
-        Args: {
-          p_business_id: string
-          p_code: string
-          p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
-          p_product_id: string
-        }
-        Returns: Json
-      }
+      enroll_product_barcode:
+        | {
+            Args: {
+              p_business_id: string
+              p_code: string
+              p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
+              p_product_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_business_id: string
+              p_code: string
+              p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
+              p_packaging_id?: string
+              p_product_id: string
+            }
+            Returns: Json
+          }
       ensure_canonical_work_entry_types: {
         Args: { _org_id: string }
         Returns: undefined
@@ -85294,6 +85373,19 @@ export type Database = {
       }
       process_scheduled_organization_deletions: { Args: never; Returns: Json }
       procurement_contracts_sweep_expiries: { Args: never; Returns: number }
+      product_identification_status: {
+        Args: { p_business_id: string; p_product_ids: string[] }
+        Returns: {
+          identifier_count: number
+          is_waived: boolean
+          level_name: string
+          packaging_id: string
+          primary_code: string
+          product_id: string
+          qty_in_base_uom: number
+          sort_qty: number
+        }[]
+      }
       product_pack_cost: {
         Args: { p_packaging_id: string; p_product_id: string }
         Returns: number
@@ -86637,6 +86729,22 @@ export type Database = {
           p_tender_kind: string
         }
         Returns: string
+      }
+      resolve_product_identity: {
+        Args: { p_business_id: string; p_code: string }
+        Returns: {
+          base_uom_id: string
+          identifier_id: string
+          is_base_unit: boolean
+          matched_code: string
+          matched_kind: Database["public"]["Enums"]["product_identifier_kind"]
+          packaging_id: string
+          packaging_name: string
+          product_id: string
+          product_name: string
+          qty_in_base_uom: number
+          sku: string
+        }[]
       }
       resolve_product_price: {
         Args: {
@@ -88399,6 +88507,16 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
+      }
+      waive_product_identification: {
+        Args: {
+          p_business_id: string
+          p_packaging_id?: string
+          p_product_id: string
+          p_reason?: string
+          p_waive?: boolean
+        }
+        Returns: Json
       }
       wet_impact_metrics: {
         Args: { _business_id: string; _org_id: string }
