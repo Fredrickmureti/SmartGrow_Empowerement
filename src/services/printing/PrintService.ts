@@ -418,12 +418,16 @@ export async function dispatchQueuedJob(
           medium,
           options: renderOptions,
         })
-      : await renderSourceDocument({
+      : await renderSourcePair({
+          // Ledger rows written before the document-model migration carry a
+          // bare (type, id) pair. They are frozen into a record on recovery
+          // so even a replayed legacy job archives its artifact.
           documentType: job.doc_type ?? 'document',
           documentId: job.doc_id ?? '',
           medium,
           paperFormat: paperFormatFromRenderOptions(renderOptions),
-          extraBody: renderOptions,
+          context: { businessId: job.business_id ?? null },
+          options: renderOptions,
         });
 
     const copies = Math.max(1, job.copies ?? 1);
