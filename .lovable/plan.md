@@ -1,67 +1,133 @@
-# Enterprise Document Presentation — Audit Findings & Consolidation Plan
+# Document Presentation Architecture — audit findings and consolidation plan
 
-## What "document presentation" means here
+## What the audit found (verified in code and data)
 
-In SAP/Dynamics/NetSuite/Odoo the printable-document stack is split four ways, and the split is the whole point:
+The ERP has **three** parallel document-presentation pipelines, not one.
 
-| Layer | Owns | Must NOT own |
-|---|---|---|
-| Business module | the record and its numbers | anything visual |
-| Document model | a frozen, paper-agnostic snapshot | fonts, columns, paper |
-| **Presentation profile** | which fields/columns appear, order, typography, spacing, branding, headers/footers, totals, signatures, legal text | how to draw a glyph |
-| Renderer (PDF / ESC-POS / ZPL / HTML) | geometry for one medium | *which* fields appear |
+1. **Canonical engine** — `supabase/functions/_shared/receipt/lines.ts` produces a
+   medium-neutral `Line[]` AST from `(settings, company, transaction)`;
+   `renderThermalPdf`, `renderLinesEscPos` and the browser `MonospacePreview`
+   all consume it. This is the correct architecture and is what the POS
+   **preview** you screenshotted uses.
+2. **Legacy A4/thermal coordinate renderer** — `supabase/functions/_shared/pdf/**`
+   with its own `LineItemsTable` (wide grid + a second hand-drawn
+   `drawLineItemsNarrow` thermal layout) fed by a *different* column authority,
+   `documents/lineItemProfiles.ts` (mirrored in `src/lib/documents/`).
+3. **Snapshot render engine** — `render-document` +
+   `_shared/rendering/**`, fed by 18 hand-written per-module snapshot builders
+   in `src/services/documents/snapshots/*`. Each module decides its own
+   presentation fields. This is the path the real printer uses.
 
-The line-item question that triggered this audit resolves cleanly under that model: whether Unit Price, Discount, Tax, UoM or Packaging appear is **never** a per-module or per-template decision. It is a reusable **line-item presentation profile** selected by document kind + context (a delivery note suppresses amounts because its profile says so, not because its generator hardcodes `hide_amounts: true`).
+So there are two competing "single sources of truth" for line-item columns
+(`lineItemProfiles.resolveLineItemColumns` vs the receipt
+`LAYOUT_REGISTRY`/`assembleItems`), two settings mergers (`src/lib/pos/…` and
+`_shared/pos/…`), four mirrored client/edge copies of presentation code, and a
+1,100-line legacy `escpos/builder.ts` alongside the new `Line[]` emitter.
 
-## Audit result: the ERP has three presentation stacks, not one
+### Why the thermal receipt differs from the preview (root cause, confirmed)
 
-1. **Legacy imperative PDF stack (what actually prints every commercial document today).**
-   `generate-document/index.ts` (3,587 lines, 18 per-doctype fetchers) → `_shared/templateRenderer.ts` → `_shared/pdfGenerator.ts`, which calls header → recipient → meta → line items → totals → notes in a **hardcoded order**. Theme is a single hardcoded object, `_shared/pdf/themes/accountantMono.ts`. Presentation is persisted in `document_templates`, whose `template_type` constraint only admits `invoice | estimate | proforma | credit_note | receipt | purchase_order` — so sales orders, delivery notes, GRNs, returns, statements and warehouse documents **have no configurable presentation at all**. Goods receipts literally borrow the purchase-order template by comment.
+- `renderAstToEscPos` reads receipt settings from `context.options.receiptSettings`.
+  **No client caller ever sets that option** (`rg receiptSettings src/services` →
+  only the snapshot builder). So it is `null`.
+- `documentToReceiptLines` then builds `rs = { ...(null ?? {}) }` → `{}` and passes
+  it as `overrides.settings`. In `documentToReceiptInput` the resolution is
+  `overrides.settings ?? storedRs` — an **empty object is not nullish**, so the
+  snapshot's `pos_receipt_settings` is discarded and the engine falls back to
+  defaults → `compact` layout (qty | name | total), which is exactly the printed
+  output. The operator's saved `item_display_format = "two-lines"` (verified in
+  `pos_settings`) never reaches the printer.
+- `buildPosReceiptSnapshot` reads `txn.subtotal_amount` / `txn.total_amount` /
+  `txn.receipt_number` / `txn.transacted_at`, but the frozen
+  `pos_receipt_snapshots.payload.transaction` uses `subtotal` / `total` /
+  `transaction_number` / `created_at`. Verified against the real row for
+  POS1-260801-0002 (subtotal 240, total 240) → snapshot emits 0, which is why
+  paper shows `Subtotal 0.00 / TOTAL 0.00` while payments show 240.00.
 
-2. **POS/thermal stack — a genuinely better model, walled off in POS.**
-   `ReceiptTheme` (`businesses.receipt_theme` / `pos_registers.receipt_theme`) already expresses paper, density, typography, branding, section order, per-section field visibility, formatting and a pluggable `LayoutTemplate` registry with `compact | detailed | tabular | tabular_sku` column presets. This is the presentation-profile concept the rest of the ERP lacks — it is simply scoped to receipts.
+These are symptoms of the architecture problem, not the problem itself.
 
-3. **AST engine (ADR-0084) — architecturally correct, barely adopted.**
-   `render-document` → `_shared/rendering/engine.ts` with medium-neutral blocks and `document_kinds` / `document_template_ast` / `document_theme` / `document_header_footer`. Only ZPL labels and payslips genuinely use it; for every other kind `renderAstToPdf` is an adapter that calls the legacy imperative `generateDocumentPdf` — so the AST currently controls *whether* a section fires, not *how* it lays out.
-
-Consequences today: two independent typography/branding models with zero shared code, three overlapping presentation tables, line-item columns decided in three unrelated places (`buildColumns()`, `drawLineItemsNarrow()`, `LayoutTemplate.columns()`), and ten document types with no presentation surface at all.
-
-## Direction
-
-Make the ADR-0084 AST engine the **only** presentation architecture. `ReceiptTheme`'s richness becomes the shape of the unified theme; the legacy PDF stack is deleted, not wrapped.
+## Target architecture
 
 ```text
-Business module ──▶ Document snapshot (frozen, paper-agnostic)
-                          │
-             Presentation profile resolver
-        (kind + scope ladder: branch ▸ org ▸ tenant ▸ system)
-                          │
-        ┌─────────────────┴─────────────────┐
-   Theme + header/footer            Block AST (incl. line-item profile)
-        └─────────────────┬─────────────────┘
-                 Medium renderers
-            PDF · ESC/POS · ZPL · HTML
+Business module            → owns data only (document_records + snapshot)
+Document Presentation      → resolves ONE profile per (kind, medium, scope)
+Line[] AST engine          → structure, columns, ordering, totals, blocks
+Renderers (PDF/ESC-POS/    → geometry only: fonts, cells, page breaks, bytes
+  ZPL/HTML/preview)
 ```
 
-## Steps
+**Presentation profile** becomes a first-class, scoped record covering: paper /
+media class, typography and density, line-item layout (which of qty, unit price,
+discount, tax, UoM/packaging, SKU appear and in what shape), header/footer,
+branding, totals, signatures, legal text, barcode/fiscal blocks. Scope
+precedence: `organization → business → branch → register/document-kind override`.
+POS keeps only an **override**, not its own architecture.
 
-**1. Unified presentation model.** Extend `document_theme` to carry the full `ReceiptTheme` concern set (paper, density, typography, branding, section visibility, formatting, compliance) as one schema serving A4 and thermal alike. Fold `accountantMono` into a seeded `system` theme row so the current A4 output is byte-identical on day one. Migrate `businesses.receipt_theme` / `pos_registers.receipt_theme` and every `document_templates` row into `document_theme` + `document_template_ast` rows; add a register scope tier to the ladder so POS keeps per-register overrides.
+## Work plan
 
-**2. Line-item presentation profiles.** Introduce a first-class profile (column set, order, widths, visibility, grouping, UoM/packaging, amount suppression, narrow-paper collapse) referenced by the `table` block instead of the opaque `preset: "line_items"`. Seed named profiles — `commercial_full`, `commercial_no_amounts` (delivery/transfer/adjustment), `procurement`, `retail_compact`, `retail_detailed`, `statement` — and assign per document kind. This single move replaces `buildColumns()`, `drawLineItemsNarrow()` and the POS `LayoutTemplate` column functions.
+**1. One presentation authority**
+- Introduce `documents/presentation/` (shared edge module + one thin browser
+  re-export, no more byte-mirrored copies): `PresentationProfile` type,
+  `resolveProfile(kind, mediaClass, scope)`, and one `resolveLineItemLayout`
+  that supersedes both `lineItemProfiles.ts` and the receipt `LAYOUT_REGISTRY`
+  legacy enum mapping. Migrate `pos_settings.receipt_settings` and
+  `businesses.receipt_settings` into the profile store; keep POS as a scoped
+  override row.
 
-**3. AST-first PDF renderer.** Replace the interior of `renderAstToPdf` so it walks the block list and lays out from the theme, using the existing `_shared/pdf/components/*` primitives as pure drawing helpers with no ordering knowledge of their own. Point the ESC/POS renderer at the same blocks and profiles, keeping `PrinterProfile`/`ColumnLayout` as the monospace geometry solver.
+**2. One structure producer**
+- `lines.ts` becomes the only structure producer for every medium, driven by the
+  resolved profile. Wide media (A4/Letter/HTML) get a `columns` presentation of
+  the same AST instead of a separate hand-drawn table.
+- Fix the settings-resolution defect properly: profiles are resolved once, in the
+  engine, from the document record + scope — renderers stop accepting a
+  `receiptSettings` bag at all.
 
-**4. Migrate every document kind.** Seed `document_kinds` + AST for quotation, estimate, proforma, sales order, delivery note, invoice, credit note, purchase order, vendor bill, goods receipt, sales/purchase return, customer & vendor statements, legal recipient statement, stock adjustment/transfer, POS receipt, drawer slip, kitchen ticket, payslip, HR letters, labels. The 18 fetchers move to a snapshot-builder module (data only); each is verified against golden byte output before its legacy path is cut.
+**3. One document data contract**
+- Replace the 18 hand-written snapshot builders' presentation-bearing fields with
+  a generated canonical `DocumentSnapshot` (header, parties, lines, totals,
+  payments, fiscal, notes/terms). Field names come from the contract, so the
+  `subtotal_amount` class of bug cannot recur. Add a contract test per kind.
 
-**5. Delete the legacy stacks.** Remove `generate-document/index.ts`'s render path, `_shared/templateRenderer.ts`, imperative `generateDocumentPdf`, `drawLineItemsNarrow`, the receipt `LayoutTemplate` registry, and drop `document_templates`. No fallbacks, no shims.
+**4. Delete legacy paths (no fallbacks)**
+- `_shared/escpos/builder.ts` (`buildDocumentEscPos`) and its section logic.
+- `documents/lineItemProfiles.ts` (both copies) and `drawLineItemsNarrow`.
+- Thermal/receipt branches inside `generate-document/index.ts`; the function is
+  reduced to a transport adapter over `render-document`, or removed once callers
+  move.
+- Mirrored client copies: `src/lib/receipt/items.ts`, `src/lib/receipt/layouts`,
+  `src/lib/receipt/engine/*`, `src/lib/pos/mergeReceiptSettings.ts`,
+  `src/lib/documents/lineItemProfiles.ts` — replaced by one shared module.
+- The parity tests that exist only to police those duplicates.
 
-**6. One presentation workspace (UX).** Today a user configures receipt appearance in Settings → Company → Receipts, print policy in Platform → Hardware → Output Policies, invoice fields in Settings → Company → Templates, with no cross-links. Replace with a single **Document Presentation** area: a list of document kinds → per-kind editor (Layout, Line Items, Typography & Spacing, Branding, Header/Footer, Totals, Signatures, Legal Text, Attachments) with a live preview at the target paper size for every kind, not just receipts. `DocumentTemplateSettings`, `DocumentTemplateBuilder`, `ReceiptSettings`, `ReceiptSectionEditor` are deleted; the shared `MonospacePreview`/`buildReceiptLines` preview generalises to a medium-aware preview driven by the same engine. Output policies stay in Hardware (transport is a different concern) but are deep-linked from each kind.
+**5. One workspace (UX)**
+- New `Settings → Documents & Printing` workspace: left rail of document kinds
+  (Sales, Purchasing, POS, Inventory/WMS, HR & Payroll), per kind a media tab
+  (A4 / 80mm / 58mm / 40mm / Email), and a live preview using the same engine
+  the printer uses. Editing line-item presentation, typography, headers,
+  footers, totals, legal text happens only here.
+- `Company Settings → Receipts` and `POS Settings → Receipts` are removed; POS
+  gets a single "Register override" entry that opens the same workspace scoped
+  to the register. One place to answer "where do I change how invoices show
+  items?"
 
-**7. Guardrails.** ESLint + architecture tests: no imports of the deleted modules, no per-module column lists, no theme constants outside the theme resolver, every `document_kinds` row must resolve to an AST, and byte-golden tests per kind.
+**6. Guardrails**
+- ESLint + architecture tests: no module outside `documents/presentation/**` may
+  decide columns, typography or spacing; no renderer may read raw settings; no
+  new mirrored copies; golden-byte tests for 40/58/80 mm and A4 per kind, and a
+  preview↔ESC/POS↔PDF parity test asserting identical `Line[]` for one input.
 
-## Technical notes
+## Sequencing
 
-- Snapshots stay frozen; presentation is resolved at render time so reprints of historical documents can be reproduced by pinning the profile version on the artifact.
-- Migration is per-kind behind the existing artifact ledger, so each kind flips only after its golden comparison passes; the legacy code is removed in step 5 once all kinds are flipped, within this work — not deferred.
-- Statutory-pinned documents (ADR-0008) keep `assertStatutoryPaper("a4")`; their profiles are marked non-overridable in the resolver rather than bypassing it.
-- `document_print_policies` and the print/transport layer are untouched.
+1. Contract + profile module + engine wiring (behaviour-preserving), with the
+   preview/print parity test failing first, then green.
+2. Migrate snapshots to the canonical contract, kind by kind, deleting each
+   legacy branch as its kind lands.
+3. Wide-media (A4) migration onto the same AST.
+4. Workspace UI + settings migration, delete old screens.
+5. Remove `generate-document` legacy renderers and dead mirrors; enable guardrails.
+
+## Notes
+
+Immediate visible outcome after step 1: printed thermal receipts match the POS
+preview exactly (correct layout, correct subtotal/total), and every other
+thermal document — estimates, sales orders, invoices, POs, delivery notes,
+returns — inherits the same qty × unit-price presentation from one profile.
