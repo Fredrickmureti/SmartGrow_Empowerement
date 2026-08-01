@@ -7,9 +7,10 @@
  * identifier". A milk packet with a GTIN but an unlabelled 6-pack and
  * pallet is NOT identified — the warehouse cannot receive a pallet.
  *
- * Source of truth: the `product_identification_status(business, ids[])`
- * RPC, which projects one row per (product, packaging level) with the
- * identifier count and whether the level has been deliberately waived.
+ * Source of truth: the `product_identification_queue(business, search,
+ * limit, offset)` RPC. Completeness filtering, search and paging all run
+ * server-side — the client never downloads the catalogue to decide what
+ * is missing, so the workspace behaves the same for 200 or 200 000 SKUs.
  *
  * The queue this hook returns is a flat list of *targets* — one entry per
  * missing level — ordered product-by-product, smallest level first, so
@@ -45,85 +46,97 @@ export interface IdentificationTarget {
   ladder: IdentificationLevel[];
 }
 
-interface StatusRow {
+export interface IdentificationQueueResult {
+  targets: IdentificationTarget[];
+  /** Total products still missing at least one identifier (ignores paging). */
+  pendingProductCount: number;
+}
+
+interface QueueRow {
   product_id: string;
+  product_name: string;
+  sku: string | null;
+  unit_price: number | string | null;
+  image_url: string | null;
+  category_id: string | null;
   packaging_id: string | null;
   level_name: string;
   qty_in_base_uom: number | string;
-  sort_qty: number | string;
   identifier_count: number;
   primary_code: string | null;
   is_waived: boolean;
+  needs_identifier: boolean;
+  pending_product_count: number | string;
 }
 
 interface Args {
   businessId: string | null | undefined;
   search?: string;
-  /** Max products scanned for missing levels. */
+  /** Products per page (levels are expanded server-side). */
   limit?: number;
+  offset?: number;
 }
 
-export function useIdentificationQueue({ businessId, search, limit = 200 }: Args) {
+export function useIdentificationQueue({
+  businessId,
+  search,
+  limit = 50,
+  offset = 0,
+}: Args) {
   return useQuery({
-    queryKey: ["identification-queue", businessId, search ?? null, limit],
+    queryKey: ["identification-queue", businessId, search ?? null, limit, offset],
     enabled: !!businessId,
-    queryFn: async (): Promise<IdentificationTarget[]> => {
-      let q = supabase
-        .from("products")
-        .select("id,name,sku,unit_price,image_url,category_id")
-        .eq("business_id", businessId!)
-        .eq("is_active", true)
-        // Flagged items leave the workspace until triaged.
-        .is("review_reason", null)
-        .order("created_at", { ascending: true })
-        .limit(limit);
-
-      if (search && search.trim().length > 0) {
-        const s = search.trim().replace(/[,()]/g, " ");
-        q = q.or(`name.ilike.%${s}%,sku.ilike.%${s}%`);
-      }
-
-      const { data: products, error } = await q;
-      if (error) throw error;
-      const rows = products ?? [];
-      if (rows.length === 0) return [];
-
-      const { data: status, error: e2 } = await supabase.rpc(
-        "product_identification_status" as any,
+    queryFn: async (): Promise<IdentificationQueueResult> => {
+      const { data, error } = await supabase.rpc(
+        "product_identification_queue" as any,
         {
           p_business_id: businessId!,
-          p_product_ids: rows.map((p) => p.id),
+          p_search: search?.trim() || null,
+          p_limit: limit,
+          p_offset: offset,
         } as any,
       );
-      if (e2) throw e2;
+      if (error) throw error;
 
-      const byProduct = new Map<string, IdentificationLevel[]>();
-      for (const raw of (status ?? []) as StatusRow[]) {
-        const list = byProduct.get(raw.product_id) ?? [];
+      const rows = (data ?? []) as QueueRow[];
+      if (rows.length === 0) return { targets: [], pendingProductCount: 0 };
+
+      // Preserve server ordering (created_at, then level size ascending).
+      const order: string[] = [];
+      const meta = new Map<string, QueueRow>();
+      const ladders = new Map<string, IdentificationLevel[]>();
+
+      for (const r of rows) {
+        if (!meta.has(r.product_id)) {
+          meta.set(r.product_id, r);
+          order.push(r.product_id);
+        }
+        const list = ladders.get(r.product_id) ?? [];
         list.push({
-          packagingId: raw.packaging_id,
-          levelName: raw.level_name,
-          qtyInBaseUom: Number(raw.qty_in_base_uom ?? 1),
-          identifierCount: Number(raw.identifier_count ?? 0),
-          primaryCode: raw.primary_code,
-          isWaived: !!raw.is_waived,
+          packagingId: r.packaging_id,
+          levelName: r.level_name,
+          qtyInBaseUom: Number(r.qty_in_base_uom ?? 1),
+          identifierCount: Number(r.identifier_count ?? 0),
+          primaryCode: r.primary_code,
+          isWaived: !!r.is_waived,
         });
-        byProduct.set(raw.product_id, list);
+        ladders.set(r.product_id, list);
       }
 
       const targets: IdentificationTarget[] = [];
-      for (const p of rows) {
-        const ladder = (byProduct.get(p.id) ?? []).sort(
+      for (const productId of order) {
+        const p = meta.get(productId)!;
+        const ladder = (ladders.get(productId) ?? []).sort(
           (a, b) => a.qtyInBaseUom - b.qtyInBaseUom,
         );
         for (const level of ladder) {
           if (level.identifierCount > 0 || level.isWaived) continue;
           targets.push({
-            key: `${p.id}:${level.packagingId ?? "base"}`,
-            id: p.id,
-            name: p.name,
+            key: `${productId}:${level.packagingId ?? "base"}`,
+            id: productId,
+            name: p.product_name,
             sku: p.sku,
-            unit_price: p.unit_price,
+            unit_price: Number(p.unit_price ?? 0),
             image_url: p.image_url,
             category_id: p.category_id,
             packagingId: level.packagingId,
@@ -133,7 +146,11 @@ export function useIdentificationQueue({ businessId, search, limit = 200 }: Args
           });
         }
       }
-      return targets;
+
+      return {
+        targets,
+        pendingProductCount: Number(rows[0].pending_product_count ?? 0),
+      };
     },
     staleTime: 30_000,
   });

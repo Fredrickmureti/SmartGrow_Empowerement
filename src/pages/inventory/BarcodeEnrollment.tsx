@@ -64,10 +64,12 @@ export default function BarcodeEnrollment() {
   // `scan_events` via the `workspace_id` lane.
   useActiveScanContext({ workspace_id: "enrollment" });
 
-  const { data: products = [], isLoading } = useIdentificationQueue({
+  const { data: queue, isLoading } = useIdentificationQueue({
     businessId,
     search,
   });
+  const products = queue?.targets ?? [];
+
 
   const wf = useEnrollmentWorkflow({
     businessId,

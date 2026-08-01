@@ -83,5 +83,19 @@ Migration `A′ : harden product identification model` applied successfully:
 - Verified no edge function or anon client path calls the resolver; only `useIdentificationQueue` / `useEnrollmentWorkflow` consume it. `pos_resolve_barcode` delegates in-DB under the caller's JWT, so POS scanning is unaffected.
 - `bunx vitest run src/test/inventory src/test/scanner`: 180 passed / 3 failed (pre-existing, unrelated: 2× `pairing-url-host-match` host resolution, 1× `scan-event-sender` payload shape) plus the known `enrollment-workflow.test.tsx` worker timeout (Phase B′ work).
 
-### Next action (A′, step 2 → B′)
-Extend the resolver contract (branch id + GS1 AI payload parsing, explicit `ambiguous` signal), then move enrollment-queue completeness filtering server-side with pagination and retire `useProductsAwaitingBarcode` from the test.
+## A′ step 2 + B′ shipped — 2026-08-01
+
+Migration `resolver contract + server-side identification queue` applied:
+
+- `resolve_product_identity(p_business_id, p_code, p_branch_id default null)` recreated (old 2-arg signature dropped; `pos_resolve_barcode` still resolves via named/positional call and reads the record with `SELECT *`, so its shape is unchanged).
+  - Candidate set: `upper(btrim(code))`, GS1 `(01)`/`01`-prefixed 14-digit GTIN extraction, plus zero-padding variants (`ltrim '0'`, `lpad 13`, `lpad 14`) so GTIN-8/12/13/14 encodings of the same number resolve to the same level.
+  - New `match_count` column = number of identifiers hit → callers can distinguish resolved / ambiguous / not-found from one contract. Exact-code match wins over padding variants, then `is_primary`, then oldest.
+  - SKU fallback preserved for the base unit; tenant gate (`auth.uid()` + `user_can_access_business`) preserved; `anon` execute revoked.
+- New `product_identification_queue(business, search, limit, offset)` (SECURITY DEFINER, tenant-gated, `anon` revoked): projects one row per (product, packaging level) but only for products that still have ≥1 level with no identifier and no waiver. Search on name/sku, offset paging over *products*, and `pending_product_count` for the operator's total. Completeness filtering is now entirely server-side.
+- `useIdentificationQueue` rewritten onto the new RPC: returns `{ targets, pendingProductCount }`, no catalogue download, `limit` now means products-per-page with an `offset` arg. `BarcodeEnrollment` reads `queue.targets`.
+- `src/test/inventory/enrollment-workflow.test.tsx` migrated off `AwaitingBarcodeProduct` onto level-aware `IdentificationTarget` fixtures (packagingId / levelName / qtyInBaseUom / ladder). Suite: **8 passed**, no worker timeout — the previous hang is resolved. `src/test/inventory/uom.test.ts` OOMs the vitest worker (pre-existing, unrelated to identification).
+- `bunx tsgo --noEmit`: clean.
+
+### Next action (Phase C1)
+Build the shared client resolver hook over `resolve_product_identity` (single not-found / ambiguous / offline contract using `match_count`), then cut WMS receiving over to it (C2).
+
