@@ -188,16 +188,19 @@ function drawHeaderRow(
 }
 
 export function drawLineItemsTable(builder: PdfBuilder, config: LineItemsTableConfig): void {
-  // Stage P2 (ADR-0008): on narrow paper (thermal 58mm / 80mm) the
-  // multi-column table is unreadable. Switch to a stacked single-column
-  // layout: description on its own wrapped lines, then `qty x price` on
-  // the left and the line amount right-aligned. SKU / tax / discount
-  // columns are dropped — they are inline metadata on a thermal receipt
-  // and the receipt template generator never showed them either.
+  // Thermal/narrow media are NOT drawn here. They are structured by the
+  // canonical Line[] receipt engine and drawn by `renderThermalPdf`
+  // (ADR-0085 rendering ownership). The former `drawLineItemsNarrow`
+  // stacked-row layout was a second, divergent line-item renderer and has
+  // been removed; `generateDocumentPdf` hard-refuses thermal documents.
   if (builder.state.density === "narrow") {
-    drawLineItemsNarrow(builder, config);
-    return;
+    throw new Error(
+      "drawLineItemsTable: narrow/thermal density is not renderable by the A4 " +
+        "coordinate table. Route through renderThermalPdf (ADR-0085).",
+    );
   }
+
+
 
   const { state, fontRegular } = builder;
   const { margin, contentWidth } = state;
