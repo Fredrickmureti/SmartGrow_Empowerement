@@ -42,21 +42,12 @@ export function EmployeePayslipHistory({ employeeId }: EmployeePayslipHistoryPro
   const handleDownloadPayslip = async (ps: any) => {
     try {
       const run = ps.payroll_runs;
-      const { data, error } = await supabase.functions.invoke("generate-payslip-pdf", {
-        body: { payslip_id: ps.id },
-      });
-      if (error) throw error;
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Payslip_${run.payroll_number}.pdf`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch {
-      toast.error("Failed to generate payslip PDF");
+      await downloadPayslipPdf(ps.id, { filename: `Payslip_${run?.payroll_number ?? ps.id}` });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate payslip PDF");
     }
   };
+
 
   if (isLoading) {
     return (
