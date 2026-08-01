@@ -13,6 +13,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useBranches } from "@/hooks/useBranches";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,11 @@ export default function TransferNew() {
   const { products } = useProducts();
   const { currentBranch } = useBranches();
   const { currentBusiness } = useBusinesses();
+  // Phase C3 — a case/inner barcode adds its full base-unit content.
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
+    currentBusiness?.id,
+    currentBranch?.id ?? null,
+  );
 
   const inventoryProducts = useMemo(
     () => products.filter((p: any) => p.type === "product" && p.is_active),
@@ -65,35 +71,60 @@ export default function TransferNew() {
     }
   }, [searchParams]);
 
-  const handleScanLine = (code: string) => {
+  const handleScanLine = async (code: string) => {
     const norm = code.trim();
     if (!norm) return;
     setScanCode("");
-    const match = inventoryProducts.find(
-      (p: any) => p.sku && p.sku.toLowerCase() === norm.toLowerCase(),
-    );
-    if (!match) {
-      setScanFlash(`No product matches "${norm}"`);
-      window.setTimeout(() => setScanFlash(null), 2500);
+    const flash = (msg: string, ms = 2500) => {
+      setScanFlash(msg);
+      window.setTimeout(() => setScanFlash(null), ms);
+    };
+
+    const resolved = await resolveIdentity(norm);
+    if (resolved.kind === "error") {
+      flash(`Could not verify "${norm}" — ${resolved.err.message}`, 3500);
       return;
     }
+    if (resolved.kind === "ambiguous") {
+      flash(`"${norm}" matches ${resolved.matchCount} identifiers — resolve the duplicate first.`, 3500);
+      return;
+    }
+
+    let productId: string | null = null;
+    let name = norm;
+    let step = 1;
+    if (resolved.kind === "resolved") {
+      productId = resolved.identity.productId;
+      name = resolved.identity.productName;
+      step = Math.max(1, Math.round(resolved.identity.qtyInBaseUom || 1));
+    } else {
+      const match = inventoryProducts.find(
+        (p: any) => p.sku && p.sku.toLowerCase() === norm.toLowerCase(),
+      );
+      if (!match) {
+        flash(`No product matches "${norm}"`);
+        return;
+      }
+      productId = match.id;
+      name = match.name;
+    }
+
     setItems((prev) => {
-      const idx = prev.findIndex((i) => i.product_id === match.id);
+      const idx = prev.findIndex((i) => i.product_id === productId);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = {
           ...next[idx],
-          quantity_requested: (next[idx].quantity_requested || 0) + 1,
+          quantity_requested: (next[idx].quantity_requested || 0) + step,
         };
         return next;
       }
       const trailingEmpty =
         prev.length > 0 && !prev[prev.length - 1].product_id;
       const base = trailingEmpty ? prev.slice(0, -1) : prev;
-      return [...base, { product_id: match.id, quantity_requested: 1 }];
+      return [...base, { product_id: productId!, quantity_requested: step }];
     });
-    setScanFlash(`+1 ${match.name}`);
-    window.setTimeout(() => setScanFlash(null), 1500);
+    flash(`+${step} ${name}`, 1500);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
