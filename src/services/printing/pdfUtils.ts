@@ -182,6 +182,13 @@ export interface DocumentRenderPolicyInfo {
   source: string;
   paper: string;
   renderMode: string;
+  /** Thermal character columns; null for PDF renders. */
+  columns: number | null;
+  font: string | null;
+  /** `media_profiles.id` the policy resolved to, when one applied. */
+  profileId: string | null;
+  /** True when the server overrode the requested paper/render mode. */
+  coerced: boolean;
 }
 
 export interface DocumentRenderResponse {
@@ -194,9 +201,9 @@ export interface DocumentRenderResponse {
  *
  * Raw `fetch` rather than `supabase.functions.invoke` because the renderer
  * reports its policy decision in `X-Print-Policy-*` response headers, and
- * `invoke` discards headers. Every caller — PDF, ESC/POS, preview — comes
- * through here, so there is exactly one place that knows the endpoint, the
- * auth shape, and the error contract.
+ * `invoke` discards headers. Every caller — PDF, ESC/POS, preview, test
+ * print — comes through here, so there is exactly one place that knows the
+ * endpoint, the auth shape, the policy headers, and the error contract.
  */
 async function callDocumentRenderer(
   body: Record<string, unknown>,
@@ -230,15 +237,44 @@ async function callDocumentRenderer(
     throw new Error(message);
   }
 
-  const source = res.headers.get("X-Print-Policy-Source");
-  const paper = res.headers.get("X-Print-Policy-Paper");
-  const renderMode = res.headers.get("X-Print-Policy-Render-Mode");
+  const h = res.headers;
+  const source = h.get("X-Print-Policy-Source");
+  const paper = h.get("X-Print-Policy-Paper");
+  const renderMode = h.get("X-Print-Policy-Render-Mode");
+  const columns = h.get("X-Print-Policy-Columns");
 
   return {
     blob: await res.blob(),
-    policy: source && paper && renderMode ? { source, paper, renderMode } : null,
+    policy:
+      source && paper && renderMode
+        ? {
+            source,
+            paper,
+            renderMode,
+            columns: columns ? Number(columns) : null,
+            font: h.get("X-Print-Policy-Font"),
+            profileId: h.get("X-Print-Policy-Profile-Id"),
+            coerced: h.get("X-Print-Policy-Coerced") === "1",
+          }
+        : null,
   };
 }
+
+/**
+ * Render any document body and return raw bytes plus the resolved policy.
+ *
+ * This is the seam for non-PDF renders that need the full policy decision —
+ * the POS test print, which sends unsaved receipt settings rather than a
+ * persisted document id. Callers pass the request body verbatim; nothing
+ * here inspects or rewrites it.
+ */
+export async function renderDocumentBytesWithPolicy(
+  body: Record<string, unknown>,
+): Promise<{ bytes: Uint8Array; policy: DocumentRenderPolicyInfo | null }> {
+  const { blob, policy } = await callDocumentRenderer(body);
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), policy };
+}
+
 
 function assertPdf(blob: Blob, header: string): Blob {
   const looksLikePdfType = blob.type === "application/pdf" || blob.type === "";
