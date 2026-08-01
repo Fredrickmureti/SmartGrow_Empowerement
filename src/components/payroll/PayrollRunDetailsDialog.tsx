@@ -46,6 +46,8 @@ import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMapping
 import { usePayrollMappingFindings } from "@/hooks/payroll/usePayrollMappingFindings";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
 import { PayrollPostingPreviewDialog } from "@/components/payroll/PayrollPostingPreviewDialog";
+import { downloadPayslipPdf as downloadPayslipDocument } from "@/services/payroll/payslipDocuments";
+
 
 /** Build an ExportConfig for the Payroll Register (gross-to-net per employee) */
 function getPayrollRegisterExportConfig(
