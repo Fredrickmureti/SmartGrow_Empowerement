@@ -1,6 +1,11 @@
 # ADR-0026 — Cross-app print router
 
-- **Status:** Accepted (2026-06-17). Implementation deferred to wave B1.
+- **Status:** Accepted (2026-06-17); **amended 2026-07** — the named entry point
+  `PrintClient` was superseded by `src/services/printing/PrintService.ts`, and the
+  bytes now come from `render-document` (ADR-0084/0085), not `generate-document`.
+  The decision itself (one sanctioned entry point, policy-resolved routing,
+  preview as fallback) stands; read every `PrintClient.print(...)` below as
+  `printDocument(...)` / `printDocumentIntent(...)` from `PrintService`.
 - **Predecessor:** ADR-0008 (print policies), ADR-0014 (hardware chokepoint), ADR-0037 (hardware execution topology).
 - **Companion audit:** `docs/audit/2026-06-17-hardware-enterprise-readiness.md`.
 

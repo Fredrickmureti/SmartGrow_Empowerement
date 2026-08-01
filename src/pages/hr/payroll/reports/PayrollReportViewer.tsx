@@ -197,7 +197,7 @@ function ViewerInner() {
       }
       return out;
     });
-    // Attach server-build hints so `PrintPreviewDialog` and PDF export take
+    // Attach server-build hints so `ReportPreviewDialog` and PDF export take
     // the SERVER-BUILD path in `render-report` (not the lossy prebuilt
     // path that re-ships client rows). This is the fix for "table shows N
     // rows but Preview PDF is empty": we now regenerate the dataset on the

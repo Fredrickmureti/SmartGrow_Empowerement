@@ -40,7 +40,7 @@ describe("buildProjectReportConfig", () => {
       expect(cfg.organizationId).toBe("org-1");
       expect(cfg.businessId).toBe("biz-1");
       expect(cfg.filters).toEqual({ projectId: "proj-1" });
-      // PrintPreviewDialog uses prebuilt-mode if rows/columns are populated;
+      // ReportPreviewDialog uses prebuilt-mode if rows/columns are populated;
       // empty arrays force the server-build branch.
       expect(cfg.rows).toEqual([]);
       expect(cfg.columns).toEqual([]);

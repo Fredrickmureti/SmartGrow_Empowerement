@@ -1,7 +1,7 @@
 /**
  * projectReportConfig — single source of truth for the payload shape that
  * `ProjectReportsMenu` and `RunProjectReportButton` send to `render-report`
- * via `PrintPreviewDialog`.
+ * via `ReportPreviewDialog`.
  *
  * Why: the dialog picks SERVER-BUILD vs PREBUILT mode purely from whether
  * `reportType + dateFrom + dateTo` are present on the config. A missing
@@ -41,9 +41,9 @@ export interface BuildProjectReportConfigInput {
 }
 
 /**
- * Build the ExportConfig PrintPreviewDialog forwards to render-report.
+ * Build the ExportConfig ReportPreviewDialog forwards to render-report.
  * The server-build hints are attached as extra fields the dialog reads
- * via a typed cast — keep them in sync with PrintPreviewDialog.
+ * via a typed cast — keep them in sync with ReportPreviewDialog.
  */
 export function buildProjectReportConfig(
   input: BuildProjectReportConfigInput,
@@ -59,7 +59,7 @@ export function buildProjectReportConfig(
     columns: [],
     rows: [],
     currency: input.currency,
-    // Server-build hints (consumed by PrintPreviewDialog):
+    // Server-build hints (consumed by ReportPreviewDialog):
     reportType: input.reportType,
     dateFrom: input.dateFrom,
     dateTo: input.dateTo,

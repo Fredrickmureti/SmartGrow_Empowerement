@@ -43,15 +43,18 @@ and `no-direct-barcode-lib` fail the build if you try.
    `label_templates.body_json`. Never edit ZPL/EPL by hand.
 2. Add the `kind` to `labelDispatch.ts` if it is a new label family.
 
-## 2. Wire the business event to `PrintClient`
+## 2. Wire the business event to `PrintService`
 
 Every dispatch call site must go through the single client entry point:
 
 ```ts
-import { printClient } from "@/services/printing/PrintClient";
+import { printDocument, printDocumentIntent } from "@/services/printing/PrintService";
 // or for the "auto-if-policy-else-preview" ergonomic:
 import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 ```
+
+`PrintClient` no longer exists — it was superseded by `PrintService`
+(see `docs/printing-pipeline.md`).
 
 - `intent: 'a4_document'` — A4 PDFs (routes through policy resolver
   and printer_profiles).
@@ -61,8 +64,8 @@ import { usePrintOrPreview } from "@/hooks/usePrintOrPreview";
 - `intent: 'packing_slip'` — A4 with thermal fallback.
 
 Rules:
-- Never call `supabase.functions.invoke('generate-document', ...)` from
-  a page. The ESLint rule `no-direct-generate-document-in-pages` and
+- Never invoke a render endpoint (`render-document`, `generate-document`)
+  from a page. The ESLint rule `no-direct-generate-document-in-pages` and
   the architecture test
   `src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts`
   enforce this.

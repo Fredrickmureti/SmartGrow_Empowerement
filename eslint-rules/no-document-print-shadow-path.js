@@ -13,7 +13,7 @@
 
 // The allowlist is intentionally empty — the hook file no longer exists.
 // If a future refactor genuinely needs a new document-print helper, add it
-// to `PrintClient`, not a new hook, and leave this list empty.
+// to `PrintService`, not a new hook, and leave this list empty.
 const ALLOWED_FILES = [];
 
 /** @type {import('eslint').Rule.RuleModule} */
@@ -23,7 +23,7 @@ export default {
     docs: { description: 'Forbid useDocumentPrint imports in new files (allowlist current surfaces only).' },
     schema: [],
     messages: {
-      shadow: 'useDocumentPrint is the legacy shadow print path. Use printClient.print() from @/services/printing/PrintClient — ADR-0026.',
+      shadow: 'useDocumentPrint is the legacy shadow print path. Use printDocument() from @/services/printing/PrintService — ADR-0026.',
     },
   },
   create(context) {

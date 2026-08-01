@@ -17,7 +17,6 @@ const EXEMPT_FILES = new Set<string>([
   "src/components/pos/ShiftReportDialog.tsx",
   "src/services/reports/ReportExportService.ts",
   "src/components/reports/ReportExportButtons.tsx",
-  "src/components/reports/PrintPreviewDialog.tsx", // separate report-specific dialog
   "src/components/common/PrintPreviewDialog.tsx",  // the dialog itself
   // RecordPaymentDialog reuses the dialog but the parent page already passes
   // communication when previewing the resulting receipt.
@@ -46,10 +45,10 @@ describe("PrintPreviewDialog communication prop", () => {
         const src = readFileSync(file, "utf8");
         if (!/\bPrintPreviewDialog\b/.test(src)) continue;
         // Only the shared document dialog carries a contact recipient. The
-        // report-specific dialog (`@/components/reports/PrintPreviewDialog`)
+        // report-specific dialog (`@/components/reports/ReportPreviewDialog`)
         // renders portfolio/finance reports, which have no counterparty to
         // email or SMS.
-        if (/from\s+["']@\/components\/reports\/PrintPreviewDialog["']/.test(src)) continue;
+        if (/from\s+["']@\/components\/reports\/ReportPreviewDialog["']/.test(src)) continue;
 
         // Any rendering of <PrintPreviewDialog ... > must include communication=
         const renders = src.match(/<PrintPreviewDialog\b[\s\S]*?\/>|<PrintPreviewDialog\b[\s\S]*?>[\s\S]*?<\/PrintPreviewDialog>/g) || [];
