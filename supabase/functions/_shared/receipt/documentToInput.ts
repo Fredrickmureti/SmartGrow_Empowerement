@@ -126,16 +126,23 @@ export function documentToReceiptInput(
 ): BuildReceiptLinesInput {
   const isPos = POS_TYPES.has(doc.document_type);
 
-  // Base settings resolution:
-  //  - explicit overrides win
-  //  - else the tenant's stored pos_receipt_settings (POS docs)
-  //  - else synthesised business-doc defaults (non-POS thermal docs)
+  // Presentation-profile resolution (layered, never replace-by-presence):
+  //   business/document defaults  →  stored document settings  →  caller
+  //   overrides (register scope / explicit render options).
+  // An empty override object must NOT erase the document's stored profile —
+  // that defect made every printed receipt fall back to engine defaults
+  // while the operator's saved layout only showed in the preview.
   const storedRs = (doc as unknown as {
     pos_receipt_settings?: Record<string, unknown>;
   }).pos_receipt_settings ?? null;
-  const baseRs = overrides.settings
-    ?? storedRs
-    ?? (isPos ? {} : defaultBusinessDocSettings(doc));
+  const overrideRs = overrides.settings ?? null;
+  const hasOverrides = !!overrideRs && Object.keys(overrideRs).length > 0;
+  const baseRs: Record<string, unknown> = {
+    ...(isPos ? {} : defaultBusinessDocSettings(doc)),
+    ...(storedRs ?? {}),
+    ...(hasOverrides ? overrideRs : {}),
+  };
+
 
   // Currency: ensure the engine always has a symbol to render.
   // Priority: caller-set currency_symbol_override > ISO currency code on the doc.

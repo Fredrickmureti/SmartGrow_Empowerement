@@ -24,8 +24,10 @@ Rendering ownership is fixed by module:
 
 | Byte kind                          | Sole owner                                             |
 |------------------------------------|--------------------------------------------------------|
-| PDF (all documents / receipts)     | `supabase/functions/_shared/pdf/**` via `generate-document` |
+| PDF (A4 / wide documents)          | `supabase/functions/_shared/pdf/**` via `generate-document` |
+| PDF (thermal / narrow receipts)    | `_shared/receipt/lines.ts` (Line[]) → `_shared/receipt/pdf/renderThermalPdf.ts` |
 | ESC/POS command bytes              | `supabase/functions/_shared/escpos/**` (Line[] → bytes) |
+
 | ZPL command bytes                  | `src/services/printing/**` + label driver layer        |
 | Printable barcode / QR raster      | `printClient.print(...)` → server renderer             |
 | On-screen barcode / QR (SVG only)  | `qrcode.react` (SVG component; not a printer)          |

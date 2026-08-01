@@ -10,6 +10,7 @@
  * — additions here must land alongside a matching golden bump.
  */
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
+import { mergeReceiptSettings } from "@/lib/pos/mergeReceiptSettings";
 import type { SnapshotBlob } from "./index";
 
 export interface BuildPosReceiptSnapshotInput {
@@ -29,28 +30,52 @@ export interface BuildPosReceiptSnapshotResult {
   branchId: string | null;
 }
 
+/**
+ * Field aliasing for the frozen `pos_receipt_snapshots.payload.transaction`
+ * row, which is a verbatim `pos_transactions` record (`subtotal`, `total`,
+ * `transaction_number`, `created_at`) rather than the `*_amount` naming this
+ * builder originally assumed. Reading the wrong key silently produced
+ * `Subtotal 0.00 / TOTAL 0.00` on printed receipts.
+ */
+function pick<T = unknown>(row: Record<string, unknown>, ...keys: string[]): T | undefined {
+  for (const k of keys) {
+    const v = row[k];
+    if (v !== undefined && v !== null) return v as T;
+  }
+  return undefined;
+}
+
 export function buildPosReceiptSnapshot(
   input: BuildPosReceiptSnapshotInput,
 ): BuildPosReceiptSnapshotResult {
   const { frozen, copy = "customer" } = input;
-  const txn = frozen.transaction ?? {};
-  const receiptSettings =
-    frozen.register_receipt_settings ?? frozen.business_receipt_settings ?? {};
+  const txn = (frozen.transaction ?? {}) as Record<string, unknown>;
+  // Company-level settings are canonical; the register row may only override
+  // the terminal-scoped whitelist. Same resolver the POS preview uses.
+  const receiptSettings = mergeReceiptSettings(
+    frozen.business_receipt_settings ?? null,
+    frozen.register_receipt_settings ?? null,
+  );
+
+  const documentNumber =
+    pick<string>(txn, "transaction_number", "receipt_number") ?? null;
+  const issuedAt =
+    pick<string>(txn, "completed_at", "transacted_at", "created_at") ?? null;
 
   const snapshot: SnapshotBlob = {
     document_type: "pos_receipt",
     document_type_label:
       copy === "merchant" ? "MERCHANT COPY" : "SALES RECEIPT",
-    document_number: (txn.receipt_number as string | undefined) ?? null,
-    issue_date: (txn.transacted_at as string | undefined) ?? null,
-    status: (txn.status as string | undefined) ?? "PAID",
-    currency: (txn.currency as string | undefined) ?? null,
-    subtotal: numeric(txn.subtotal_amount),
-    tax_amount: numeric(txn.tax_amount),
-    discount_amount: numeric(txn.discount_amount),
-    total: numeric(txn.total_amount),
-    amount_paid: numeric(txn.amount_paid),
-    change_due: numeric(txn.change_due),
+    document_number: documentNumber,
+    issue_date: issuedAt,
+    status: pick<string>(txn, "status") ?? "PAID",
+    currency: pick<string>(txn, "currency") ?? null,
+    subtotal: numeric(pick(txn, "subtotal", "subtotal_amount")),
+    tax_amount: numeric(pick(txn, "tax_amount")),
+    discount_amount: numeric(pick(txn, "discount_amount")),
+    total: numeric(pick(txn, "total", "total_amount")),
+    amount_paid: numeric(pick(txn, "amount_paid")),
+    change_due: numeric(pick(txn, "change_due")),
     contact: frozen.customer
       ? {
           id: frozen.customer.id ?? null,
@@ -72,25 +97,26 @@ export function buildPosReceiptSnapshot(
       amount: numeric(p.amount),
       reference: p.reference ?? null,
     })),
-    pos_receipt_settings: receiptSettings,
+    pos_receipt_settings: receiptSettings as unknown as Record<string, unknown>,
     cashier_name: frozen.cashier?.name ?? null,
     register_id: frozen.register?.code ?? frozen.register?.id ?? null,
-    notes: (txn.notes as string | undefined) ?? null,
-    etims_cu_number: (txn.etims_cu_number as string | undefined) ?? null,
-    etims_qr_data: (txn.etims_qr_data as string | undefined) ?? null,
+    notes: (pick<string>(txn, "notes") as string | undefined) ?? null,
+    etims_cu_number: pick<string>(txn, "etims_cu_number") ?? null,
+    etims_qr_data: pick<string>(txn, "etims_qr_data") ?? null,
   };
 
   return {
     snapshot,
-    documentNumber: (txn.receipt_number as string | undefined) ?? null,
-    documentDate: isoDate(txn.transacted_at as string | undefined),
-    currency: (txn.currency as string | undefined) ?? null,
+    documentNumber,
+    documentDate: isoDate(issuedAt ?? undefined),
+    currency: pick<string>(txn, "currency") ?? null,
     partyId: (frozen.customer?.id as string | undefined) ?? null,
     partyKind: frozen.customer ? "customer" : null,
     businessId: (frozen.business?.id as string | undefined) ?? null,
     branchId: (frozen.branch?.id as string | undefined) ?? null,
   };
 }
+
 
 function numeric(v: unknown): number {
   if (v == null) return 0;
