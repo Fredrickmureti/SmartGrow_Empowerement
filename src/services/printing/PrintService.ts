@@ -570,6 +570,36 @@ export const PrintService = {
 // ---------------------------------------------------------------------
 
 /**
+ * Render a legacy `(documentType, documentId)` pair.
+ *
+ * There is no second renderer: the pair is frozen into a document record
+ * (idempotently) and then rendered by `render-document`, so preview,
+ * print, download and reprint all read the same archived artifact.
+ */
+async function renderSourcePair(input: {
+  documentType: string;
+  documentId: string;
+  medium: 'pdf' | 'escpos';
+  paperFormat?: PaperFormatOption | null;
+  context?: SourceDocumentContext;
+  options?: Record<string, unknown>;
+}): Promise<RenderedArtifact> {
+  const documentRecordId = await resolveSourceDocumentRecordId(
+    input.documentType,
+    input.documentId,
+    input.context ?? {},
+  );
+  return renderDocumentRecord({
+    documentRecordId,
+    medium: input.medium,
+    options: {
+      ...(input.options ?? {}),
+      ...(input.paperFormat ? { paper_format: input.paperFormat } : {}),
+    },
+  });
+}
+
+/**
  * Produce the artifact a preview surface displays, together with the paper
  * policy the server applied. Preview is a *render*, not a print: no ledger
  * row is opened here, because nothing was committed to paper. When the
@@ -577,8 +607,8 @@ export const PrintService = {
  * `openInteractiveJob` + the transport below, so the ledger still covers
  * every physical print.
  *
- * Preview and print therefore share one renderer: what the operator sees
- * is produced by the same code that produces what the printer receives.
+ * Preview and print therefore share one renderer AND one snapshot: what the
+ * operator sees is the archived artifact the printer will receive.
  */
 export async function renderDocumentPreview(input: {
   documentType: string;
@@ -589,14 +619,16 @@ export async function renderDocumentPreview(input: {
   forceRenderMode?: boolean;
   extraBody?: Record<string, unknown>;
 }): Promise<RenderedArtifact> {
-  return renderSourceDocument({
+  return renderSourcePair({
     documentType: input.documentType,
     documentId: input.documentId,
     medium: input.medium ?? 'pdf',
     paperFormat: input.paperFormat ?? null,
-    branchId: input.branchId ?? null,
-    forceRenderMode: input.forceRenderMode,
-    extraBody: input.extraBody,
+    context: { branchId: input.branchId ?? null },
+    options: {
+      ...(input.extraBody ?? {}),
+      ...(input.forceRenderMode ? { force_render_mode: true } : {}),
+    },
   });
 }
 
