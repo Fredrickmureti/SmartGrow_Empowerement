@@ -20,10 +20,8 @@ export function renderAstToEscPos(args: {
   blocks: AstBlock[];
 }): { bytes: Uint8Array; metadata: Record<string, unknown> } {
   const opts = args.context.options as Record<string, unknown>;
-  const width = thermalWidthFromOptions(opts) ?? "80mm";
   const capabilities =
     (opts["capabilities"] as RenderDocumentEscPosOptions["capabilities"]) ?? null;
-  const receiptSettings = (opts["receiptSettings"] as Record<string, unknown> | undefined) ?? null;
   const font = (opts["font"] as "A" | "B" | undefined) ?? "A";
 
   // The receipt/ESC-POS renderer consumes the same flat `DocumentData`
@@ -40,6 +38,22 @@ export function renderAstToEscPos(args: {
       null,
   } as unknown as Parameters<typeof renderDocumentEscPosWithResult>[0];
 
+  // Presentation profile: the snapshot carries the resolved
+  // `pos_receipt_settings` (company ← register merge, frozen at issue
+  // time). Render options may only *layer on top* of it. Previously this
+  // adapter read `options.receiptSettings` alone — always absent on the
+  // snapshot path — so every printed receipt silently ignored the saved
+  // layout while the on-screen preview honoured it.
+  const snapRs = (snap["pos_receipt_settings"] as Record<string, unknown> | undefined) ?? null;
+  const optRs = (opts["receiptSettings"] as Record<string, unknown> | undefined) ?? null;
+  const receiptSettings: Record<string, unknown> | null =
+    snapRs || optRs ? { ...(snapRs ?? {}), ...(optRs ?? {}) } : null;
+
+  const width =
+    thermalWidthFromOptions(opts)
+    ?? thermalWidth(receiptSettings?.["paper_size"])
+    ?? "80mm";
+
   const { bytes, rows } = renderDocumentEscPosWithResult(doc, {
     width,
     title: (opts["title"] as string | undefined) ?? undefined,
@@ -47,6 +61,7 @@ export function renderAstToEscPos(args: {
     capabilities,
     font,
   });
+
   return {
     bytes,
     // What the builder actually resolved — surfaced to the operator as the
