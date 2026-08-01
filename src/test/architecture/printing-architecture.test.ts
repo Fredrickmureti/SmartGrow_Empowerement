@@ -158,19 +158,24 @@ describe('printing architecture — one print ledger', () => {
     expect(filesMatching(/rpc\(\s*['"]print_job_/, [])).toEqual(['services/printing/jobs.ts']);
   });
 
-  it('only PrintService and recovery open or claim ledger rows', () => {
+  it('only PrintService and the operator workspace open or claim ledger rows', () => {
     // Value imports only — a shared `PrintTransport` type is not a writer.
     const importers = filesImporting(
       /from\s+['"](\.\/jobs|@\/services\/printing\/jobs)['"]/,
     );
-    // PrintService owns the ledger lifecycle. PrintQueuePage is the
-    // ledger's own admin console: it reads rows and asks the ledger module
-    // to open a child job. Recovery selects rows and delegates dispatch,
-    // so it needs the row type only — never the writers.
+    // PrintService owns the ledger lifecycle. HardwarePrintQueue is the
+    // single operator console: it reads rows and asks the ledger module to
+    // requeue or open a child job. Recovery selects rows and delegates
+    // dispatch, so it needs the row type only — never the writers.
     expect(importers.sort()).toEqual(
-      ['pages/admin/PrintQueuePage.tsx', 'services/printing/PrintService.ts'].sort(),
+      ['apps/platform/hardware/HardwarePrintQueue.tsx', 'services/printing/PrintService.ts'].sort(),
     );
   });
+
+  it('only jobs.ts calls the requeue RPC', () => {
+    expect(filesMatching(/requeue_print_job/, [])).toEqual(['services/printing/jobs.ts']);
+  });
+
 
   it('nothing outside the printing service writes print_jobs directly', () => {
     const writers = filesMatching(/from\(['"]print_jobs['"]\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/);

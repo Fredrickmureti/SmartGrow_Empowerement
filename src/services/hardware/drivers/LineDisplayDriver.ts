@@ -1,10 +1,14 @@
 /**
- * Line Display Driver — VFD/LCD customer-facing line display.
- * 
- * Communicates via serial (RS-232 or USB-serial) to 2-line or 4-line
- * customer-facing pole displays. Uses standard ESC/POS display commands
- * common to Epson DM-D, Bixolon BCD, and compatible displays.
- * 
+ * Line Display Driver — VFD/LCD customer-facing line display (browser only).
+ *
+ * Speaks standard ESC/POS display commands (Epson DM-D, Bixolon BCD and
+ * compatibles) over the Web Serial API.
+ *
+ * Electron installs do NOT use this driver: the registry marks `line_display`
+ * as `browserFallback`, so desktop routes to the main-process display driver
+ * over the serial transport owned by the device runtime. This class therefore
+ * carries no Electron branch at all — one transport, no shadow path.
+ *
  * Connection params:
  *   - baudRate: serial baud rate (default 9600)
  *   - columns: number of character columns (default 20)
@@ -15,32 +19,17 @@ import type {
   IDriver, DriverType, DeviceRole, ConnectionBackend,
   DeviceStatus, DriverCommand, DriverResult, DeviceInfo,
 } from './DriverInterface';
-import { isElectron } from '@/lib/environment';
-
-// Track H4 — the renderer-side `ElectronBridge.connectSerialPort` shell was
-// deleted. In Electron, serial line displays should be wired into the
-// main-process device runtime (CommandRouter + a serial transport). Until
-// that driver migration lands, the Electron branch here returns an explicit
-// error so callers get a clear signal instead of a silent half-success.
-const electronBridgeDead = {
-  connectSerialPort: async (_path: string, _baud: number) => ({
-    success: false as const,
-    error: 'LineDisplayDriver: Electron serial bridge removed in Track H4. Configure the customer display through the main-process device manager.',
-  }),
-  disconnectSerialPort: async () => ({ success: true as const }),
-  writeToSerialPort: async (_data: string) => { /* no-op */ },
-};
-const electronBridge = electronBridgeDead;
 
 export class LineDisplayDriver implements IDriver {
   readonly driverType: DriverType = 'line_display';
   readonly supportedRoles: DeviceRole[] = ['customer_display'];
-  readonly supportedBackends: ConnectionBackend[] = ['electron', 'webserial'];
+  readonly supportedBackends: ConnectionBackend[] = ['webserial'];
 
   supported(deviceInfo: DeviceInfo): number {
     if (deviceInfo.connectionType === 'serial') return 5;
     return 0;
   }
+
 
   private connected = false;
   private columns = 20;
@@ -57,27 +46,17 @@ export class LineDisplayDriver implements IDriver {
     this.rows = (params.rows as number) || 2;
 
     try {
-      if (isElectron()) {
-        const portPath = params.portPath as string;
-        if (!portPath) {
-          return { success: false, error: 'Serial port path required for Electron' };
-        }
-        const result = await electronBridge.connectSerialPort(portPath, baudRate);
-        if (!result.success) {
-          this.lastError = result.error;
-          return { success: false, error: result.error };
-        }
-      } else if ('serial' in navigator) {
-        // Web Serial API
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const nav = navigator as any;
-        const port = await nav.serial.requestPort();
-        await port.open({ baudRate });
-        this.serialPort = port;
-        this.writer = port.writable.getWriter();
-      } else {
-        return { success: false, error: 'No serial port API available' };
+      if (!('serial' in navigator)) {
+        this.lastError = 'This browser has no Web Serial support for line displays.';
+        return { success: false, error: this.lastError };
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nav = navigator as any;
+      const port = await nav.serial.requestPort();
+      await port.open({ baudRate });
+      this.serialPort = port;
+      this.writer = port.writable.getWriter();
+
 
       this.connected = true;
       this.lastError = undefined;
@@ -109,9 +88,7 @@ export class LineDisplayDriver implements IDriver {
         await this.serialPort.close();
         this.serialPort = null;
       }
-      if (isElectron()) {
-        await electronBridge.disconnectSerialPort();
-      }
+
     } catch {
       // ignore cleanup errors
     }
@@ -221,23 +198,15 @@ export class LineDisplayDriver implements IDriver {
   }
 
   private async sendCommand(bytes: number[]): Promise<void> {
-    const data = new Uint8Array(bytes);
-    if (this.writer) {
-      await this.writer.write(data);
-    } else if (isElectron()) {
-      await electronBridge.writeToSerialPort(String.fromCharCode(...bytes));
-    }
+    if (!this.writer) return;
+    await this.writer.write(new Uint8Array(bytes));
   }
 
   private async sendString(text: string): Promise<void> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    if (this.writer) {
-      await this.writer.write(data);
-    } else if (isElectron()) {
-      await electronBridge.writeToSerialPort(text);
-    }
+    if (!this.writer) return;
+    await this.writer.write(new TextEncoder().encode(text));
   }
+
 
   private truncate(text: string): string {
     return text.length > this.columns ? text.substring(0, this.columns) : text;

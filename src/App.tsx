@@ -128,7 +128,6 @@ import {
   AdminPayments,
   AdminAuditLog,
   HardwareOpsPage,
-  PrintQueuePage,
   AdminMfaSetup,
   AdminTeam,
   AdminGroups,
@@ -775,7 +774,7 @@ const App = () => (
                               <Route path="payments" element={<LazyRoute module="Payments"><AdminPayments /></LazyRoute>} />
                               <Route path="audit-log" element={<LazyRoute module="Audit Log"><AdminAuditLog /></LazyRoute>} />
                               <Route path="hardware-ops" element={<LazyRoute module="Hardware Ops"><HardwareOpsPage /></LazyRoute>} />
-                              <Route path="print-queue" element={<LazyRoute module="Print Queue"><PrintQueuePage /></LazyRoute>} />
+                              <Route path="print-queue" element={<Navigate to="/platform/hardware/print-queue" replace />} />
                               <Route path="team" element={<LazyRoute module="Team"><AdminTeam /></LazyRoute>} />
                               <Route path="team/invite" element={<LazyRoute module="Invite Team Member"><AdminTeamInvitePage /></LazyRoute>} />
                               <Route path="team/:id/edit" element={<LazyRoute module="Edit Team Member"><AdminTeamMemberEditPage /></LazyRoute>} />
