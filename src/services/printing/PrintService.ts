@@ -37,7 +37,7 @@ import {
   type PrintTransport,
   type QueuedJob,
 } from './jobs';
-import { renderDocumentRecord, type RenderedArtifact } from './render';
+import { renderDocumentRecord, renderPreviewSnapshot, type RenderedArtifact } from './render';
 import {
   resolveSourceDocumentRecordId,
   type SourceDocumentContext,
@@ -630,6 +630,35 @@ export async function renderDocumentPreview(input: {
       ...(input.extraBody ?? {}),
       ...(input.forceRenderMode ? { force_render_mode: true } : {}),
     },
+  });
+}
+
+/**
+ * Render an *unsaved* snapshot — the settings-validation preview.
+ *
+ * Same front door, same renderer, same template resolution as a real
+ * document; the only difference is that the document does not exist yet,
+ * so nothing is archived and no ledger row is opened. Used by the receipt
+ * test print, where the operator is validating settings they have not
+ * saved.
+ */
+export async function renderSnapshotPreview(input: {
+  kindCode: string;
+  organizationId: string;
+  businessId: string;
+  branchId?: string | null;
+  snapshot: Record<string, unknown>;
+  medium?: 'pdf' | 'escpos';
+  options?: Record<string, unknown>;
+}): Promise<RenderedArtifact> {
+  return renderPreviewSnapshot({
+    kindCode: input.kindCode,
+    organizationId: input.organizationId,
+    businessId: input.businessId,
+    branchId: input.branchId ?? null,
+    snapshot: input.snapshot,
+    medium: input.medium ?? 'escpos',
+    options: input.options ?? {},
   });
 }
 

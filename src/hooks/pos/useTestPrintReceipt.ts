@@ -2,7 +2,7 @@
  * Test Print hook — receipt settings validation.
  *
  * Renders the operator's *current, unsaved* receipt settings through the
- * ONE rendering seam (`renderPreviewSnapshot` → `render-document`), then
+ * ONE front door (`PrintService.renderSnapshotPreview` → `render-document`), then
  * either streams the bytes to the connected thermal printer or downloads
  * them as `.bin` for inspection.
  *
@@ -21,7 +21,7 @@
  */
 import { useCallback, useState } from "react";
 import { downloadPdfBlob } from "@/services/printing/pdfUtils";
-import { renderPreviewSnapshot } from "@/services/printing/render";
+import { renderSnapshotPreview } from "@/services/printing/PrintService";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -236,7 +236,7 @@ export function useTestPrintReceipt() {
               ? "58mm"
               : paperFormat ?? "80mm";
 
-        const artifact = await renderPreviewSnapshot({
+        const artifact = await renderSnapshotPreview({
           kindCode: "pos_receipt",
           organizationId: currentOrg.id,
           businessId: currentBusiness.id,
