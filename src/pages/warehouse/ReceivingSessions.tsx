@@ -201,8 +201,12 @@ export default function ReceivingSessions() {
     [openSessions, transition],
   );
 
+  // Phase C2 — an item scan must resolve to a known product + packaging level
+  // through `resolve_product_identity` BEFORE the session advances. An
+  // unknown/ambiguous code blocks the line (scanFeedbackBus error), it is
+  // never narrated as a success.
   const handleItemScan = useCallback(
-    (p: WmsScanPayload) => {
+    async (p: WmsScanPayload) => {
       if (unloadingSessions.length !== 1) {
         scanFeedbackBus.emit({
           kind: "error",
@@ -216,21 +220,35 @@ export default function ReceivingSessions() {
         });
         return;
       }
+      const gated = await identityGate.gate({ raw: p.raw, resolveCode: p.resolveCode, workflow: "receive" });
+      if (!gated) return;
+
       const target = unloadingSessions[0];
+      const { identity, baseUnits, lot, expiry } = gated;
       transition.mutate(
-        { id: target.id, to: "captured", rowVersion: target.row_version, reason: `Item ${p.resolveCode}` },
+        {
+          id: target.id,
+          to: "captured",
+          rowVersion: target.row_version,
+          reason: `Item ${identity.productName} (${describeLevel(identity)} = ${baseUnits})`,
+        },
         {
           onSuccess: () =>
             toast.success(`Captured on ${target.code}`, {
-              description: p.isGs1
-                ? `GTIN ${p.gs1.gtin ?? p.resolveCode}${p.gs1.lot ? ` · lot ${p.gs1.lot}` : ""}${p.gs1.expiry ? ` · exp ${p.gs1.expiry}` : ""}`
-                : p.resolveCode,
+              description: [
+                `${identity.productName} · ${describeLevel(identity)} → ${baseUnits} base units`,
+                lot ? `lot ${lot}` : null,
+                expiry ? `exp ${expiry.toISOString().slice(0, 10)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · "),
             }),
         },
       );
     },
-    [unloadingSessions, transition],
+    [unloadingSessions, transition, identityGate],
   );
+
 
   useWmsScanIntent({
     intent: "receiving.lpn",
