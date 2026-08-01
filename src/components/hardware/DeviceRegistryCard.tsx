@@ -580,12 +580,12 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 placeholder="http://localhost:8043"
                 value={agentUrl}
                 onChange={(e) => setAgentUrl(e.target.value)}
-                className="flex-1 text-sm"
+                className="flex-1 min-w-0 basis-full sm:basis-auto text-sm"
               />
               <Button
                 variant="outline"
@@ -605,9 +605,10 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               placeholder="Pairing token — Edge app → Identity → Browser pairing"
               value={agentToken}
               onChange={(e) => setAgentToken(e.target.value)}
-              className="text-sm font-mono"
+              className="w-full text-sm font-mono"
             />
-            <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="space-y-1 text-xs text-muted-foreground break-words">
+
               <p>
                 Paste the <strong>pairing token</strong> from <strong>AccrualFlow Edge → Identity → Browser pairing</strong>
                 {' '}(same value as <code>~/.pos-agent-token</code>). This is <strong>not</strong> the workstation secret
@@ -625,7 +626,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
           <div className="space-y-2">
             <Label className="text-xs font-medium">Loopback test print</Label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground break-words">
               Sends a canonical ESC/POS init + "Hello" + cut to any printer
               (or simulator like the ESC/POS emulator on <code>127.0.0.1:9100</code>)
               through the agent. Bypasses the receipt pipeline so you can verify
@@ -636,7 +637,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                 placeholder="127.0.0.1"
                 value={loopbackIp}
                 onChange={(e) => setLoopbackIp(e.target.value)}
-                className="w-40 text-sm"
+                className="w-full sm:w-40 text-sm"
               />
               <Input
                 placeholder="9100"
@@ -646,6 +647,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               />
               <Button
                 size="sm"
+                className="flex-1 sm:flex-none"
                 onClick={handleLoopbackPrint}
                 disabled={loopbackBusy || !agentAvailable}
               >
@@ -653,6 +655,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                 Send test print
               </Button>
             </div>
+
             {!agentAvailable && (
               <p className="text-xs text-amber-600">
                 Agent is offline — start it with <code>AGENT_AUTH_DISABLED=1 npm --prefix agent run dev</code>.
@@ -697,17 +700,18 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
       {/* Device Registry */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
+                <Activity className="h-5 w-5 shrink-0" />
                 Device Registry
               </CardTitle>
               <CardDescription>
                 Manage hardware devices connected to this POS register
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
+
               {/* Scan for Devices */}
               <Dialog open={showDiscoveryDialog} onOpenChange={setShowDiscoveryDialog}>
                 <DialogTrigger asChild>
@@ -716,7 +720,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     Scan
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Scan for Devices</DialogTitle>
                     <DialogDescription>
@@ -779,7 +783,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     Add Device
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Register New Device</DialogTitle>
                     <DialogDescription>
@@ -867,7 +871,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
                     {/* Network connection fields */}
                     {(formData.connection_type === 'network') && (
-                      <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                         <div className="space-y-2">
                           <Label>IP Address</Label>
                           <Input
@@ -904,7 +908,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                         </div>
                         {/* Private IP warning in browser mode */}
                         {!isElectronEnv() && formData.connection_params?.ipAddress && isPrivateIP(formData.connection_params.ipAddress as string) && (
-                          <div className="col-span-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700">
+                          <div className="sm:col-span-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700">
                             <strong>Local network detected.</strong> This printer requires the Print Agent or Electron desktop app. The cloud cannot reach private IPs directly.
                           </div>
                         )}
@@ -914,7 +918,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     {/* ePOS-specific connection fields */}
                     {formData.driver_type === 'epos_printer' && (
                       <div className="space-y-4 p-3 bg-muted/50 rounded-lg border">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Printer IP Address</Label>
                             <Input
@@ -947,7 +951,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
                     {/* Serial connection fields */}
                     {formData.connection_type === 'serial' && (
-                      <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                         <div className="space-y-2">
                           <Label>Baud Rate</Label>
                           <Select
@@ -1001,34 +1005,34 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               {devices.map((device) => (
                 <div
                   key={device.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className="p-2 rounded-md bg-muted shrink-0">
                       {getRoleIcon(device.device_role || device.hardware_type)}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-sm truncate">{device.display_name}</span>
                         {device.is_default && (
                           <Badge variant="outline" className="text-xs shrink-0">Default</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
                         <span className="capitalize">{device.device_role?.replace(/_/g, ' ') || device.hardware_type}</span>
                         <span>•</span>
-                        <span>{device.driver_type || 'generic'}</span>
+                        <span className="break-all">{device.driver_type || 'generic'}</span>
                         <span>•</span>
                         <span className="capitalize">{device.connection_type}</span>
                         {device.connection_params?.ipAddress && (
                           <>
                             <span>•</span>
-                            <span>{String(device.connection_params.ipAddress)}:{String(device.connection_params.port || '')}</span>
+                            <span className="break-all">{String(device.connection_params.ipAddress)}:{String(device.connection_params.port || '')}</span>
                           </>
                         )}
                       </div>
                       {/* Last seen + error */}
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
                         {device.last_seen_at && (
                           <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -1036,14 +1040,14 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                           </span>
                         )}
                         {device.last_error && (
-                          <span className="text-[10px] text-destructive truncate max-w-[200px]">{device.last_error}</span>
+                          <span className="text-[10px] text-destructive truncate max-w-full sm:max-w-[200px]">{device.last_error}</span>
                         )}
                       </div>
                       {/* Stage I (H7) — Drawer-policy hazard chip */}
                       {deviceAutoKicksOnPrint(device.capabilities) && (
                         <div className="mt-1.5">
-                          <Badge variant="destructive" className="gap-1 text-[10px] font-normal">
-                            <AlertTriangle className="h-3 w-3" />
+                          <Badge variant="destructive" className="gap-1 text-[10px] font-normal whitespace-normal text-left items-start">
+                            <AlertTriangle className="h-3 w-3 shrink-0 mt-[1px]" />
                             Printer auto-opens drawer on every print — disable at the device DIP/utility tool to honor cash-only policy.
                           </Badge>
                         </div>
@@ -1051,7 +1055,8 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+
                     <StatusBadge status={device.status} />
                     <Button
                       variant="ghost"
@@ -1103,7 +1108,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
       {/* Edit Device Dialog */}
       <Dialog open={!!editingDevice} onOpenChange={(open) => { if (!open) setEditingDevice(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Device</DialogTitle>
             <DialogDescription>
@@ -1184,7 +1189,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               </Select>
             </div>
             {formData.connection_type === 'network' && (
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                 <div className="space-y-2">
                   <Label>IP Address</Label>
                   <Input
