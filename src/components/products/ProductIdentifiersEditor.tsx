@@ -59,7 +59,12 @@ interface IdentifierRow {
   code: string;
   kind: IdentifierKind;
   is_primary: boolean;
-  pack_quantity: number | null;
+  /**
+   * Phase D — packaging level this identifier belongs to. Replaces the
+   * dropped `pack_quantity` free-number column: the level's own
+   * `qty_in_base_uom` is now the single source of pack size.
+   */
+  packaging_id: string | null;
   _dirty?: boolean;
 }
 
@@ -103,6 +108,37 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     const isPhonePaired = workspaceScanner.isPaired;
     const scannerSessionId = workspaceScanner.session?.sessionId ?? null;
 
+    // Phase D — packaging ladder for the level picker. An identifier binds
+    // to a level (`packaging_id`); the level owns the pack size.
+    const [packagingLevels, setPackagingLevels] = useState<
+      Array<{ id: string; name: string; qty_in_base_uom: number }>
+    >([]);
+    useEffect(() => {
+      if (!productId) {
+        setPackagingLevels([]);
+        return;
+      }
+      let cancelled = false;
+      (async () => {
+        const { data } = await supabase
+          .from("product_packaging")
+          .select("id, name, qty_in_base_uom")
+          .eq("product_id", productId)
+          .order("qty_in_base_uom", { ascending: true });
+        if (cancelled) return;
+        setPackagingLevels(
+          (data ?? []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            qty_in_base_uom: Number(r.qty_in_base_uom) || 1,
+          })),
+        );
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [productId]);
+
     // Load existing rows when in edit mode
     useEffect(() => {
       if (!productId) {
@@ -114,7 +150,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       (async () => {
         const { data, error } = await supabase
           .from("product_identifiers")
-          .select("id, code, kind, is_primary, pack_quantity")
+          .select("id, code, kind, is_primary, packaging_id")
           .eq("product_id", productId)
           .order("is_primary", { ascending: false })
           .order("created_at", { ascending: true });
@@ -134,7 +170,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             code: r.code,
             kind: r.kind,
             is_primary: !!r.is_primary,
-            pack_quantity: r.pack_quantity,
+            packaging_id: r.packaging_id ?? null,
           })),
         );
       })();
@@ -150,7 +186,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       initialAppliedRef.current = true;
       seededRef.current = true;
       setRows((prev) => [
-        { code: initialBarcode, kind: "gtin", is_primary: true, pack_quantity: null, _dirty: true },
+        { code: initialBarcode, kind: "gtin", is_primary: true, packaging_id: null, _dirty: true },
         ...prev,
       ]);
     }, [initialBarcode, productId]);
@@ -166,7 +202,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       if (loading) return;
       if (rows.length > 0) return;
       seededRef.current = true;
-      setRows([{ code: "", kind: "gtin", is_primary: true, pack_quantity: null, _dirty: true }]);
+      setRows([{ code: "", kind: "gtin", is_primary: true, packaging_id: null, _dirty: true }]);
     }, [productId, loading, rows.length]);
 
     // When a phone pairs (0 → ≥1 device), focus the first empty barcode row
@@ -272,7 +308,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             code: r.code.trim(),
             kind: r.kind,
             is_primary: r.is_primary,
-            pack_quantity: r.kind === "pack" ? r.pack_quantity : null,
+            packaging_id: r.packaging_id,
           }));
         if (pending.length === 0) return;
         // Plain insert (no ignoreDuplicates). The DB unique constraint on
@@ -303,7 +339,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             code: initialCode,
             kind,
             is_primary: !hasPrimary,
-            pack_quantity: null,
+            packaging_id: null,
             _dirty: true,
           },
         ];
@@ -324,7 +360,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             code: merged.code.trim(),
             kind: merged.kind,
             is_primary: merged.is_primary,
-            pack_quantity: merged.kind === "pack" ? merged.pack_quantity : null,
+            packaging_id: merged.packaging_id,
           })
           .eq("id", target.id);
         if (error) {
@@ -580,20 +616,27 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
                     ))}
                   </SelectContent>
                 </Select>
-                {row.kind === "pack" && (
-                  <Input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={row.pack_quantity ?? ""}
-                    placeholder="qty"
-                    className="h-8 w-16 text-xs"
-                    onChange={(e) =>
-                      updateRow(idx, {
-                        pack_quantity: e.target.value ? Number(e.target.value) : null,
-                      })
+                {packagingLevels.length > 0 && (
+                  <Select
+                    value={row.packaging_id ?? "__base__"}
+                    onValueChange={(v) =>
+                      updateRow(idx, { packaging_id: v === "__base__" ? null : v })
                     }
-                  />
+                  >
+                    <SelectTrigger className="h-8 flex-1 sm:flex-none sm:w-[150px] text-xs min-w-0">
+                      <SelectValue placeholder="Level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__base__" className="text-xs">
+                        Base unit
+                      </SelectItem>
+                      {packagingLevels.map((lvl) => (
+                        <SelectItem key={lvl.id} value={lvl.id} className="text-xs">
+                          {lvl.name} × {lvl.qty_in_base_uom}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
                 <Button
                   type="button"
