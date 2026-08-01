@@ -72,3 +72,16 @@ Baseline established before any A′ code change:
 
 ### Next action (A′, step 1)
 Ship the `code_norm` normalization migration alone: `code_norm` is `lower(code)` while every Phase A function compares `upper(btrim(...))`, so alphanumeric identifiers never match. Dedupe case/whitespace collisions, rebuild the plain `(business_id, code_norm, kind)` UNIQUE constraint (pgTAP `product_identifiers_unique_shape_test.sql` must still pass), then gate `resolve_product_identity` / `product_identification_status` on `user_can_access_business`, revoke `anon`, and re-scope waiver RLS to `business_id`.
+
+## A′ shipped — 2026-08-01
+
+Migration `A′ : harden product identification model` applied successfully:
+
+- `product_identifiers.code_norm` rebuilt as `upper(btrim(code))` (was `lower(code)`), after deleting case/whitespace collisions (kept primary → oldest → lowest id). Both UNIQUE indexes recreated: `(business_id, code_norm)` and `(business_id, code_norm, kind)` — the `on_conflict=business_id,code_norm,kind` upsert in `src/pages/Products.tsx` and `_resolveProduct.ts` (already uppercases before querying `code_norm`) are now consistent with the DB.
+- `resolve_product_identity` and `product_identification_status` now gate on `auth.uid()` + `user_can_access_business(...)` and return zero rows for foreign/anon callers. `anon` EXECUTE revoked on both; `authenticated` + `service_role` granted. `waive_product_identification` already gated.
+- `product_identification_waivers` RLS re-scoped from `is_org_member(org)` to `user_can_access_business(auth.uid(), business_id)` for select/insert/update/delete.
+- Verified no edge function or anon client path calls the resolver; only `useIdentificationQueue` / `useEnrollmentWorkflow` consume it. `pos_resolve_barcode` delegates in-DB under the caller's JWT, so POS scanning is unaffected.
+- `bunx vitest run src/test/inventory src/test/scanner`: 180 passed / 3 failed (pre-existing, unrelated: 2× `pairing-url-host-match` host resolution, 1× `scan-event-sender` payload shape) plus the known `enrollment-workflow.test.tsx` worker timeout (Phase B′ work).
+
+### Next action (A′, step 2 → B′)
+Extend the resolver contract (branch id + GS1 AI payload parsing, explicit `ambiguous` signal), then move enrollment-queue completeness filtering server-side with pagination and retire `useProductsAwaitingBarcode` from the test.
