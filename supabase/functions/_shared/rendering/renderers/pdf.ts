@@ -45,6 +45,43 @@ export async function renderAstToPdf(args: {
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);
 
+  // Thermal gate (ADR-0085 / rendering ownership): a thermal document is
+  // structured by the canonical Line[] engine and drawn by the flow-based
+  // thermal PDF writer — never by the A4 coordinate renderer, which
+  // maintains a second, divergent line-item layout. `generateDocumentPdf`
+  // hard-refuses thermal input, so this gate is also what keeps the
+  // snapshot path from throwing for POS receipts.
+  const opts = (args.context.options ?? {}) as Record<string, unknown>;
+  const rs = (snap["pos_receipt_settings"] ?? null) as
+    | Record<string, unknown>
+    | null;
+  const paperToken = String(
+    opts["paperFormat"] ?? rs?.["paper_size"] ?? "",
+  ).toLowerCase();
+  const docType = String(snap["document_type"] ?? "").toLowerCase();
+  const THERMAL = new Set(["40mm", "58mm", "80mm"]);
+  if (THERMAL.has(paperToken) || docType === "pos_receipt" || docType === "receipt") {
+    const [{ documentToReceiptLines }, { renderThermalPdf }] = await Promise.all([
+      import("../../receipt/documentToLines.ts"),
+      import("../../receipt/pdf/renderThermalPdf.ts"),
+    ]);
+    const doc = {
+      ...snap,
+      organization:
+        (snap["organization"] as unknown) ??
+        (args.context.business as unknown) ??
+        null,
+    } as unknown as Parameters<typeof documentToReceiptLines>[0];
+    const lines = documentToReceiptLines(doc, {
+      width: THERMAL.has(paperToken)
+        ? (paperToken as "40mm" | "58mm" | "80mm")
+        : undefined,
+      receiptSettings: rs,
+    });
+    return await renderThermalPdf(lines);
+  }
+
+
 
   const documentData = {
     ...snap,
