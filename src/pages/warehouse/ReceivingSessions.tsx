@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
+import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import {
   PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
 } from "@/design-system";
@@ -78,6 +79,7 @@ export default function ReceivingSessions() {
   const qc = useQueryClient();
   const { warehouses } = useWarehouses();
   const { currentBusiness } = useBusinesses();
+  const identityGate = useWmsIdentityGate(currentBusiness?.id);
   const { currentOrg } = useOrganization();
   const { user } = useAuth();
 
