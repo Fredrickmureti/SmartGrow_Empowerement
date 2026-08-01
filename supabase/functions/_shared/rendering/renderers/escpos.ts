@@ -75,9 +75,11 @@ export function renderAstToEscPos(args: {
   };
 }
 
-function thermalWidthFromOptions(opts: Record<string, unknown>): ThermalWidth | null {
-  const width = opts["width"] ?? opts["paper_format"] ?? opts["paperFormat"];
-  return width === "40mm" || width === "58mm" || width === "80mm"
-    ? width
-    : null;
+function thermalWidth(value: unknown): ThermalWidth | null {
+  return value === "40mm" || value === "58mm" || value === "80mm" ? value : null;
 }
+
+function thermalWidthFromOptions(opts: Record<string, unknown>): ThermalWidth | null {
+  return thermalWidth(opts["width"] ?? opts["paper_format"] ?? opts["paperFormat"]);
+}
+
