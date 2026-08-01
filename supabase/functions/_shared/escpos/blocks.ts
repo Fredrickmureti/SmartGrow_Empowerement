@@ -15,7 +15,7 @@
  * This file is pure types + constants. No Deno or browser imports.
  */
 
-import type { ReceiptSettingsInput } from "./builder.ts";
+import type { ReceiptSettingsInput } from "./settings.ts";
 
 /** Every section the renderer can emit. New regulators add a new type here. */
 export type BlockType =

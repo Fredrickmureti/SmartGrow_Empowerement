@@ -51,13 +51,13 @@ describe("Stage R1.6 — Test Print server contract", () => {
     expect(src).toMatch(/pos_receipt_preview only supports format=escpos/);
   });
 
-  it("uses the shared buildDocumentEscPos builder (no parallel renderer)", () => {
-    // The preview branch must reuse the canonical builder so what test print
-    // produces is byte-equivalent to a real sale rendered with the same
+  it("uses the canonical Line[] renderer (no parallel renderer)", () => {
+    // The preview branch must reuse the canonical row producer so what test
+    // print produces is byte-equivalent to a real sale rendered with the same
     // settings — no shadow renderer, no divergence.
     const previewBlock = src.match(
-      /pos_receipt_preview[\s\S]{0,6000}buildDocumentEscPos/,
+      /pos_receipt_preview[\s\S]{0,8000}renderDocumentEscPosWithResult/,
     );
-    expect(previewBlock, "buildDocumentEscPos call inside preview branch").toBeTruthy();
+    expect(previewBlock, "canonical renderer call inside preview branch").toBeTruthy();
   });
 });

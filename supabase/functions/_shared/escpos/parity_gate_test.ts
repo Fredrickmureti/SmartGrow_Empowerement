@@ -18,7 +18,7 @@
  */
 
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import type { EscPosWidth } from "./builder.ts";
+import type { EscPosWidth } from "./settings.ts";
 import { renderLinesEscPos } from "./renderLinesEscPos.ts";
 import { renderDocumentEscPos } from "./renderDocumentEscPos.ts";
 import { buildReceiptLines } from "../receipt/lines.ts";

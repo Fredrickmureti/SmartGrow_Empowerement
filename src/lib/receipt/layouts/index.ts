@@ -1,7 +1,7 @@
 /**
  * Item layout templates — extensible replacement for the 3-way
  * `'single-line' | 'two-lines' | 'tabular'` enum that was hardcoded in
- * `buildDocumentEscPos`. New layouts are added by exporting another
+ * `buildReceiptLines`. New layouts are added by exporting another
  * `LayoutTemplate` from this file (or a sibling) and registering it in
  * `LAYOUT_REGISTRY`.
  */
