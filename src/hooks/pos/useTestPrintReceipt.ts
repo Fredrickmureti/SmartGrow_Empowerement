@@ -6,20 +6,24 @@
  * the connected thermal printer (when a hardware proxy is available) or
  * downloads them as `.bin` so the cashier can inspect / replay them.
  *
- * Phase 2: We now use raw `fetch` instead of `supabase.functions.invoke` so
- * we can read the `X-Print-Policy-*` response headers the server emits
- * (paper, columns, font, profile id, source). These are surfaced through
- * `lastResolved` and shown in the editor as a "Resolved by server"
- * diagnostics panel — the only honest signal that the bytes coming back
- * actually match what the operator configured.
+ * The render goes through `renderDocumentBytesWithPolicy` — the single
+ * transport seam in `@/services/printing/pdfUtils` — so the test print uses
+ * exactly the same endpoint, auth and error contract as a real receipt. That
+ * seam surfaces the `X-Print-Policy-*` response headers (paper, columns,
+ * font, profile id, source, coercion), which appear in the editor as a
+ * "Resolved by server" diagnostics panel — the only honest signal that the
+ * bytes coming back match what the operator configured.
  *
  * The synthetic `pos_receipt_preview` document type is server-guarded —
  * it never reads or writes `pos_transactions`. See
  * `supabase/functions/generate-document/index.ts` ("Stage R1.6" branch).
  */
 import { useCallback, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { downloadPdfBlob } from "@/services/printing/pdfUtils";
+import {
+  downloadPdfBlob,
+  renderDocumentBytesWithPolicy,
+} from "@/services/printing/pdfUtils";
+
 import { toast } from "sonner";
 import type { ExtendedReceiptSettings } from "@/types/receipt";
 
