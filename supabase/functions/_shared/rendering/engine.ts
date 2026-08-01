@@ -19,7 +19,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import type { RenderRequest, RenderResult } from "./types.ts";
 import { resolveTemplateAst } from "./resolveTemplate.ts";
 import { buildContext } from "./resolveContext.ts";
-import { composeBlocks, getMediumRenderer } from "./mediumRegistry.ts";
+import { composeBlocks, getMediumRenderer, runMediumRenderer } from "./mediumRegistry.ts";
 import { persistArtifact, shouldPersistArtifact } from "../documents/persistArtifact.ts";
 
 async function sha256(bytes: Uint8Array): Promise<string> {
@@ -72,7 +72,11 @@ export async function renderDocument(
 
   const renderer = getMediumRenderer(req.medium);
   const blocks = composeBlocks(template, context);
-  const bytes = await renderer.render({ template, context, blocks });
+  const { bytes, metadata: rendererMetadata } = await runMediumRenderer(renderer, {
+    template,
+    context,
+    blocks,
+  });
   const contentSha256 = await sha256(bytes);
 
   const result: RenderResult = {
@@ -88,6 +92,7 @@ export async function renderDocument(
       scope: template.scope,
       label: template.label,
       block_count: blocks.length,
+      ...(rendererMetadata ?? {}),
     },
   };
 
