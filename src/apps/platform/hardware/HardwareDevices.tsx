@@ -364,7 +364,7 @@ export function HardwareDevicesPage() {
       )}
 
       <Tabs defaultValue="register" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid md:grid-cols-5">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 md:w-auto md:inline-grid md:grid-cols-4">
           <TabsTrigger value="register" data-testid="tab-register">
             <PlugZap className="mr-2 h-4 w-4" /> Register
           </TabsTrigger>
