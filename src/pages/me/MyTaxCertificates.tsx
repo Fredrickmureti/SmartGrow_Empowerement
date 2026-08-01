@@ -90,7 +90,13 @@ function buildActions(cert: TaxCertificate): ArtifactAction[] {
         icon: isHtml ? "print" : "download",
         run: async () => {
           if (isHtml && a.path) {
-            await downloadTaxCertificate({ artifact_path: a.path, format: "html" });
+            await downloadTaxCertificate({
+              artifact_path: a.path,
+              format: "html",
+              certificateId: cert.id,
+              businessId: cert.business_id ?? null,
+              branchId: cert.branch_id ?? null,
+            });
           } else if (a.format === "xlsx") {
             await downloadTaxCertificate(cert, "xlsx");
           } else {
