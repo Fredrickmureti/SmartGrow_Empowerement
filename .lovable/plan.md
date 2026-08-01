@@ -57,3 +57,18 @@ These are real and must be fixed before Phase C is layered on top.
 1. Install dev deps and run inventory/scanner/architecture suites to get a real baseline.
 2. Record the verification findings in `.lovable/plan.md` and reopen A/B as A′/B′.
 3. Ship the A′ migration (normalization + tenant gating + waiver RLS + resolver contract) with its pgTAP guards.
+
+---
+
+## Verification log — 2026-07-31 (incoming engineer)
+
+Baseline established before any A′ code change:
+
+- `node_modules` was incomplete in the working environment (`vitest`, `@vitejs/plugin-react-swc` missing, TanStack entry unresolved → preview 500). `bun install` restored 1011 packages; the preview entry error and the "cannot run tests" blocker were both environment-only, not code defects.
+- `bunx vitest run src/test/inventory src/test/scanner src/test/printing`: **300 passed / 4 failed (312)**.
+  - `src/test/printing/label-dispatch-error-taxonomy.test.ts` — 1 pre-existing failure ("both taxonomy branches return `{success:false,error}`, never throw"), unrelated to identification.
+  - `src/test/inventory/enrollment-workflow.test.tsx` — worker exits/times out (still bound to the removed-in-D `useProductsAwaitingBarcode` projection). Treated as Phase B′ work, not a new regression.
+- Phase A DB objects re-confirmed live (packaging_id, guard trigger, waivers table + RLS, all three RPCs). Phase C confirmed not started (no client reference to `resolve_product_identity`).
+
+### Next action (A′, step 1)
+Ship the `code_norm` normalization migration alone: `code_norm` is `lower(code)` while every Phase A function compares `upper(btrim(...))`, so alphanumeric identifiers never match. Dedupe case/whitespace collisions, rebuild the plain `(business_id, code_norm, kind)` UNIQUE constraint (pgTAP `product_identifiers_unique_shape_test.sql` must still pass), then gate `resolve_product_identity` / `product_identification_status` on `user_can_access_business`, revoke `anon`, and re-scope waiver RLS to `business_id`.
