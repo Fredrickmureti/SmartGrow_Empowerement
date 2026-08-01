@@ -562,6 +562,7 @@ export const PrintService = {
   printLabel,
   printDocumentIntent,
   downloadDocumentRecord,
+  downloadArchivedArtifact,
 };
 
 
