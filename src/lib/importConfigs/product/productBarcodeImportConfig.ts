@@ -46,6 +46,27 @@ function normalizeKind(raw: unknown): string {
  * Product resolution: SKU (required per field def) with barcode fallback.
  * Idempotency: relies on unique `(business_id, code_norm, kind)`.
  */
+/**
+ * Resolve a packaging level for a product by its base-unit multiplier.
+ * Returns null (base unit) when the product has no matching level — the
+ * import never invents a level or copies the quantity onto the identifier.
+ */
+async function resolvePackagingLevel(
+  ctx: ImportContext,
+  productId: string,
+  qty: number,
+): Promise<string | null> {
+  if (!Number.isFinite(qty) || qty <= 1) return null;
+  const { data } = await supabase
+    .from("product_packaging")
+    .select("id")
+    .eq("product_id", productId)
+    .eq("business_id", ctx.businessId)
+    .eq("qty_in_base_uom", qty)
+    .limit(1);
+  return (data?.[0] as { id?: string } | undefined)?.id ?? null;
+}
+
 export function createProductBarcodeBatchMigrationHandler(ctx: ImportContext) {
   return async (rows: Record<string, any>[]): Promise<BatchResult> => {
     const errors: RowError[] = [];
@@ -70,7 +91,12 @@ export function createProductBarcodeBatchMigrationHandler(ctx: ImportContext) {
         code: String(row.barcode).trim(),
         kind: normalizeKind(row.identifier_type) as any,
         is_primary: toBool(row.is_primary),
-        pack_quantity: row.packaging_qty != null ? Number(row.packaging_qty) : null,
+        // Phase D — pack size is owned by the packaging level, so a
+        // `packaging_qty` column resolves to that level rather than being
+        // copied onto the identifier.
+        packaging_id: row.packaging_qty != null
+          ? await resolvePackagingLevel(ctx, productId, Number(row.packaging_qty))
+          : null,
       } as any);
       if (error) {
         // 23505 = unique violation → treat as already imported (idempotent).

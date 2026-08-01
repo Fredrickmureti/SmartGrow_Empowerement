@@ -9,7 +9,9 @@
  * Schema reference (migration 20260527131853): product_packaging columns are
  *   id, name, qty_in_base_uom, barcode_id,
  *   is_purchase_default, is_sales_default
- * No `label`, `pack_quantity`, or `uom_id` columns exist — those were the
+ * (`barcode_id` was dropped in Phase D — identifiers point at the level via
+ * `product_identifiers.packaging_id`.) No `label`, `pack_quantity`, or
+ * `uom_id` columns exist — those were the
  * source of the earlier broken implementation.
  */
 import { useQuery } from "@tanstack/react-query";
