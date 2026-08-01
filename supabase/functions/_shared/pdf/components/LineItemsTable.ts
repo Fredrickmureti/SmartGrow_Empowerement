@@ -15,6 +15,12 @@ import { PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
 import { formatAmount } from "../../format/index.ts";
+import {
+  resolveLineItemColumns,
+  type LineItemColumn,
+  type LineItemProfileContext,
+} from "../../documents/lineItemProfiles.ts";
+
 
 export interface LineItem {
   description: string;
@@ -89,33 +95,29 @@ export interface LineItemsTableConfig {
   hide_amounts?: boolean;
 }
 
-interface ColumnSpec {
-  key: string;
-  header: string;
-  weight: number; // proportional width
-  align: "left" | "right" | "center";
+type ColumnSpec = LineItemColumn;
+
+/**
+ * Column selection is NOT a renderer decision. It is resolved by the shared
+ * line-item profile so the A4 grid, the thermal receipt and the POS preview
+ * always agree on which columns a document shows.
+ */
+function toProfileContext(c: LineItemsTableConfig): LineItemProfileContext {
+  return {
+    showLineNumbers: c.show_line_numbers,
+    showSku: c.show_item_sku,
+    showQuantity: c.show_quantity,
+    showUnitPrice: c.show_unit_price,
+    showTax: c.show_tax_column,
+    showDiscount: c.show_discount_column,
+    hideAmounts: c.hide_amounts,
+  };
 }
 
 function buildColumns(c: LineItemsTableConfig): ColumnSpec[] {
-  const cols: ColumnSpec[] = [];
-  if (c.show_line_numbers !== false) cols.push({ key: "#", header: "#", weight: 4, align: "left" });
-  if (c.show_item_sku) cols.push({ key: "sku", header: "SKU", weight: 10, align: "left" });
-  cols.push({ key: "description", header: "Description", weight: 40, align: "left" });
-  if (c.show_quantity !== false) cols.push({ key: "qty", header: "Qty", weight: 7, align: "right" });
-  if (!c.hide_amounts && c.show_unit_price !== false) {
-    cols.push({ key: "price", header: "Price", weight: 12, align: "right" });
-  }
-  if (!c.hide_amounts && c.show_tax_column) {
-    cols.push({ key: "tax", header: "Tax", weight: 8, align: "right" });
-  }
-  if (!c.hide_amounts && c.show_discount_column) {
-    cols.push({ key: "disc", header: "Disc", weight: 8, align: "right" });
-  }
-  if (!c.hide_amounts) {
-    cols.push({ key: "amount", header: "Amount", weight: 14, align: "right" });
-  }
-  return cols;
+  return resolveLineItemColumns(toProfileContext(c), "a4");
 }
+
 
 function wrapText(
   text: string,
@@ -234,7 +236,7 @@ export function drawLineItemsTable(builder: PdfBuilder, config: LineItemsTableCo
       const col = cols[i];
       let display = "";
       switch (col.key) {
-        case "#":
+        case "index":
           display = String(index + 1);
           break;
         case "sku":
@@ -246,15 +248,16 @@ export function drawLineItemsTable(builder: PdfBuilder, config: LineItemsTableCo
         case "qty":
           display = formatQtyCell(item);
           break;
-        case "price":
+        case "unit_price":
           display = formatAmount(formatPriceCell(item));
           break;
         case "tax":
           display = `${item.tax_rate ?? 0}%`;
           break;
-        case "disc":
+        case "discount":
           display = `${item.discount_percent ?? 0}%`;
           break;
+
         case "amount":
           display = formatAmount(item.line_total ?? 0);
           break;
@@ -303,6 +306,13 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
 
   builder.y -= 6;
 
+  // Narrow column selection comes from the same shared profile as the wide
+  // grid — only the geometry (stacked rows instead of a grid) differs.
+  const narrowCols = resolveLineItemColumns(toProfileContext(config), "thermal");
+  const descCol = narrowCols.find((c) => c.key === "description");
+  const amountCol = narrowCols.find((c) => c.key === "amount");
+  const hideAmounts = !amountCol;
+
   // Top rule + header
   builder.page.drawLine({
     start: { x: margin, y: builder.y + 2 },
@@ -310,16 +320,18 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
     thickness: 0.5, color: theme.color.headerBorder,
   });
   builder.y -= 2;
-  builder.page.drawText("Item", {
+  builder.page.drawText(descCol?.header ?? "Item", {
     x: margin, y: builder.y - 8,
     size: fontSize, font: fontBold, color: theme.color.text,
   });
-  const amtHeader = "Amount";
-  const amtHw = fontBold.widthOfTextAtSize(amtHeader, fontSize);
-  builder.page.drawText(amtHeader, {
-    x: margin + contentWidth - amtHw, y: builder.y - 8,
-    size: fontSize, font: fontBold, color: theme.color.text,
-  });
+  if (amountCol) {
+    const amtHeader = amountCol.header;
+    const amtHw = fontBold.widthOfTextAtSize(amtHeader, fontSize);
+    builder.page.drawText(amtHeader, {
+      x: margin + contentWidth - amtHw, y: builder.y - 8,
+      size: fontSize, font: fontBold, color: theme.color.text,
+    });
+  }
   builder.y -= lineHeight + 2;
   builder.page.drawLine({
     start: { x: margin, y: builder.y + 2 },
@@ -327,7 +339,6 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
     thickness: 0.3, color: theme.color.border,
   });
 
-  const hideAmounts = !!config.hide_amounts;
 
   config.items.forEach((item) => {
     const descLines = wrapText(item.description || "", fontRegular, fontSize, contentWidth);

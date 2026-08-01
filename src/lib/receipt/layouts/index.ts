@@ -24,6 +24,12 @@ export interface LayoutContext {
   showModifiers: boolean;
   truncateLongNames: boolean;
   maxNameLen: number;
+  /**
+   * Multi-unit: when true (default), items sold with packaging context
+   * (e.g. "2 Strip") get a sub-row showing the base-unit equivalent
+   * ("(20 ea)"). Mirrors the in-app PreviewRenderer behaviour.
+   */
+  showBaseUnitBreakdown?: boolean;
 }
 
 export interface LayoutTemplate {
@@ -121,11 +127,7 @@ export function resolveLegacyLayout(
   return "compact";
 }
 
-/**
- * Receipt overhaul Phase 2 — minimum content width a layout can render
- * without squeezing flex columns below their `min`. Sum of fixed widths +
- * sum of min-fr widths + (n-1) single-space gaps.
- */
+/** Minimum content width a layout needs without squeezing flex columns below their min. */
 export function layoutMinContentWidth(layoutId: LayoutId, ctx: LayoutContext): number {
   const cols = LAYOUT_REGISTRY[layoutId].columns(ctx);
   if (cols.length === 0) return 0;
@@ -137,17 +139,9 @@ export function layoutMinContentWidth(layoutId: LayoutId, ctx: LayoutContext): n
   return sum + Math.max(0, cols.length - 1);
 }
 
-/** Downgrade chain — narrower layouts later. */
 const DOWNGRADE_CHAIN: LayoutId[] = ["tabular_sku", "tabular", "compact", "detailed"];
 
-/**
- * Receipt overhaul Phase 2 — pick the densest layout from the downgrade
- * chain that physically fits the printer's content width.
- *
- * Always falls back to `detailed` (single-column wrap) so even 40mm /
- * 24-col paper produces a clean, professional print instead of a squeezed
- * tabular grid that visually overflows.
- */
+/** Pick the densest layout that fits, walking down from the preferred one. */
 export function pickFittingLayout(
   preferred: LayoutId,
   ctx: LayoutContext,
@@ -156,8 +150,6 @@ export function pickFittingLayout(
   if (layoutMinContentWidth(preferred, ctx) <= contentWidth) {
     return { layoutId: preferred, downgraded: false };
   }
-  // Walk the chain starting from the preferred layout's position so we
-  // never UPGRADE (e.g. don't promote 'detailed' → 'tabular' on wide paper).
   const startIdx = Math.max(0, DOWNGRADE_CHAIN.indexOf(preferred));
   for (let i = startIdx + 1; i < DOWNGRADE_CHAIN.length; i++) {
     const cand = DOWNGRADE_CHAIN[i];

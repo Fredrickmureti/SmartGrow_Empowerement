@@ -1,60 +1,67 @@
-# Printing & Document Output — verification results and remaining work
+# Enterprise Document Presentation — Audit Findings & Consolidation Plan
 
-## Phase 1 — Independent verification (done, evidence below)
+## What "document presentation" means here
 
-**Confirmed genuinely complete**
-- One render seam exists: `src/services/printing/render.ts::renderDocumentRecord` → `render-document`, persisting a `document_artifacts` row. `renderSourceDocument` no longer exists anywhere in `src/`.
-- One client front door: `src/services/printing/PrintService.ts`; per-domain `dispatch*.ts` snapshot builders feed it. No `PrintClient` module remains in `src/` (only stale mentions in old audit docs and one test comment).
-- Legacy `generate-document` is gone from every page/hook except two call sites (below).
-- Hardware agent CORS is already scoped through a tenant allowlist (`agent/src/origins.ts` + `edge-workstation-origins` refresh) — the plan's "LAN agent CORS scoping" item is already closed.
-- `a4_printer` is no longer orphaned: it is a registered role in `electron/hardware/types.ts` and in the migrations' role mapping, and `labelDispatch.ts` routes PDF-engine templates to it.
-- Inline ZPL in `Products.tsx` is gone; barcode identity goes through `resolveLabelBarcode` (ADR-0089).
+In SAP/Dynamics/NetSuite/Odoo the printable-document stack is split four ways, and the split is the whole point:
 
-**Claimed/assumed closed but NOT closed**
-1. **A second render transport still exists.** `src/services/printing/pdfUtils.ts::callDocumentRenderer` POSTs to `generate-document` and is still reachable: `renderDocumentBytesWithPolicy` is called by `src/hooks/pos/useTestPrintReceipt.ts`. So "one renderer" is true for business documents but false for the POS test print. `generateDocumentPdf`, `generateDocumentPdfWithPolicy`, `printDocumentPdf`, `downloadDocumentPdf` and `generateDocumentEscPosBytes` are exported but have **zero production callers** — dead legacy surface that guard tests still describe as live.
-2. **Phase 6 untouched.** Two operator queues over one `print_jobs` table: `src/pages/admin/PrintQueuePage.tsx` (227 lines, routed from `App.tsx`) and `src/apps/platform/hardware/HardwarePrintQueue.tsx` (489 lines).
-3. **Phase 7 untouched.** No lint rule bans direct document edge-function calls outside `src/services/printing/`.
-4. **Terminology audit not started.** Printing UI still exposes internals: "output intent", "document record", "kind code", "device assignment", "intent" in operator-facing copy.
-5. **Dead driver surface.** `LineDisplayDriver` exists only to return a hard-coded "bridge removed" error yet is still registered in `DriverRegistry` — a registered transport that cannot work.
+| Layer | Owns | Must NOT own |
+|---|---|---|
+| Business module | the record and its numbers | anything visual |
+| Document model | a frozen, paper-agnostic snapshot | fonts, columns, paper |
+| **Presentation profile** | which fields/columns appear, order, typography, spacing, branding, headers/footers, totals, signatures, legal text | how to draw a glyph |
+| Renderer (PDF / ESC-POS / ZPL / HTML) | geometry for one medium | *which* fields appear |
 
-**Correctly deferred**: `src/services/exports/documentExport.ts` → `generate-document` for CSV/XLSX. A data extract is not a rendered document; retiring it needs an export medium on `render-document`, not a client edit. I will make that an explicit, guarded exemption rather than leave it ambiguous.
+The line-item question that triggered this audit resolves cleanly under that model: whether Unit Price, Discount, Tax, UoM or Packaging appear is **never** a per-module or per-template decision. It is a reusable **line-item presentation profile** selected by document kind + context (a delivery note suppresses amounts because its profile says so, not because its generator hardcodes `hide_amounts: true`).
 
-Note: dependencies aren't installed in this environment, so the guard suite couldn't be executed during planning. Step 0 of implementation installs and runs it to establish the real baseline before any edit.
+## Audit result: the ERP has three presentation stacks, not one
 
-## Phase 2 — Corrected plan
+1. **Legacy imperative PDF stack (what actually prints every commercial document today).**
+   `generate-document/index.ts` (3,587 lines, 18 per-doctype fetchers) → `_shared/templateRenderer.ts` → `_shared/pdfGenerator.ts`, which calls header → recipient → meta → line items → totals → notes in a **hardcoded order**. Theme is a single hardcoded object, `_shared/pdf/themes/accountantMono.ts`. Presentation is persisted in `document_templates`, whose `template_type` constraint only admits `invoice | estimate | proforma | credit_note | receipt | purchase_order` — so sales orders, delivery notes, GRNs, returns, statements and warehouse documents **have no configurable presentation at all**. Goods receipts literally borrow the purchase-order template by comment.
 
-### Step 0 — Baseline
-Install deps, run the printing guard suite and `tsgo --noEmit`. Record the pass/fail baseline; the wider suite's pre-existing failures are not printing regressions.
+2. **POS/thermal stack — a genuinely better model, walled off in POS.**
+   `ReceiptTheme` (`businesses.receipt_theme` / `pos_registers.receipt_theme`) already expresses paper, density, typography, branding, section order, per-section field visibility, formatting and a pluggable `LayoutTemplate` registry with `compact | detailed | tabular | tabular_sku` column presets. This is the presentation-profile concept the rest of the ERP lacks — it is simply scoped to receipts.
 
-### Step 1 — Finish Phase 1: exactly one render transport
-- Give the POS test print a real document record + snapshot so `useTestPrintReceipt` renders via `renderDocumentRecord` (ESC/POS medium) like every other artifact.
-- Delete `callDocumentRenderer` and all `generateDocument*` / `renderDocumentBytesWithPolicy` exports from `pdfUtils.ts`, leaving it a pure blob-presentation utility (`openPdfInNewTab`, `printPdfInPage`, `downloadPdfBlob`).
-- Move the `X-Print-Policy-*` policy shape onto the `render-document` response envelope so preview keeps showing the server's paper/render decision.
-- Rewrite `document-renderer-single-transport.test.ts` to pin `render.ts` as the only transport, with `documentExport.ts` as the single named data-extract exemption.
+3. **AST engine (ADR-0084) — architecturally correct, barely adopted.**
+   `render-document` → `_shared/rendering/engine.ts` with medium-neutral blocks and `document_kinds` / `document_template_ast` / `document_theme` / `document_header_footer`. Only ZPL labels and payslips genuinely use it; for every other kind `renderAstToPdf` is an adapter that calls the legacy imperative `generateDocumentPdf` — so the AST currently controls *whether* a section fires, not *how* it lays out.
 
-### Step 2 — Finish Phase 5: remove transports that cannot work
-- Delete `LineDisplayDriver` and its `DriverRegistry` registration; customer-display output routes through the main-process device manager only. Any UI offering a line-display test action is removed with it.
-- Sweep `electron/hardware/drivers` for compiled `.js`/`.js.map` artifacts checked in beside their `.ts` sources (e.g. `EscPosKitchenDriver.js` advertises the retired `print_ticket` op while the `.ts` advertises `print_receipt`) — stale build output that contradicts the source is deleted and excluded.
+Consequences today: two independent typography/branding models with zero shared code, three overlapping presentation tables, line-item columns decided in three unrelated places (`buildColumns()`, `drawLineItemsNarrow()`, `LayoutTemplate.columns()`), and ten document types with no presentation surface at all.
 
-### Step 3 — Phase 6: one operator print queue
-- `HardwarePrintQueue` becomes the single operator workspace surface; `pages/admin/PrintQueuePage.tsx` is deleted and its route redirects to the hardware workspace.
-- The queue answers one question in business language: **did it print, and if not, why** — document, destination, when, status, failure reason, retry/reprint. Internal ids move behind a details affordance.
-- Standardise the record-page affordances across every printable entity: one Print action, one Reprint action, one Document history panel.
+## Direction
 
-### Step 4 — Terminology and UX pass
-Business language everywhere printing is exposed: output intent → **print rule**; document record → **document**; kind code → **document type**; device assignment → **printer**; intent/target/disposition → **where it goes** (print, email, download, archive). Copy is written for a cashier, warehouse operator, payroll officer or accountant — no database nouns, no architecture nouns.
+Make the ADR-0084 AST engine the **only** presentation architecture. `ReceiptTheme`'s richness becomes the shape of the unified theme; the legacy PDF stack is deleted, not wrapped.
 
-### Step 5 — Phase 7: guardrails that hold the line
-- New lint rule: no direct document edge-function invocation (`render-document`, `generate-document`, `submit-document-intent`) outside `src/services/printing/` and `src/services/documents/`.
-- Extend `printing-architecture.test.ts` with single-transport, single-front-door, single-queue-screen and single-preview-dialog invariants.
-- Add coverage-matrix rows for newly wired types (POS test print, tax certificates) so an unwired artifact fails CI.
+```text
+Business module ──▶ Document snapshot (frozen, paper-agnostic)
+                          │
+             Presentation profile resolver
+        (kind + scope ladder: branch ▸ org ▸ tenant ▸ system)
+                          │
+        ┌─────────────────┴─────────────────┐
+   Theme + header/footer            Block AST (incl. line-item profile)
+        └─────────────────┬─────────────────┘
+                 Medium renderers
+            PDF · ESC/POS · ZPL · HTML
+```
 
-### Step 6 — Documentation of record
-- New ADR superseding ADR-0026: the canonical lifecycle (business event → snapshot → `document_records` → `PrintService` → `render-document` → `document_artifacts` → `print_jobs` → hardware → acknowledgement → audit).
-- Rewrite the stale claims in `docs/printing-pipeline.md` / `printing-add-new-artifact.md` that still name `PrintClient`, and correct the mem entries.
-- Replace `.lovable/plan.md`'s status block with verified state so the next engineer inherits facts, not claims.
+## Steps
+
+**1. Unified presentation model.** Extend `document_theme` to carry the full `ReceiptTheme` concern set (paper, density, typography, branding, section visibility, formatting, compliance) as one schema serving A4 and thermal alike. Fold `accountantMono` into a seeded `system` theme row so the current A4 output is byte-identical on day one. Migrate `businesses.receipt_theme` / `pos_registers.receipt_theme` and every `document_templates` row into `document_theme` + `document_template_ast` rows; add a register scope tier to the ladder so POS keeps per-register overrides.
+
+**2. Line-item presentation profiles.** Introduce a first-class profile (column set, order, widths, visibility, grouping, UoM/packaging, amount suppression, narrow-paper collapse) referenced by the `table` block instead of the opaque `preset: "line_items"`. Seed named profiles — `commercial_full`, `commercial_no_amounts` (delivery/transfer/adjustment), `procurement`, `retail_compact`, `retail_detailed`, `statement` — and assign per document kind. This single move replaces `buildColumns()`, `drawLineItemsNarrow()` and the POS `LayoutTemplate` column functions.
+
+**3. AST-first PDF renderer.** Replace the interior of `renderAstToPdf` so it walks the block list and lays out from the theme, using the existing `_shared/pdf/components/*` primitives as pure drawing helpers with no ordering knowledge of their own. Point the ESC/POS renderer at the same blocks and profiles, keeping `PrinterProfile`/`ColumnLayout` as the monospace geometry solver.
+
+**4. Migrate every document kind.** Seed `document_kinds` + AST for quotation, estimate, proforma, sales order, delivery note, invoice, credit note, purchase order, vendor bill, goods receipt, sales/purchase return, customer & vendor statements, legal recipient statement, stock adjustment/transfer, POS receipt, drawer slip, kitchen ticket, payslip, HR letters, labels. The 18 fetchers move to a snapshot-builder module (data only); each is verified against golden byte output before its legacy path is cut.
+
+**5. Delete the legacy stacks.** Remove `generate-document/index.ts`'s render path, `_shared/templateRenderer.ts`, imperative `generateDocumentPdf`, `drawLineItemsNarrow`, the receipt `LayoutTemplate` registry, and drop `document_templates`. No fallbacks, no shims.
+
+**6. One presentation workspace (UX).** Today a user configures receipt appearance in Settings → Company → Receipts, print policy in Platform → Hardware → Output Policies, invoice fields in Settings → Company → Templates, with no cross-links. Replace with a single **Document Presentation** area: a list of document kinds → per-kind editor (Layout, Line Items, Typography & Spacing, Branding, Header/Footer, Totals, Signatures, Legal Text, Attachments) with a live preview at the target paper size for every kind, not just receipts. `DocumentTemplateSettings`, `DocumentTemplateBuilder`, `ReceiptSettings`, `ReceiptSectionEditor` are deleted; the shared `MonospacePreview`/`buildReceiptLines` preview generalises to a medium-aware preview driven by the same engine. Output policies stay in Hardware (transport is a different concern) but are deep-linked from each kind.
+
+**7. Guardrails.** ESLint + architecture tests: no imports of the deleted modules, no per-module column lists, no theme constants outside the theme resolver, every `document_kinds` row must resolve to an AST, and byte-golden tests per kind.
 
 ## Technical notes
-- Destructive migration throughout: each legacy module is deleted in the same step its replacement lands. No adapters, no fallbacks, no parallel paths.
-- No database redesign. `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the policy tables are sound; this is adoption and consolidation work.
-- Every step ends with the printing guard suite green and `tsgo --noEmit` clean.
+
+- Snapshots stay frozen; presentation is resolved at render time so reprints of historical documents can be reproduced by pinning the profile version on the artifact.
+- Migration is per-kind behind the existing artifact ledger, so each kind flips only after its golden comparison passes; the legacy code is removed in step 5 once all kinds are flipped, within this work — not deferred.
+- Statutory-pinned documents (ADR-0008) keep `assertStatutoryPaper("a4")`; their profiles are marked non-overridable in the resolver rather than bypassing it.
+- `document_print_policies` and the print/transport layer are untouched.
