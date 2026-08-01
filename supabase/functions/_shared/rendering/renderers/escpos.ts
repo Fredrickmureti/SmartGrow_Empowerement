@@ -71,6 +71,12 @@ export function renderAstToEscPos(args: {
       resolved_columns: rows.columns,
       resolved_font: rows.font,
       resolved_margin_columns: rows.marginCols,
+      // Preview authority: these are the exact canonical rows that were
+      // encoded into `bytes` above. Browser receipt previews consume this
+      // server result instead of rebuilding rows from live POS state.
+      preview_lines: rows.lines,
+      preview_line_meta: rows.meta,
+      preview_directives: rows.directives ?? {},
     },
   };
 }
