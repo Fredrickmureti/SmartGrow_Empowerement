@@ -489,29 +489,56 @@ async function resolveOrganizationId(businessId: string | null): Promise<string 
 
 export const PrintService = {
   renderDocumentBlob,
+  renderDocumentPreview,
   openInteractiveJob,
   printDocument,
   printLabel,
   printDocumentIntent,
 };
 
+
 // ---------------------------------------------------------------------
 // Rendering-only entries (preview surfaces)
 // ---------------------------------------------------------------------
 
 /**
- * Produce the PDF a preview surface displays. Preview is a *render*, not
- * a print: no ledger row is opened here, because nothing was committed to
- * paper. When the operator then hits Print inside the preview, that click
- * goes through `openInteractiveJob` + the transport below, so the ledger
- * still covers every physical print.
+ * Produce the artifact a preview surface displays, together with the paper
+ * policy the server applied. Preview is a *render*, not a print: no ledger
+ * row is opened here, because nothing was committed to paper. When the
+ * operator then hits Print inside the preview, that click goes through
+ * `openInteractiveJob` + the transport below, so the ledger still covers
+ * every physical print.
+ *
+ * Preview and print therefore share one renderer: what the operator sees
+ * is produced by the same code that produces what the printer receives.
  */
+export async function renderDocumentPreview(input: {
+  documentType: string;
+  documentId: string;
+  medium?: 'pdf' | 'escpos';
+  paperFormat?: PaperFormatOption | null;
+  branchId?: string | null;
+  forceRenderMode?: boolean;
+  extraBody?: Record<string, unknown>;
+}): Promise<RenderedArtifact> {
+  return renderSourceDocument({
+    documentType: input.documentType,
+    documentId: input.documentId,
+    medium: input.medium ?? 'pdf',
+    paperFormat: input.paperFormat ?? null,
+    branchId: input.branchId ?? null,
+    forceRenderMode: input.forceRenderMode,
+    extraBody: input.extraBody,
+  });
+}
+
+/** Convenience wrapper for callers that only need the PDF bytes. */
 export async function renderDocumentBlob(
   documentType: string,
   documentId: string,
   opts?: { paperFormat?: PaperFormatOption | null; extraBody?: Record<string, unknown> },
 ): Promise<Blob> {
-  const artifact = await renderSourceDocument({
+  const artifact = await renderDocumentPreview({
     documentType,
     documentId,
     medium: 'pdf',
@@ -521,6 +548,7 @@ export async function renderDocumentBlob(
   if (!artifact.blob) throw new Error('renderer did not return a PDF');
   return artifact.blob;
 }
+
 
 /**
  * Open a ledger row for a print the caller will transport itself

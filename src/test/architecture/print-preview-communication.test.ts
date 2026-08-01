@@ -45,6 +45,12 @@ describe("PrintPreviewDialog communication prop", () => {
         if (EXEMPT_FILES.has(file)) continue;
         const src = readFileSync(file, "utf8");
         if (!/\bPrintPreviewDialog\b/.test(src)) continue;
+        // Only the shared document dialog carries a contact recipient. The
+        // report-specific dialog (`@/components/reports/PrintPreviewDialog`)
+        // renders portfolio/finance reports, which have no counterparty to
+        // email or SMS.
+        if (/from\s+["']@\/components\/reports\/PrintPreviewDialog["']/.test(src)) continue;
+
         // Any rendering of <PrintPreviewDialog ... > must include communication=
         const renders = src.match(/<PrintPreviewDialog\b[\s\S]*?\/>|<PrintPreviewDialog\b[\s\S]*?>[\s\S]*?<\/PrintPreviewDialog>/g) || [];
         for (const r of renders) {
