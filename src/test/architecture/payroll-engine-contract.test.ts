@@ -17,7 +17,7 @@ const ENGINE = readFileSync(
   "utf8",
 );
 const PDF = readFileSync(
-  join(process.cwd(), "supabase/functions/generate-payslip-pdf/index.ts"),
+  join(process.cwd(), "supabase/functions/_shared/payslip/payslipSnapshot.ts"),
   "utf8",
 );
 

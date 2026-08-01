@@ -35,7 +35,7 @@ const ALLOWED_PATTERNS: RegExp[] = [
   /supabase\/functions\/_shared\/entitlementCheck\.ts$/,
   /supabase\/functions\/_shared\/escpos\/(blocks|builder)\.ts$/,
   /supabase\/functions\/generate-document\//,
-  /supabase\/functions\/generate-payslip-pdf\//,
+  /supabase\/functions\/_shared\/payslip\//,
   /supabase\/functions\/generate-statutory-return\//,
 ];
 
