@@ -21,17 +21,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
 import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 
-interface PrintPreviewDialogProps {
+interface ReportPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   getExportConfig: () => ExportConfig;
 }
 
-export function PrintPreviewDialog({
+export function ReportPreviewDialog({
   open,
   onOpenChange,
   getExportConfig,
-}: PrintPreviewDialogProps) {
+}: ReportPreviewDialogProps) {
   const [config, setConfig] = useState<ExportConfig | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [isLoading, setIsLoading] = useState(false);
