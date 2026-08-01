@@ -580,12 +580,12 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 placeholder="http://localhost:8043"
                 value={agentUrl}
                 onChange={(e) => setAgentUrl(e.target.value)}
-                className="flex-1 text-sm"
+                className="flex-1 min-w-0 basis-full sm:basis-auto text-sm"
               />
               <Button
                 variant="outline"
@@ -605,9 +605,10 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               placeholder="Pairing token — Edge app → Identity → Browser pairing"
               value={agentToken}
               onChange={(e) => setAgentToken(e.target.value)}
-              className="text-sm font-mono"
+              className="w-full text-sm font-mono"
             />
-            <div className="space-y-1 text-xs text-muted-foreground">
+            <div className="space-y-1 text-xs text-muted-foreground break-words">
+
               <p>
                 Paste the <strong>pairing token</strong> from <strong>AccrualFlow Edge → Identity → Browser pairing</strong>
                 {' '}(same value as <code>~/.pos-agent-token</code>). This is <strong>not</strong> the workstation secret
