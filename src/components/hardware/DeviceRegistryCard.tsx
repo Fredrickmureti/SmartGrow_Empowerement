@@ -720,7 +720,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     Scan
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Scan for Devices</DialogTitle>
                     <DialogDescription>
@@ -783,7 +783,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     Add Device
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Register New Device</DialogTitle>
                     <DialogDescription>
@@ -871,7 +871,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
                     {/* Network connection fields */}
                     {(formData.connection_type === 'network') && (
-                      <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                         <div className="space-y-2">
                           <Label>IP Address</Label>
                           <Input
@@ -908,7 +908,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                         </div>
                         {/* Private IP warning in browser mode */}
                         {!isElectronEnv() && formData.connection_params?.ipAddress && isPrivateIP(formData.connection_params.ipAddress as string) && (
-                          <div className="col-span-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700">
+                          <div className="sm:col-span-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700">
                             <strong>Local network detected.</strong> This printer requires the Print Agent or Electron desktop app. The cloud cannot reach private IPs directly.
                           </div>
                         )}
@@ -918,7 +918,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     {/* ePOS-specific connection fields */}
                     {formData.driver_type === 'epos_printer' && (
                       <div className="space-y-4 p-3 bg-muted/50 rounded-lg border">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Printer IP Address</Label>
                             <Input
@@ -951,7 +951,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
                     {/* Serial connection fields */}
                     {formData.connection_type === 'serial' && (
-                      <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                         <div className="space-y-2">
                           <Label>Baud Rate</Label>
                           <Select
@@ -1107,7 +1107,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
       {/* Edit Device Dialog */}
       <Dialog open={!!editingDevice} onOpenChange={(open) => { if (!open) setEditingDevice(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Device</DialogTitle>
             <DialogDescription>
@@ -1188,7 +1188,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               </Select>
             </div>
             {formData.connection_type === 'network' && (
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
                 <div className="space-y-2">
                   <Label>IP Address</Label>
                   <Input
