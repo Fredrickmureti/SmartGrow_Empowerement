@@ -62,6 +62,26 @@ export function buildPosReceiptSnapshot(
   const issuedAt =
     pick<string>(txn, "completed_at", "transacted_at", "created_at") ?? null;
 
+  // Derived safety net: a frozen payload must never print "Subtotal 0.00"
+  // while items and payments carry money. If the transaction row is missing
+  // (or renames) its money columns, fall back to the item lines — the same
+  // arithmetic the on-screen preview performs.
+  const itemsSum = (frozen.items ?? []).reduce(
+    (s, it) => s + numeric(it.line_total ?? it.total),
+    0,
+  );
+  const paymentsSum = (frozen.payments ?? []).reduce(
+    (s, p) => s + numeric(p.amount),
+    0,
+  );
+  const taxAmount = numeric(pick(txn, "tax_amount"));
+  const discountAmount = numeric(pick(txn, "discount_amount"));
+  const subtotal = numeric(pick(txn, "subtotal", "subtotal_amount")) || itemsSum;
+  const total =
+    numeric(pick(txn, "total", "total_amount"))
+    || subtotal + taxAmount - discountAmount
+    || paymentsSum;
+
   const snapshot: SnapshotBlob = {
     document_type: "pos_receipt",
     document_type_label:
@@ -70,12 +90,13 @@ export function buildPosReceiptSnapshot(
     issue_date: issuedAt,
     status: pick<string>(txn, "status") ?? "PAID",
     currency: pick<string>(txn, "currency") ?? null,
-    subtotal: numeric(pick(txn, "subtotal", "subtotal_amount")),
-    tax_amount: numeric(pick(txn, "tax_amount")),
-    discount_amount: numeric(pick(txn, "discount_amount")),
-    total: numeric(pick(txn, "total", "total_amount")),
-    amount_paid: numeric(pick(txn, "amount_paid")),
+    subtotal,
+    tax_amount: taxAmount,
+    discount_amount: discountAmount,
+    total,
+    amount_paid: numeric(pick(txn, "amount_paid")) || paymentsSum,
     change_due: numeric(pick(txn, "change_due")),
+
     contact: frozen.customer
       ? {
           id: frozen.customer.id ?? null,
