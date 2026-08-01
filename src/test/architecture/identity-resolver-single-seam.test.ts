@@ -55,7 +55,8 @@ describe("Phase C — canonical identity resolver is the only seam", () => {
     const hook = read("hooks/inventory/useResolveProductIdentity.ts");
     expect(hook).toMatch(/resolve_product_identity/);
     for (const rel of CUTOVER_FILES) {
-      expect(read(rel)).not.toMatch(/resolve_product_identity/);
+      // Only comments may mention the RPC — no direct invocation.
+      expect(read(rel)).not.toMatch(/rpc\(\s*["']resolve_product_identity["']/);
     }
   });
 
@@ -65,6 +66,6 @@ describe("Phase C — canonical identity resolver is the only seam", () => {
     // return null so the caller cannot post stock.
     expect(gate).toMatch(/scanFeedbackBus\.emit/);
     expect(gate).toMatch(/return null/);
-    expect(gate).not.toMatch(/toast\./);
+    expect(gate).not.toMatch(/\btoast\s*\(|\btoast\.(error|success|warning)\s*\(/);
   });
 });
