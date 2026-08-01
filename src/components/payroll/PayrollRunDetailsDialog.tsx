@@ -46,6 +46,8 @@ import { PayrollMappingFindingsPanel } from "@/components/payroll/PayrollMapping
 import { usePayrollMappingFindings } from "@/hooks/payroll/usePayrollMappingFindings";
 import { useReturnTemplates } from "@/hooks/payroll/useStatutoryReturns";
 import { PayrollPostingPreviewDialog } from "@/components/payroll/PayrollPostingPreviewDialog";
+import { downloadPayslipPdf as downloadPayslipDocument } from "@/services/payroll/payslipDocuments";
+
 
 /** Build an ExportConfig for the Payroll Register (gross-to-net per employee) */
 function getPayrollRegisterExportConfig(
@@ -172,27 +174,19 @@ async function downloadPayrollDocument(
   }, 100);
 }
 
-/** Download an individual payslip PDF via the dedicated generate-payslip-pdf function */
-async function downloadPayslipPdf(payrollRunId: string, payslipId: string, filename: string): Promise<void> {
-  const { data, error } = await supabase.functions.invoke("generate-payslip-pdf", {
-    body: { payslip_id: payslipId },
-  });
-
-  if (error) throw error;
-
-  const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  setTimeout(() => {
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, 100);
+/**
+ * Download an individual payslip through the canonical document pipeline.
+ * Delegates to `services/payroll/payslipDocuments`, so the payroll run
+ * view produces the same ledgered, archived document as self-service.
+ */
+async function downloadPayslipPdf(
+  _payrollRunId: string,
+  payslipId: string,
+  filename: string,
+): Promise<void> {
+  await downloadPayslipDocument(payslipId, { filename });
 }
+
 
 /** Generate and download a bank transfer schedule CSV from payslip data */
 function downloadBankSchedule(payslips: Payslip[], payrollNumber: string): void {

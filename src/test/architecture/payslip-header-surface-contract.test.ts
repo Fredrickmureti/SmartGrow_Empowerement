@@ -39,7 +39,7 @@ const SURFACES: Surface[] = [
   },
   // Edge function — PDF
   {
-    path: "supabase/functions/generate-payslip-pdf/index.ts",
+    path: "supabase/functions/_shared/payslip/payslipSnapshot.ts",
     contracts: ["payslip_header-rpc"],
   },
 ];

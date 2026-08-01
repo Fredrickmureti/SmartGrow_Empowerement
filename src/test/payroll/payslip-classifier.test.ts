@@ -2,7 +2,7 @@
  * Contract test for the unified payslip-line classifier.
  *
  * The classifier is the single source of truth shared by:
- *   - `supabase/functions/generate-payslip-pdf/index.ts` (Deno)
+ *   - `supabase/functions/_shared/payslip/payslipSnapshot.ts` (Deno)
  *   - `src/components/payroll/PayslipDetailDialog.tsx` (browser)
  *
  * Drift between those two surfaces was the original Critical Defect.

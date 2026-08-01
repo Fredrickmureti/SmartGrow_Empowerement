@@ -10,6 +10,20 @@
 
 import type { AstBlock, RenderContext, ResolvedTemplate } from "../types.ts";
 import { generateDocumentPdf } from "../../pdfGenerator.ts";
+import { renderPayslipSnapshotToPdf } from "../../payslip/payslipSnapshot.ts";
+
+/**
+ * Kinds whose layout is a statement of computed amounts rather than a
+ * line-item commercial document. They carry a fully-resolved report
+ * payload in their snapshot and are drawn by a dedicated layout that is a
+ * pure function of that snapshot.
+ */
+const STATEMENT_LAYOUTS: Record<
+  string,
+  (snapshot: Record<string, unknown>) => Promise<Uint8Array>
+> = {
+  "payroll.payslip": renderPayslipSnapshotToPdf,
+};
 
 export async function renderAstToPdf(args: {
   template: ResolvedTemplate;
@@ -27,6 +41,11 @@ export async function renderAstToPdf(args: {
   // actually of type undefined`. Consume the snapshot flat and attach
   // `organization` from context when the snapshot doesn't carry it.
   const snap = args.context.document.snapshot as Record<string, unknown>;
+
+  const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
+  if (statementLayout) return await statementLayout(snap);
+
+
   const documentData = {
     ...snap,
     id: args.context.document.id,

@@ -2,7 +2,7 @@
  * Guards the localization-aware payslip header against country drift.
  *
  * The payslip header model is the single contract consumed by:
- *   - supabase/functions/generate-payslip-pdf/index.ts  (PDF)
+ *   - supabase/functions/_shared/payslip/payslipSnapshot.ts  (PDF)
  *   - src/components/payroll/PayslipHeader.tsx          (Dialog + Portal)
  *
  * NONE of these files may name a country-specific statutory identifier.
@@ -24,7 +24,7 @@ const FILES = [
   "src/components/payroll/EmployerStatutoryIdentifiersCard.tsx",
   "src/hooks/organization/useOrganizationStatutoryIdentifiers.ts",
   "src/pages/hr/payroll/sections.tsx",
-  "supabase/functions/generate-payslip-pdf/index.ts",
+  "supabase/functions/_shared/payslip/payslipSnapshot.ts",
 ];
 
 describe("payslip header is country-agnostic", () => {

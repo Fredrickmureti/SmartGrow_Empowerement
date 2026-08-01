@@ -35,6 +35,8 @@ import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import type { Payslip } from "@/hooks/usePayroll";
+import { downloadPayslipPdf } from "@/services/payroll/payslipDocuments";
+
 
 interface PayslipWithRun extends Payslip {
   payroll_run?: {
@@ -90,23 +92,16 @@ export default function MyPayslips() {
 
   const handleDownload = async (ps: PayslipWithRun) => {
     try {
-      const { data, error } = await supabase.functions.invoke("generate-payslip-pdf", {
-        body: { payslip_id: ps.id },
-      });
-      if (error) throw error;
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
       const empName = `${currentEmployee?.first_name}_${currentEmployee?.last_name}`;
-      link.download = `${empName}_${ps.payroll_run?.payroll_number || "payslip"}.pdf`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      await downloadPayslipPdf(ps.id, {
+        filename: `${empName}_${ps.payroll_run?.payroll_number || "payslip"}`,
+      });
     } catch (err) {
       console.error("[MyPayslips] PDF error:", err);
-      toast.error("Failed to generate PDF");
+      toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     }
   };
+
 
   const exportConfig = useMemo<() => ExportConfig>(
     () => () => ({

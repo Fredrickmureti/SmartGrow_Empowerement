@@ -78,6 +78,8 @@ import { usePayrollPeriodEmployees } from "@/hooks/payroll/useEmployeePayrollRea
 import { usePayrollPeriods } from "@/hooks/usePayrollPeriods";
 import { RefreshCw, CheckCircle2, ArrowRight, Loader2, PlayCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { downloadPayslipPdf } from "@/services/payroll/payslipDocuments";
+
 
 type PopulationMode = "in_period" | "active" | "selected";
 
@@ -938,21 +940,14 @@ export function PayslipDetailPage() {
     if (!payslipId) return;
     setDownloading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-payslip-pdf", {
-        body: { payslip_id: payslipId },
-      });
-      if (error) throw error;
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = `payslip-${payslipId}.pdf`; a.click();
-      URL.revokeObjectURL(url);
+      await downloadPayslipPdf(payslipId, { filename: `payslip-${payslipId}` });
     } catch (e: any) {
       toast.error(normalizeError(e).message || "Failed to download payslip");
     } finally {
       setDownloading(false);
     }
   };
+
 
   const header = headerQuery.data;
   const s: any = summary.data;

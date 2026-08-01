@@ -67,3 +67,28 @@ Extend `printing-architecture.test.ts` so the single-renderer and single-front-d
 - Destructive migration is used throughout: legacy modules are deleted in the same phase their replacement lands, not deprecated.
 - No database rewrite is planned. `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the output-policy tables are sound; the work is adoption, not redesign.
 - Each phase ends with the guard suite green, so the subsystem is never left with two live paths across a phase boundary.
+
+## Phase 3 — HR/Payroll onto the canonical pipeline (ACTIVE, ~90% complete)
+
+Implemented and typechecking clean (`tsgo --noEmit`: 0 errors):
+- `supabase/functions/_shared/payslip/payslipSnapshot.ts` — frozen payslip projection + pure renderer (single source of payslip layout).
+- `supabase/functions/_shared/payslip/payslipAccess.ts` — one authorization gate (self-service employee OR `payroll.read`).
+- `supabase/functions/generate-payslip-pdf/index.ts` — reduced to a thin server-to-server shim (email only); owns no projection/layout.
+- `supabase/functions/ensure-payslip-document/index.ts` — NEW. Builds the snapshot, authorizes, upserts `document_records` (`payroll.payslip`), returns the record id. Never renders, never prints.
+- `_shared/rendering/renderers/pdf.ts` — `payroll.payslip` routed to the statement layout so `render-document` and the email shim emit identical bytes.
+- `src/services/printing/PrintService.ts` — added `downloadDocumentRecord` (download is a ledgered disposition: job row → render-document → download → settle).
+- `src/services/payroll/payslipDocuments.ts` — NEW client seam (`ensurePayslipDocumentRecord`, `downloadPayslipPdf`, `printPayslip`).
+- All four payslip surfaces migrated off `functions.invoke('generate-payslip-pdf')`: `pages/me/MyPayslips.tsx`, `components/employees/EmployeePayslipHistory.tsx`, `components/payroll/PayrollRunDetailsDialog.tsx`, `pages/hr/payroll/sections.tsx`.
+
+Pending (do these FIRST, before any new phase):
+1. Three payslip guard tests were repointed from `generate-payslip-pdf/index.ts` to `_shared/payslip/payslipSnapshot.ts` and now FAIL:
+   `payroll-engine-contract` (synthetic Basic Salary row), `payslip-header-surface-contract` (statutory IDs must come from the shared payslip header, not direct table reads), `payslip-header-country-agnostic`.
+   The extracted module must be corrected to satisfy them — do NOT relax the guards.
+2. Add an architecture guard forbidding `generate-payslip-pdf` anywhere in `src/` (server-to-server only).
+3. Tax certificates (`pages/me/MyTaxCertificates.tsx`) still bypass the pipeline — same treatment (`ensure-*-document` + `downloadDocumentRecord`).
+4. Deploy the new `ensure-payslip-document` function and smoke-test download + reprint byte-identity.
+
+Note: the wider suite has ~145 pre-existing failures unrelated to printing (payroll country-agnostic guards, tax-certificate RPC, etc.). Baseline them before attributing failures to this phase.
+
+### Instructions for the next agent
+Verify the Phase 3 work above against enterprise standards (one projection, one gate, ledgered downloads, byte-identical reprints) and close out items 1–4 in order. Only then move to Phase 4 (legacy deletion sweep). Do not start unrelated work.
