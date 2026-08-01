@@ -12,7 +12,7 @@
  *     auto-print bytes.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const root = join(__dirname, "..", "..", "..");
@@ -161,48 +161,24 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(src).toMatch(/legacy POS status row reached production path/);
   });
 
-  it("ADR-0084 — production modules cannot import the legacy receipt builder", () => {
+  it("ADR-0085 — the legacy ESC/POS builder is deleted, not merely unused", () => {
+    // `buildDocumentEscPos` was a second row producer for thermal receipts
+    // whose item-context defaults had already drifted from the canonical
+    // engine. It is gone; the only producer is `_shared/receipt/lines.ts`.
+    expect(
+      existsSync(join(root, "supabase/functions/_shared/escpos/builder.ts")),
+      "legacy escpos/builder.ts must stay deleted",
+    ).toBe(false);
+
     const offenders: string[] = [];
-    const roots = [
-      join(root, "supabase", "functions"),
-      join(root, "src"),
-    ];
-    for (const dir of roots) {
+    for (const dir of [join(root, "supabase", "functions"), join(root, "src")]) {
       for (const file of walk(dir)) {
         const rel = relative(root, file).replace(/\\/g, "/");
-        if (/(?:_test|\.test)\.(?:ts|tsx)$/.test(file)) continue;
-        if (rel.endsWith("supabase/functions/_shared/escpos/builder.ts")) continue;
         const src = readFileSync(file, "utf8");
-        if (/import[\s\S]{0,180}\bbuildDocumentEscPos\b[\s\S]{0,180}from\s+["'][^"']*escpos\/builder/.test(src)) {
-          offenders.push(rel);
-        }
+        if (/\bbuildDocumentEscPos\s*\(/.test(src)) offenders.push(rel);
       }
     }
     expect(offenders).toEqual([]);
-  });
-
-  it("Stage X7 — buildDocumentEscPos consumes ExtendedReceiptSettings sections", () => {
-    const src = readFileSync(
-      join(root, "supabase", "functions", "_shared", "escpos", "builder.ts"),
-      "utf8",
-    );
-    // Spot-check that key gating fields are referenced (not just the type).
-    for (const field of [
-      "item_display_format",
-      "show_item_sku",
-      "show_unit_price",
-      "show_subtotal",
-      "show_tax_breakdown",
-      "show_payment_method",
-      "show_amount_tendered",
-      "show_change_due",
-      "receipt_header",
-      "receipt_footer",
-      "show_etims_qr",
-      "cashier_label_format",
-    ]) {
-      expect(src.includes(field)).toBe(true);
-    }
   });
 
   it("Phase A.3 — Receipt previews render through MonospacePreview, not ad-hoc flexbox columns", () => {

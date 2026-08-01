@@ -264,7 +264,7 @@ export interface DocumentData {
   /**
    * Stage X7 — merged ExtendedReceiptSettings for POS receipts.
    * Populated by `fetchPOSReceipt` (snapshot first, live fallback) and
-   * consumed by `buildDocumentEscPos` to gate/format every section. Other
+   * consumed by the Line[] receipt engine to gate/format every section. Other
    * document types leave this undefined.
    */
   // deno-lint-ignore no-explicit-any
