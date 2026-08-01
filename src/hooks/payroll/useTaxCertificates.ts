@@ -454,20 +454,50 @@ function isHtmlTarget(path?: string | null, fmt?: string | null): boolean {
   return fmt === "html" || (typeof path === "string" && /\.html?$/i.test(path));
 }
 
+/** Ledger context so a certificate retrieval is auditable like any print. */
+export interface CertificateOutputContext {
+  certificateId?: string | null;
+  businessId?: string | null;
+  branchId?: string | null;
+}
+
+/**
+ * Retrieve an issued tax certificate.
+ *
+ * A statutory certificate is FROZEN at issuance — it is serial-numbered and
+ * archived server-side, so it is never re-rendered on demand. Retrieval is
+ * still a disposition of the one printing pipeline, not a side door: both
+ * branches below open a `print_jobs` row through `PrintService` and settle
+ * it, so an employee download and an employer reprint leave the same trail.
+ *
+ *   • file artifacts (PDF/XLSX) → `downloadArchivedArtifact`
+ *   • compiled HTML artifacts   → `openInteractiveJob` + client pagination,
+ *     the same caller-owned-transport seam the preview dialog uses.
+ */
 export async function downloadTaxCertificate(
   certificate:
-    | (Pick<TaxCertificate, "id" | "pdf_path"> & { artifacts?: TaxCertificate["artifacts"] })
+    | (Pick<TaxCertificate, "id" | "pdf_path"> & {
+        artifacts?: TaxCertificate["artifacts"];
+        business_id?: string | null;
+        branch_id?: string | null;
+      })
     | string
-    | { artifact_path: string; filename?: string; format?: string },
+    | ({ artifact_path: string; filename?: string; format?: string } & CertificateOutputContext),
   format: "pdf" | "xlsx" = "pdf",
 ) {
   let body: Record<string, unknown>;
   let htmlTarget = false;
+  let ledger: CertificateOutputContext = {};
 
   if (typeof certificate === "string") {
     body = { pdf_path: certificate, format };
   } else if ("artifact_path" in certificate) {
     htmlTarget = isHtmlTarget(certificate.artifact_path, certificate.format);
+    ledger = {
+      certificateId: certificate.certificateId ?? null,
+      businessId: certificate.businessId ?? null,
+      branchId: certificate.branchId ?? null,
+    };
     body = {
       artifact_path: certificate.artifact_path,
       filename: certificate.filename,
@@ -482,6 +512,11 @@ export async function downloadTaxCertificate(
       format !== "xlsx"
         ? arts.find((a) => isHtmlTarget(a?.path, a?.format))
         : undefined;
+    ledger = {
+      certificateId: certificate.id,
+      businessId: certificate.business_id ?? null,
+      branchId: certificate.branch_id ?? null,
+    };
     if (htmlArt?.path) {
       htmlTarget = true;
       body = { artifact_path: htmlArt.path };
@@ -498,26 +533,58 @@ export async function downloadTaxCertificate(
     throw error ?? new Error(message);
   }
 
+  const signedUrl = (data as any).signedUrl as string;
+  const filename =
+    ((data as any).filename as string | undefined) ??
+    (htmlTarget
+      ? "Tax certificate"
+      : format === "xlsx"
+        ? "certificate.xlsx"
+        : "certificate.pdf");
+
   if (htmlTarget) {
-    // Fetch the compiled HTML and paginate → print client-side.
-    const res = await fetch((data as any).signedUrl);
-    const html = await res.text();
-    const { printCertificateHtml } = await import(
-      "@/features/localization/lib/printCertificateHtml"
-    );
-    printCertificateHtml(html, {
-      title: (data as any).filename ?? "Tax certificate",
+    // Caller-owned transport (browser print dialog): open the ledger row
+    // first so the retrieval is recorded even though the bytes never pass
+    // through a device driver.
+    const { openInteractiveJob } = await import("@/services/printing/PrintService");
+    const handle = await openInteractiveJob({
+      documentType: "tax_certificate",
+      documentId: ledger.certificateId ?? null,
+      intent: "a4_document",
+      format: "pdf",
+      businessId: ledger.businessId ?? null,
+      branchId: ledger.branchId ?? null,
     });
+    try {
+      const res = await fetch(signedUrl);
+      if (!res.ok) throw new Error(`archive_fetch_failed_${res.status}`);
+      const html = await res.text();
+      const { printCertificateHtml } = await import(
+        "@/features/localization/lib/printCertificateHtml"
+      );
+      printCertificateHtml(html, { title: filename });
+      await handle.markSent(null);
+      await handle.markAcked();
+    } catch (err) {
+      await handle.markFailed(err instanceof Error ? err.message : String(err));
+      throw err;
+    }
     return;
   }
 
-  const a = document.createElement("a");
-  a.href = (data as any).signedUrl;
-  a.rel = "noopener";
-  a.target = "_blank";
-  a.download = (data as any).filename ?? (format === "xlsx" ? "certificate.xlsx" : "certificate.pdf");
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const { downloadArchivedArtifact } = await import("@/services/printing/PrintService");
+  const result = await downloadArchivedArtifact({
+    sourceUrl: signedUrl,
+    filename,
+    documentType: "tax_certificate",
+    documentId: ledger.certificateId ?? null,
+    businessId: ledger.businessId ?? null,
+    branchId: ledger.branchId ?? null,
+  });
+  if (!result.success) {
+    const { toast } = await import("sonner");
+    toast.error(`Could not download certificate: ${result.error}`);
+    throw new Error(result.error ?? "download failed");
+  }
 }
 
