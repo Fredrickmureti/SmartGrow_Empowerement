@@ -156,7 +156,12 @@ export async function buildPayslipSnapshot(
     }
   }
 
-  // ── Sections from payslip_lines (authoritative, country-agnostic) ──
+  // ── Sections: payslip_lines is authoritative ────────────────────────
+  // The payroll engine is the only producer of pay lines. This projection
+  // never synthesises, back-fills or re-derives an earning (a synthetic
+  // "Basic Salary" row here was the historic duplicate-line regression) —
+  // it buckets what the engine wrote and nothing else.
+
   const earnings: PayslipDetail[] = [];
   const deductions: PayslipDetail[] = [];
   const contributions: PayslipDetail[] = [];
