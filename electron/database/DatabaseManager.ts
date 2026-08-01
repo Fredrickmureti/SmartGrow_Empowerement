@@ -163,7 +163,6 @@ class DatabaseManager {
         organization_id TEXT NOT NULL,
         name TEXT NOT NULL,
         sku TEXT,
-        barcode TEXT,
         description TEXT,
         selling_price REAL NOT NULL DEFAULT 0,
         cost_price REAL DEFAULT 0,
@@ -179,20 +178,22 @@ class DatabaseManager {
         updated_at TEXT
       );
       CREATE INDEX IF NOT EXISTS products_sku_idx ON products(sku);
-      CREATE INDEX IF NOT EXISTS products_barcode_idx ON products(barcode);
       CREATE INDEX IF NOT EXISTS products_category_idx ON products(category);
       CREATE INDEX IF NOT EXISTS products_org_idx ON products(organization_id);
 
       -- Product identifiers (canonical barcode/GTIN/PLU/SKU/alias mirror).
-      -- Stage 2 of the POS scanner re-audit: this is the only table read
-      -- when resolving a scanned code locally. The legacy products.barcode
-      -- column is kept for backward-compat but never queried at runtime.
+      -- The ONLY table read when resolving a scanned code locally. Phase D
+      -- retired the legacy products.barcode column entirely: identity lives
+      -- here, and `packaging_id` / `qty_in_base_uom` mirror the packaging
+      -- level so an offline case scan still posts full base-unit content.
       CREATE TABLE IF NOT EXISTS product_identifiers (
         id TEXT PRIMARY KEY,
         product_id TEXT NOT NULL,
         code TEXT NOT NULL,
         kind TEXT,
         is_primary INTEGER DEFAULT 0,
+        packaging_id TEXT,
+        qty_in_base_uom REAL DEFAULT 1,
         synced_at TEXT,
         updated_at TEXT
       );
