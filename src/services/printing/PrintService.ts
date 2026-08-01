@@ -487,6 +487,58 @@ async function resolveOrganizationId(businessId: string | null): Promise<string 
   }
 }
 
+/**
+ * Download a document-model record as a file.
+ *
+ * A download is a disposition, not an escape hatch: it still opens a
+ * ledger row, still renders through `render-document` (so the archived
+ * artifact and the bytes the user receives are the same object), and
+ * still settles the row. Self-service surfaces (payslips, tax
+ * certificates) use this instead of hand-rolled `functions.invoke` +
+ * `URL.createObjectURL`, which produced files no audit trail knew about.
+ */
+export async function downloadDocumentRecord(input: {
+  documentRecordId: string;
+  filename: string;
+  businessId?: string | null;
+  branchId?: string | null;
+  documentType?: string;
+  documentId?: string | null;
+  intent?: string;
+}): Promise<PrintResult> {
+  const correlationId = newCorrelationId();
+  const handle = input.businessId
+    ? await openJob({
+        businessId: input.businessId,
+        branchId: input.branchId ?? null,
+        documentType: input.documentType ?? 'document',
+        documentId: input.documentId ?? null,
+        intent: input.intent ?? 'download',
+        format: 'pdf',
+        transport: 'download',
+        correlationId,
+      })
+    : noopJobHandle();
+  const jobIds = handle.id ? [handle.id] : [];
+
+  try {
+    const artifact = await renderDocumentRecord({
+      documentRecordId: input.documentRecordId,
+      medium: 'pdf',
+    });
+    if (!artifact.blob) throw new Error('render_returned_no_pdf');
+    const outcome = toDownload(artifact.blob, input.filename);
+    if (!outcome.success) throw new Error(outcome.error ?? 'download failed');
+    await handle.markSent(null);
+    await handle.markAcked();
+    return { success: true, jobIds, transport: 'download', copies: 1, artifact };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await handle.markFailed(error);
+    return { success: false, error, jobIds, transport: 'download', copies: 1 };
+  }
+}
+
 export const PrintService = {
   renderDocumentBlob,
   renderDocumentPreview,
@@ -494,6 +546,7 @@ export const PrintService = {
   printDocument,
   printLabel,
   printDocumentIntent,
+  downloadDocumentRecord,
 };
 
 
