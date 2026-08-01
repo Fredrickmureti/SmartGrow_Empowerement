@@ -34,7 +34,9 @@ import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 import {
   resolveLabelBarcode,
   LABEL_BARCODE_REFUSAL,
+  LABEL_LEVEL_BARCODE_REFUSAL,
   type PrintableProduct,
+  type LabelPackagingLevel,
 } from "@/services/printing/labelBarcode";
 
 export interface UseLabelPrintOptions {
@@ -47,6 +49,12 @@ export interface PrintLabelArgs {
   workflow: PrinterWorkflow;
   /** The product/entity being labelled. Provides name + barcode identity. */
   product: PrintableProduct;
+  /**
+   * Phase C5 — packaging level being labelled. When supplied, the label
+   * encodes THAT level's identifier; if the level has no identifier the
+   * print is refused (never falls back to the each-level code).
+   */
+  packaging?: LabelPackagingLevel | null;
   /** Extra template vars beyond `name`, `sku`, `sku_display`, `barcode`, `hri_flag`. */
   extraVars?: Record<string, string | number | null | undefined>;
   /** Optional lot metadata for pharmacy/food-retail (ADR-0086 Track 3). */
@@ -87,11 +95,10 @@ export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
         });
         return { success: false, error: "no-org", refused: "no-org" };
       }
-      const identity = resolveLabelBarcode(args.product);
+      const identity = resolveLabelBarcode(args.product, args.packaging ?? null);
       if (!identity) {
-        toast.error(LABEL_BARCODE_REFUSAL.title, {
-          description: LABEL_BARCODE_REFUSAL.description,
-        });
+        const copy = args.packaging ? LABEL_LEVEL_BARCODE_REFUSAL : LABEL_BARCODE_REFUSAL;
+        toast.error(copy.title, { description: copy.description });
         return { success: false, error: "no-identity", refused: "no-identity" };
       }
       const vars: Record<string, string | number | null | undefined> = {
@@ -100,6 +107,8 @@ export function useLabelPrint(opts: UseLabelPrintOptions = {}) {
         sku_display: identity.skuDisplay,
         barcode: identity.code,
         hri_flag: identity.hri,
+        pack_level: args.packaging?.name ?? "",
+        pack_qty: args.packaging?.qtyInBaseUom ?? "",
         ...args.extraVars,
       };
       const result = await printLabel({

@@ -57,9 +57,41 @@ function normalise(v: unknown): string | null {
  * legitimate identifier. Callers MUST NOT fall back to `product.id` on
  * their own — that is the failure mode this module prevents.
  */
-export function resolveLabelBarcode(product: PrintableProduct): ResolvedLabelBarcode | null {
-  const barcode = normalise(product?.barcode);
+/**
+ * Phase C5 — packaging-level context for a label.
+ *
+ * A case label must encode the CASE identifier. Printing the each-level
+ * barcode on a case is the same class of error as printing a UUID: the
+ * scanner reads it back and the ERP books 1 unit instead of 12. When a
+ * level is requested and that level has no enrolled identifier, this
+ * module REFUSES — it never falls back to another level's code, to the
+ * SKU, or to an internal id.
+ */
+export interface LabelPackagingLevel {
+  /** Packaging row id (audit / idempotency only, never encoded). */
+  packagingId?: string | null;
+  /** Level display name, e.g. "Case of 12". */
+  name?: string | null;
+  /** Identifier enrolled against THIS level. */
+  code?: string | null;
+  /** Base units contained in one of this level. */
+  qtyInBaseUom?: number | null;
+}
+
+export function resolveLabelBarcode(
+  product: PrintableProduct,
+  level?: LabelPackagingLevel | null,
+): ResolvedLabelBarcode | null {
   const sku = normalise(product?.sku);
+
+  // Level-specific label: only that level's own identifier is acceptable.
+  if (level && (level.packagingId || level.name || level.code)) {
+    const levelCode = normalise(level.code);
+    if (!levelCode) return null;
+    return { code: levelCode, hri: 'N', skuDisplay: sku ?? '' };
+  }
+
+  const barcode = normalise(product?.barcode);
   const code = barcode ?? sku;
   if (!code) return null;
   return { code, hri: 'N', skuDisplay: sku ?? '' };
@@ -72,4 +104,13 @@ export const LABEL_BARCODE_REFUSAL = {
   description:
     'This product has no barcode and no SKU, so there is nothing scannable to print. ' +
     'Assign a SKU in Product → Identifiers, or enroll a barcode from the item detail.',
+} as const;
+
+/** Refusal copy for a packaging-level label whose level has no identifier. */
+export const LABEL_LEVEL_BARCODE_REFUSAL = {
+  title: 'This packaging level has no barcode',
+  description:
+    'The selected packaging level (case / inner / pallet) has no enrolled identifier, and a ' +
+    'level label must never encode another level\'s code. Enrol a barcode for this level in ' +
+    'Inventory → Products → Enrol barcodes, then print again.',
 } as const;
