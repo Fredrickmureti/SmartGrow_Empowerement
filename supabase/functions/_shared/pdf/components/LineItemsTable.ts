@@ -306,6 +306,13 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
 
   builder.y -= 6;
 
+  // Narrow column selection comes from the same shared profile as the wide
+  // grid — only the geometry (stacked rows instead of a grid) differs.
+  const narrowCols = resolveLineItemColumns(toProfileContext(config), "thermal");
+  const descCol = narrowCols.find((c) => c.key === "description");
+  const amountCol = narrowCols.find((c) => c.key === "amount");
+  const hideAmounts = !amountCol;
+
   // Top rule + header
   builder.page.drawLine({
     start: { x: margin, y: builder.y + 2 },
@@ -313,16 +320,18 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
     thickness: 0.5, color: theme.color.headerBorder,
   });
   builder.y -= 2;
-  builder.page.drawText("Item", {
+  builder.page.drawText(descCol?.header ?? "Item", {
     x: margin, y: builder.y - 8,
     size: fontSize, font: fontBold, color: theme.color.text,
   });
-  const amtHeader = "Amount";
-  const amtHw = fontBold.widthOfTextAtSize(amtHeader, fontSize);
-  builder.page.drawText(amtHeader, {
-    x: margin + contentWidth - amtHw, y: builder.y - 8,
-    size: fontSize, font: fontBold, color: theme.color.text,
-  });
+  if (amountCol) {
+    const amtHeader = amountCol.header;
+    const amtHw = fontBold.widthOfTextAtSize(amtHeader, fontSize);
+    builder.page.drawText(amtHeader, {
+      x: margin + contentWidth - amtHw, y: builder.y - 8,
+      size: fontSize, font: fontBold, color: theme.color.text,
+    });
+  }
   builder.y -= lineHeight + 2;
   builder.page.drawLine({
     start: { x: margin, y: builder.y + 2 },
@@ -330,7 +339,6 @@ function drawLineItemsNarrow(builder: PdfBuilder, config: LineItemsTableConfig):
     thickness: 0.3, color: theme.color.border,
   });
 
-  const hideAmounts = !!config.hide_amounts;
 
   config.items.forEach((item) => {
     const descLines = wrapText(item.description || "", fontRegular, fontSize, contentWidth);
