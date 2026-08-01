@@ -236,7 +236,7 @@ export function drawLineItemsTable(builder: PdfBuilder, config: LineItemsTableCo
       const col = cols[i];
       let display = "";
       switch (col.key) {
-        case "#":
+        case "index":
           display = String(index + 1);
           break;
         case "sku":
@@ -248,15 +248,16 @@ export function drawLineItemsTable(builder: PdfBuilder, config: LineItemsTableCo
         case "qty":
           display = formatQtyCell(item);
           break;
-        case "price":
+        case "unit_price":
           display = formatAmount(formatPriceCell(item));
           break;
         case "tax":
           display = `${item.tax_rate ?? 0}%`;
           break;
-        case "disc":
+        case "discount":
           display = `${item.discount_percent ?? 0}%`;
           break;
+
         case "amount":
           display = formatAmount(item.line_total ?? 0);
           break;
