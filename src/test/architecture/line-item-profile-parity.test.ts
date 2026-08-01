@@ -53,7 +53,7 @@ describe("renderers consume the shared profile", () => {
     // renderThermalPdf. The A4 coordinate renderer must not host a second
     // narrow line-item implementation.
     const src = read("supabase/functions/_shared/pdf/components/LineItemsTable.ts");
-    expect(src).not.toContain("drawLineItemsNarrow");
+    expect(src).not.toMatch(/function drawLineItemsNarrow/);
     expect(src).toMatch(/narrow|thermal/i);
   });
 
