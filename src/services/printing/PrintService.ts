@@ -37,7 +37,11 @@ import {
   type PrintTransport,
   type QueuedJob,
 } from './jobs';
-import { renderSourceDocument, renderDocumentRecord, type RenderedArtifact } from './render';
+import { renderDocumentRecord, type RenderedArtifact } from './render';
+import {
+  resolveSourceDocumentRecordId,
+  type SourceDocumentContext,
+} from '@/services/documents/resolveSourceDocumentRecord';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
 import { renderLabelPayload, type LabelDispatchInput } from './labelDispatch';
 import { enqueueDocumentIntent, type SubmitDocumentIntentResult } from '@/services/documents/submitIntent';
@@ -151,16 +155,23 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
   // ---- render once, dispatch N times -------------------------------
   let artifact: RenderedArtifact;
   try {
-    artifact = await renderSourceDocument({
+    artifact = await renderSourcePair({
       documentType: req.documentType,
       documentId: req.documentId,
       medium,
       paperFormat,
-      extraBody: req.extraBody,
-      station: req.station ?? null,
-      course: req.course ?? null,
-      table: req.table ?? null,
-      forceRefreshSettings: req.forceRefreshSettings,
+      context: {
+        organizationId: req.organizationId ?? null,
+        businessId: req.businessId ?? null,
+        branchId: req.branchId ?? null,
+      },
+      options: {
+        ...(req.extraBody ?? {}),
+        ...(req.station ? { station: req.station } : {}),
+        ...(req.course ? { course: req.course } : {}),
+        ...(req.table ? { table: req.table } : {}),
+        ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+      },
     });
 
   } catch (err) {
@@ -407,12 +418,16 @@ export async function dispatchQueuedJob(
           medium,
           options: renderOptions,
         })
-      : await renderSourceDocument({
+      : await renderSourcePair({
+          // Ledger rows written before the document-model migration carry a
+          // bare (type, id) pair. They are frozen into a record on recovery
+          // so even a replayed legacy job archives its artifact.
           documentType: job.doc_type ?? 'document',
           documentId: job.doc_id ?? '',
           medium,
           paperFormat: paperFormatFromRenderOptions(renderOptions),
-          extraBody: renderOptions,
+          context: { businessId: job.business_id ?? null },
+          options: renderOptions,
         });
 
     const copies = Math.max(1, job.copies ?? 1);
@@ -555,6 +570,36 @@ export const PrintService = {
 // ---------------------------------------------------------------------
 
 /**
+ * Render a legacy `(documentType, documentId)` pair.
+ *
+ * There is no second renderer: the pair is frozen into a document record
+ * (idempotently) and then rendered by `render-document`, so preview,
+ * print, download and reprint all read the same archived artifact.
+ */
+async function renderSourcePair(input: {
+  documentType: string;
+  documentId: string;
+  medium: 'pdf' | 'escpos';
+  paperFormat?: PaperFormatOption | null;
+  context?: SourceDocumentContext;
+  options?: Record<string, unknown>;
+}): Promise<RenderedArtifact> {
+  const documentRecordId = await resolveSourceDocumentRecordId(
+    input.documentType,
+    input.documentId,
+    input.context ?? {},
+  );
+  return renderDocumentRecord({
+    documentRecordId,
+    medium: input.medium,
+    options: {
+      ...(input.options ?? {}),
+      ...(input.paperFormat ? { paper_format: input.paperFormat } : {}),
+    },
+  });
+}
+
+/**
  * Produce the artifact a preview surface displays, together with the paper
  * policy the server applied. Preview is a *render*, not a print: no ledger
  * row is opened here, because nothing was committed to paper. When the
@@ -562,8 +607,8 @@ export const PrintService = {
  * `openInteractiveJob` + the transport below, so the ledger still covers
  * every physical print.
  *
- * Preview and print therefore share one renderer: what the operator sees
- * is produced by the same code that produces what the printer receives.
+ * Preview and print therefore share one renderer AND one snapshot: what the
+ * operator sees is the archived artifact the printer will receive.
  */
 export async function renderDocumentPreview(input: {
   documentType: string;
@@ -574,14 +619,16 @@ export async function renderDocumentPreview(input: {
   forceRenderMode?: boolean;
   extraBody?: Record<string, unknown>;
 }): Promise<RenderedArtifact> {
-  return renderSourceDocument({
+  return renderSourcePair({
     documentType: input.documentType,
     documentId: input.documentId,
     medium: input.medium ?? 'pdf',
     paperFormat: input.paperFormat ?? null,
-    branchId: input.branchId ?? null,
-    forceRenderMode: input.forceRenderMode,
-    extraBody: input.extraBody,
+    context: { branchId: input.branchId ?? null },
+    options: {
+      ...(input.extraBody ?? {}),
+      ...(input.forceRenderMode ? { force_render_mode: true } : {}),
+    },
   });
 }
 

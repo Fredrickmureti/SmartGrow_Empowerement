@@ -1,94 +1,47 @@
+## Verification results (confirmed directly in the codebase, not from the log)
 
-# Enterprise Printing & Document Output — Consolidation Plan
+I re-audited the printing subsystem against the prior engineer's plan (`.lovable/plan.md`). What the log claims versus what is actually in the tree:
 
-## What I found (independent audit)
+**Genuinely done and sound**
+- One client front door exists: `src/services/printing/PrintService.ts` (`printDocumentIntent`, `printDocument`, `printLabel`, `downloadDocumentRecord`, `dispatchQueuedJob`, preview helpers). Sales, purchases, POS receipts, statements, credit notes, payments all dispatch through it via per-domain `dispatch*.ts` snapshot builders + `ensureDocumentRecord`.
+- Payslip work landed: `_shared/payslip/payslipSnapshot.ts`, `payslipAccess.ts`, `ensure-payslip-document/index.ts`, `src/services/payroll/payslipDocuments.ts` all exist, and no `src/` surface invokes `generate-payslip-pdf` any more.
+- Preview surfaces were moved onto `PrintService.renderDocumentPreview` — they no longer call `generate-document` inline.
+- Hardware agent auth already uses a constant-time compare; the permanently-failing Bluetooth transport is gone.
+- The printing guard suite is green: 20 test files / 142 tests pass.
 
-The subsystem is closer to enterprise-grade than the surrounding documentation suggests, but it carries a second live execution path and a stale documentation layer that actively misdescribes the architecture.
+**Claimed or assumed complete, but NOT complete**
+- **Phase 1 (single rendering backend) was never done.** `render.ts` still exports `renderSourceDocument`, and `PrintService` calls it from three places (lines 154, 410, 577 — including the preview path). So preview and POS receipts still render through the legacy `generate-document` edge function, and ADR-0084's byte-identical-reprint guarantee still does not hold platform-wide.
+- **A direct edge call still bypasses the pipeline**: `src/services/exports/documentExport.ts` invokes `generate-document` directly — no ledger row, no audit.
+- **Phase 3 is not closed.** Three guard tests fail right now, exactly as the log warned: `payroll-engine-contract`, `payslip-header-surface-contract`, `payslip-header-country-agnostic`. Tax certificates (`pages/me/MyTaxCertificates.tsx`) still bypass the pipeline.
+- **Phase 4 (legacy/doc sweep) not started.** `docs/printing-pipeline.md`, `docs/printing-add-new-artifact.md`, ADR-0026 and `eslint-rules/no-printservice-shim.js` all still name `PrintClient.ts`, a module that no longer exists.
+- **Phase 6 not started.** Two operator queues over the same `print_jobs` table: `src/pages/admin/PrintQueuePage.tsx` and `src/apps/platform/hardware/HardwarePrintQueue.tsx`. Three preview dialogs exist (`components/common`, `components/reports`).
 
-**The real pipeline today** (verified in code):
-
-```text
-Business event / operator action
-  -> features/*/dispatch*.ts  (snapshot builder)
-  -> ensureDocumentRecord()   (immutable document_records, ADR-0084)
-  -> PrintService.printDocumentIntent()
-       1 policy.resolvePrintPolicy   medium / paper / copies
-       2 jobs.openJob                durable print_jobs ledger row
-       3 render.*                    bytes
-       4 dispatch.toDevice/toPage/toDownload
-  -> hardwareClient.exec -> device_assignments -> Electron driver | LAN agent :8043 | browser
-  -> submit-document-intent -> dispatch-print-jobs (pg_cron drainer) -> disposition fan-out
-```
-
-**Confirmed strengths.** One client chokepoint (`PrintService`), one hardware chokepoint (`hardwareClient`), a durable `print_jobs` ledger, immutable document records/artifacts, server-only PDF and barcode ownership, a pg_cron spool drainer with SKIP LOCKED and an SLO monitor, and ~20 guard tests plus 29 ESLint architecture rules. The Label/POS dispatch path is genuinely the strongest implementation and is the right reference model.
-
-**Confirmed problems.**
-
-1. **Two rendering backends run in parallel.** `render.ts` exposes `renderDocumentRecord` (canonical, `render-document`) and `renderSourceDocument` (legacy, `generate-document`). `PrintService` calls the legacy one from three call sites and the canonical one from one. So ADR-0084's byte-identical-reprint guarantee does not actually hold platform-wide.
-2. **A second rendering surface bypasses `PrintService` entirely.** `PrintPreviewDialog` and `PrintSettingsPopover` invoke `generate-document` directly, so previews produce different bytes than prints, with no ledger row and no audit.
-3. **Self-service documents have no pipeline at all.** `MyPayslips`, `MyTaxCertificates`, `MyDocuments` use bespoke download handlers and separate edge functions — no print job, no reprint, no history — even though `PrintService` advertises payslip support.
-4. **Two print-queue operator screens** read the same `print_jobs` table: `/admin/PrintQueuePage.tsx` and `/platform/hardware/print-queue`.
-5. **The documentation layer describes an architecture that no longer exists.** `docs/printing-pipeline.md`, `docs/printing-add-new-artifact.md` and ADR-0026 all name `PrintClient.ts` as canonical; that file was deleted. Two guard tests they cite do not exist. `eslint-rules/no-printservice-shim.js` still points at the dead module. `mem/features/hardware-platform.md` describes `device_assignments` columns that are not in the schema.
-6. **Carried-forward hardware findings** from the June re-audit that need re-verification: inline ZPL in `Products.tsx`, orphan `a4_printer` role, `LineDisplayDriver` pointing at a dead bridge, `BluetoothTransport.send` hardcoded to fail, non-constant-time token compare and wildcard CORS in the LAN agent.
-
-## Architectural direction
-
-One pipeline. Document type becomes **configuration** (kind code, snapshot builder, template, output policy) and never a separate execution path. Preview, print, email, download and archive become **dispositions of one job**, not separate code. The spool is infrastructure behind `PrintService`, never a second front door.
+Resume point is therefore **Phase 1**, not Phase 4.
 
 ## Work plan
 
-### Phase 0 — Verification pass (no code changes yet)
-Re-confirm the carried-forward findings against current source (Products.tsx ZPL, a4_printer, LineDisplayDriver, BluetoothTransport, agent auth/CORS), run the existing guard suite and lint to establish a true baseline, and check `docs/printing-event-coverage.md` for non-WIRED rows. Record results in a findings document.
+### Step 1 — Close out Phase 3 (payslips)
+Correct `_shared/payslip/payslipSnapshot.ts` so the three failing guards pass without relaxing them: no synthetic Basic Salary row, statutory IDs read only through the shared payslip header, no country branching. Migrate `MyTaxCertificates.tsx` onto the same shape (`ensure-*-document` record + `downloadDocumentRecord`). Add an architecture guard forbidding `generate-payslip-pdf` in `src/`.
 
-### Phase 1 — Single rendering backend
-Migrate every remaining document type onto `document_records` + `render-document`. Any type still needing `generate-document` gets a snapshot builder in this phase. Then delete `renderSourceDocument`, remove the legacy branches in `PrintService`, and retire the `generate-document` edge function. Outcome: one renderer, and reprints are byte-identical everywhere.
+### Step 2 — Phase 1: one renderer
+Give every remaining type (POS receipt reprint path, report exports) a document record + snapshot builder so `render-document` can serve it. Then delete `renderSourceDocument`, remove the legacy branches from `PrintService`, migrate `documentExport.ts` onto the pipeline, and retire the `generate-document` edge function.
 
-### Phase 2 — Preview becomes a disposition
-Rebuild `PrintPreviewDialog` on top of a `PrintService` preview disposition that renders through the same path and records the same ledger row. Paper-format overrides move into policy parameters rather than a direct edge call. Delete the direct `generate-document` calls from `PrintPreviewDialog` and `PrintSettingsPopover`.
+### Step 3 — Phase 2: preview and download as dispositions
+`renderDocumentPreview` re-based on `render-document`; paper-format/thermal overrides become policy parameters rather than renderer flags. Consolidate the duplicate `PrintPreviewDialog` implementations into one component with the report variant as configuration.
 
-### Phase 3 — Close the coverage gaps
-Bring payslips, tax certificates and the HR document store onto the pipeline: snapshot builders, kind codes, output policies, and the standard print/preview/reprint affordances. Delete the bespoke download edge functions they currently use. Audit remaining kind codes for surfaces that exist in the registry but have no UI.
+### Step 4 — Phase 4: legacy and documentation sweep
+Delete every `PrintClient` remnant, retarget `no-printservice-shim.js` at the real chokepoint, rewrite `docs/printing-pipeline.md` and `docs/printing-add-new-artifact.md` against the real architecture, supersede ADR-0026 with an ADR describing the `PrintService` design, and correct `mem/features/hardware-platform.md` to match the live `device_assignments` schema.
 
-### Phase 4 — Legacy deletion sweep
-Delete `PrintClient` remnants and stale comments, rewrite `docs/printing-pipeline.md` and `docs/printing-add-new-artifact.md` against the real architecture, supersede ADR-0026 with a new ADR recording the `PrintService` design, fix `no-printservice-shim.js` to target the real module, and correct `mem/features/hardware-platform.md` to match the actual `device_assignments` schema. No fallbacks, no adapters, no deprecated modules retained.
+### Step 5 — Phase 5: hardware layer
+Re-verify and clean the remaining dead driver paths (LineDisplayDriver bridge, orphan `a4_printer` role, inline ZPL in `Products.tsx`), and scope the LAN agent's CORS. A transport that cannot work is removed, not registered.
 
-### Phase 5 — Hardware layer cleanup
-Fix or remove the dead driver paths found in Phase 0 (LineDisplayDriver, BluetoothTransport, orphan roles), and harden the LAN agent (constant-time token compare, scoped CORS). A permanently-failing transport must either work or not be registered.
+### Step 6 — Phase 6: one operator workspace
+Merge the two print-queue screens into the hardware workspace surface; the admin route redirects. The queue answers one question in business language: did it print, and if not, why. Terminology audit across printing UI — "output intent" → print rule, "document record" → document, "kind code" → document type, "device assignment" → printer. Standardise the print button, reprint action and document history panel across every printable record.
 
-### Phase 6 — Unified operator workspace (UX)
-Merge the two print-queue screens into one operator surface under the hardware workspace, with the other redirecting like the already-retired `roles`/`capability` routes. The queue answers one question in business language: *did it print, and if not, why*. Terminology audit across all printing UI — no "output intent", "document record", "kind code", "device assignment" in rendered copy; they become "print rule", "document", "document type", "printer". Standardise the print button: same label, same pre-flight guard, same toast, same reprint and history affordance on every printable record. `ReprintButton` and `DocumentHistoryPanel` get wired onto every document surface, not just labels and receipts.
-
-### Phase 7 — Guardrails
-Extend `printing-architecture.test.ts` so the single-renderer and single-front-door invariants are enforced, add coverage-matrix rows for the newly wired document types, and add lint rules banning any direct edge-function document call outside `src/services/printing/`. Every invariant this work establishes must fail CI if violated.
+### Step 7 — Phase 7: guardrails
+Extend `printing-architecture.test.ts` with single-renderer and single-front-door invariants, add a lint rule banning direct document edge-function calls outside `src/services/printing/`, and add coverage-matrix rows for the newly wired types.
 
 ## Technical notes
-
-- Phases 1 and 2 are the load-bearing ones; 3 through 7 are mechanical once one renderer exists.
-- Destructive migration is used throughout: legacy modules are deleted in the same phase their replacement lands, not deprecated.
-- No database rewrite is planned. `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the output-policy tables are sound; the work is adoption, not redesign.
-- Each phase ends with the guard suite green, so the subsystem is never left with two live paths across a phase boundary.
-
-## Phase 3 — HR/Payroll onto the canonical pipeline (ACTIVE, ~90% complete)
-
-Implemented and typechecking clean (`tsgo --noEmit`: 0 errors):
-- `supabase/functions/_shared/payslip/payslipSnapshot.ts` — frozen payslip projection + pure renderer (single source of payslip layout).
-- `supabase/functions/_shared/payslip/payslipAccess.ts` — one authorization gate (self-service employee OR `payroll.read`).
-- `supabase/functions/generate-payslip-pdf/index.ts` — reduced to a thin server-to-server shim (email only); owns no projection/layout.
-- `supabase/functions/ensure-payslip-document/index.ts` — NEW. Builds the snapshot, authorizes, upserts `document_records` (`payroll.payslip`), returns the record id. Never renders, never prints.
-- `_shared/rendering/renderers/pdf.ts` — `payroll.payslip` routed to the statement layout so `render-document` and the email shim emit identical bytes.
-- `src/services/printing/PrintService.ts` — added `downloadDocumentRecord` (download is a ledgered disposition: job row → render-document → download → settle).
-- `src/services/payroll/payslipDocuments.ts` — NEW client seam (`ensurePayslipDocumentRecord`, `downloadPayslipPdf`, `printPayslip`).
-- All four payslip surfaces migrated off `functions.invoke('generate-payslip-pdf')`: `pages/me/MyPayslips.tsx`, `components/employees/EmployeePayslipHistory.tsx`, `components/payroll/PayrollRunDetailsDialog.tsx`, `pages/hr/payroll/sections.tsx`.
-
-Pending (do these FIRST, before any new phase):
-1. Three payslip guard tests were repointed from `generate-payslip-pdf/index.ts` to `_shared/payslip/payslipSnapshot.ts` and now FAIL:
-   `payroll-engine-contract` (synthetic Basic Salary row), `payslip-header-surface-contract` (statutory IDs must come from the shared payslip header, not direct table reads), `payslip-header-country-agnostic`.
-   The extracted module must be corrected to satisfy them — do NOT relax the guards.
-2. Add an architecture guard forbidding `generate-payslip-pdf` anywhere in `src/` (server-to-server only).
-3. Tax certificates (`pages/me/MyTaxCertificates.tsx`) still bypass the pipeline — same treatment (`ensure-*-document` + `downloadDocumentRecord`).
-4. Deploy the new `ensure-payslip-document` function and smoke-test download + reprint byte-identity.
-
-Note: the wider suite has ~145 pre-existing failures unrelated to printing (payroll country-agnostic guards, tax-certificate RPC, etc.). Baseline them before attributing failures to this phase.
-
-### Instructions for the next agent
-Verify the Phase 3 work above against enterprise standards (one projection, one gate, ledgered downloads, byte-identical reprints) and close out items 1–4 in order. Only then move to Phase 4 (legacy deletion sweep). Do not start unrelated work.
+- Destructive migration throughout: each legacy module is deleted in the same step its replacement lands. No adapters, no fallbacks.
+- No database redesign: `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the policy tables are sound; this is adoption work.
+- Baseline noted: the wider test suite has ~145 pre-existing failures unrelated to printing. Each step ends with the printing guard suite green.

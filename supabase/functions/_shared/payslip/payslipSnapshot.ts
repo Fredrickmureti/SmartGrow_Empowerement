@@ -156,7 +156,12 @@ export async function buildPayslipSnapshot(
     }
   }
 
-  // ── Sections from payslip_lines (authoritative, country-agnostic) ──
+  // ── Sections: payslip_lines is authoritative ────────────────────────
+  // The payroll engine is the only producer of pay lines. This projection
+  // never synthesises, back-fills or re-derives an earning (a synthetic
+  // "Basic Salary" row here was the historic duplicate-line regression) —
+  // it buckets what the engine wrote and nothing else.
+
   const earnings: PayslipDetail[] = [];
   const deductions: PayslipDetail[] = [];
   const contributions: PayslipDetail[] = [];
@@ -235,34 +240,13 @@ export async function buildPayslipSnapshot(
   const headerHasError = !!headerErr || !!(headerData as any)?.error;
   const header: any = headerData && !headerHasError ? headerData : null;
 
-  // Defensive fallback — an empty identifier list from the RPC must not
-  // make the payslip falsely report a missing required ID.
-  if (header && (header.employee?.statutory_ids?.length ?? 0) === 0 && emp?.id) {
-    const { data: empIdsDirect } = await supabase
-      .from("employee_statutory_identifiers")
-      .select("identifier_type, identifier_value, country_code")
-      .eq("employee_id", emp.id)
-      .eq("is_active", true)
-      .not("identifier_value", "is", null);
-    if (empIdsDirect && empIdsDirect.length > 0) {
-      header.employee.statutory_ids = (empIdsDirect as any[]).filter(
-        (r) => (r.identifier_value || "").trim() !== "",
-      );
-    }
-  }
-  if (header && (header.employer?.statutory_ids?.length ?? 0) === 0 && emp?.organization_id) {
-    const { data: orgIdsDirect } = await supabase
-      .from("organization_statutory_identifiers")
-      .select("identifier_type, identifier_value, country_code, business_id")
-      .eq("organization_id", emp.organization_id)
-      .eq("is_active", true)
-      .not("identifier_value", "is", null);
-    if (orgIdsDirect && orgIdsDirect.length > 0) {
-      header.employer.statutory_ids = (orgIdsDirect as any[]).filter(
-        (r) => (r.identifier_value || "").trim() !== "",
-      );
-    }
-  }
+  // `payslip_header` is the ONLY source of statutory identifiers on this
+  // projection. The former direct reads of employee_/organization_
+  // statutory_identifiers were a second, unshaped source of truth: they
+  // bypassed the RPC's relevance filtering and pack labelling, so the PDF
+  // could show identifiers the UI hid. If the RPC returns no identifiers,
+  // the payslip legitimately has none.
+
 
   // Pack-declared label registry — keyed by identifier_type.
   const labelByType: Record<string, string> = {};
@@ -551,19 +535,28 @@ function maskAccount(account: string): string {
   return "****" + account.slice(-4);
 }
 
-// Country-agnostic humaniser for statutory identifier_type codes. NEVER
-// add a country switch here; pretty labels belong in the localization
-// pack / pack_requirements.label column.
-const ID_ACRONYMS = new Set([
-  "tin", "ssn", "ein", "utr", "nino", "nhs", "nssf", "shif", "nhif",
-  "uif", "rssb", "psssf", "pssf", "ahl", "nhis", "paye",
+// Country-agnostic humaniser for statutory identifier_type codes.
+//
+// This is the LAST resort only: a localization pack that declares the
+// identifier ships its own display label via `pack_requirements.label`,
+// and that always wins (see `idLabel` above). Because no jurisdiction may
+// be named here, abbreviation detection is structural rather than a list
+// of known agency acronyms: a short token that is not an ordinary English
+// connector word is treated as an initialism and upper-cased.
+const GENERIC_WORDS = new Set([
+  "tax", "id", "no", "num", "code", "ref", "type", "card", "reg", "of", "and",
 ]);
 function humaniseId(code: string): string {
   return String(code || "")
-    .split(/[_\s]+/)
+    .split(/[_\s-]+/)
     .filter(Boolean)
-    .map((p) => ID_ACRONYMS.has(p.toLowerCase())
-      ? p.toUpperCase()
-      : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .map((p) => {
+      const lower = p.toLowerCase();
+      const isInitialism = lower.length <= 5 && !GENERIC_WORDS.has(lower);
+      return isInitialism
+        ? p.toUpperCase()
+        : p.charAt(0).toUpperCase() + lower.slice(1);
+    })
     .join(" ");
 }
+

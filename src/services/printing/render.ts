@@ -5,28 +5,22 @@
  * invoke a render endpoint: pages, hooks and sagas describe *what* to
  * print, this module decides *how* the bytes are produced.
  *
- * Two backends, one contract:
- *   - `renderDocumentRecord` — for documents that already have a
- *     `document_records` row (the enterprise document model, ADR-0084).
- *     Goes to `render-document`, persists a `document_artifacts` row, and
- *     returns the same bytes that were archived. A reprint years later is
- *     byte-identical because the artifact is the record.
- *   - `renderSourceDocument` — for source documents that have not been
- *     migrated to the document model yet. Goes to `generate-document`.
+ * One backend, one contract: `renderDocumentRecord`. Every printable
+ * artifact has a `document_records` row (ADR-0084); rendering goes to
+ * `render-document`, persists a `document_artifacts` row, and returns the
+ * same bytes that were archived, so a reprint years later is
+ * byte-identical because the artifact IS the record.
  *
- * Both return the same `RenderedArtifact`, so `PrintService` never
- * branches on document type when dispatching.
+ * The legacy `renderSourceDocument` / `generate-document` backend is gone.
+ * Surfaces that still speak a bare `(documentType, documentId)` pair are
+ * bridged by `@/services/documents/resolveSourceDocumentRecord`, which
+ * freezes the pair into a record before it reaches this module.
  */
 import { supabase } from '@/integrations/supabase/client';
-import {
-  generateDocumentPdfWithPolicy,
-  generateDocumentEscPosBytes,
-  type PaperFormatOption,
-  type DocumentRenderPolicyInfo,
-} from '@/services/printing/pdfUtils';
+import type { PaperFormatOption, DocumentRenderPolicyInfo } from '@/services/printing/pdfUtils';
 
 export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html';
-export type { DocumentRenderPolicyInfo };
+export type { DocumentRenderPolicyInfo, PaperFormatOption };
 
 export interface RenderedArtifact {
   medium: RenderMedium;
@@ -89,75 +83,6 @@ export async function renderDocumentRecord(input: {
   };
 }
 
-/** Render a source document that is not on the document model yet. */
-export async function renderSourceDocument(input: {
-  documentType: string;
-  documentId: string;
-  medium: Exclude<RenderMedium, 'html' | 'zpl'>;
-  paperFormat?: PaperFormatOption | null;
-  extraBody?: Record<string, unknown>;
-  station?: string | null;
-  course?: string | null;
-  table?: string | null;
-  /** Scope the render to a branch so branch policy overrides apply. */
-  branchId?: string | null;
-  /**
-   * Ask the renderer for thermal bytes even when the resolved policy is
-   * PDF — used when the operator picks a thermal destination by hand.
-   */
-  forceRenderMode?: boolean;
-  /**
-   * Rebuild presentation settings from the current editor instead of the
-   * snapshot frozen at issue time. Document identity stays frozen either
-   * way — this only affects layout.
-   */
-  forceRefreshSettings?: boolean;
-}): Promise<RenderedArtifact> {
-  if (input.medium === 'pdf') {
-    const { blob, policy } = await generateDocumentPdfWithPolicy(
-      input.documentType,
-      input.documentId,
-      {
-        paperFormat: input.paperFormat ?? undefined,
-        extraBody: input.extraBody,
-        branchId: input.branchId ?? null,
-        forceRefreshSettings: input.forceRefreshSettings,
-      },
-    );
-    return {
-      medium: 'pdf',
-      mimeType: 'application/pdf',
-      bytes: new Uint8Array(await blob.arrayBuffer()),
-      blob,
-      artifactId: null,
-      policy,
-    };
-  }
-  const bytes = await generateDocumentEscPosBytes(input.documentType, input.documentId, {
-    station: input.station ?? null,
-    course: input.course ?? null,
-    table: input.table ?? null,
-    paperFormat: normaliseThermalPaper(input.paperFormat),
-    branchId: input.branchId ?? null,
-    forceRenderMode: input.forceRenderMode,
-    forceRefreshSettings: input.forceRefreshSettings,
-  });
-
-  return {
-    medium: 'escpos',
-    mimeType: 'application/octet-stream',
-    bytes,
-    artifactId: null,
-    policy: null,
-  };
-}
-
-
-function normaliseThermalPaper(
-  paper: PaperFormatOption | null | undefined,
-): '40mm' | '58mm' | '80mm' | null {
-  return paper === '40mm' || paper === '58mm' || paper === '80mm' ? paper : null;
-}
 
 function mimeFor(medium: RenderMedium): string {
   switch (medium) {
