@@ -78,6 +78,8 @@ import { usePayrollPeriodEmployees } from "@/hooks/payroll/useEmployeePayrollRea
 import { usePayrollPeriods } from "@/hooks/usePayrollPeriods";
 import { RefreshCw, CheckCircle2, ArrowRight, Loader2, PlayCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { downloadPayslipPdf } from "@/services/payroll/payslipDocuments";
+
 
 type PopulationMode = "in_period" | "active" | "selected";
 
