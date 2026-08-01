@@ -1005,34 +1005,34 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               {devices.map((device) => (
                 <div
                   key={device.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className="p-2 rounded-md bg-muted shrink-0">
                       {getRoleIcon(device.device_role || device.hardware_type)}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-sm truncate">{device.display_name}</span>
                         {device.is_default && (
                           <Badge variant="outline" className="text-xs shrink-0">Default</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground mt-0.5">
                         <span className="capitalize">{device.device_role?.replace(/_/g, ' ') || device.hardware_type}</span>
                         <span>•</span>
-                        <span>{device.driver_type || 'generic'}</span>
+                        <span className="break-all">{device.driver_type || 'generic'}</span>
                         <span>•</span>
                         <span className="capitalize">{device.connection_type}</span>
                         {device.connection_params?.ipAddress && (
                           <>
                             <span>•</span>
-                            <span>{String(device.connection_params.ipAddress)}:{String(device.connection_params.port || '')}</span>
+                            <span className="break-all">{String(device.connection_params.ipAddress)}:{String(device.connection_params.port || '')}</span>
                           </>
                         )}
                       </div>
                       {/* Last seen + error */}
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
                         {device.last_seen_at && (
                           <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -1040,14 +1040,14 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                           </span>
                         )}
                         {device.last_error && (
-                          <span className="text-[10px] text-destructive truncate max-w-[200px]">{device.last_error}</span>
+                          <span className="text-[10px] text-destructive truncate max-w-full sm:max-w-[200px]">{device.last_error}</span>
                         )}
                       </div>
                       {/* Stage I (H7) — Drawer-policy hazard chip */}
                       {deviceAutoKicksOnPrint(device.capabilities) && (
                         <div className="mt-1.5">
-                          <Badge variant="destructive" className="gap-1 text-[10px] font-normal">
-                            <AlertTriangle className="h-3 w-3" />
+                          <Badge variant="destructive" className="gap-1 text-[10px] font-normal whitespace-normal text-left items-start">
+                            <AlertTriangle className="h-3 w-3 shrink-0 mt-[1px]" />
                             Printer auto-opens drawer on every print — disable at the device DIP/utility tool to honor cash-only policy.
                           </Badge>
                         </div>
@@ -1055,7 +1055,8 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+
                     <StatusBadge status={device.status} />
                     <Button
                       variant="ghost"
