@@ -48,10 +48,15 @@ describe("renderers consume the shared profile", () => {
     expect(src).not.toContain('key: "price"');
   });
 
-  it("the narrow (thermal) PDF layout resolves columns from the profile", () => {
+  it("the A4 coordinate table refuses narrow media instead of re-implementing it", () => {
+    // ADR-0085: thermal documents go through the canonical Line[] engine +
+    // renderThermalPdf. The A4 coordinate renderer must not host a second
+    // narrow line-item implementation.
     const src = read("supabase/functions/_shared/pdf/components/LineItemsTable.ts");
-    expect(src).toContain('resolveLineItemColumns(toProfileContext(config), "thermal")');
+    expect(src).not.toContain("drawLineItemsNarrow");
+    expect(src).toMatch(/narrow|thermal/i);
   });
+
 });
 
 describe("profile semantics", () => {
