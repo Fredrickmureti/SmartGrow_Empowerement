@@ -23,16 +23,24 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { scanFeedbackBus } from "@/services/scanner";
 import { playPOSSound } from "@/lib/pos/sounds";
-import type { AwaitingBarcodeProduct } from "@/hooks/inventory/useProductsAwaitingBarcode";
 import type { IdentificationTarget } from "@/hooks/inventory/useIdentificationQueue";
 
 /**
- * A queue entry. Level-aware callers pass an `IdentificationTarget`
- * (product + packaging level); the legacy product-level shape is still
- * accepted and is treated as "base unit".
+ * A queue entry: a (product, packaging level) pair from
+ * `product_identification_queue`. Phase D removed the legacy
+ * product-level `AwaitingBarcodeProduct` shape — the level fields stay
+ * optional so a base-unit target can omit them.
  */
-export type EnrollmentTarget = AwaitingBarcodeProduct &
-  Partial<Pick<IdentificationTarget, "key" | "packagingId" | "levelName" | "qtyInBaseUom" | "ladder">>;
+export type EnrollmentTarget = {
+  id: string;
+  name: string;
+  sku: string | null;
+  unit_price?: number;
+  image_url?: string | null;
+  category_id?: string | null;
+} & Partial<
+  Pick<IdentificationTarget, "key" | "packagingId" | "levelName" | "qtyInBaseUom" | "ladder">
+>;
 
 export type EnrollmentStatus = "ready" | "validating" | "duplicate" | "invalid";
 

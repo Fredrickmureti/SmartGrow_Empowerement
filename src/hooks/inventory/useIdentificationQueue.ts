@@ -1,6 +1,6 @@
 /**
  * useIdentificationQueue — level-aware replacement for
- * `useProductsAwaitingBarcode`.
+ * the removed product-level `useProductsAwaitingBarcode` projection.
  *
  * Enterprise identification is not "does this product have a barcode".
  * It is "does every packaging level of this product carry a scannable
