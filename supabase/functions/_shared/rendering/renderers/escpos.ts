@@ -18,7 +18,7 @@ export function renderAstToEscPos(args: {
   template: ResolvedTemplate;
   context: RenderContext;
   blocks: AstBlock[];
-}): Uint8Array {
+}): { bytes: Uint8Array; metadata: Record<string, unknown> } {
   const opts = args.context.options as Record<string, unknown>;
   const width = thermalWidthFromOptions(opts) ?? "80mm";
   const capabilities =
@@ -40,14 +40,24 @@ export function renderAstToEscPos(args: {
       null,
   } as unknown as Parameters<typeof renderDocumentEscPosWithResult>[0];
 
-  const { bytes } = renderDocumentEscPosWithResult(doc, {
+  const { bytes, rows } = renderDocumentEscPosWithResult(doc, {
     width,
     title: (opts["title"] as string | undefined) ?? undefined,
     receiptSettings,
     capabilities,
     font,
   });
-  return bytes;
+  return {
+    bytes,
+    // What the builder actually resolved — surfaced to the operator as the
+    // "resolved by server" diagnostics on the receipt test print.
+    metadata: {
+      resolved_paper: rows.paper,
+      resolved_columns: rows.columns,
+      resolved_font: rows.font,
+      resolved_margin_columns: rows.marginCols,
+    },
+  };
 }
 
 function thermalWidthFromOptions(opts: Record<string, unknown>): ThermalWidth | null {

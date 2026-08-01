@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Settings2 } from "lucide-react";
-import type { PaperFormatOption } from "@/services/printing/pdfUtils";
+import type { PaperFormatOption } from "@/services/printing/render";
 
 export type PrintSettings = {
   paperFormat: Extract<PaperFormatOption, string>;

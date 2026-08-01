@@ -16,6 +16,17 @@ import { renderAstToEscPos } from "./renderers/escpos.ts";
 import { renderAstToZpl } from "./renderers/zpl.ts";
 import { renderAstToHtml } from "./renderers/html.ts";
 
+/**
+ * A renderer may report what it actually resolved (paper width, column
+ * count, font) alongside the bytes. The engine merges this into
+ * `RenderResult.metadata` so operator-facing surfaces can show the real
+ * server decision instead of re-deriving policy on the client.
+ */
+export interface RendererOutput {
+  bytes: Uint8Array;
+  metadata?: Record<string, unknown>;
+}
+
 export interface MediumRenderer {
   medium: RenderMedium;
   mime_type: string;
@@ -24,7 +35,16 @@ export interface MediumRenderer {
     template: ResolvedTemplate;
     context: RenderContext;
     blocks: AstBlock[];
-  }): Promise<Uint8Array> | Uint8Array;
+  }): Promise<Uint8Array | RendererOutput> | Uint8Array | RendererOutput;
+}
+
+/** Normalise both renderer return shapes into `RendererOutput`. */
+export async function runMediumRenderer(
+  renderer: MediumRenderer,
+  args: { template: ResolvedTemplate; context: RenderContext; blocks: AstBlock[] },
+): Promise<RendererOutput> {
+  const out = await renderer.render(args);
+  return out instanceof Uint8Array ? { bytes: out } : out;
 }
 
 const REGISTRY: Record<RenderMedium, MediumRenderer> = {
