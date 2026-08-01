@@ -155,16 +155,23 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
   // ---- render once, dispatch N times -------------------------------
   let artifact: RenderedArtifact;
   try {
-    artifact = await renderSourceDocument({
+    artifact = await renderSourcePair({
       documentType: req.documentType,
       documentId: req.documentId,
       medium,
       paperFormat,
-      extraBody: req.extraBody,
-      station: req.station ?? null,
-      course: req.course ?? null,
-      table: req.table ?? null,
-      forceRefreshSettings: req.forceRefreshSettings,
+      context: {
+        organizationId: req.organizationId ?? null,
+        businessId: req.businessId ?? null,
+        branchId: req.branchId ?? null,
+      },
+      options: {
+        ...(req.extraBody ?? {}),
+        ...(req.station ? { station: req.station } : {}),
+        ...(req.course ? { course: req.course } : {}),
+        ...(req.table ? { table: req.table } : {}),
+        ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+      },
     });
 
   } catch (err) {
