@@ -37,7 +37,11 @@ import {
   type PrintTransport,
   type QueuedJob,
 } from './jobs';
-import { renderSourceDocument, renderDocumentRecord, type RenderedArtifact } from './render';
+import { renderDocumentRecord, type RenderedArtifact } from './render';
+import {
+  resolveSourceDocumentRecordId,
+  type SourceDocumentContext,
+} from '@/services/documents/resolveSourceDocumentRecord';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
 import { renderLabelPayload, type LabelDispatchInput } from './labelDispatch';
 import { enqueueDocumentIntent, type SubmitDocumentIntentResult } from '@/services/documents/submitIntent';
