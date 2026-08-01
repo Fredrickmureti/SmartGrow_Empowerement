@@ -82,7 +82,6 @@ export const products = sqliteTable('products', {
   business_id: text('business_id'),
   name: text('name').notNull(),
   sku: text('sku'),
-  barcode: text('barcode'),
   description: text('description'),
   selling_price: real('selling_price').notNull().default(0),
   cost_price: real('cost_price').default(0),
@@ -98,7 +97,6 @@ export const products = sqliteTable('products', {
   updated_at: text('updated_at'),
 }, (table) => ({
   skuIdx: index('products_sku_idx').on(table.sku),
-  barcodeIdx: index('products_barcode_idx').on(table.barcode),
   categoryIdx: index('products_category_idx').on(table.category),
   orgIdx: index('products_org_idx').on(table.organization_id),
   businessIdx: index('products_business_idx').on(table.business_id),

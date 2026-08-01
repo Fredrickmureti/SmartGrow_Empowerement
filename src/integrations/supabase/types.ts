@@ -49370,7 +49370,6 @@ export type Database = {
           kind: Database["public"]["Enums"]["product_identifier_kind"]
           notes: string | null
           organization_id: string
-          pack_quantity: number | null
           packaging_id: string | null
           product_id: string
           updated_at: string
@@ -49386,7 +49385,6 @@ export type Database = {
           kind?: Database["public"]["Enums"]["product_identifier_kind"]
           notes?: string | null
           organization_id: string
-          pack_quantity?: number | null
           packaging_id?: string | null
           product_id: string
           updated_at?: string
@@ -49402,7 +49400,6 @@ export type Database = {
           kind?: Database["public"]["Enums"]["product_identifier_kind"]
           notes?: string | null
           organization_id?: string
-          pack_quantity?: number | null
           packaging_id?: string | null
           product_id?: string
           updated_at?: string
@@ -49433,7 +49430,6 @@ export type Database = {
       }
       product_packaging: {
         Row: {
-          barcode_id: string | null
           business_id: string
           created_at: string
           id: string
@@ -49446,7 +49442,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          barcode_id?: string | null
           business_id: string
           created_at?: string
           id?: string
@@ -49459,7 +49454,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          barcode_id?: string | null
           business_id?: string
           created_at?: string
           id?: string
@@ -49472,13 +49466,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "product_packaging_barcode_id_fkey"
-            columns: ["barcode_id"]
-            isOneToOne: false
-            referencedRelation: "product_identifiers"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "product_packaging_business_id_fkey"
             columns: ["business_id"]

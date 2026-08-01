@@ -62,7 +62,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
-import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { useGs1Scanner } from "@/lib/gs1/useGs1Scanner";
 import { normalizeError } from "@/services/resilience";
@@ -138,7 +138,7 @@ export default function GoodsReceiptWizardPage() {
 
   useActiveScanContext({ workspace_id: "grn" });
 
-  const { resolveTagged } = useResolveBarcode(
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
     currentBusiness?.id,
     currentBranch?.id ?? null,
   );
@@ -367,31 +367,49 @@ export default function GoodsReceiptWizardPage() {
     // raw scan — so non-GS1 payloads take the legacy path unchanged.
     const gs1 = interpretGs1Scan(norm);
 
-    const resolved = await resolveTagged(gs1.resolveCode);
+    // Phase C3/C4 — identity now comes from the canonical resolver, so a
+    // supplier code / case barcode / inner-pack barcode all resolve to the
+    // same product, and the matched packaging level (not a POS heuristic)
+    // drives how many base units one scan contributes.
+    const resolved = await resolveIdentity(norm);
     let idx = -1;
     let qtyDelta = gs1.normalized.quantity && gs1.normalized.quantity > 0
       ? Math.round(gs1.normalized.quantity)
       : 1;
-    if (resolved.kind === "hit") {
+    if (resolved.kind === "ambiguous") {
+      setScanFlash(
+        `"${norm}" matches ${resolved.matchCount} identifiers — resolve the duplicate before receiving.`,
+      );
+      window.setTimeout(() => setScanFlash(null), 3500);
+      return;
+    }
+    if (resolved.kind === "error") {
+      setScanFlash(`Could not verify "${norm}" — ${resolved.err.message}`);
+      window.setTimeout(() => setScanFlash(null), 3500);
+      return;
+    }
+    if (resolved.kind === "resolved") {
+      const identity = resolved.identity;
       if (!gs1.isGs1) {
-        qtyDelta = Math.max(1, Math.round(resolved.row.scanQuantity || 1));
+        qtyDelta = Math.max(1, Math.round(identity.qtyInBaseUom || 1));
       }
       idx = receiptLines.findIndex(
-        (line) => line.product_id && line.product_id === resolved.row.productId,
+        (line) => line.product_id && line.product_id === identity.productId,
       );
-      if (idx >= 0 && resolved.row.packagingId) {
+      if (idx >= 0 && identity.packagingId) {
         setReceiptLines((prev) => {
           const updated = [...prev];
           const prevDisplay = updated[idx].display_quantity || 0;
           updated[idx] = {
             ...updated[idx],
-            packaging_id: resolved.row.packagingId,
+            packaging_id: identity.packagingId,
             display_quantity: prevDisplay + 1,
           };
           return updated;
         });
       }
     }
+
     if (idx < 0) {
       idx = receiptLines.findIndex((line) => {
         const item = po?.items?.find((it: any) => it.id === line.po_item_id);

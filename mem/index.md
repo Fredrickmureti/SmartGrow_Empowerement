@@ -17,6 +17,9 @@ Shared preview code (`components/preview/**`, `lib/preview/**`) is country-agnos
 
 Tenant and admin edit templates through the SAME full-page shells (`CertificateEditorPage`, `ReturnEditorPage`); the only differences are the persistence adapter, legal-metadata edit rights, and publish vs override.
 
+Product identity: ONE resolver. Client → `useResolveProductIdentity` (or `useWmsIdentityGate` in WMS); SQL → `resolve_product_identity`. Never query `product_identifiers` from a capture surface. Pack size = `product_packaging.qty_in_base_uom` only (`pack_quantity` / `packaging.barcode_id` dropped). See ADR 0102.
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
+- [Product identification](mem://features/product-identification) — canonical resolver contract, level-aware labels, Phase D removals

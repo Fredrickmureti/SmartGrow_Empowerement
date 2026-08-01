@@ -20,6 +20,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { normalizeError } from "@/services/resilience";
 import {
   WizardShell,
@@ -44,6 +45,12 @@ export default function PhysicalCount() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
+  // Phase C3 — counts resolve identity through the canonical resolver so a
+  // case scan counts its full base-unit content, not "1".
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
+    currentBusiness?.id,
+    currentBranch?.id ?? null,
+  );
   const { user } = useAuth();
   const { products } = useProducts();
   const queryClient = useQueryClient();
@@ -141,19 +148,51 @@ export default function PhysicalCount() {
     const norm = code.trim();
     if (!norm) return;
     setScanCode("");
-    const idx = countLines.findIndex(
-      (l) => l.sku && l.sku.toLowerCase() === norm.toLowerCase(),
-    );
-    if (idx < 0) {
-      setScanFlash(`No product matches "${norm}" in this count.`);
-      window.setTimeout(() => setScanFlash(null), 2500);
+
+    const flash = (msg: string, ms = 2500) => {
+      setScanFlash(msg);
+      window.setTimeout(() => setScanFlash(null), ms);
+    };
+
+    const resolved = await resolveIdentity(norm);
+    if (resolved.kind === "error") {
+      flash(`Could not verify "${norm}" — ${resolved.err.message}`, 3500);
       return;
     }
+    if (resolved.kind === "ambiguous") {
+      flash(
+        `"${norm}" matches ${resolved.matchCount} identifiers — resolve the duplicate first.`,
+        3500,
+      );
+      return;
+    }
+
+    let idx = -1;
+    let step = 1;
+    if (resolved.kind === "resolved") {
+      const identity = resolved.identity;
+      step = Math.max(1, Math.round(identity.qtyInBaseUom || 1));
+      idx = countLines.findIndex((l) => l.product_id === identity.productId);
+      if (idx < 0) {
+        flash(`${identity.productName} is not in this count.`);
+        return;
+      }
+    } else {
+      // Unknown identifier — fall back to a literal SKU match so a
+      // not-yet-enrolled product can still be counted by typing its SKU.
+      idx = countLines.findIndex(
+        (l) => l.sku && l.sku.toLowerCase() === norm.toLowerCase(),
+      );
+      if (idx < 0) {
+        flash(`No product matches "${norm}" in this count.`);
+        return;
+      }
+    }
+
     const current = countLines[idx];
     const base = current.counted_qty ?? current.system_qty;
-    updateCount(idx, base + 1);
-    setScanFlash(`+1 ${current.product_name} (now ${base + 1})`);
-    window.setTimeout(() => setScanFlash(null), 1500);
+    updateCount(idx, base + step);
+    flash(`+${step} ${current.product_name} (now ${base + step})`, 1500);
   };
 
   const filteredLines = countLines.filter(line =>

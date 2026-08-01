@@ -13,7 +13,7 @@
  * Templates menu: one-click presets for common industry pack hierarchies
  * (pharmacy, retail, beverage, agriculture, hardware). Industry-neutral so
  * the core editor never imposes one vertical's vocabulary on the user.
- * Barcode binding (product_packaging.barcode_id) is edit-mode only — the
+ * Barcode binding (product_identifiers.packaging_id) is edit-mode only — the
  * picker needs persisted product_identifiers rows. Pending rows can still
  * be bound later by re-opening the product.
  */
@@ -53,7 +53,6 @@ type PackRow = {
   qty_in_base_uom: number;
   is_purchase_default: boolean;
   is_sales_default: boolean;
-  barcode_id: string | null;
   _dirty?: boolean;
   _new?: boolean;
 };
@@ -62,7 +61,7 @@ type BarcodeRow = {
   id: string;
   code: string;
   kind: string;
-  pack_quantity: number | null;
+  packaging_id: string | null;
 };
 
 export interface ProductPackagingEditorHandle {
@@ -106,12 +105,12 @@ export const ProductPackagingEditor = forwardRef<
     const [packsRes, barcodesRes] = await Promise.all([
       supabase
         .from("product_packaging")
-        .select("id, name, qty_in_base_uom, is_purchase_default, is_sales_default, barcode_id")
+        .select("id, name, qty_in_base_uom, is_purchase_default, is_sales_default")
         .eq("product_id", productId)
         .order("qty_in_base_uom", { ascending: true }),
       supabase
         .from("product_identifiers")
-        .select("id, code, kind, pack_quantity")
+        .select("id, code, kind, packaging_id")
         .eq("product_id", productId)
         .order("code", { ascending: true }),
     ]);
@@ -130,7 +129,6 @@ export const ProductPackagingEditor = forwardRef<
         qty_in_base_uom: Number(r.qty_in_base_uom),
         is_purchase_default: !!r.is_purchase_default,
         is_sales_default: !!r.is_sales_default,
-        barcode_id: (r as any).barcode_id ?? null,
       })),
     );
     setBarcodes(
@@ -138,9 +136,53 @@ export const ProductPackagingEditor = forwardRef<
         id: b.id,
         code: b.code,
         kind: b.kind,
-        pack_quantity: b.pack_quantity == null ? null : Number(b.pack_quantity),
+        packaging_id: b.packaging_id ?? null,
       })),
     );
+  }
+
+  /**
+   * Phase D — the identifier→level link now lives on
+   * `product_identifiers.packaging_id`; `product_packaging.barcode_id`
+   * (the inverse, drift-prone copy) is gone. The picker below still reads
+   * "bind a barcode to this level", but it writes the canonical side.
+   */
+  function identifierForLevel(levelId: string): string | null {
+    return barcodes.find((b) => b.packaging_id === levelId)?.id ?? null;
+  }
+
+  async function bindIdentifierToLevel(levelId: string, identifierId: string | null) {
+    const previous = identifierForLevel(levelId);
+    // Optimistic: one identifier per level in this picker.
+    setBarcodes((prev) =>
+      prev.map((b) => {
+        if (b.id === previous) return { ...b, packaging_id: null };
+        if (b.id === identifierId) return { ...b, packaging_id: levelId };
+        return b;
+      }),
+    );
+    if (previous && previous !== identifierId) {
+      const { error } = await supabase
+        .from("product_identifiers")
+        .update({ packaging_id: null })
+        .eq("id", previous);
+      if (error) {
+        toast.error(`Failed to unbind barcode: ${error.message}`);
+        void load();
+        return;
+      }
+    }
+    if (identifierId) {
+      const { error } = await supabase
+        .from("product_identifiers")
+        .update({ packaging_id: levelId })
+        .eq("id", identifierId);
+      if (error) {
+        toast.error(`Failed to bind barcode: ${error.message}`);
+        void load();
+        return;
+      }
+    }
   }
 
   function update(idx: number, patch: Partial<PackRow>) {
@@ -158,7 +200,6 @@ export const ProductPackagingEditor = forwardRef<
         qty_in_base_uom: 1,
         is_purchase_default: false,
         is_sales_default: false,
-        barcode_id: null,
         _new: true,
         _dirty: true,
       },
@@ -230,7 +271,6 @@ export const ProductPackagingEditor = forwardRef<
           qty_in_base_uom: p.qty,
           is_purchase_default: p.purchase,
           is_sales_default: p.sales,
-          barcode_id: null,
           _new: true,
           _dirty: true,
         });
@@ -273,7 +313,6 @@ export const ProductPackagingEditor = forwardRef<
         qty_in_base_uom: r.qty_in_base_uom,
         is_purchase_default: r.is_purchase_default,
         is_sales_default: r.is_sales_default,
-        barcode_id: r.barcode_id,
       };
       return r._new ? base : { id: r.id, ...base };
     });
@@ -423,9 +462,9 @@ export const ProductPackagingEditor = forwardRef<
                   />
                 ) : (
                   <Select
-                    value={r.barcode_id ?? "__none__"}
+                    value={identifierForLevel(r.id) ?? "__none__"}
                     onValueChange={(v) =>
-                      update(idx, { barcode_id: v === "__none__" ? null : v })
+                      void bindIdentifierToLevel(r.id, v === "__none__" ? null : v)
                     }
                   >
                     <SelectTrigger className="h-9">

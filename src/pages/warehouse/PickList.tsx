@@ -36,7 +36,7 @@ import { ArrowLeft, Check, PackageCheck, ScanLine, X, MapPin, Package } from "lu
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
-import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { cn } from "@/lib/utils";
 
 interface PickTask {
@@ -65,7 +65,12 @@ export default function PickList() {
   const complete = useCompletePickTask(waveId);
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
-  const { resolveTagged } = useResolveBarcode(currentBusiness?.id, currentBranch?.id ?? null);
+  // Phase C3 — picking resolves identity through the canonical resolver so a
+  // case/inner barcode identifies the same product as its each-level code.
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
+    currentBusiness?.id,
+    currentBranch?.id ?? null,
+  );
 
   const [pickedQty, setPickedQty] = useState<Record<string, string>>({});
 
@@ -171,17 +176,23 @@ export default function PickList() {
         setScanProductId(null);
         return;
       }
-      const result = await resolveTagged(code);
-      if (result.kind === "hit") {
-        setScanProductId(result.row.productId);
-      } else if (result.kind === "miss") {
+      const result = await resolveIdentity(code);
+      if (result.kind === "resolved") {
+        setScanProductId(result.identity.productId);
+      } else if (result.kind === "ambiguous") {
+        // Never guess on an ambiguous identifier — block and make the
+        // duplicate visible instead of picking the wrong product.
+        setScanProductId(null);
+        setScanError(`${code} matches ${result.matchCount} identifiers — resolve the duplicate first.`);
+      } else if (result.kind === "not_found") {
         setScanProductId(null);
         setScanError(`Unknown code: ${code}`);
       } else {
+        setScanProductId(null);
         setScanError("Scanner network blip — try again.");
       }
     },
-    [resolveTagged],
+    [resolveIdentity],
   );
 
   return (

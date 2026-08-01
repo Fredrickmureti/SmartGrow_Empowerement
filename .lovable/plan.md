@@ -99,3 +99,38 @@ Migration `resolver contract + server-side identification queue` applied:
 ### Next action (Phase C1)
 Build the shared client resolver hook over `resolve_product_identity` (single not-found / ambiguous / offline contract using `match_count`), then cut WMS receiving over to it (C2).
 
+
+## Phase C + D shipped — 2026-08-01
+
+**C1–C3.** `useResolveProductIdentity` (GS1 → LRU → single-flight → tagged
+`resolved | ambiguous | not_found | error`, plus `scanToBaseUnits`) and
+`useWmsIdentityGate` (blocking + `scanFeedbackBus` audio/haptics) are the only
+client seam. Cut over: `ReceivingSessions`, `PickList`, `GoodsReceiptWizardPage`,
+`PhysicalCount`, `TransferNew`, `warehouse/CountSession` — a case scan now posts
+`qty_in_base_uom` base units, ambiguity blocks the line, unknown codes never post.
+
+**C4.** Supplier codes resolve through the same identifier candidate set in
+`resolve_product_identity`; the matched packaging level drives received quantity
+in the GRN wizard.
+
+**C5.** `resolveLabelBarcode(product, level?)` + `useLabelPrint({ packaging })`
+are level-aware: a level label encodes that level's identifier and refuses
+(`LABEL_LEVEL_BARCODE_REFUSAL`) rather than falling back — ADR-0089 intact.
+
+**Phase D.** Migration dropped `product_identifiers.pack_quantity` and
+`product_packaging.barcode_id`; `resolve_barcode_v2` rewritten onto
+`resolve_product_identity`; added the identifier→level same-product/business
+guard trigger. Readers migrated: `ProductIdentifiersEditor` (level select),
+`ProductPackagingEditor` (writes the canonical `packaging_id` side),
+`POSBarcodeSettings` (level column, read-only), `productBarcodeImportConfig`
+(resolves a level by multiplier). `useProductsAwaitingBarcode` deleted.
+Electron cache: `products.barcode` retired, identifier mirror gained
+`packaging_id` / `qty_in_base_uom`.
+
+**Tests / checks.** New: `src/test/inventory/resolve-product-identity.test.tsx`
+(7), `src/test/architecture/identity-resolver-single-seam.test.ts` (17),
+`src/test/printing/label-level-barcode.test.ts` (4) — all green, plus
+`src/test/inventory` (8+8). `bunx tsgo --noEmit` clean. ADR
+`docs/adr/0102-product-identification-canonical-resolver.md` written.
+
+Plan fully implemented.

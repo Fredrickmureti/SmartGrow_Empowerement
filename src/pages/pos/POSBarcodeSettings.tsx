@@ -51,7 +51,9 @@ type IdentifierRow = {
   code: string;
   kind: typeof IDENTIFIER_KINDS[number];
   is_primary: boolean;
-  pack_quantity: number | null;
+  /** Phase D — packaging level binding (replaces the dropped pack_quantity). */
+  packaging_id: string | null;
+  packaging?: { name: string | null; qty_in_base_uom: number | null } | null;
   product?: { name: string | null; sku: string | null } | null;
 };
 
@@ -101,7 +103,9 @@ function IdentifiersTab() {
     queryFn: async () => {
       let q = supabase
         .from("product_identifiers" as any)
-        .select("id, product_id, code, kind, is_primary, pack_quantity, products:product_id(name, sku)")
+        .select(
+          "id, product_id, code, kind, is_primary, packaging_id, products:product_id(name, sku), packaging:packaging_id(name, qty_in_base_uom)",
+        )
         .eq("business_id", currentBusiness!.id)
         .order("code")
         .limit(500);
@@ -123,7 +127,6 @@ function IdentifiersTab() {
             code: row.code,
             kind: row.kind ?? "gtin",
             is_primary: row.is_primary ?? false,
-            pack_quantity: row.pack_quantity ?? null,
           })
           .eq("id", row.id);
         if (error) throw error;
@@ -135,7 +138,6 @@ function IdentifiersTab() {
           code: row.code,
           kind: row.kind ?? "gtin",
           is_primary: row.is_primary ?? false,
-          pack_quantity: row.pack_quantity ?? null,
         });
         if (error) throw error;
       }
@@ -187,7 +189,7 @@ function IdentifiersTab() {
                 <TableHead>Code</TableHead>
                 <TableHead>Kind</TableHead>
                 <TableHead>Product</TableHead>
-                <TableHead>Pack qty</TableHead>
+                <TableHead>Packaging level</TableHead>
                 <TableHead>Primary</TableHead>
                 <TableHead className="w-[80px]" />
               </TableRow>
@@ -211,7 +213,11 @@ function IdentifiersTab() {
                     <TableCell className="font-mono">{r.code}</TableCell>
                     <TableCell>{r.kind}</TableCell>
                     <TableCell>{r.product?.name ?? r.product_id}</TableCell>
-                    <TableCell>{r.pack_quantity ?? "—"}</TableCell>
+                    <TableCell>
+                      {r.packaging
+                        ? `${r.packaging.name ?? "level"} × ${r.packaging.qty_in_base_uom ?? 1}`
+                        : "Base unit"}
+                    </TableCell>
                     <TableCell>{r.is_primary ? "Yes" : ""}</TableCell>
                     <TableCell className="text-right">
                       <Button size="icon" variant="ghost" onClick={() => setEditing(r)}>
@@ -342,19 +348,13 @@ function IdentifierForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <Label>Pack quantity (optional)</Label>
-          <Input
-            type="number"
-            min={0}
-            step="any"
-            value={value.pack_quantity ?? ""}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                pack_quantity: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
-          />
+          <Label>Packaging level</Label>
+          <p className="pt-2 text-sm text-muted-foreground">
+            {value.packaging
+              ? `${value.packaging.name ?? "level"} × ${value.packaging.qty_in_base_uom ?? 1}`
+              : "Base unit"}{" "}
+            — bind levels in Inventory → Product → Packaging.
+          </p>
         </div>
         <div className="flex items-end gap-2">
           <Switch
