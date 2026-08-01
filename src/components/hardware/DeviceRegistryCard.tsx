@@ -626,7 +626,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
 
           <div className="space-y-2">
             <Label className="text-xs font-medium">Loopback test print</Label>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground break-words">
               Sends a canonical ESC/POS init + "Hello" + cut to any printer
               (or simulator like the ESC/POS emulator on <code>127.0.0.1:9100</code>)
               through the agent. Bypasses the receipt pipeline so you can verify
@@ -637,7 +637,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                 placeholder="127.0.0.1"
                 value={loopbackIp}
                 onChange={(e) => setLoopbackIp(e.target.value)}
-                className="w-40 text-sm"
+                className="w-full sm:w-40 text-sm"
               />
               <Input
                 placeholder="9100"
@@ -647,6 +647,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
               />
               <Button
                 size="sm"
+                className="flex-1 sm:flex-none"
                 onClick={handleLoopbackPrint}
                 disabled={loopbackBusy || !agentAvailable}
               >
@@ -654,6 +655,7 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
                 Send test print
               </Button>
             </div>
+
             {!agentAvailable && (
               <p className="text-xs text-amber-600">
                 Agent is offline — start it with <code>AGENT_AUTH_DISABLED=1 npm --prefix agent run dev</code>.
