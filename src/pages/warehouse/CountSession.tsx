@@ -26,6 +26,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 
 interface CountLine {
   id: string;
@@ -47,7 +51,19 @@ export default function CountSession() {
   const [scanBin, setScanBin] = useState("");
   const [scanProduct, setScanProduct] = useState("");
   const [countedByLine, setCountedByLine] = useState<Record<string, string>>({});
+  // Phase C3 — a scanned product code is resolved to a product id through
+  // the canonical resolver, so any enrolled level (each / inner / case)
+  // selects the right count line instead of only an exact SKU string.
+  const [scanProductId, setScanProductId] = useState<string | null>(null);
+  const [scanFlash, setScanFlash] = useState<string | null>(null);
   const activeRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
+    currentBusiness?.id,
+    currentBranch?.id ?? null,
+  );
 
   const { data: session, isLoading } = useQuery({
     queryKey: ["wms-count-session", sessionId],
@@ -93,16 +109,45 @@ export default function CountSession() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),
   });
 
-  // Barcode-to-line resolver: match bin.code + product.sku.
+  const flash = (msg: string, ms = 2500) => {
+    setScanFlash(msg);
+    window.setTimeout(() => setScanFlash(null), ms);
+  };
+
+  const handleProductScan = async (code: string) => {
+    const norm = code.trim();
+    setScanProduct(norm);
+    setScanProductId(null);
+    if (!norm) return;
+    const res = await resolveIdentity(norm);
+    if (res.kind === "error") {
+      flash(`Could not verify "${norm}" — ${res.err.message}`, 3500);
+      return;
+    }
+    if (res.kind === "ambiguous") {
+      flash(`"${norm}" matches ${res.matchCount} identifiers — resolve the duplicate first.`, 3500);
+      return;
+    }
+    if (res.kind === "resolved") {
+      setScanProductId(res.identity.productId);
+      flash(res.identity.productName, 1500);
+      return;
+    }
+    flash(`Unknown code "${norm}" — enrol it before counting.`, 3500);
+  };
+
+  // Barcode-to-line resolver: match bin.code + resolved product identity
+  // (falling back to a literal SKU match for typed input).
   const activeLineId = useMemo(() => {
-    if (!scanBin || !scanProduct) return null;
-    const line = (lines ?? []).find(
-      (l) =>
-        (l.location?.code ?? "").toLowerCase() === scanBin.trim().toLowerCase() &&
-        (l.product?.sku ?? "").toLowerCase() === scanProduct.trim().toLowerCase(),
-    );
+    if (!scanBin || (!scanProduct && !scanProductId)) return null;
+    const bin = scanBin.trim().toLowerCase();
+    const line = (lines ?? []).find((l) => {
+      if ((l.location?.code ?? "").toLowerCase() !== bin) return false;
+      if (scanProductId) return l.product_id === scanProductId;
+      return (l.product?.sku ?? "").toLowerCase() === scanProduct.trim().toLowerCase();
+    });
     return line?.id ?? null;
-  }, [lines, scanBin, scanProduct]);
+  }, [lines, scanBin, scanProduct, scanProductId]);
 
   if (isLoading) return <LoadingState />;
   if (!session) {
@@ -164,7 +209,19 @@ export default function CountSession() {
               </div>
               <div>
                 <Label>Product</Label>
-                <Input placeholder="Scan or type product SKU" value={scanProduct} onChange={(e) => setScanProduct(e.target.value)} />
+                <BarcodeInputField
+                  workflow="count"
+                  placeholder="Scan or type product barcode / SKU"
+                  value={scanProduct}
+                  onChange={(v) => {
+                    setScanProduct(v);
+                    setScanProductId(null);
+                  }}
+                  onScan={handleProductScan}
+                />
+                {scanFlash && (
+                  <p className="mt-1 text-xs text-muted-foreground">{scanFlash}</p>
+                )}
               </div>
             </CardContent>
           </Card>
