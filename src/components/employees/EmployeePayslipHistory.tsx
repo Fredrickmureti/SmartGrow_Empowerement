@@ -13,6 +13,8 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { usePermissions } from "@/hooks/usePermissions";
+import { downloadPayslipPdf } from "@/services/payroll/payslipDocuments";
+
 
 interface EmployeePayslipHistoryProps {
   employeeId: string;
