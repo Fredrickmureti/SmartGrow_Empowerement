@@ -78,16 +78,8 @@ interface TestPrintResponse {
   resolved: ResolvedPrintPolicy;
 }
 
-const SUPABASE_URL =
-  (import.meta as { env?: { VITE_SUPABASE_URL?: string } }).env
-    ?.VITE_SUPABASE_URL ??
-  "https://jkszmrroyjfdwokbkzis.supabase.co";
-
 async function fetchTestPrintBytes(args: TestPrintArgs): Promise<TestPrintResponse> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-
-  const body = {
+  const { bytes, policy } = await renderDocumentBytesWithPolicy({
     documentType: "pos_receipt_preview",
     documentId: "test-print",
     format: "escpos",
@@ -102,45 +94,22 @@ async function fetchTestPrintBytes(args: TestPrintArgs): Promise<TestPrintRespon
         : args.receiptSettings.paper_size === "58mm"
           ? "58mm"
           : "80mm",
-  };
-
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-document`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    let message = `Server returned ${res.status}`;
-    try {
-      const text = await res.text();
-      if (text) message += `: ${text.slice(0, 200)}`;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(message);
-  }
-
-  const buf = await res.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  const h = res.headers;
-  const cols = h.get("X-Print-Policy-Columns");
   const resolved: ResolvedPrintPolicy = {
-    paper: h.get("X-Print-Policy-Paper"),
-    columns: cols ? Number(cols) : null,
-    font: h.get("X-Print-Policy-Font"),
-    source: h.get("X-Print-Policy-Source"),
-    profileId: h.get("X-Print-Policy-Profile-Id"),
-    coerced: h.get("X-Print-Policy-Coerced") === "1",
-    renderMode: h.get("X-Print-Policy-Render-Mode"),
+    paper: policy?.paper ?? null,
+    columns: policy?.columns ?? null,
+    font: policy?.font ?? null,
+    source: policy?.source ?? null,
+    profileId: policy?.profileId ?? null,
+    coerced: policy?.coerced ?? false,
+    renderMode: policy?.renderMode ?? null,
     byteLength: bytes.byteLength,
     at: Date.now(),
   };
   return { bytes, resolved };
 }
+
 
 export function useTestPrintReceipt() {
   const [isPrinting, setIsPrinting] = useState(false);
