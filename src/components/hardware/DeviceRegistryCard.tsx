@@ -700,17 +700,18 @@ export function DeviceRegistryCard({ registerId }: DeviceRegistryCardProps) {
       {/* Device Registry */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
+                <Activity className="h-5 w-5 shrink-0" />
                 Device Registry
               </CardTitle>
               <CardDescription>
                 Manage hardware devices connected to this POS register
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">
+
               {/* Scan for Devices */}
               <Dialog open={showDiscoveryDialog} onOpenChange={setShowDiscoveryDialog}>
                 <DialogTrigger asChild>
