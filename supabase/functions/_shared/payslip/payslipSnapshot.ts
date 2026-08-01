@@ -551,19 +551,28 @@ function maskAccount(account: string): string {
   return "****" + account.slice(-4);
 }
 
-// Country-agnostic humaniser for statutory identifier_type codes. NEVER
-// add a country switch here; pretty labels belong in the localization
-// pack / pack_requirements.label column.
-const ID_ACRONYMS = new Set([
-  "tin", "ssn", "ein", "utr", "nino", "nhs", "nssf", "shif", "nhif",
-  "uif", "rssb", "psssf", "pssf", "ahl", "nhis", "paye",
+// Country-agnostic humaniser for statutory identifier_type codes.
+//
+// This is the LAST resort only: a localization pack that declares the
+// identifier ships its own display label via `pack_requirements.label`,
+// and that always wins (see `idLabel` above). Because no jurisdiction may
+// be named here, abbreviation detection is structural rather than a list
+// of known agency acronyms: a short token that is not an ordinary English
+// connector word is treated as an initialism and upper-cased.
+const GENERIC_WORDS = new Set([
+  "tax", "id", "no", "num", "code", "ref", "type", "card", "reg", "of", "and",
 ]);
 function humaniseId(code: string): string {
   return String(code || "")
-    .split(/[_\s]+/)
+    .split(/[_\s-]+/)
     .filter(Boolean)
-    .map((p) => ID_ACRONYMS.has(p.toLowerCase())
-      ? p.toUpperCase()
-      : p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .map((p) => {
+      const lower = p.toLowerCase();
+      const isInitialism = lower.length <= 5 && !GENERIC_WORDS.has(lower);
+      return isInitialism
+        ? p.toUpperCase()
+        : p.charAt(0).toUpperCase() + lower.slice(1);
+    })
     .join(" ");
 }
+
