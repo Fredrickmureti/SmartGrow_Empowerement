@@ -246,6 +246,17 @@ describe('printing architecture — PrintService is the only entry point', () =>
     expect(filesMatching(/\bsubmitDocumentIntent\b/)).toEqual([]);
   });
 
+  it('exactly one document preview dialog exists', () => {
+    // Reports preview through `components/reports/ReportPreviewDialog.tsx`
+    // (render-report: no document record, no print policy, no device
+    // routing). Documents preview through
+    // `components/common/PrintPreviewDialog.tsx`. A second component named
+    // `PrintPreviewDialog` would mean two document preview surfaces — that
+    // is the drift this guard forbids.
+    const defs = filesMatching(/export function PrintPreviewDialog\b/);
+    expect(defs).toEqual(['components/common/PrintPreviewDialog.tsx']);
+  });
+
   it('no feature code drives the browser print dialog itself', () => {
     const rogue = filesMatching(/^(?![^\n]*(\/\/|\*)).*(window\.print\(\)|contentWindow\?\.print\(\))/m, [
       'services/printing/dispatch.ts',

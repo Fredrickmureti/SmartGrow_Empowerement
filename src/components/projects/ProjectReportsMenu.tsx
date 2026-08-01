@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { FileText, ChevronDown } from "lucide-react";
 import { startOfYear } from "date-fns";
-import { PrintPreviewDialog } from "@/components/reports/PrintPreviewDialog";
+import { ReportPreviewDialog } from "@/components/reports/ReportPreviewDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
@@ -109,7 +109,7 @@ export function ProjectReportsMenu({ projectId, projectName }: Props) {
         </DropdownMenuContent>
       </DropdownMenu>
       {open && active && (
-        <PrintPreviewDialog
+        <ReportPreviewDialog
           open={open}
           onOpenChange={(v) => {
             setOpen(v);

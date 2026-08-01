@@ -1,7 +1,7 @@
 /**
  * Architecture test: every projects portfolio page must surface the unified
  * preview/print engine — either via `RunProjectReportButton` (preferred) or
- * direct `PrintPreviewDialog` import. This protects against regressions where
+ * direct `ReportPreviewDialog` import. This protects against regressions where
  * a new page ships without a Run-report button, breaking the Finance/Sales
  * UX consistency principle.
  */
@@ -24,12 +24,12 @@ describe("projects: report-button coverage", () => {
     // Reports.tsx IS the reports hub — it owns its own engine entry.
     if (f === "Reports.tsx") continue;
 
-    it(`${f} imports RunProjectReportButton or PrintPreviewDialog`, () => {
+    it(`${f} imports RunProjectReportButton or ReportPreviewDialog`, () => {
       const src = readFileSync(join(PORTFOLIO_DIR, f), "utf8");
       const ok =
         src.includes("RunProjectReportButton") ||
-        src.includes("PrintPreviewDialog");
-      expect(ok, `${f} must import RunProjectReportButton or PrintPreviewDialog`).toBe(true);
+        src.includes("ReportPreviewDialog");
+      expect(ok, `${f} must import RunProjectReportButton or ReportPreviewDialog`).toBe(true);
     });
   }
 });

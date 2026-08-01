@@ -33,6 +33,7 @@ import { useBranches } from "@/hooks/useBranches";
 import { normalizeError } from "@/services/resilience";
 import { VendorStatementPreview } from "@/components/purchases/VendorStatementPreview";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
+import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import { useVendorStatementRecord } from "./useVendorStatementRecord";
 import { dispatchVendorStatement } from "./dispatchVendorStatement";
 
@@ -233,6 +234,10 @@ export default function VendorStatementRecordPage() {
         <Section title="Statement">
           <VendorStatementPreview data={data} />
         </Section>
+        <DocumentVersionsSection
+          documentType="vendor_statement"
+          documentId={header.id}
+        />
       </RecordShell>
       <SendDocumentDialog
         open={emailOpen}

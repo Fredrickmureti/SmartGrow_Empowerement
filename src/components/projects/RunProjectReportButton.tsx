@@ -1,5 +1,5 @@
 /**
- * RunProjectReportButton — opens the canonical PrintPreviewDialog with a
+ * RunProjectReportButton — opens the canonical ReportPreviewDialog with a
  * project_* report key pre-scoped to the current project. Same engine and
  * preview UX as Finance / Sales / Payroll reports.
  */
@@ -7,7 +7,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { FileText } from "lucide-react";
 import { startOfYear } from "date-fns";
-import { PrintPreviewDialog } from "@/components/reports/PrintPreviewDialog";
+import { ReportPreviewDialog } from "@/components/reports/ReportPreviewDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
@@ -50,7 +50,7 @@ export function RunProjectReportButton({ projectId, reportType, title, label = "
         <FileText className="h-4 w-4 mr-2" /> {label}
       </Button>
       {open && (
-        <PrintPreviewDialog
+        <ReportPreviewDialog
           open={open}
           onOpenChange={setOpen}
           getExportConfig={buildConfig}

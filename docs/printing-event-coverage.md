@@ -22,7 +22,7 @@ a wired template is a follow-up ticket, not a silent absence.
 - **Status**
   - `WIRED` — end-to-end path exists and is exercised by tests.
   - `PARTIAL` — renderer exists, template seeded, but no default binding
-    from the event to `PrintClient.print(...)` yet.
+    from the event to `printDocument(...)` yet.
   - `GAP` — no template or no renderer for this event.
 
 ## Labels (thermal / small-format media)
@@ -83,8 +83,9 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 ## Cross-cutting invariants
 
 1. **Single entry point.** Every event above prints via
-   `PrintClient.print({ documentType, documentId, intent })`
-   (ADR-0026). No page calls `generate-document` directly; no page hand-
+   `printDocument` / `printDocumentIntent` from
+   `@/services/printing/PrintService` (ADR-0026, as amended by ADR-0084/0085).
+   No page invokes a render endpoint directly; no page hand-
    rolls PDF bytes (`no-raw-pdf-lib-in-app` ESLint rule).
 2. **Media geometry lives in `media_profiles`.** Templates carry no
    `^PW`/`^LL` / `q,Q` / paper-size string — the dispatcher injects the
@@ -100,7 +101,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 
 - ~~Promote the drawer-slip receipt from on-demand to auto-print on
   cash movements~~ — **WIRED (this turn)**. `usePOSCashDrawer.onSuccess`
-  now dispatches `printClient.print({ intent: 'receipt', documentType:
+  now dispatches `printDocumentIntent({ intent: 'receipt', documentType:
   'drawer_slip' })` for every `pos_cash_movements` row. The
   `generate-document` edge function renders via `_shared/escpos/drawer.ts`
   (SOX/PCI audit slip: cashier, timestamp, movement type, amount,

@@ -2,11 +2,11 @@
  * ESLint rule: forbid direct `window.print()` calls outside the printing
  * chokepoint (`src/services/printing/pdfUtils.ts`).
  *
- * Direct `window.print()` skips PrintClient's policy resolution, transport
+ * Direct `window.print()` skips PrintService's policy resolution, transport
  * selection, and audit logging. ADR-0026 requires every print path to go
- * through `PrintClient`. pdfUtils is the single sanctioned caller because
+ * through `PrintService`. pdfUtils is the single sanctioned caller because
  * `printPdfInPage()` wraps the platform print dialog as a transport
- * primitive that PrintClient composes.
+ * primitive that PrintService composes.
  *
  * Scope: src/**. Tests are exempt.
  */
@@ -18,7 +18,7 @@ export default {
     docs: { description: 'Forbid direct window.print() outside src/services/printing/pdfUtils.ts.' },
     schema: [],
     messages: {
-      direct: 'Direct window.print() is forbidden. Use PrintClient.print() — ADR-0026.',
+      direct: 'Direct window.print() is forbidden. Use @/services/printing/PrintService — ADR-0026.',
     },
   },
   create(context) {

@@ -5,7 +5,7 @@
  *  1. Every project_* report key registered server-side has a matching
  *     entry in REPORT_REGISTRY OR is reachable through RunProjectReportButton.
  *  2. Project pages do not import any parallel report renderer
- *     (jspdf, exceljs, html2canvas, etc.) — they must use PrintPreviewDialog
+ *     (jspdf, exceljs, html2canvas, etc.) — they must use ReportPreviewDialog
  *     + render-report.
  */
 import { describe, it, expect } from "vitest";

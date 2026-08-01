@@ -1,5 +1,5 @@
 /**
- * ProjectReports — preview-before-download via the canonical PrintPreviewDialog
+ * ProjectReports — preview-before-download via the canonical ReportPreviewDialog
  * (the same dialog Finance/Sales/Payroll use). All five `project_*` keys are
  * server-built by the unified `render-report` engine — no client-side row
  * assembly, no parallel PDF stack.
@@ -14,7 +14,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useProjects } from "@/hooks/projects";
 import { startOfYear, format } from "date-fns";
 import { BarChart3, TrendingUp, Clock, FileText, Eye, Lock } from "lucide-react";
-import { PrintPreviewDialog } from "@/components/reports/PrintPreviewDialog";
+import { ReportPreviewDialog } from "@/components/reports/ReportPreviewDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 
@@ -83,7 +83,7 @@ export default function ProjectReports() {
       columns: [],
       rows: [],
       currency: baseCurrency,
-      // Server-build hints picked up by PrintPreviewDialog
+      // Server-build hints picked up by ReportPreviewDialog
       ...({
         reportType: meta.reportType,
         dateFrom: yearStart.slice(0, 10),
@@ -163,7 +163,7 @@ export default function ProjectReports() {
       </div>
 
       {openKey && (
-        <PrintPreviewDialog
+        <ReportPreviewDialog
           open={!!openKey}
           onOpenChange={(o) => { if (!o) setOpenKey(null); }}
           getExportConfig={() => buildExportConfig(openKey)}

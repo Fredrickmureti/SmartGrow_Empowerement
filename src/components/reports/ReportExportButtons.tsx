@@ -23,7 +23,7 @@ import {
   exportToPDF,
   type ExportConfig,
 } from "@/services/reports/ReportExportService";
-import { PrintPreviewDialog } from "./PrintPreviewDialog";
+import { ReportPreviewDialog } from "./ReportPreviewDialog";
 import { EmailReportDialog } from "./EmailReportDialog";
 import { useReportExportContext } from "@/contexts/ReportContext";
 import { toast } from "sonner";
@@ -230,7 +230,7 @@ export function ReportExportButtons({
 
       {/* Print Preview Dialog — desktop only */}
       {!isMobile && (
-        <PrintPreviewDialog
+        <ReportPreviewDialog
           open={showPreview}
           onOpenChange={setShowPreview}
           getExportConfig={() => enrichExportConfig(getExportConfig())}

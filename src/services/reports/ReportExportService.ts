@@ -142,7 +142,7 @@ export async function printReportAsPdf(config: ExportConfig): Promise<void> {
 }
 
 // Legacy getPrintPreviewHTML and buildPrintHTML have been removed.
-// Preview now uses the actual server-generated PDF (see PrintPreviewDialog).
+// Preview now uses the actual server-generated PDF (see ReportPreviewDialog).
 
 // ─── PDF Export (server-side via edge function) ─────────────────────
 

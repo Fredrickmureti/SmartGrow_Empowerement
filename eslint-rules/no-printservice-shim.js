@@ -1,24 +1,28 @@
 /**
- * ESLint rule: forbid imports from any `print-service` / `PrintService`
- * shim outside the sanctioned printing chokepoint (`src/services/printing/`).
+ * ESLint rule: forbid importing any print-service *shim* — i.e. a module
+ * whose path looks like a print service but is NOT the canonical
+ * chokepoint `src/services/printing/PrintService.ts`.
  *
- * After ADR-0026, the only sanctioned print entry point is `PrintClient`
- * (or the thin wrappers it owns). A "print-service" shim is any module
- * whose path matches /print[-_]?service/i — historically these were the
- * pre-chokepoint façades that grew their own format/transport logic and
- * caused the divergence ADR-0026 was written to undo.
+ * History: ADR-0026 named `PrintClient` as the single entry point. That
+ * module was superseded and deleted; the chokepoint is now
+ * `@/services/printing/PrintService`. Feature code is EXPECTED to import
+ * it — the failure mode this rule guards against is a second façade
+ * (`utils/printService`, `lib/print-service`, `hooks/usePrintService`, …)
+ * growing its own format/transport logic and re-forking the pipeline.
  *
- * Scope: src/**. Tests and the printing module itself are exempt.
+ * Scope: src/**. Tests and `src/services/printing/` itself are exempt.
  */
 
 /** @type {import('eslint').Rule.RuleModule} */
 export default {
   meta: {
     type: 'problem',
-    docs: { description: 'Forbid imports from print-service shims outside src/services/printing/.' },
+    docs: { description: 'Forbid print-service shims outside src/services/printing/.' },
     schema: [],
     messages: {
-      shim: 'Importing from "{{ name }}" is forbidden. Route through PrintClient (src/services/printing/PrintClient.ts) — ADR-0026.',
+      shim:
+        'Importing from "{{ name }}" is forbidden — it is a print-service shim. ' +
+        'The only sanctioned print entry point is "@/services/printing/PrintService".',
     },
   },
   create(context) {
@@ -29,13 +33,18 @@ export default {
       !filename.includes('/src/')
     ) return {};
 
-    const PATTERN = /print[-_]?service/i;
+    // Boundary-anchored: `printService`, `print-service`, `PrintService`
+    // as a path segment or camel-case word — never a coincidental suffix
+    // such as `DeviceFingerprintService`.
+    const SHIM = /(^|[/_.\-])print[-_]?service/i;
+    // The canonical chokepoint, in every spelling used across the app.
+    const CANONICAL = /^(@\/services\/printing\/PrintService|(\.\.?\/)+services\/printing\/PrintService)$/;
 
     function check(node, src) {
       if (typeof src !== 'string') return;
-      if (PATTERN.test(src)) {
-        context.report({ node, messageId: 'shim', data: { name: src } });
-      }
+      if (!SHIM.test(src)) return;
+      if (CANONICAL.test(src)) return;
+      context.report({ node, messageId: 'shim', data: { name: src } });
     }
 
     return {

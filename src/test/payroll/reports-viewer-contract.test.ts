@@ -1,7 +1,7 @@
 /**
  * Regression test — the Payroll Report viewer MUST tag its ExportConfig
  * with the server-build hints (`reportType`, `dateFrom`, `dateTo`,
- * `businessId`, `filters`) so `PrintPreviewDialog` takes the SERVER-BUILD
+ * `businessId`, `filters`) so `ReportPreviewDialog` takes the SERVER-BUILD
  * path in `render-report` instead of the lossy prebuilt path.
  *
  * The prebuilt path re-ships client-projected rows, which for several

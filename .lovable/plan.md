@@ -45,3 +45,36 @@ Extend `printing-architecture.test.ts` with single-renderer and single-front-doo
 - Destructive migration throughout: each legacy module is deleted in the same step its replacement lands. No adapters, no fallbacks.
 - No database redesign: `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the policy tables are sound; this is adoption work.
 - Baseline noted: the wider test suite has ~145 pre-existing failures unrelated to printing. Each step ends with the printing guard suite green.
+
+---
+
+## STATUS UPDATE — Phase 4 closed (latest turn)
+
+### Fully implemented and verified
+- **Phase 1 — one renderer.** `renderSourceDocument` deleted; `render.ts::renderDocumentRecord` → `render-document` is the only render seam. Legacy `(documentType, documentId)` callers bridged by `src/services/documents/resolveSourceDocumentRecord.ts` (freezes a `document_records` row first).
+- **Phase 2 — dispositions.** Preview/download/archived-download all open and settle a `print_jobs` row (`renderDocumentPreview`, `downloadDocumentRecord`, `downloadArchivedArtifact`, `openInteractiveJob`).
+- **Phase 3 — self-service coverage.** Payslip guards green; tax certificates (`useTaxCertificates`, `MyTaxCertificates`) fully ledgered.
+- **Phase 4 — legacy/doc sweep (this turn).**
+  - `eslint-rules/no-printservice-shim.js` retargeted: it no longer forbids the real chokepoint `@/services/printing/PrintService`, and its pattern is boundary-anchored so `DeviceFingerprintService` is not a false positive. Lint clean across `src/**` for all four printing rules.
+  - `no-direct-window-print.js` / `no-document-print-shadow-path.js` messages now name `PrintService`.
+  - `docs/printing-pipeline.md` rewritten against the real architecture (snapshot → record → PrintService → render-document → dispatch; ledger invariant; `generate-document` retained only as the CSV/XLSX export endpoint).
+  - `docs/printing-add-new-artifact.md` and `docs/printing-event-coverage.md` de-drifted.
+  - ADR-0026 marked **amended**: decision stands, entry point renamed to `PrintService`, bytes from `render-document`.
+  - Preview drift closed: `components/reports/ReportPreviewDialog.tsx` now *exports* `ReportPreviewDialog` (was still exporting `PrintPreviewDialog`), and a new guard in `printing-architecture.test.ts` — *"exactly one document preview dialog exists"* — pins `components/common/PrintPreviewDialog.tsx` as the sole document preview surface.
+  - `document-versions-record-pages` guard given an explicit `NOT_A_RENDERED_DOCUMENT` exemption list; `VendorStatementRecordPage` gained `DocumentVersionsSection`.
+- **Verification:** `printing-architecture` 24/24, printing + preview + report suites 43/43 and the earlier 26-file / 180-test printing run all green; `tsgo --noEmit` clean.
+
+### Still pending
+- `src/services/exports/documentExport.ts` still invokes `generate-document` for CSV/XLSX. This is **intentional and documented** (a data extract is not a rendered document); retiring it needs a server-side export medium on `render-document`, not a client edit.
+- **Phase 5 — hardware layer cleanup:** dead driver paths (LineDisplayDriver bridge, orphan `a4_printer` role wiring), inline ZPL in `Products.tsx`, LAN agent CORS scoping.
+- **Phase 6 — one operator workspace:** two print-queue screens still exist (`pages/admin/PrintQueuePage.tsx`, `apps/platform/hardware/HardwarePrintQueue.tsx`); terminology audit; standardised print/reprint/history affordances.
+- **Phase 7 — guardrails:** lint rule banning direct document edge-function calls outside `src/services/printing/`; coverage-matrix rows for newly wired types.
+- Baseline: the wider suite still has ~115-120 pre-existing failing files unrelated to printing (workspace-shell, WMS outbox, etc.). Do not treat these as printing regressions.
+
+### Active phase
+Phases 1-4 are closed. **Phase 5 (hardware layer) is the active phase.**
+
+### Instructions for the next agent
+1. **Verify before continuing.** Re-run `bunx vitest run src/test/architecture/printing-architecture.test.ts src/test/architecture/printing-pipeline.test.ts src/test/architecture/adr-0086-generate-document-client-entrypoint.test.ts src/test/architecture/printing-coverage-matrix-integrity.test.ts src/test/printing` and `bunx tsgo --noEmit -p tsconfig.app.json`. Then independently confirm the Phase 1-4 claims above by reading the code, not this file: one render seam in `render.ts`, one entry point in `PrintService.ts`, one preview dialog, no `PrintClient` remnants in `src/`, ledger rows on every disposition.
+2. **Then resume at Phase 5**, in the order written above (hardware cleanup → operator workspace → guardrails). Do not start Phase 6 or 7 work before Phase 5 is production-ready.
+3. Keep the rule that has held so far: each legacy module is deleted in the same step its replacement lands — no adapters, no fallbacks, no parallel execution paths.
