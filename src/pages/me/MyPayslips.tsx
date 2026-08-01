@@ -35,6 +35,8 @@ import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { PayslipDetailDialog } from "@/components/payroll/PayslipDetailDialog";
 import { EmployeeLinkRequired } from "@/components/me/EmployeeLinkRequired";
 import type { Payslip } from "@/hooks/usePayroll";
+import { downloadPayslipPdf } from "@/services/payroll/payslipDocuments";
+
 
 interface PayslipWithRun extends Payslip {
   payroll_run?: {
