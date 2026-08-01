@@ -62,7 +62,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
-import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
+import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { useGs1Scanner } from "@/lib/gs1/useGs1Scanner";
 import { normalizeError } from "@/services/resilience";
@@ -138,7 +138,7 @@ export default function GoodsReceiptWizardPage() {
 
   useActiveScanContext({ workspace_id: "grn" });
 
-  const { resolveTagged } = useResolveBarcode(
+  const { resolve: resolveIdentity } = useResolveProductIdentity(
     currentBusiness?.id,
     currentBranch?.id ?? null,
   );
