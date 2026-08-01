@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw, Printer, AlertTriangle, CheckCircle2, Clock, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { resendJob, requeueJob } from "@/services/printing/jobs";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
 import {
@@ -98,11 +99,15 @@ export default function HardwarePrintQueue() {
   const handleRequeue = async (row: PrintJobRow) => {
     setRequeueing(true);
     try {
-      const { error } = await (supabase as unknown as {
-        rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
-      }).rpc("requeue_print_job", { p_job_id: row.id });
-      if (error) throw error;
-      toast.success("Job requeued");
+      // Settled rows re-dispatch as a child job; live rows go back on the
+      // queue in place. Both go through the ledger module — never a raw RPC.
+      if (row.status === "failed" || row.status === "abandoned" || row.status === "dead_letter") {
+        await resendJob(row.id);
+        toast.success("Reprint sent");
+      } else {
+        await requeueJob(row.id);
+        toast.success("Job requeued");
+      }
       setDrawerRow(null);
       void load();
     } catch (e) {
@@ -111,6 +116,7 @@ export default function HardwarePrintQueue() {
       setRequeueing(false);
     }
   };
+
 
 
   // Reset page whenever filters change.

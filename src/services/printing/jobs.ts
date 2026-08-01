@@ -170,3 +170,16 @@ export async function resendJob(jobId: string): Promise<void> {
   const { error } = await supabase.rpc('print_job_resend', { p_id: jobId });
   if (error) throw error;
 }
+
+/**
+ * Put a stalled/failed row back on the queue in place (no child row).
+ * The operator workspace calls this; nothing else may touch the RPC, so
+ * the ledger keeps exactly one module as its writer.
+ */
+export async function requeueJob(jobId: string): Promise<void> {
+  const { error } = await (supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+  }).rpc('requeue_print_job', { p_job_id: jobId });
+  if (error) throw new Error(error.message);
+}
+
