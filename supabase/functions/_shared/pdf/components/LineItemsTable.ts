@@ -15,6 +15,12 @@ import { PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
 import { formatAmount } from "../../format/index.ts";
+import {
+  resolveLineItemColumns,
+  type LineItemColumn,
+  type LineItemProfileContext,
+} from "../../documents/lineItemProfiles.ts";
+
 
 export interface LineItem {
   description: string;
