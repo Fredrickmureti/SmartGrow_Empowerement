@@ -85373,6 +85373,30 @@ export type Database = {
       }
       process_scheduled_organization_deletions: { Args: never; Returns: Json }
       procurement_contracts_sweep_expiries: { Args: never; Returns: number }
+      product_identification_queue: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+        }
+        Returns: {
+          category_id: string
+          identifier_count: number
+          image_url: string
+          is_waived: boolean
+          level_name: string
+          needs_identifier: boolean
+          packaging_id: string
+          pending_product_count: number
+          primary_code: string
+          product_id: string
+          product_name: string
+          qty_in_base_uom: number
+          sku: string
+          unit_price: number
+        }[]
+      }
       product_identification_status: {
         Args: { p_business_id: string; p_product_ids: string[] }
         Returns: {
@@ -86731,11 +86755,12 @@ export type Database = {
         Returns: string
       }
       resolve_product_identity: {
-        Args: { p_business_id: string; p_code: string }
+        Args: { p_branch_id?: string; p_business_id: string; p_code: string }
         Returns: {
           base_uom_id: string
           identifier_id: string
           is_base_unit: boolean
+          match_count: number
           matched_code: string
           matched_kind: Database["public"]["Enums"]["product_identifier_kind"]
           packaging_id: string

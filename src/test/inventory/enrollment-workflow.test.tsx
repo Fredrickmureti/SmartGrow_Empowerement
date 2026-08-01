@@ -31,16 +31,30 @@ import {
   useEnrollmentWorkflow,
   type EnrollRpcResult,
 } from "@/hooks/inventory/useEnrollmentWorkflow";
-import type { AwaitingBarcodeProduct } from "@/hooks/inventory/useProductsAwaitingBarcode";
+import type { IdentificationTarget } from "@/hooks/inventory/useIdentificationQueue";
 
-const P = (id: string, name = id): AwaitingBarcodeProduct => ({
+/**
+ * Queue entries are level-aware `IdentificationTarget`s (one per missing
+ * packaging level), as produced by `useIdentificationQueue`.
+ */
+const P = (
+  id: string,
+  name = id,
+  level?: { packagingId: string | null; levelName: string; qtyInBaseUom: number },
+): IdentificationTarget => ({
+  key: `${id}:${level?.packagingId ?? "base"}`,
   id,
   name,
   sku: null,
   unit_price: 0,
   image_url: null,
   category_id: null,
+  packagingId: level?.packagingId ?? null,
+  levelName: level?.levelName ?? "Base unit",
+  qtyInBaseUom: level?.qtyInBaseUom ?? 1,
+  ladder: [],
 });
+
 
 function deferred<T>() {
   let resolve!: (v: T) => void;
