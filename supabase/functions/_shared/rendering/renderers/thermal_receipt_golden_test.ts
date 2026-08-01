@@ -164,8 +164,13 @@ interface Golden { sha256: string; byte_length: number; note: string }
 
 Deno.test("Wave7.1 — AST→ESC/POS pos_receipt bytes match golden", async () => {
   const blocks = composeBlocks(template, context);
-  const bytes = renderAstToEscPos({ template, context, blocks });
+  const rendered = renderAstToEscPos({ template, context, blocks });
+  const bytes = rendered.bytes;
   assert(bytes.length > 0, "renderAstToEscPos must emit non-empty bytes");
+  assertEquals(rendered.metadata.preview_lines, [
+    ...(rendered.metadata.preview_lines as string[]),
+  ], "renderer must expose the exact rows encoded into the artifact");
+  assert(Array.isArray(rendered.metadata.preview_line_meta));
   const hash = await sha256(bytes);
 
   let golden: Golden | null = null;

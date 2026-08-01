@@ -71,18 +71,20 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(present).not.toContain("PdfRenderer.ts");
   });
 
-  it("ReceiptDocumentModel remains the single shape POS surfaces feed to buildReceiptLines", () => {
-    // Post PreviewRenderer removal, the invariant moves one layer up:
-    // POS surfaces build a `ReceiptDocumentModel` and hand it to
-    // `buildReceiptLines`, which is the single row producer shared by
-    // the on-screen preview, the ESC/POS bytes and the thermal PDF.
+  it("POS paper preview consumes the server-rendered ESC/POS artifact", () => {
+    // The human-readable summary may use ReceiptDocumentModel, but the view
+    // labelled Receipt must show rows returned by the same server render that
+    // creates printer bytes. Rebuilding from live settings caused production
+    // preview/print drift.
     const src = readFileSync(
       join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
     );
     expect(src).toMatch(/ReceiptDocumentModel|buildReceiptDocument/);
-    expect(src).toMatch(/buildReceiptLines/);
+    expect(src).toMatch(/renderDocumentPreview/);
+    expect(src).toMatch(/preview_lines/);
     expect(src).toMatch(/MonospacePreview/);
+    expect(src).not.toMatch(/\bbuildReceiptLines\s*\(/);
   });
 
   it("POSTerminal no longer inlines `generate-document` auto-print bytes in the success path", () => {
@@ -193,7 +195,12 @@ describe("Stage X6 — POS receipt renderer contract", () => {
       const src = readFileSync(join(root, rel), "utf8");
       // Must use the shared monospace renderer.
       expect(src).toMatch(/MonospacePreview/);
-      expect(src).toMatch(/buildReceiptLines/);
+      if (!rel.endsWith("PostPaymentSurface.tsx")) {
+        expect(src).toMatch(/buildReceiptLines/);
+      } else {
+        expect(src).toMatch(/renderDocumentPreview/);
+        expect(src).not.toMatch(/\bbuildReceiptLines\s*\(/);
+      }
       // Must NOT reintroduce flexbox-based item rows or table-based layouts
       // for the receipt body. We scope the check to the items section by
       // looking for justify-between with QTY/PRICE/AMOUNT columns or any

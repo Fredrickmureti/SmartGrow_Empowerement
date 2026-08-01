@@ -57,9 +57,9 @@ import {
   showSuccessOnCustomerDisplay,
   type ReceiptPaperWidth,
 } from "@/lib/pos/receipt/renderers";
-import { buildReceiptLines } from "@/lib/receipt/preview/buildReceiptLines";
+import type { LineMeta } from "@/lib/receipt/preview/buildReceiptLines";
 import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
-import { printDocument, renderDocumentBlob } from "@/services/printing/PrintService";
+import { printDocument, renderDocumentBlob, renderDocumentPreview } from "@/services/printing/PrintService";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 
@@ -490,12 +490,9 @@ export function PostPaymentSurface({
             </div>
 
             <div className={showPreview === "paper" ? "block lg:hidden" : "hidden"}>
-              <PaperPreview
-                liveSettings={liveSettings}
+              <ServerReceiptPreview
                 paperWidth={paperWidth}
-                branding={branding}
-                currentOrg={currentOrg}
-                transaction={transaction}
+                transactionId={transaction.id}
               />
             </div>
           </section>
@@ -512,12 +509,9 @@ export function PostPaymentSurface({
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-border bg-muted/30 p-6">
               <div className="flex justify-center">
-                <PaperPreview
-                  liveSettings={liveSettings}
+                <ServerReceiptPreview
                   paperWidth={paperWidth}
-                  branding={branding}
-                  currentOrg={currentOrg}
-                  transaction={transaction}
+                  transactionId={transaction.id}
                 />
               </div>
             </div>
@@ -624,66 +618,77 @@ export function PostPaymentSurface({
 }
 
 /**
- * PaperPreview — thin wrapper around the shared monospace preview engine
- * (`buildReceiptLines` + `MonospacePreview`) so the exact same paper view
- * is used in both the desktop right column and the mobile stacked layout.
+ * ServerReceiptPreview — displays the canonical rows returned alongside the
+ * exact ESC/POS artifact. It deliberately does not rebuild a receipt from
+ * live transaction/settings state: preview and physical print resolve the
+ * same frozen document record through `render-document`.
  */
-function PaperPreview({
-  liveSettings,
+function ServerReceiptPreview({
   paperWidth,
-  branding,
-  currentOrg,
-  transaction,
+  transactionId,
 }: {
-  liveSettings: ReturnType<typeof useMergedReceiptSettings>["mergedSettings"];
   paperWidth: ReceiptPaperWidth;
-  branding: ReturnType<typeof useDocumentBranding>["branding"];
-  currentOrg: ReturnType<typeof useOrganization>["currentOrg"];
-  transaction: LiveTransactionInput;
+  transactionId: string;
 }) {
-  const rs = { ...liveSettings, paper_size: paperWidth };
-  const built = buildReceiptLines({
-    settings: rs,
-    company: {
-      name: branding?.name || currentOrg?.name || "Store",
-      logo_url: branding?.logo_url ?? null,
-      address: branding?.address ?? null,
-      city: branding?.city ?? null,
-      phone: branding?.phone ?? null,
-      email: branding?.email ?? null,
-      tax_id: null,
-    },
-    transaction: {
-      id: transaction.id,
-      transaction_number: transaction.transaction_number,
-      created_at: transaction.created_at,
-      subtotal: transaction.subtotal,
-      tax_amount: transaction.tax_amount,
-      discount_amount: transaction.discount_amount,
-      total_amount: transaction.total_amount,
-      customer_name: transaction.customer_name,
-      cashier_name: transaction.cashier_name,
-      register_id: transaction.register_id,
-      items: transaction.items.map((it) => ({
-        product_name: it.product_name,
-        sku: it.sku,
-        quantity: it.quantity,
-        unit_price: it.unit_price,
-        discount_amount: it.discount_amount,
-        line_total: it.line_total,
-      })),
-      payments: transaction.payments,
-      etims_cu_number: transaction.etims_cu_number,
-      etims_qr_data: transaction.etims_qr_data,
-    },
-  });
+  const [preview, setPreview] = useState<{
+    lines: string[];
+    meta: LineMeta[];
+    columns: number;
+    marginCols: number;
+    paper: ReceiptPaperWidth;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setPreview(null);
+    setError(null);
+    void renderDocumentPreview({
+      documentType: "pos_receipt",
+      documentId: transactionId,
+      medium: "escpos",
+      paperFormat: paperWidth,
+    }).then((artifact) => {
+      if (!active) return;
+      const metadata = artifact.metadata ?? {};
+      const lines = metadata.preview_lines;
+      const meta = metadata.preview_line_meta;
+      const columns = metadata.resolved_columns;
+      const marginCols = metadata.resolved_margin_columns;
+      const paper = metadata.resolved_paper;
+      if (!Array.isArray(lines) || !lines.every((line) => typeof line === "string")) {
+        throw new Error("Receipt renderer did not return preview rows");
+      }
+      if (!Array.isArray(meta) || typeof columns !== "number") {
+        throw new Error("Receipt renderer returned incomplete preview metadata");
+      }
+      setPreview({
+        lines,
+        meta: meta as LineMeta[],
+        columns,
+        marginCols: typeof marginCols === "number" ? marginCols : 0,
+        paper: paper === "40mm" || paper === "58mm" || paper === "80mm" ? paper : paperWidth,
+      });
+    }).catch((reason: unknown) => {
+      if (!active) return;
+      setError(reason instanceof Error ? reason.message : "Receipt preview failed");
+    });
+    return () => { active = false; };
+  }, [paperWidth, transactionId]);
+
+  if (error) {
+    return <div className="text-sm text-destructive">{error}</div>;
+  }
+  if (!preview) {
+    return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Generating receipt preview" />;
+  }
   return (
     <MonospacePreview
-      lines={built.lines}
-      meta={built.meta}
-      columns={built.columns}
-      marginCols={built.marginCols}
-      paper={built.paper}
+      lines={preview.lines}
+      meta={preview.meta}
+      columns={preview.columns}
+      marginCols={preview.marginCols}
+      paper={preview.paper}
     />
   );
 }
