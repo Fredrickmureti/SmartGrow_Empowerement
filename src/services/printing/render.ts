@@ -5,28 +5,22 @@
  * invoke a render endpoint: pages, hooks and sagas describe *what* to
  * print, this module decides *how* the bytes are produced.
  *
- * Two backends, one contract:
- *   - `renderDocumentRecord` — for documents that already have a
- *     `document_records` row (the enterprise document model, ADR-0084).
- *     Goes to `render-document`, persists a `document_artifacts` row, and
- *     returns the same bytes that were archived. A reprint years later is
- *     byte-identical because the artifact is the record.
- *   - `renderSourceDocument` — for source documents that have not been
- *     migrated to the document model yet. Goes to `generate-document`.
+ * One backend, one contract: `renderDocumentRecord`. Every printable
+ * artifact has a `document_records` row (ADR-0084); rendering goes to
+ * `render-document`, persists a `document_artifacts` row, and returns the
+ * same bytes that were archived, so a reprint years later is
+ * byte-identical because the artifact IS the record.
  *
- * Both return the same `RenderedArtifact`, so `PrintService` never
- * branches on document type when dispatching.
+ * The legacy `renderSourceDocument` / `generate-document` backend is gone.
+ * Surfaces that still speak a bare `(documentType, documentId)` pair are
+ * bridged by `@/services/documents/resolveSourceDocumentRecord`, which
+ * freezes the pair into a record before it reaches this module.
  */
 import { supabase } from '@/integrations/supabase/client';
-import {
-  generateDocumentPdfWithPolicy,
-  generateDocumentEscPosBytes,
-  type PaperFormatOption,
-  type DocumentRenderPolicyInfo,
-} from '@/services/printing/pdfUtils';
+import type { PaperFormatOption, DocumentRenderPolicyInfo } from '@/services/printing/pdfUtils';
 
 export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html';
-export type { DocumentRenderPolicyInfo };
+export type { DocumentRenderPolicyInfo, PaperFormatOption };
 
 export interface RenderedArtifact {
   medium: RenderMedium;
