@@ -19,12 +19,14 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import {
-  generateDocumentPdf,
+  generateDocumentPdfWithPolicy,
   generateDocumentEscPosBytes,
   type PaperFormatOption,
+  type DocumentRenderPolicyInfo,
 } from '@/services/printing/pdfUtils';
 
 export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html';
+export type { DocumentRenderPolicyInfo };
 
 export interface RenderedArtifact {
   medium: RenderMedium;
@@ -35,7 +37,13 @@ export interface RenderedArtifact {
   blob?: Blob;
   /** `document_artifacts.id` when the render was persisted. */
   artifactId: string | null;
+  /**
+   * What the server decided about paper and render mode. Preview surfaces
+   * show this to the operator; print paths ignore it.
+   */
+  policy?: DocumentRenderPolicyInfo | null;
 }
+
 
 function bytesToBlob(bytes: Uint8Array, mimeType: string): Blob {
   return new Blob([bytes as unknown as BlobPart], { type: mimeType });
@@ -91,6 +99,13 @@ export async function renderSourceDocument(input: {
   station?: string | null;
   course?: string | null;
   table?: string | null;
+  /** Scope the render to a branch so branch policy overrides apply. */
+  branchId?: string | null;
+  /**
+   * Ask the renderer for thermal bytes even when the resolved policy is
+   * PDF — used when the operator picks a thermal destination by hand.
+   */
+  forceRenderMode?: boolean;
   /**
    * Rebuild presentation settings from the current editor instead of the
    * snapshot frozen at issue time. Document identity stays frozen either
@@ -99,17 +114,23 @@ export async function renderSourceDocument(input: {
   forceRefreshSettings?: boolean;
 }): Promise<RenderedArtifact> {
   if (input.medium === 'pdf') {
-    const blob = await generateDocumentPdf(input.documentType, input.documentId, {
-      paperFormat: input.paperFormat ?? undefined,
-      extraBody: input.extraBody,
-      forceRefreshSettings: input.forceRefreshSettings,
-    });
+    const { blob, policy } = await generateDocumentPdfWithPolicy(
+      input.documentType,
+      input.documentId,
+      {
+        paperFormat: input.paperFormat ?? undefined,
+        extraBody: input.extraBody,
+        branchId: input.branchId ?? null,
+        forceRefreshSettings: input.forceRefreshSettings,
+      },
+    );
     return {
       medium: 'pdf',
       mimeType: 'application/pdf',
       bytes: new Uint8Array(await blob.arrayBuffer()),
       blob,
       artifactId: null,
+      policy,
     };
   }
   const bytes = await generateDocumentEscPosBytes(input.documentType, input.documentId, {
@@ -117,6 +138,8 @@ export async function renderSourceDocument(input: {
     course: input.course ?? null,
     table: input.table ?? null,
     paperFormat: normaliseThermalPaper(input.paperFormat),
+    branchId: input.branchId ?? null,
+    forceRenderMode: input.forceRenderMode,
     forceRefreshSettings: input.forceRefreshSettings,
   });
 
@@ -125,8 +148,10 @@ export async function renderSourceDocument(input: {
     mimeType: 'application/octet-stream',
     bytes,
     artifactId: null,
+    policy: null,
   };
 }
+
 
 function normaliseThermalPaper(
   paper: PaperFormatOption | null | undefined,

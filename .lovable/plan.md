@@ -1,136 +1,69 @@
-# Product Identification Architecture — Verification Report & Revised Plan
 
-## Phase 1 — What I verified (evidence, not claims)
+# Enterprise Printing & Document Output — Consolidation Plan
 
-**Phase A (canonical model) — genuinely landed.** Confirmed directly against the live database, not just the migration file: `product_identifiers.packaging_id` exists, the `trg_product_identifier_packaging_guard` trigger exists, `product_identification_waivers` exists with GRANTs + RLS + policies + unique level index, and all three RPCs (`resolve_product_identity`, `product_identification_status`, `waive_product_identification`) exist. `pos_resolve_barcode` was rewritten to delegate item identity to the resolver; comparing it line-by-line against the prior version (migration `20260527141306`), the weighted-barcode rule parsing, embedded price/weight extraction and the returned column list are preserved.
+## What I found (independent audit)
 
-**Phase B (level-aware enrollment) — landed.** `useIdentificationQueue`, `useEnrollmentWorkflow` (with `EnrollmentTarget` + waive) and the rebuilt `BarcodeEnrollment` page exist and read the status projection.
+The subsystem is closer to enterprise-grade than the surrounding documentation suggests, but it carries a second live execution path and a stale documentation layer that actively misdescribes the architecture.
 
-**Phase C — correctly reported as not started.** No client file references `resolve_product_identity` (only the generated types file does).
+**The real pipeline today** (verified in code):
 
-## Phase 1 — Defects found in "completed" work
+```text
+Business event / operator action
+  -> features/*/dispatch*.ts  (snapshot builder)
+  -> ensureDocumentRecord()   (immutable document_records, ADR-0084)
+  -> PrintService.printDocumentIntent()
+       1 policy.resolvePrintPolicy   medium / paper / copies
+       2 jobs.openJob                durable print_jobs ledger row
+       3 render.*                    bytes
+       4 dispatch.toDevice/toPage/toDownload
+  -> hardwareClient.exec -> device_assignments -> Electron driver | LAN agent :8043 | browser
+  -> submit-document-intent -> dispatch-print-jobs (pg_cron drainer) -> disposition fan-out
+```
 
-These are real and must be fixed before Phase C is layered on top.
+**Confirmed strengths.** One client chokepoint (`PrintService`), one hardware chokepoint (`hardwareClient`), a durable `print_jobs` ledger, immutable document records/artifacts, server-only PDF and barcode ownership, a pg_cron spool drainer with SKIP LOCKED and an SLO monitor, and ~20 guard tests plus 29 ESLint architecture rules. The Label/POS dispatch path is genuinely the strongest implementation and is the right reference model.
 
-1. **Blocking correctness bug: normalization mismatch.** `product_identifiers.code_norm` is a generated column defined as `lower(code)`. Every new Phase A function compares against `upper(...)`: the resolver uses `pi.code_norm = upper(code)`, and `enroll_product_barcode` computes `v_norm := upper(btrim(code))` for its idempotency, duplicate-conflict and unique-violation lookups. For purely numeric barcodes `lower` = `upper`, so EAN/UPC scanning masks the bug; **every alphanumeric identifier (supplier codes, internal codes, pack aliases, SKU-style codes) silently fails to resolve and silently fails duplicate detection**. `code_norm` also lacks `btrim`, so `" ABC"` and `"ABC"` both pass the unique constraint.
-2. **Tenant-isolation gap in the new RPCs.** `resolve_product_identity` and `product_identification_status` are `SECURITY DEFINER` with **no `user_can_access_business` check**, and `resolve_product_identity` is granted to `anon`. Any caller who supplies a business id can read product names/SKUs/packaging of another tenant. The older `enroll/revoke/flag` RPCs do gate on `user_can_access_business`; the new canonical resolver regressed that.
-3. **Waiver RLS is scoped to the wrong axis.** `product_identification_waivers` policies use `is_org_member(auth.uid(), organization_id)` while every write path is business-scoped; an org member of a sibling business can read/delete waivers. Should use `user_can_access_business(auth.uid(), business_id)`.
-4. **Resolver contract is thinner than the plan promised.** It takes no branch argument, returns no GS1 payload, and on multiple matches silently `LIMIT 1`s with `ORDER BY is_primary DESC` — there is no ambiguity signal, which Phase C explicitly needs ("one not-found / ambiguous-code contract").
-5. **Backfill correctness is unverified and unverifiable today.** `product_identifiers` and `product_packaging` are both empty in this environment, so the three backfill steps (legacy `barcode_id`, matching `pack_quantity`, materialising a packaging row) have never executed against real rows. No guard test exists.
-6. **No Phase A/B guard tests, no ADR.** The migration ships zero pgTAP/vitest guards; nothing prevents a future migration from reintroducing loose `pack_quantity` reads or the inverse `barcode_id` link. ADR-0090 is already taken by the visual label designer, so the identity ADR needs a new number.
-7. **Enrollment queue does not scale.** `useIdentificationQueue` pulls the first 200 active products client-side and only then asks for their level status, so "incomplete identification" is filtered in the browser. On a 50k-SKU catalogue the operator queue is wrong, not just slow — completeness filtering belongs in the projection with keyset pagination.
-8. **Test suite could not be executed here** (`vitest` / `@vitejs/plugin-react-swc` are not installed in this sandbox), so the previous engineer's "tests pass" posture is unconfirmed. First action in build mode is to install and run the inventory/scanner/architecture suites and record the result.
+**Confirmed problems.**
 
-## Phase 2 — Revised plan
+1. **Two rendering backends run in parallel.** `render.ts` exposes `renderDocumentRecord` (canonical, `render-document`) and `renderSourceDocument` (legacy, `generate-document`). `PrintService` calls the legacy one from three call sites and the canonical one from one. So ADR-0084's byte-identical-reprint guarantee does not actually hold platform-wide.
+2. **A second rendering surface bypasses `PrintService` entirely.** `PrintPreviewDialog` and `PrintSettingsPopover` invoke `generate-document` directly, so previews produce different bytes than prints, with no ledger row and no audit.
+3. **Self-service documents have no pipeline at all.** `MyPayslips`, `MyTaxCertificates`, `MyDocuments` use bespoke download handlers and separate edge functions — no print job, no reprint, no history — even though `PrintService` advertises payslip support.
+4. **Two print-queue operator screens** read the same `print_jobs` table: `/admin/PrintQueuePage.tsx` and `/platform/hardware/print-queue`.
+5. **The documentation layer describes an architecture that no longer exists.** `docs/printing-pipeline.md`, `docs/printing-add-new-artifact.md` and ADR-0026 all name `PrintClient.ts` as canonical; that file was deleted. Two guard tests they cite do not exist. `eslint-rules/no-printservice-shim.js` still points at the dead module. `mem/features/hardware-platform.md` describes `device_assignments` columns that are not in the schema.
+6. **Carried-forward hardware findings** from the June re-audit that need re-verification: inline ZPL in `Products.tsx`, orphan `a4_printer` role, `LineDisplayDriver` pointing at a dead bridge, `BluetoothTransport.send` hardcoded to fail, non-constant-time token compare and wildcard CORS in the LAN agent.
 
-### Phase A′ — harden the model (must land first)
-- Redefine `code_norm` as `upper(btrim(code))` (drop + re-add the generated column, rebuilding the `(business_id, code_norm, kind)` unique constraint that `ProductIdentifiersEditor` upserts against — the existing pgTAP guard `product_identifiers_unique_shape_test.sql` must still pass), and de-duplicate any rows that only differed by case/whitespace before re-adding it. Alternative if the column cannot be rebuilt safely: change every comparison to `lower(btrim(...))`. One direction, everywhere — the mismatch is the bug.
-- Gate `resolve_product_identity` and `product_identification_status` on `user_can_access_business(auth.uid(), p_business_id)`; revoke `anon` from the resolver (POS runs authenticated).
-- Re-scope waiver RLS to `user_can_access_business` on `business_id`.
-- Extend the resolver contract: add `p_branch_id`, a `match_count` / ambiguity indicator, and the parsed GS1 payload (reusing the existing `parseGs1`-equivalent SQL path) so every Phase C consumer shares one not-found / ambiguous / resolved contract.
-- Add pgTAP guards: backfill invariants (no identifier whose `pack_quantity` disagrees with its level factor; no identifier bound to another product's level), normalization round-trip, tenant-isolation refusal, and `pos_resolve_barcode` shape/weighted-behaviour parity.
+## Architectural direction
 
-### Phase B′ — finish the workspace properly
-- Move completeness filtering into `product_identification_status` (or a companion `product_identification_queue` projection) with keyset pagination; the hook consumes it directly.
-- Add a vitest for the level cursor: identified → waived → next level, and the `seq` stale-RPC contract from `mem://features/barcode-enrollment`.
+One pipeline. Document type becomes **configuration** (kind code, snapshot builder, template, output policy) and never a separate execution path. Preview, print, email, download and archive become **dispositions of one job**, not separate code. The spool is infrastructure behind `PrintService`, never a second front door.
 
-### Phase C — module cutover (unchanged order, now on a sound base)
-- **C1** shared client resolver hook over `resolve_product_identity` (single not-found/ambiguous/offline contract).
-- **C2** WMS receiving (`ReceivingSessions`) — scanned case posts `qty_in_base_uom` base units; unknown code blocks the line instead of being narrated in a toast.
-- **C3** GRN wizard, put-away, picking, cycle/physical counts — same hook, same conversion semantics.
-- **C4** purchasing: supplier identifier + packaging level drive received quantity.
-- **C5** label printing: `resolveLabelBarcode` / `useLabelPrint` become level-aware (case label prints the case identifier, still refuses rather than falling back to an internal id — ADR-0089 intact).
-- Each step ships a regression test plus a guard asserting the module does not read `product_identifiers` directly.
+## Work plan
 
-### Phase D — remove the drift
-- Drop `product_packaging.barcode_id` and `product_identifiers.pack_quantity` and delete every reader (`ProductPackagingEditor`, `ProductIdentifiersEditor`, `PackagingSelect`, `useProductDetailData`, `productBarcodeImportConfig`, POS barcode settings, offline bridge).
-- Delete `useProductsAwaitingBarcode` and migrate `src/test/inventory/enrollment-workflow.test.tsx` onto `useIdentificationQueue`.
-- Retire legacy `products.barcode` from the Electron SQLite cache; the offline cache mirrors `product_identifiers`.
-- New ADR (next free number, **not** 0090) for the identity contract + architecture guards; update `mem://features/barcode-enrollment` whose invariants still describe the old product-level queue.
+### Phase 0 — Verification pass (no code changes yet)
+Re-confirm the carried-forward findings against current source (Products.tsx ZPL, a4_printer, LineDisplayDriver, BluetoothTransport, agent auth/CORS), run the existing guard suite and lint to establish a true baseline, and check `docs/printing-event-coverage.md` for non-WIRED rows. Record results in a findings document.
 
-### Technical notes
-- The `code_norm` change is the only genuinely risky migration (constraint rebuild on a table PostgREST upserts against with `on_conflict` by column name). It runs alone, ahead of everything else.
-- Phase A remains additive: no legacy column is dropped until Phase D, so POS scanning keeps working throughout.
-- `.lovable/plan.md` is the living ledger; it gets the verification findings above recorded before any new code, and is updated as each step closes.
+### Phase 1 — Single rendering backend
+Migrate every remaining document type onto `document_records` + `render-document`. Any type still needing `generate-document` gets a snapshot builder in this phase. Then delete `renderSourceDocument`, remove the legacy branches in `PrintService`, and retire the `generate-document` edge function. Outcome: one renderer, and reprints are byte-identical everywhere.
 
-## Immediate first steps on approval
-1. Install dev deps and run inventory/scanner/architecture suites to get a real baseline.
-2. Record the verification findings in `.lovable/plan.md` and reopen A/B as A′/B′.
-3. Ship the A′ migration (normalization + tenant gating + waiver RLS + resolver contract) with its pgTAP guards.
+### Phase 2 — Preview becomes a disposition
+Rebuild `PrintPreviewDialog` on top of a `PrintService` preview disposition that renders through the same path and records the same ledger row. Paper-format overrides move into policy parameters rather than a direct edge call. Delete the direct `generate-document` calls from `PrintPreviewDialog` and `PrintSettingsPopover`.
 
----
+### Phase 3 — Close the coverage gaps
+Bring payslips, tax certificates and the HR document store onto the pipeline: snapshot builders, kind codes, output policies, and the standard print/preview/reprint affordances. Delete the bespoke download edge functions they currently use. Audit remaining kind codes for surfaces that exist in the registry but have no UI.
 
-## Verification log — 2026-07-31 (incoming engineer)
+### Phase 4 — Legacy deletion sweep
+Delete `PrintClient` remnants and stale comments, rewrite `docs/printing-pipeline.md` and `docs/printing-add-new-artifact.md` against the real architecture, supersede ADR-0026 with a new ADR recording the `PrintService` design, fix `no-printservice-shim.js` to target the real module, and correct `mem/features/hardware-platform.md` to match the actual `device_assignments` schema. No fallbacks, no adapters, no deprecated modules retained.
 
-Baseline established before any A′ code change:
+### Phase 5 — Hardware layer cleanup
+Fix or remove the dead driver paths found in Phase 0 (LineDisplayDriver, BluetoothTransport, orphan roles), and harden the LAN agent (constant-time token compare, scoped CORS). A permanently-failing transport must either work or not be registered.
 
-- `node_modules` was incomplete in the working environment (`vitest`, `@vitejs/plugin-react-swc` missing, TanStack entry unresolved → preview 500). `bun install` restored 1011 packages; the preview entry error and the "cannot run tests" blocker were both environment-only, not code defects.
-- `bunx vitest run src/test/inventory src/test/scanner src/test/printing`: **300 passed / 4 failed (312)**.
-  - `src/test/printing/label-dispatch-error-taxonomy.test.ts` — 1 pre-existing failure ("both taxonomy branches return `{success:false,error}`, never throw"), unrelated to identification.
-  - `src/test/inventory/enrollment-workflow.test.tsx` — worker exits/times out (still bound to the removed-in-D `useProductsAwaitingBarcode` projection). Treated as Phase B′ work, not a new regression.
-- Phase A DB objects re-confirmed live (packaging_id, guard trigger, waivers table + RLS, all three RPCs). Phase C confirmed not started (no client reference to `resolve_product_identity`).
+### Phase 6 — Unified operator workspace (UX)
+Merge the two print-queue screens into one operator surface under the hardware workspace, with the other redirecting like the already-retired `roles`/`capability` routes. The queue answers one question in business language: *did it print, and if not, why*. Terminology audit across all printing UI — no "output intent", "document record", "kind code", "device assignment" in rendered copy; they become "print rule", "document", "document type", "printer". Standardise the print button: same label, same pre-flight guard, same toast, same reprint and history affordance on every printable record. `ReprintButton` and `DocumentHistoryPanel` get wired onto every document surface, not just labels and receipts.
 
-### Next action (A′, step 1)
-Ship the `code_norm` normalization migration alone: `code_norm` is `lower(code)` while every Phase A function compares `upper(btrim(...))`, so alphanumeric identifiers never match. Dedupe case/whitespace collisions, rebuild the plain `(business_id, code_norm, kind)` UNIQUE constraint (pgTAP `product_identifiers_unique_shape_test.sql` must still pass), then gate `resolve_product_identity` / `product_identification_status` on `user_can_access_business`, revoke `anon`, and re-scope waiver RLS to `business_id`.
+### Phase 7 — Guardrails
+Extend `printing-architecture.test.ts` so the single-renderer and single-front-door invariants are enforced, add coverage-matrix rows for the newly wired document types, and add lint rules banning any direct edge-function document call outside `src/services/printing/`. Every invariant this work establishes must fail CI if violated.
 
-## A′ shipped — 2026-08-01
+## Technical notes
 
-Migration `A′ : harden product identification model` applied successfully:
-
-- `product_identifiers.code_norm` rebuilt as `upper(btrim(code))` (was `lower(code)`), after deleting case/whitespace collisions (kept primary → oldest → lowest id). Both UNIQUE indexes recreated: `(business_id, code_norm)` and `(business_id, code_norm, kind)` — the `on_conflict=business_id,code_norm,kind` upsert in `src/pages/Products.tsx` and `_resolveProduct.ts` (already uppercases before querying `code_norm`) are now consistent with the DB.
-- `resolve_product_identity` and `product_identification_status` now gate on `auth.uid()` + `user_can_access_business(...)` and return zero rows for foreign/anon callers. `anon` EXECUTE revoked on both; `authenticated` + `service_role` granted. `waive_product_identification` already gated.
-- `product_identification_waivers` RLS re-scoped from `is_org_member(org)` to `user_can_access_business(auth.uid(), business_id)` for select/insert/update/delete.
-- Verified no edge function or anon client path calls the resolver; only `useIdentificationQueue` / `useEnrollmentWorkflow` consume it. `pos_resolve_barcode` delegates in-DB under the caller's JWT, so POS scanning is unaffected.
-- `bunx vitest run src/test/inventory src/test/scanner`: 180 passed / 3 failed (pre-existing, unrelated: 2× `pairing-url-host-match` host resolution, 1× `scan-event-sender` payload shape) plus the known `enrollment-workflow.test.tsx` worker timeout (Phase B′ work).
-
-## A′ step 2 + B′ shipped — 2026-08-01
-
-Migration `resolver contract + server-side identification queue` applied:
-
-- `resolve_product_identity(p_business_id, p_code, p_branch_id default null)` recreated (old 2-arg signature dropped; `pos_resolve_barcode` still resolves via named/positional call and reads the record with `SELECT *`, so its shape is unchanged).
-  - Candidate set: `upper(btrim(code))`, GS1 `(01)`/`01`-prefixed 14-digit GTIN extraction, plus zero-padding variants (`ltrim '0'`, `lpad 13`, `lpad 14`) so GTIN-8/12/13/14 encodings of the same number resolve to the same level.
-  - New `match_count` column = number of identifiers hit → callers can distinguish resolved / ambiguous / not-found from one contract. Exact-code match wins over padding variants, then `is_primary`, then oldest.
-  - SKU fallback preserved for the base unit; tenant gate (`auth.uid()` + `user_can_access_business`) preserved; `anon` execute revoked.
-- New `product_identification_queue(business, search, limit, offset)` (SECURITY DEFINER, tenant-gated, `anon` revoked): projects one row per (product, packaging level) but only for products that still have ≥1 level with no identifier and no waiver. Search on name/sku, offset paging over *products*, and `pending_product_count` for the operator's total. Completeness filtering is now entirely server-side.
-- `useIdentificationQueue` rewritten onto the new RPC: returns `{ targets, pendingProductCount }`, no catalogue download, `limit` now means products-per-page with an `offset` arg. `BarcodeEnrollment` reads `queue.targets`.
-- `src/test/inventory/enrollment-workflow.test.tsx` migrated off `AwaitingBarcodeProduct` onto level-aware `IdentificationTarget` fixtures (packagingId / levelName / qtyInBaseUom / ladder). Suite: **8 passed**, no worker timeout — the previous hang is resolved. `src/test/inventory/uom.test.ts` OOMs the vitest worker (pre-existing, unrelated to identification).
-- `bunx tsgo --noEmit`: clean.
-
-### Next action (Phase C1)
-Build the shared client resolver hook over `resolve_product_identity` (single not-found / ambiguous / offline contract using `match_count`), then cut WMS receiving over to it (C2).
-
-
-## Phase C + D shipped — 2026-08-01
-
-**C1–C3.** `useResolveProductIdentity` (GS1 → LRU → single-flight → tagged
-`resolved | ambiguous | not_found | error`, plus `scanToBaseUnits`) and
-`useWmsIdentityGate` (blocking + `scanFeedbackBus` audio/haptics) are the only
-client seam. Cut over: `ReceivingSessions`, `PickList`, `GoodsReceiptWizardPage`,
-`PhysicalCount`, `TransferNew`, `warehouse/CountSession` — a case scan now posts
-`qty_in_base_uom` base units, ambiguity blocks the line, unknown codes never post.
-
-**C4.** Supplier codes resolve through the same identifier candidate set in
-`resolve_product_identity`; the matched packaging level drives received quantity
-in the GRN wizard.
-
-**C5.** `resolveLabelBarcode(product, level?)` + `useLabelPrint({ packaging })`
-are level-aware: a level label encodes that level's identifier and refuses
-(`LABEL_LEVEL_BARCODE_REFUSAL`) rather than falling back — ADR-0089 intact.
-
-**Phase D.** Migration dropped `product_identifiers.pack_quantity` and
-`product_packaging.barcode_id`; `resolve_barcode_v2` rewritten onto
-`resolve_product_identity`; added the identifier→level same-product/business
-guard trigger. Readers migrated: `ProductIdentifiersEditor` (level select),
-`ProductPackagingEditor` (writes the canonical `packaging_id` side),
-`POSBarcodeSettings` (level column, read-only), `productBarcodeImportConfig`
-(resolves a level by multiplier). `useProductsAwaitingBarcode` deleted.
-Electron cache: `products.barcode` retired, identifier mirror gained
-`packaging_id` / `qty_in_base_uom`.
-
-**Tests / checks.** New: `src/test/inventory/resolve-product-identity.test.tsx`
-(7), `src/test/architecture/identity-resolver-single-seam.test.ts` (17),
-`src/test/printing/label-level-barcode.test.ts` (4) — all green, plus
-`src/test/inventory` (8+8). `bunx tsgo --noEmit` clean. ADR
-`docs/adr/0102-product-identification-canonical-resolver.md` written.
-
-Plan fully implemented.
+- Phases 1 and 2 are the load-bearing ones; 3 through 7 are mechanical once one renderer exists.
+- Destructive migration is used throughout: legacy modules are deleted in the same phase their replacement lands, not deprecated.
+- No database rewrite is planned. `document_records`, `document_artifacts`, `print_jobs`, `device_assignments` and the output-policy tables are sound; the work is adoption, not redesign.
+- Each phase ends with the guard suite green, so the subsystem is never left with two live paths across a phase boundary.

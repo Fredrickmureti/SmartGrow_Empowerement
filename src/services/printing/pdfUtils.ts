@@ -164,7 +164,7 @@ export function downloadPdfBlob(blob: Blob, filename: string): void {
 }
 
 /**
- * Optional paper-format override accepted at every generate-document entry
+ * Optional paper-format override accepted at every document-render entry
  * point. Kept here (not in a hook) so the printing service is the single
  * source of truth for the shape of the request body.
  */
@@ -173,9 +173,97 @@ export type PaperFormatOption =
   | { widthMm: number; heightMm: number | "auto" };
 
 /**
- * Generate a document PDF via the server-side edge function and return the blob.
+ * What the server decided about paper and render mode for this document.
+ * The renderer reports it back on every call so preview surfaces can show
+ * the operator *why* a document came out thermal or A4 without having to
+ * re-derive policy on the client.
  */
-export async function generateDocumentPdf(
+export interface DocumentRenderPolicyInfo {
+  source: string;
+  paper: string;
+  renderMode: string;
+}
+
+export interface DocumentRenderResponse {
+  blob: Blob;
+  policy: DocumentRenderPolicyInfo | null;
+}
+
+/**
+ * The ONE transport to the server document renderer.
+ *
+ * Raw `fetch` rather than `supabase.functions.invoke` because the renderer
+ * reports its policy decision in `X-Print-Policy-*` response headers, and
+ * `invoke` discards headers. Every caller — PDF, ESC/POS, preview — comes
+ * through here, so there is exactly one place that knows the endpoint, the
+ * auth shape, and the error contract.
+ */
+async function callDocumentRenderer(
+  body: Record<string, unknown>,
+): Promise<DocumentRenderResponse> {
+  const client = supabase as unknown as {
+    functionsUrl?: string;
+    supabaseUrl?: string;
+    supabaseKey?: string;
+  };
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  const url = `${client.functionsUrl || `${client.supabaseUrl}/functions/v1`}/generate-document`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token ?? client.supabaseKey ?? ""}`,
+      apikey: client.supabaseKey ?? "",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let message = `Document render failed (${res.status})`;
+    try {
+      message = ((await res.json()) as { error?: string }).error || message;
+    } catch {
+      /* non-JSON error body — keep the status message */
+    }
+    throw new Error(message);
+  }
+
+  const source = res.headers.get("X-Print-Policy-Source");
+  const paper = res.headers.get("X-Print-Policy-Paper");
+  const renderMode = res.headers.get("X-Print-Policy-Render-Mode");
+
+  return {
+    blob: await res.blob(),
+    policy: source && paper && renderMode ? { source, paper, renderMode } : null,
+  };
+}
+
+function assertPdf(blob: Blob, header: string): Blob {
+  const looksLikePdfType = blob.type === "application/pdf" || blob.type === "";
+  const looksLikePdfBytes = header === "%PDF";
+
+  if (!looksLikePdfBytes && !looksLikePdfType) {
+    throw new Error(
+      `Server did not return a PDF (content-type=${blob.type || "unknown"}). ` +
+      `This usually means the print policy coerced the request — try downloading ` +
+      `as ESC/POS instead, or change the receipt paper format to A4.`
+    );
+  }
+  if (!looksLikePdfBytes) {
+    throw new Error(
+      "Server returned a file that is not a valid PDF. Refusing to save a corrupt receipt."
+    );
+  }
+  return blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+}
+
+/**
+ * Generate a document PDF server-side and return the blob plus the policy
+ * the server applied.
+ */
+export async function generateDocumentPdfWithPolicy(
   documentType: string,
   documentId: string,
   opts?: {
@@ -188,65 +276,55 @@ export async function generateDocumentPdf(
      */
     paperFormat?: PaperFormatOption;
     /**
-     * Extra fields merged into the edge-function request body. Used by
-     * live-computed statements (recipient/customer/vendor) that need to
-     * carry `periodStart` / `periodEnd` / `businessId` alongside the
-     * document identity. Never overrides `documentType`, `documentId`,
-     * or `format`.
+     * Extra fields merged into the request body. Used by live-computed
+     * statements (recipient/customer/vendor) that need to carry
+     * `periodStart` / `periodEnd` / `businessId` alongside the document
+     * identity. Never overrides `documentType`, `documentId`, or `format`.
      */
     extraBody?: Record<string, unknown>;
+    /** Scope the render to a branch so branch policy overrides apply. */
+    branchId?: string | null;
   },
-): Promise<Blob> {
-  const { data, error } = await supabase.functions.invoke("generate-document", {
-    body: {
-      ...(opts?.extraBody ?? {}),
-      documentType,
-      documentId,
-      format: "pdf",
-      ...(opts?.forceRefreshSettings ? { force_refresh_settings: true } : {}),
-      ...(opts?.paperFormat ? { paperFormat: opts.paperFormat } : {}),
-    },
+): Promise<DocumentRenderResponse> {
+  const { blob, policy } = await callDocumentRenderer({
+    ...(opts?.extraBody ?? {}),
+    documentType,
+    documentId,
+    format: "pdf",
+    ...(opts?.branchId ? { branchId: opts.branchId } : {}),
+    ...(opts?.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+    ...(opts?.paperFormat ? { paperFormat: opts.paperFormat } : {}),
   });
 
-  if (error) throw error;
-
-  // The server may return ESC/POS bytes (octet-stream) or even a JSON error
-  // body if the print policy resolver coerced the request. Validate that
-  // what we got is actually a PDF before handing it to a viewer — otherwise
-  // the saved file shows "Failed to load PDF document".
-  const blob: Blob = data instanceof Blob
-    ? data
-    : new Blob([data as ArrayBuffer], { type: "application/pdf" });
-
-  // application/pdf content-type OR %PDF magic header on the first 4 bytes.
-  const looksLikePdfType = blob.type === "application/pdf" || blob.type === "";
+  // The server may coerce a request to ESC/POS. Validate that what came
+  // back is really a PDF before handing it to a viewer, otherwise the
+  // saved file shows "Failed to load PDF document".
   let header = "";
   try {
-    const headBuf = await blob.slice(0, 4).arrayBuffer();
-    header = new TextDecoder().decode(new Uint8Array(headBuf));
+    header = new TextDecoder().decode(new Uint8Array(await blob.slice(0, 4).arrayBuffer()));
   } catch {
-    // ignore — we'll fall through to the magic-byte check below
-  }
-  const looksLikePdfBytes = header === "%PDF";
-
-  if (!looksLikePdfBytes && !looksLikePdfType) {
-    throw new Error(
-      `Server did not return a PDF (content-type=${blob.type || "unknown"}). ` +
-      `This usually means the print policy coerced the request — try downloading ` +
-      `as ESC/POS instead, or change the receipt paper format to A4.`
-    );
+    /* fall through to the type check */
   }
 
-  // If the magic bytes are missing but the type lied, still reject.
-  if (!looksLikePdfBytes) {
-    throw new Error(
-      "Server returned a file that is not a valid PDF. Refusing to save a corrupt receipt."
-    );
-  }
-
-  // Re-wrap to guarantee the right MIME type for downstream viewers.
-  return blob.type === "application/pdf" ? blob : new Blob([blob], { type: "application/pdf" });
+  return { blob: assertPdf(blob, header), policy };
 }
+
+/**
+ * Generate a document PDF via the server-side renderer and return the blob.
+ */
+export async function generateDocumentPdf(
+  documentType: string,
+  documentId: string,
+  opts?: {
+    forceRefreshSettings?: boolean;
+    paperFormat?: PaperFormatOption;
+    extraBody?: Record<string, unknown>;
+    branchId?: string | null;
+  },
+): Promise<Blob> {
+  return (await generateDocumentPdfWithPolicy(documentType, documentId, opts)).blob;
+}
+
 
 /**
  * Generate a document PDF and open it in a new tab for printing.
@@ -273,48 +351,45 @@ export async function downloadDocumentPdf(
 }
 
 /**
- * W4b (ADR-0008) — fetch raw ESC/POS bytes from the unified server engine
- * (`generate-document` with `format=escpos`). Used by the POS receipt path
- * and any other surface that streams bytes to a thermal printer through
- * `useHardwareProxy().printRawBytes(...)`.
+ * Fetch raw ESC/POS bytes from the server document renderer. Used by the
+ * receipt/kitchen-ticket paths that stream bytes to a thermal printer.
  *
- * Server resolves paper width from `document_print_policies` (default 80 mm).
- * The override-by-caller hook is intentionally not exposed here — receipt
- * width belongs to operator policy, not per-print UI.
+ * Server resolves paper width from `document_print_policies` (default
+ * 80 mm) unless the caller overrides it.
  */
 export async function generateDocumentEscPosBytes(
   documentType: string,
   documentId: string,
   opts?: {
     forceRefreshSettings?: boolean;
-    /** Wave 10 — kitchen ticket routing: station banner / course / table. */
+    /** Kitchen-ticket routing: station banner / course / table. */
     station?: string | null;
     course?: string | null;
     table?: string | null;
-    /** Per-call paper override. Only honored for kitchen_ticket today. */
+    /** Per-call paper override. */
     paperFormat?: "40mm" | "58mm" | "80mm" | null;
+    /** Scope the render to a branch so branch policy overrides apply. */
+    branchId?: string | null;
+    /**
+     * Ask the renderer explicitly for thermal output. Needed when the
+     * resolved policy is PDF but the operator picked a thermal printer.
+     */
+    forceRenderMode?: boolean;
   },
 ): Promise<Uint8Array> {
-  const { data, error } = await supabase.functions.invoke("generate-document", {
-    body: {
-      documentType,
-      documentId,
-      format: "escpos",
-      ...(opts?.forceRefreshSettings ? { force_refresh_settings: true } : {}),
-      ...(opts?.station ? { station: opts.station } : {}),
-      ...(opts?.course ? { course: opts.course } : {}),
-      ...(opts?.table ? { table: opts.table } : {}),
-      ...(opts?.paperFormat ? { paperFormat: opts.paperFormat } : {}),
-    },
+  const { blob } = await callDocumentRenderer({
+    documentType,
+    documentId,
+    format: "escpos",
+    ...(opts?.forceRenderMode ? { renderMode: "escpos" } : {}),
+    ...(opts?.branchId ? { branchId: opts.branchId } : {}),
+    ...(opts?.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+    ...(opts?.station ? { station: opts.station } : {}),
+    ...(opts?.course ? { course: opts.course } : {}),
+    ...(opts?.table ? { table: opts.table } : {}),
+    ...(opts?.paperFormat ? { paperFormat: opts.paperFormat } : {}),
   });
-  if (error) throw error;
-
-  // Edge function returns raw octet-stream. The Supabase JS client may
-  // hand us a Blob, an ArrayBuffer, or a Uint8Array depending on runtime.
-  if (data instanceof Uint8Array) return data;
-  if (data instanceof ArrayBuffer) return new Uint8Array(data);
-  if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
-  // Last resort — treat as octet array.
-  return new Uint8Array(data as ArrayBufferLike);
+  return new Uint8Array(await blob.arrayBuffer());
 }
+
 

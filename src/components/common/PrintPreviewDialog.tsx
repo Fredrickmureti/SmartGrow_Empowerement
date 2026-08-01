@@ -20,9 +20,9 @@ import { Printer, Download, Loader2, ZoomIn, ZoomOut, AlertCircle } from "lucide
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 import { useActiveOrDefaultRegister } from "@/hooks/pos/useActiveOrDefaultRegister";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+
 import { printPdfInPage, downloadPdfBlob } from "@/services/printing/pdfUtils";
-import { openInteractiveJob } from "@/services/printing/PrintService";
+import { openInteractiveJob, renderDocumentPreview } from "@/services/printing/PrintService";
 import { isElectron as runtimeIsElectron, openPdfPreview } from "@/services/printing/previewSurface";
 import { SafePdfViewer } from "@/components/common/SafePdfViewer";
 import { SafeHtmlPreview } from "@/components/common/SafeHtmlPreview";
@@ -158,87 +158,56 @@ export function PrintPreviewDialog({
 
 
 
-    // UX-2: ALWAYS fetch a printable PDF for preview, even when the
-    // resolved policy is ESC/POS. Server enforces native printable size
-    // (A4/Letter/A5) for non-receipt documents — the iframe shows a
+    // ALWAYS render a printable PDF for preview, even when the resolved
+    // policy is ESC/POS: the server enforces a native printable size
+    // (A4/Letter/A5) for non-receipt documents, so the viewer shows a
     // professional, archive-quality document. The thermal byte stream is
-    // fetched separately below only when the policy needs it.
-    const body: Record<string, unknown> = {
-      documentType,
-      documentId,
-      format: "pdf",
-    };
-    if (currentBranch?.id) body.branchId = currentBranch.id;
-    if (paperOverridden) {
-      body.format = printSettings.renderMode;
-      body.paperFormat = printSettings.paperFormat;
-      if (printSettings.renderMode === "escpos") body.renderMode = "escpos";
-    }
-
-    // Use raw fetch so we can read the X-Print-Policy-* headers the server
-    // emits. supabase.functions.invoke does not surface response headers.
+    // rendered separately below only when the policy needs it.
+    //
+    // Both renders go through the printing seam, so the preview is
+    // produced by exactly the same code that produces the printed bytes.
     (async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-        const url = `${(supabase as any).functionsUrl || `${(supabase as any).supabaseUrl}/functions/v1`}/generate-document`;
-        const headers = {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token ?? (supabase as any).supabaseKey ?? ""}`,
-          apikey: (supabase as any).supabaseKey ?? "",
-        };
-        const res = await fetch(url, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          let msg = `Request failed (${res.status})`;
-          try { msg = (await res.json()).error || msg; } catch { /* ignore */ }
-          throw new Error(msg);
-        }
-        const source = res.headers.get("X-Print-Policy-Source");
-        const paper = res.headers.get("X-Print-Policy-Paper");
-        const rmode = res.headers.get("X-Print-Policy-Render-Mode");
-        if (source && paper && rmode) {
-          setPolicyInfo({ source, paper, renderMode: rmode });
-        }
-        const blob = await res.blob();
-        const isOverrideEscpos =
+        const wantsEscposOverride =
           paperOverridden && printSettings.renderMode === "escpos";
-        if (isOverrideEscpos) {
-          // User explicitly overrode to ESC/POS in the popover — keep
-          // the legacy raw-bytes behaviour for that one path.
-          const buf = await blob.arrayBuffer();
-          setEscposBytes(new Uint8Array(buf));
-        } else {
-          setPdfBlob(blob);
-          // Policy says thermal? Fire a second request for the actual
-          // ESC/POS bytes so the Print button can stream them.
-          if (rmode === "escpos") {
-            setPolicyIsEscpos(true);
-            try {
-              const escBody: Record<string, unknown> = {
-                documentType,
-                documentId,
-                format: "escpos",
-              };
-              if (currentBranch?.id) escBody.branchId = currentBranch.id;
-              const escRes = await fetch(url, {
-                method: "POST",
-                headers,
-                body: JSON.stringify(escBody),
-              });
-              if (escRes.ok) {
-                const escBuf = await escRes.arrayBuffer();
-                setEscposBytes(new Uint8Array(escBuf));
-              }
-            } catch (escErr) {
-              console.warn("Failed to fetch ESC/POS bytes for thermal print:", escErr);
-            }
+
+        const artifact = await renderDocumentPreview({
+          documentType,
+          documentId,
+          medium: wantsEscposOverride ? "escpos" : "pdf",
+          paperFormat: paperOverridden ? printSettings.paperFormat : null,
+          branchId: currentBranch?.id ?? null,
+          forceRenderMode: wantsEscposOverride,
+        });
+
+        if (artifact.policy) setPolicyInfo(artifact.policy);
+
+        if (wantsEscposOverride) {
+          // Operator explicitly chose ESC/POS in the popover — the
+          // preview is the byte stream itself (advanced path).
+          setEscposBytes(artifact.bytes);
+          return;
+        }
+
+        setPdfBlob(artifact.blob ?? null);
+
+        // Policy says thermal? Render the actual ESC/POS bytes too so the
+        // Print button can stream them without a second round trip.
+        if (artifact.policy?.renderMode === "escpos") {
+          setPolicyIsEscpos(true);
+          try {
+            const thermal = await renderDocumentPreview({
+              documentType,
+              documentId,
+              medium: "escpos",
+              branchId: currentBranch?.id ?? null,
+            });
+            setEscposBytes(thermal.bytes);
+          } catch (escErr) {
+            console.warn("Failed to render ESC/POS bytes for thermal print:", escErr);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to generate document:", err);
         toast({
           title: "Preview failed",
@@ -252,6 +221,7 @@ export function PrintPreviewDialog({
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, documentType, documentId, currentBranch?.id, printSettings.renderMode, printSettings.paperFormat, paperOverridden]);
+
 
   // Stage W6 (ADR-0008) + UX-2: re-evaluate the default destination
   // every time the destination list or connection statuses change so a
@@ -292,42 +262,31 @@ export function PrintPreviewDialog({
       : !html);
 
   /**
-   * Lazy-fetch ESC/POS bytes from the unified `generate-document` engine.
-   * Used when the user picks a thermal destination but the server-resolved
-   * policy was PDF (so we never pre-fetched the byte stream). Without this,
-   * picking a thermal printer for an invoice would silently fall back to
-   * the browser PDF dialog.
+   * Render ESC/POS bytes on demand. Used when the operator picks a thermal
+   * destination but the resolved policy was PDF (so no byte stream was
+   * rendered up front). Without this, picking a thermal printer for an
+   * invoice would silently fall back to the browser PDF dialog.
    */
   const fetchEscposBytes = async (): Promise<Uint8Array | null> => {
     if (escposBytes) return escposBytes;
     if (!documentType || !documentId) return null;
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const url = `${(supabase as any).functionsUrl || `${(supabase as any).supabaseUrl}/functions/v1`}/generate-document`;
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token ?? (supabase as any).supabaseKey ?? ""}`,
-        apikey: (supabase as any).supabaseKey ?? "",
-      };
-      const escBody: Record<string, unknown> = {
+      const artifact = await renderDocumentPreview({
         documentType,
         documentId,
-        format: "escpos",
-        renderMode: "escpos",
+        medium: "escpos",
+        forceRenderMode: true,
         paperFormat: printSettings.paperFormat === "58mm" ? "58mm" : "80mm",
-      };
-      if (currentBranch?.id) escBody.branchId = currentBranch.id;
-      const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(escBody) });
-      if (!res.ok) return null;
-      const buf = new Uint8Array(await res.arrayBuffer());
-      setEscposBytes(buf);
-      return buf;
+        branchId: currentBranch?.id ?? null,
+      });
+      setEscposBytes(artifact.bytes);
+      return artifact.bytes;
     } catch (err) {
-      console.warn("Lazy ESC/POS fetch failed:", err);
+      console.warn("On-demand ESC/POS render failed:", err);
       return null;
     }
   };
+
 
   const handlePrint = async () => {
     // Wave B3 (Plan P1) — enqueue rather than block. The Print button

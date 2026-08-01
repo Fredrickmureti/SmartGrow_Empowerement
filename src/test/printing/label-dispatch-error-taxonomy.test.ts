@@ -74,16 +74,20 @@ describe('labelDispatch · error taxonomy (ADR-0087 · Phase 13)', () => {
     expect(notFoundIdx).toBeGreaterThan(sharpIdx);
   });
 
-  it('both taxonomy branches return `{ success: false, error }`, never throw', () => {
+  it('both taxonomy branches return a failure result, never throw', () => {
     const notFoundIdx = SRC.indexOf('no label template registered');
     const sharpIdx = SRC.indexOf('exists for this organization but could not be resolved');
-    // Look ~200 chars back for the `return { success: false` and no `throw`.
+    // Look ~200 chars back for the failure `return` and no `throw`.
+    // `renderLabelPayload` reports failure as `{ ok: false, error }`;
+    // `PrintService.printLabel` maps that onto `{ success: false, error }`
+    // for callers. Either spelling is a non-throwing failure return.
     for (const idx of [notFoundIdx, sharpIdx]) {
       const window = SRC.slice(Math.max(0, idx - 200), idx);
-      expect(window).toMatch(/return\s*{[\s\S]*success:\s*false/);
+      expect(window).toMatch(/return\s*{[\s\S]*(ok|success):\s*false/);
       expect(window).not.toMatch(/throw\s+new\s+/);
     }
   });
+
 
   it('names the failing scope + remediation surface in the sharpened error', () => {
     // Phase 6 Step C retired the per-workflow printer resolver from
