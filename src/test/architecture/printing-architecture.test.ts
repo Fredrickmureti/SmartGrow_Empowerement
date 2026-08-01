@@ -183,12 +183,18 @@ describe('printing architecture — one print ledger', () => {
 // ────────────────────────────────────────────────────────────────────
 
 describe('printing architecture — one rendering pipeline', () => {
-  it('only render.ts invokes the document renderers', () => {
+  it('the legacy generate-document renderers have no callers left', () => {
+    // The `generate-document` render backend is retired: every printable
+    // artifact is frozen into a `document_records` row (bridged by
+    // `services/documents/resolveSourceDocumentRecord.ts` for legacy
+    // (type, id) pairs) and rendered by `render-document`. A caller
+    // reappearing here means a second rendering path was reintroduced.
     const callers = filesMatching(/generateDocumentPdf\s*\(|generateDocumentEscPosBytes\s*\(/, [
       'services/printing/pdfUtils.ts',
     ]);
-    expect(callers).toEqual(['services/printing/render.ts']);
+    expect(callers).toEqual([]);
   });
+
 
   it('only render.ts invokes the render-document function', () => {
     const callers = filesMatching(/functions\.invoke\(\s*['"]render-document['"]/);

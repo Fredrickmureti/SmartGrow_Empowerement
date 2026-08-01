@@ -562,6 +562,7 @@ export const PrintService = {
   printLabel,
   printDocumentIntent,
   downloadDocumentRecord,
+  downloadArchivedArtifact,
 };
 
 
@@ -648,6 +649,59 @@ export async function renderDocumentBlob(
   if (!artifact.blob) throw new Error('renderer did not return a PDF');
   return artifact.blob;
 }
+
+/**
+ * Deliver an artifact whose bytes were FROZEN SERVER-SIDE at issue time.
+ *
+ * Statutory documents (tax certificates, filed returns) are not re-rendered
+ * on demand: the file that was serialised and serial-numbered at issuance is
+ * the legal object, and re-rendering it would break that guarantee. They are
+ * therefore fetched from the archive rather than produced by
+ * `render-document` — but they are NOT an escape hatch: this is a
+ * disposition, so it still opens a `print_jobs` row, still settles it, and
+ * still leaves the same audit trail as a printed invoice.
+ *
+ * Use this ONLY for bytes the server already archived. Anything renderable
+ * belongs on `downloadDocumentRecord`.
+ */
+export async function downloadArchivedArtifact(input: {
+  /** Signed, short-lived URL to the archived object. */
+  sourceUrl: string;
+  filename: string;
+  documentType: string;
+  documentId?: string | null;
+  businessId?: string | null;
+  branchId?: string | null;
+  intent?: string;
+}): Promise<PrintResult> {
+  const handle = await openInteractiveJob({
+    documentType: input.documentType,
+    documentId: input.documentId ?? null,
+    intent: input.intent ?? 'download',
+    format: 'pdf',
+    businessId: input.businessId ?? null,
+    branchId: input.branchId ?? null,
+    transport: 'download',
+  });
+  const jobIds = handle.id ? [handle.id] : [];
+
+  try {
+    const res = await fetch(input.sourceUrl);
+    if (!res.ok) throw new Error(`archive_fetch_failed_${res.status}`);
+    const blob = await res.blob();
+    const outcome = toDownload(blob, input.filename);
+    if (!outcome.success) throw new Error(outcome.error ?? 'download failed');
+    await handle.markSent(null);
+    await handle.markAcked();
+    return { success: true, jobIds, transport: 'download', copies: 1 };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await handle.markFailed(error);
+    return { success: false, error, jobIds, transport: 'download', copies: 1 };
+  }
+}
+
+
 
 
 /**

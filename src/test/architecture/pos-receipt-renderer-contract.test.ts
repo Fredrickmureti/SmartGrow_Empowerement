@@ -108,24 +108,26 @@ describe("Stage X6 — POS receipt renderer contract", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("PostPaymentSurface delegates print to printClient (Milestone B chokepoint)", () => {
+  it("PostPaymentSurface delegates print to PrintService (single chokepoint)", () => {
     const src = readFileSync(
       join(root, "src", "apps", "pos", "terminal", "receipt", "PostPaymentSurface.tsx"),
       "utf8",
     );
-    // Phase 5 Step B — thermal receipts route through the chokepoint
-    // `printClient.print({ intent: 'receipt' … })`; the register-scoped
-    // `printRawBytes` callback path is gone.
-    expect(src).toMatch(/printClient\.print\(/);
+    // The `printClient` shim is gone: the terminal now enters the one
+    // pipeline through `printDocument` / `renderDocumentBlob`, which
+    // resolve a document record before any bytes are produced.
+    expect(src).toMatch(/printDocument\s*\(/);
+    expect(src).toMatch(/renderDocumentBlob\s*\(/);
+    expect(src).not.toMatch(/printClient\./);
     expect(src).not.toMatch(/printReceiptThermal/);
     expect(src).not.toMatch(/printRawBytes,/);
-    expect(src).toMatch(/printClient\.renderReceiptPdfBlob/);
     expect(src).toMatch(/showSuccessOnCustomerDisplay/);
     // Legacy renderer helpers must not resurface.
     expect(src).not.toMatch(/\bprintThermal\b/);
     expect(src).not.toMatch(/\brenderReceiptPdf\b/);
     expect(src).not.toMatch(/generateDocumentEscPosBytes/);
   });
+
 
   it("Stage X7 — generate-document forwards merged ExtendedReceiptSettings into the canonical ESC/POS emitter", () => {
     const src = readFileSync(
