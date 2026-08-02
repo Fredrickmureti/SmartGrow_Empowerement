@@ -1,10 +1,14 @@
 /**
- * Location authoring mutations — create, update, retire and bulk-generate.
+ * Location authoring mutations — create, update, retire, move and
+ * bulk-generate.
  *
  * Bulk generation goes through `wms_generate_locations` so the nesting
- * rules, code format and serpentine pick sequence are decided once, in the
- * database, for every caller (UI, import, seed).
+ * rules, code format and serpentine walk order are decided once, in the
+ * database, for every caller (UI, import, seed). The same function in
+ * dry-run mode powers the designer's live preview, so what a supervisor
+ * sees before committing is produced by the code that will do the work.
  */
+import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,17 +34,50 @@ export interface LocationDraft {
   is_receiving_staging?: boolean | null;
 }
 
+/** One tier of a generated run, outermost first. */
+export interface LevelSpec {
+  level: StructureLevel;
+  count: number;
+  prefix: string;
+  pad: number;
+}
+
 export interface GenerateSpec {
   warehouseId: string;
   parentId: string | null;
-  level: StructureLevel;
-  /** Codes are `${prefix}${padded index}` — e.g. A01, A02… */
-  prefix: string;
-  from: number;
-  to: number;
-  pad: number;
+  levels: LevelSpec[];
+  separator?: string;
+  /** Code prefix used when generating at the warehouse root. */
+  codePrefix?: string | null;
   serpentine: boolean;
-  nameTemplate?: string;
+  /** Capacity stamped on generated bins. */
+  capacity?: number | null;
+  barcodeAuto: boolean;
+}
+
+export interface GeneratedRow {
+  code: string;
+  level: string;
+  created: boolean;
+}
+
+function rpcArgs(spec: GenerateSpec, dryRun: boolean) {
+  return {
+    p_warehouse_id: spec.warehouseId,
+    p_parent_id: spec.parentId,
+    p_levels: spec.levels.map((l) => ({
+      level: l.level,
+      count: l.count,
+      prefix: l.prefix,
+      pad: l.pad,
+    })),
+    p_separator: spec.separator ?? "-",
+    p_code_prefix: spec.codePrefix ?? null,
+    p_serpentine: spec.serpentine,
+    p_capacity: spec.capacity ?? null,
+    p_barcode_auto: spec.barcodeAuto,
+    p_dry_run: dryRun,
+  };
 }
 
 export function useLocationMutations(warehouseId: string | null) {
@@ -88,6 +125,29 @@ export function useLocationMutations(warehouseId: string | null) {
     },
   });
 
+  /**
+   * Re-parent a location. Legal nesting and the "can't move something that
+   * holds stock or open work" rule are enforced by the database trigger —
+   * this only carries the intent.
+   */
+  const move = useMutation({
+    mutationFn: async ({ id, parentId }: { id: string; parentId: string | null }) => {
+      const { error } = await supabase
+        .from("stock_locations")
+        .update({ parent_location_id: parentId } as never)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Location moved");
+    },
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
+  });
+
   const setActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
       const { error } = await supabase
@@ -110,24 +170,18 @@ export function useLocationMutations(warehouseId: string | null) {
     mutationFn: async (spec: GenerateSpec) => {
       const { data, error } = await supabase.rpc(
         "wms_generate_locations" as never,
-        {
-          p_warehouse_id: spec.warehouseId,
-          p_parent_id: spec.parentId,
-          p_level: spec.level,
-          p_prefix: spec.prefix,
-          p_from: spec.from,
-          p_to: spec.to,
-          p_pad: spec.pad,
-          p_serpentine: spec.serpentine,
-          p_name_template: spec.nameTemplate ?? null,
-        } as never,
+        rpcArgs(spec, false) as never,
       );
       if (error) throw error;
-      return (data ?? []) as unknown as { id: string; code: string }[];
+      return (data ?? []) as unknown as GeneratedRow[];
     },
     onSuccess: (rows) => {
       invalidate();
-      toast.success(`${rows.length} location${rows.length === 1 ? "" : "s"} created`);
+      const made = rows.filter((r) => r.created).length;
+      const skipped = rows.length - made;
+      toast.success(`${made} location${made === 1 ? "" : "s"} created`, {
+        description: skipped > 0 ? `${skipped} already existed and were left alone.` : undefined,
+      });
     },
     onError: (e: unknown) => {
       const n = normalizeError(e);
@@ -135,5 +189,18 @@ export function useLocationMutations(warehouseId: string | null) {
     },
   });
 
-  return { create, update, setActive, generate };
+  /**
+   * Dry run — returns exactly the codes the commit would create, produced
+   * by the same SQL. Never writes.
+   */
+  const preview = useCallback(async (spec: GenerateSpec): Promise<GeneratedRow[]> => {
+    const { data, error } = await supabase.rpc(
+      "wms_generate_locations" as never,
+      rpcArgs(spec, true) as never,
+    );
+    if (error) throw error;
+    return (data ?? []) as unknown as GeneratedRow[];
+  }, []);
+
+  return { create, update, move, setActive, generate, preview };
 }
