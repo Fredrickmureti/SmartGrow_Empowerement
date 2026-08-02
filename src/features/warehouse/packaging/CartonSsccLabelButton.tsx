@@ -72,7 +72,7 @@ export function CartonSsccLabelButton({
       const { data, error } = await supabase
         .from("wms_sscc_registry")
         .select("sscc, status, printed_count")
-        .eq("entity_type", "pack_carton")
+        .eq("entity_type", "carton")
         .eq("entity_id", cartonId)
         .eq("status", "assigned")
         .maybeSingle();
@@ -85,7 +85,7 @@ export function CartonSsccLabelButton({
     mutationFn: () =>
       allocateSscc({
         businessId,
-        entityType: "pack_carton",
+        entityType: "carton",
         entityId: cartonId,
         packagingTypeId,
         warehouseId,
