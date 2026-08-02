@@ -371,22 +371,16 @@ export default function WarehouseLayoutWorkspace() {
               node={selected}
               warehouseId={activeWarehouseId}
               onPrintLabel={setLabelTargets}
-              onAddInside={(parent) => {
-                setBuilderParent(parent);
-                setBuilderOpen(true);
-              }}
+              onAddInside={(parent) =>
+                navigate(buildHref(activeWarehouseId, parent?.id ?? null))
+              }
               onMove={(n) => setMoveTarget(n)}
             />
           </Card>
         </div>
       </PageBody>
 
-      <LocationBuilderDialog
-        open={builderOpen}
-        onOpenChange={setBuilderOpen}
-        warehouseId={activeWarehouseId}
-        parent={builderParent}
-      />
+
       <MoveLocationDialog
         open={!!moveTarget}
         onOpenChange={(v) => !v && setMoveTarget(null)}
