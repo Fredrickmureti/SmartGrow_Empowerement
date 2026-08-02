@@ -24,6 +24,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  ResizableHandle, ResizablePanel, ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { Plus, Undo2 } from "lucide-react";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
