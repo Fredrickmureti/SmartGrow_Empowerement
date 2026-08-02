@@ -71,11 +71,15 @@ describe("wms phase 12 architecture", () => {
     expect(src).toMatch(/from\(\s*["']wms_crossdock_opportunities["']/);
   });
 
-  it("PackStation wires suggest_carton + assign_carton_to_pack (Phase 12.1)", () => {
+  // Superseded by ADR 0105 (Packaging Master). The legacy volume-only
+  // `suggest_carton` / `assign_carton_to_pack` pair is no longer the pack path;
+  // `packaging-master.test.ts` owns the engine wiring guard for BOTH stations.
+  it("PackStation no longer uses the legacy carton cartonizer", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
-    expect(src).toMatch(/rpc\(\s*["']suggest_carton["']/);
-    expect(src).toMatch(domainCallRe("assign_carton_to_pack"));
+    expect(src).not.toMatch(/["']suggest_carton["']/);
+    expect(src).not.toMatch(/["']assign_carton_to_pack["']/);
   });
+
 
   it("route and nav wire /crossdock and /cartons", () => {
     const routes = readFileSync(path.join(SRC, "apps/warehouse/routes.tsx"), "utf8");
