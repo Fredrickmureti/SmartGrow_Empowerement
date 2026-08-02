@@ -67417,6 +67417,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_receiving_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_receiving_lines_purchase_order_item_id_fkey"
             columns: ["purchase_order_item_id"]
             isOneToOne: false
