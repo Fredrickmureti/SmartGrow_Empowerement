@@ -221,6 +221,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     session?.appointment_id ? [session.appointment_id] : [],
   );
   const visit = session?.appointment_id ? (trailerVisits?.get(session.appointment_id) ?? null) : null;
+  // Live only while the trailer has not departed.
+  useDwellTicker(open && !!visit && !visit.departed_at);
 
 
 
@@ -316,7 +318,14 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             ) : null}
             {(() => {
               const d = dwellMinutes(visit);
-              return d == null ? null : <span>{visit.departed_at ? "dwell" : "on site"} {d} min</span>;
+              if (d == null) return null;
+              const live = !visit.departed_at;
+              return (
+                <span className={live && d >= 120 ? "font-medium text-destructive" : undefined}>
+                  {live ? "on site" : "dwell"} {d} min
+                  {live ? <span className="ml-1 opacity-70">· live</span> : null}
+                </span>
+              );
             })()}
           </div>
         ) : null}
