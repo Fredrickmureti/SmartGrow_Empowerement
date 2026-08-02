@@ -17,7 +17,7 @@ import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
 import { useCloseReturn, useCreateReturnFinanceDoc, useTransitionReturn } from "./useReturnOrders";
-import { dispatchReturnDocument } from "./dispatchReturnDocument";
+import { dispatchReturnDocument, dispatchVendorReturnNote } from "./dispatchReturnDocument";
 import type { ReturnDocumentKind } from "@/services/documents/snapshots/wmsReturn";
 import {
   RETURN_LANE_LABEL,
@@ -43,6 +43,7 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
   const close = useCloseReturn();
   const raiseFinanceDoc = useCreateReturnFinanceDoc();
   const [dispatching, setDispatching] = useState<ReturnDocumentKind | null>(null);
+  const [vendorNoteBusy, setVendorNoteBusy] = useState(false);
 
   const rows = lines ?? [];
   const lane = order ? returnLane(order, rows) : null;
