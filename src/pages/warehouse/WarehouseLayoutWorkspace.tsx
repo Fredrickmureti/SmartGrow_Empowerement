@@ -124,8 +124,38 @@ export default function WarehouseLayoutWorkspace() {
     const stocked = bins.filter((b) => b.metrics.on_hand_units > 0).length;
     const blocked = ordered.filter((n) => !n.is_active).length;
     const work = ordered.reduce((a, n) => a + (n.children.length ? 0 : n.metrics.open_tasks), 0);
-    return { total: ordered.length, bins: bins.length, stocked, blocked, work };
+    const unlabelled = bins.filter((b) => !b.barcode).length;
+    return { total: ordered.length, bins: bins.length, stocked, blocked, work, unlabelled };
   }, [ordered]);
+
+  // Rows for the table pane: the search box narrows, the view select shapes.
+  const tableRows = useMemo(
+    () => ordered.filter((n) => filter(n) && matchesTableFilter(n, tableFilter)),
+    [ordered, filter, tableFilter],
+  );
+
+  const pickedNodes = useMemo(
+    () => ordered.filter((n) => picked.has(n.id)),
+    [ordered, picked],
+  );
+
+  const togglePicked = useCallback((id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const togglePickedMany = useCallback((ids: string[], select: boolean) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (select ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }, []);
+
 
   if (whLoading) return <LoadingState />;
 
