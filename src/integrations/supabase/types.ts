@@ -87170,6 +87170,10 @@ export type Database = {
         Returns: Json
       }
       reset_module__vendor_returns: { Args: { org_id: string }; Returns: Json }
+      reset_module__warehouse: {
+        Args: { org_id: string; p_business_id?: string }
+        Returns: Json
+      }
       reset_my_signup: { Args: never; Returns: Json }
       reset_my_workspace: {
         Args: { confirmation_phrase: string; org_id: string }
