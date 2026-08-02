@@ -75,9 +75,9 @@ interface Carton {
   width_cm: number | null;
   height_cm: number | null;
   sealed_at: string | null;
-  carton_type_id: string | null;
+  packaging_type_id: string | null;
   shipment_lpn: { code: string } | null;
-  carton_type: { code: string; name: string } | null;
+  packaging_type: { code: string; name: string; packaging_class: string } | null;
 }
 
 interface PackagingType {
@@ -153,7 +153,7 @@ export default function PackStation() {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
         .select(
-          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, carton_type_id, shipment_lpn:shipment_lpn_id(code), carton_type:carton_type_id(code, name)",
+          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, packaging_type_id, shipment_lpn:shipment_lpn_id(code), packaging_type:packaging_type_id(code, name, packaging_class)",
         )
         .eq("wave_id", waveId!)
         .order("opened_at");
@@ -241,8 +241,8 @@ export default function PackStation() {
   });
 
   const assignCartonType = useMutation({
-    mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
-      await assignPackagingToPack(v.carton_id, v.carton_type_id);
+    mutationFn: async (v: { carton_id: string; packaging_type_id: string }) => {
+      await assignPackagingToPack(v.carton_id, v.packaging_type_id);
     },
     onSuccess: () => { toast.success("Packaging updated"); invalidateAll(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
@@ -434,18 +434,18 @@ export default function PackStation() {
                           <div className="font-mono text-sm truncate">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
                           <div className="text-xs text-muted-foreground">
                             {c.sealed_at ? `sealed · ${c.weight_kg ?? "?"}kg` : "open"}
-                            {c.carton_type ? ` · ${c.carton_type.code}` : ""}
+                            {c.packaging_type ? ` · ${c.packaging_type.code}` : ""}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {!c.sealed_at && (
                             <select
                               className="border rounded px-2 py-1 text-xs bg-background"
-                              value={c.carton_type_id ?? ""}
+                              value={c.packaging_type_id ?? ""}
                               disabled={assignCartonType.isPending}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
+                                if (v) assignCartonType.mutate({ carton_id: c.id, packaging_type_id: v });
                               }}
                             >
                               <option value="">packaging…</option>
@@ -463,9 +463,9 @@ export default function PackStation() {
                             <CartonSsccLabelButton
                               businessId={wave.business_id}
                               cartonId={c.id}
-                              packagingTypeId={c.carton_type_id}
+                              packagingTypeId={c.packaging_type_id}
                               warehouseId={wave.warehouse_id}
-                              packagingName={c.carton_type?.name ?? null}
+                              packagingName={c.packaging_type?.name ?? null}
                               orderNumber={c.sales_order_id.slice(0, 8)}
                               cartonSequence={c.shipment_lpn?.code ?? c.id.slice(0, 8)}
                               grossWeightKg={c.weight_kg}
