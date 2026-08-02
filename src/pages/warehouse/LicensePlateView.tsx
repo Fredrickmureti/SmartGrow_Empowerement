@@ -75,6 +75,8 @@ export default function LicensePlateView() {
   const { data: children } = useLpnChildren(id);
   const { data: events } = useLpnEvents(id);
   const action = useLpnAction(id);
+  // Load can only draw from unassigned stock in the plate's own bin.
+  const { data: binStock } = useBinLooseStock(lpn?.current_location_id);
 
   const { data: locations } = useQuery({
     queryKey: ["wms-lpn-loc-options", lpn?.warehouse_id],
