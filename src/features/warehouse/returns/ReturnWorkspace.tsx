@@ -7,7 +7,7 @@
  * effects is a single sanctioned call (`wms_post_return_dispositions`), and the
  * close action is server-guarded: unposted lines cannot be closed away.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -15,11 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/design-system";
-import { Check, PackageCheck, Play, Truck, XCircle } from "lucide-react";
+import { Check, FileText, PackageCheck, Play, Receipt, Truck, XCircle } from "lucide-react";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
-import { useCloseReturn, useTransitionReturn } from "./useReturnOrders";
+import { useCloseReturn, useCreateReturnFinanceDoc, useTransitionReturn } from "./useReturnOrders";
+import { dispatchReturnDocument } from "./dispatchReturnDocument";
+import type { ReturnDocumentKind } from "@/services/documents/snapshots/wmsReturn";
 import {
   RETURN_LANE_LABEL,
   RETURN_STATE_TONE,
@@ -42,6 +44,8 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
   const transition = useTransitionReturn();
   const post = usePostReturnDispositions();
   const close = useCloseReturn();
+  const raiseFinanceDoc = useCreateReturnFinanceDoc();
+  const [dispatching, setDispatching] = useState<ReturnDocumentKind | null>(null);
 
   const rows = lines ?? [];
   const lane = order ? returnLane(order, rows) : null;
@@ -55,10 +59,33 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
         scrap: acc.scrap + Number(l.scrap_qty ?? 0),
         pendingDisposition: acc.pendingDisposition + (l.disposition ? 0 : 1),
         unposted: acc.unposted + (l.disposition && !l.posted_at ? 1 : 0),
+        damaged:
+          acc.damaged +
+          (l.condition_code === "damaged" ||
+          l.condition_code === "defective" ||
+          l.condition_code === "expired"
+            ? 1
+            : 0),
       }),
-      { received: 0, restock: 0, quarantine: 0, scrap: 0, pendingDisposition: 0, unposted: 0 },
+      {
+        received: 0, restock: 0, quarantine: 0, scrap: 0,
+        pendingDisposition: 0, unposted: 0, damaged: 0,
+      },
     );
   }, [rows]);
+
+  const emitDocument = async (kind: ReturnDocumentKind, source: "manual" | "business_event" = "manual") => {
+    if (!order) return;
+    setDispatching(kind);
+    try {
+      await dispatchReturnDocument({ returnId: order.id, kind, triggeredSource: source });
+      toast.success("Document archived and routed");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Document dispatch failed");
+    } finally {
+      setDispatching(null);
+    }
+  };
 
   if (!order) return null;
 
@@ -143,10 +170,15 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
                 post.mutate(
                   { returnId: order.id, rowVersion: order.row_version },
                   {
-                    onSuccess: (res) =>
+                    onSuccess: (res) => {
                       toast.success(
                         `Posted ${res.posted_lines} line(s) · ${res.tasks_created} task(s) created`,
-                      ),
+                      );
+                      // Posting is the moment the return becomes a fact of
+                      // record, so the return receipt is archived as a
+                      // business event — best effort, never blocking the post.
+                      void emitDocument("wms.return_receipt", "business_event");
+                    },
                     onError: (e: unknown) =>
                       toast.error(e instanceof Error ? e.message : "Posting rejected"),
                   },
@@ -183,6 +215,88 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
               </Button>
             )}
           </div>
+
+          <Separator />
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Paperwork &amp; finance</div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null}
+                onClick={() => void emitDocument("wms.rma_authorization")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> RMA authorization
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || rows.length === 0}
+                onClick={() => void emitDocument("wms.return_receipt")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Return receipt
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || rows.length === 0}
+                onClick={() => void emitDocument("wms.inspection_report")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Inspection report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || totals.damaged === 0}
+                onClick={() => void emitDocument("wms.damage_report")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Damage report
+              </Button>
+              {(order.return_kind === "customer" || order.return_kind === "vendor") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    raiseFinanceDoc.isPending ||
+                    !!order.finance_doc_id ||
+                    rows.length === 0 ||
+                    totals.unposted > 0 ||
+                    totals.pendingDisposition > 0
+                  }
+                  onClick={() =>
+                    raiseFinanceDoc.mutate(
+                      { returnId: order.id, rowVersion: order.row_version },
+                      {
+                        onSuccess: (res) =>
+                          toast.success(
+                            res.created
+                              ? `${label(res.finance_doc_type)} ${res.document_number ?? ""} raised`
+                              : "Finance document already linked",
+                          ),
+                        onError: (e: unknown) =>
+                          toast.error(e instanceof Error ? e.message : "Finance handoff rejected"),
+                      },
+                    )
+                  }
+                >
+                  <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                  {order.finance_doc_id ? "Finance linked" : "Raise finance document"}
+                </Button>
+              )}
+            </div>
+            {order.finance_doc_id ? (
+              <p className="text-xs text-muted-foreground">
+                Linked to {label(order.finance_doc_type)} · valuation and credit note are handled in
+                Finance.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The finance document can be raised once every line is dispositioned and posted.
+              </p>
+            )}
+          </div>
+
+
 
           {totals.pendingDisposition > 0 && (
             <p className="text-xs text-muted-foreground">

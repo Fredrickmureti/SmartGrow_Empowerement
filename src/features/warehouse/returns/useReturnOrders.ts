@@ -191,3 +191,33 @@ export function useLinkReturnFinance() {
   });
 }
 
+
+/**
+ * Raise the Finance counterpart of a posted return.
+ *
+ * `wms_create_return_finance_doc` creates the `sales_returns` /
+ * `purchase_returns` shell (quantities only, zero money, `pending` status) and
+ * links it back to the RMA in one transaction. Valuation, tax and the credit
+ * note stay in Finance — Warehouse only hands over the physical facts.
+ */
+export function useCreateReturnFinanceDoc() {
+  const invalidate = useInvalidateReturns();
+  return useMutation({
+    mutationFn: async (input: { returnId: string; rowVersion: number }) => {
+      const { data, error } = await supabase.rpc("wms_create_return_finance_doc" as any, {
+        p_return_id: input.returnId,
+        p_row_version: input.rowVersion,
+      });
+      if (error) throw error;
+      return data as {
+        return_id: string;
+        row_version: number;
+        finance_doc_type: string;
+        finance_doc_id: string;
+        document_number?: string;
+        created: boolean;
+      };
+    },
+    onSuccess: invalidate,
+  });
+}
