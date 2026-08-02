@@ -34,6 +34,36 @@ export async function resolveLpnByCode(
 }
 
 /**
+ * Scan classification for receiving surfaces.
+ *
+ * A dock operator scans plates and item labels into the *same* wedge, and the
+ * scan router hands every code to the highest-priority target — which is the
+ * item intent. Without this pre-check, scanning a plate label ran the code
+ * through the product identity gate and the operator got
+ * "Unknown code PLT-… — enrol it before receiving" for a plate the system
+ * itself had just minted.
+ *
+ * So: before treating a code as a product, ask whether it *is* a plate.
+ * GS1 payloads are never plates, so they short-circuit. Lookup failures are
+ * swallowed — the caller falls through to the product gate, which owns the
+ * blocking semantics.
+ */
+export async function tryResolvePlateScan(
+  businessId: string | undefined,
+  raw: string,
+  isGs1 = false,
+): Promise<ActiveLpn | null> {
+  if (!businessId || isGs1) return null;
+  const trimmed = raw.trim();
+  if (!trimmed || /[\x1d]/.test(trimmed)) return null;
+  try {
+    return await resolveLpnByCode(businessId, trimmed);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Holds the pallet the operator is currently working on. Every capture made
  * while a plate is active is stamped with it.
  */
