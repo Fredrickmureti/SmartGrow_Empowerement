@@ -1,4 +1,40 @@
+# Warehouse Layout (WMS) — Digital Twin Roadmap
+
+## STATUS BOARD (authoritative — update after every implementation)
+
+**Currently active phase: Phase 4 — Location barcode lifecycle (not started).**
+
+| Phase | Scope | State |
+| --- | --- | --- |
+| 1 | Location master server-side (resolver, nesting trigger, retire guard, overview RPC, generator) | ✅ Done — migration `20260802095247` applied |
+| 2 | Warehouse workspace (tree + floor map + inspector, legacy page deleted) | ✅ Done |
+| 3 | Authoring: designer route, multi-tier generator, live dry-run preview, move/reparent, business language | ✅ Done |
+| 4 | Barcode lifecycle: label preview, bulk print, verify mode, resolver guard test | ⏳ Next |
+| 5 | Operator surfaces (`MobilePutaway` / `MobilePick` / `MobileCount`) use the location resolver | ⛔ Pending |
+| 6 | Cleanup + ADR notes (0064 note, 0104 finalisation) | ⛔ Pending |
+
+### Phase 3 — what was implemented and verified
+- `useLocationMutations.ts` **rewritten**: the previous `generate` call used a signature that did not exist (`p_level/p_prefix/p_from/p_to`); it now matches the real `wms_generate_locations(p_warehouse_id, p_parent_id, p_levels jsonb, p_separator, p_code_prefix, p_serpentine, p_capacity, p_barcode_auto, p_dry_run)`. Added `preview()` (dry run — same SQL, no writes) and `move` (re-parent).
+- `LocationRunBuilder.tsx` (new): multi-tier run authoring ("6 aisles → 4 racks each → 10 bins each"), snake walk order, auto label code, per-bin capacity, and a **live preview produced by the database dry run**, not a client re-implementation.
+- `LayoutDesigner.tsx` (new page) at `/warehouse-app/layout/design`: full-screen, no dialogs — existing structure on the left (search + tree + "top of the warehouse" root target), run builder on the right. Route registered in `src/apps/warehouse/routes.tsx` (write-gated, not `allowReadOnly`).
+- `MoveLocationDialog.tsx` (new): explicit "Move to…" picker; offers only parents whose level may legally hold this level, excludes self/descendants, offers the warehouse root where legal. DB trigger remains authority.
+- `LocationBuilderDialog.tsx` reduced to a thin wrapper over `LocationRunBuilder` — one authoring implementation, no duplicate logic.
+- Inspector gained the `onMove` action; workspace header gained the Layout designer link.
+- Verified: `tsgo --noEmit` clean across the project.
+
+### Known gaps carried into Phase 4
+- Bin label printing exists via `BinLabelDialog` but there is **no rendered preview** of the compiled `wms.label.bin` template, no "verify labels" scan mode, and no architecture guard test forbidding direct `stock_locations` barcode queries.
+- Bulk print is currently "all bins" from the header; there is no multi-select table surface yet (Phase 2's Table view was descoped — reinstate it in Phase 4 as the multi-select print source).
+
+### Instructions for the next agent
+1. **Verify before building.** Load `/warehouse-app/layout` and `/warehouse-app/layout/design`, generate a small run (e.g. 2 aisles × 2 racks × 3 bins) and confirm: dry-run preview codes match created rows, walk order is serpentine, `barcode` is stamped, the nesting trigger rejects an illegal move, and the retire guard blocks blocking a stocked bin. Re-run `tsgo --noEmit`.
+2. **Then start Phase 4** (below) — barcode lifecycle end to end. Do not start Phase 5 until Phase 4 prints, previews, verifies and resolves.
+3. Keep execution chronological; do not open unrelated warehouse areas.
+
+---
+
 ## Audit findings (verified against code + live database)
+
 
 **Data model — solid foundation, unused.** `stock_locations` already carries everything an enterprise location master needs: `warehouse_id`, self-referencing `parent_location_id`, `code`, `name`, `location_type`, `usage`, `structure_level`, `barcode`, `capacity_max_units`, `capacity_max_weight`, `pick_sequence`, `putaway_priority`, `is_receiving_staging`, `is_putaway_target`, `is_active`, `is_default`. `stock_quants` keys stock at `(product, location, lot)`. ADR 0064 and ADR 0079 define the intended split correctly: Inventory owns quantity/value, Warehouse owns physical execution.
 
