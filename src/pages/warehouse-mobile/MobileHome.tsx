@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
-import { PackageCheck, PackagePlus, ClipboardCheck, Truck, Package, ShieldCheck, Boxes } from "lucide-react";
+import { PackageCheck, PackagePlus, ClipboardCheck, Truck, Package, ShieldCheck, Boxes, Undo2 } from "lucide-react";
 
 interface Row {
   id: string;
