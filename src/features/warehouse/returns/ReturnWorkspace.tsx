@@ -216,6 +216,88 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
             )}
           </div>
 
+          <Separator />
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Paperwork &amp; finance</div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null}
+                onClick={() => void emitDocument("wms.rma_authorization")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> RMA authorization
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || rows.length === 0}
+                onClick={() => void emitDocument("wms.return_receipt")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Return receipt
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || rows.length === 0}
+                onClick={() => void emitDocument("wms.inspection_report")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Inspection report
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={dispatching !== null || totals.damaged === 0}
+                onClick={() => void emitDocument("wms.damage_report")}
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5" /> Damage report
+              </Button>
+              {(order.return_kind === "customer" || order.return_kind === "vendor") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    raiseFinanceDoc.isPending ||
+                    !!order.finance_doc_id ||
+                    rows.length === 0 ||
+                    totals.unposted > 0 ||
+                    totals.pendingDisposition > 0
+                  }
+                  onClick={() =>
+                    raiseFinanceDoc.mutate(
+                      { returnId: order.id, rowVersion: order.row_version },
+                      {
+                        onSuccess: (res) =>
+                          toast.success(
+                            res.created
+                              ? `${label(res.finance_doc_type)} ${res.document_number ?? ""} raised`
+                              : "Finance document already linked",
+                          ),
+                        onError: (e: unknown) =>
+                          toast.error(e instanceof Error ? e.message : "Finance handoff rejected"),
+                      },
+                    )
+                  }
+                >
+                  <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                  {order.finance_doc_id ? "Finance linked" : "Raise finance document"}
+                </Button>
+              )}
+            </div>
+            {order.finance_doc_id ? (
+              <p className="text-xs text-muted-foreground">
+                Linked to {label(order.finance_doc_type)} · valuation and credit note are handled in
+                Finance.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The finance document can be raised once every line is dispositioned and posted.
+              </p>
+            )}
+          </div>
+
+
+
           {totals.pendingDisposition > 0 && (
             <p className="text-xs text-muted-foreground">
               {totals.pendingDisposition} line(s) still need a disposition before stock can post.
