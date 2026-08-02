@@ -2,11 +2,12 @@
  * Architecture guard — WMS Phase 12 (cross-dock & cartonization).
  *
  * - `wms_crossdock_opportunities` is RPC-only from client code.
- * - `wms_carton_types` writes are confined to CartonTypes.tsx.
- * - `wms_pack_cartons.carton_type_id` is only stamped through the
- *   `assign_carton_to_pack` RPC (no direct client update to that column).
- * - Cross-dock and carton pages are wired into routes + nav.
+ * - The legacy carton catalogue (`wms_carton_types`, `suggest_carton`,
+ *   `assign_carton_to_pack`, `wms_pack_cartons.carton_type_id`) is
+ *   decommissioned by ADR 0105 Phase 8 and must not be referenced.
+ * - Cross-dock and packaging pages are wired into routes + nav.
  */
+
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
