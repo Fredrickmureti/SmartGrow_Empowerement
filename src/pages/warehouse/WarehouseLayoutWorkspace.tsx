@@ -243,6 +243,7 @@ export default function WarehouseLayoutWorkspace() {
                 setBuilderParent(parent);
                 setBuilderOpen(true);
               }}
+              onMove={(n) => setMoveTarget(n)}
             />
           </Card>
         </div>
@@ -254,6 +255,14 @@ export default function WarehouseLayoutWorkspace() {
         warehouseId={activeWarehouseId}
         parent={builderParent}
       />
+      <MoveLocationDialog
+        open={!!moveTarget}
+        onOpenChange={(v) => !v && setMoveTarget(null)}
+        warehouseId={activeWarehouseId}
+        node={moveTarget}
+        ordered={ordered}
+      />
+
       <BinLabelDialog
         open={!!labelTargets}
         onOpenChange={(v) => !v && setLabelTargets(null)}
