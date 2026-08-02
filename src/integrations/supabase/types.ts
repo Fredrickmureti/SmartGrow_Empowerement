@@ -89593,6 +89593,23 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_capture_return_line: {
+        Args: {
+          p_client_scan_id?: string
+          p_condition_code?: Database["public"]["Enums"]["wms_return_condition"]
+          p_device_id?: string
+          p_expected_qty?: number
+          p_lot_number?: string
+          p_lpn_id?: string
+          p_notes?: string
+          p_product_id: string
+          p_received_qty: number
+          p_return_id: string
+          p_serial_number?: string
+          p_uom?: string
+        }
+        Returns: Json
+      }
       wms_claim_next_task: {
         Args: {
           _lease_seconds?: number
@@ -89646,6 +89663,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      wms_close_return: {
+        Args: { p_reason?: string; p_return_id: string; p_row_version: number }
+        Returns: Json
+      }
+      wms_disposition_return_line: {
+        Args: {
+          p_destination_location_id?: string
+          p_disposition?: Database["public"]["Enums"]["wms_return_disposition"]
+          p_line_id: string
+          p_notes?: string
+          p_quarantine_qty?: number
+          p_restock_qty?: number
+          p_row_version: number
+          p_scrap_qty?: number
+        }
+        Returns: Json
+      }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
       wms_flag_receiving_variances: {
         Args: { p_session_id: string }
@@ -89693,6 +89727,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_inspect_return_line: {
+        Args: {
+          p_checks?: Json
+          p_condition_code?: Database["public"]["Enums"]["wms_return_condition"]
+          p_inspection_state: Database["public"]["Enums"]["wms_return_line_inspection_state"]
+          p_line_id: string
+          p_notes?: string
+          p_row_version: number
+        }
+        Returns: Json
       }
       wms_location_overview: {
         Args: { p_warehouse_id: string }
@@ -90311,6 +90356,10 @@ export type Database = {
           p_session_id: string
           p_staging_location_id?: string
         }
+        Returns: Json
+      }
+      wms_post_return_dispositions: {
+        Args: { p_return_id: string; p_row_version: number }
         Returns: Json
       }
       wms_raise_exception: {
