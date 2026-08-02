@@ -12,13 +12,20 @@ const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 
 function findSeederSql(): string {
   const files = readdirSync(MIGRATIONS_DIR).sort();
+  const bodies: string[] = [];
   for (const f of files) {
     if (!f.endsWith(".sql")) continue;
     const body = readFileSync(join(MIGRATIONS_DIR, f), "utf8");
-    if (body.includes("wms_seed_default_label_templates")) return body;
+    // The seeder is re-declared (CREATE OR REPLACE) whenever a new canonical
+    // template is added, so every declaration counts — not just the first.
+    if (body.includes("wms_seed_default_label_templates")) bodies.push(body);
   }
-  throw new Error("No migration defines wms_seed_default_label_templates");
+  if (bodies.length === 0) {
+    throw new Error("No migration defines wms_seed_default_label_templates");
+  }
+  return bodies.join("\n");
 }
+
 
 describe("WMS label keys — SQL ↔ TS sync", () => {
   it("every thermal TS key is seeded by wms_seed_default_label_templates", () => {
