@@ -474,7 +474,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                     {expandedLine === l.id && (
                       <TableRow>
                         <TableCell colSpan={7}>
-                          <CaptureRow line={l} busy={capture.isPending} onCapture={(v2) => runCapture(l, v2)} />
+                          <CaptureRow
+                            line={l}
+                            busy={capture.isPending}
+                            serialTracked={tracking.get(l.product_id).is_serial_tracked}
+                            onCapture={(v2) => runCapture(l, v2)}
+                          />
                         </TableCell>
                       </TableRow>
                     )}
