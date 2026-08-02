@@ -76502,6 +76502,23 @@ export type Database = {
         Args: { p_location_id: string; p_product_id: string }
         Returns: number
       }
+      _wms_packaging_assert_write: {
+        Args: { p_business_id: string }
+        Returns: undefined
+      }
+      _wms_packaging_log: {
+        Args: {
+          p_event_type: string
+          p_from?: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          p_payload?: Json
+          p_qty_delta?: number
+          p_reason?: string
+          p_row: Database["public"]["Tables"]["wms_packaging_types"]["Row"]
+          p_to?: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          p_warehouse_id?: string
+        }
+        Returns: undefined
+      }
       _wms_qc_post_move: {
         Args: {
           p_dest_location: string
@@ -79741,6 +79758,13 @@ export type Database = {
           p_summary: string
         }
         Returns: string
+      }
+      emit_packaging_event: {
+        Args: {
+          p_row: Database["public"]["Tables"]["wms_packaging_types"]["Row"]
+          p_type: string
+        }
+        Returns: undefined
       }
       emit_payslip_event: {
         Args: {
@@ -89635,6 +89659,169 @@ export type Database = {
           _warehouse_id: string
         }
         Returns: string
+      }
+      wms_packaging_archive: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: Json
+      }
+      wms_packaging_set_availability: {
+        Args: {
+          p_is_stocked?: boolean
+          p_packaging_type_id: string
+          p_qty_on_hand?: number
+          p_reorder_point?: number
+          p_warehouse_id: string
+        }
+        Returns: {
+          business_id: string
+          created_at: string
+          id: string
+          is_stocked: boolean
+          last_counted_at: string | null
+          packaging_type_id: string
+          qty_on_hand: number
+          reorder_point: number
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_packaging_availability"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_packaging_set_carrier_rule: {
+        Args: {
+          p_carrier_id: string
+          p_dim_weight_divisor?: number
+          p_is_allowed?: boolean
+          p_is_oversize?: boolean
+          p_notes?: string
+          p_packaging_type_id: string
+          p_service_code?: string
+          p_surcharge_amount?: number
+        }
+        Returns: {
+          business_id: string
+          carrier_id: string
+          created_at: string
+          dim_weight_divisor: number | null
+          id: string
+          is_allowed: boolean
+          is_oversize: boolean
+          notes: string | null
+          packaging_type_id: string
+          service_code: string | null
+          surcharge_amount: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_packaging_carriers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_packaging_set_lifecycle: {
+        Args: {
+          p_id: string
+          p_reason?: string
+          p_row_version?: number
+          p_status: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+        }
+        Returns: {
+          business_id: string
+          code: string
+          cost: number
+          created_at: string
+          created_by: string | null
+          dim_weight_divisor: number | null
+          hazmat_class: string | null
+          id: string
+          inner_height_cm: number
+          inner_length_cm: number
+          inner_width_cm: number
+          is_returnable: boolean
+          is_stackable: boolean
+          layers_per_unit: number | null
+          lifecycle_status: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          material: string | null
+          max_volume_fill_pct: number
+          max_weight_kg: number
+          name: string
+          nest_ratio: number | null
+          notes: string | null
+          organization_id: string | null
+          outer_height_cm: number | null
+          outer_length_cm: number | null
+          outer_width_cm: number | null
+          packaging_class: Database["public"]["Enums"]["wms_packaging_class"]
+          row_version: number
+          tare_weight_kg: number
+          temp_max_c: number | null
+          temp_min_c: number | null
+          un_rating: string | null
+          units_per_layer: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_packaging_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_packaging_upsert: {
+        Args: {
+          p_business_id: string
+          p_id?: string
+          p_payload: Json
+          p_row_version?: number
+        }
+        Returns: {
+          business_id: string
+          code: string
+          cost: number
+          created_at: string
+          created_by: string | null
+          dim_weight_divisor: number | null
+          hazmat_class: string | null
+          id: string
+          inner_height_cm: number
+          inner_length_cm: number
+          inner_width_cm: number
+          is_returnable: boolean
+          is_stackable: boolean
+          layers_per_unit: number | null
+          lifecycle_status: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          material: string | null
+          max_volume_fill_pct: number
+          max_weight_kg: number
+          name: string
+          nest_ratio: number | null
+          notes: string | null
+          organization_id: string | null
+          outer_height_cm: number | null
+          outer_length_cm: number | null
+          outer_width_cm: number | null
+          packaging_class: Database["public"]["Enums"]["wms_packaging_class"]
+          row_version: number
+          tare_weight_kg: number
+          temp_max_c: number | null
+          temp_min_c: number | null
+          un_rating: string | null
+          units_per_layer: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_packaging_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_raise_exception: {
         Args: {
