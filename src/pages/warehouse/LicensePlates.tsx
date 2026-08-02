@@ -36,7 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Search, Printer, Layers, ScanLine } from "lucide-react";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
-  useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode,
+  useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode, useLpnStatusCatalog,
   type LpnOverviewRow, type LpnType,
 } from "@/features/warehouse/lpn/useLpnOps";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
@@ -244,11 +244,9 @@ export default function LicensePlates() {
                   <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="sealed">Sealed</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="consumed">Consumed</SelectItem>
-                    <SelectItem value="voided">Voided</SelectItem>
+                    {(statuses ?? []).map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Badge variant="outline" className="gap-1">
