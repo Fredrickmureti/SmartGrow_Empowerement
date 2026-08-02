@@ -39,6 +39,13 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, PackageCheck, PackagePlus, Lock, Check } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import {
+  suggestPackaging,
+  assignPackagingToPack,
+  packagingFailureMessage,
+} from "@/features/warehouse/packaging/packagingEngine";
+import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+
 
 interface WaveLine {
   id: string;
@@ -73,15 +80,16 @@ interface Carton {
   carton_type: { code: string; name: string } | null;
 }
 
-interface CartonType {
+interface PackagingType {
   id: string;
   code: string;
   name: string;
-  length_cm: number | null;
-  width_cm: number | null;
-  height_cm: number | null;
+  packaging_class: string;
+  outer_length_cm: number | null;
+  outer_width_cm: number | null;
+  outer_height_cm: number | null;
   max_weight_kg: number | null;
-  is_active: boolean;
+  lifecycle_status: string;
 }
 
 export default function PackStation() {
@@ -103,20 +111,24 @@ export default function PackStation() {
     },
   });
 
-  const { data: cartonTypes } = useQuery({
-    queryKey: ["wms-carton-types", wave?.business_id],
+  // ADR 0105 — the Packaging Master replaces the legacy carton catalogue.
+  const { data: packagingTypes } = useQuery({
+    queryKey: ["wms-packaging-types", wave?.business_id],
     enabled: !!wave?.business_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("wms_carton_types")
-        .select("id, code, name, length_cm, width_cm, height_cm, max_weight_kg, is_active")
+        .from("wms_packaging_types")
+        .select(
+          "id, code, name, packaging_class, outer_length_cm, outer_width_cm, outer_height_cm, max_weight_kg, lifecycle_status",
+        )
         .eq("business_id", wave!.business_id!)
-        .eq("is_active", true)
+        .in("lifecycle_status", ["active", "restricted"])
         .order("code");
       if (error) throw error;
-      return (data ?? []) as CartonType[];
+      return (data ?? []) as PackagingType[];
     },
   });
+
 
   const { data: lines } = useQuery({
     queryKey: ["wms-pick-wave-lines", waveId],
@@ -174,23 +186,31 @@ export default function PackStation() {
 
   const openCarton = useMutation({
     mutationFn: async (sales_order_id: string) => {
-      // 1. Ask the engine which carton type fits the remaining unpacked lines
+      // 1. Ask the Packaging Master engine (geometry-aware) what fits.
       const remaining = (lines ?? []).filter(
         (l) => l.sales_order_id === sales_order_id && !l.packed_carton_id,
       );
       let suggestedTypeId: string | null = null;
       let suggestedCode: string | null = null;
+      let failureReason: string | null = null;
       if (wave?.business_id && remaining.length > 0) {
-        const { data: suggestion } = await supabase.rpc("suggest_carton", {
-          p_business_id: wave.business_id,
-          p_product_ids: remaining.map((l) => l.product_id),
-          p_quantities: remaining.map((l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0)),
-        });
-        // RPC returns a wms_carton_types row (or null)
-        const row = suggestion as { id?: string; code?: string } | null;
-        if (row && row.id) {
-          suggestedTypeId = row.id;
-          suggestedCode = row.code ?? null;
+        try {
+          const suggestion = await suggestPackaging(
+            wave.business_id,
+            remaining.map((l) => ({
+              product_id: l.product_id,
+              quantity: (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
+            })),
+            { warehouse_id: wave.warehouse_id ?? null, include_restricted: false },
+          );
+          if (suggestion.ok && suggestion.recommended) {
+            suggestedTypeId = suggestion.recommended.packaging_type_id;
+            suggestedCode = suggestion.recommended.code;
+          } else {
+            failureReason = suggestion.reason ?? "no_packaging_matches_constraints";
+          }
+        } catch (sErr) {
+          console.warn("suggest_packaging failed", sErr);
         }
       }
       // 2. Open the carton
@@ -199,21 +219,19 @@ export default function PackStation() {
         { p_wave_id: waveId!, p_sales_order_id: sales_order_id },
       );
       const cartonId = opened?.carton_id ?? null;
-      // 3. Stamp the suggested carton type (best effort — do not fail the open)
+      // 3. Stamp the suggested packaging (best effort — never fail the open)
       if (cartonId && suggestedTypeId) {
         try {
-          await replayGuardedCall("assign_carton_to_pack", {
-            p_carton_id: cartonId,
-            p_carton_type_id: suggestedTypeId,
-          });
+          await assignPackagingToPack(cartonId, suggestedTypeId);
         } catch (aErr) {
-          console.warn("assign_carton_to_pack failed", aErr);
+          console.warn("assign_packaging_to_pack failed", aErr);
         }
       }
-      return { cartonId, suggestedCode };
+      return { cartonId, suggestedCode, failureReason };
     },
-    onSuccess: ({ suggestedCode }) => {
+    onSuccess: ({ suggestedCode, failureReason }) => {
       toast.success(suggestedCode ? `Carton opened · suggested ${suggestedCode}` : "Carton opened");
+      if (failureReason) toast.warning(packagingFailureMessage(failureReason));
       invalidateAll();
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Open failed"),
@@ -221,14 +239,12 @@ export default function PackStation() {
 
   const assignCartonType = useMutation({
     mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
-      await replayGuardedCall("assign_carton_to_pack", {
-        p_carton_id: v.carton_id,
-        p_carton_type_id: v.carton_type_id,
-      });
+      await assignPackagingToPack(v.carton_id, v.carton_type_id);
     },
-    onSuccess: () => { toast.success("Carton type updated"); invalidateAll(); },
+    onSuccess: () => { toast.success("Packaging updated"); invalidateAll(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
+
 
   const assignLine = useMutation({
     mutationFn: async (v: { carton_id: string; wave_line_id: string; qty: number }) => {
@@ -429,8 +445,8 @@ export default function PackStation() {
                                 if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
                               }}
                             >
-                              <option value="">carton type…</option>
-                              {(cartonTypes ?? []).map((t) => (
+                              <option value="">packaging…</option>
+                              {(packagingTypes ?? []).map((t) => (
                                 <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
                               ))}
                             </select>
@@ -440,6 +456,19 @@ export default function PackStation() {
                               <Lock className="h-4 w-4 mr-1" /> Seal
                             </Button>
                           )}
+                          {c.sealed_at && wave.business_id && (
+                            <CartonSsccLabelButton
+                              businessId={wave.business_id}
+                              cartonId={c.id}
+                              packagingTypeId={c.carton_type_id}
+                              warehouseId={wave.warehouse_id}
+                              packagingName={c.carton_type?.name ?? null}
+                              orderNumber={c.sales_order_id.slice(0, 8)}
+                              cartonSequence={c.shipment_lpn?.code ?? c.id.slice(0, 8)}
+                              grossWeightKg={c.weight_kg}
+                            />
+                          )}
+
                           {c.sealed_at && c.shipment_lpn?.code && (
                             <>
                               <PrintLabelButton

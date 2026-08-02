@@ -66667,6 +66667,7 @@ export type Database = {
           sealed_at: string | null
           sealed_by: string | null
           shipment_lpn_id: string | null
+          tare_applied_kg: number
           updated_at: string
           warehouse_id: string | null
           wave_id: string
@@ -66691,6 +66692,7 @@ export type Database = {
           sealed_at?: string | null
           sealed_by?: string | null
           shipment_lpn_id?: string | null
+          tare_applied_kg?: number
           updated_at?: string
           warehouse_id?: string | null
           wave_id: string
@@ -66715,6 +66717,7 @@ export type Database = {
           sealed_at?: string | null
           sealed_by?: string | null
           shipment_lpn_id?: string | null
+          tare_applied_kg?: number
           updated_at?: string
           warehouse_id?: string | null
           wave_id?: string
@@ -68106,6 +68109,53 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_sscc_events: {
+        Row: {
+          actor_id: string | null
+          business_id: string
+          copies: number | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          reason: string | null
+          sscc: string
+          sscc_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id: string
+          copies?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          reason?: string | null
+          sscc: string
+          sscc_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string
+          copies?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          reason?: string | null
+          sscc?: string
+          sscc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_sscc_events_sscc_id_fkey"
+            columns: ["sscc_id"]
+            isOneToOne: false
+            referencedRelation: "wms_sscc_registry"
             referencedColumns: ["id"]
           },
         ]
@@ -76655,6 +76705,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_sscc_log: {
+        Args: {
+          p_copies?: number
+          p_event_type: string
+          p_payload?: Json
+          p_reason?: string
+          p_row: Database["public"]["Tables"]["wms_sscc_registry"]["Row"]
+        }
+        Returns: undefined
+      }
       accept_organization_invitation_atomic: {
         Args: {
           p_invitation_id: string
@@ -77839,6 +77899,7 @@ export type Database = {
           sealed_at: string | null
           sealed_by: string | null
           shipment_lpn_id: string | null
+          tare_applied_kg: number
           updated_at: string
           warehouse_id: string | null
           wave_id: string
@@ -77866,6 +77927,40 @@ export type Database = {
       assign_line_to_carton: {
         Args: { p_carton_id: string; p_qty: number; p_wave_line_id: string }
         Returns: Json
+      }
+      assign_packaging_to_pack: {
+        Args: { p_carton_id: string; p_packaging_type_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          carton_type_id: string | null
+          created_at: string
+          height_cm: number | null
+          id: string
+          length_cm: number | null
+          manifest_id: string | null
+          opened_at: string
+          opened_by: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          row_version: number
+          sales_order_id: string
+          sealed_at: string | null
+          sealed_by: string | null
+          shipment_lpn_id: string | null
+          tare_applied_kg: number
+          updated_at: string
+          warehouse_id: string | null
+          wave_id: string
+          weight_kg: number | null
+          width_cm: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_pack_cartons"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assign_procurement_recommendation: {
         Args: { p_assignee: string; p_rec_id: string }
@@ -90022,6 +90117,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_resolve_sscc: {
+        Args: { p_business_id: string; p_code: string }
+        Returns: Json
+      }
       wms_seed_default_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
@@ -90052,6 +90151,43 @@ export type Database = {
           p_sscc: string
         }
         Returns: Json
+      }
+      wms_sscc_mark_printed: {
+        Args: {
+          p_business_id: string
+          p_copies?: number
+          p_is_reprint?: boolean
+          p_payload?: Json
+          p_reason?: string
+          p_sscc: string
+        }
+        Returns: {
+          assigned_by: string | null
+          business_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          id: string
+          last_printed_at: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          payload: Json
+          printed_count: number
+          serial_reference: number
+          sscc: string
+          status: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_sscc_registry"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_sscc_void: {
         Args: { p_business_id: string; p_reason?: string; p_sscc: string }

@@ -67,3 +67,26 @@ Packaging Master ──┬─► Cartonization engine (fit + rank + split)
 
 - Phases 1–3 are the architectural core; 4–6 close the hardware/identity gaps; 7 is the surface. I will not start a phase before the previous one is green (`tsgo --noEmit` + architecture suite).
 - Hard cut, no compat shim, per your instruction that no production users exist.
+
+---
+
+## Packaging Master (ADR 0105) — live status @ 2026-08-02
+
+**Done & verified**
+- Phase 1 — `wms_packaging_types` + carriers/availability/events, data migrated from `wms_carton_types`.
+- Phase 2 — server-owned writes (`wms_packaging_upsert`, `set_lifecycle`, `archive`, `set_carrier_rule`, `set_availability`); client write grants revoked.
+- Phase 3 — `suggest_packaging` (rotation-aware 3-axis fit, unit split, dim/billable weight, carrier/hazmat/stock filters, explainable failure codes).
+- Phase 3b — `assign_packaging_to_pack` (idempotent, tare applied once via `wms_pack_cartons.tare_applied_kg`); replay whitelist extended (`suggest_packaging`, `assign_packaging_to_pack`, `wms_sscc_allocate`, `wms_sscc_mark_printed`).
+- Phase 4 — GS1: `wms_gs1_config`, `wms_sscc_registry`, `wms_sscc_events`, `gs1_check_digit`, `wms_sscc_build`, allocate/void/label-payload/mark-printed/resolve RPCs, `wms.label.carton` template seeded + backfilled.
+- Client wiring — PackStation now reads `wms_packaging_types`, calls `suggest_packaging` + `assign_packaging_to_pack`, and mints/prints SSCC carton labels with reprint-reason capture (`CartonSsccLabelButton`).
+- Guards: 17 packaging-master architecture tests + 2 label-key sync tests pass; `tsgo` clean.
+
+**Pending**
+- Phase 5 (NEXT, not started) — handling-unit unification: make `wms_lpns` and `wms_pack_cartons` share one LPN/SSCC identity, resolve `pack.carton` scan intent through `wms_resolve_sscc`.
+- Phase 6 — carrier/rate integration surface (surcharge + oversize consumption downstream).
+- Phase 7 — Packaging Master admin UI over the Phase 2 RPCs (replace the legacy Carton Catalogue screen).
+- Phase 8 — decommission `wms_carton_types`, `suggest_carton`, `assign_carton_to_pack` and the legacy `carton_type_id` column.
+
+**Handoff to the next agent**
+1. Verify first: confirm Phase 3b/4 objects exist and are permissioned (`assign_packaging_to_pack` idempotency on repeat call, no `authenticated` write grants on packaging/SSCC tables), and run `bunx vitest run src/test/architecture` + `npx tsgo --noEmit`.
+2. Then resume at Phase 5 (handling-unit unification). Do not start Phase 7 UI or Phase 8 removals before Phase 5 and 6 are coherent — `carton_type_id` is still written in step with `packaging_type_id` on purpose.
