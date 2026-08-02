@@ -420,6 +420,13 @@ export default function ReceivingSessions() {
   // never narrated as a success.
   const handleItemScan = useCallback(
     async (p: WmsScanPayload) => {
+      // Plate labels reach this handler too (it outranks the LPN intent at the
+      // same priority). A plate must start unloading, not fail the product gate.
+      const plate = await tryResolvePlateScan(currentBusiness?.id, p.raw, p.isGs1);
+      if (plate) {
+        handleLpnScan({ ...p, resolveCode: plate.code });
+        return;
+      }
       if (unloadingSessions.length !== 1) {
         scanFeedbackBus.emit({
           kind: "error",
@@ -468,7 +475,7 @@ export default function ReceivingSessions() {
         });
       }
     },
-    [unloadingSessions, identityGate, captureLine],
+    [unloadingSessions, identityGate, captureLine, currentBusiness?.id, handleLpnScan],
   );
 
 
