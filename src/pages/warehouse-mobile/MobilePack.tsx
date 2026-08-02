@@ -26,7 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import {
+  packagingFailureMessage,
+  type PackagingSuggestion,
+} from "@/features/warehouse/packaging/packagingEngine";
 import { PackagePlus, Package, CheckCircle2 } from "lucide-react";
+
 
 interface PackTask {
   id: string;
