@@ -141,22 +141,6 @@ export async function resolveLpnByCode(
   return (data ?? null) as LpnOverviewRow | null;
 }
 
-function _useLpnUnused(id: string | undefined) {
-  return useQuery({
-    queryKey: ["wms-lpn", id],
-    enabled: !!id,
-    queryFn: async (): Promise<LpnOverviewRow | null> => {
-      const { data, error } = await sb
-        .from("v_wms_lpn_overview")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-      if (error) throw error;
-      return (data ?? null) as LpnOverviewRow | null;
-    },
-  });
-}
-
 export function useLpnContents(id: string | undefined) {
   return useQuery({
     queryKey: ["wms-lpn-contents", id],
