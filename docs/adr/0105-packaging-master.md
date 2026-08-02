@@ -101,3 +101,24 @@ PackStation calls `suggest_packaging`, plates carry
   PackStation calls it instead of parsing codes client-side.
 - Both pack stations now read `packaging_type_id`; the legacy
   `carton_type_id` column is untouched by client code and drops in Phase 8.
+
+## Phase 6 — hardware & packaging supply (2026-08-02)
+
+- `wms_packaging_consume(business, warehouse, packaging_type, qty, ref_type,
+  ref_id)` decrements `wms_packaging_availability` under `FOR UPDATE`, writes a
+  `consumed` row to `wms_packaging_events` (negative `qty_delta`) and emits
+  `warehouse.packaging.consumed` — plus `warehouse.packaging.reorder_needed`
+  when the balance reaches the reorder point. Untracked (`is_stocked = false`)
+  packaging is a no-op, not an error.
+- `seal_pack_carton` is the only call site. It is guarded by the new
+  `wms_pack_cartons.packaging_consumed_at` stamp (replay-safe) and wrapped in
+  an exception block, so a supply problem can never block a seal.
+- Consumption events carry per-reference idempotency keys
+  (`wms.packaging.consumed:<ref_type>:<ref_id>:<packaging_type>`) — the shared
+  `emit_packaging_event` helper keys on `row_version` and would have collapsed
+  every consumption into one event.
+- `wms_packaging_consume` is revoked from PUBLIC: no client call site exists.
+- The sealed weight comes off the bound scale through the sanctioned hardware
+  command router (`useHardwareProxy` → `resolve_device` → `TransportRouter`)
+  via `usePackScale`, which normalises g/lb/oz to kg and surfaces unstable
+  readings instead of hiding them. Manual entry remains available.
