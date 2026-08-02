@@ -128,3 +128,26 @@ All `SECURITY DEFINER`, org-scoped, `row_version` guarded, outbox emitting:
 3. Keep execution chronological. No unrelated areas, no partially wired
    features, no orphaned UI without a server path behind it.
 4. Update this file immediately after each completed implementation.
+
+---
+
+## Out-of-band fix — App switcher coverage (2026-08-02)
+
+Not part of the returns roadmap; logged for traceability.
+
+- `getAppGroups()` in `src/lib/apps/registry.ts` used hardcoded per-category id
+  allow-lists, so **Warehouse** and **Talent** never appeared in the app
+  switcher, and **Reports** was missing from `APP_REGISTRY` altogether
+  (its "Analytics" group always resolved empty). On mobile the switcher is the
+  only way to change apps (the AppRail is desktop-only), so those apps were
+  unreachable there.
+- Fixes: registered `REPORTS_APP` in `APP_REGISTRY`; added `warehouse` to
+  Operations and `talent` to Human Resources; made grouping exhaustive by
+  construction with an "Other apps" catch-all so future apps can never be
+  silently hidden.
+- Guard: `src/test/architecture/app-switcher-coverage.test.ts` asserts every
+  registered app (except the single-purpose `me` shell) is reachable from
+  `getAppGroups()`, with no duplicates and no empty groups.
+
+Returns roadmap status is unchanged: Phases 0–4 done, **Phase 5 (hardware
+integration) is next** — see the instructions above.
