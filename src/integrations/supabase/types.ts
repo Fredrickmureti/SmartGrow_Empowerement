@@ -76705,6 +76705,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_replay_lpn_move: { Args: { p_args: Json }; Returns: Json }
       _wms_sscc_log: {
         Args: {
           p_copies?: number
