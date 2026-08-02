@@ -34,14 +34,24 @@ function collectMigrations(): string {
   return all;
 }
 
-/** Every `'warehouse.x.y'` literal appearing in a catalog-touching migration. */
+/**
+ * Every `'warehouse.x.y'` literal seeded into `wms_events_catalog`. Only the
+ * INSERT statements against the catalog count — the same migration files also
+ * contain emit-side literals inside RPC bodies, which are covered by the
+ * outbox-parity guard instead.
+ */
 function catalogTopics(sql: string): string[] {
   const found = new Set<string>();
-  for (const m of sql.matchAll(/'(warehouse\.[a-z0-9_]+\.[a-z0-9_]+)'/g)) {
-    found.add(m[1]!);
+  for (const stmt of sql.matchAll(
+    /INSERT\s+INTO\s+(?:public\.)?wms_events_catalog[\s\S]*?;/gi,
+  )) {
+    for (const m of stmt[0].matchAll(/'(warehouse\.[a-z0-9_]+\.[a-z0-9_]+)'/g)) {
+      found.add(m[1]!);
+    }
   }
   return [...found].sort();
 }
+
 
 describe("wms_events_catalog stays in sync with WMS_TOPIC", () => {
   const migrations = collectMigrations();
