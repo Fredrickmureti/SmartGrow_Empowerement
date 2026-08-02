@@ -82918,34 +82918,6 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
-      move_lpn: {
-        Args: { p_dest_location_id: string; p_lpn_id: string; p_note?: string }
-        Returns: {
-          branch_id: string | null
-          business_id: string
-          code: string
-          correlation_id: string | null
-          created_at: string
-          created_by: string | null
-          current_location_id: string | null
-          id: string
-          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
-          notes: string | null
-          organization_id: string
-          parent_lpn_id: string | null
-          row_version: number
-          sealed_at: string | null
-          status: Database["public"]["Enums"]["wms_lpn_status"]
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_license_plates"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       normalize_display_to_base: {
         Args: { p_display: number; p_packaging_id: string }
         Returns: number
