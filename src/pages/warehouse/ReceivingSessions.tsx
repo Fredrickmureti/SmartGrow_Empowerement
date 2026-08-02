@@ -41,6 +41,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck, LayoutGrid, Rows3 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ReceivingSessionBoard from "@/features/warehouse/receiving/ReceivingSessionBoard";
+import { useReceivingTrailerVisits } from "@/features/warehouse/receiving/useReceivingTrailerVisits";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
