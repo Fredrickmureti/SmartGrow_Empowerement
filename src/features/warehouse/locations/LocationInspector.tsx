@@ -23,7 +23,9 @@ interface Props {
   warehouseId: string | null;
   onPrintLabel: (nodes: LocationNode[]) => void;
   onAddInside: (parent: LocationNode) => void;
+  onMove?: (node: LocationNode) => void;
 }
+
 
 interface Draft {
   name: string;
