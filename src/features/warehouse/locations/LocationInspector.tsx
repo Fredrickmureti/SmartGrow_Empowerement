@@ -49,7 +49,7 @@ function toDraft(n: LocationNode): Draft {
   };
 }
 
-export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside }: Props) {
+export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside, onMove }: Props) {
   const { update, setActive } = useLocationMutations(warehouseId);
   const [draft, setDraft] = useState<Draft | null>(node ? toDraft(node) : null);
 
