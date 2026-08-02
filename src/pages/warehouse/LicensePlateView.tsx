@@ -38,7 +38,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ProductCombobox } from "@/components/common/ProductCombobox";
-import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
+import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
@@ -107,6 +107,7 @@ export default function LicensePlateView() {
   });
 
   const [dialog, setDialog] = useState<null | "move" | "load" | "unload" | "split" | "nest">(null);
+  const [labelOpen, setLabelOpen] = useState(false);
   const [moveDest, setMoveDest] = useState("");
   const [moveNote, setMoveNote] = useState("");
   const [line, setLine] = useState({ productId: "", quantity: "1", lot: "", serial: "" });
@@ -171,25 +172,6 @@ export default function LicensePlateView() {
   const locked = lpn.status === "shipped" || lpn.status === "voided" || lpn.status === "consumed";
   const sealed = !!lpn.sealed_at;
 
-  async function printLabel() {
-    if (!currentOrg?.id || !lpn) return toast.error("No active organization");
-    const res = await printWmsLabel({
-      key: WMS_LABEL_KEY.LPN,
-      orgId: currentOrg.id,
-      businessId: currentBusiness?.id ?? null,
-      sourceDocType: "wms_license_plate",
-      sourceDocId: lpn.id,
-      vars: {
-        lpn_code: lpn.code,
-        warehouse_name: lpn.warehouse_name ?? "",
-        current_location: lpn.location_code ?? "Unlocated",
-        created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-      },
-      isReprint: true,
-    });
-    res.success ? toast.success("Label sent to printer") : toast.error(res.error ?? "Print failed");
-  }
-
   return (
     <>
       <PageHeader
@@ -211,8 +193,8 @@ export default function LicensePlateView() {
             <Button variant="outline" asChild>
               <Link to="/warehouse-app/plates"><ArrowLeft className="mr-2 h-4 w-4" /> Board</Link>
             </Button>
-            <Button variant="outline" onClick={printLabel}>
-              <Printer className="mr-2 h-4 w-4" /> Print label
+            <Button variant="outline" onClick={() => setLabelOpen(true)}>
+              <Printer className="mr-2 h-4 w-4" /> Label
             </Button>
             <Button onClick={() => setDialog("move")} disabled={locked}>
               <MoveRight className="mr-2 h-4 w-4" /> Move
@@ -367,6 +349,13 @@ export default function LicensePlateView() {
 
         <ActivitySection aggregateId={lpn.id} />
       </PageBody>
+
+      <LpnLabelDialog
+        open={labelOpen}
+        onOpenChange={setLabelOpen}
+        orgId={currentOrg?.id}
+        plates={[lpn]}
+      />
 
       {/* Move */}
       <Dialog open={dialog === "move"} onOpenChange={(o) => !o && setDialog(null)}>
