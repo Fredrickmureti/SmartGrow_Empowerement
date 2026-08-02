@@ -41,8 +41,8 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 flex-1 basis-[22rem]">
           {eyebrow && (
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {eyebrow}
@@ -52,12 +52,14 @@ export function PageHeader({
             {title}
           </h1>
           {description && (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            <p className="mt-1 max-w-prose text-sm text-muted-foreground">{description}</p>
           )}
         </div>
         {actions && (
-          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
         )}
+      </div>
+
       </div>
       {tabs && <div className="-mb-3 mt-3">{tabs}</div>}
     </header>
