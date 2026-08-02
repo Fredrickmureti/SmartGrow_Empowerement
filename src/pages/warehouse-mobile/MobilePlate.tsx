@@ -1,0 +1,203 @@
+/**
+ * Mobile handling-unit screen — scan a plate, see what it carries, move it.
+ *
+ * This is the forklift/RF view of the same domain the desk cockpit uses:
+ * contents are `stock_quants.lpn_id` rows and every mutation is one of the
+ * plate RPCs. Calls go through the mobile `enqueue()` chokepoint, so a
+ * dropped connection queues the operation (replay-guarded) instead of
+ * losing it.
+ */
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
+import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import {
+  useLpn, useLpnContents, resolveLpnByCode,
+} from "@/features/warehouse/lpn/useLpnOps";
+
+/** Scan-to-find entry screen: /wm/plate */
+export default function MobilePlateLookup() {
+  const nav = useNavigate();
+  const { currentBusiness } = useBusinesses();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const open = async (value: string) => {
+    if (!currentBusiness?.id || !value.trim()) return;
+    setBusy(true);
+    try {
+      const plate = await resolveLpnByCode(currentBusiness.id, value);
+      if (!plate) return toast.error(`No plate ${value}`);
+      nav(`/wm/plate/${plate.id}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Lookup failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useWmsScanIntent({
+    intent: "putaway.lpn",
+    label: "wm-plate-lookup",
+    onScan: (p) => { void open(p.resolveCode); },
+  });
+
+  return (
+    <MobileWarehouseLayout title="License plate" back="/wm">
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Scan a plate label, or type its code.
+        </p>
+        <Input
+          autoFocus
+          inputMode="text"
+          className="h-12 font-mono text-lg"
+          placeholder="PLT-…"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void open(code); }}
+        />
+        <Button className="h-12 w-full" size="lg" disabled={busy || !code.trim()} onClick={() => void open(code)}>
+          {busy ? "Looking up…" : "Open plate"}
+        </Button>
+      </div>
+    </MobileWarehouseLayout>
+  );
+}
+
+/** Handling-unit detail: /wm/plate/:id */
+export function MobilePlateDetail() {
+  const { id } = useParams();
+  const qc = useQueryClient();
+  const { data: plate, isLoading } = useLpn(id);
+  const { data: contents } = useLpnContents(id);
+  const [busy, setBusy] = useState(false);
+  const [destCode, setDestCode] = useState("");
+
+  const { data: bins } = useQuery({
+    queryKey: ["wm-plate-bins", plate?.warehouse_id],
+    enabled: !!plate?.warehouse_id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stock_locations")
+        .select("id, code, name")
+        .eq("warehouse_id", plate!.warehouse_id)
+        .eq("is_active", true)
+        .order("code");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const move = async (binCode: string) => {
+    if (!plate) return;
+    const bin = (bins ?? []).find((b) => b.code.toLowerCase() === binCode.trim().toLowerCase());
+    if (!bin) return toast.error(`No bin ${binCode} in this warehouse`);
+    setBusy(true);
+    try {
+      const r = await enqueue("wms_lpn_move", {
+        _lpn_id: plate.id,
+        _to_location_id: bin.id,
+        _expected_version: null,
+        _reason: "RF plate move",
+      });
+      toast.success(r.queued ? "Queued (offline)" : `Moved to ${bin.code}`);
+      setDestCode("");
+      qc.invalidateQueries({ queryKey: ["wms-lpn", plate.id] });
+      qc.invalidateQueries({ queryKey: ["wms-lpn-contents", plate.id] });
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Move failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useWmsScanIntent({
+    intent: "putaway.bin",
+    label: "wm-plate-move-bin",
+    priority: 30,
+    enabled: !!plate,
+    onScan: (p) => { void move(p.resolveCode); },
+  });
+
+  if (isLoading) return <MobileWarehouseLayout title="Plate" back="/wm/plate">Loading…</MobileWarehouseLayout>;
+  if (!plate) return <MobileWarehouseLayout title="Plate" back="/wm/plate">Plate not found.</MobileWarehouseLayout>;
+
+  const units = (contents ?? []).reduce((a, c) => a + Number(c.quantity || 0), 0);
+
+  return (
+    <MobileWarehouseLayout
+      title={plate.code}
+      back="/wm/plate"
+      bottomBar={
+        <Button
+          className="h-12 w-full"
+          size="lg"
+          disabled={busy || !destCode.trim()}
+          onClick={() => void move(destCode)}
+        >
+          {busy ? "Working…" : "Move plate"}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded border p-3">
+          <div className="text-xs text-muted-foreground">Status · Type</div>
+          <div className="font-medium capitalize">{plate.status} · {plate.lpn_type}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded border p-3">
+            <div className="text-xs text-muted-foreground">Bin</div>
+            <div className="font-mono">{plate.location_code ?? "Unlocated"}</div>
+          </div>
+          <div className="rounded border p-3">
+            <div className="text-xs text-muted-foreground">Contents</div>
+            <div>{(contents ?? []).length} SKU · {units} units</div>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">On this plate</h2>
+          {!(contents ?? []).length ? (
+            <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
+              Empty handling unit.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {contents!.map((c) => (
+                <li key={c.id} className="flex items-center justify-between rounded border p-3">
+                  <div>
+                    <div className="text-sm">{c.products?.name ?? c.product_id.slice(0, 8)}</div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {c.products?.sku ?? ""}{c.lot_number ? ` · ${c.lot_number}` : ""}
+                    </div>
+                  </div>
+                  <div className="tabular-nums">{Number(c.quantity)}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Scan or type destination bin</label>
+          <Input
+            className="h-12 font-mono text-lg"
+            placeholder="BIN-…"
+            value={destCode}
+            onChange={(e) => setDestCode(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void move(destCode); }}
+          />
+        </div>
+      </div>
+    </MobileWarehouseLayout>
+  );
+}
