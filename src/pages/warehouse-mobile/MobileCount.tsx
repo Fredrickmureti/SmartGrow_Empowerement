@@ -1,12 +1,19 @@
 /**
- * Mobile cycle count — scan bin + SKU, enter counted qty, record.
+ * Mobile cycle count — scan bin + item, enter counted qty, record.
+ *
+ * Both legs run on their resolver seams: `BinScanField`
+ * (`resolve_location_identity`, ADR 0104) and `ProductScanField`
+ * (`resolve_product_identity`, ADR-0017/0071). Neither leg string-compares.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useResolveLocationIdentity } from "@/features/warehouse/locations/useResolveLocationIdentity";
+import { BinScanField } from "@/features/warehouse/locations/BinScanField";
+import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
+import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +26,7 @@ interface Line {
   counted_qty: number | null;
   variance_qty: number | null;
   location_id: string | null;
+  product_id: string | null;
   location: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
 }
@@ -26,12 +34,12 @@ interface Line {
 export default function MobileCount() {
   const { id } = useParams();
   const qc = useQueryClient();
-  const [binScan, setBinScan] = useState("");
+  const { currentBusiness } = useBusinesses();
   const [binLocationId, setBinLocationId] = useState<string | null>(null);
-  const { resolve: resolveLocation } = useResolveLocationIdentity(null);
-  const [skuScan, setSkuScan] = useState("");
+  const [productScan, setProductScan] = useState<GatedScan | null>(null);
   const [countedQty, setCountedQty] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
 
   const { data: lines } = useQuery({
     queryKey: ["wm-count-lines", id],
@@ -39,7 +47,7 @@ export default function MobileCount() {
       const { data, error } = await supabase
         .from("wms_count_lines")
         .select(
-          "id, system_qty, counted_qty, variance_qty, location_id, location:location_id(code), product:product_id(sku, name)",
+          "id, system_qty, counted_qty, variance_qty, location_id, product_id, location:location_id(code), product:product_id(sku, name)",
         )
         .eq("session_id", id!)
         .order("created_at");
@@ -48,32 +56,23 @@ export default function MobileCount() {
     },
   });
 
-  // The bin leg resolves through `resolve_location_identity` (ADR 0104) so a
-  // scanned label — whose barcode need not equal the code — still matches the
-  // count line. The SKU leg stays a literal compare against the line.
+  // Both legs are resolved identities, so the line match is an id comparison:
+  // a bin label whose barcode differs from the code, or a case GTIN instead of
+  // the base SKU, both still land on the right count line.
   const active = useMemo(() => {
-    const s = skuScan.trim().toLowerCase();
-    if (!binLocationId || !s) return null;
+    const productId = productScan?.identity.productId ?? null;
+    if (!binLocationId || !productId) return null;
     return (
-      (lines ?? []).find(
-        (l) => l.location_id === binLocationId && (l.product?.sku ?? "").toLowerCase() === s,
-      ) ?? null
+      (lines ?? []).find((l) => l.location_id === binLocationId && l.product_id === productId) ??
+      null
     );
-  }, [binLocationId, skuScan, lines]);
+  }, [binLocationId, productScan, lines]);
 
-  const resolveBin = async (raw: string) => {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      setBinLocationId(null);
-      return;
-    }
-    const result = await resolveLocation(trimmed);
-    if (result.status === "ok" && result.location) setBinLocationId(result.location.location_id);
-    else {
-      setBinLocationId(null);
-      toast.error(result.message ?? "That label is not a known position");
-    }
-  };
+  const handleBinConfirmed = useCallback((confirmed: boolean) => {
+    if (!confirmed) setBinLocationId(null);
+  }, []);
+  const handleProductScan = useCallback((scan: GatedScan | null) => setProductScan(scan), []);
+
 
   const submit = async () => {
     if (!active) {
@@ -93,10 +92,11 @@ export default function MobileCount() {
         p_note: null,
       });
       toast.success(r.queued ? "Queued (offline)" : "Count recorded");
-      setBinScan("");
       setBinLocationId(null);
-      setSkuScan("");
+      setProductScan(null);
       setCountedQty("");
+      setResetKey((k) => k + 1);
+
       qc.invalidateQueries({ queryKey: ["wm-count-lines", id] });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed");
@@ -129,30 +129,22 @@ export default function MobileCount() {
             <div className="text-lg font-semibold">{done}</div>
           </div>
         </div>
-        <div>
-          <Label>Scan bin</Label>
-          <Input
-            autoFocus
-            value={binScan}
-            onChange={(e) => setBinScan(e.target.value)}
-            onBlur={(e) => void resolveBin(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void resolveBin(binScan);
-              }
-            }}
-            className="h-12 text-lg font-mono"
-          />
-        </div>
-        <div>
-          <Label>Scan SKU</Label>
-          <Input
-            value={skuScan}
-            onChange={(e) => setSkuScan(e.target.value)}
-            className="h-12 text-lg font-mono"
-          />
-        </div>
+        <BinScanField
+          key={`bin-${resetKey}`}
+          label="Scan bin"
+          intent="count.location"
+          expectedLocationId={null}
+          onConfirmedChange={handleBinConfirmed}
+          onResolvedLocation={(loc) => setBinLocationId(loc?.location_id ?? null)}
+        />
+        <ProductScanField
+          key={`item-${resetKey}`}
+          label="Scan item"
+          intent="count.item"
+          businessId={currentBusiness?.id}
+          onResolved={handleProductScan}
+        />
+
         {active && (
           <div className="rounded border border-primary p-3 text-sm">
             <div className="text-xs text-muted-foreground">Matched line</div>
