@@ -1,5 +1,10 @@
 /**
- * Mobile put-away — scan bin barcode to confirm destination, then confirm.
+ * Mobile put-away — the operator proves they are standing at the right bin.
+ *
+ * Confirmation goes through `BinScanField`, so the physical label's barcode
+ * resolves via `resolve_location_identity` (ADR 0104) rather than being
+ * string-compared against the location code. A label whose barcode differs
+ * from the code, or a code that exists in two warehouses, is handled there.
  */
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -8,8 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 
 interface Task {
@@ -17,6 +21,7 @@ interface Task {
   state: string;
   quantity: number | null;
   lot_number: string | null;
+  warehouse_id: string | null;
   destination_location_id: string | null;
   source_loc: { code: string | null } | null;
   dest_loc: { code: string | null } | null;
@@ -26,7 +31,7 @@ interface Task {
 export default function MobilePutaway() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [binScan, setBinScan] = useState("");
+  const [binConfirmed, setBinConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const { data: task, isLoading } = useQuery({
@@ -35,7 +40,7 @@ export default function MobilePutaway() {
       const { data, error } = await supabase
         .from("wms_tasks")
         .select(
-          "id, state, quantity, lot_number, destination_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
+          "id, state, quantity, lot_number, warehouse_id, destination_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
         )
         .eq("id", id!)
         .maybeSingle();
@@ -46,13 +51,12 @@ export default function MobilePutaway() {
 
   const submit = async () => {
     if (!task) return;
-    const expected = (task.dest_loc?.code ?? "").toLowerCase();
-    if (!expected) {
+    if (!task.destination_location_id) {
       toast.error("Task has no destination bin");
       return;
     }
-    if (binScan.trim().toLowerCase() !== expected) {
-      toast.error(`Wrong bin — scan ${task.dest_loc?.code}`);
+    if (!binConfirmed) {
+      toast.error(`Scan ${task.dest_loc?.code ?? "the destination bin"} first`);
       return;
     }
     setBusy(true);
@@ -76,7 +80,7 @@ export default function MobilePutaway() {
       title="Put-away"
       back="/wm"
       bottomBar={
-        <Button className="w-full h-12" size="lg" disabled={busy || done} onClick={submit}>
+        <Button className="w-full h-12" size="lg" disabled={busy || done || !binConfirmed} onClick={submit}>
           {done ? "Completed" : busy ? "Working…" : "Confirm put-away"}
         </Button>
       }
@@ -103,17 +107,15 @@ export default function MobilePutaway() {
             {task.quantity ?? "—"}{task.lot_number ? ` · ${task.lot_number}` : ""}
           </div>
         </div>
-        <div>
-          <Label>Scan destination bin</Label>
-          <Input
-            autoFocus
-            inputMode="text"
-            value={binScan}
-            onChange={(e) => setBinScan(e.target.value)}
-            placeholder={task.dest_loc?.code ?? ""}
-            className="h-12 text-lg font-mono"
-          />
-        </div>
+        <BinScanField
+          label="Scan destination bin"
+          intent="putaway.bin"
+          expectedLocationId={task.destination_location_id}
+          expectedCode={task.dest_loc?.code ?? null}
+          warehouseId={task.warehouse_id}
+          disabled={done}
+          onConfirmedChange={setBinConfirmed}
+        />
       </div>
     </MobileWarehouseLayout>
   );
