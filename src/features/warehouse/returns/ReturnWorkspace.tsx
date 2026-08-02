@@ -7,7 +7,7 @@
  * effects is a single sanctioned call (`wms_post_return_dispositions`), and the
  * close action is server-guarded: unposted lines cannot be closed away.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -15,11 +15,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/design-system";
-import { Check, PackageCheck, Play, Truck, XCircle } from "lucide-react";
+import { Check, FileText, PackageCheck, Play, Receipt, Truck, XCircle } from "lucide-react";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
-import { useCloseReturn, useTransitionReturn } from "./useReturnOrders";
+import { useCloseReturn, useCreateReturnFinanceDoc, useTransitionReturn } from "./useReturnOrders";
+import { dispatchReturnDocument } from "./dispatchReturnDocument";
+import type { ReturnDocumentKind } from "@/services/documents/snapshots/wmsReturn";
 import {
   RETURN_LANE_LABEL,
   RETURN_STATE_TONE,
