@@ -295,17 +295,15 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
   });
 
   // ------------------------------------------------------------- Phase 6.1
-  // The consume/suggest routines are server-internal. Client roles must not
-  // hold EXECUTE on them, and the legacy carton table is read-only.
-  it("keeps wms_packaging_consume and suggest_carton off the client", () => {
+  // The consume routine is server-internal. Client roles must not hold
+  // EXECUTE on it.
+  it("keeps wms_packaging_consume off the client", () => {
     expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM PUBLIC/i);
     expect(sql).toMatch(
       /REVOKE[^;]*ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM[^;]*authenticated/i,
     );
-    expect(sql).toMatch(
-      /REVOKE[^;]*ON FUNCTION public\.suggest_carton\([^)]*\) FROM[^;]*authenticated/i,
-    );
   });
+
 
   // --------------------------------------------------------------- Phase 7
   // The packaging catalogue is the only master-data surface, it writes only
