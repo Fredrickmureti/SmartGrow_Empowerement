@@ -211,8 +211,10 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
   });
 
   it("registers wms_lpn_set_packaging in the replay dispatcher", () => {
-    expect(sql).toMatch(/WHEN 'wms_lpn_set_packaging' THEN/);
+    // The dispatcher branch is spliced into wms_replay_guarded_call by a DO
+    // block, so pin the wrapper + the splice that installs the branch.
     expect(sql).toMatch(/FUNCTION public\._wms_replay_lpn_set_packaging\(/i);
+    expect(sql).toMatch(/wms_lpn_set_packaging[\s\S]{0,400}wms_replay_guarded_call|wms_replay_guarded_call[\s\S]{0,600}wms_lpn_set_packaging/);
   });
 
   it("PackStation resolves pack.carton scans instead of parsing codes itself", () => {
