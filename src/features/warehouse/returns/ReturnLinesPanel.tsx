@@ -460,6 +460,10 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 </SelectContent>
               </Select>
             </div>
+            {dispForm.mode === "rule" && dispLine && (
+              <ReturnRuleHint order={order} line={dispLine} />
+            )}
+
             {dispForm.mode === "manual" && (
               <>
                 <div>
