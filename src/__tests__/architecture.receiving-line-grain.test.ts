@@ -55,11 +55,15 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     );
   });
 
-  it("the session list no longer owns product-scan capture", () => {
+  it("the session list captures lines and yields to the workspace", () => {
     const src = read(SESSIONS_PAGE);
-    // A product scan must not be handled at list level; the workspace owns it.
-    expect(src).not.toMatch(/intent:\s*"receiving\.item"/);
+    // An item scan must write a line, never flip the session to `captured`.
+    expect(src).toMatch(/useCaptureReceivingLine/);
+    expect(src).not.toMatch(/to:\s*"captured"/);
+    // While the workspace is open it owns the scan stream.
+    expect(src).toMatch(/enabled:\s*!activeSession/);
   });
+
 
   it("receiving labels use canonical WMS label keys", () => {
     const src = read(MOBILE_RECEIVE);
