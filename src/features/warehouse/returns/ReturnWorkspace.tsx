@@ -17,7 +17,7 @@ import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
 import { useCloseReturn, useCreateReturnFinanceDoc, useTransitionReturn } from "./useReturnOrders";
-import { dispatchReturnDocument } from "./dispatchReturnDocument";
+import { dispatchReturnDocument, dispatchVendorReturnNote } from "./dispatchReturnDocument";
 import type { ReturnDocumentKind } from "@/services/documents/snapshots/wmsReturn";
 import {
   RETURN_LANE_LABEL,
@@ -43,6 +43,7 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
   const close = useCloseReturn();
   const raiseFinanceDoc = useCreateReturnFinanceDoc();
   const [dispatching, setDispatching] = useState<ReturnDocumentKind | null>(null);
+  const [vendorNoteBusy, setVendorNoteBusy] = useState(false);
 
   const rows = lines ?? [];
   const lane = order ? returnLane(order, rows) : null;
@@ -81,6 +82,19 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
       toast.error(e instanceof Error ? e.message : "Document dispatch failed");
     } finally {
       setDispatching(null);
+    }
+  };
+
+  const emitVendorNote = async () => {
+    if (!order) return;
+    setVendorNoteBusy(true);
+    try {
+      await dispatchVendorReturnNote(order.id);
+      toast.success("Vendor return note archived and routed");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Vendor return note failed");
+    } finally {
+      setVendorNoteBusy(false);
     }
   };
 
@@ -283,6 +297,20 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
                 >
                   <Receipt className="mr-1.5 h-3.5 w-3.5" />
                   {order.finance_doc_id ? "Finance linked" : "Raise finance document"}
+                </Button>
+              )}
+              {order.return_kind === "vendor" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    vendorNoteBusy ||
+                    order.finance_doc_type !== "purchase_return" ||
+                    !order.finance_doc_id
+                  }
+                  onClick={() => void emitVendorNote()}
+                >
+                  <Truck className="mr-1.5 h-3.5 w-3.5" /> Vendor return note
                 </Button>
               )}
             </div>

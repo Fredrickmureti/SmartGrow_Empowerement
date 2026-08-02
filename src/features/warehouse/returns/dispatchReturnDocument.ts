@@ -13,6 +13,7 @@ import {
   type ReturnDocumentKind,
 } from "@/services/documents/snapshots/wmsReturn";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
+import { resolveSourceDocumentRecordId } from "@/services/documents/resolveSourceDocumentRecord";
 import { printDocumentIntent } from "@/services/printing/PrintService";
 
 const SOURCE_DOC_TYPE: Record<ReturnDocumentKind, string> = {
@@ -56,6 +57,45 @@ export async function dispatchReturnDocument({
     snapshot: built.snapshot,
   });
 
+  const result = await printDocumentIntent({ documentRecordId, triggeredSource });
+  return { documentRecordId, targetCount: result.target_count };
+}
+
+/**
+ * dispatchVendorReturnNote — Phase 6.5.
+ *
+ * A `return_to_vendor` disposition ships goods back to the supplier. The
+ * physical ship-back paper is NOT a new document kind: it reuses the existing
+ * `purchases.return` kind rendered from the linked `purchase_returns` row that
+ * `wms_create_return_finance_doc` raised. Warehouse only resolves the record
+ * and asks the platform to route it.
+ */
+export async function dispatchVendorReturnNote(
+  returnId: string,
+  triggeredSource: "manual" | "business_event" | "reprint" | "api" = "manual",
+): Promise<DispatchReturnDocumentResult> {
+  const { data, error } = await supabase
+    .from("wms_return_orders")
+    .select("id, finance_doc_type, finance_doc_id, organization_id, business_id, branch_id")
+    .eq("id", returnId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("return_not_found");
+  if (data.finance_doc_type !== "purchase_return" || !data.finance_doc_id) {
+    throw new Error(
+      "raise the purchase return in Finance before printing the vendor return note",
+    );
+  }
+
+  const documentRecordId = await resolveSourceDocumentRecordId(
+    "purchase_return",
+    data.finance_doc_id,
+    {
+      organizationId: data.organization_id,
+      businessId: data.business_id,
+      branchId: data.branch_id,
+    },
+  );
   const result = await printDocumentIntent({ documentRecordId, triggeredSource });
   return { documentRecordId, targetCount: result.target_count };
 }
