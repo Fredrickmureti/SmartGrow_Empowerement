@@ -5,7 +5,7 @@
  * how it behaves during put-away and picking, and its label.
  */
 import { useEffect, useState } from "react";
-import { Printer, Ban, RotateCcw, Save, Plus } from "lucide-react";
+import { Printer, Ban, RotateCcw, Save, Plus, MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
