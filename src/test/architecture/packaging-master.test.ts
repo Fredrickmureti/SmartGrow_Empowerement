@@ -99,6 +99,42 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     }
   });
 
+  it("owns GS1/SSCC-18 identity on the server", () => {
+    expect(sql).toMatch(/CREATE TABLE[^;]*public\.wms_gs1_config/i);
+    expect(sql).toMatch(/CREATE TABLE[^;]*public\.wms_sscc_registry/i);
+    // check digit + 18-digit builder + validator
+    expect(sql).toMatch(/FUNCTION public\.gs1_check_digit\(/i);
+    expect(sql).toMatch(/FUNCTION public\.wms_sscc_build\(/i);
+    expect(sql).toMatch(/FUNCTION public\.wms_sscc_is_valid\(/i);
+    // serials are allocated, never recycled, and unique per business
+    expect(sql).toMatch(/CONSTRAINT wms_sscc_registry_sscc_uniq\s+UNIQUE \(sscc\)/i);
+    expect(sql).toMatch(/wms_sscc_registry_serial_uniq\s+UNIQUE \(business_id, serial_reference\)/i);
+    expect(sql).toMatch(/idx_wms_sscc_registry_active_entity/i);
+    expect(sql).toMatch(/GS1_SERIAL_EXHAUSTED/);
+    expect(sql).toMatch(/WMS_GS1_NOT_CONFIGURED/);
+  });
+
+  it.each([
+    "wms_gs1_config_upsert",
+    "wms_sscc_allocate",
+    "wms_sscc_void",
+    "wms_sscc_label_payload",
+  ])("installs the %s routine and grants it to authenticated", (fn) => {
+    expect(sql).toMatch(new RegExp(`FUNCTION\\s+public\\.${fn}\\s*\\(`, "i"));
+    expect(sql).toMatch(
+      new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}\\([^)]*\\)[\\s\\S]{0,40}?authenticated`, "i"),
+    );
+  });
+
+  it("keeps GS1 tables read-only for clients", () => {
+    for (const table of ["wms_gs1_config", "wms_sscc_registry"]) {
+      expect(sql).toMatch(new RegExp(`GRANT SELECT\\s+ON public\\.${table} TO authenticated`, "i"));
+      expect(sql).not.toMatch(
+        new RegExp(`GRANT SELECT, INSERT, UPDATE, DELETE ON public\\.${table} TO authenticated`, "i"),
+      );
+    }
+  });
+
   it("has no client-side write to the packaging master", () => {
     const offenders: string[] = [];
     for (const file of walk(SRC_DIR)) {
@@ -106,9 +142,10 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
       if (file.includes(path.join("test", "architecture"))) continue;
       const text = fs.readFileSync(file, "utf8");
       const re =
-        /from\(\s*["'](wms_packaging_types|wms_packaging_carriers|wms_packaging_availability|wms_packaging_events)["']\s*\)[\s\S]{0,120}?\.(insert|update|upsert|delete)\(/g;
+        /from\(\s*["'](wms_packaging_types|wms_packaging_carriers|wms_packaging_availability|wms_packaging_events|wms_gs1_config|wms_sscc_registry)["']\s*\)[\s\S]{0,120}?\.(insert|update|upsert|delete)\(/g;
       if (re.test(text)) offenders.push(path.relative(SRC_DIR, file));
     }
     expect(offenders).toEqual([]);
   });
 });
+

@@ -66182,6 +66182,57 @@ export type Database = {
           },
         ]
       }
+      wms_gs1_config: {
+        Row: {
+          business_id: string
+          company_prefix: string
+          created_at: string
+          created_by: string | null
+          extension_digit: number
+          id: string
+          is_enabled: boolean
+          label_format: string
+          notes: string | null
+          organization_id: string
+          row_version: number
+          sscc_next_serial: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_id: string
+          company_prefix: string
+          created_at?: string
+          created_by?: string | null
+          extension_digit?: number
+          id?: string
+          is_enabled?: boolean
+          label_format?: string
+          notes?: string | null
+          organization_id: string
+          row_version?: number
+          sscc_next_serial?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          company_prefix?: string
+          created_at?: string
+          created_by?: string | null
+          extension_digit?: number
+          id?: string
+          is_enabled?: boolean
+          label_format?: string
+          notes?: string | null
+          organization_id?: string
+          row_version?: number
+          sscc_next_serial?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       wms_license_plates: {
         Row: {
           branch_id: string | null
@@ -68055,6 +68106,80 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_sscc_registry: {
+        Row: {
+          assigned_by: string | null
+          business_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          id: string
+          last_printed_at: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          payload: Json
+          printed_count: number
+          serial_reference: number
+          sscc: string
+          status: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          assigned_by?: string | null
+          business_id: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          id?: string
+          last_printed_at?: string | null
+          organization_id: string
+          packaging_type_id?: string | null
+          payload?: Json
+          printed_count?: number
+          serial_reference: number
+          sscc: string
+          status?: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          assigned_by?: string | null
+          business_id?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: Database["public"]["Enums"]["wms_sscc_entity"]
+          id?: string
+          last_printed_at?: string | null
+          organization_id?: string
+          packaging_type_id?: string | null
+          payload?: Json
+          printed_count?: number
+          serial_reference?: number
+          sscc?: string
+          status?: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_sscc_registry_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
             referencedColumns: ["id"]
           },
         ]
@@ -82327,6 +82452,7 @@ export type Database = {
         }
         Returns: Json
       }
+      gs1_check_digit: { Args: { p_body: string }; Returns: number }
       has_any_org_role: {
         Args: {
           _organization_id: string
@@ -89290,6 +89416,31 @@ export type Database = {
           level: string
         }[]
       }
+      wms_gs1_config_upsert: {
+        Args: { p_business_id: string; p_payload: Json; p_row_version?: number }
+        Returns: {
+          business_id: string
+          company_prefix: string
+          created_at: string
+          created_by: string | null
+          extension_digit: number
+          id: string
+          is_enabled: boolean
+          label_format: string
+          notes: string | null
+          organization_id: string
+          row_version: number
+          sscc_next_serial: number
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_gs1_config"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_location_overview: {
         Args: { p_warehouse_id: string }
         Returns: {
@@ -89874,6 +90025,63 @@ export type Database = {
       wms_seed_default_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
+      }
+      wms_sscc_allocate: {
+        Args: {
+          p_business_id: string
+          p_count?: number
+          p_entity_id?: string
+          p_entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          p_options?: Json
+        }
+        Returns: Json
+      }
+      wms_sscc_build: {
+        Args: {
+          p_company_prefix: string
+          p_extension_digit: number
+          p_serial: number
+        }
+        Returns: string
+      }
+      wms_sscc_is_valid: { Args: { p_sscc: string }; Returns: boolean }
+      wms_sscc_label_payload: {
+        Args: {
+          p_business_id: string
+          p_mark_printed?: boolean
+          p_sscc: string
+        }
+        Returns: Json
+      }
+      wms_sscc_void: {
+        Args: { p_business_id: string; p_reason?: string; p_sscc: string }
+        Returns: {
+          assigned_by: string | null
+          business_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          id: string
+          last_printed_at: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          payload: Json
+          printed_count: number
+          serial_reference: number
+          sscc: string
+          status: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_sscc_registry"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_task_heartbeat: {
         Args: { _lease_seconds?: number; _task_id: string }
@@ -90764,6 +90972,8 @@ export type Database = {
         | "disposed"
         | "closed"
         | "cancelled"
+      wms_sscc_entity: "carton" | "lpn" | "pallet" | "manifest"
+      wms_sscc_status: "assigned" | "voided"
       wms_task_state:
         | "pending"
         | "assigned"
@@ -91712,6 +91922,8 @@ export const Constants = {
         "closed",
         "cancelled",
       ],
+      wms_sscc_entity: ["carton", "lpn", "pallet", "manifest"],
+      wms_sscc_status: ["assigned", "voided"],
       wms_task_state: [
         "pending",
         "assigned",
