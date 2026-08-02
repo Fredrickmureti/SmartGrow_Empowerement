@@ -354,7 +354,7 @@ export function useLpnAction(lpnId?: string) {
   const qc = useQueryClient();
 
   const invalidate = () => {
-    for (const key of ["wms-lpns", "wms-lpn", "wms-lpn-contents", "wms-lpn-children", "wms-lpn-events"]) {
+    for (const key of ["wms-lpns", "wms-lpn", "wms-lpn-contents", "wms-lpn-children", "wms-lpn-events", "wms-bin-loose-stock"]) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
