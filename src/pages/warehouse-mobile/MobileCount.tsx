@@ -6,6 +6,7 @@ import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolveLocationIdentity } from "@/features/warehouse/locations/useResolveLocationIdentity";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ interface Line {
   system_qty: number | null;
   counted_qty: number | null;
   variance_qty: number | null;
+  location_id: string | null;
   location: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
 }
@@ -25,6 +27,8 @@ export default function MobileCount() {
   const { id } = useParams();
   const qc = useQueryClient();
   const [binScan, setBinScan] = useState("");
+  const [binLocationId, setBinLocationId] = useState<string | null>(null);
+  const { resolve: resolveLocation } = useResolveLocationIdentity(null);
   const [skuScan, setSkuScan] = useState("");
   const [countedQty, setCountedQty] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +39,7 @@ export default function MobileCount() {
       const { data, error } = await supabase
         .from("wms_count_lines")
         .select(
-          "id, system_qty, counted_qty, variance_qty, location:location_id(code), product:product_id(sku, name)",
+          "id, system_qty, counted_qty, variance_qty, location_id, location:location_id(code), product:product_id(sku, name)",
         )
         .eq("session_id", id!)
         .order("created_at");
@@ -44,18 +48,32 @@ export default function MobileCount() {
     },
   });
 
+  // The bin leg resolves through `resolve_location_identity` (ADR 0104) so a
+  // scanned label — whose barcode need not equal the code — still matches the
+  // count line. The SKU leg stays a literal compare against the line.
   const active = useMemo(() => {
-    const b = binScan.trim().toLowerCase();
     const s = skuScan.trim().toLowerCase();
-    if (!b || !s) return null;
+    if (!binLocationId || !s) return null;
     return (
       (lines ?? []).find(
-        (l) =>
-          (l.location?.code ?? "").toLowerCase() === b &&
-          (l.product?.sku ?? "").toLowerCase() === s,
+        (l) => l.location_id === binLocationId && (l.product?.sku ?? "").toLowerCase() === s,
       ) ?? null
     );
-  }, [binScan, skuScan, lines]);
+  }, [binLocationId, skuScan, lines]);
+
+  const resolveBin = async (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setBinLocationId(null);
+      return;
+    }
+    const result = await resolveLocation(trimmed);
+    if (result.status === "ok" && result.location) setBinLocationId(result.location.location_id);
+    else {
+      setBinLocationId(null);
+      toast.error(result.message ?? "That label is not a known position");
+    }
+  };
 
   const submit = async () => {
     if (!active) {
@@ -76,6 +94,7 @@ export default function MobileCount() {
       });
       toast.success(r.queued ? "Queued (offline)" : "Count recorded");
       setBinScan("");
+      setBinLocationId(null);
       setSkuScan("");
       setCountedQty("");
       qc.invalidateQueries({ queryKey: ["wm-count-lines", id] });
@@ -116,6 +135,13 @@ export default function MobileCount() {
             autoFocus
             value={binScan}
             onChange={(e) => setBinScan(e.target.value)}
+            onBlur={(e) => void resolveBin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void resolveBin(binScan);
+              }
+            }}
             className="h-12 text-lg font-mono"
           />
         </div>

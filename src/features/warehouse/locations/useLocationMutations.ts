@@ -202,5 +202,36 @@ export function useLocationMutations(warehouseId: string | null) {
     return (data ?? []) as unknown as GeneratedRow[];
   }, []);
 
-  return { create, update, move, setActive, generate, preview };
+  /**
+   * Give a run of positions a scannable identity in one pass.
+   *
+   * A position with no barcode can only be reached by typing its code, which
+   * is how mis-picks happen. Labelling is therefore a bulk act: select the
+   * run, mint the barcodes, print, verify. The barcode defaults to the
+   * location code — uniqueness is enforced by the database, so a clash
+   * surfaces as an error instead of silently aliasing two bins.
+   */
+  const assignBarcodes = useMutation({
+    mutationFn: async (rows: Array<{ id: string; barcode: string }>) => {
+      for (const row of rows) {
+        const { error } = await supabase
+          .from("stock_locations")
+          .update({ barcode: row.barcode } as never)
+          .eq("id", row.id);
+        if (error) throw error;
+      }
+      return rows.length;
+    },
+    onSuccess: (count) => {
+      invalidate();
+      toast.success(`${count} position${count === 1 ? "" : "s"} now scannable`);
+    },
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
+  });
+
+  return { create, update, move, setActive, generate, preview, assignBarcodes };
 }
+

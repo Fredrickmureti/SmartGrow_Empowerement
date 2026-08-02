@@ -15,7 +15,7 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler } from "lucide-react";
+import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from "lucide-react";
 
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,13 @@ import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBu
 import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
 
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
+import { LabelVerifyDialog } from "@/features/warehouse/locations/LabelVerifyDialog";
+import {
+  LocationTable,
+  matchesTableFilter,
+  type TableFilter,
+} from "@/features/warehouse/locations/LocationTable";
+import { useLocationMutations } from "@/features/warehouse/locations/useLocationMutations";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
@@ -61,10 +68,15 @@ export default function WarehouseLayoutWorkspace() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
   const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
+  const [tableFilter, setTableFilter] = useState<TableFilter>("bins");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
+  const { assignBarcodes } = useLocationMutations(activeWarehouseId);
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const { resolve, resolution } = useResolveLocationIdentity(activeWarehouseId);
+
 
   const revealPath = useCallback(
     (node: LocationNode) => {
@@ -112,8 +124,38 @@ export default function WarehouseLayoutWorkspace() {
     const stocked = bins.filter((b) => b.metrics.on_hand_units > 0).length;
     const blocked = ordered.filter((n) => !n.is_active).length;
     const work = ordered.reduce((a, n) => a + (n.children.length ? 0 : n.metrics.open_tasks), 0);
-    return { total: ordered.length, bins: bins.length, stocked, blocked, work };
+    const unlabelled = bins.filter((b) => !b.barcode).length;
+    return { total: ordered.length, bins: bins.length, stocked, blocked, work, unlabelled };
   }, [ordered]);
+
+  // Rows for the table pane: the search box narrows, the view select shapes.
+  const tableRows = useMemo(
+    () => ordered.filter((n) => filter(n) && matchesTableFilter(n, tableFilter)),
+    [ordered, filter, tableFilter],
+  );
+
+  const pickedNodes = useMemo(
+    () => ordered.filter((n) => picked.has(n.id)),
+    [ordered, picked],
+  );
+
+  const togglePicked = useCallback((id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const togglePickedMany = useCallback((ids: string[], select: boolean) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (select ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }, []);
+
 
   if (whLoading) return <LoadingState />;
 
@@ -164,11 +206,19 @@ export default function WarehouseLayoutWorkspace() {
             >
               <Printer className="mr-2 h-4 w-4" /> Print all bin labels
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setVerifyOpen(true)}
+              disabled={stats.bins === 0}
+            >
+              <ScanLine className="mr-2 h-4 w-4" /> Verify labels
+            </Button>
             <Button variant="outline" asChild>
               <Link to="/warehouse-app/layout/design">
                 <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
               </Link>
             </Button>
+
 
             <Button
               onClick={() => {
@@ -184,13 +234,19 @@ export default function WarehouseLayoutWorkspace() {
       />
 
       <PageBody>
-        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
           <Stat label="Locations" value={stats.total} />
           <Stat label="Bins" value={stats.bins} />
           <Stat label="Bins holding stock" value={stats.stocked} />
+          <Stat
+            label="Bins without a label"
+            value={stats.unlabelled}
+            tone={stats.unlabelled ? "danger" : undefined}
+          />
           <Stat label="Blocked" value={stats.blocked} tone={stats.blocked ? "danger" : undefined} />
           <Stat label="Open jobs" value={stats.work} />
         </div>
+
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Card className="flex h-[calc(100vh-20rem)] min-h-[28rem] flex-col overflow-hidden">
@@ -211,6 +267,7 @@ export default function WarehouseLayoutWorkspace() {
               <TabsList className="m-2 w-fit">
                 <TabsTrigger value="structure">Structure</TabsTrigger>
                 <TabsTrigger value="floor">Floor</TabsTrigger>
+                <TabsTrigger value="table">Table</TabsTrigger>
               </TabsList>
               <TabsContent value="structure" className="m-0 min-h-0 flex-1">
                 {isLoading ? (
@@ -243,7 +300,74 @@ export default function WarehouseLayoutWorkspace() {
                   onSelect={(n) => setSelectedId(n.id)}
                 />
               </TabsContent>
+              <TabsContent value="table" className="m-0 flex min-h-0 flex-1 flex-col">
+                <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
+                  <Select
+                    value={tableFilter}
+                    onValueChange={(v) => setTableFilter(v as TableFilter)}
+                  >
+                    <SelectTrigger className="h-8 w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bins">Bins only</SelectItem>
+                      <SelectItem value="all">Everything</SelectItem>
+                      <SelectItem value="stocked">Holding stock</SelectItem>
+                      <SelectItem value="empty">Empty and open</SelectItem>
+                      <SelectItem value="busy">Has open work</SelectItem>
+                      <SelectItem value="unlabelled">No label yet</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">
+                    {tableRows.length.toLocaleString()} shown
+                  </span>
+                  {picked.size > 0 && (
+                    <div className="ml-auto flex items-center gap-2">
+                      <span className="text-xs font-medium">
+                        {picked.size.toLocaleString()} selected
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          assignBarcodes.mutate(
+                            pickedNodes
+                              .filter((n) => !n.barcode)
+                              .map((n) => ({ id: n.id, barcode: n.code })),
+                          )
+                        }
+                        disabled={
+                          assignBarcodes.isPending ||
+                          pickedNodes.every((n) => !!n.barcode)
+                        }
+                      >
+                        <Barcode className="mr-2 h-4 w-4" /> Make scannable
+                      </Button>
+                      <Button size="sm" onClick={() => setLabelTargets(pickedNodes)}>
+                        <Printer className="mr-2 h-4 w-4" /> Print labels
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {isLoading ? (
+                  <LoadingState />
+                ) : (
+                  <LocationTable
+                    rows={tableRows}
+                    selected={picked}
+                    onToggle={togglePicked}
+                    onToggleAll={togglePickedMany}
+                    selectedId={selectedId}
+                    onSelect={(n) => setSelectedId(n.id)}
+                  />
+                )}
+              </TabsContent>
             </Tabs>
+
           </Card>
 
           <Card className="h-[calc(100vh-20rem)] min-h-[28rem] overflow-hidden">
@@ -281,6 +405,14 @@ export default function WarehouseLayoutWorkspace() {
         locations={labelTargets ?? []}
         warehouseId={activeWarehouseId}
         branchId={currentBranch?.id ?? null}
+      />
+
+      <LabelVerifyDialog
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        warehouseId={activeWarehouseId}
+        expected={ordered.filter((n) => n.structure_level === "bin")}
+        onReprint={setLabelTargets}
       />
     </>
   );
