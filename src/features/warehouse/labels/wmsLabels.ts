@@ -17,6 +17,9 @@ export const WMS_LABEL_KEY = {
   PUTAWAY: "wms.label.putaway",
   QUALITY_HOLD: "wms.label.quality_hold",
   QUARANTINE: "wms.label.quarantine",
+  /** Returns audit Phase 5 — RMA dock intake + disposition routing. */
+  RETURN_RECEIPT: "wms.label.return_receipt",
+  DISPOSITION: "wms.label.disposition",
 } as const;
 
 
