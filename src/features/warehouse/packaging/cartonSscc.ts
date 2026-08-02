@@ -53,16 +53,17 @@ export async function allocateSscc(input: {
     },
   });
   const payload = (data ?? {}) as Record<string, unknown>;
-  const list = payload.sscc_list as string[] | undefined;
-  const sscc = (payload.sscc as string | undefined) ?? list?.[0];
+  const list = (payload.sscc_list as Array<{ id?: string; sscc?: string }> | undefined) ?? [];
+  const sscc = list[0]?.sscc;
   if (!sscc) throw new Error("SSCC allocation returned no code");
   return {
     sscc,
-    status: (payload.status as string) ?? "assigned",
+    status: "assigned",
     reused: Boolean(payload.reused),
-    entity_type: payload.entity_type as string | undefined,
-    entity_id: (payload.entity_id as string | null) ?? null,
+    entity_type: input.entityType,
+    entity_id: input.entityId ?? null,
   };
+
 }
 
 /** Read the GS1 label payload for an SSCC (barcode data, HRI, symbology). */
