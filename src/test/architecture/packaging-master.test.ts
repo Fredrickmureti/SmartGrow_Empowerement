@@ -295,17 +295,15 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
   });
 
   // ------------------------------------------------------------- Phase 6.1
-  // The consume/suggest routines are server-internal. Client roles must not
-  // hold EXECUTE on them, and the legacy carton table is read-only.
-  it("keeps wms_packaging_consume and suggest_carton off the client", () => {
+  // The consume routine is server-internal. Client roles must not hold
+  // EXECUTE on it.
+  it("keeps wms_packaging_consume off the client", () => {
     expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM PUBLIC/i);
     expect(sql).toMatch(
       /REVOKE[^;]*ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM[^;]*authenticated/i,
     );
-    expect(sql).toMatch(
-      /REVOKE[^;]*ON FUNCTION public\.suggest_carton\([^)]*\) FROM[^;]*authenticated/i,
-    );
   });
+
 
   // --------------------------------------------------------------- Phase 7
   // The packaging catalogue is the only master-data surface, it writes only
@@ -346,4 +344,39 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     expect(src).toMatch(/@tanstack\/react-table/);
     expect(src).not.toMatch(/wms_carton_types/);
   });
+
+  // --------------------------------------------------------------- Phase 8
+  // Legacy decommission: the carton catalogue, its cartonizer pair and the
+  // shadow column are gone from the database and from generated types.
+  it("drops the legacy carton catalogue in a migration", () => {
+    expect(sql).toMatch(/DROP TABLE IF EXISTS public\.wms_carton_types/i);
+    expect(sql).toMatch(/DROP FUNCTION IF EXISTS public\.suggest_carton\(/i);
+    expect(sql).toMatch(/DROP FUNCTION IF EXISTS public\.assign_carton_to_pack\(/i);
+    expect(sql).toMatch(
+      /ALTER TABLE public\.wms_pack_cartons DROP COLUMN IF EXISTS carton_type_id/i,
+    );
+  });
+
+  it("has no legacy carton surface left in generated types", () => {
+    const types = fs.readFileSync(
+      path.resolve(SRC_DIR, "integrations/supabase/types.ts"),
+      "utf8",
+    );
+    for (const legacy of ["wms_carton_types", "suggest_carton", "assign_carton_to_pack"]) {
+      expect(types, `${legacy} must be gone from the schema`).not.toContain(legacy);
+    }
+  });
+
+  it("has no legacy carton identifier anywhere in src/", () => {
+    const offenders: string[] = [];
+    for (const file of walk(SRC_DIR)) {
+      if (file.includes(`${path.sep}test${path.sep}`)) continue;
+      const text = fs.readFileSync(file, "utf8");
+      if (/wms_carton_types|["']suggest_carton["']|["']assign_carton_to_pack["']|carton_type_id/.test(text)) {
+        offenders.push(path.relative(SRC_DIR, file));
+      }
+    }
+    expect(offenders, `legacy carton references remain:\n${offenders.join("\n")}`).toEqual([]);
+  });
+
 });

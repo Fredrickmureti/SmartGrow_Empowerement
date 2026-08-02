@@ -100,7 +100,7 @@ PackStation calls `suggest_packaging`, plates carry
   or a bare plate code to one handling unit; the `pack.carton` intent on
   PackStation calls it instead of parsing codes client-side.
 - Both pack stations now read `packaging_type_id`; the legacy
-  `carton_type_id` column is untouched by client code and drops in Phase 8.
+  `carton_type_id` column was untouched by client code and dropped in Phase 8.
 
 ## Phase 6 — hardware & packaging supply (2026-08-02)
 
@@ -122,3 +122,23 @@ PackStation calls `suggest_packaging`, plates carry
   command router (`useHardwareProxy` → `resolve_device` → `TransportRouter`)
   via `usePackScale`, which normalises g/lb/oz to kg and surfaces unstable
   readings instead of hiding them. Manual entry remains available.
+
+## Phase 8 — legacy decommission (2026-08-02)
+
+Hard cut, no shim (verified empty first: `wms_carton_types` 0 rows,
+`wms_pack_cartons.carton_type_id` 0 non-null values).
+
+- Dropped `public.wms_carton_types` (and `_touch_wms_carton_types_updated_at`).
+- Dropped `suggest_carton(uuid, uuid[], numeric[])` and
+  `assign_carton_to_pack(uuid, uuid)`.
+- Dropped `wms_pack_cartons.carton_type_id`; `assign_packaging_to_pack` no
+  longer shadow-stamps it.
+- Removed the `suggest_carton` / `assign_carton_to_pack` cases from
+  `wms_replay_guarded_call` — the dispatcher now whitelists only
+  `suggest_packaging` / `assign_packaging_to_pack` for cartonisation, so an
+  offline device replaying a legacy intent fails closed with
+  `WMS_REPLAY_UNSUPPORTED_RPC`.
+- Guards: `packaging-master.test.ts` asserts the drops, that generated types
+  carry no legacy symbol, and that no file under `src/` names one;
+  `wms-phase12.test.ts` now enforces absence instead of the legacy contract.
+- ADR 0083's cartonization section is marked superseded.

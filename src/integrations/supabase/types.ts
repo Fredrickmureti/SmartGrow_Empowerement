@@ -65588,60 +65588,6 @@ export type Database = {
           },
         ]
       }
-      wms_carton_types: {
-        Row: {
-          business_id: string
-          code: string
-          cost: number
-          created_at: string
-          created_by: string | null
-          height_cm: number
-          id: string
-          is_active: boolean
-          length_cm: number
-          max_weight_kg: number
-          name: string
-          notes: string | null
-          tare_weight_kg: number
-          updated_at: string
-          width_cm: number
-        }
-        Insert: {
-          business_id: string
-          code: string
-          cost?: number
-          created_at?: string
-          created_by?: string | null
-          height_cm: number
-          id?: string
-          is_active?: boolean
-          length_cm: number
-          max_weight_kg?: number
-          name: string
-          notes?: string | null
-          tare_weight_kg?: number
-          updated_at?: string
-          width_cm: number
-        }
-        Update: {
-          business_id?: string
-          code?: string
-          cost?: number
-          created_at?: string
-          created_by?: string | null
-          height_cm?: number
-          id?: string
-          is_active?: boolean
-          length_cm?: number
-          max_weight_kg?: number
-          name?: string
-          notes?: string | null
-          tare_weight_kg?: number
-          updated_at?: string
-          width_cm?: number
-        }
-        Relationships: []
-      }
       wms_client_scan_receipts: {
         Row: {
           actor_user_id: string | null
@@ -66662,7 +66608,6 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
-          carton_type_id: string | null
           created_at: string
           height_cm: number | null
           id: string
@@ -66688,7 +66633,6 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           business_id: string
-          carton_type_id?: string | null
           created_at?: string
           height_cm?: number | null
           id?: string
@@ -66714,7 +66658,6 @@ export type Database = {
         Update: {
           branch_id?: string | null
           business_id?: string
-          carton_type_id?: string | null
           created_at?: string
           height_cm?: number | null
           id?: string
@@ -66738,13 +66681,6 @@ export type Database = {
           width_cm?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "wms_pack_cartons_carton_type_id_fkey"
-            columns: ["carton_type_id"]
-            isOneToOne: false
-            referencedRelation: "wms_carton_types"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "wms_pack_cartons_manifest_id_fkey"
             columns: ["manifest_id"]
@@ -77894,41 +77830,6 @@ export type Database = {
         Args: { p_as_of?: string; p_business_id: string }
         Returns: undefined
       }
-      assign_carton_to_pack: {
-        Args: { p_carton_id: string; p_carton_type_id: string }
-        Returns: {
-          branch_id: string | null
-          business_id: string
-          carton_type_id: string | null
-          created_at: string
-          height_cm: number | null
-          id: string
-          length_cm: number | null
-          manifest_id: string | null
-          opened_at: string
-          opened_by: string | null
-          organization_id: string
-          packaging_consumed_at: string | null
-          packaging_type_id: string | null
-          row_version: number
-          sales_order_id: string
-          sealed_at: string | null
-          sealed_by: string | null
-          shipment_lpn_id: string | null
-          tare_applied_kg: number
-          updated_at: string
-          warehouse_id: string | null
-          wave_id: string
-          weight_kg: number | null
-          width_cm: number | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_pack_cartons"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       assign_employee_to_branch: {
         Args: {
           p_assignment_type?: string
@@ -77949,7 +77850,6 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
-          carton_type_id: string | null
           created_at: string
           height_cm: number | null
           id: string
@@ -88297,36 +88197,6 @@ export type Database = {
         Returns: string
       }
       subscription_active_for_org: { Args: { p_org: string }; Returns: boolean }
-      suggest_carton: {
-        Args: {
-          p_business_id: string
-          p_product_ids: string[]
-          p_quantities: number[]
-        }
-        Returns: {
-          business_id: string
-          code: string
-          cost: number
-          created_at: string
-          created_by: string | null
-          height_cm: number
-          id: string
-          is_active: boolean
-          length_cm: number
-          max_weight_kg: number
-          name: string
-          notes: string | null
-          tare_weight_kg: number
-          updated_at: string
-          width_cm: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_carton_types"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       suggest_packaging: {
         Args: { p_business_id: string; p_lines: Json; p_options?: Json }
         Returns: Json

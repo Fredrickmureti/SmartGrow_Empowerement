@@ -1,6 +1,10 @@
 # ADR 0083 — WMS Cross-dock & Cartonization
 
-**Status:** Accepted (2026-07-17) · **Related:** 0079 (Inventory/WMS split), 0080 (Yard), 0081 (Labour), Phase 2 (Receiving), Phase 4 (Pack).
+**Status:** Partially superseded (2026-08-02) — the cartonization half of
+this ADR (`wms_carton_types`, `suggest_carton`, `assign_carton_to_pack`,
+`wms_pack_cartons.carton_type_id`) was replaced by **ADR 0105 (Packaging
+Master)** and dropped from the database in ADR 0105 Phase 8. The cross-dock
+half remains accepted and in force. · **Originally accepted:** 2026-07-17 · **Related:** 0079 (Inventory/WMS split), 0080 (Yard), 0081 (Labour), Phase 2 (Receiving), Phase 4 (Pack).
 
 ## Context
 
