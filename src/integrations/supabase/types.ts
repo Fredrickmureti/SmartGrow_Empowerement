@@ -67765,67 +67765,215 @@ export type Database = {
           },
         ]
       }
-      wms_return_lines: {
+      wms_return_disposition_rules: {
         Row: {
           business_id: string
+          category_id: string | null
+          condition_code:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          destination_location_id: string | null
+          disposition: Database["public"]["Enums"]["wms_return_disposition"]
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          priority: number
+          product_id: string | null
+          requires_inspection: boolean
+          return_kind: Database["public"]["Enums"]["wms_return_kind"] | null
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          condition_code?:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          destination_location_id?: string | null
+          disposition: Database["public"]["Enums"]["wms_return_disposition"]
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          priority?: number
+          product_id?: string | null
+          requires_inspection?: boolean
+          return_kind?: Database["public"]["Enums"]["wms_return_kind"] | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          condition_code?:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          destination_location_id?: string | null
+          disposition?: Database["public"]["Enums"]["wms_return_disposition"]
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          priority?: number
+          product_id?: string | null
+          requires_inspection?: boolean
+          return_kind?: Database["public"]["Enums"]["wms_return_kind"] | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_return_disposition_rules_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_return_disposition_rules_destination_location_id_fkey"
+            columns: ["destination_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_return_disposition_rules_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_return_lines: {
+        Row: {
+          blocked_reason: string | null
+          business_id: string
+          captured_at: string | null
+          captured_by: string | null
+          condition_code:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
           created_at: string
           destination_location_id: string | null
           disposition:
             | Database["public"]["Enums"]["wms_return_disposition"]
             | null
+          dispositioned_at: string | null
+          dispositioned_by: string | null
           expected_qty: number
           id: string
+          inspected_at: string | null
+          inspected_by: string | null
+          inspection_state: Database["public"]["Enums"]["wms_return_line_inspection_state"]
           lot_number: string | null
           lpn_id: string | null
+          lpn_out_id: string | null
           notes: string | null
           organization_id: string
+          photo_count: number
+          posted_at: string | null
           product_id: string
           qc_inspection_id: string | null
+          quarantine_qty: number
           received_qty: number
+          restock_qty: number
           return_order_id: string
+          row_version: number
+          scrap_qty: number
           serial_number: string | null
+          uom: string | null
           updated_at: string
           warehouse_id: string
         }
         Insert: {
+          blocked_reason?: string | null
           business_id: string
+          captured_at?: string | null
+          captured_by?: string | null
+          condition_code?:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
           created_at?: string
           destination_location_id?: string | null
           disposition?:
             | Database["public"]["Enums"]["wms_return_disposition"]
             | null
+          dispositioned_at?: string | null
+          dispositioned_by?: string | null
           expected_qty?: number
           id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          inspection_state?: Database["public"]["Enums"]["wms_return_line_inspection_state"]
           lot_number?: string | null
           lpn_id?: string | null
+          lpn_out_id?: string | null
           notes?: string | null
           organization_id: string
+          photo_count?: number
+          posted_at?: string | null
           product_id: string
           qc_inspection_id?: string | null
+          quarantine_qty?: number
           received_qty?: number
+          restock_qty?: number
           return_order_id: string
+          row_version?: number
+          scrap_qty?: number
           serial_number?: string | null
+          uom?: string | null
           updated_at?: string
           warehouse_id: string
         }
         Update: {
+          blocked_reason?: string | null
           business_id?: string
+          captured_at?: string | null
+          captured_by?: string | null
+          condition_code?:
+            | Database["public"]["Enums"]["wms_return_condition"]
+            | null
           created_at?: string
           destination_location_id?: string | null
           disposition?:
             | Database["public"]["Enums"]["wms_return_disposition"]
             | null
+          dispositioned_at?: string | null
+          dispositioned_by?: string | null
           expected_qty?: number
           id?: string
+          inspected_at?: string | null
+          inspected_by?: string | null
+          inspection_state?: Database["public"]["Enums"]["wms_return_line_inspection_state"]
           lot_number?: string | null
           lpn_id?: string | null
+          lpn_out_id?: string | null
           notes?: string | null
           organization_id?: string
+          photo_count?: number
+          posted_at?: string | null
           product_id?: string
           qc_inspection_id?: string | null
+          quarantine_qty?: number
           received_qty?: number
+          restock_qty?: number
           return_order_id?: string
+          row_version?: number
+          scrap_qty?: number
           serial_number?: string | null
+          uom?: string | null
           updated_at?: string
           warehouse_id?: string
         }
@@ -67859,6 +68007,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_return_lines_lpn_out_id_fkey"
+            columns: ["lpn_out_id"]
+            isOneToOne: false
+            referencedRelation: "v_wms_lpn_overview"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_return_lines_lpn_out_id_fkey"
+            columns: ["lpn_out_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_return_lines_return_order_id_fkey"
             columns: ["return_order_id"]
             isOneToOne: false
@@ -67869,77 +68031,187 @@ export type Database = {
       }
       wms_return_orders: {
         Row: {
+          appointment_id: string | null
           branch_id: string | null
           business_id: string
+          carrier_id: string | null
           closed_at: string | null
           code: string
           created_at: string
           created_by: string | null
+          credit_note_id: string | null
           customer_id: string | null
+          disposition_summary: Json
+          dock_id: string | null
           expected_at: string | null
+          finance_doc_id: string | null
+          finance_doc_type: string | null
           id: string
           notes: string | null
           organization_id: string
+          posted_at: string | null
           received_at: string | null
+          return_kind: Database["public"]["Enums"]["wms_return_kind"]
           rma_reference: string | null
           row_version: number
           source_doc_id: string | null
           source_doc_type: string | null
           state: Database["public"]["Enums"]["wms_return_state"]
+          tracking_reference: string | null
+          trailer_visit_id: string | null
           updated_at: string
           vendor_id: string | null
           warehouse_id: string
         }
         Insert: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id: string
+          carrier_id?: string | null
           closed_at?: string | null
           code: string
           created_at?: string
           created_by?: string | null
+          credit_note_id?: string | null
           customer_id?: string | null
+          disposition_summary?: Json
+          dock_id?: string | null
           expected_at?: string | null
+          finance_doc_id?: string | null
+          finance_doc_type?: string | null
           id?: string
           notes?: string | null
           organization_id: string
+          posted_at?: string | null
           received_at?: string | null
+          return_kind?: Database["public"]["Enums"]["wms_return_kind"]
           rma_reference?: string | null
           row_version?: number
           source_doc_id?: string | null
           source_doc_type?: string | null
           state?: Database["public"]["Enums"]["wms_return_state"]
+          tracking_reference?: string | null
+          trailer_visit_id?: string | null
           updated_at?: string
           vendor_id?: string | null
           warehouse_id: string
         }
         Update: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id?: string
+          carrier_id?: string | null
           closed_at?: string | null
           code?: string
           created_at?: string
           created_by?: string | null
+          credit_note_id?: string | null
           customer_id?: string | null
+          disposition_summary?: Json
+          dock_id?: string | null
           expected_at?: string | null
+          finance_doc_id?: string | null
+          finance_doc_type?: string | null
           id?: string
           notes?: string | null
           organization_id?: string
+          posted_at?: string | null
           received_at?: string | null
+          return_kind?: Database["public"]["Enums"]["wms_return_kind"]
           rma_reference?: string | null
           row_version?: number
           source_doc_id?: string | null
           source_doc_type?: string | null
           state?: Database["public"]["Enums"]["wms_return_state"]
+          tracking_reference?: string | null
+          trailer_visit_id?: string | null
           updated_at?: string
           vendor_id?: string | null
           warehouse_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "wms_return_orders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_return_orders_trailer_visit_id_fkey"
+            columns: ["trailer_visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visits"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_return_orders_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_return_photos: {
+        Row: {
+          business_id: string
+          caption: string | null
+          captured_at: string
+          captured_by: string | null
+          created_at: string
+          id: string
+          kind: string
+          organization_id: string
+          return_line_id: string
+          return_order_id: string
+          storage_bucket: string
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          caption?: string | null
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id: string
+          return_line_id: string
+          return_order_id: string
+          storage_bucket?: string
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          caption?: string | null
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          organization_id?: string
+          return_line_id?: string
+          return_order_id?: string
+          storage_bucket?: string
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_return_photos_return_line_id_fkey"
+            columns: ["return_line_id"]
+            isOneToOne: false
+            referencedRelation: "wms_return_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_return_photos_return_order_id_fkey"
+            columns: ["return_order_id"]
+            isOneToOne: false
+            referencedRelation: "wms_return_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -91063,12 +91335,31 @@ export type Database = {
         | "posted"
         | "closed"
         | "cancelled"
+      wms_return_condition:
+        | "unopened"
+        | "opened"
+        | "damaged"
+        | "defective"
+        | "expired"
+        | "missing_accessories"
+        | "incorrect_item"
       wms_return_disposition:
         | "restock"
         | "scrap"
         | "repair"
         | "return_to_vendor"
         | "hold"
+        | "quarantine"
+        | "refurbish"
+        | "quality_hold"
+      wms_return_kind: "customer" | "vendor" | "internal" | "transfer"
+      wms_return_line_inspection_state:
+        | "pending"
+        | "inspecting"
+        | "passed"
+        | "failed"
+        | "conditional"
+        | "waived"
       wms_return_state:
         | "draft"
         | "authorized"
@@ -92011,12 +92302,33 @@ export const Constants = {
         "closed",
         "cancelled",
       ],
+      wms_return_condition: [
+        "unopened",
+        "opened",
+        "damaged",
+        "defective",
+        "expired",
+        "missing_accessories",
+        "incorrect_item",
+      ],
       wms_return_disposition: [
         "restock",
         "scrap",
         "repair",
         "return_to_vendor",
         "hold",
+        "quarantine",
+        "refurbish",
+        "quality_hold",
+      ],
+      wms_return_kind: ["customer", "vendor", "internal", "transfer"],
+      wms_return_line_inspection_state: [
+        "pending",
+        "inspecting",
+        "passed",
+        "failed",
+        "conditional",
+        "waived",
       ],
       wms_return_state: [
         "draft",
