@@ -94,7 +94,7 @@ export default function MobilePick() {
       title="Pick"
       back="/wm"
       bottomBar={
-        <Button className="w-full h-12" size="lg" disabled={busy || done} onClick={submit}>
+        <Button className="w-full h-12" size="lg" disabled={busy || done || !binConfirmed} onClick={submit}>
           {done ? "Completed" : busy ? "Working…" : "Confirm pick"}
         </Button>
       }
