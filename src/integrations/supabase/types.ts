@@ -87892,7 +87892,6 @@ export type Database = {
         }
         Returns: Json
       }
-      row_count_hack: { Args: never; Returns: number }
       run_identity_drift_check: {
         Args: never
         Returns: {
