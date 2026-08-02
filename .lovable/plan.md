@@ -1,69 +1,71 @@
-# Receiving Subsystem — Implementation Status & Handoff (2026-08-02)
+# Receiving Subsystem — Verification Result & Remaining Phases
 
-Authoritative status for the Receiving architecture audit roadmap
-(`.lovable/plan/receiving-subsystem-architecture-audit-target-design-2026-08-02.md`).
+Independent re-audit of the previous engineer's handoff, checked against the
+codebase and the live database (not against their notes).
 
-## Current position
+## Verification of claimed-complete phases
 
-- Active phase: **none in progress** — Phases 1, 2, 3, 4a, 5a, 6, 7, 8 are complete and verified.
-- Next milestone: **Phase 4b (retire the after-the-fact staging path)**, then **Phase 5b (session board lanes + activity timeline)**.
-
-## Completed and verified
-
-| Phase | Scope | Evidence |
+| Phase | Claim | Verdict |
 | --- | --- | --- |
-| 1 | Typed source-document binding (PO picker), expected-line materialisation on create, dock appointment / dock / supervisor binding | `src/pages/warehouse/ReceivingSessions.tsx`, `wms_materialize_expected_lines` |
-| 2 | Line-grain capture on every scan/manual entry through `wms_capture_receiving_line` (base units, lot, serial, expiry, damage, hold, `client_scan_id` idempotency) | `src/features/warehouse/receiving/useReceivingLines.ts`, `ReceivingSessionWorkspace.tsx` |
-| 3 | Derived shortage / overage / unexpected / damage / hold, raised as `wms_exceptions` | `wms_flag_receiving_variances`, `wms_receiving_session_progress` |
-| 4a | One guarded posting path: goods receipt → inventory ledger → WMS staging → session `posted` | `wms_post_receiving_session` |
-| 5a | Session workspace: expected vs received vs variance grid, capture panel, variance chips, progress in list, scanner presence chip | `ReceivingSessionWorkspace.tsx`, `src/features/warehouse/scanning/ScanStatusChip.tsx` |
-| 6 | Mobile scan-first receiving loop (`/wm/receiving`, `/wm/receiving/:id`), offline/replay-guarded queue, home tile | `src/pages/warehouse-mobile/MobileReceiveSession.tsx`, `MobileHome.tsx`, `routes.tsx` |
-| 7 | Canonical `wms.label.putaway` / `quality_hold` / `quarantine` templates seeded; ad-hoc `receiving_label` string removed | `src/features/warehouse/labels/wmsLabels.ts` |
-| 8 | Architecture guards: no session flips from scans, capture/post only via sanctioned RPCs, mobile only via offline queue, labels via the WMS seam, presence + truck binding pinned | `src/__tests__/architecture.receiving-line-grain.test.ts` |
+| 1 | Typed source binding + appointment/dock/supervisor | **Real.** Session create picks appointment, derives `dock_id`, stamps `supervisor_id`; `wms_materialize_expected_lines` exists and is called. Residual: no `wms_trailer_visits` link (zero references in `src/`), and the create-form reset drops `appointment_id`. |
+| 2 | Line capture via `wms_capture_receiving_line` | **Real but incomplete.** All 15 params (lot, serial, expiry, damage, hold, `client_scan_id`) are wired. Gap: `p_lpn_id` is hard-coded `null` on both desktop and mobile — license plates are never captured during receiving. Also a stale 12-arg overload of the RPC still exists in the database alongside the 15-arg one. |
+| 3 | Variance + exceptions | **Real.** `wms_flag_receiving_variances` and the `wms_receiving_session_progress` rollup exist and are consumed. |
+| 4a | Single posting path | **Partially correct.** `wms_post_receiving_session` does create the goods receipt, stage to WMS, flag variances and transition. Two defects: it hard-rejects any session whose source is not a purchase order (ASN / inbound shipment sessions can never post), and it posts every line with `received_qty > 0` including `qc_hold` and damaged lines, so held goods land in available stock instead of quarantine. |
+| 5a | Session workspace | **Partial.** Expected/received/variance grid, capture panel and `ScanStatusChip` are present. No exception strip, no activity timeline, no label actions in the workspace. |
+| 6 | Mobile loop | **Real.** `/wm/receiving/:id` runs scan → qty → lot → expiry → confirm through the offline queue only. No LPN step (see Phase 2 gap). |
+| 7 | Canonical labels | **Real.** `PUTAWAY` / `QUALITY_HOLD` / `QUARANTINE` keys exist and route through the WMS seam. |
+| 8 | Architecture guards | **Real** for what they assert; they do not yet pin the new invariants below. |
 
-Verification run for this milestone: `tsgo --noEmit` clean;
-`architecture.receiving-line-grain`, `wms-phase2`, `wms-label-keys-sync`,
-`label-coverage` all green.
+Conclusion: the previous engineer's log is broadly honest. The genuine last
+completed milestone is Phase 8, but Phase 4a must be reopened.
 
-## Pending
+## Remaining work, in order
 
-- **Phase 4b — retire the after-the-fact staging path.** `ReceiveToWMSDialog`
-  (used by `PutawayQueue.tsx`) still calls `receive_goods_to_wms` outside a
-  receiving session. It must either be reframed as a session-bound action or
-  removed once every entry point routes through `wms_post_receiving_session`.
-  `src/test/architecture/wms-phase2.test.ts` asserts the dialog's current
-  behaviour and will need updating with it.
-- **Phase 5b — session board.** Lane-per-state board with carrier/trailer,
-  dock, appointment window, supervisor and progress bar per card, plus a
-  per-session activity/event timeline in the workspace. Today the list is an
-  enriched table.
-- **Phase 1 residual — trailer visits.** Sessions bind appointment + dock +
-  supervisor; `wms_trailer_visits` is not yet linked, so seal/dwell context is
-  still absent from the receiving surfaces.
-- **Purchases GRN wizard convergence.** The wizard remains a second capture UI.
-  Target state is that it renders the *document* produced by receiving.
+**Phase 4a-fix — make posting correct (reopened).**
+Rework `wms_post_receiving_session` so it excludes `qc_hold` and damaged
+quantity from the goods receipt and routes those lines to a quarantine/hold
+location instead, and so non-PO sessions (ASN, inbound shipment, blind) post
+through the appropriate receipt path rather than raising. Drop the stale 12-arg
+`wms_capture_receiving_line` overload.
 
-## Instructions for the next agent
+**Phase 4b — retire the after-the-fact staging path.**
+`ReceiveToWMSDialog` (used only by `PutawayQueue.tsx`) calls
+`receive_goods_to_wms` outside any receiving session. Remove that entry point;
+staging becomes a consequence of posting a session. Update
+`src/test/architecture/wms-phase2.test.ts`, which currently pins the dialog's
+existing behaviour.
 
-1. **Verify before extending.** Re-read `useReceivingLines.ts`,
-   `ReceivingSessionWorkspace.tsx`, `MobileReceiveSession.tsx` and the
-   receiving SQL functions, then run `tsgo --noEmit` plus the four test files
-   listed above. Confirm: no surface writes `state` directly, every capture
-   carries a `client_scan_id`, posting goes only through
-   `wms_post_receiving_session`, and inventory remains the sole writer of
-   quants/movements/cost layers.
-2. **Then resume chronologically at Phase 4b**, not at an unrelated area.
-   Bring the staging path to a single sanctioned entry point (including its
-   guard test) before starting Phase 5b.
-3. Keep each phase shippable: no orphaned UI, no partially wired workflow, and
-   update this file immediately after each phase lands.
+**Phase 4c — capture the license plate.**
+Add an LPN scan step to the desktop capture panel and the mobile loop, passing
+`p_lpn_id` through to the RPC, so pallet identity survives into putaway.
+
+**Phase 5b — session board and activity timeline.**
+Replace the eight-column table with a lane-per-state board: card per session
+showing carrier/trailer, dock, appointment window, supervisor, progress bar and
+shortage/overage/damage/hold chips. Add a per-session event timeline and an
+exception strip to the workspace, plus putaway/hold/quarantine label actions.
+Built on existing design-system and shadcn primitives.
+
+**Phase 1-residual — trailer visits.**
+Bind `wms_trailer_visits` to the session so seal, arrival and dwell are visible
+on the receiving surfaces. Fix the create-form reset that drops `appointment_id`.
+
+**Phase 9 — GRN wizard convergence.**
+`src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx` remains a
+second capture UI. Reframe it as the *document* produced by receiving: it
+renders and prints the receipt, it does not re-capture quantities.
+
+**Phase 10 — guards for the new invariants.**
+Extend `src/__tests__/architecture.receiving-line-grain.test.ts`: no
+`receive_goods_to_wms` outside the posting RPC, every capture site passes an
+LPN argument, held/damaged quantity never reaches the goods receipt.
 
 ## Technical notes
 
-- Receiving execution ledger: `wms_receiving_lines`; rollup view
-  `wms_receiving_session_progress`.
-- SQL seams: `wms_materialize_expected_lines`, `wms_capture_receiving_line`,
-  `wms_flag_receiving_variances`, `wms_post_receiving_session`,
-  `wms_transition_receiving` (FSM, `row_version` guarded).
-- Scanner ownership is observable via `scanRouter.getActiveTargets()`, surfaced
-  by `ScanStatusChip` on both desktop receiving surfaces.
+- Receiving ledger `wms_receiving_lines`; rollup view
+  `wms_receiving_session_progress`; FSM `wms_transition_receiving`
+  (`row_version` guarded).
+- SQL changes are confined to the receiving RPCs. Inventory stays the only
+  writer of quants, movements and cost layers; no changes to valuation, lots,
+  POS, Finance or Localization.
+- Each phase ships on its own and this file is updated as each lands.
