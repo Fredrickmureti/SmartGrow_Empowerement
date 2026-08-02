@@ -14,8 +14,9 @@ import { StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
-import { CalendarClock, DoorOpen, FileText, UserRound } from "lucide-react";
+import { CalendarClock, DoorOpen, FileText, ShieldCheck, Timer, Truck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { dwellMinutes, type TrailerVisitInfo } from "./useReceivingTrailerVisits";
 
 export type RcvState =
   | "open" | "unloading" | "captured" | "discrepant" | "posted" | "closed" | "cancelled";
