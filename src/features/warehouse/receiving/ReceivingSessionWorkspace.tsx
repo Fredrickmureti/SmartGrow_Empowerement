@@ -19,6 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -38,6 +41,10 @@ import {
   type ReceivingLine,
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
+import {
+  useReceivingUnitOptions, optionByKey, toBaseUnits, BASE_UNIT_KEY,
+  type ReceivingUnitOption,
+} from "./receivingUnits";
 import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
 import { ReceivingExceptionStrip } from "./ReceivingExceptionStrip";
 import { useReceivingExceptions, RECEIVING_OPEN_EXCEPTION_STATES } from "./useReceivingExceptions";
@@ -87,14 +94,17 @@ function CaptureRow({
   onCapture,
   busy,
   serialTracked,
+  units,
 }: {
   line: ReceivingLine;
   onCapture: (v: {
-    qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean;
+    qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null;
   }) => void;
   busy: boolean;
   /** ADR-0067: serial-tracked products need one serial per unit at receipt. */
   serialTracked: boolean;
+  /** Phase 11 — the packaging levels this product may be received in. */
+  units: ReceivingUnitOption[];
 }) {
   const outstanding = Math.max(Number(line.expected_qty ?? 0) - Number(line.received_qty ?? 0), 0);
   const [qty, setQty] = useState<string>(serialTracked ? "1" : outstanding ? String(outstanding) : "");
@@ -103,6 +113,12 @@ function CaptureRow({
   const [expiry, setExpiry] = useState(line.expiry_date ?? "");
   const [damaged, setDamaged] = useState("");
   const [hold, setHold] = useState(false);
+  // Serial-tracked receipt is one unit at a time, so the ledger unit is the
+  // only sensible level; everything else may be counted in cases.
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
+  const unit = optionByKey(units, serialTracked ? BASE_UNIT_KEY : unitKey);
+  const baseQty = serialTracked ? 1 : toBaseUnits(Number(qty), unit);
+  const baseDamaged = toBaseUnits(Number(damaged), unit);
   // One unit per capture keeps the serial ↔ unit relationship 1:1, which the
   // `enforce_serial_on_movement` trigger requires when the receipt posts.
   const serialInvalid = serialTracked && (!serial.trim() || Number(qty) !== 1);
@@ -118,6 +134,21 @@ function CaptureRow({
           disabled={serialTracked}
         />
       </div>
+      {units.length > 1 && !serialTracked && (
+        <div className="w-36">
+          <Label className="text-xs">Unit</Label>
+          <Select value={unitKey} onValueChange={setUnitKey}>
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {units.map((u) => (
+                <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       {serialTracked && (
         <div className="w-40">
           <Label className="text-xs">Serial</Label>
@@ -145,21 +176,28 @@ function CaptureRow({
       </label>
       <Button
         size="sm"
-        disabled={busy || !Number(qty) || serialInvalid}
+        disabled={busy || !baseQty || serialInvalid}
         onClick={() => {
           onCapture({
-            qty: serialTracked ? 1 : Number(qty),
+            qty: baseQty,
             lot: lot.trim() || null,
             serial: serialTracked ? serial.trim() : null,
             expiry: expiry || null,
-            damaged: Number(damaged) || 0,
+            damaged: baseDamaged,
             hold,
+            uom: unit.uom,
           });
           if (serialTracked) setSerial("");
         }}
       >
         <PackageCheck className="mr-1 h-3.5 w-3.5" /> Capture
       </Button>
+      {!unit.isBase && baseQty > 0 && (
+        <p className="w-full text-xs text-muted-foreground">
+          Books {baseQty} base unit{baseQty === 1 ? "" : "s"}
+          {baseDamaged > 0 ? ` · ${baseDamaged} damaged` : ""} — {qty} × {unit.label}
+        </p>
+      )}
       {serialInvalid && (
         <p className="w-full text-xs text-destructive">
           Serial-tracked item — capture one unit at a time with its serial number.
@@ -182,6 +220,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   // Tracking flags for every product on the session — batched once so each
   // capture row knows whether it must demand a serial.
   const tracking = useProductTrackingFlags((lines ?? []).map((l) => l.product_id));
+
+  // Phase 11 — packaging levels per product, so a typed count in cases is
+  // converted to base units before it reaches the RPC.
+  const unitOptions = useReceivingUnitOptions(
+    useMemo(() => (lines ?? []).map((l) => l.product_id).filter(Boolean) as string[], [lines]),
+  );
 
   // Phase 4c — the pallet under the operator's hands. Bound by a
   // `receiving.lpn` scan or typed, then stamped onto every capture.
@@ -293,7 +337,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     },
   });
 
-  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean }) => {
+  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null }) => {
     if (!session || !line.product_id) return;
     capture.mutate(
       {
@@ -306,6 +350,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         expiryDate: v.expiry,
         damagedQty: v.damaged,
         qcHold: v.hold,
+        uom: v.uom,
         lpnId: activeLpn?.id ?? null,
       },
       {
@@ -565,6 +610,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                             line={l}
                             busy={capture.isPending}
                             serialTracked={tracking.get(l.product_id).is_serial_tracked}
+                            units={unitOptions.get(l.product_id) ?? []}
                             onCapture={(v2) => runCapture(l, v2)}
                           />
                         </TableCell>
