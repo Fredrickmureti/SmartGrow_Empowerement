@@ -77,6 +77,58 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     }
   });
 
+  // Phase 4.5 — privilege drift guard. RLS is not the only line of defence:
+  // the raw grants must not exist either, for anon or authenticated.
+  it("leaves no write privilege on any packaging or SSCC table (defence in depth)", () => {
+    const hardening = sql.match(
+      /Phase 4\.5: revoke client write privileges[\s\S]*?END \$\$;/i,
+    )?.[0];
+    expect(hardening, "the Phase 4.5 hardening migration must be present").toBeTruthy();
+    for (const table of [
+      "wms_packaging_types",
+      "wms_packaging_carriers",
+      "wms_packaging_availability",
+      "wms_packaging_events",
+      "wms_sscc_registry",
+      "wms_sscc_events",
+      "wms_gs1_config",
+    ]) {
+      expect(hardening).toContain(`'${table}'`);
+    }
+    expect(hardening).toMatch(/REVOKE ALL ON public\.%I FROM anon/i);
+    expect(hardening).toMatch(
+      /REVOKE INSERT, UPDATE, DELETE, TRUNCATE[^']*ON public\.%I FROM authenticated/i,
+    );
+  });
+
+  // Phase 4.5 — one pack path. Desktop and mobile must both cartonize through
+  // the geometry-aware engine; neither may fall back to the legacy RPCs.
+  it.each([
+    "src/pages/warehouse/PackStation.tsx",
+    "src/pages/warehouse-mobile/MobilePack.tsx",
+  ])("%s packs through the Packaging Master engine", (rel) => {
+    const src = fs.readFileSync(path.resolve(process.cwd(), rel), "utf8");
+    expect(src).toMatch(/suggest_packaging|suggestPackaging/);
+    expect(src).toMatch(/assign_packaging_to_pack|assignPackagingToPack/);
+    expect(src).not.toMatch(/["']suggest_carton["']/);
+    expect(src).not.toMatch(/["']assign_carton_to_pack["']/);
+  });
+
+  // The SSCC entity type is a Postgres enum — client literals must mirror it.
+  it("uses only real wms_sscc_entity labels on the client", () => {
+    const seam = fs.readFileSync(
+      path.resolve(SRC_DIR, "features/warehouse/packaging/cartonSscc.ts"),
+      "utf8",
+    );
+    expect(seam).toMatch(/export type SsccEntityType[^;]*"carton"/);
+    for (const file of walk(SRC_DIR)) {
+      if (file.includes(path.join("test", "architecture"))) continue;
+      expect(fs.readFileSync(file, "utf8"), `${file} uses a non-existent SSCC entity label`)
+        .not.toMatch(/["'](pack_carton|shipment)["']\s*(,|\)|\}|;)/);
+    }
+  });
+
+
   it("ships cartonization v2 with per-axis fit, fill cap and dim weight", () => {
     expect(sql).toMatch(/FUNCTION public\.suggest_packaging\(/i);
     expect(sql).toMatch(
