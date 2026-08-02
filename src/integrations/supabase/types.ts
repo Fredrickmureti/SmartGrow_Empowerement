@@ -89739,6 +89739,16 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_link_return_finance: {
+        Args: {
+          p_credit_note_id?: string
+          p_finance_doc_id: string
+          p_finance_doc_type: string
+          p_return_id: string
+          p_row_version: number
+        }
+        Returns: Json
+      }
       wms_location_overview: {
         Args: { p_warehouse_id: string }
         Returns: {
