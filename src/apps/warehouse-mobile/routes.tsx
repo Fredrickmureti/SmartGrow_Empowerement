@@ -9,7 +9,6 @@ const MobileHome = lazy(() => import("@/pages/warehouse-mobile/MobileHome"));
 const MobilePutaway = lazy(() => import("@/pages/warehouse-mobile/MobilePutaway"));
 const MobilePick = lazy(() => import("@/pages/warehouse-mobile/MobilePick"));
 const MobileCount = lazy(() => import("@/pages/warehouse-mobile/MobileCount"));
-const MobileReceive = lazy(() => import("@/pages/warehouse-mobile/MobileReceive"));
 const MobileReceivingSessions = lazy(
   () => import("@/pages/warehouse-mobile/MobileReceiveSession"),
 );
@@ -35,7 +34,10 @@ export default function WarehouseMobileApp() {
         <Route path="putaway/:id" element={<MobilePutaway />} />
         <Route path="pick/:id" element={<MobilePick />} />
         <Route path="count/:id" element={<MobileCount />} />
-        <Route path="receive/:id" element={<MobileReceive />} />
+        {/* Legacy after-the-fact staging screen (Receiving audit Phase 4b) —
+            retired. Receiving happens inside a session, never against a
+            goods receipt that already exists. */}
+        <Route path="receive/:id" element={<Navigate to="/wm/receiving" replace />} />
         <Route path="receiving" element={<MobileReceivingSessions />} />
         <Route path="receiving/:id" element={<MobileReceiveSession />} />
 

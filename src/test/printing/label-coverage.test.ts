@@ -21,7 +21,7 @@ const CALLERS: { path: string; template: string; workflow: string; templateRef?:
   { path: "pages/warehouse/PutawayQueue.tsx", template: "bin_label", workflow: "receiving" },
   {
     // Receiving audit Phase 7 — routed through the canonical WMS label key.
-    path: "pages/warehouse-mobile/MobileReceive.tsx",
+    path: "pages/warehouse-mobile/MobileReceiveSession.tsx",
     template: "wms.label.putaway",
     templateRef: "WMS_LABEL_KEY\\.PUTAWAY",
     workflow: "receiving",

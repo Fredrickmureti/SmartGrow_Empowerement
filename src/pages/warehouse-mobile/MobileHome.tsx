@@ -53,17 +53,20 @@ export default function MobileHome() {
     },
   });
 
-  const { data: receipts } = useQuery({
-    queryKey: ["wm-open-receipts"],
+  // Receiving audit Phase 4b — the operator walks into a *session*, never
+  // into a goods receipt that already exists (that screen staged stock after
+  // the fact and is retired).
+  const { data: receivingSessions } = useQuery({
+    queryKey: ["wm-open-receiving-sessions"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("goods_receipts")
-        .select("id, receipt_number, status")
-        .in("status", ["draft", "received"])
+        .from("wms_receiving_sessions")
+        .select("id, code, state")
+        .in("state", ["open", "unloading", "captured", "discrepant"])
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as { id: string; code: string; state: string }[];
     },
   });
 
@@ -177,21 +180,21 @@ export default function MobileHome() {
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
             <Truck className="inline h-4 w-4 mr-1" />Receiving
           </h2>
-          {(receipts ?? []).length === 0 ? (
+          {(receivingSessions ?? []).length === 0 ? (
             <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
-              No open goods receipts.
+              No open receiving sessions.
             </div>
           ) : (
             <ul className="space-y-2">
-              {receipts!.map((r) => (
+              {receivingSessions!.map((r) => (
                 <li key={r.id}>
                   <Link
-                    to={`/wm/receive/${r.id}`}
+                    to={`/wm/receiving/${r.id}`}
                     className="flex items-center justify-between rounded border p-3 active:bg-muted"
                   >
                     <div>
-                      <div className="font-mono text-sm">{r.receipt_number}</div>
-                      <div className="text-xs text-muted-foreground">{r.status}</div>
+                      <div className="font-mono text-sm">{r.code}</div>
+                      <div className="text-xs text-muted-foreground">{r.state}</div>
                     </div>
                     <span className="text-xs text-muted-foreground">tap →</span>
                   </Link>

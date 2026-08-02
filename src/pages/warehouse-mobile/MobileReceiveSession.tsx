@@ -25,6 +25,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
 import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { Truck } from "lucide-react";
 
@@ -346,6 +348,47 @@ export function MobileReceiveSession() {
                   {l.expected_qty ?? 0}
                   {Number(l.damaged_qty ?? 0) ? ` · ${l.damaged_qty} damaged` : ""}
                   {l.qc_hold ? " · hold" : ""}
+                </div>
+                {/* Receiving audit Phase 7 — every receiving print goes
+                    through the canonical WMS label keys and the shared seam. */}
+                <div className="mt-2 flex gap-2">
+                  <PrintLabelButton
+                    label="Put-away"
+                    templateKey={WMS_LABEL_KEY.PUTAWAY}
+                    workflow="receiving"
+                    product={{
+                      id: l.product_id ?? l.id,
+                      name: l.products?.name ?? "Item",
+                      sku: l.products?.sku ?? "",
+                      barcode: null,
+                    }}
+                    sourceDocType="wms_receiving_line"
+                    sourceDocId={l.id}
+                    idempotencyKey={`${WMS_LABEL_KEY.PUTAWAY}:${l.id}`}
+                    extraVars={{ lot: l.lot_number ?? "", qty: l.received_qty ?? 0 }}
+                    className="h-10 flex-1"
+                  />
+                  {l.qc_hold || Number(l.damaged_qty ?? 0) > 0 ? (
+                    <PrintLabelButton
+                      label={l.qc_hold ? "Hold" : "Quarantine"}
+                      templateKey={
+                        l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.QUARANTINE
+                      }
+                      workflow="receiving"
+                      variant="destructive"
+                      product={{
+                        id: l.product_id ?? l.id,
+                        name: l.products?.name ?? "Item",
+                        sku: l.products?.sku ?? "",
+                        barcode: null,
+                      }}
+                      sourceDocType="wms_receiving_line"
+                      sourceDocId={l.id}
+                      idempotencyKey={`${l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.QUARANTINE}:${l.id}`}
+                      extraVars={{ lot: l.lot_number ?? "", qty: l.damaged_qty ?? 0 }}
+                      className="h-10 flex-1"
+                    />
+                  ) : null}
                 </div>
               </li>
             ))}
