@@ -59487,6 +59487,7 @@ export type Database = {
           id: string
           location_id: string
           lot_number: string | null
+          lpn_id: string | null
           organization_id: string
           owner_id: string | null
           package_id: string | null
@@ -59502,6 +59503,7 @@ export type Database = {
           id?: string
           location_id: string
           lot_number?: string | null
+          lpn_id?: string | null
           organization_id: string
           owner_id?: string | null
           package_id?: string | null
@@ -59517,6 +59519,7 @@ export type Database = {
           id?: string
           location_id?: string
           lot_number?: string | null
+          lpn_id?: string | null
           organization_id?: string
           owner_id?: string | null
           package_id?: string | null
@@ -59539,6 +59542,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "stock_quants_lpn_id_fkey"
+            columns: ["lpn_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "stock_quants_package_id_fkey"
@@ -66338,6 +66348,127 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wms_trailer_visits"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_lpn_code_counters: {
+        Row: {
+          business_id: string
+          next_value: number
+          prefix: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          next_value?: number
+          prefix: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          next_value?: number
+          prefix?: string
+          warehouse_id?: string
+        }
+        Relationships: []
+      }
+      wms_lpn_events: {
+        Row: {
+          actor_id: string | null
+          branch_id: string | null
+          business_id: string
+          counterpart_lpn_id: string | null
+          created_at: string
+          event_type: string
+          from_location_id: string | null
+          from_status: string | null
+          id: string
+          lpn_id: string
+          organization_id: string
+          payload: Json
+          quantity_delta: number | null
+          to_location_id: string | null
+          to_status: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          branch_id?: string | null
+          business_id: string
+          counterpart_lpn_id?: string | null
+          created_at?: string
+          event_type: string
+          from_location_id?: string | null
+          from_status?: string | null
+          id?: string
+          lpn_id: string
+          organization_id: string
+          payload?: Json
+          quantity_delta?: number | null
+          to_location_id?: string | null
+          to_status?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          branch_id?: string | null
+          business_id?: string
+          counterpart_lpn_id?: string | null
+          created_at?: string
+          event_type?: string
+          from_location_id?: string | null
+          from_status?: string | null
+          id?: string
+          lpn_id?: string
+          organization_id?: string
+          payload?: Json
+          quantity_delta?: number | null
+          to_location_id?: string | null
+          to_status?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_lpn_events_counterpart_lpn_id_fkey"
+            columns: ["counterpart_lpn_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_lpn_events_from_location_id_fkey"
+            columns: ["from_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_lpn_events_from_location_id_fkey"
+            columns: ["from_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_lpn_events_lpn_id_fkey"
+            columns: ["lpn_id"]
+            isOneToOne: false
+            referencedRelation: "wms_license_plates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_lpn_events_to_location_id_fkey"
+            columns: ["to_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_lpn_events_to_location_id_fkey"
+            columns: ["to_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
         ]
       }
@@ -75860,6 +75991,20 @@ export type Database = {
           p_severity: number
         }
         Returns: number
+      }
+      _wms_lpn_log: {
+        Args: {
+          _counterpart?: string
+          _event_type: string
+          _from_loc?: string
+          _from_status?: string
+          _lpn: Database["public"]["Tables"]["wms_license_plates"]["Row"]
+          _payload?: Json
+          _qty?: number
+          _to_loc?: string
+          _to_status?: string
+        }
+        Returns: undefined
       }
       _wms_map_event_to_activity: {
         Args: { p_event_type: string; p_payload?: Json }
@@ -88674,9 +88819,23 @@ export type Database = {
           sku_count: number
         }[]
       }
+      wms_lpn_tree: {
+        Args: { _lpn_id: string }
+        Returns: {
+          id: string
+        }[]
+      }
       wms_manifest_short_cartons: {
         Args: { p_manifest_id: string }
         Returns: string[]
+      }
+      wms_next_lpn_code: {
+        Args: {
+          _business_id: string
+          _lpn_type?: Database["public"]["Enums"]["wms_lpn_type"]
+          _warehouse_id: string
+        }
+        Returns: string
       }
       wms_raise_exception: {
         Args: {
