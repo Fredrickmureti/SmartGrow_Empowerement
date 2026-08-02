@@ -5,7 +5,7 @@
  * safe to build the rest of the WMS on top of:
  *
  *   1. Physical relocation of a license plate must go through the
- *      `move_lpn` RPC. Direct UPDATEs to
+ *      `wms_lpn_move` RPC. Direct UPDATEs to
  *      `wms_license_plates.current_location_id` from the client bypass
  *      the outbox event and the audit trail — a WMS killer.
  *
@@ -34,7 +34,7 @@ function walk(dir: string, out: string[] = []): string[] {
 describe("wms phase 1 architecture", () => {
   const files = walk(SRC).filter((f) => f !== SELF);
 
-  it("no client code updates wms_license_plates.current_location_id directly (must use move_lpn RPC)", () => {
+  it("no client code updates wms_license_plates.current_location_id directly (must use wms_lpn_move RPC)", () => {
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(f, "utf8");
@@ -48,7 +48,7 @@ describe("wms phase 1 architecture", () => {
     }
     expect(
       offenders,
-      `Move plates via supabase.rpc("move_lpn", ...) — never .update({current_location_id}):\n${offenders.join("\n")}`,
+      `Move plates via supabase.rpc("wms_lpn_move", ...) — never .update({current_location_id}):\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
 
