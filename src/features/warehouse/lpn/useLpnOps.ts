@@ -123,24 +123,6 @@ export function useLpn(id: string | undefined) {
   });
 }
 
-/**
- * Resolve a scanned/typed plate code to its row within one business.
- * Codes are unique per business, so a scan never has to guess a warehouse.
- */
-export async function resolveLpnByCode(
-  businessId: string,
-  code: string,
-): Promise<LpnOverviewRow | null> {
-  const { data, error } = await sb
-    .from("v_wms_lpn_overview")
-    .select("*")
-    .eq("business_id", businessId)
-    .ilike("code", code.trim())
-    .maybeSingle();
-  if (error) throw error;
-  return (data ?? null) as LpnOverviewRow | null;
-}
-
 export function useLpnContents(id: string | undefined) {
   return useQuery({
     queryKey: ["wms-lpn-contents", id],
