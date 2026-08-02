@@ -39,12 +39,12 @@ describe("wms phase 12 architecture", () => {
     expect(offenders, `wms_crossdock_opportunities is RPC-only:\n${offenders.join("\n")}`).toEqual([]);
   });
 
-  it("wms_carton_types writes originate only from CartonTypes.tsx", () => {
-    const allowed = path.join(SRC, "pages/warehouse/CartonTypes.tsx");
+  // ADR 0105 Phase 7 — the legacy carton catalogue page is gone. NOTHING in
+  // the client may write `wms_carton_types`; the packaging master owns it.
+  it("wms_carton_types has no client writers at all", () => {
     const write = /from\(\s*["']wms_carton_types["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
     const offenders: string[] = [];
     for (const f of files) {
-      if (f === allowed) continue;
       const src = readFileSync(f, "utf8");
       if (write.test(src)) offenders.push(path.relative(SRC, f));
     }
@@ -81,12 +81,15 @@ describe("wms phase 12 architecture", () => {
   });
 
 
-  it("route and nav wire /crossdock and /cartons", () => {
+  it("route and nav wire /crossdock and the packaging catalogue", () => {
     const routes = readFileSync(path.join(SRC, "apps/warehouse/routes.tsx"), "utf8");
     const nav = readFileSync(path.join(SRC, "apps/warehouse/nav.ts"), "utf8");
     expect(/path="crossdock"/.test(routes)).toBe(true);
-    expect(/path="cartons"/.test(routes)).toBe(true);
+    expect(/path="packaging"/.test(routes)).toBe(true);
+    // legacy path stays reachable, but only as a redirect
+    expect(/path="cartons" element=\{<Navigate/.test(routes)).toBe(true);
     expect(nav.includes("/warehouse-app/crossdock")).toBe(true);
-    expect(nav.includes("/warehouse-app/cartons")).toBe(true);
+    expect(nav.includes("/warehouse-app/packaging")).toBe(true);
+    expect(nav.includes("/warehouse-app/cartons")).toBe(false);
   });
 });
