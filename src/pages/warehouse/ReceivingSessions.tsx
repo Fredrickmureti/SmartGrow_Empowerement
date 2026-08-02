@@ -279,7 +279,15 @@ export default function ReceivingSessions() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-receiving-sessions"] }),
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Transition rejected"),
+    // PostgREST errors are plain objects, not Error instances — reading only
+    // `instanceof Error` swallowed the real reason and showed a generic toast.
+    onError: (e: unknown) => {
+      const msg =
+        typeof e === "object" && e !== null && typeof (e as { message?: unknown }).message === "string"
+          ? (e as { message: string }).message
+          : null;
+      toast.error("Transition rejected", { description: msg ?? undefined });
+    },
   });
 
   const [createOpen, setCreateOpen] = useState(false);

@@ -67417,6 +67417,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_receiving_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_receiving_lines_purchase_order_item_id_fkey"
             columns: ["purchase_order_item_id"]
             isOneToOne: false
@@ -87170,6 +87184,10 @@ export type Database = {
         Returns: Json
       }
       reset_module__vendor_returns: { Args: { org_id: string }; Returns: Json }
+      reset_module__warehouse: {
+        Args: { org_id: string; p_business_id?: string }
+        Returns: Json
+      }
       reset_my_signup: { Args: never; Returns: Json }
       reset_my_workspace: {
         Args: { confirmation_phrase: string; org_id: string }

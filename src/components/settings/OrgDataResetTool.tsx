@@ -37,6 +37,7 @@ import {
   Banknote,
   ShoppingCart,
   Package,
+  Warehouse,
 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 
@@ -158,6 +159,22 @@ const CATEGORIES: DataCategory[] = [
       "stock_adjustments",
       "goods_receipts",
       "backorders",
+    ],
+  },
+  {
+    id: "warehouse",
+    label: "Warehouse (WMS)",
+    description:
+      "Receiving sessions and lines, licence plates, tasks, waves, cartons, manifests, returns, QC inspections, counts, exceptions, dock appointments and trailer visits. Warehouses, docks, zones, locations and rules are preserved.",
+    icon: <Warehouse className="h-4 w-4" />,
+    color: "text-sky-500",
+    previewTables: [
+      "wms_receiving_sessions",
+      "wms_receiving_lines",
+      "wms_license_plates",
+      "wms_tasks",
+      "wms_exceptions",
+      "wms_dock_appointments",
     ],
   },
   {
