@@ -172,3 +172,23 @@ function barPattern(code: string): number[] {
   }
   return out;
 }
+
+/**
+ * How many times each position has already been labelled. One query for the
+ * whole run — `print_jobs` is the platform's print audit surface.
+ */
+async function priorPrintCounts(ids: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (ids.length === 0) return counts;
+  const { data, error } = await supabase
+    .from("print_jobs")
+    .select("doc_id")
+    .eq("doc_type", "stock_location")
+    .in("doc_id", ids);
+  if (error) return counts;
+  (data ?? []).forEach((row) => {
+    const id = (row as { doc_id: string | null }).doc_id;
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  });
+  return counts;
+}
