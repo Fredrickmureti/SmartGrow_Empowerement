@@ -25,7 +25,7 @@ const CUTOVER_FILES = [
   "pages/warehouse/PickList.tsx",
   "pages/inventory/PhysicalCount.tsx",
   "pages/inventory/TransferNew.tsx",
-  "features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx",
+  "features/warehouse/receiving/ReceivingSessionWorkspace.tsx",
 ];
 
 function read(rel: string): string {
