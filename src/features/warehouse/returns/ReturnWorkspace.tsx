@@ -44,6 +44,8 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
   const transition = useTransitionReturn();
   const post = usePostReturnDispositions();
   const close = useCloseReturn();
+  const raiseFinanceDoc = useCreateReturnFinanceDoc();
+  const [dispatching, setDispatching] = useState<ReturnDocumentKind | null>(null);
 
   const rows = lines ?? [];
   const lane = order ? returnLane(order, rows) : null;
@@ -57,10 +59,33 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
         scrap: acc.scrap + Number(l.scrap_qty ?? 0),
         pendingDisposition: acc.pendingDisposition + (l.disposition ? 0 : 1),
         unposted: acc.unposted + (l.disposition && !l.posted_at ? 1 : 0),
+        damaged:
+          acc.damaged +
+          (l.condition_code === "damaged" ||
+          l.condition_code === "defective" ||
+          l.condition_code === "expired"
+            ? 1
+            : 0),
       }),
-      { received: 0, restock: 0, quarantine: 0, scrap: 0, pendingDisposition: 0, unposted: 0 },
+      {
+        received: 0, restock: 0, quarantine: 0, scrap: 0,
+        pendingDisposition: 0, unposted: 0, damaged: 0,
+      },
     );
   }, [rows]);
+
+  const emitDocument = async (kind: ReturnDocumentKind, source: "manual" | "business_event" = "manual") => {
+    if (!order) return;
+    setDispatching(kind);
+    try {
+      await dispatchReturnDocument({ returnId: order.id, kind, triggeredSource: source });
+      toast.success("Document archived and routed");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Document dispatch failed");
+    } finally {
+      setDispatching(null);
+    }
+  };
 
   if (!order) return null;
 
