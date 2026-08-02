@@ -90,6 +90,23 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(read(MOBILE_LOOP)).toMatch(/p_lpn_id:\s*activeLpn\?\.id/);
   });
 
+  it("the workspace resolves exceptions at the dock and clocks dwell live (Phase 5c)", () => {
+    const src = read(WORKSPACE);
+    expect(src, "the exception strip must be mounted on the session").toMatch(
+      /<ReceivingExceptionStrip\s+sessionId=\{session\.id\}/,
+    );
+    expect(src, "dwell must tick while the trailer is on site").toMatch(/useDwellTicker\(/);
+
+    const strip = read("features/warehouse/receiving/ReceivingExceptionStrip.tsx");
+    // FSM only — never a direct state write on wms_exceptions (ADR 0101 §1).
+    expect(strip).toMatch(/useResolveReceivingException/);
+    expect(strip).not.toMatch(/\.update\(/);
+    const hook = read("features/warehouse/receiving/useReceivingExceptions.ts");
+    expect(hook).toMatch(/wms_resolve_exception/);
+    expect(hook).toMatch(/p_row_version/);
+    expect(hook).not.toMatch(/\.update\(/);
+  });
+
   it("the dock board is lane-per-state and the workspace shows the event timeline (Phase 5b)", () => {
     const board = read("features/warehouse/receiving/ReceivingSessionBoard.tsx");
     // Lanes follow the trailer's path; the board never mutates state itself.
