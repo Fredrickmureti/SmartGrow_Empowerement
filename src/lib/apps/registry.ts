@@ -829,6 +829,7 @@ export const APP_REGISTRY: AppDefinition[] = [
   TALENT_APP,
   // RECRUITMENT_APP retired 2026-05-09
   PROJECTS_APP,
+  REPORTS_APP,
   STUDIO_APP,
   // DOCUMENTS_APP retired 2026-05-16
   // SIGN_APP + SPREADSHEETS_APP retired 2026-05-09
@@ -872,43 +873,50 @@ export function getModuleByPath(app: AppDefinition, path: string): ModuleDefinit
 }
 
 /**
- * Group apps by category for the app switcher
+ * Group apps by category for the app switcher.
+ *
+ * Categories are curated, but the grouping is **exhaustive by construction**:
+ * any registered app that isn't explicitly categorised falls into "Other apps"
+ * instead of silently disappearing from the switcher (the bug that hid
+ * Warehouse and Talent). `me` is the only deliberate exclusion — it has its
+ * own single-purpose shell (`hideAppSwitcher`).
  */
 export function getAppGroups(): AppGroup[] {
-  const coreApps = APP_REGISTRY.filter(app => 
-    ["finance", "sales", "contacts", "purchases", "inventory"].includes(app.id)
-  ).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const bySortOrder = (a: AppDefinition, b: AppDefinition) =>
+    (a.sortOrder || 0) - (b.sortOrder || 0);
 
-  const operationsApps = APP_REGISTRY.filter(app => 
-    ["pos", "crm", "projects", "studio"].includes(app.id)
-  ).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const CATEGORY_MEMBERSHIP: Array<{ label: string; ids: string[] }> = [
+    { label: "Core", ids: ["finance", "sales", "contacts", "purchases", "inventory"] },
+    { label: "Operations", ids: ["warehouse", "pos", "crm", "projects", "studio"] },
+    // HR Suite — Odoo-aligned grouping. The apps stay independently
+    // installable (Employees is foundational, the others depend on it),
+    // but the switcher shows them under one heading.
+    { label: "Human Resources", ids: ["employees", "time-off", "attendance", "timesheets", "payroll", "talent"] },
+    { label: "Analytics", ids: ["reports"] },
+    { label: "Integrations", ids: ["sms"] },
+  ];
 
-  // HR Suite — Odoo-aligned grouping. The 5 apps stay independently
-  // installable (Employees is foundational, the others depend on it),
-  // but the marketplace shows them under one heading so the workspace
-  // stops looking like five disconnected tiles.
-  const hrSuiteApps = APP_REGISTRY.filter(app =>
-    ["employees", "time-off", "attendance", "timesheets", "payroll"].includes(app.id)
-  ).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-
-  const analyticsApps = APP_REGISTRY.filter(app => 
-    ["reports"].includes(app.id)
+  const switchable = APP_REGISTRY.filter(
+    (app) => app.id !== "me" && !app.hideAppSwitcher,
   );
 
-  const integrationsApps = APP_REGISTRY.filter(app =>
-    ["sms"].includes(app.id)
-  ).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const groups: AppGroup[] = CATEGORY_MEMBERSHIP.map(({ label, ids }) => ({
+    label,
+    apps: switchable.filter((app) => ids.includes(app.id)).sort(bySortOrder),
+  }));
 
-  const platformApps = APP_REGISTRY.filter(app => app.isPlatform && app.id !== "me");
+  const platformApps = switchable.filter((app) => app.isPlatform).sort(bySortOrder);
+  groups.push({ label: "Platform", apps: platformApps });
 
-  return [
-    { label: "Core", apps: coreApps },
-    { label: "Operations", apps: operationsApps },
-    { label: "Human Resources", apps: hrSuiteApps },
-    { label: "Analytics", apps: analyticsApps },
-    { label: "Integrations", apps: integrationsApps },
-    { label: "Platform", apps: platformApps },
-  ].filter(group => group.apps.length > 0);
+  // Catch-all: anything registered but not placed above.
+  const placed = new Set(groups.flatMap((g) => g.apps.map((a) => a.id)));
+  const uncategorised = switchable.filter((app) => !placed.has(app.id)).sort(bySortOrder);
+  if (uncategorised.length > 0) {
+    groups.push({ label: "Other apps", apps: uncategorised });
+  }
+
+  return groups.filter((group) => group.apps.length > 0);
+
 }
 
 /**
