@@ -66246,6 +66246,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -66265,6 +66266,7 @@ export type Database = {
           lpn_type?: Database["public"]["Enums"]["wms_lpn_type"]
           notes?: string | null
           organization_id: string
+          packaging_type_id?: string | null
           parent_lpn_id?: string | null
           row_version?: number
           sealed_at?: string | null
@@ -66284,6 +66286,7 @@ export type Database = {
           lpn_type?: Database["public"]["Enums"]["wms_lpn_type"]
           notes?: string | null
           organization_id?: string
+          packaging_type_id?: string | null
           parent_lpn_id?: string | null
           row_version?: number
           sealed_at?: string | null
@@ -66305,6 +66308,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_license_plates_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "wms_license_plates_parent_lpn_id_fkey"
@@ -89574,6 +89584,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89608,6 +89619,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89636,6 +89648,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89669,6 +89682,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89697,6 +89711,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89730,6 +89745,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89758,6 +89774,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89786,6 +89803,40 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_lpn_set_packaging: {
+        Args: {
+          _expected_version?: number
+          _lpn_id: string
+          _packaging_type_id: string
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89818,6 +89869,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89857,6 +89909,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89885,6 +89938,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
@@ -89914,6 +89968,10 @@ export type Database = {
       wms_packaging_archive: {
         Args: { p_id: string; p_reason?: string }
         Returns: Json
+      }
+      wms_packaging_class_to_lpn_type: {
+        Args: { _class: Database["public"]["Enums"]["wms_packaging_class"] }
+        Returns: Database["public"]["Enums"]["wms_lpn_type"]
       }
       wms_packaging_fits_item: {
         Args: {
@@ -90108,6 +90166,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_resolve_carton_scan: {
+        Args: { p_business_id: string; p_code: string }
+        Returns: Json
+      }
       wms_resolve_exception: {
         Args: {
           p_exception_id: string
@@ -90256,6 +90318,7 @@ export type Database = {
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
           notes: string | null
           organization_id: string
+          packaging_type_id: string | null
           parent_lpn_id: string | null
           row_version: number
           sealed_at: string | null
