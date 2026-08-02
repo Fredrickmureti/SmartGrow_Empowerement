@@ -16,6 +16,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useActiveLpn } from "@/features/warehouse/receiving/useReceivingLpn";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +113,26 @@ export function MobileReceiveSession() {
   const [hold, setHold] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  // Phase 4c — pallet identity travels with every captured line.
+  const { activeLpn, bind: bindLpn, clear: clearLpn, resolving: lpnBusy } =
+    useActiveLpn(currentBusiness?.id);
+  const [lpnInput, setLpnInput] = useState("");
+
+  const applyLpn = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    try {
+      const lpn = await bindLpn(trimmed);
+      if (lpn) {
+        setLpnInput("");
+        toast.success(`Plate ${lpn.code}`);
+      } else {
+        toast.error(`No plate ${trimmed}`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Plate lookup failed");
+    }
+  };
 
   const { data: session } = useQuery({
     queryKey: ["wm-receiving-session", id],
@@ -183,7 +204,7 @@ export function MobileReceiveSession() {
         p_product_id: scan.identity.productId,
         p_received_qty: Number(qty),
         p_expected_qty: matched?.expected_qty ?? null,
-        p_lpn_id: null,
+        p_lpn_id: activeLpn?.id ?? null,
         p_lot_number: lot.trim() || null,
         p_serial_number: scan.serial ?? null,
         p_uom: null,
