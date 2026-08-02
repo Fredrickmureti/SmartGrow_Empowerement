@@ -91,9 +91,12 @@ describe("Phase 4 · scan feedback is centralised", () => {
 describe("Phase 4 · outbox emission is real and loud", () => {
   const sql = allMigrationSql();
   // Anchor on the last CREATE (not the COMMENT ON, which mentions the same name).
-  const lastEmitter = sql.slice(
-    sql.lastIndexOf("CREATE OR REPLACE FUNCTION public._wms_emit_outbox"),
-  );
+  // Bound the slice to the emitter's OWN definition: anything after the next
+  // CREATE belongs to a later, unrelated function and must not be asserted on
+  // (the body delimiter is not always `$function$`).
+  const emitterStart = sql.lastIndexOf("CREATE OR REPLACE FUNCTION public._wms_emit_outbox");
+  const nextCreate = sql.indexOf("CREATE OR REPLACE FUNCTION", emitterStart + 1);
+  const lastEmitter = sql.slice(emitterStart, nextCreate === -1 ? undefined : nextCreate);
 
   it("_wms_emit_outbox targets the actual business_event_outbox columns", () => {
     expect(lastEmitter).toMatch(/INSERT INTO public\.business_event_outbox/);
@@ -107,16 +110,13 @@ describe("Phase 4 · outbox emission is real and loud", () => {
     // business_event_outbox, so every insert raised undefined_column.
     const insertBlock = lastEmitter.slice(
       lastEmitter.indexOf("INSERT INTO public.business_event_outbox"),
-      lastEmitter.indexOf("$function$", lastEmitter.indexOf("INSERT INTO")),
     );
     expect(insertBlock).not.toMatch(/^\s*topic\s*,/m);
     expect(insertBlock).not.toMatch(/\borganization_id\s*,/);
   });
 
   it("_wms_emit_outbox never swallows exceptions", () => {
-    expect(lastEmitter.slice(0, lastEmitter.indexOf("$function$;") + 1)).not.toMatch(
-      /EXCEPTION\s+WHEN/i,
-    );
+    expect(lastEmitter).not.toMatch(/EXCEPTION\s+WHEN/i);
   });
 });
 
