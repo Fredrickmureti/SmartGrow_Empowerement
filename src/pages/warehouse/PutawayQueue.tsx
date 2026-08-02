@@ -2,8 +2,10 @@
  * PutawayQueue — Phase 2 supervisor view.
  *
  * Three-column board (Pending / In progress / Done today) filtered to
- * `task_type = 'putaway'`. Kicks off receive-to-WMS staging and
- * completes putaway tasks via `complete_putaway_task` (the RPC that
+ * `task_type = 'putaway'`. The queue is seeded exclusively by posting a
+ * receiving session (`wms_post_receiving_session`) — there is no
+ * after-the-fact staging entry point here. Completes putaway tasks via
+ * `complete_putaway_task` (the RPC that
  * atomically moves the LPN; the table triggers emit `warehouse.task.completed` + `warehouse.lpn.stored`).
  */
 import { useMemo, useState } from "react";
@@ -29,7 +31,6 @@ import { Truck, Play, Check, PackageOpen } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
-import { ReceiveToWMSDialog } from "./ReceiveToWMSDialog";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 
@@ -79,7 +80,6 @@ export default function PutawayQueue() {
   const { warehouses } = useWarehouses();
   const { user } = useAuth();
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
-  const [receiveOpen, setReceiveOpen] = useState(false);
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["wms-putaway", currentBusiness?.id, warehouseFilter],
@@ -206,8 +206,10 @@ export default function PutawayQueue() {
                 {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Button onClick={() => setReceiveOpen(true)}>
-              <Truck className="h-4 w-4 mr-2" /> Receive to WMS
+            <Button asChild>
+              <Link to="/warehouse-app/receiving">
+                <Truck className="h-4 w-4 mr-2" /> Receiving sessions
+              </Link>
             </Button>
           </div>
         }
@@ -220,8 +222,8 @@ export default function PutawayQueue() {
             <EmptyState
               icon={PackageOpen}
               title="No putaway tasks"
-              description="Stage a goods receipt to seed the queue."
-              action={<Button onClick={() => setReceiveOpen(true)}><Truck className="h-4 w-4 mr-2" /> Receive to WMS</Button>}
+              description="Post a receiving session to seed the queue."
+              action={<Button asChild><Link to="/warehouse-app/receiving"><Truck className="h-4 w-4 mr-2" /> Receiving sessions</Link></Button>}
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
@@ -247,12 +249,6 @@ export default function PutawayQueue() {
           )}
         </Section>
       </PageBody>
-
-      <ReceiveToWMSDialog
-        open={receiveOpen}
-        onOpenChange={setReceiveOpen}
-        onStaged={() => qc.invalidateQueries({ queryKey: ["wms-putaway"] })}
-      />
     </>
   );
 }

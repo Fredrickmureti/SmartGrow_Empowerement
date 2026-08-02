@@ -24,7 +24,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
-import { AlertTriangle, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check } from "lucide-react";
+import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -37,6 +37,7 @@ import {
   usePostReceivingSession,
   type ReceivingLine,
 } from "./useReceivingLines";
+import { useActiveLpn } from "./useReceivingLpn";
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -125,6 +126,27 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   const gate = useWmsIdentityGate(businessId);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
 
+  // Phase 4c — the pallet under the operator's hands. Bound by a
+  // `receiving.lpn` scan or typed, then stamped onto every capture.
+  const { activeLpn, bind: bindLpn, clear: clearLpn, resolving: lpnBusy } = useActiveLpn(businessId);
+  const [lpnInput, setLpnInput] = useState("");
+
+  const applyLpn = async (code: string) => {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    try {
+      const lpn = await bindLpn(trimmed);
+      if (lpn) {
+        setLpnInput("");
+        toast.success(`Working on plate ${lpn.code}`);
+      } else {
+        toast.error(`No license plate ${trimmed} in this business`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Plate lookup failed");
+    }
+  };
+
   const totals = useMemo(() => {
     const rows = lines ?? [];
     return {
@@ -137,6 +159,15 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
       holds: rows.filter((l) => l.qc_hold).length,
     };
   }, [lines]);
+
+  // A pallet scan binds the handling unit; it never captures a line.
+  useWmsScanIntent({
+    intent: "receiving.lpn",
+    priority: 30,
+    enabled: open,
+    label: "receiving-workspace.lpn",
+    onScan: async (p: WmsScanPayload) => { await applyLpn(p.raw); },
+  });
 
   // Scan capture for the session currently on screen. Priority 30 so the sheet
   // outranks the list-level intent while open.
@@ -157,6 +188,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         lotNumber: lot,
         serialNumber: serial,
         expiryDate: expiry ? expiry.toISOString().slice(0, 10) : null,
+        lpnId: activeLpn?.id ?? null,
         clientScanId: `${session.id}:${p.raw}:${Date.now()}`,
       });
       toast.success(`${identity.productName} +${baseUnits}`, {
@@ -177,6 +209,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         expiryDate: v.expiry,
         damagedQty: v.damaged,
         qcHold: v.hold,
+        lpnId: activeLpn?.id ?? null,
       },
       {
         onSuccess: () => {
@@ -208,6 +241,33 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           className="mt-3"
         />
 
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Boxes className="h-4 w-4 text-muted-foreground" />
+          {activeLpn ? (
+            <>
+              <StatusBadge tone="success">plate {activeLpn.code}</StatusBadge>
+              <Button size="sm" variant="ghost" onClick={clearLpn}>
+                <X className="mr-1 h-3.5 w-3.5" /> Release
+              </Button>
+            </>
+          ) : (
+            <>
+              <Input
+                className="h-8 w-48"
+                placeholder="Scan or type pallet / LPN"
+                value={lpnInput}
+                disabled={lpnBusy}
+                onChange={(e) => setLpnInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void applyLpn(lpnInput); }}
+              />
+              <Button size="sm" variant="outline" disabled={lpnBusy || !lpnInput.trim()} onClick={() => void applyLpn(lpnInput)}>
+                Bind plate
+              </Button>
+              <span className="text-xs text-muted-foreground">optional — captures without a plate stay unpalletised</span>
+            </>
+          )}
+        </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <StatusBadge tone="neutral">expected {totals.expected}</StatusBadge>

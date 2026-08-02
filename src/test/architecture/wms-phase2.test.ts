@@ -82,8 +82,15 @@ describe("wms phase 2 architecture", () => {
     expect(domainCallRe("complete_putaway_task").test(src)).toBe(true);
   });
 
-  it("ReceiveToWMSDialog calls the staging RPC", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/ReceiveToWMSDialog.tsx"), "utf8");
-    expect(domainCallRe("receive_goods_to_wms").test(src)).toBe(true);
+  it("no client code calls the staging RPC directly (posting a session owns it)", () => {
+    // Receiving audit Phase 4b: `receive_goods_to_wms` is invoked from inside
+    // `wms_post_receiving_session`. No surface may stage a receipt after the fact.
+    const offenders = files.filter((f) =>
+      domainCallRe("receive_goods_to_wms").test(readFileSync(f, "utf8")),
+    );
+    expect(
+      offenders.map((f) => path.relative(SRC, f)),
+      "Stage through wms_post_receiving_session, never receive_goods_to_wms directly",
+    ).toEqual([]);
   });
 });
