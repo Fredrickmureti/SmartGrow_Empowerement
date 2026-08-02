@@ -127,7 +127,14 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId, bra
           )}
         </div>
 
-        {missingDeviceCta}
+        {missingDeviceCta && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+            {missingDeviceCta.message}{" "}
+            <a className="underline" href={missingDeviceCta.href}>
+              Assign a printer
+            </a>
+          </p>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
