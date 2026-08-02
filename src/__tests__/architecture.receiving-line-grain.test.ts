@@ -96,7 +96,7 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
       expect(board).toMatch(new RegExp(`state:\\s*"${lane}"`));
     }
     expect(board, "the board is presentational — transitions belong to the page").not.toMatch(
-      /supabase|wms_transition_receiving/,
+      /supabase\.|\.rpc\(/,
     );
     expect(read(SESSIONS_PAGE)).toMatch(/ReceivingSessionBoard/);
     expect(read(WORKSPACE)).toMatch(/OutboxTimeline/);
