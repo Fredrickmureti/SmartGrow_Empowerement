@@ -170,10 +170,15 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
                 post.mutate(
                   { returnId: order.id, rowVersion: order.row_version },
                   {
-                    onSuccess: (res) =>
+                    onSuccess: (res) => {
                       toast.success(
                         `Posted ${res.posted_lines} line(s) · ${res.tasks_created} task(s) created`,
-                      ),
+                      );
+                      // Posting is the moment the return becomes a fact of
+                      // record, so the return receipt is archived as a
+                      // business event — best effort, never blocking the post.
+                      void emitDocument("wms.return_receipt", "business_event");
+                    },
                     onError: (e: unknown) =>
                       toast.error(e instanceof Error ? e.message : "Posting rejected"),
                   },
