@@ -315,7 +315,7 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
             <OutboxTimeline aggregateId={order.id} compact />
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   );
 }
