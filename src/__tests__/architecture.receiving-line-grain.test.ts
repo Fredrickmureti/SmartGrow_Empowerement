@@ -136,4 +136,40 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(read("features/warehouse/receiving/ReceivingSessionBoard.tsx")).toMatch(/trailerVisit/);
     expect(read(SESSIONS_PAGE)).toMatch(/useReceivingTrailerVisits/);
   });
+
+  it("no receiving surface writes wms_receiving_lines directly (Phase 8)", () => {
+    // Every quantity change must go through the RPC so idempotency, variance
+    // flagging and base-unit validation cannot be bypassed by a table write.
+    for (const f of [WORKSPACE, MOBILE_LOOP, HOOKS, SESSIONS_PAGE]) {
+      const src = read(f);
+      expect(
+        src,
+        `${f} must not write wms_receiving_lines directly`,
+      ).not.toMatch(
+        /from\("wms_receiving_lines"\)[\s\S]{0,200}?\.(insert|update|upsert|delete)\(/,
+      );
+    }
+  });
+
+  it("manual capture converts operator units to base units before the RPC (Phase 11)", () => {
+    const units = read("features/warehouse/receiving/receivingUnits.ts");
+    // The conversion seam is pure and single-sourced.
+    expect(units).toMatch(/export function toBaseUnits/);
+    expect(units).not.toMatch(/supabase/);
+
+    for (const f of [WORKSPACE, MOBILE_LOOP]) {
+      const src = read(f);
+      expect(src, `${f} must use the shared unit conversion`).toMatch(
+        /from "(@\/features\/warehouse\/receiving\/receivingUnits|\.\/receivingUnits)"/,
+      );
+      expect(src, `${f} must convert typed quantities`).toMatch(/toBaseUnits\(/);
+      // A raw Number(qty) may never reach the capture payload.
+      expect(src, `${f} must not send an unconverted quantity`).not.toMatch(
+        /p_received_qty:\s*Number\(/,
+      );
+      expect(src, `${f} must not send an unconverted damaged quantity`).not.toMatch(
+        /p_damaged_qty:\s*Number\(/,
+      );
+    }
+  });
 });
