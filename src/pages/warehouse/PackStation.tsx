@@ -39,6 +39,13 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, PackageCheck, PackagePlus, Lock, Check } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import {
+  suggestPackaging,
+  assignPackagingToPack,
+  packagingFailureMessage,
+} from "@/features/warehouse/packaging/packagingEngine";
+import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+
 
 interface WaveLine {
   id: string;
