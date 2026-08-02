@@ -1,99 +1,86 @@
-# Packaging Master — audit re-verified, remaining phases
+# Packaging Master (ADR 0105) — Round 2: verification result & remaining phases
 
-The architecture audit for this domain already exists and is accepted:
-`.lovable/plan.md` (audit body), `docs/audit/2026-08-02-packaging-master-audit.md`,
-and `docs/adr/0105-packaging-master.md`. I re-verified the current state of the code
-against it rather than re-auditing from scratch.
+## Phase 1 — Independent verification of the previous engineer's claims
 
-## Verified current state
+Method: database introspection (`pg_proc`, `information_schema.columns`,
+`pg_policies`, effective `has_table_privilege`), plus direct reads of the
+client code and guard tests. The test suite could not be executed in this
+sandbox (`vitest` / `@vitejs/plugin-react-swc` are not installed here), so
+every claim below was confirmed by schema + source inspection instead.
 
-Done and in the codebase:
-- **Phase 1 — data model.** `wms_packaging_types` (9 packaging classes, inner + outer
-  dims, weight limits, fill cap, dim-weight divisor, hazmat/UN, temperature band,
-  returnable/stackable/nesting, ti/hi, four-state lifecycle, `row_version`),
-  `wms_packaging_carriers`, `wms_packaging_availability`, `wms_packaging_events`.
-- **Phase 2 — server-owned writes.** `wms_packaging_upsert`, `set_lifecycle`,
-  `archive`, `set_carrier_rule`, `set_availability`; business + `inventory:write`
-  guarded; audit ledger + `warehouse.packaging.*` outbox events; direct client
-  INSERT/UPDATE/DELETE revoked.
-- **Phase 3 — cartonization v2.** `suggest_packaging` with rotation-aware per-axis
-  fit, fill cap, dim vs actual weight, carrier/hazmat/stock filters, split strategy
-  and explicit failure reasons; client seam `packagingEngine.ts`; PackStation reads
-  the ranked candidates.
-- **Phase 4 — identity.** `wms_gs1_config`, `wms_sscc_registry`, check-digit/build/
-  validate functions, `wms_sscc_allocate` / `void` / `mark_printed`, client seam
-  `cartonSscc.ts` + `CartonSsccLabelButton`.
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Phase 1 — `wms_packaging_types` + carriers / availability / events | **True** | all four tables exist with `packaging_class`, `lifecycle_status`, `row_version`, `tare_weight_kg` |
+| Phase 2 — RPC-only writes (`wms_packaging_upsert`, `set_lifecycle`, `archive`, `set_carrier_rule`, `set_availability`) | **True** | all five functions exist, business + `inventory:write` guarded |
+| Phase 2 — "client write grants revoked" | **Partly false** | `authenticated` INSERT/UPDATE revoked only on `wms_packaging_types`, `_carriers`, `_availability`. Still granted on `wms_packaging_events`, `wms_sscc_registry`, `wms_sscc_events`, `wms_gs1_config`. `anon` retains INSERT/UPDATE on **all** of them. Writes are currently denied only because RLS has SELECT-only policies — the grants contradict the ADR and rely on a second mechanism |
+| Phase 3 — `suggest_packaging` (3-axis rotation fit, split, dim weight, explainable reasons) | **True** | `suggest_packaging`, `wms_packaging_fits_item` present; client seam `packagingEngine.ts` surfaces every failure code |
+| Phase 3b — idempotent `assign_packaging_to_pack` | **True** | function exists, `wms_pack_cartons.tare_applied_kg` present |
+| Phase 4 — GS1/SSCC server-side identity | **True** | `wms_gs1_config`, `wms_sscc_registry`, `wms_sscc_events`, `gs1_check_digit`, `wms_sscc_build/allocate/void/label_payload/mark_printed/resolve` |
+| Client wiring — PackStation on the new engine | **True** | reads `wms_packaging_types`, calls `suggest_packaging` + `assign_packaging_to_pack`, mints/prints via `CartonSsccLabelButton` |
+| "No `wms_carton_types` reference left" | **False (Phase 8 openly pending)** | `CartonTypes.tsx` still does client `insert` / `update` / `delete` on `wms_carton_types`; `MobilePack.tsx` still calls `suggest_carton` + `assign_carton_to_pack` |
+| Guards | **Weak** | `packaging-master.test.ts` asserts *migration text*, not effective privileges; `wms-phase12.test.ts` still **enforces** the legacy carton path, so two guards now pull in opposite directions |
+| Phase 5 — handling-unit unification | **Not started (as claimed)** | `wms_license_plates` has no `packaging_type_id`; `pack.carton` scan intent is declared in the union type but never registered or resolved |
 
-Not done (confirmed by reading the schema and pages):
-- `wms_license_plates` has **no** `packaging_type_id` — handling units still cannot
-  say which packaging they physically are (Phase 5).
-- PackStation seal weight is still hand-typed; the serial scale driver is never read
-  at seal, and packaging supply is never decremented (Phase 6).
-- `src/pages/warehouse/CartonTypes.tsx` is still the **legacy 203-line CRUD table
-  writing `wms_carton_types` directly from the browser**. The new master has no UI
-  at all, and the old table still exists.
+### New findings the previous plan did not capture
 
-So the remaining work is Phases 5 and 6 plus two phases the original plan did not
-contain: the operator-facing Packaging Master workspace, and retirement of the
-legacy carton table.
+1. **Split pack station.** Desktop PackStation uses cartonization v2; the
+   mobile pack station (`MobilePack.tsx`) still uses volume-only
+   `suggest_carton` and the non-idempotent `assign_carton_to_pack`. Two
+   operators packing the same wave get different packaging decisions, and
+   the mobile path can double-apply tare on offline replay. This is a live
+   correctness defect, not just leftover legacy, and must be fixed before
+   any new surface work.
+2. **Privilege drift** (row above): grant hardening was incomplete and the
+   guard cannot detect it because it greps SQL text.
+3. **Contradictory guards**: `wms-phase12.test.ts` locks in the legacy
+   contract that Phase 8 must delete.
+4. **`pack.carton` scan intent is a stub** — the type exists, no resolver.
 
-## Phase 5 — Handling-unit unification
+## Phase 2 — Revised phase list (resuming from the last genuinely complete milestone: Phase 4)
 
-- Migration: `wms_license_plates.packaging_type_id` (FK, nullable), backfilled where
-  a pack carton already stamps a packaging type; `wms_lpn_type` kept only as a coarse
-  facet derived from the packaging class via a trigger/derivation function.
-- Plate creation/seal RPCs accept and validate the packaging type (same business,
-  lifecycle not `retired`), and stamp tare + outer cube from the master onto the
-  plate/shipment handling unit.
-- Carrier admissibility validated at seal: sealing with packaging not admissible for
-  the shipment's carrier raises a named error the pack UI can explain.
-- `LicensePlates` / `LicensePlateView` show the packaging identity (code, class,
-  tare, cube) instead of only the enum facet.
+**Phase 4.5 — Consolidate the pack path & harden privileges (new, first).**
+Repoint `MobilePack.tsx` to `suggest_packaging` + `assign_packaging_to_pack`
+through the existing `packagingEngine` seam (no second client seam), so both
+pack stations share one engine. Migration: revoke `INSERT, UPDATE, DELETE`
+from `authenticated` **and** `anon` on `wms_packaging_events`,
+`wms_sscc_registry`, `wms_sscc_events`, `wms_gs1_config`, and from `anon` on
+the three master tables; keep `SELECT` for `authenticated` only. Upgrade
+`packaging-master.test.ts` to assert *effective* privileges via a schema
+snapshot rather than regexing migration text, and delete the legacy
+assertions in `wms-phase12.test.ts` that conflict with ADR 0105.
 
-## Phase 6 — Hardware at seal
+**Phase 5 — Handling-unit unification.** `wms_license_plates.packaging_type_id`
+(FK to the master, tare/cube read from it); `wms_lpn_type` retained only as a
+coarse facet derived from `packaging_class`; carton seal creates/updates the
+shipment handling unit with tare + cube from the master and validates carrier
+admissibility; register a real `pack.carton` scan intent resolving through
+`wms_resolve_sscc` so scanning a sealed carton returns its plate/shipment.
 
-- Scale capture in the seal dialog through the existing `hardwareClient` command
-  router (`read_weight`), with manual override and a variance flag when the typed
-  weight deviates from the captured weight beyond tolerance.
-- Carton label printing routed by packaging class / media profile through
-  `printWmsLabel` (no raw ZPL, per ADR 0089/0086).
-- Packaging-supply decrement at seal against `wms_packaging_availability` via RPC,
-  with a low-stock signal surfaced on the Packaging Master workspace.
+**Phase 6 — Hardware & supply consumption.** Read the scale at seal through
+the existing hardware command router (`read_weight`) with manual override and
+a variance flag; route the carton label per packaging class / media profile;
+decrement `wms_packaging_availability` at seal and raise a replenishment
+exception below the reorder point.
 
-## Phase 7 — Packaging Master workspace (replaces the CRUD page)
+**Phase 7 — Packaging Master workspace (UI).** Replace `CartonTypes.tsx` and
+the `/warehouse-app/cartons` nav entry with `/warehouse-app/packaging`:
+TanStack Table v8 grid (faceted filters, saved views) over
+`@tanstack/react-virtual` (already a dependency), master/detail split with an
+inspector — dimensions and scaled proportion preview, capacity/fill bars,
+carrier compatibility matrix, availability by warehouse, usage analytics from
+`wms_pack_cartons`, lifecycle timeline from `wms_packaging_events` — routed
+drill-down `/warehouse-app/packaging/:id`, and dedicated create/edit routes
+calling the Phase 2 RPCs (no client table writes, `row_version` echoed for
+optimistic concurrency). New dependency: `@tanstack/react-table` only.
 
-Route stays `/warehouse-app/cartons` (nav label becomes "Packaging master"), page
-rewritten as a three-pane operational workspace, not a table:
+**Phase 8 — Decommission legacy.** Drop `wms_carton_types`, `suggest_carton`,
+`assign_carton_to_pack` and `wms_pack_cartons.carton_type_id`; remove
+`CartonTypes.tsx`; regenerate types; update
+`docs/architecture/WMS_MODULE_OWNERSHIP.md` and ADR 0083 (superseded note).
 
-- **Left rail:** class explorer (carton / envelope / tube / crate / pallet / tote /
-  insulated / drum / bag) with counts and lifecycle filters.
-- **Centre:** virtualized grid (TanStack Table + existing `@tanstack/react-virtual`;
-  no new heavy grid dependency, no hand-rolled div tables) with columns for code,
-  class, inner/outer dims, max weight, tare, dim weight, cost, lifecycle, on-hand
-  supply; sortable, filterable, column-visibility persisted.
-- **Right inspector:** tabs — Overview (scale-accurate proportion preview + capacity
-  bars), Compatibility (carrier × service admissibility, oversize/surcharge, hazmat,
-  temperature band), Supply (per-warehouse on hand vs reorder point), Usage (pack
-  volume, fill-rate distribution, last used), History (`wms_packaging_events`
-  timeline).
-- All writes go through the Phase 2 RPCs with `row_version` conflict handling;
-  lifecycle transitions are explicit actions (draft → active → restricted → retired),
-  never a delete.
+## Working rules
 
-## Phase 8 — Legacy retirement
-
-- Repoint the last `carton_type` naming in PackStation / MobilePack to packaging
-  terminology, drop `wms_carton_types` and `suggest_carton`, delete
-  `wms-phase12.test.ts` assertions that pin the legacy table, and extend
-  `src/test/architecture/packaging-master.test.ts` with the Phase 5–7 guards the ADR
-  already promises (plates carry `packaging_type_id`, no `wms_carton_types`
-  reference anywhere, carton labels only via `printWmsLabel`, no client writes to the
-  master tables).
-
-## Technical notes
-
-- One phase per turn, each complete and internally coherent; every migration includes
-  GRANTs + RLS, and every new writer is `SECURITY DEFINER` + permission-guarded.
-- No compatibility shims: the legacy table is dropped, not dual-written.
-- New UI code reuses the existing design-system primitives and shadcn components;
-  the only new frontend dependency considered is `@tanstack/react-table`.
+- One phase at a time; each phase ends green on `npx tsgo --noEmit` plus the
+  architecture suite before the next begins.
+- Hard cut, no compatibility shims (no production users).
+- No new client seam duplicates `packagingEngine.ts` / `cartonSscc.ts`.
