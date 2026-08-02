@@ -45,6 +45,11 @@ import {
   packagingFailureMessage,
 } from "@/features/warehouse/packaging/packagingEngine";
 import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+import {
+  resolveCartonScan,
+  cartonScanFailureMessage,
+} from "@/features/warehouse/packaging/handlingUnitPackaging";
+import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
 
 interface WaveLine {
@@ -301,6 +306,48 @@ export default function PackStation() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Complete failed"),
   });
 
+  // ADR 0105 §8 — scanning a carton label (SSCC-18, GS1 (00) element string or
+  // the plate code) resolves the handling unit server-side and focuses that
+  // carton: open → seal dialog, sealed → operator feedback. The client never
+  // parses an SSCC itself.
+  const [scannedCartonId, setScannedCartonId] = useState<string | null>(null);
+  const cartonScan = useWmsScanIntent({
+    intent: "pack.carton",
+    onScan: (payload) => {
+      const businessId = wave?.business_id;
+      if (!businessId) return;
+      void (async () => {
+        try {
+          const res = await resolveCartonScan(businessId, payload.raw || payload.resolveCode);
+          if (!res.ok) {
+            cartonScan.reportUnexpected(cartonScanFailureMessage(res.reason), payload.raw);
+            return;
+          }
+          const match = (cartons ?? []).find(
+            (c) => c.id === res.carton?.id || c.shipment_lpn_id === res.lpn?.id,
+          );
+          if (!match) {
+            cartonScan.reportUnexpected("That handling unit is not part of this wave", payload.raw);
+            return;
+          }
+          setScannedCartonId(match.id);
+          if (match.sealed_at) {
+            toast.info(
+              `${res.lpn?.code ?? "Carton"} is already sealed${res.packaging ? ` · ${res.packaging.code}` : ""}`,
+            );
+          } else {
+            setSealDialog({ carton_id: match.id });
+          }
+        } catch (err) {
+          cartonScan.reportUnexpected(
+            err instanceof Error ? err.message : "Carton scan failed",
+            payload.raw,
+          );
+        }
+      })();
+    },
+  });
+
   const salesOrders = useMemo(() => {
     const ids = new Set<string>();
     (lines ?? []).forEach((l) => { if (l.sales_order_id) ids.add(l.sales_order_id); });
@@ -429,7 +476,12 @@ export default function PackStation() {
                       <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
                     )}
                     {soCartons.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between border rounded p-2 gap-2">
+                      <div
+                        key={c.id}
+                        className={`flex items-center justify-between border rounded p-2 gap-2 ${
+                          scannedCartonId === c.id ? "border-primary bg-primary/5" : ""
+                        }`}
+                      >
                         <div className="min-w-0">
                           <div className="font-mono text-sm truncate">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
                           <div className="text-xs text-muted-foreground">
