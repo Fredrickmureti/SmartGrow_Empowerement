@@ -232,6 +232,20 @@ export default function ReceivingSessions() {
     [appointments],
   );
 
+  // Phase 1 remainder — the physical trailer behind the appointment: carrier,
+  // trailer reference, driver, seals and dwell, read from the yard's
+  // `wms_trailer_visits`. Receiving never writes it; the yard board owns it.
+  const sessionAppointmentIds = useMemo(
+    () => (rows ?? []).map((r) => r.appointment_id).filter(Boolean) as string[],
+    [rows],
+  );
+  const trailerVisits = useReceivingTrailerVisits(currentBusiness?.id, sessionAppointmentIds);
+  const trailerVisitFor = useCallback(
+    (appointmentId: string | null) => (appointmentId ? (trailerVisits?.get(appointmentId) ?? null) : null),
+    [trailerVisits],
+  );
+
+
   const transition = useMutation({
     mutationFn: async (input: { id: string; to: RcvState; rowVersion: number; reason?: string }) => {
       const { error } = await supabase.rpc("wms_transition_receiving" as any, {
