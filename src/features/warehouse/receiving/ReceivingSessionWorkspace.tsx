@@ -40,6 +40,7 @@ import {
 import { useActiveLpn } from "./useReceivingLpn";
 import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
 import { ReceivingExceptionStrip } from "./ReceivingExceptionStrip";
+import { useReceivingExceptions, RECEIVING_OPEN_EXCEPTION_STATES } from "./useReceivingExceptions";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 
