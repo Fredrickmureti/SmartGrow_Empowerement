@@ -99,7 +99,7 @@ describe("ADR 0102 — LPN handling units", () => {
   });
 
   it("the mobile RF plate screen routes every mutation through the offline queue", () => {
-    const mobile = resolve(root, "src/pages/warehouse-mobile/MobilePlate.tsx");
+    const mobile = path.resolve(root, "src/pages/warehouse-mobile/MobilePlate.tsx");
     const src = readFileSync(mobile, "utf8");
     expect(src).toContain("enqueue(");
     expect(src, "mobile surfaces must not call supabase.rpc directly")
