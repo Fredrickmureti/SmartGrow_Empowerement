@@ -232,7 +232,7 @@ export function ReceivingSessionBoard(props: Props) {
           return (
             <div
               key={lane.state}
-              className="flex w-[21rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 2xl:w-auto 2xl:min-w-0 2xl:flex-1 2xl:basis-0 2xl:shrink"
+              className="flex w-[21rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2"
             >
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <span className="truncate text-sm font-medium">{lane.title}</span>
