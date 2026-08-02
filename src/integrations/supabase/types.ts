@@ -88089,6 +88089,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      suggest_packaging: {
+        Args: { p_business_id: string; p_lines: Json; p_options?: Json }
+        Returns: Json
+      }
       suggest_putaway_locations: {
         Args: {
           p_product_id: string
@@ -89663,6 +89667,17 @@ export type Database = {
       wms_packaging_archive: {
         Args: { p_id: string; p_reason?: string }
         Returns: Json
+      }
+      wms_packaging_fits_item: {
+        Args: {
+          p_inner_h: number
+          p_inner_l: number
+          p_inner_w: number
+          p_item_h: number
+          p_item_l: number
+          p_item_w: number
+        }
+        Returns: boolean
       }
       wms_packaging_set_availability: {
         Args: {

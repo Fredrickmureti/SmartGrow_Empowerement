@@ -77,6 +77,28 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     }
   });
 
+  it("ships cartonization v2 with per-axis fit, fill cap and dim weight", () => {
+    expect(sql).toMatch(/FUNCTION public\.suggest_packaging\(/i);
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.suggest_packaging\([^)]*\) TO[^;]*authenticated/i,
+    );
+    // rotation-invariant per-axis fit, not volume-only
+    expect(sql).toMatch(/FUNCTION public\.wms_packaging_fits_item\(/i);
+    expect(sql).toMatch(/all_items_fit/);
+    expect(sql).toMatch(/max_volume_fill_pct/);
+    expect(sql).toMatch(/dim_weight_kg/);
+    expect(sql).toMatch(/billable_per_unit_kg/);
+    // never a silent NULL — every miss carries a reason
+    for (const reason of [
+      "missing_dimensions",
+      "item_exceeds_all_packaging",
+      "no_packaging_matches_constraints",
+      "no_active_packaging",
+    ]) {
+      expect(sql).toContain(`'${reason}'`);
+    }
+  });
+
   it("has no client-side write to the packaging master", () => {
     const offenders: string[] = [];
     for (const file of walk(SRC_DIR)) {
