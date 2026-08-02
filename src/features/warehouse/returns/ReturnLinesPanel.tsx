@@ -26,12 +26,15 @@ import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { useWarehouseLocations } from "@/features/warehouse/locations/useWarehouseLocations";
+import { ReturnPhotoStrip } from "./ReturnPhotoStrip";
+import { ReturnRuleHint } from "./ReturnRuleHint";
 import {
   useCaptureReturnLine,
   useDispositionReturnLine,
   useInspectReturnLine,
   useReturnLines,
 } from "./useReturnLines";
+
 import {
   RETURN_CONDITIONS,
   RETURN_DISPOSITIONS,
