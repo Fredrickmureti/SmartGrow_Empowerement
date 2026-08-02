@@ -10,7 +10,7 @@
  * (`wms_post_receiving_session`) which creates the goods receipt, stages the
  * stock for put-away, and only then advances the session.
  */
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -39,8 +39,12 @@ import {
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
 import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
+import { ReceivingExceptionStrip } from "./ReceivingExceptionStrip";
+import { useReceivingExceptions, RECEIVING_OPEN_EXCEPTION_STATES } from "./useReceivingExceptions";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -62,6 +66,20 @@ interface Props {
 
 function variance(line: ReceivingLine): number {
   return Number(line.received_qty ?? 0) - Number(line.expected_qty ?? 0);
+}
+
+/**
+ * Phase 5c — dwell is an operational clock, not a static field. A trailer
+ * still on the dock re-renders every 30s so the number on screen is the number
+ * the yard is being billed for.
+ */
+function useDwellTicker(active: boolean) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, [active]);
 }
 
 function CaptureRow({
@@ -206,6 +224,31 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     session?.appointment_id ? [session.appointment_id] : [],
   );
   const visit = session?.appointment_id ? (trailerVisits?.get(session.appointment_id) ?? null) : null;
+  // Live only while the trailer has not departed.
+  useDwellTicker(open && !!visit && !visit.departed_at);
+
+  // Phase 5c — say *why* posting is unavailable before the operator reaches
+  // for the button, instead of letting the RPC fail into a toast.
+  const { data: sessionExceptions } = useReceivingExceptions(session?.id);
+  const postBlockers = useMemo(() => {
+    const reasons: string[] = [];
+    if (!session) return reasons;
+    if (!["captured", "discrepant"].includes(session.state)) {
+      reasons.push(`session is ${session.state} — capture at least one line first`);
+    }
+    const rows = lines ?? [];
+    if (rows.length === 0) reasons.push("no lines on the session");
+    if (rows.length > 0 && rows.every((l) => Number(l.received_qty ?? 0) === 0)) {
+      reasons.push("nothing received yet");
+    }
+    const escalated = (sessionExceptions ?? []).filter((e) => e.state === "escalated").length;
+    if (escalated) reasons.push(`${escalated} escalated exception(s) must be resolved`);
+    return reasons;
+  }, [session, lines, sessionExceptions]);
+
+  const openExceptionCount = (sessionExceptions ?? []).filter((e) =>
+    (RECEIVING_OPEN_EXCEPTION_STATES as string[]).includes(e.state),
+  ).length;
 
 
 
@@ -301,7 +344,14 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             ) : null}
             {(() => {
               const d = dwellMinutes(visit);
-              return d == null ? null : <span>{visit.departed_at ? "dwell" : "on site"} {d} min</span>;
+              if (d == null) return null;
+              const live = !visit.departed_at;
+              return (
+                <span className={live && d >= 120 ? "font-medium text-destructive" : undefined}>
+                  {live ? "on site" : "dwell"} {d} min
+                  {live ? <span className="ml-1 opacity-70">· live</span> : null}
+                </span>
+              );
             })()}
           </div>
         ) : null}
@@ -351,6 +401,9 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           <StatusBadge tone={totals.holds ? "danger" : "neutral"}>holds {totals.holds}</StatusBadge>
         </div>
 
+        {/* Phase 5c — variances are resolved at the dock, with a cause. */}
+        {session && <ReceivingExceptionStrip sessionId={session.id} />}
+
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             size="sm"
@@ -385,7 +438,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           </Button>
           <Button
             size="sm"
-            disabled={!session || post.isPending || !["captured", "discrepant"].includes(session.state)}
+            disabled={!session || post.isPending || postBlockers.length > 0}
+            title={postBlockers.length ? `Cannot post — ${postBlockers.join("; ")}` : undefined}
             onClick={() =>
               session &&
               post.mutate(
@@ -402,6 +456,17 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           >
             <Check className="mr-1 h-3.5 w-3.5" /> Post to inventory
           </Button>
+          {postBlockers.length > 0 && (
+            <p className="w-full text-xs text-muted-foreground">
+              Posting unavailable — {postBlockers.join("; ")}.
+            </p>
+          )}
+          {postBlockers.length === 0 && openExceptionCount > 0 && (
+            <p className="w-full text-xs text-muted-foreground">
+              {openExceptionCount} open exception(s) will post as recorded variance — resolve them above to
+              attach a cause.
+            </p>
+          )}
         </div>
 
         <Separator className="my-4" />
@@ -462,6 +527,28 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                         </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
+                        {/* Phase 7 — the desktop grid prints through the same
+                            canonical label seam as the mobile loop. */}
+                        {Number(l.received_qty ?? 0) > 0 && (
+                          <PrintLabelButton
+                            label={l.qc_hold ? "Hold label" : "Put-away"}
+                            templateKey={l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.PUTAWAY}
+                            workflow="receiving"
+                            variant={l.qc_hold ? "destructive" : "outline"}
+                            size="sm"
+                            product={{
+                              id: l.product_id ?? l.id,
+                              name: l.products?.name ?? "Item",
+                              sku: l.products?.sku ?? "",
+                              barcode: null,
+                            }}
+                            sourceDocType="wms_receiving_line"
+                            sourceDocId={l.id}
+                            idempotencyKey={`${l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.PUTAWAY}:${l.id}`}
+                            extraVars={{ lot: l.lot_number ?? "", qty: l.received_qty ?? 0 }}
+                            className="mr-2"
+                          />
+                        )}
                         <Button
                           size="sm"
                           variant="outline"

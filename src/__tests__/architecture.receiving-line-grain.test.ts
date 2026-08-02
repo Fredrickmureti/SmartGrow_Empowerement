@@ -83,11 +83,35 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(src, "ad-hoc receiving_label template must be gone").not.toMatch(
       /["']receiving_label["']/,
     );
+    // Phase 7 — the desktop grid prints through the same seam, never a
+    // hand-built template key.
+    const ws = read(WORKSPACE);
+    expect(ws).toMatch(/WMS_LABEL_KEY\.PUTAWAY/);
+    expect(ws).toMatch(/WMS_LABEL_KEY\.QUALITY_HOLD/);
+    expect(ws).toMatch(/<PrintLabelButton/);
+    expect(ws).not.toMatch(/templateKey=["']/);
   });
 
   it("capture surfaces stamp the handling unit (Phase 4c)", () => {
     expect(read(WORKSPACE)).toMatch(/lpnId:\s*activeLpn\?\.id/);
     expect(read(MOBILE_LOOP)).toMatch(/p_lpn_id:\s*activeLpn\?\.id/);
+  });
+
+  it("the workspace resolves exceptions at the dock and clocks dwell live (Phase 5c)", () => {
+    const src = read(WORKSPACE);
+    expect(src, "the exception strip must be mounted on the session").toMatch(
+      /<ReceivingExceptionStrip\s+sessionId=\{session\.id\}/,
+    );
+    expect(src, "dwell must tick while the trailer is on site").toMatch(/useDwellTicker\(/);
+
+    const strip = read("features/warehouse/receiving/ReceivingExceptionStrip.tsx");
+    // FSM only — never a direct state write on wms_exceptions (ADR 0101 §1).
+    expect(strip).toMatch(/useResolveReceivingException/);
+    expect(strip).not.toMatch(/\.update\(/);
+    const hook = read("features/warehouse/receiving/useReceivingExceptions.ts");
+    expect(hook).toMatch(/wms_resolve_exception/);
+    expect(hook).toMatch(/p_row_version/);
+    expect(hook).not.toMatch(/\.update\(/);
   });
 
   it("the dock board is lane-per-state and the workspace shows the event timeline (Phase 5b)", () => {
