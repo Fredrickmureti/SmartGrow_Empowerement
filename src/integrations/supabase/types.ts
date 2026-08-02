@@ -66667,6 +66667,7 @@ export type Database = {
           sealed_at: string | null
           sealed_by: string | null
           shipment_lpn_id: string | null
+          tare_applied_kg: number
           updated_at: string
           warehouse_id: string | null
           wave_id: string
@@ -66691,6 +66692,7 @@ export type Database = {
           sealed_at?: string | null
           sealed_by?: string | null
           shipment_lpn_id?: string | null
+          tare_applied_kg?: number
           updated_at?: string
           warehouse_id?: string | null
           wave_id: string
@@ -66715,6 +66717,7 @@ export type Database = {
           sealed_at?: string | null
           sealed_by?: string | null
           shipment_lpn_id?: string | null
+          tare_applied_kg?: number
           updated_at?: string
           warehouse_id?: string | null
           wave_id?: string
@@ -77896,6 +77899,7 @@ export type Database = {
           sealed_at: string | null
           sealed_by: string | null
           shipment_lpn_id: string | null
+          tare_applied_kg: number
           updated_at: string
           warehouse_id: string | null
           wave_id: string
@@ -77923,6 +77927,40 @@ export type Database = {
       assign_line_to_carton: {
         Args: { p_carton_id: string; p_qty: number; p_wave_line_id: string }
         Returns: Json
+      }
+      assign_packaging_to_pack: {
+        Args: { p_carton_id: string; p_packaging_type_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          carton_type_id: string | null
+          created_at: string
+          height_cm: number | null
+          id: string
+          length_cm: number | null
+          manifest_id: string | null
+          opened_at: string
+          opened_by: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          row_version: number
+          sales_order_id: string
+          sealed_at: string | null
+          sealed_by: string | null
+          shipment_lpn_id: string | null
+          tare_applied_kg: number
+          updated_at: string
+          warehouse_id: string | null
+          wave_id: string
+          weight_kg: number | null
+          width_cm: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_pack_cartons"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assign_procurement_recommendation: {
         Args: { p_assignee: string; p_rec_id: string }
