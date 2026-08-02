@@ -327,10 +327,9 @@ export default function LicensePlates() {
                           </TableCell>
                           <TableCell className="capitalize">{r.lpn_type}</TableCell>
                           <TableCell>
-                            <StatusBadge
-                              status={r.status}
-                              tone={STATUS_TONE[r.status] ?? "neutral"}
-                            />
+                            <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>
+                              {r.status}
+                            </StatusBadge>
                           </TableCell>
                           <TableCell className="font-mono text-sm">
                             {r.location_code ?? <span className="text-muted-foreground">Unlocated</span>}
