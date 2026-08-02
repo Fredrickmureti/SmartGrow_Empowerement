@@ -38,6 +38,8 @@ import { LocationStructureTree } from "@/features/warehouse/locations/LocationSt
 import { LocationMap } from "@/features/warehouse/locations/LocationMap";
 import { LocationInspector } from "@/features/warehouse/locations/LocationInspector";
 import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBuilderDialog";
+import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
+
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
