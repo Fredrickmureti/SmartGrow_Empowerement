@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
-import { PackageCheck, PackagePlus, ClipboardCheck, Truck, Package, ShieldCheck, Boxes } from "lucide-react";
+import { PackageCheck, PackagePlus, ClipboardCheck, Truck, Package, ShieldCheck, Boxes, Undo2 } from "lucide-react";
 
 interface Row {
   id: string;
@@ -125,6 +125,21 @@ export default function MobileHome() {
           </div>
           <span className="text-xs text-muted-foreground">tap →</span>
         </Link>
+
+        <Link
+          to="/wm/returns"
+          className="flex items-center justify-between rounded border p-3 active:bg-muted"
+        >
+          <div className="flex items-center gap-3">
+            <Undo2 className="h-5 w-5 text-primary" />
+            <div>
+              <div className="text-sm font-medium">Returns</div>
+              <div className="text-xs text-muted-foreground">RMA intake, condition capture</div>
+            </div>
+          </div>
+          <span className="text-xs text-muted-foreground">tap →</span>
+        </Link>
+
 
         <Link
           to="/wm/plate"

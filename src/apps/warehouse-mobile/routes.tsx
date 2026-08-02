@@ -18,6 +18,13 @@ const MobileReceiveSession = lazy(() =>
   })),
 );
 
+const MobileReturnList = lazy(() => import("@/pages/warehouse-mobile/MobileReturns"));
+const MobileReturnWorkspace = lazy(() =>
+  import("@/pages/warehouse-mobile/MobileReturns").then((m) => ({
+    default: m.MobileReturnWorkspace,
+  })),
+);
+
 const MobilePack = lazy(() => import("@/pages/warehouse-mobile/MobilePack"));
 const MobileDispatch = lazy(() => import("@/pages/warehouse-mobile/MobileDispatch"));
 const MobileQC = lazy(() => import("@/pages/warehouse-mobile/MobileQC"));
@@ -40,6 +47,9 @@ export default function WarehouseMobileApp() {
         <Route path="receive/:id" element={<Navigate to="/wm/receiving" replace />} />
         <Route path="receiving" element={<MobileReceivingSessions />} />
         <Route path="receiving/:id" element={<MobileReceiveSession />} />
+
+        <Route path="returns" element={<MobileReturnList />} />
+        <Route path="returns/:id" element={<MobileReturnWorkspace />} />
 
         <Route path="pack/:packId" element={<MobilePack />} />
         <Route path="dispatch/:shipmentId" element={<MobileDispatch />} />

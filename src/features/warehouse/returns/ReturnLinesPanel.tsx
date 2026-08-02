@@ -159,8 +159,23 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
     );
   };
 
+  /**
+   * Returns audit Phase 5 — evidence gate. `wms_disposition_return_line`
+   * refuses a damaged/defective line with no photo; mirror that client-side
+   * so the operator is told *before* the round-trip instead of eating a
+   * raw SQL exception.
+   */
+  const evidenceRequired =
+    !!dispLine &&
+    (dispLine.condition_code === "damaged" || dispLine.condition_code === "defective");
+  const evidenceMissing = evidenceRequired && !(dispLine?.photo_count ?? 0);
+
   const submitDisposition = () => {
     if (!dispLine) return;
+    if (evidenceMissing) {
+      toast.error("Photo evidence is required before dispositioning a damaged or defective line");
+      return;
+    }
     const manual = dispForm.mode === "manual";
     disposition.mutate(
       {
@@ -534,10 +549,26 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 onChange={(e) => setDispForm({ ...dispForm, notes: e.target.value })}
               />
             </div>
+            {evidenceRequired && dispLine && (
+              <div className="space-y-2">
+                <ReturnPhotoStrip order={order} line={dispLine} kind="damage" readOnly={readOnly} />
+                {evidenceMissing && (
+                  <p className="text-xs text-destructive">
+                    A {label(dispLine.condition_code)} line needs at least one photo before it can be
+                    dispositioned.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDispLine(null)}>Cancel</Button>
-            <Button onClick={submitDisposition} disabled={disposition.isPending}>Apply</Button>
+            <Button
+              onClick={submitDisposition}
+              disabled={disposition.isPending || evidenceMissing}
+            >
+              Apply
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

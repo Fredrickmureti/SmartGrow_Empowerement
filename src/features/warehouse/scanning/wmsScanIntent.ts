@@ -50,7 +50,10 @@ export type WmsScanIntent =
   | "load.lpn"
   | "count.location"
   | "count.item"
-  | "qc.lpn";
+  | "qc.lpn"
+  /** Returns audit Phase 5 — RMA dock capture scans the returned item. */
+  | "returns.item"
+  | "returns.lpn";
 
 /** Normalised payload delivered to the surface's onScan handler. */
 export interface WmsScanPayload {

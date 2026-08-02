@@ -17,6 +17,9 @@ export const WMS_LABEL_KEY = {
   PUTAWAY: "wms.label.putaway",
   QUALITY_HOLD: "wms.label.quality_hold",
   QUARANTINE: "wms.label.quarantine",
+  /** Returns audit Phase 5 — RMA dock intake + disposition routing. */
+  RETURN_RECEIPT: "wms.label.return_receipt",
+  DISPOSITION: "wms.label.disposition",
 } as const;
 
 
@@ -62,7 +65,9 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
             input.key === WMS_LABEL_KEY.BIN ||
             input.key === WMS_LABEL_KEY.PUTAWAY ||
             input.key === WMS_LABEL_KEY.QUALITY_HOLD ||
-            input.key === WMS_LABEL_KEY.QUARANTINE
+            input.key === WMS_LABEL_KEY.QUARANTINE ||
+            input.key === WMS_LABEL_KEY.RETURN_RECEIPT ||
+            input.key === WMS_LABEL_KEY.DISPOSITION
           ? "receiving"
           : "generic",
 
