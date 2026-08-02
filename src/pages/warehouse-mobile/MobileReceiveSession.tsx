@@ -240,6 +240,39 @@ export function MobileReceiveSession() {
       }
     >
       <div className="space-y-4">
+        {activeLpn ? (
+          <div className="flex items-center justify-between rounded border bg-muted/40 p-3 text-sm">
+            <span>
+              Pallet <span className="font-mono font-medium">{activeLpn.code}</span>
+            </span>
+            <Button size="sm" variant="ghost" onClick={clearLpn}>
+              Release
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <Label>Pallet / LPN (optional)</Label>
+            <div className="flex gap-2">
+              <Input
+                className="h-12"
+                placeholder="Scan or type plate"
+                value={lpnInput}
+                disabled={lpnBusy}
+                onChange={(e) => setLpnInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void applyLpn(lpnInput); }}
+              />
+              <Button
+                className="h-12"
+                variant="outline"
+                disabled={lpnBusy || !lpnInput.trim()}
+                onClick={() => void applyLpn(lpnInput)}
+              >
+                Bind
+              </Button>
+            </div>
+          </div>
+        )}
+
         <ProductScanField
           key={resetKey}
           label="Scan item"
