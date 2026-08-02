@@ -182,22 +182,6 @@ export function useBinLooseStock(locationId: string | null | undefined) {
   });
 }
 
-function _unusedLpnChildren(id: string | undefined) {
-  return useQuery({
-    queryKey: ["wms-lpn-children", id],
-    enabled: !!id,
-    queryFn: async (): Promise<LpnOverviewRow[]> => {
-      const { data, error } = await sb
-        .from("v_wms_lpn_overview")
-        .select("*")
-        .eq("parent_lpn_id", id)
-        .order("code");
-      if (error) throw error;
-      return (data ?? []) as LpnOverviewRow[];
-    },
-  });
-}
-
 export function useLpnEvents(id: string | undefined, limit = 100) {
   return useQuery({
     queryKey: ["wms-lpn-events", id, limit],
