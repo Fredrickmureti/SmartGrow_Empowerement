@@ -114,3 +114,17 @@ convergence.
 
 Remaining: trailer-visit (`wms_trailer_visits`) link for seal/dwell context,
 and the Purchases GRN wizard convergence onto the receiving document.
+
+### Phase 1 remainder — trailer visit link (landed)
+
+- `src/features/warehouse/receiving/useReceivingTrailerVisits.ts`: resolves the
+  yard's `wms_trailer_visits` row through the session's dock appointment (the
+  shared key), plus carrier names, with a live dwell helper (`dwell_minutes` is
+  only stamped on departure). Read-only — the yard board stays the sole writer,
+  and no column is duplicated onto `wms_receiving_sessions`.
+- Board cards now show carrier · trailer · driver, seal in/out and dwell/on-site
+  minutes; the workspace sheet shows the same strip above the capture grid.
+- Guard added in `src/__tests__/architecture.receiving-line-grain.test.ts`
+  (visit resolved via appointment, no writes from receiving).
+
+Remaining: the Purchases GRN wizard convergence onto the receiving document.
