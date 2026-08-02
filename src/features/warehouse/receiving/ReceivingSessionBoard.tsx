@@ -98,23 +98,31 @@ function SessionCard({
   const dwell = visit ? dwellMinutes(visit) : null;
 
   return (
-    <div className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
+    <div className="min-w-0 rounded-lg border bg-card p-3 shadow-sm space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <button className="font-mono text-sm font-medium hover:underline" onClick={() => onOpen(s)}>
+        <button
+          className="min-w-0 flex-1 truncate text-left font-mono text-sm font-medium hover:underline"
+          onClick={() => onOpen(s)}
+          title={s.code}
+        >
           {s.code}
         </button>
-        <ActivityHistoryButton aggregateId={s.id} recordLabel={s.code} label="" />
+        <span className="shrink-0">
+          <ActivityHistoryButton aggregateId={s.id} recordLabel={s.code} label="" />
+        </span>
       </div>
 
-      <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="min-w-0 space-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <DoorOpen className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{dockLabel(s.dock_id) ?? "unassigned door"}</span>
+          <span className="min-w-0 truncate" title={dockLabel(s.dock_id) ?? "unassigned door"}>
+            {dockLabel(s.dock_id) ?? "unassigned door"}
+          </span>
         </div>
         {visit ? (
           <div className="flex items-center gap-1.5">
             <Truck className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {[visit.carrier_name, visit.trailer_ref].filter(Boolean).join(" · ") || "trailer on dock"}
               {visit.driver_name ? ` · ${visit.driver_name}` : ""}
             </span>
@@ -123,7 +131,7 @@ function SessionCard({
         {visit && (visit.seal_in || visit.seal_out) ? (
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               seal in {visit.seal_in ?? "—"}
               {visit.seal_out ? ` · out ${visit.seal_out}` : ""}
             </span>
@@ -132,24 +140,24 @@ function SessionCard({
         {dwell != null ? (
           <div className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
+            <span className="min-w-0 truncate">
               {visit?.departed_at ? "dwell" : "on site"} {dwell} min
             </span>
           </div>
         ) : null}
         <div className="flex items-center gap-1.5">
           <CalendarClock className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             {windowLabel(appt) ?? (s.started_at ? `started ${new Date(s.started_at).toLocaleString()}` : "unscheduled arrival")}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
           <UserRound className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{supervisorLabel(s.supervisor_id)}</span>
+          <span className="min-w-0 truncate">{supervisorLabel(s.supervisor_id)}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
+          <span className="min-w-0 truncate">
             {s.source_doc_type ? s.source_doc_type.replace(/_/g, " ") : "blind receipt"}
             {appt?.reference ? ` · ${appt.reference}` : ""}
           </span>
@@ -177,11 +185,26 @@ function SessionCard({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-1 pt-1">
-        <Button size="sm" variant="outline" onClick={() => onOpen(s)}>Open</Button>
+      {/*
+        Actions must never punch out of the lane. A lane can be as narrow as
+        ~270px, so buttons live in an auto-fit grid: one column when cramped,
+        two when there is room, each cell clipping its own label.
+      */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-1 pt-1">
+        <Button size="sm" variant="outline" className="w-full min-w-0" onClick={() => onOpen(s)}>
+          Open
+        </Button>
         {actions(s).map((a, i) => (
-          <Button key={i} size="sm" variant={a.label.startsWith("Post") ? "default" : "outline"} onClick={a.run}>
-            <a.icon className="mr-1 h-3.5 w-3.5" />{a.label}
+          <Button
+            key={i}
+            size="sm"
+            variant={a.label.startsWith("Post") ? "default" : "outline"}
+            className="w-full min-w-0 px-2"
+            title={a.label}
+            onClick={a.run}
+          >
+            <a.icon className="mr-1 h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{a.label}</span>
           </Button>
         ))}
       </div>
@@ -192,25 +215,35 @@ function SessionCard({
 export function ReceivingSessionBoard(props: Props) {
   const { sessions } = props;
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-      {LANES.map((lane) => {
-        const laneSessions = sessions.filter((s) => s.state === lane.state);
-        return (
-          <div key={lane.state} className="rounded-lg bg-muted/40 p-2">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-sm font-medium">{lane.title}</span>
-              <StatusBadge tone={lane.tone}>{laneSessions.length}</StatusBadge>
+    /*
+      Five lanes squeezed into a viewport-wide grid gave every card ~230px and
+      shredded its content. A dock board is a board: lanes hold a workable
+      minimum width and the board scrolls horizontally instead of crushing them.
+    */
+    <div className="-mx-1 overflow-x-auto px-1 pb-2">
+      <div className="flex min-w-full gap-3 xl:grid xl:grid-cols-5">
+        {LANES.map((lane) => {
+          const laneSessions = sessions.filter((s) => s.state === lane.state);
+          return (
+            <div
+              key={lane.state}
+              className="flex w-[19rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 xl:w-auto xl:min-w-0"
+            >
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <span className="truncate text-sm font-medium">{lane.title}</span>
+                <StatusBadge tone={lane.tone}>{laneSessions.length}</StatusBadge>
+              </div>
+              <div className="space-y-2">
+                {laneSessions.length === 0 ? (
+                  <p className="px-1 py-6 text-center text-xs text-muted-foreground">Empty</p>
+                ) : (
+                  laneSessions.map((s) => <SessionCard key={s.id} {...props} s={s} />)
+                )}
+              </div>
             </div>
-            <div className="space-y-2">
-              {laneSessions.length === 0 ? (
-                <p className="px-1 py-6 text-center text-xs text-muted-foreground">Empty</p>
-              ) : (
-                laneSessions.map((s) => <SessionCard key={s.id} {...props} s={s} />)
-              )}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
