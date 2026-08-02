@@ -52,10 +52,22 @@ export const WMS_TOPIC = {
   RECEIPT_STAGED: "warehouse.receipt.staged",
 
   // ---- Returns --------------------------------------------------------
-  RETURN_OPENED: "warehouse.return.opened",
-  RETURN_INSPECTED: "warehouse.return.inspected",
-  RETURN_DISPOSITIONED: "warehouse.return.dispositioned",
+  // Header FSM: wms_transition_return emits 'warehouse.return.' || state.
+  RETURN_DRAFT: "warehouse.return.draft",
+  RETURN_AUTHORIZED: "warehouse.return.authorized",
+  RETURN_IN_TRANSIT: "warehouse.return.in_transit",
+  RETURN_RECEIVED: "warehouse.return.received",
+  RETURN_INSPECTING: "warehouse.return.inspecting",
+  RETURN_DISPOSED: "warehouse.return.disposed",
   RETURN_CLOSED: "warehouse.return.closed",
+  RETURN_CANCELLED: "warehouse.return.cancelled",
+  // Line-level execution topics (returns execution RPCs).
+  RETURN_LINE_CAPTURED: "warehouse.return.line_captured",
+  RETURN_LINE_INSPECTED: "warehouse.return.line_inspected",
+  RETURN_LINE_DISPOSITIONED: "warehouse.return.line_dispositioned",
+  RETURN_DISPOSITIONS_POSTED: "warehouse.return.dispositions_posted",
+  RETURN_BLOCKED: "warehouse.return.blocked",
+
 
   // ---- Exception inbox ------------------------------------------------
   EXCEPTION_RAISED: "warehouse.exception.raised",
