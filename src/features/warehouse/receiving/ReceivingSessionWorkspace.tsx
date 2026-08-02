@@ -221,6 +221,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   // capture row knows whether it must demand a serial.
   const tracking = useProductTrackingFlags((lines ?? []).map((l) => l.product_id));
 
+  // Phase 11 — packaging levels per product, so a typed count in cases is
+  // converted to base units before it reaches the RPC.
+  const unitOptions = useReceivingUnitOptions(
+    useMemo(() => (lines ?? []).map((l) => l.product_id).filter(Boolean) as string[], [lines]),
+  );
+
   // Phase 4c — the pallet under the operator's hands. Bound by a
   // `receiving.lpn` scan or typed, then stamped onto every capture.
   const { activeLpn, bind: bindLpn, clear: clearLpn, resolving: lpnBusy } = useActiveLpn(businessId);
