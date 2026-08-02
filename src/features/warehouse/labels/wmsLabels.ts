@@ -51,10 +51,11 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
     copies: input.copies,
     isReprint: input.isReprint,
     workflow:
-      input.key === WMS_LABEL_KEY.SHIPPING
+      input.key === WMS_LABEL_KEY.SHIPPING || input.key === WMS_LABEL_KEY.CARTON
         ? "shipping"
         : input.key === WMS_LABEL_KEY.LPN || input.key === WMS_LABEL_KEY.BIN
           ? "receiving"
           : "generic",
+
   });
 }
