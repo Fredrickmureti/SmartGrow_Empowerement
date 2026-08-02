@@ -1,61 +1,41 @@
-## Verification result (checked in code + live DB, not against the notes)
+## What's actually wrong
 
-I re-audited every claim in `.lovable/plan.md` and the receiving handoff file.
+Three separate defects, all confirmed against the live database.
 
-**Confirmed genuinely complete**
-- Phases 1–3: typed source binding (`appointment_id`/`dock_id`/`supervisor_id` all bound on create), `wms_materialize_expected_lines`, line-grain capture, variance rollups.
-- Phase 4a/4c/4d: `wms_post_receiving_session` exists and (verified in the live function body) excludes `qc_hold` lines, deducts `damaged_qty`, routes held/damaged lines to a `quarantine` location, and supports `inbound_shipment`/`asn` sources. LPN is stamped on desktop (`lpnId: activeLpn?.id`) and mobile (`p_lpn_id`). No `GoodsReceiptWizardPage` remains.
-- Phase 4b: no client file calls `receive_goods_to_wms`; mobile reaches the DB only through the offline queue.
-- Phase 5b/5c: lane-per-state board, `OutboxTimeline`, `ReceivingExceptionStrip` mounted on the session, resolution only via `wms_resolve_exception` with `p_row_version`, live dwell ticker, `postBlockers` disabling Post.
-- Phase 6/6b, Phase 7: mobile scan-first loop with offline capture; put-away / quality-hold / quarantine labels on both mobile and the desktop grid through `PrintLabelButton` + `WMS_LABEL_KEY`, with no hand-built template keys.
-- Trailer visits resolved read-only through the shared dock appointment.
+### 1. Every WMS state transition is broken (the "Transition rejected" 400)
 
-**Not complete, contrary to the status file**
-1. **Phase 8 is further along than claimed but still incomplete.** `architecture.receiving-line-grain.test.ts` already pins scan/transition separation, RPC-only capture and posting, label keys, LPN stamping, exception FSM, board/timeline and trailer-read-only. Missing: the base-unit invariant, and the "no direct `wms_receiving_lines` write from a component" invariant.
-2. **Step 4 was never started.** Nothing in `src/` or in any RPC writes `goods_receipt_discrepancies`. The wizard was the only writer and it is gone, so discrepancies are now recorded *nowhere* on the Purchases side — the plan's intended backfill from `wms_exceptions` at post time does not exist.
-3. **New defect — unit of measure is a free-text label, not a conversion.** `wms_capture_receiving_line` stores `p_uom` verbatim and adds `p_received_qty` straight onto `received_qty`; posting passes that number to `create_goods_receipt` untouched. An operator receiving 5 cases of 12 books 5 base units. The capture panels expose no packaging selector even though the packaging/multi-unit modules exist. This is a valuation-correctness bug, not cosmetics.
-4. **New defect — quarantined stock is invisible to Inventory.** Posting excludes held/damaged quantity from the receipt and only stamps `staging_location_id` on the receiving line. No movement is emitted into the quarantine location, so physically-present held goods exist in no inventory ledger. Enterprise WMS receive quarantined units into a non-available location rather than not receiving them.
+`wms_transition_receiving` fails with `23514 event_source_domain violates check constraint`.
 
-## Remaining work, in order
+Cause: there are **two overloads** of the internal helper `_wms_emit_outbox`:
 
-### Phase 8 — close the guard suite
-Extend `src/__tests__/architecture.receiving-line-grain.test.ts` with: capture quantity is converted to base units before the RPC; no receiving component writes `wms_receiving_lines` directly (insert/update/upsert); posting is the only staging path (re-assert across the offline replay allow-list).
+```text
+(p_topic, p_idempotency_key, p_organization_id, p_business_id, p_payload)  → writes source = 'wms'   ← BROKEN
+(p_topic, p_organization_id, p_business_id, p_payload, p_idempotency_key)  → writes source = 'warehouse'
+```
 
-### Phase 11 — packaging-aware capture (base units)
-- Desktop capture panel and mobile loop gain a packaging/unit selector sourced from the existing packaging catalogue for the scanned product, defaulting to the product's base unit and to the packaging encoded in a GS1/product-identifier scan when present.
-- Quantity is converted to base units in one shared helper before it reaches `wms_capture_receiving_line`; the captured packaging and factor are recorded on the line for audit, and the grid shows both "3 cases" and the base-unit equivalent.
-- `wms_capture_receiving_line` validates that the supplied unit resolves for the product and rejects an unknown one instead of silently storing text.
+The `event_source_domain` domain allows `'warehouse'` but **not** `'wms'`. Every transition RPC calls positionally in the first order, so they all resolve to the broken overload: `wms_transition_receiving`, `_return`, `_wave`, `_manifest`, `_qc`, `_count_session`, `wms_raise_exception`, `wms_resolve_exception`, `_wms_maybe_enqueue_replen`. This is not specific to "discrepant" — the whole WMS event fabric is dead at the outbox insert.
 
-### Phase 12 — quarantine becomes real inventory
-Posting emits the held/damaged quantity into the warehouse quarantine location through the existing Inventory writer (Inventory stays the only writer of quants/movements/cost layers), so quarantined units are on the books but not available for allocation. Release/scrap continues through the existing exception resolutions. Quarantine label already exists and is reused.
+Fix: one migration that drops the duplicate helper and keeps a single canonical `_wms_emit_outbox` writing `source = 'warehouse'`, with both call orders preserved (keep the two signatures but make both bodies identical and correct, so no caller needs rewriting). Then re-run a transition to confirm 200.
 
-### Phase 13 — retire `goods_receipt_discrepancies` as a write target
-At post time, backfill it from the session's `wms_exceptions` for historical continuity. No UI writes it; add a guard asserting that.
+### 2. Wiping transactional data leaves receiving sessions behind
 
-### Phase 14 — status refresh
-Rewrite `.lovable/plan.md` to the state above so the next engineer inherits accurate claims.
+`reset_module__inventory` is the only reset function that mentions WMS at all, and it references just `wms_qc_inspections`. There are **45 `wms_*` tables**, including `wms_receiving_sessions` / `wms_receiving_lines` — none are cleared, which is exactly why your two test sessions survived the wipe.
+
+Fix: add a `reset_module__warehouse` routine that clears WMS execution data for the target business in FK-safe order (sessions, lines, LPNs, tasks, waves, manifests, exceptions, appointments, trailer visits, counts, crossdock links, QC, putaway/replen), remove the stray `wms_qc_inspections` handling from the inventory reset, and register the new module wherever reset modules are enumerated so it runs with the standard wipe. Only transactional/execution rows are removed — warehouse, dock, zone and location master data stays.
+
+### 3. Session detail can't load its lines
+
+The UI requests `wms_receiving_lines?select=...,products(name,sku)` and PostgREST returns `PGRST200`: there is **no foreign key** from `wms_receiving_lines.product_id` to `products`. So opening a session shows no lines at all.
+
+Fix: add the missing FK constraint (`product_id → products(id)`, `ON DELETE RESTRICT`) so the embed resolves. If any orphan `product_id` values exist from the wipe, they are cleaned up in the same migration before the constraint is added.
+
+### Also worth doing
+
+Replace the generic "Transition rejected" toast with the actual server message plus a distinct copy for the two real failure modes (illegal transition vs. row-version conflict), so a backend error like this surfaces meaningfully instead of as a blank rejection.
 
 ## Technical notes
-- No new tables. Changes are: two receiving RPC revisions (unit validation, quarantine movement, discrepancy backfill), one shared unit-conversion helper, capture-panel wiring on two surfaces, and guard tests.
-- Domain boundaries unchanged: Inventory owns quantity/valuation, Warehouse owns execution and posts by delegation while emitting `warehouse.receiving.*` events.
-- Verification after each phase: `tsgo --noEmit` plus `architecture.receiving-line-grain`, `wms-phase2`, `wms-phase4-ux`, `grn-convergence`, `label-coverage`.
 
-## Receiving audit — Phases 8, 11–13 (2026-08-02)
-
-- **Phase 8 (guards, closed):** `src/__tests__/architecture.receiving-line-grain.test.ts`
-  now also pins (a) no receiving surface writes `wms_receiving_lines`
-  directly, (b) desktop + mobile capture route typed quantities through the
-  shared `receivingUnits` conversion seam and never send a raw `Number(qty)`.
-- **Phase 11 (packaging-aware capture):** new
-  `src/features/warehouse/receiving/receivingUnits.ts` converts operator
-  units (case/box) to base units. Unit selector added to the desktop
-  `CaptureRow` and the mobile capture loop; `wms_capture_receiving_line` now
-  rejects a `p_uom` naming a packaging level with a multiplier > 1, so an
-  unconverted case count can no longer be booked as loose pieces.
-- **Phase 12 (quarantine visibility):** `wms_post_receiving_session` books the
-  FULL captured quantity onto the receipt and then emits `quarantine_hold`
-  transfer movements (staging → quarantine bin) for held/damaged units.
-  Quarantined stock is now on the ledger but not available.
-- **Phase 13 (discrepancy retirement):** `goods_receipt_discrepancies` dropped
-  (0 rows; superseded by `wms_exceptions` raised by
-  `wms_flag_receiving_variances`) and stripped from `reset_module__inventory`.
+- Three migrations: (a) outbox helper repair, (b) warehouse reset module + inventory reset cleanup, (c) receiving-line FK.
+- Verification after (a): call `wms_transition_receiving` for session `ae4fcec1…` from `captured → discrepant` and confirm a `business_event_outbox` row lands with `source = 'warehouse'`.
+- Frontend change is limited to the error-toast wording in the receiving board/workspace mutation handlers.
+- No changes to the lane layout — the board fix from the last turn stays as is.
