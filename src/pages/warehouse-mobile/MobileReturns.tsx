@@ -187,8 +187,8 @@ export function MobileReturnWorkspace() {
         p_product_id: scan.identity.productId,
         p_received_qty: amount,
         p_expected_qty: matched ? matched.expected_qty : null,
-        p_lot_number: scan.gs1?.lot ?? null,
-        p_serial_number: scan.gs1?.serial ?? null,
+        p_lot_number: scan.lot,
+        p_serial_number: scan.serial,
         p_uom: null,
         p_condition_code: condition,
         p_notes: null,
@@ -213,15 +213,18 @@ export function MobileReturnWorkspace() {
           </div>
           {order && (
             <PrintLabelButton
+              label="Receipt label"
               templateKey={WMS_LABEL_KEY.RETURN_RECEIPT}
+              workflow="receiving"
+              product={{ id: order.id, name: order.code, sku: order.rma_reference ?? "", barcode: null }}
               sourceDocType="wms_return_order"
               sourceDocId={order.id}
-              vars={{
+              idempotencyKey={`${WMS_LABEL_KEY.RETURN_RECEIPT}:${order.id}`}
+              extraVars={{
                 return_code: order.code,
                 rma_reference: order.rma_reference ?? "",
                 return_kind: order.return_kind,
               }}
-              label="Receipt label"
             />
           )}
         </div>
