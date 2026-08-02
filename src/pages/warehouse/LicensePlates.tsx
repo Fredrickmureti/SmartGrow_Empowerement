@@ -308,7 +308,16 @@ export default function LicensePlates() {
                             </StatusBadge>
                           </TableCell>
                           <TableCell className="font-mono text-sm">
-                            {r.location_code ?? <span className="text-muted-foreground">Unlocated</span>}
+                            {r.location_code ? (
+                              <>
+                                <div>{r.location_code}</div>
+                                {r.location_path && r.location_path !== r.location_code && (
+                                  <div className="text-[11px] text-muted-foreground">{r.location_path}</div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">Unlocated</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{Number(r.sku_count ?? 0)}</TableCell>
                           <TableCell className="text-right tabular-nums">{Number(r.total_quantity ?? 0)}</TableCell>
