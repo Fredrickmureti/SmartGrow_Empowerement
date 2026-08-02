@@ -11,7 +11,7 @@
  *  2. For each pick task: `claim_pick_task` → `complete_pick_task`.
  *     Wave rolls up to `picked` and spawns one pack task per SO.
  *  3. `open_pack_carton(wave, so)` → carton + shipment LPN. (Optional
- *     `assign_carton_to_pack` skipped because no carton-type catalogue
+ *     `assign_packaging_to_pack` skipped because no packaging catalogue
  *     is seeded — dims default to nulls; sealer accepts weight only.)
  *  4. `assign_line_to_carton` for every picked wave line, then
  *     `seal_pack_carton` with weight, then `complete_pack_task`.
@@ -22,8 +22,8 @@
  *     landed in `business_event_outbox` with matching idempotency keys,
  *     and the shipment LPN status = 'shipped'.
  *
- * RPCs exercised: claim_pick_task, complete_pick_task, suggest_carton,
- * open_pack_carton, assign_carton_to_pack, assign_line_to_carton,
+ * RPCs exercised: claim_pick_task, complete_pick_task,
+ * open_pack_carton, assign_line_to_carton,
  * seal_pack_carton, complete_pack_task, open_loading_manifest,
  * load_carton_onto_manifest, close_loading_manifest,
  * dispatch_loading_manifest.

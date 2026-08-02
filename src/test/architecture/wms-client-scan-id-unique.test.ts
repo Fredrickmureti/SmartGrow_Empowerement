@@ -126,7 +126,6 @@ describe("Phase 5.1 — desktop replay safety", () => {
     "record_count",
     "post_count_session",
     "open_pack_carton",
-    "assign_carton_to_pack",
     "assign_line_to_carton",
     "seal_pack_carton",
     "complete_pack_task",

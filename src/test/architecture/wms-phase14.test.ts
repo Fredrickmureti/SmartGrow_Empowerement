@@ -46,7 +46,6 @@ const SPECS: Array<{ file: string; rpcs: string[] }> = [
       "claim_pick_task",
       "complete_pick_task",
       "open_pack_carton",
-      "assign_carton_to_pack",
       "seal_pack_carton",
       "complete_pack_task",
       "open_loading_manifest",
