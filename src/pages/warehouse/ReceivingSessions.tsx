@@ -40,6 +40,12 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck } from "lucide-react";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
+import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
+import {
+  useReceivingProgress,
+  useCaptureReceivingLine,
+  useMaterializeExpectedLines,
+} from "@/features/warehouse/receiving/useReceivingLines";
 
 type RcvState = "open" | "unloading" | "captured" | "discrepant" | "posted" | "closed" | "cancelled";
 
@@ -83,6 +89,11 @@ export default function ReceivingSessions() {
   const { currentOrg } = useOrganization();
   const { user } = useAuth();
 
+  const { data: progress } = useReceivingProgress(currentBusiness?.id);
+  const captureLine = useCaptureReceivingLine();
+  const materialize = useMaterializeExpectedLines();
+  const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
+
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("open_all");
 
@@ -102,6 +113,23 @@ export default function ReceivingSessions() {
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as SessionRow[];
+    },
+  });
+
+  // Typed source-document binding: sessions bind to a real PO or ASN row, so
+  // expected quantities (and therefore variance) are computable.
+  const { data: sourceDocs } = useQuery({
+    queryKey: ["wms-receiving-source-docs", currentBusiness?.id, "purchase_order"],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("id, po_number, status, warehouse_id")
+        .eq("business_id", currentBusiness!.id)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as { id: string; po_number: string | null; status: string | null; warehouse_id: string | null }[];
     },
   });
 
@@ -134,7 +162,7 @@ export default function ReceivingSessions() {
       if (!currentBusiness?.id || !currentOrg?.id) throw new Error("No active organization");
       if (!form.warehouse_id) throw new Error("Choose a warehouse");
       const wh = warehouses.find((w) => w.id === form.warehouse_id);
-      const { error } = await supabase.from("wms_receiving_sessions" as any).insert({
+      const { data: created, error } = await supabase.from("wms_receiving_sessions" as any).insert({
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         branch_id: wh?.branch_id ?? null,
@@ -145,8 +173,13 @@ export default function ReceivingSessions() {
         state: "open",
         notes: form.notes || null,
         created_by: user?.id ?? null,
-      });
+      }).select("id").single();
       if (error) throw error;
+      const id = (created as unknown as { id: string } | null)?.id;
+      if (id && form.source_doc_id) {
+        // Expand the bound document into expected lines immediately.
+        await materialize.mutateAsync(id).catch(() => undefined);
+      }
     },
     onSuccess: () => {
       toast.success("Receiving session created");
@@ -218,7 +251,7 @@ export default function ReceivingSessions() {
           detail:
             unloadingSessions.length === 0
               ? "No session unloading — scan an LPN to start"
-              : "Multiple sessions unloading — pick one before scanning items",
+              : "Multiple sessions unloading — open one before scanning items",
         });
         return;
       }
@@ -226,29 +259,38 @@ export default function ReceivingSessions() {
       if (!gated) return;
 
       const target = unloadingSessions[0];
-      const { identity, baseUnits, lot, expiry } = gated;
-      transition.mutate(
-        {
-          id: target.id,
-          to: "captured",
-          rowVersion: target.row_version,
-          reason: `Item ${identity.productName} (${describeLevel(identity)} = ${baseUnits})`,
-        },
-        {
-          onSuccess: () =>
-            toast.success(`Captured on ${target.code}`, {
-              description: [
-                `${identity.productName} · ${describeLevel(identity)} → ${baseUnits} base units`,
-                lot ? `lot ${lot}` : null,
-                expiry ? `exp ${expiry.toISOString().slice(0, 10)}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · "),
-            }),
-        },
-      );
+      const { identity, baseUnits, lot, serial, expiry } = gated;
+      try {
+        // Line grain: the scan is recorded as received quantity against the
+        // session's expected line. The session state is untouched — capture is
+        // completed explicitly once the operator is done unloading.
+        const res = await captureLine.mutateAsync({
+          sessionId: target.id,
+          productId: identity.productId,
+          receivedQty: baseUnits,
+          lotNumber: lot,
+          serialNumber: serial,
+          expiryDate: expiry ? expiry.toISOString().slice(0, 10) : null,
+          clientScanId: `${target.id}:${p.raw}:${Date.now()}`,
+        });
+        toast.success(`${identity.productName} +${baseUnits} on ${target.code}`, {
+          description: [
+            `${describeLevel(identity)} → ${baseUnits} base units`,
+            lot ? `lot ${lot}` : null,
+            res?.unexpected ? "not on the source document" : null,
+          ].filter(Boolean).join(" · "),
+        });
+      } catch (e) {
+        scanFeedbackBus.emit({
+          kind: "error",
+          raw: p.raw,
+          source: "field",
+          workflow: "receive",
+          detail: e instanceof Error ? e.message : "Capture failed",
+        });
+      }
     },
-    [unloadingSessions, transition, identityGate],
+    [unloadingSessions, identityGate, captureLine],
   );
 
 
@@ -261,6 +303,7 @@ export default function ReceivingSessions() {
     intent: "receiving.item",
     onScan: handleItemScan,
     label: "receiving-sessions.item",
+    enabled: !activeSession,
   });
 
   // Irreversible post confirmation. `captured → posted` = two-tap; `discrepant → posted` = typed ack.
@@ -290,11 +333,11 @@ export default function ReceivingSessions() {
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant", "Marked discrepant during unload") },
       ];
       case "captured":   return [
-        { label: "Post to inventory", icon: Check, run: () => setPostConfirm({ session: r, from: "captured" }) },
+        { label: "Post to inventory", icon: Check, run: () => setActiveSession(r) },
         { label: "Discrepant", icon: AlertTriangle, run: () => t("discrepant") },
       ];
       case "discrepant": return [
-        { label: "Post anyway", icon: Check, run: () => setPostConfirm({ session: r, from: "discrepant" }) },
+        { label: "Review & post", icon: Check, run: () => setActiveSession(r) },
         { label: "Close", icon: Check, run: () => t("closed") },
       ];
       case "posted":     return [{ label: "Close", icon: Check, run: () => t("closed") }];
@@ -353,6 +396,7 @@ export default function ReceivingSessions() {
                       <TableHead>Code</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Source</TableHead>
+                      <TableHead>Lines</TableHead>
                       <TableHead>Started</TableHead>
                       <TableHead>Closed</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -364,9 +408,26 @@ export default function ReceivingSessions() {
                         <TableCell className="font-mono">{r.code}</TableCell>
                         <TableCell><StatusBadge tone={TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.source_doc_type ?? "—"}</TableCell>
+                        <TableCell className="text-xs">
+                          {(() => {
+                            const pr = progress?.get(r.id);
+                            if (!pr || pr.line_count === 0) return <span className="text-muted-foreground">no lines</span>;
+                            return (
+                              <span className="space-x-1">
+                                <span className="font-medium">{Number(pr.received_qty)}</span>
+                                <span className="text-muted-foreground">/ {Number(pr.expected_qty)}</span>
+                                {pr.short_lines > 0 && <StatusBadge tone="danger">{pr.short_lines} short</StatusBadge>}
+                                {pr.over_lines > 0 && <StatusBadge tone="warning">{pr.over_lines} over</StatusBadge>}
+                                {pr.unexpected_lines > 0 && <StatusBadge tone="warning">{pr.unexpected_lines} extra</StatusBadge>}
+                                {pr.hold_lines > 0 && <StatusBadge tone="danger">{pr.hold_lines} hold</StatusBadge>}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.closed_at ? new Date(r.closed_at).toLocaleString() : "—"}</TableCell>
                         <TableCell className="text-right space-x-1">
+                          <Button size="sm" variant="outline" onClick={() => setActiveSession(r)}>Open</Button>
                           <ActivityHistoryButton aggregateId={r.id} recordLabel={r.code} />
                           {nextActions(r).map((a, i) => (
                             <Button key={i} size="sm" variant={a.label.startsWith("Post") || a.label === "Close" ? "default" : "outline"} onClick={a.run}>
@@ -401,16 +462,37 @@ export default function ReceivingSessions() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Source doc type (optional)</Label>
-                <Input value={form.source_doc_type} onChange={(e) => setForm({ ...form, source_doc_type: e.target.value })} placeholder="asn / po / goods_receipt" />
-              </div>
-              <div>
-                <Label>Source doc id (optional)</Label>
-                <Input value={form.source_doc_id} onChange={(e) => setForm({ ...form, source_doc_id: e.target.value })} className="font-mono" />
-              </div>
+            <div>
+              <Label>Source document</Label>
+              <Select
+                value={form.source_doc_type || "none"}
+                onValueChange={(v) => setForm({ ...form, source_doc_type: v === "none" ? "" : v, source_doc_id: "" })}
+              >
+                <SelectTrigger><SelectValue placeholder="Blind receipt" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Blind receipt (no document)</SelectItem>
+                  <SelectItem value="purchase_order">Purchase order</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {form.source_doc_type === "purchase_order" && (
+              <div>
+                <Label>Purchase order</Label>
+                <Select value={form.source_doc_id} onValueChange={(v) => setForm({ ...form, source_doc_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Choose purchase order" /></SelectTrigger>
+                  <SelectContent>
+                    {(sourceDocs ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.po_number ?? d.id.slice(0, 8)} · {d.status ?? "—"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Expected lines are loaded from this order so shortages and overages are measurable.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Notes</Label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
@@ -422,6 +504,12 @@ export default function ReceivingSessions() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReceivingSessionWorkspace
+        session={activeSession}
+        businessId={currentBusiness?.id}
+        onClose={() => setActiveSession(null)}
+      />
 
       <AlertDialog
         open={!!postConfirm}
