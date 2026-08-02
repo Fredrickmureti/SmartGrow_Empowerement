@@ -158,6 +158,46 @@ export function useLpnChildren(id: string | undefined) {
   });
 }
 
+/**
+ * Loose (unassigned) stock sitting in a bin. `wms_lpn_load` can only pull from
+ * these lines, so the load dialog offers exactly this list instead of the whole
+ * product catalogue — the operator can no longer pick stock that isn't there.
+ */
+export function useBinLooseStock(locationId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["wms-bin-loose-stock", locationId],
+    enabled: !!locationId,
+    queryFn: async (): Promise<LpnContentRow[]> => {
+      const { data, error } = await sb
+        .from("stock_quants")
+        .select("id, product_id, quantity, reserved_quantity, lot_number, products:product_id(name, sku)")
+        .eq("location_id", locationId)
+        .is("lpn_id", null)
+        .gt("quantity", 0)
+        .order("quantity", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as LpnContentRow[];
+    },
+  });
+}
+
+function _unusedLpnChildren(id: string | undefined) {
+  return useQuery({
+    queryKey: ["wms-lpn-children", id],
+    enabled: !!id,
+    queryFn: async (): Promise<LpnOverviewRow[]> => {
+      const { data, error } = await sb
+        .from("v_wms_lpn_overview")
+        .select("*")
+        .eq("parent_lpn_id", id)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as LpnOverviewRow[];
+    },
+  });
+}
+
 export function useLpnEvents(id: string | undefined, limit = 100) {
   return useQuery({
     queryKey: ["wms-lpn-events", id, limit],
