@@ -10,7 +10,7 @@
  * (`wms_post_receiving_session`) which creates the goods receipt, stages the
  * stock for put-away, and only then advances the session.
  */
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -294,8 +294,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
               {(lines ?? []).map((l) => {
                 const v = variance(l);
                 return (
-                  <>
-                    <TableRow key={l.id}>
+                  <Fragment key={l.id}>
+                    <TableRow>
                       <TableCell className="text-sm">
                         {l.products?.name ?? "—"}
                         {l.products?.sku && <span className="ml-1 text-xs text-muted-foreground font-mono">{l.products.sku}</span>}
@@ -331,13 +331,13 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                       </TableCell>
                     </TableRow>
                     {expandedLine === l.id && (
-                      <TableRow key={`${l.id}-capture`}>
+                      <TableRow>
                         <TableCell colSpan={7}>
                           <CaptureRow line={l} busy={capture.isPending} onCapture={(v2) => runCapture(l, v2)} />
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
