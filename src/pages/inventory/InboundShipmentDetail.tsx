@@ -2,7 +2,7 @@
  * InboundShipmentDetail — single ASN header + lines with a
  * "Start Goods Receipt" launcher. When the ASN is linked to a PO,
  * the wizard prefills quantities, lots and expiry via the existing
- * PO → GRN → ASN contract in `GoodsReceiptWizardPage`.
+ * PO → GRN → ASN contract; capture happens in the WMS receiving session.
  */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -112,7 +112,9 @@ export default function InboundShipmentDetail() {
 
   const startGrn = () => {
     if (!shipment.purchase_order_id) return;
-    navigate(`/purchases/goods-receipt/new?po=${shipment.purchase_order_id}`);
+    navigate(
+      `/warehouse-app/receiving?source_doc_type=purchase_order&source_doc_id=${shipment.purchase_order_id}`,
+    );
   };
 
   return (
