@@ -143,6 +143,18 @@ export function WarehouseApp() {
         />
 
         <Route
+          path="layout/design"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Layout Designer">
+                <LayoutDesigner />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
+        <Route
           path="plates"
           element={
             <SubscriptionProtectedRoute allowReadOnly>
