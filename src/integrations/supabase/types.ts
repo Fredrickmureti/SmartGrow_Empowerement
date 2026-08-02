@@ -89667,6 +89667,10 @@ export type Database = {
         Args: { p_reason?: string; p_return_id: string; p_row_version: number }
         Returns: Json
       }
+      wms_create_return_finance_doc: {
+        Args: { p_return_id: string; p_row_version: number }
+        Returns: Json
+      }
       wms_disposition_return_line: {
         Args: {
           p_destination_location_id?: string
