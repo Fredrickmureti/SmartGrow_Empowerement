@@ -549,10 +549,26 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 onChange={(e) => setDispForm({ ...dispForm, notes: e.target.value })}
               />
             </div>
+            {evidenceRequired && dispLine && (
+              <div className="space-y-2">
+                <ReturnPhotoStrip order={order} line={dispLine} kind="damage" readOnly={readOnly} />
+                {evidenceMissing && (
+                  <p className="text-xs text-destructive">
+                    A {label(dispLine.condition_code)} line needs at least one photo before it can be
+                    dispositioned.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDispLine(null)}>Cancel</Button>
-            <Button onClick={submitDisposition} disabled={disposition.isPending}>Apply</Button>
+            <Button
+              onClick={submitDisposition}
+              disabled={disposition.isPending || evidenceMissing}
+            >
+              Apply
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
