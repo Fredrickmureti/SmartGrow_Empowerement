@@ -603,6 +603,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                             line={l}
                             busy={capture.isPending}
                             serialTracked={tracking.get(l.product_id).is_serial_tracked}
+                            units={unitOptions.get(l.product_id) ?? []}
                             onCapture={(v2) => runCapture(l, v2)}
                           />
                         </TableCell>
