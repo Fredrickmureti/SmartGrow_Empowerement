@@ -124,12 +124,12 @@ export default function ReceivingSessions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_orders")
-        .select("id, po_number, status, warehouse_id")
+        .select("id, po_number, status")
         .eq("business_id", currentBusiness!.id)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;
-      return (data ?? []) as { id: string; po_number: string | null; status: string | null; warehouse_id: string | null }[];
+      return (data ?? []) as { id: string; po_number: string | null; status: string | null }[];
     },
   });
 
