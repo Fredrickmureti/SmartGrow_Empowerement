@@ -1,0 +1,535 @@
+/**
+ * ReturnLinesPanel — line-grain execution table for one return order
+ * (Returns audit, Phase 4).
+ *
+ * Capture, inspection and disposition all write to `wms_return_lines` through
+ * RPCs. The panel never mutates quantities locally: every action round-trips
+ * with `row_version` so two clerks working the same dock cannot silently
+ * overwrite each other.
+ */
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
+import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
+import { useProducts } from "@/hooks/useProducts";
+import { useWarehouseLocations } from "@/features/warehouse/locations/useWarehouseLocations";
+import {
+  useCaptureReturnLine,
+  useDispositionReturnLine,
+  useInspectReturnLine,
+  useReturnLines,
+} from "./useReturnLines";
+import {
+  RETURN_CONDITIONS,
+  RETURN_DISPOSITIONS,
+  type ReturnCondition,
+  type ReturnDisposition,
+  type ReturnLine,
+  type ReturnOrder,
+} from "./returnsModel";
+
+const INSPECTION_TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"> = {
+  pending: "neutral",
+  inspecting: "info",
+  passed: "success",
+  failed: "danger",
+  conditional: "warning",
+  waived: "neutral",
+};
+
+function label(value: string | null | undefined): string {
+  return value ? value.replace(/_/g, " ") : "—";
+}
+
+export interface ReturnLinesPanelProps {
+  order: ReturnOrder;
+  /** Readonly once the header is terminal — history must stay immutable. */
+  readOnly?: boolean;
+}
+
+export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelProps) {
+  const { data: lines, isLoading } = useReturnLines(order.id);
+  const { products } = useProducts();
+  const { ordered: locations } = useWarehouseLocations(order.warehouse_id ?? null);
+
+  const capture = useCaptureReturnLine();
+  const inspect = useInspectReturnLine();
+  const disposition = useDispositionReturnLine();
+
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureForm, setCaptureForm] = useState({
+    productId: "",
+    receivedQty: "1",
+    expectedQty: "",
+    lotNumber: "",
+    serialNumber: "",
+    conditionCode: "unopened" as ReturnCondition,
+    notes: "",
+  });
+
+  const [inspectLine, setInspectLine] = useState<ReturnLine | null>(null);
+  const [inspectForm, setInspectForm] = useState({
+    outcome: "passed" as "passed" | "failed" | "conditional" | "waived",
+    conditionCode: "" as ReturnCondition | "",
+    notes: "",
+  });
+
+  const [dispLine, setDispLine] = useState<ReturnLine | null>(null);
+  const [dispForm, setDispForm] = useState({
+    mode: "rule" as "rule" | "manual",
+    disposition: "restock" as ReturnDisposition,
+    restockQty: "",
+    quarantineQty: "0",
+    scrapQty: "0",
+    destinationLocationId: "",
+    notes: "",
+  });
+
+  const putawayTargets = useMemo(
+    () => locations.filter((l) => l.is_active !== false),
+    [locations],
+  );
+
+  const submitCapture = () => {
+    if (!captureForm.productId) {
+      toast.error("Pick a product");
+      return;
+    }
+    const qty = Number(captureForm.receivedQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.error("Received quantity must be greater than zero");
+      return;
+    }
+    capture.mutate(
+      {
+        returnId: order.id,
+        productId: captureForm.productId,
+        receivedQty: qty,
+        expectedQty: captureForm.expectedQty ? Number(captureForm.expectedQty) : null,
+        lotNumber: captureForm.lotNumber || null,
+        serialNumber: captureForm.serialNumber || null,
+        conditionCode: captureForm.conditionCode,
+        notes: captureForm.notes || null,
+        clientScanId: crypto.randomUUID(),
+      },
+      {
+        onSuccess: (res) => {
+          toast.success(res.replayed ? "Scan already recorded" : "Line captured");
+          setCaptureOpen(false);
+          setCaptureForm((f) => ({ ...f, receivedQty: "1", lotNumber: "", serialNumber: "", notes: "" }));
+        },
+        onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Capture rejected"),
+      },
+    );
+  };
+
+  const submitInspection = () => {
+    if (!inspectLine) return;
+    inspect.mutate(
+      {
+        lineId: inspectLine.id,
+        rowVersion: inspectLine.row_version,
+        inspectionState: inspectForm.outcome,
+        conditionCode: inspectForm.conditionCode || null,
+        notes: inspectForm.notes || null,
+      },
+      {
+        onSuccess: () => {
+          toast.success("Inspection recorded");
+          setInspectLine(null);
+        },
+        onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Inspection rejected"),
+      },
+    );
+  };
+
+  const submitDisposition = () => {
+    if (!dispLine) return;
+    const manual = dispForm.mode === "manual";
+    disposition.mutate(
+      {
+        lineId: dispLine.id,
+        rowVersion: dispLine.row_version,
+        disposition: manual ? dispForm.disposition : null,
+        restockQty: manual && dispForm.restockQty ? Number(dispForm.restockQty) : null,
+        quarantineQty: manual ? Number(dispForm.quarantineQty || 0) : null,
+        scrapQty: manual ? Number(dispForm.scrapQty || 0) : null,
+        destinationLocationId: dispForm.destinationLocationId || null,
+        notes: dispForm.notes || null,
+      },
+      {
+        onSuccess: (res) => {
+          toast.success(`Dispositioned: ${label(res.disposition)}`);
+          setDispLine(null);
+        },
+        onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Disposition rejected"),
+      },
+    );
+  };
+
+  if (isLoading) return <LoadingState />;
+
+  const rows = lines ?? [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">
+          Lines <span className="text-muted-foreground tabular-nums">({rows.length})</span>
+        </div>
+        {!readOnly && (
+          <Button size="sm" onClick={() => setCaptureOpen(true)}>
+            <ListPlus className="mr-1.5 h-3.5 w-3.5" /> Capture line
+          </Button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={Boxes}
+          title="No lines captured"
+          description="Capture each returned item so condition, inspection and disposition are recorded per unit."
+        />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Product</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead>Condition</TableHead>
+              <TableHead>Inspection</TableHead>
+              <TableHead>Disposition</TableHead>
+              <TableHead className="text-right">Split</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((line) => (
+              <TableRow key={line.id} className={line.blocked_reason ? "bg-destructive/5" : undefined}>
+                <TableCell>
+                  <div className="text-sm">{line.products?.name ?? "—"}</div>
+                  <div className="font-mono text-xs text-muted-foreground">
+                    {line.products?.sku ?? line.product_id?.slice(0, 8) ?? "—"}
+                    {line.lot_number ? ` · lot ${line.lot_number}` : ""}
+                    {line.serial_number ? ` · sn ${line.serial_number}` : ""}
+                  </div>
+                  {line.blocked_reason && (
+                    <div className="text-xs text-destructive">{line.blocked_reason}</div>
+                  )}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {Number(line.received_qty ?? 0)}
+                  {line.expected_qty != null && (
+                    <span className="text-xs text-muted-foreground"> / {Number(line.expected_qty)}</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm">{label(line.condition_code)}</TableCell>
+                <TableCell>
+                  <StatusBadge tone={INSPECTION_TONE[line.inspection_state] ?? "neutral"}>
+                    {label(line.inspection_state)}
+                  </StatusBadge>
+                </TableCell>
+                <TableCell className="text-sm">{label(line.disposition)}</TableCell>
+                <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+                  {Number(line.restock_qty ?? 0)}/{Number(line.quarantine_qty ?? 0)}/
+                  {Number(line.scrap_qty ?? 0)}
+                </TableCell>
+                <TableCell className="space-x-1 text-right">
+                  {!readOnly && !line.posted_at && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setInspectForm({
+                            outcome: "passed",
+                            conditionCode: line.condition_code ?? "",
+                            notes: "",
+                          });
+                          setInspectLine(line);
+                        }}
+                      >
+                        <ClipboardCheck className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setDispForm({
+                            mode: "rule",
+                            disposition: line.disposition ?? "restock",
+                            restockQty: String(line.received_qty ?? ""),
+                            quarantineQty: "0",
+                            scrapQty: "0",
+                            destinationLocationId: line.destination_location_id ?? "",
+                            notes: "",
+                          });
+                          setDispLine(line);
+                        }}
+                      >
+                        <Split className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
+                  )}
+                  {line.posted_at && (
+                    <span className="text-xs text-muted-foreground">posted</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* ---- Capture ---------------------------------------------------- */}
+      <Dialog open={captureOpen} onOpenChange={setCaptureOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Capture return line</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Product</Label>
+              <Select
+                value={captureForm.productId}
+                onValueChange={(v) => setCaptureForm({ ...captureForm, productId: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Choose product" /></SelectTrigger>
+                <SelectContent>
+                  {products.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}{p.sku ? ` · ${p.sku}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Received qty</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={captureForm.receivedQty}
+                  onChange={(e) => setCaptureForm({ ...captureForm, receivedQty: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Expected qty</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={captureForm.expectedQty}
+                  onChange={(e) => setCaptureForm({ ...captureForm, expectedQty: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Lot</Label>
+                <Input
+                  value={captureForm.lotNumber}
+                  onChange={(e) => setCaptureForm({ ...captureForm, lotNumber: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Serial</Label>
+                <Input
+                  value={captureForm.serialNumber}
+                  onChange={(e) => setCaptureForm({ ...captureForm, serialNumber: e.target.value })}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Condition</Label>
+              <Select
+                value={captureForm.conditionCode}
+                onValueChange={(v) =>
+                  setCaptureForm({ ...captureForm, conditionCode: v as ReturnCondition })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {RETURN_CONDITIONS.map((c) => (
+                    <SelectItem key={c} value={c}>{label(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={captureForm.notes}
+                onChange={(e) => setCaptureForm({ ...captureForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCaptureOpen(false)}>Cancel</Button>
+            <Button onClick={submitCapture} disabled={capture.isPending}>Capture</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- Inspection ------------------------------------------------- */}
+      <Dialog open={!!inspectLine} onOpenChange={(o) => !o && setInspectLine(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Record inspection</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Outcome</Label>
+              <Select
+                value={inspectForm.outcome}
+                onValueChange={(v) =>
+                  setInspectForm({ ...inspectForm, outcome: v as typeof inspectForm.outcome })
+                }
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="passed">Passed</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="conditional">Conditional</SelectItem>
+                  <SelectItem value="waived">Waived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Condition (revised)</Label>
+              <Select
+                value={inspectForm.conditionCode || undefined}
+                onValueChange={(v) =>
+                  setInspectForm({ ...inspectForm, conditionCode: v as ReturnCondition })
+                }
+              >
+                <SelectTrigger><SelectValue placeholder="Keep captured condition" /></SelectTrigger>
+                <SelectContent>
+                  {RETURN_CONDITIONS.map((c) => (
+                    <SelectItem key={c} value={c}>{label(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Findings</Label>
+              <Textarea
+                value={inspectForm.notes}
+                onChange={(e) => setInspectForm({ ...inspectForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInspectLine(null)}>Cancel</Button>
+            <Button onClick={submitInspection} disabled={inspect.isPending}>Record</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---- Disposition ------------------------------------------------ */}
+      <Dialog open={!!dispLine} onOpenChange={(o) => !o && setDispLine(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Disposition line</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Mode</Label>
+              <Select
+                value={dispForm.mode}
+                onValueChange={(v) => setDispForm({ ...dispForm, mode: v as "rule" | "manual" })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rule">Apply disposition rule</SelectItem>
+                  <SelectItem value="manual">Manual override</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {dispForm.mode === "manual" && (
+              <>
+                <div>
+                  <Label>Disposition</Label>
+                  <Select
+                    value={dispForm.disposition}
+                    onValueChange={(v) =>
+                      setDispForm({ ...dispForm, disposition: v as ReturnDisposition })
+                    }
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {RETURN_DISPOSITIONS.map((d) => (
+                        <SelectItem key={d} value={d}>{label(d)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>Restock</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={dispForm.restockQty}
+                      onChange={(e) => setDispForm({ ...dispForm, restockQty: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Quarantine</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={dispForm.quarantineQty}
+                      onChange={(e) => setDispForm({ ...dispForm, quarantineQty: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Scrap</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={dispForm.scrapQty}
+                      onChange={(e) => setDispForm({ ...dispForm, scrapQty: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+            <div>
+              <Label>Destination location</Label>
+              <Select
+                value={dispForm.destinationLocationId || undefined}
+                onValueChange={(v) => setDispForm({ ...dispForm, destinationLocationId: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Rule default" /></SelectTrigger>
+                <SelectContent>
+                  {putawayTargets.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={dispForm.notes}
+                onChange={(e) => setDispForm({ ...dispForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDispLine(null)}>Cancel</Button>
+            <Button onClick={submitDisposition} disabled={disposition.isPending}>Apply</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
