@@ -80,15 +80,16 @@ interface Carton {
   carton_type: { code: string; name: string } | null;
 }
 
-interface CartonType {
+interface PackagingType {
   id: string;
   code: string;
   name: string;
-  length_cm: number | null;
-  width_cm: number | null;
-  height_cm: number | null;
+  packaging_class: string;
+  outer_length_cm: number | null;
+  outer_width_cm: number | null;
+  outer_height_cm: number | null;
   max_weight_kg: number | null;
-  is_active: boolean;
+  lifecycle_status: string;
 }
 
 export default function PackStation() {
@@ -110,20 +111,24 @@ export default function PackStation() {
     },
   });
 
-  const { data: cartonTypes } = useQuery({
-    queryKey: ["wms-carton-types", wave?.business_id],
+  // ADR 0105 — the Packaging Master replaces the legacy carton catalogue.
+  const { data: packagingTypes } = useQuery({
+    queryKey: ["wms-packaging-types", wave?.business_id],
     enabled: !!wave?.business_id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("wms_carton_types")
-        .select("id, code, name, length_cm, width_cm, height_cm, max_weight_kg, is_active")
+        .from("wms_packaging_types")
+        .select(
+          "id, code, name, packaging_class, outer_length_cm, outer_width_cm, outer_height_cm, max_weight_kg, lifecycle_status",
+        )
         .eq("business_id", wave!.business_id!)
-        .eq("is_active", true)
+        .in("lifecycle_status", ["active", "restricted"])
         .order("code");
       if (error) throw error;
-      return (data ?? []) as CartonType[];
+      return (data ?? []) as PackagingType[];
     },
   });
+
 
   const { data: lines } = useQuery({
     queryKey: ["wms-pick-wave-lines", waveId],
