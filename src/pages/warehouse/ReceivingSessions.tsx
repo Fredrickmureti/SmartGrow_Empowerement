@@ -241,7 +241,14 @@ export default function ReceivingSessions() {
     onSuccess: () => {
       toast.success("Receiving session created");
       setCreateOpen(false);
-      setForm({ code: newCode(), warehouse_id: "", source_doc_type: "", source_doc_id: "", notes: "" });
+      setForm({
+        code: newCode(),
+        warehouse_id: "",
+        source_doc_type: "",
+        source_doc_id: "",
+        appointment_id: "",
+        notes: "",
+      });
       qc.invalidateQueries({ queryKey: ["wms-receiving-sessions"] });
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Create failed"),
