@@ -68110,6 +68110,53 @@ export type Database = {
           },
         ]
       }
+      wms_sscc_events: {
+        Row: {
+          actor_id: string | null
+          business_id: string
+          copies: number | null
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          reason: string | null
+          sscc: string
+          sscc_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id: string
+          copies?: number | null
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json
+          reason?: string | null
+          sscc: string
+          sscc_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string
+          copies?: number | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json
+          reason?: string | null
+          sscc?: string
+          sscc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_sscc_events_sscc_id_fkey"
+            columns: ["sscc_id"]
+            isOneToOne: false
+            referencedRelation: "wms_sscc_registry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_sscc_registry: {
         Row: {
           assigned_by: string | null
@@ -76652,6 +76699,16 @@ export type Database = {
           p_note: string
           p_qty: number
           p_source_location: string
+        }
+        Returns: undefined
+      }
+      _wms_sscc_log: {
+        Args: {
+          p_copies?: number
+          p_event_type: string
+          p_payload?: Json
+          p_reason?: string
+          p_row: Database["public"]["Tables"]["wms_sscc_registry"]["Row"]
         }
         Returns: undefined
       }
@@ -90022,6 +90079,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_resolve_sscc: {
+        Args: { p_business_id: string; p_code: string }
+        Returns: Json
+      }
       wms_seed_default_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
@@ -90052,6 +90113,43 @@ export type Database = {
           p_sscc: string
         }
         Returns: Json
+      }
+      wms_sscc_mark_printed: {
+        Args: {
+          p_business_id: string
+          p_copies?: number
+          p_is_reprint?: boolean
+          p_payload?: Json
+          p_reason?: string
+          p_sscc: string
+        }
+        Returns: {
+          assigned_by: string | null
+          business_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: Database["public"]["Enums"]["wms_sscc_entity"]
+          id: string
+          last_printed_at: string | null
+          organization_id: string
+          packaging_type_id: string | null
+          payload: Json
+          printed_count: number
+          serial_reference: number
+          sscc: string
+          status: Database["public"]["Enums"]["wms_sscc_status"]
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_sscc_registry"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_sscc_void: {
         Args: { p_business_id: string; p_reason?: string; p_sscc: string }
