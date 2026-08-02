@@ -15,6 +15,9 @@ export type LpnStatus = string;
 
 export interface LpnOverviewRow {
   id: string;
+  organization_id: string;
+  business_id: string;
+  branch_id: string | null;
   code: string;
   lpn_type: LpnType;
   status: LpnStatus;

@@ -39,7 +39,7 @@ import {
   useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode,
   type LpnOverviewRow, type LpnType,
 } from "@/features/warehouse/lpn/useLpnOps";
-import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
+import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
   open: "info",
@@ -124,6 +124,7 @@ export default function LicensePlates() {
   const mergeTarget = selected[0];
   const mergeAction = useLpnAction(mergeTarget);
 
+  const [labelOpen, setLabelOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ code: "", lpn_type: "pallet" as LpnType, warehouse_id: "" });
 
@@ -159,31 +160,6 @@ export default function LicensePlates() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Create failed"),
   });
 
-  async function printSelected() {
-    if (!currentOrg?.id) return toast.error("No active organization");
-    const targets = (rows ?? []).filter((r) => selected.includes(r.id));
-    let ok = 0;
-    for (const plate of targets) {
-      const res = await printWmsLabel({
-        key: WMS_LABEL_KEY.LPN,
-        orgId: currentOrg.id,
-        businessId: currentBusiness?.id ?? null,
-        sourceDocType: "wms_license_plate",
-        sourceDocId: plate.id,
-        vars: {
-          lpn_code: plate.code,
-          warehouse_name: plate.warehouse_name ?? "",
-          current_location: plate.location_code ?? "Unlocated",
-          created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-        },
-      });
-      if (res.success) ok += 1;
-    }
-    ok === targets.length
-      ? toast.success(`${ok} label(s) sent to printer`)
-      : toast.error(`${ok}/${targets.length} labels printed`);
-  }
-
   function toggle(id: string) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
@@ -197,7 +173,7 @@ export default function LicensePlates() {
           <div className="flex flex-wrap gap-2">
             {selected.length > 0 && (
               <>
-                <Button variant="outline" onClick={printSelected}>
+                <Button variant="outline" onClick={() => setLabelOpen(true)}>
                   <Printer className="mr-2 h-4 w-4" /> Print {selected.length}
                 </Button>
                 <Button
@@ -350,6 +326,13 @@ export default function LicensePlates() {
           </Card>
         </Section>
       </PageBody>
+
+      <LpnLabelDialog
+        open={labelOpen}
+        onOpenChange={setLabelOpen}
+        orgId={currentOrg?.id}
+        plates={(rows ?? []).filter((r) => selected.includes(r.id))}
+      />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
