@@ -85,9 +85,14 @@ describe("wms phase 2 architecture", () => {
   it("no client code calls the staging RPC directly (posting a session owns it)", () => {
     // Receiving audit Phase 4b: `receive_goods_to_wms` is invoked from inside
     // `wms_post_receiving_session`. No surface may stage a receipt after the fact.
-    const offenders = files.filter((f) =>
-      domainCallRe("receive_goods_to_wms").test(readFileSync(f, "utf8")),
-    );
+    // The name must not appear in ANY call shape — `supabase.rpc(...)`,
+    // `enqueue("receive_goods_to_wms", …)` through the mobile offline queue,
+    // or a replay allow-list entry. Matching the bare identifier is the only
+    // check that survives new indirection layers.
+    const offenders = files.filter((f) => {
+      if (f === SELF) return false;
+      return /receive_goods_to_wms/.test(readFileSync(f, "utf8"));
+    });
     expect(
       offenders.map((f) => path.relative(SRC, f)),
       "Stage through wms_post_receiving_session, never receive_goods_to_wms directly",
