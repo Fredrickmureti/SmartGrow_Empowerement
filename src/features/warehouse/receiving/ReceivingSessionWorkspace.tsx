@@ -250,6 +250,25 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           </SheetDescription>
         </SheetHeader>
 
+        {visit ? (
+          <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="flex items-center gap-1.5">
+              <Truck className="h-3.5 w-3.5" />
+              {[visit.carrier_name, visit.trailer_ref].filter(Boolean).join(" · ") || "trailer on dock"}
+            </span>
+            {visit.driver_name ? <span>driver {visit.driver_name}</span> : null}
+            {visit.seal_in || visit.seal_out ? (
+              <span>seal in {visit.seal_in ?? "—"}{visit.seal_out ? ` · out ${visit.seal_out}` : ""}</span>
+            ) : null}
+            {(() => {
+              const d = dwellMinutes(visit);
+              return d == null ? null : <span>{visit.departed_at ? "dwell" : "on site"} {d} min</span>;
+            })()}
+          </div>
+        ) : null}
+
+
+
         <ScanStatusChip
           expectedLabel="receiving-workspace.item"
           hint="Scan an item to capture against its expected line"
