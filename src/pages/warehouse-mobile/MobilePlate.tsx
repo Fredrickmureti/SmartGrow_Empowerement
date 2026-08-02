@@ -157,6 +157,9 @@ export function MobilePlateDetail() {
           <div className="rounded border p-3">
             <div className="text-xs text-muted-foreground">Bin</div>
             <div className="font-mono">{plate.location_code ?? "Unlocated"}</div>
+            {plate.location_path && (
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">{plate.location_path}</div>
+            )}
           </div>
           <div className="rounded border p-3">
             <div className="text-xs text-muted-foreground">Contents</div>

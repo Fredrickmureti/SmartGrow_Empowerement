@@ -75254,6 +75254,7 @@ export type Database = {
           id: string | null
           location_code: string | null
           location_name: string | null
+          location_path: string | null
           lpn_type: Database["public"]["Enums"]["wms_lpn_type"] | null
           notes: string | null
           organization_id: string | null
@@ -88974,6 +88975,7 @@ export type Database = {
           sku_count: number
         }[]
       }
+      wms_location_path: { Args: { _location_id: string }; Returns: string }
       wms_lpn_dispatch: {
         Args: {
           _expected_version?: number

@@ -36,7 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Search, Printer, Layers, ScanLine } from "lucide-react";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
-  useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode,
+  useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode, useLpnStatusCatalog,
   type LpnOverviewRow, type LpnType,
 } from "@/features/warehouse/lpn/useLpnOps";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
@@ -82,6 +82,8 @@ export default function LicensePlates() {
     type: typeFilter,
     status: statusFilter,
   });
+  // Status vocabulary comes from the FSM rulebook, never a hardcoded list.
+  const { data: statuses } = useLpnStatusCatalog();
 
   // Scan a plate barcode anywhere on this board → open its cockpit.
   useWmsScanIntent({
@@ -105,7 +107,8 @@ export default function LicensePlates() {
     return list.filter(
       (r) =>
         r.code.toLowerCase().includes(s) ||
-        (r.location_code ?? "").toLowerCase().includes(s),
+        (r.location_code ?? "").toLowerCase().includes(s) ||
+        (r.location_path ?? "").toLowerCase().includes(s),
     );
   }, [rows, search]);
 
@@ -244,11 +247,9 @@ export default function LicensePlates() {
                   <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="sealed">Sealed</SelectItem>
-                    <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="consumed">Consumed</SelectItem>
-                    <SelectItem value="voided">Voided</SelectItem>
+                    {(statuses ?? []).map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Badge variant="outline" className="gap-1">
@@ -308,7 +309,16 @@ export default function LicensePlates() {
                             </StatusBadge>
                           </TableCell>
                           <TableCell className="font-mono text-sm">
-                            {r.location_code ?? <span className="text-muted-foreground">Unlocated</span>}
+                            {r.location_code ? (
+                              <>
+                                <div>{r.location_code}</div>
+                                {r.location_path && r.location_path !== r.location_code && (
+                                  <div className="text-[11px] text-muted-foreground">{r.location_path}</div>
+                                )}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">Unlocated</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{Number(r.sku_count ?? 0)}</TableCell>
                           <TableCell className="text-right tabular-nums">{Number(r.total_quantity ?? 0)}</TableCell>

@@ -63,3 +63,16 @@ held **on the plate**.
 `wms_license_plates` operational columns, no `package_id`-as-plate query, no
 `move_lpn` call site, plate pages subscribe to a scan intent, and plate
 label printing goes only through the LPN label module.
+
+Two further invariants (added with the lifecycle FSM and the RF screen):
+the status vocabulary and every transition come from `wms_lpn_status_edges`
+(the board renders the catalog, the cockpit renders `LpnLifecycleRail`; no
+hardcoded status list), and the mobile plate screen mutates only through the
+warehouse-mobile `enqueue()` chokepoint, never `supabase.rpc` directly.
+
+## Location hierarchy
+
+`v_wms_lpn_overview.location_path` (built by `wms_location_path`) walks
+`stock_locations.parent_location_id` so every plate surface — board, cockpit,
+RF screen and the printed label — shows Zone / Aisle / Rack / Bin rather than
+a bare bin code.

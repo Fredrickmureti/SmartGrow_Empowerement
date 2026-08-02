@@ -189,7 +189,9 @@ export default function LicensePlateView() {
         description={
           <span className="capitalize">
             {lpn.lpn_type} · {lpn.warehouse_name ?? "—"} ·{" "}
-            {lpn.location_code ? `${lpn.location_code} ${lpn.location_name ?? ""}` : "Unlocated"}
+            {lpn.location_path ?? (lpn.location_code
+              ? `${lpn.location_code} ${lpn.location_name ?? ""}`
+              : "Unlocated")}
           </span>
         }
         actions={
@@ -231,7 +233,11 @@ export default function LicensePlateView() {
           <Metric label="SKUs" value={totals.skus} />
           <Metric label="Units" value={totals.units} hint={`${totals.reserved} reserved`} />
           <Metric label="Nested plates" value={Number(lpn.child_count ?? 0)} />
-          <Metric label="Bin" value={lpn.location_code ?? "—"} hint={lpn.location_name ?? "Unlocated"} />
+          <Metric
+            label="Bin"
+            value={lpn.location_code ?? "—"}
+            hint={lpn.location_path ?? lpn.location_name ?? "Unlocated"}
+          />
         </div>
 
         <Section title="Contents" description="Stock physically carried by this handling unit.">

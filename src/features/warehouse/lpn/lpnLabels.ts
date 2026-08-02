@@ -27,9 +27,11 @@ export function lpnLabelVars(plate: LpnOverviewRow): Record<string, string> {
     barcode: plate.code,
     lpn_type: plate.lpn_type,
     warehouse_name: plate.warehouse_name ?? "",
-    current_location: plate.location_code
-      ? `${plate.location_code}${plate.location_name ? ` ${plate.location_name}` : ""}`
-      : "Unlocated",
+    current_location: plate.location_path
+      ? plate.location_path
+      : plate.location_code
+        ? `${plate.location_code}${plate.location_name ? ` ${plate.location_name}` : ""}`
+        : "Unlocated",
     contents_summary: `${Number(plate.sku_count ?? 0)} SKU / ${Number(plate.total_quantity ?? 0)} units`,
     status: plate.status,
     created_at: new Date().toISOString().slice(0, 19).replace("T", " "),

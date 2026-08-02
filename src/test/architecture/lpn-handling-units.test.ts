@@ -85,4 +85,25 @@ describe("ADR 0102 — LPN handling units", () => {
     }
     expect(readFileSync(labels, "utf8")).toContain("printWmsLabel");
   });
+
+  it("lifecycle vocabulary comes from the FSM rulebook, not the UI", () => {
+    const boardSrc = readFileSync(board, "utf8");
+    const cockpitSrc = readFileSync(cockpit, "utf8");
+    // The board's status facet is fed by the edge-table catalog.
+    expect(boardSrc).toContain("useLpnStatusCatalog");
+    expect(boardSrc, "status options must not be a hardcoded <SelectItem> list")
+      .not.toMatch(/<SelectItem value="sealed"/);
+    // Transitions on the cockpit are rendered by the FSM-driven rail.
+    expect(cockpitSrc).toContain("LpnLifecycleRail");
+    expect(readFileSync(ops, "utf8")).toContain("wms_lpn_status_edges");
+  });
+
+  it("the mobile RF plate screen routes every mutation through the offline queue", () => {
+    const mobile = path.join(SRC, "pages/warehouse-mobile/MobilePlate.tsx");
+    const src = readFileSync(mobile, "utf8");
+    expect(src).toContain("enqueue(");
+    expect(src, "mobile surfaces must not call supabase.rpc directly")
+      .not.toMatch(/supabase\.rpc\(/);
+    expect(src).toContain("useWmsScanIntent");
+  });
 });
