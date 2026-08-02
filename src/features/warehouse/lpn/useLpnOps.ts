@@ -30,6 +30,8 @@ export interface LpnOverviewRow {
   row_version: number;
   location_code: string | null;
   location_name: string | null;
+  /** Full storage path, e.g. `ZONE-A / AISLE-3 / RACK-2 / BIN-07`. */
+  location_path: string | null;
   warehouse_name: string | null;
   sku_count: number;
   total_quantity: number;
