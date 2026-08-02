@@ -249,6 +249,35 @@ export type LpnAction =
   | { kind: "retire"; reason: string; expectedVersion?: number | null }
   | { kind: "transition"; toStatus: string; expectedVersion?: number | null; reason?: string | null };
 
+/**
+ * The plate RPCs reject work by raising named exceptions. PostgREST returns
+ * those as a plain object (not an `Error`), so the raw text never reached the
+ * operator. This translates each guard into shop-floor language; anything
+ * unrecognised falls back to the database message rather than a generic
+ * "rejected".
+ */
+const REJECTION_COPY: Array<[RegExp, string]> = [
+  [/wms_lpn_no_location/, "This plate is not in a bin yet. Move it to a bin first, then load stock."],
+  [/wms_lpn_insufficient_loose_stock/, "The bin does not hold enough unassigned stock of that product and lot."],
+  [/wms_lpn_insufficient_on_plate|wms_lpn_insufficient/, "The plate does not carry that much of the product and lot."],
+  [/wms_lpn_sealed/, "The plate is sealed. Break the seal before changing its contents."],
+  [/wms_lpn_bad_quantity/, "Enter a quantity greater than zero."],
+  [/wms_lpn_not_found/, "That plate no longer exists — it may have been merged or consumed."],
+  [/wms_lpn_locked|wms_lpn_immutable/, "This plate is closed out and can no longer be changed."],
+  [/wms_lpn_version_conflict|stale/, "Someone else changed this plate. Reload and try again."],
+  [/wms_lpn_invalid_transition/, "That status change is not allowed from the plate's current state."],
+  [/wms_lpn_reason_required/, "A reason code is required for this action."],
+];
+
+export function lpnErrorMessage(e: unknown): string {
+  const raw =
+    typeof e === "object" && e !== null && "message" in e
+      ? String((e as { message?: unknown }).message ?? "")
+      : "";
+  for (const [pattern, copy] of REJECTION_COPY) if (pattern.test(raw)) return copy;
+  return raw || "Operation rejected";
+}
+
 const SUCCESS_COPY: Record<LpnAction["kind"], string> = {
   move: "Plate moved — stock relocated",
   load: "Stock loaded onto plate",
@@ -318,8 +347,7 @@ export function useLpnAction(lpnId?: string) {
       toast.success(SUCCESS_COPY[kind]);
       invalidate();
     },
-    onError: (e: unknown) =>
-      toast.error(e instanceof Error ? e.message : "Operation rejected"),
+    onError: (e: unknown) => toast.error(lpnErrorMessage(e)),
   });
 
   return { run: mutation.mutate, runAsync: mutation.mutateAsync, isPending: mutation.isPending, invalidate };
