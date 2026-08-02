@@ -430,7 +430,11 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 onChange={(e) => setInspectForm({ ...inspectForm, notes: e.target.value })}
               />
             </div>
+            {inspectLine && (
+              <ReturnPhotoStrip order={order} line={inspectLine} kind="inspection" readOnly={readOnly} />
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setInspectLine(null)}>Cancel</Button>
             <Button onClick={submitInspection} disabled={inspect.isPending}>Record</Button>
