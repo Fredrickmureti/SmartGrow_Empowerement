@@ -47,7 +47,7 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
       label: "Master",
       items: [
         { to: "/warehouse-app/warehouses", label: "Warehouses", icon: Warehouse },
-        { to: "/warehouse-app/layout", label: "Layout (zones / bins)", icon: Network },
+        { to: "/warehouse-app/layout", label: "Warehouse layout", icon: Network },
         { to: "/warehouse-app/plates", label: "License plates", icon: PackageOpen },
         { to: "/warehouse-app/cartons", label: "Carton catalogue", icon: Box },
       ],

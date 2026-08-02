@@ -14,7 +14,7 @@ const WarehouseDashboard = lazy(() => import("@/pages/warehouse/WarehouseDashboa
 const InboundDashboard = lazy(() => import("@/pages/warehouse/InboundDashboard"));
 const OutboundDashboard = lazy(() => import("@/pages/warehouse/OutboundDashboard"));
 const SupervisorDashboard = lazy(() => import("@/pages/warehouse/SupervisorDashboard"));
-const WarehouseLayoutPage = lazy(() => import("@/pages/warehouse/WarehouseLayoutPage"));
+const WarehouseLayoutWorkspace = lazy(() => import("@/pages/warehouse/WarehouseLayoutWorkspace"));
 // Warehouse master-data pages (ADR 0080). Warehouse app is the canonical
 // author of `warehouses` rows; Inventory consumes read-only.
 const Warehouses = lazy(() => import("@/pages/warehouse/WarehousesList"));
@@ -136,7 +136,7 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Warehouse Layout">
-                <WarehouseLayoutPage />
+                <WarehouseLayoutWorkspace />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
