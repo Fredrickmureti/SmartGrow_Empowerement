@@ -5,7 +5,7 @@
  * how it behaves during put-away and picking, and its label.
  */
 import { useEffect, useState } from "react";
-import { Printer, Ban, RotateCcw, Save, Plus } from "lucide-react";
+import { Printer, Ban, RotateCcw, Save, Plus, MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,9 @@ interface Props {
   warehouseId: string | null;
   onPrintLabel: (nodes: LocationNode[]) => void;
   onAddInside: (parent: LocationNode) => void;
+  onMove?: (node: LocationNode) => void;
 }
+
 
 interface Draft {
   name: string;
@@ -47,7 +49,7 @@ function toDraft(n: LocationNode): Draft {
   };
 }
 
-export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside }: Props) {
+export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside, onMove }: Props) {
   const { update, setActive } = useLocationMutations(warehouseId);
   const [draft, setDraft] = useState<Draft | null>(node ? toDraft(node) : null);
 
@@ -95,6 +97,12 @@ export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside
               <Plus className="mr-2 h-4 w-4" /> {addActionLabel(node.structure_level)}
             </Button>
           )}
+          {onMove && node.structure_level && (
+            <Button size="sm" variant="outline" onClick={() => onMove(node)}>
+              <MoveRight className="mr-2 h-4 w-4" /> Move to…
+            </Button>
+          )}
+
           <Button
             size="sm"
             variant={node.is_active ? "outline" : "default"}

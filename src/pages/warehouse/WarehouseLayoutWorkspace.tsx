@@ -14,7 +14,9 @@
  * Replaces the legacy CRUD tree (ADR 0079 Phase 0). See ADR 0104.
  */
 import { useCallback, useMemo, useState } from "react";
-import { Printer, Plus, ScanLine, RefreshCw, Search } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler } from "lucide-react";
+
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,8 @@ import { LocationStructureTree } from "@/features/warehouse/locations/LocationSt
 import { LocationMap } from "@/features/warehouse/locations/LocationMap";
 import { LocationInspector } from "@/features/warehouse/locations/LocationInspector";
 import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBuilderDialog";
+import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
+
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
@@ -56,6 +60,8 @@ export default function WarehouseLayoutWorkspace() {
   const [builderParent, setBuilderParent] = useState<LocationNode | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
+  const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
+
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const { resolve, resolution } = useResolveLocationIdentity(activeWarehouseId);
@@ -158,6 +164,12 @@ export default function WarehouseLayoutWorkspace() {
             >
               <Printer className="mr-2 h-4 w-4" /> Print all bin labels
             </Button>
+            <Button variant="outline" asChild>
+              <Link to="/warehouse-app/layout/design">
+                <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
+              </Link>
+            </Button>
+
             <Button
               onClick={() => {
                 setBuilderParent(selected);
@@ -243,6 +255,7 @@ export default function WarehouseLayoutWorkspace() {
                 setBuilderParent(parent);
                 setBuilderOpen(true);
               }}
+              onMove={(n) => setMoveTarget(n)}
             />
           </Card>
         </div>
@@ -254,6 +267,14 @@ export default function WarehouseLayoutWorkspace() {
         warehouseId={activeWarehouseId}
         parent={builderParent}
       />
+      <MoveLocationDialog
+        open={!!moveTarget}
+        onOpenChange={(v) => !v && setMoveTarget(null)}
+        warehouseId={activeWarehouseId}
+        node={moveTarget}
+        ordered={ordered}
+      />
+
       <BinLabelDialog
         open={!!labelTargets}
         onOpenChange={(v) => !v && setLabelTargets(null)}
