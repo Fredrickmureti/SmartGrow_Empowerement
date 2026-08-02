@@ -46,7 +46,7 @@ interface LineRow {
   products: { name: string | null; sku: string | null } | null;
 }
 
-const OPEN_STATES = ["open", "in_progress", "captured", "discrepant"];
+const OPEN_STATES = ["open", "unloading", "captured", "discrepant"] as const;
 
 /** /wm/receiving — open receiving sessions for the operator to walk into. */
 export default function MobileReceivingSessions() {
