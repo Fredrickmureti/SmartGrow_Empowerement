@@ -5,7 +5,10 @@
  * boxed. On mobile we present a task-scoped workspace:
  *
  *   1. List open cartons for the task's sales order.
- *   2. Open a new carton (auto-suggests carton type via `suggest_carton`).
+ *   2. Open a new carton (auto-suggests packaging via `suggest_packaging`,
+ *      the geometry-aware Packaging Master engine — ADR 0105 — never the
+ *      legacy volume-only `suggest_carton`).
+
  *   3. Seal an open carton (optional weight input).
  *   4. Complete the pack task.
  *
