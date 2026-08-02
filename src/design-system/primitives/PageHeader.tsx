@@ -59,8 +59,6 @@ export function PageHeader({
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:justify-end">{actions}</div>
         )}
       </div>
-
-      </div>
       {tabs && <div className="-mb-3 mt-3">{tabs}</div>}
     </header>
   );
