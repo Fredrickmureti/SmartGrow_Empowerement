@@ -268,17 +268,8 @@ export function PurchasesApp() {
           }
         />
 
-        {/* Goods Receipt — wizard route */}
-        <Route
-          path="goods-receipt/new"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Goods Receipt">
-                <GoodsReceiptWizardPage />
-              </LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* Goods Receipt — legacy capture route, forwards to WMS receiving */}
+        <Route path="goods-receipt/new" element={<GoodsReceiptRedirect />} />
 
         {/* Landed Costs (ADR 0077) */}
         <Route
