@@ -76146,16 +76146,27 @@ export type Database = {
         }
         Returns: string
       }
-      _wms_emit_outbox: {
-        Args: {
-          p_business_id: string
-          p_idempotency_key: string
-          p_organization_id: string
-          p_payload: Json
-          p_topic: string
-        }
-        Returns: undefined
-      }
+      _wms_emit_outbox:
+        | {
+            Args: {
+              p_business_id: string
+              p_idempotency_key: string
+              p_organization_id: string
+              p_payload: Json
+              p_topic: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_business_id: string
+              p_idempotency_key: string
+              p_organization_id: string
+              p_payload: Json
+              p_topic: string
+            }
+            Returns: undefined
+          }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
       _wms_exception_sla_minutes: {
         Args: {
