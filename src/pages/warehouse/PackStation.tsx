@@ -45,6 +45,11 @@ import {
   packagingFailureMessage,
 } from "@/features/warehouse/packaging/packagingEngine";
 import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+import {
+  resolveCartonScan,
+  cartonScanFailureMessage,
+} from "@/features/warehouse/packaging/handlingUnitPackaging";
+import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
 
 interface WaveLine {
@@ -75,9 +80,9 @@ interface Carton {
   width_cm: number | null;
   height_cm: number | null;
   sealed_at: string | null;
-  carton_type_id: string | null;
+  packaging_type_id: string | null;
   shipment_lpn: { code: string } | null;
-  carton_type: { code: string; name: string } | null;
+  packaging_type: { code: string; name: string; packaging_class: string } | null;
 }
 
 interface PackagingType {
@@ -153,7 +158,7 @@ export default function PackStation() {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
         .select(
-          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, carton_type_id, shipment_lpn:shipment_lpn_id(code), carton_type:carton_type_id(code, name)",
+          "id, wave_id, sales_order_id, shipment_lpn_id, weight_kg, length_cm, width_cm, height_cm, sealed_at, packaging_type_id, shipment_lpn:shipment_lpn_id(code), packaging_type:packaging_type_id(code, name, packaging_class)",
         )
         .eq("wave_id", waveId!)
         .order("opened_at");
@@ -241,8 +246,8 @@ export default function PackStation() {
   });
 
   const assignCartonType = useMutation({
-    mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
-      await assignPackagingToPack(v.carton_id, v.carton_type_id);
+    mutationFn: async (v: { carton_id: string; packaging_type_id: string }) => {
+      await assignPackagingToPack(v.carton_id, v.packaging_type_id);
     },
     onSuccess: () => { toast.success("Packaging updated"); invalidateAll(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
@@ -299,6 +304,48 @@ export default function PackStation() {
       invalidateAll();
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Complete failed"),
+  });
+
+  // ADR 0105 §8 — scanning a carton label (SSCC-18, GS1 (00) element string or
+  // the plate code) resolves the handling unit server-side and focuses that
+  // carton: open → seal dialog, sealed → operator feedback. The client never
+  // parses an SSCC itself.
+  const [scannedCartonId, setScannedCartonId] = useState<string | null>(null);
+  const cartonScan = useWmsScanIntent({
+    intent: "pack.carton",
+    onScan: (payload) => {
+      const businessId = wave?.business_id;
+      if (!businessId) return;
+      void (async () => {
+        try {
+          const res = await resolveCartonScan(businessId, payload.raw || payload.resolveCode);
+          if (!res.ok) {
+            cartonScan.reportUnexpected(payload.raw, cartonScanFailureMessage(res.reason));
+            return;
+          }
+          const match = (cartons ?? []).find(
+            (c) => c.id === res.carton?.id || c.shipment_lpn_id === res.lpn?.id,
+          );
+          if (!match) {
+            cartonScan.reportUnexpected(payload.raw, "That handling unit is not part of this wave");
+            return;
+          }
+          setScannedCartonId(match.id);
+          if (match.sealed_at) {
+            toast.info(
+              `${res.lpn?.code ?? "Carton"} is already sealed${res.packaging ? ` · ${res.packaging.code}` : ""}`,
+            );
+          } else {
+            setSealDialog({ carton_id: match.id });
+          }
+        } catch (err) {
+          cartonScan.reportUnexpected(
+            payload.raw,
+            err instanceof Error ? err.message : "Carton scan failed",
+          );
+        }
+      })();
+    },
   });
 
   const salesOrders = useMemo(() => {
@@ -429,23 +476,28 @@ export default function PackStation() {
                       <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>
                     )}
                     {soCartons.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between border rounded p-2 gap-2">
+                      <div
+                        key={c.id}
+                        className={`flex items-center justify-between border rounded p-2 gap-2 ${
+                          scannedCartonId === c.id ? "border-primary bg-primary/5" : ""
+                        }`}
+                      >
                         <div className="min-w-0">
                           <div className="font-mono text-sm truncate">{c.shipment_lpn?.code ?? c.id.slice(0, 8)}</div>
                           <div className="text-xs text-muted-foreground">
                             {c.sealed_at ? `sealed · ${c.weight_kg ?? "?"}kg` : "open"}
-                            {c.carton_type ? ` · ${c.carton_type.code}` : ""}
+                            {c.packaging_type ? ` · ${c.packaging_type.code}` : ""}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {!c.sealed_at && (
                             <select
                               className="border rounded px-2 py-1 text-xs bg-background"
-                              value={c.carton_type_id ?? ""}
+                              value={c.packaging_type_id ?? ""}
                               disabled={assignCartonType.isPending}
                               onChange={(e) => {
                                 const v = e.target.value;
-                                if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
+                                if (v) assignCartonType.mutate({ carton_id: c.id, packaging_type_id: v });
                               }}
                             >
                               <option value="">packaging…</option>
@@ -463,9 +515,9 @@ export default function PackStation() {
                             <CartonSsccLabelButton
                               businessId={wave.business_id}
                               cartonId={c.id}
-                              packagingTypeId={c.carton_type_id}
+                              packagingTypeId={c.packaging_type_id}
                               warehouseId={wave.warehouse_id}
-                              packagingName={c.carton_type?.name ?? null}
+                              packagingName={c.packaging_type?.name ?? null}
                               orderNumber={c.sales_order_id.slice(0, 8)}
                               cartonSequence={c.shipment_lpn?.code ?? c.id.slice(0, 8)}
                               grossWeightKg={c.weight_kg}

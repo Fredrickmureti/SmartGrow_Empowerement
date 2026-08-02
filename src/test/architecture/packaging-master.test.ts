@@ -187,6 +187,51 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     }
   });
 
+  // ---------------------------------------------------------------- Phase 5
+  // Handling units carry packaging identity (ADR 0105 §7) and a scanned
+  // carton resolves back to its handling unit server-side (§8).
+
+  it("gives license plates a packaging identity derived server-side", () => {
+    expect(sql).toMatch(/ALTER TABLE[\s\S]{0,80}wms_license_plates[\s\S]{0,120}packaging_type_id/i);
+    expect(sql).toMatch(/FUNCTION public\.wms_packaging_class_to_lpn_type\(/i);
+    expect(sql).toMatch(/FUNCTION public\.wms_lpn_set_packaging\(/i);
+    expect(sql).toMatch(/FUNCTION public\.wms_resolve_carton_scan\(/i);
+  });
+
+  it("routes plate packaging and carton scans through the sanctioned client seam", () => {
+    const seam = fs.readFileSync(
+      path.join(SRC_DIR, "features/warehouse/packaging/handlingUnitPackaging.ts"),
+      "utf8",
+    );
+    // writes go through the replay ledger, reads through the resolver RPC
+    expect(seam).toContain("replayGuardedCall(\"wms_lpn_set_packaging\"");
+    expect(seam).toContain("wms_resolve_carton_scan");
+    // no client-side SSCC parsing / plate mutation
+    expect(seam).not.toMatch(/\.from\(\s*["']wms_license_plates["']\s*\)/);
+  });
+
+  it("registers wms_lpn_set_packaging in the replay dispatcher", () => {
+    // The dispatcher branch is spliced into wms_replay_guarded_call by a DO
+    // block, so pin the wrapper + the splice that installs the branch.
+    expect(sql).toMatch(/FUNCTION public\._wms_replay_lpn_set_packaging\(/i);
+    expect(sql).toMatch(/wms_lpn_set_packaging[\s\S]{0,400}wms_replay_guarded_call|wms_replay_guarded_call[\s\S]{0,600}wms_lpn_set_packaging/);
+  });
+
+  it("PackStation resolves pack.carton scans instead of parsing codes itself", () => {
+    const page = fs.readFileSync(path.join(SRC_DIR, "pages/warehouse/PackStation.tsx"), "utf8");
+    expect(page).toContain('intent: "pack.carton"');
+    expect(page).toContain("resolveCartonScan");
+  });
+
+  it.each(["pages/warehouse/PackStation.tsx", "pages/warehouse-mobile/MobilePack.tsx"])(
+    "%s reads packaging_type_id, never the legacy carton_type_id",
+    (rel) => {
+      const text = fs.readFileSync(path.join(SRC_DIR, rel), "utf8");
+      expect(text).toContain("packaging_type_id");
+      expect(text).not.toContain("carton_type_id");
+    },
+  );
+
   it("has no client-side write to the packaging master", () => {
     const offenders: string[] = [];
     for (const file of walk(SRC_DIR)) {
