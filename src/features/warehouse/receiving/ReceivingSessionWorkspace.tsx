@@ -24,7 +24,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
-import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History } from "lucide-react";
+import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History, Truck } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
