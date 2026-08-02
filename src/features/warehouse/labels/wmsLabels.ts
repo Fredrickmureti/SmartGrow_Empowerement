@@ -13,7 +13,12 @@ export const WMS_LABEL_KEY = {
   PACKING_SLIP: "wms.label.packing_slip",
   /** ADR 0105 Phase 4 — carton / handling unit, GS1 SSCC-18 barcode. */
   CARTON: "wms.label.carton",
+  /** Receiving audit Phase 7 — inbound execution labels. */
+  PUTAWAY: "wms.label.putaway",
+  QUALITY_HOLD: "wms.label.quality_hold",
+  QUARANTINE: "wms.label.quarantine",
 } as const;
+
 
 
 export type WmsLabelKey = (typeof WMS_LABEL_KEY)[keyof typeof WMS_LABEL_KEY];
