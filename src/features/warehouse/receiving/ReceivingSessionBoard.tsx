@@ -221,13 +221,13 @@ export function ReceivingSessionBoard(props: Props) {
       minimum width and the board scrolls horizontally instead of crushing them.
     */
     <div className="-mx-1 overflow-x-auto px-1 pb-2">
-      <div className="flex min-w-full gap-3 xl:grid xl:grid-cols-5">
+      <div className="flex min-w-full gap-3 2xl:grid 2xl:grid-cols-5">
         {LANES.map((lane) => {
           const laneSessions = sessions.filter((s) => s.state === lane.state);
           return (
             <div
               key={lane.state}
-              className="flex w-[19rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 xl:w-auto xl:min-w-0"
+              className="flex w-[19rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 2xl:w-auto 2xl:min-w-0"
             >
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <span className="truncate text-sm font-medium">{lane.title}</span>
