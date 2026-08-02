@@ -41,6 +41,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck } from "lucide-react";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
+import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
 import {
   useReceivingProgress,
   useCaptureReceivingLine,
@@ -58,6 +59,9 @@ interface SessionRow {
   closed_at: string | null;
   source_doc_type: string | null;
   source_doc_id: string | null;
+  appointment_id: string | null;
+  dock_id: string | null;
+  supervisor_id: string | null;
   notes: string | null;
   row_version: number;
   created_at: string;
@@ -103,7 +107,7 @@ export default function ReceivingSessions() {
     queryFn: async () => {
       let q = supabase
         .from("wms_receiving_sessions" as any)
-        .select("id, code, warehouse_id, state, started_at, closed_at, source_doc_type, source_doc_id, notes, row_version, created_at")
+        .select("id, code, warehouse_id, state, started_at, closed_at, source_doc_type, source_doc_id, appointment_id, dock_id, supervisor_id, notes, row_version, created_at")
         .eq("business_id", currentBusiness!.id)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -133,6 +137,53 @@ export default function ReceivingSessions() {
     },
   });
 
+  // Phase 1 — the truck must be visible. Sessions bind to a real inbound dock
+  // appointment (which carries carrier, dock and window) instead of leaving
+  // `appointment_id` / `dock_id` null, so an operator can answer "which trailer
+  // am I on?" and dwell/dock metrics stay attributable.
+  const { data: docks } = useQuery({
+    queryKey: ["wms-receiving-docks", currentBusiness?.id],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_docks")
+        .select("id, code, name, warehouse_id")
+        .eq("business_id", currentBusiness!.id)
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as { id: string; code: string; name: string | null; warehouse_id: string }[];
+    },
+  });
+
+  const { data: appointments } = useQuery({
+    queryKey: ["wms-receiving-appointments", currentBusiness?.id],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_dock_appointments")
+        .select("id, dock_id, warehouse_id, reference, state, window_start, window_end, appointment_type")
+        .eq("business_id", currentBusiness!.id)
+        .eq("appointment_type", "inbound")
+        .in("state", ["scheduled", "arrived", "in_progress"])
+        .order("window_start", { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as {
+        id: string; dock_id: string; warehouse_id: string; reference: string | null;
+        state: string; window_start: string; window_end: string; appointment_type: string;
+      }[];
+    },
+  });
+
+  const dockLabel = useCallback(
+    (id: string | null) => {
+      if (!id) return null;
+      const d = (docks ?? []).find((x) => x.id === id);
+      return d ? (d.name ? `${d.code} — ${d.name}` : d.code) : id.slice(0, 8);
+    },
+    [docks],
+  );
+
   const transition = useMutation({
     mutationFn: async (input: { id: string; to: RcvState; rowVersion: number; reason?: string }) => {
       const { error } = await supabase.rpc("wms_transition_receiving" as any, {
@@ -154,6 +205,7 @@ export default function ReceivingSessions() {
     warehouse_id: "",
     source_doc_type: "",
     source_doc_id: "",
+    appointment_id: "",
     notes: "",
   });
 
@@ -170,6 +222,11 @@ export default function ReceivingSessions() {
         code: form.code.trim(),
         source_doc_type: form.source_doc_type || null,
         source_doc_id: form.source_doc_id || null,
+        appointment_id: form.appointment_id || null,
+        dock_id: form.appointment_id
+          ? ((appointments ?? []).find((a) => a.id === form.appointment_id)?.dock_id ?? null)
+          : null,
+        supervisor_id: user?.id ?? null,
         state: "open",
         notes: form.notes || null,
         created_by: user?.id ?? null,
@@ -383,6 +440,11 @@ export default function ReceivingSessions() {
                     {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <ScanStatusChip
+                  expectedLabel="receiving-sessions.item"
+                  hint="Scan an LPN to start unloading, or an item to capture a line"
+                  className="ml-auto"
+                />
               </div>
 
               {isLoading ? (
@@ -396,6 +458,7 @@ export default function ReceivingSessions() {
                       <TableHead>Code</TableHead>
                       <TableHead>State</TableHead>
                       <TableHead>Source</TableHead>
+                      <TableHead>Dock</TableHead>
                       <TableHead>Lines</TableHead>
                       <TableHead>Started</TableHead>
                       <TableHead>Closed</TableHead>
@@ -408,6 +471,9 @@ export default function ReceivingSessions() {
                         <TableCell className="font-mono">{r.code}</TableCell>
                         <TableCell><StatusBadge tone={TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
                         <TableCell className="text-sm text-muted-foreground">{r.source_doc_type ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {dockLabel(r.dock_id) ?? (r.appointment_id ? "appointment" : "unscheduled")}
+                        </TableCell>
                         <TableCell className="text-xs">
                           {(() => {
                             const pr = progress?.get(r.id);
@@ -493,6 +559,32 @@ export default function ReceivingSessions() {
                 </p>
               </div>
             )}
+            <div>
+              <Label>Dock appointment</Label>
+              <Select
+                value={form.appointment_id || "none"}
+                onValueChange={(v) => setForm({ ...form, appointment_id: v === "none" ? "" : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Unscheduled arrival" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unscheduled arrival (no appointment)</SelectItem>
+                  {(appointments ?? [])
+                    .filter((a) => !form.warehouse_id || a.warehouse_id === form.warehouse_id)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {[
+                          dockLabel(a.dock_id) ?? "dock",
+                          a.reference ?? a.state,
+                          new Date(a.window_start).toLocaleString(),
+                        ].join(" · ")}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Binds the session to the trailer's door and window; you become the supervisor of record.
+              </p>
+            </div>
             <div>
               <Label>Notes</Label>
               <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

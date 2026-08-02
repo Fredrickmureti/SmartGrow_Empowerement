@@ -27,6 +27,7 @@ import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
 import { AlertTriangle, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
+import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
 import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import {
   useReceivingLines,
@@ -200,6 +201,13 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             Scans land on lines while this panel is open — quantity, lot, expiry and damage are recorded, not narrated.
           </SheetDescription>
         </SheetHeader>
+
+        <ScanStatusChip
+          expectedLabel="receiving-workspace.item"
+          hint="Scan an item to capture against its expected line"
+          className="mt-3"
+        />
+
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <StatusBadge tone="neutral">expected {totals.expected}</StatusBadge>

@@ -227,6 +227,18 @@ export const scanRouter = {
   getActiveContext(): ActiveScanContext | null {
     return activeContext;
   },
+  /**
+   * Read-only view of the currently mounted scan targets, ordered the same way
+   * dispatch resolves them (priority desc, then most recently registered).
+   * Used by presence chips so an operator can see which surface owns the
+   * scanner stream. Callers must not mutate the entries.
+   */
+  getActiveTargets(): ReadonlyArray<Readonly<ScanTargetEntry>> {
+    return stack
+      .map((e, i) => ({ e, i }))
+      .sort((a, b) => b.e.priority - a.e.priority || b.i - a.i)
+      .map((x) => x.e);
+  },
   /** Test helper. */
   _inspect() {
     return { stack: [...stack] };
