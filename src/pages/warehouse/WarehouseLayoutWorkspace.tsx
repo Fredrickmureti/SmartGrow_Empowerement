@@ -267,6 +267,7 @@ export default function WarehouseLayoutWorkspace() {
               <TabsList className="m-2 w-fit">
                 <TabsTrigger value="structure">Structure</TabsTrigger>
                 <TabsTrigger value="floor">Floor</TabsTrigger>
+                <TabsTrigger value="table">Table</TabsTrigger>
               </TabsList>
               <TabsContent value="structure" className="m-0 min-h-0 flex-1">
                 {isLoading ? (
@@ -299,7 +300,74 @@ export default function WarehouseLayoutWorkspace() {
                   onSelect={(n) => setSelectedId(n.id)}
                 />
               </TabsContent>
+              <TabsContent value="table" className="m-0 flex min-h-0 flex-1 flex-col">
+                <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
+                  <Select
+                    value={tableFilter}
+                    onValueChange={(v) => setTableFilter(v as TableFilter)}
+                  >
+                    <SelectTrigger className="h-8 w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bins">Bins only</SelectItem>
+                      <SelectItem value="all">Everything</SelectItem>
+                      <SelectItem value="stocked">Holding stock</SelectItem>
+                      <SelectItem value="empty">Empty and open</SelectItem>
+                      <SelectItem value="busy">Has open work</SelectItem>
+                      <SelectItem value="unlabelled">No label yet</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">
+                    {tableRows.length.toLocaleString()} shown
+                  </span>
+                  {picked.size > 0 && (
+                    <div className="ml-auto flex items-center gap-2">
+                      <span className="text-xs font-medium">
+                        {picked.size.toLocaleString()} selected
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          assignBarcodes.mutate(
+                            pickedNodes
+                              .filter((n) => !n.barcode)
+                              .map((n) => ({ id: n.id, barcode: n.code })),
+                          )
+                        }
+                        disabled={
+                          assignBarcodes.isPending ||
+                          pickedNodes.every((n) => !!n.barcode)
+                        }
+                      >
+                        <Barcode className="mr-2 h-4 w-4" /> Make scannable
+                      </Button>
+                      <Button size="sm" onClick={() => setLabelTargets(pickedNodes)}>
+                        <Printer className="mr-2 h-4 w-4" /> Print labels
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {isLoading ? (
+                  <LoadingState />
+                ) : (
+                  <LocationTable
+                    rows={tableRows}
+                    selected={picked}
+                    onToggle={togglePicked}
+                    onToggleAll={togglePickedMany}
+                    selectedId={selectedId}
+                    onSelect={(n) => setSelectedId(n.id)}
+                  />
+                )}
+              </TabsContent>
             </Tabs>
+
           </Card>
 
           <Card className="h-[calc(100vh-20rem)] min-h-[28rem] overflow-hidden">
