@@ -236,8 +236,6 @@ export async function fetchAndBuildReturnDocumentSnapshot(
       organization_id, business_id, branch_id, warehouse_id,
       customer_id, vendor_id, tracking_reference, notes,
       expected_at, received_at, created_at,
-      customer:contacts!wms_return_orders_customer_id_fkey(name, email, phone, address_line1, city, state, postal_code),
-      vendor:contacts!wms_return_orders_vendor_id_fkey(name, email, phone, address_line1, city, state, postal_code),
       lines:wms_return_lines(
         id, product_id, lot_number, serial_number, uom,
         expected_qty, received_qty, restock_qty, quarantine_qty, scrap_qty,
@@ -254,5 +252,23 @@ export async function fetchAndBuildReturnDocumentSnapshot(
       `fetchAndBuildReturnDocumentSnapshot: return ${returnId} not found: ${error?.message ?? "no row"}`,
     );
   }
-  return buildReturnDocumentSnapshot(data as unknown as ReturnSnapshotHeaderRow, kind);
+
+  const order = data as unknown as ReturnSnapshotHeaderRow;
+
+  // `wms_return_orders` carries no FK to `contacts` (the party may be a
+  // customer or a vendor), so the party block is resolved with a second read
+  // rather than a PostgREST embed.
+  const partyId = order.return_kind === "vendor" ? order.vendor_id : order.customer_id;
+  if (partyId) {
+    const { data: party } = await supabase
+      .from("contacts")
+      .select("name, email, phone, address_line1, city, state, postal_code")
+      .eq("id", partyId)
+      .maybeSingle();
+    const row = (party ?? null) as ReturnSnapshotPartyRow | null;
+    if (order.return_kind === "vendor") order.vendor = row;
+    else order.customer = row;
+  }
+
+  return buildReturnDocumentSnapshot(order, kind);
 }
