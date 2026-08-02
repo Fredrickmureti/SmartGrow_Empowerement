@@ -13,7 +13,7 @@
  * (so it is inside the user-gesture that produced the scan), vibration is
  * feature-detected, and the flash is a purely visual overlay.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 
 export type ScanOutcome = "success" | "error" | "warn";
 
@@ -84,7 +84,7 @@ export interface ScanFeedback {
   warn: () => void;
   error: () => void;
   /** Render this inside the screen to get the colour flash. */
-  Flash: () => JSX.Element | null;
+  Flash: () => ReactElement | null;
   muted: boolean;
   setMuted: (m: boolean) => void;
 }
