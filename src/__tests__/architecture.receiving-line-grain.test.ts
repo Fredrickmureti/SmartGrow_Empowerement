@@ -78,7 +78,7 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
 
 
   it("receiving labels use canonical WMS label keys", () => {
-    const src = read(MOBILE_RECEIVE);
+    const src = read(MOBILE_LOOP);
     expect(src).toMatch(/WMS_LABEL_KEY\.PUTAWAY/);
     expect(src, "ad-hoc receiving_label template must be gone").not.toMatch(
       /["']receiving_label["']/,
