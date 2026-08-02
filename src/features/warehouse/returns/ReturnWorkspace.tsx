@@ -285,6 +285,20 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
                   {order.finance_doc_id ? "Finance linked" : "Raise finance document"}
                 </Button>
               )}
+              {order.return_kind === "vendor" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={
+                    vendorNoteBusy ||
+                    order.finance_doc_type !== "purchase_return" ||
+                    !order.finance_doc_id
+                  }
+                  onClick={() => void emitVendorNote()}
+                >
+                  <Truck className="mr-1.5 h-3.5 w-3.5" /> Vendor return note
+                </Button>
+              )}
             </div>
             {order.finance_doc_id ? (
               <p className="text-xs text-muted-foreground">
