@@ -90429,6 +90429,10 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_seed_returns_document_templates: {
+        Args: { _actor?: string; _business_id: string; _org_id: string }
+        Returns: undefined
+      }
       wms_seed_returns_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
