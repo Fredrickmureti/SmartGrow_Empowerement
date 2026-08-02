@@ -12,7 +12,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 
-export type SsccEntityType = "pack_carton" | "lpn" | "pallet" | "shipment" | "manual";
+/** Mirrors the `wms_sscc_entity` Postgres enum exactly — do not invent labels. */
+export type SsccEntityType = "carton" | "lpn" | "pallet" | "manifest";
+
 
 export interface SsccAllocation {
   sscc: string;
