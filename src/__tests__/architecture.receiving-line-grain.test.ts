@@ -23,7 +23,8 @@ const read = (p: string) => readFileSync(R(p), "utf8");
 const WORKSPACE = "features/warehouse/receiving/ReceivingSessionWorkspace.tsx";
 const HOOKS = "features/warehouse/receiving/useReceivingLines.ts";
 const MOBILE_LOOP = "pages/warehouse-mobile/MobileReceiveSession.tsx";
-const MOBILE_RECEIVE = "pages/warehouse-mobile/MobileReceive.tsx";
+// Phase 4b retired the after-the-fact staging screen; the session loop is the
+// only mobile receiving surface, so it owns the label assertions too.
 const SESSIONS_PAGE = "pages/warehouse/ReceivingSessions.tsx";
 
 describe("Receiving — line grain (Phase 8 guards)", () => {
@@ -77,7 +78,7 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
 
 
   it("receiving labels use canonical WMS label keys", () => {
-    const src = read(MOBILE_RECEIVE);
+    const src = read(MOBILE_LOOP);
     expect(src).toMatch(/WMS_LABEL_KEY\.PUTAWAY/);
     expect(src, "ad-hoc receiving_label template must be gone").not.toMatch(
       /["']receiving_label["']/,
