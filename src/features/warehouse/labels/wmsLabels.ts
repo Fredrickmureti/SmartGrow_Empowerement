@@ -58,9 +58,14 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
     workflow:
       input.key === WMS_LABEL_KEY.SHIPPING || input.key === WMS_LABEL_KEY.CARTON
         ? "shipping"
-        : input.key === WMS_LABEL_KEY.LPN || input.key === WMS_LABEL_KEY.BIN
+        : input.key === WMS_LABEL_KEY.LPN ||
+            input.key === WMS_LABEL_KEY.BIN ||
+            input.key === WMS_LABEL_KEY.PUTAWAY ||
+            input.key === WMS_LABEL_KEY.QUALITY_HOLD ||
+            input.key === WMS_LABEL_KEY.QUARANTINE
           ? "receiving"
           : "generic",
+
 
   });
 }
