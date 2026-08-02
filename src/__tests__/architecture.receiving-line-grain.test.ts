@@ -83,6 +83,13 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(src, "ad-hoc receiving_label template must be gone").not.toMatch(
       /["']receiving_label["']/,
     );
+    // Phase 7 — the desktop grid prints through the same seam, never a
+    // hand-built template key.
+    const ws = read(WORKSPACE);
+    expect(ws).toMatch(/WMS_LABEL_KEY\.PUTAWAY/);
+    expect(ws).toMatch(/WMS_LABEL_KEY\.QUALITY_HOLD/);
+    expect(ws).toMatch(/<PrintLabelButton/);
+    expect(ws).not.toMatch(/templateKey=["']/);
   });
 
   it("capture surfaces stamp the handling unit (Phase 4c)", () => {
