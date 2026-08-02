@@ -177,6 +177,17 @@ export default function LicensePlateView() {
   const locked = lpn.status === "shipped" || lpn.status === "voided"
     || lpn.status === "retired" || lpn.status === "consumed";
   const sealed = !!lpn.sealed_at;
+  // A plate with no bin has no source of stock: `wms_lpn_load` rejects it.
+  const unlocated = !lpn.current_location_id;
+  // Lines the current dialog may act on: loose bin stock to load, plate
+  // contents to unload. Both carry the quantity ceiling the RPC enforces.
+  const sourceLines = (dialog === "unload" ? contents : binStock) ?? [];
+  const lineKey = (r: { product_id: string; lot_number?: string | null }) =>
+    `${r.product_id}|${r.lot_number ?? ""}`;
+  const selected = sourceLines.find((r) => lineKey(r) === line.productId);
+  const available = selected
+    ? Number(selected.quantity || 0) - Number(selected.reserved_quantity || 0)
+    : 0;
 
   return (
     <>
