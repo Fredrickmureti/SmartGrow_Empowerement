@@ -45,3 +45,26 @@ is geometry only — ADR 0085 keeps rasterisation server-side.
   without further schema work.
 - Inventory remains canonical for quantity and value; this surface reads
   quants and tasks, and never writes stock.
+
+## Addendum — label lifecycle and the operator seam (2026-08-03)
+
+Three additions close the loop between the authored twin and the floor:
+
+- **Table pane.** The workspace gains a third view alongside Structure and
+  Floor: a virtualised, multi-select table filtered by operational state
+  (holding stock, empty, busy, blocked, *no label yet*). Selection drives the
+  bulk acts — mint barcodes, print labels — because labelling is a run, not a
+  per-row chore. "Bins without a label" is a first-class KPI; an unlabelled
+  bin can only be reached by typing, which is how mis-picks start.
+- **Print → verify.** Bin-label reprints key on
+  `wms.bin-label:{location}:r{revision}`, where the revision counts prior
+  `print_jobs` rows for that position, so relabelling is auditable instead of
+  looking like a first print on every run. `LabelVerifyDialog` then turns a
+  scan walk into pass/fail and reprints the outstanding set.
+- **One operator seam.** `BinScanField` replaces every
+  `scan.trim().toLowerCase() === location.code` compare on the RF screens
+  (put-away, pick; count matches lines on the resolved location id). It
+  resolves through `resolve_location_identity` and registers the correct WMS
+  scan intent, so barcode-vs-code divergence and cross-warehouse code clashes
+  are handled once. Enforced by
+  `src/test/architecture/wms-location-resolver-single-seam.test.ts`.
