@@ -4,7 +4,7 @@
  * Sealing a carton needs a *trusted* weight: dim-weight billing, carrier
  * admissibility and 3PL invoicing all read `wms_pack_cartons.weight_kg`.
  * Typed weights are guesses, so the pack station reads the bound scale
- * through the existing hardware command router (`lnProxy` → `resolve_device`
+ * through the existing hardware command router (`useHardwareProxy` → `resolve_device`
  * → `TransportRouter`) rather than talking to a driver or WebSerial directly
  * (ADR 0037 topology, ADR 0100 operator workspace).
  *
@@ -12,7 +12,7 @@
  * whether the reading was stable, so the UI can refuse an unstable weight.
  */
 import { useCallback, useState } from "react";
-import { lnProxy } from "@/hooks/hardware/useHardwareProxy";
+import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 
 export interface ScaleWeight {
   kg: number;
@@ -48,7 +48,7 @@ export function normalizeScaleWeight(data: unknown): ScaleWeight | null {
 }
 
 export function usePackScale(registerId?: string) {
-  const { readScale, tareScale, hardwareStatus } = lnProxy(registerId) as unknown as {
+  const { readScale, tareScale, hardwareStatus } = useHardwareProxy(registerId) as unknown as {
     readScale: () => Promise<{ success: boolean; error?: string; data?: unknown }>;
     tareScale: () => Promise<{ success: boolean; error?: string; data?: unknown }>;
     hardwareStatus?: Record<string, unknown>;
