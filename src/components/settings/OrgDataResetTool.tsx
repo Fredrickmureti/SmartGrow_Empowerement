@@ -37,6 +37,7 @@ import {
   Banknote,
   ShoppingCart,
   Package,
+  Warehouse,
 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 
