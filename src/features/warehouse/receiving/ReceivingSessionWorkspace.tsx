@@ -314,6 +314,13 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     label: "receiving-workspace.item",
     onScan: async (p: WmsScanPayload) => {
       if (!session) return;
+      // A plate label scanned into the item field binds the handling unit
+      // instead of being rejected as an unknown product.
+      const plate = await tryResolvePlateScan(businessId, p.raw, p.isGs1);
+      if (plate) {
+        await applyLpn(plate.code);
+        return;
+      }
       const gated = await gate.gate({ raw: p.raw, resolveCode: p.resolveCode, workflow: "receive" });
       if (!gated) return;
       const { identity, baseUnits, lot, serial, expiry } = gated;
