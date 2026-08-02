@@ -40,7 +40,7 @@ import {
   usePostReceivingSession,
   type ReceivingLine,
 } from "./useReceivingLines";
-import { useActiveLpn } from "./useReceivingLpn";
+import { useActiveLpn, tryResolvePlateScan } from "./useReceivingLpn";
 import {
   useReceivingUnitOptions, optionByKey, toBaseUnits, BASE_UNIT_KEY,
   type ReceivingUnitOption,
