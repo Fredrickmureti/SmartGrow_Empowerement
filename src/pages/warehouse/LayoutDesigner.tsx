@@ -8,8 +8,8 @@
  *
  * No dialogs: authoring a 2,000-bin warehouse is a task, not a modal.
  */
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Building2, Search } from "lucide-react";
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -30,14 +30,36 @@ import { levelLabel } from "@/features/warehouse/locations/vocabulary";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 
 export default function LayoutDesigner() {
+  const [params] = useSearchParams();
+  const requestedWarehouse = params.get("warehouse");
+  const requestedParent = params.get("parent");
+
   const { warehouses, isLoading: whLoading } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState<string | null>(null);
+  const [warehouseId, setWarehouseId] = useState<string | null>(requestedWarehouse);
   const activeWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
 
   const { roots, ordered, byId, isLoading } = useWarehouseLocations(activeWarehouseId);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(requestedParent);
   const [search, setSearch] = useState("");
+
+  // Arriving from the floor with "build inside X": select it and open the
+  // path down to it so the supervisor sees where they are building.
+  useEffect(() => {
+    if (!requestedParent) return;
+    const node = byId.get(requestedParent);
+    if (!node) return;
+    setSelectedId(requestedParent);
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let cur: LocationNode | null = node;
+      while (cur) {
+        next.add(cur.id);
+        cur = cur.parent_location_id ? byId.get(cur.parent_location_id) ?? null : null;
+      }
+      return next;
+    });
+  }, [requestedParent, byId]);
 
   const parent: LocationNode | null = selectedId ? byId.get(selectedId) ?? null : null;
 
@@ -49,6 +71,7 @@ export default function LayoutDesigner() {
     },
     [search],
   );
+
 
   if (whLoading) return <LoadingState />;
 
