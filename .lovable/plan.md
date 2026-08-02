@@ -1,95 +1,143 @@
-# Packaging Master (ADR 0105) — authoritative status
+# Receiving Subsystem — Architecture Audit & Target Design
 
-Last updated: 2026-08-02 (Phase 8 complete). Source of truth for this workstream.
-Reference docs: `docs/adr/0105-packaging-master.md`, `docs/audit/2026-08-02-packaging-master-audit.md`,
-`docs/architecture/WMS_MODULE_OWNERSHIP.md`.
+## 1. What receiving is (first principles)
 
-## Status board
+Receiving is not a form. It is a chain of business events that converts a
+supplier's *promise* into *owned, located, allocatable stock*:
 
-| Phase | Scope | Status | Evidence |
-| --- | --- | --- | --- |
-| 1 | `wms_packaging_types` + `_carriers` / `_availability` / `_events` schema | Complete, verified | 34-column master with `packaging_class`, `lifecycle_status`, `row_version`, `tare_weight_kg`; all four tables present |
-| 2 | RPC-only writes (`wms_packaging_upsert`, `set_lifecycle`, `archive`, `set_carrier_rule`, `set_availability`) | Complete, verified | all five functions exist, business + `inventory:write` guarded |
-| 3 | `suggest_packaging` (3-axis rotation fit, split, dim weight, explainable reasons) + idempotent `assign_packaging_to_pack` | Complete, verified | `suggest_packaging`, `wms_packaging_fits_item`, `wms_pack_cartons.tare_applied_kg` |
-| 4 | GS1 / SSCC server-side identity | Complete, verified | `wms_gs1_config`, `wms_sscc_registry`, `wms_sscc_events`, `gs1_check_digit`, `wms_sscc_build/allocate/void/label_payload/mark_printed/resolve` |
-| 4.5 | One pack path (desktop + mobile) & privilege hardening | Complete, verified | `MobilePack.tsx` and `PackStation.tsx` both go through `packagingEngine` → `suggest_packaging` / `assign_packaging_to_pack`; client INSERT/UPDATE/DELETE revoked on all packaging + SSCC tables for `authenticated` and `anon` |
-| 5 | Handling-unit unification | Complete, verified | `wms_license_plates.packaging_type_id`, propagate trigger, `wms_resolve_carton_scan`, real `pack.carton` scan intent |
-| 6 | Hardware scale at seal, label routing, supply consumption | Complete, verified | `wms_packaging_consume` decrements availability, journals `wms_packaging_events`, emits `warehouse.packaging.consumed` / `reorder_needed` |
-| 6.1 | Privilege corrections | Complete, verified | `wms_packaging_consume` EXECUTE revoked from `PUBLIC` and `authenticated`; effective-privilege query returned `false` for every client role |
-| 7 | Packaging Master workspace UI | Complete | `/warehouse-app/packaging` master/detail workspace (TanStack Table v8), `packagingMaster.ts` RPC-only seam with `row_version` optimistic concurrency, carrier / availability / activity panels, spec form; `/warehouse-app/cartons` redirects; `CartonTypes.tsx` deleted |
-| 8 | Decommission legacy | **Complete (this round)** | see below |
+```text
+PO → shipment → ASN → appointment → trailer arrival → yard → dock
+  → receiving session (unit of work, supervised, time-boxed)
+    → per-handling-unit capture loop:
+        scan LPN → scan item → resolve identity → qty (base units)
+        → lot / serial / expiry → damage → accept | short | over | hold
+    → discrepancy recording (line grain, against expected)
+    → QC hold / quarantine routing
+    → post to inventory (ledger writes: quants, movements, cost layers)
+    → putaway task fan-out → confirm → available for allocation
+    → GRN document, labels, 3-way match, finance & audit events
+```
 
-### Phase 8 — what shipped (2026-08-02)
+Two invariants: **expected vs received exists at line grain from the first
+scan**, and **capture is separable from posting** (you can unload without
+committing the ledger).
 
-Verified empty before the cut: `wms_carton_types` had 0 rows, `wms_pack_cartons.carton_type_id`
-had 0 non-null values.
+## 2. What exists today
 
-- Dropped `public.wms_carton_types` + `_touch_wms_carton_types_updated_at`.
-- Dropped `suggest_carton(uuid, uuid[], numeric[])` and `assign_carton_to_pack(uuid, uuid)`.
-- Dropped `wms_pack_cartons.carton_type_id`; `assign_packaging_to_pack` no longer shadow-stamps it.
-- Removed the two legacy cases from `wms_replay_guarded_call`, so a device replaying a legacy
-  offline intent now fails closed with `WMS_REPLAY_UNSUPPORTED_RPC`.
-- Guards rewritten to enforce absence rather than the legacy contract
-  (`packaging-master.test.ts` Phase 8 block, `wms-phase12.test.ts`); removed the legacy RPC from
-  `wms-phase14.test.ts` and `wms-client-scan-id-unique.test.ts` whitelists and from the
-  `pick-pack-dispatch` spec header.
-- Docs: ADR 0083 marked partially superseded, ADR 0105 Phase 8 section added, module-ownership
-  table gained the packaging-master row.
+Strengths (real, keep):
 
-**Verification run:** `bunx vitest run` on the four touched guard suites — 58/58 passed.
-`bunx tsgo --noEmit` — clean. Generated `src/integrations/supabase/types.ts` contains no legacy
-symbol.
+- Clean domain boundary per ADR 0079/0080/0101 — Inventory owns quantity and
+  cost, WMS owns execution. Events go through `business_event_outbox` with
+  `wms.{aggregate}:{id}:{transition}` idempotency keys.
+- FSM discipline: `wms_transition_receiving`, `row_version` optimistic
+  concurrency, no client-side `state` writes.
+- A strong scanning substrate: `scanRouter` intents, GS1 pre-parse,
+  `scanFeedbackBus` (audio + haptic), single identity resolver
+  (`resolve_product_identity` via `useWmsIdentityGate`), base-unit conversion,
+  ambiguity blocking.
+- Backend receiving engine already built: `wms_receiving_lines` (product, lpn,
+  lot, serial, expected_qty, received_qty, uom, staging bin, discrepancy
+  reason) and `wms_capture_receiving_line(...)` with `client_scan_id` +
+  `device_id` idempotency, plus `_wms_emit_receiving_line_captured`,
+  `evaluate_crossdock_on_receiving_line`, `_wms_auto_open_qc_on_grn`,
+  `suggest_putaway_locations`, `receive_goods_to_wms`.
 
-**Not verified this round:** live browser walkthrough of `/warehouse-app/packaging`.
-`LOVABLE_BROWSER_AUTH_STATUS=external_unmanaged`, so the sandbox cannot mint a session for this
-project's external Supabase; the route correctly redirects to `/login` unauthenticated. Visual
-confirmation must be done by a signed-in human in the preview.
+Weaknesses (the actual problem):
 
-## Currently active phase
+1. **The receiving line engine is dead code.** No application file references
+   `wms_receiving_lines` or `wms_capture_receiving_line` — only the generated
+   types file does. The whole capture layer is unused.
+2. **Wrong grain in the UI.** In `ReceivingSessions.tsx` an *item* scan
+   transitions the entire session to `captured`. Quantity, lot and expiry are
+   resolved by the identity gate and then thrown away into a toast string. No
+   row is persisted. One scan "completes" a truck.
+3. **No expected vs received.** Sessions bind to a source document via two
+   free-text inputs (`source_doc_type` placeholder `asn / po / goods_receipt`,
+   `source_doc_id` a hand-typed UUID). No PO/ASN line expansion, so shortage,
+   overage and unexpected-item are structurally uncomputable.
+4. **The truck is invisible.** `appointment_id`, `dock_id`, `supervisor_id`
+   exist on the table; the create dialog sets none of them. No link to
+   `wms_trailer_visits`. An operator cannot answer "which trailer am I on?".
+5. **Two competing receiving paths.** The Purchases GRN wizard (1.1k lines) is
+   the only real line capture and the only path that reaches inventory;
+   `ReceiveToWMSDialog` / `MobileReceive` merely call `receive_goods_to_wms`
+   *after the fact*. WMS receiving has no inventory effect at all — it is
+   decorative. Discrepancies live in `goods_receipt_discrepancies` (Purchases)
+   and are never shown in the WMS.
+6. **Mobile is not a receiving workflow.** `MobileReceive.tsx` is a staging-bin
+   dropdown plus a "Stage to WMS" button — no walk/scan/qty/lot loop.
+7. **No operational awareness.** Session list is a 6-column table: no progress
+   (x of y lines, % qty), no shortage/overage/damage/hold counts, no line
+   drill-down, no activity stream. A new hire cannot learn the job from it.
+8. **Labels partly bypass the seam.** `WMS_LABEL_KEY` covers LPN, BIN, CARTON,
+   SHIPPING, PACKING_SLIP — no putaway, quality-hold or quarantine label; and
+   `MobileReceive` prints an ad-hoc `receiving_label` templateKey directly
+   instead of going through `printWmsLabel`.
+9. **No device presence feedback** on receiving surfaces: connected /
+   listening / disconnected is never displayed, only per-scan results.
+10. **Exceptions never raised from receiving.** `wms_exceptions` exists and the
+    Inbound tower counts them, but no receiving code path inserts one.
 
-None — ADR 0105 phases 1–8 are closed. The packaging master is the sole catalogue, all writes are
-server-owned, and the legacy carton surface no longer exists in the database, the generated types,
-or `src/`.
+## 3. Target architecture
 
-## Next milestone
+Grain and ownership:
 
-The packaging workstream is finished; the next chronological milestone belongs to the WMS roadmap
-that ADR 0105 interrupted (see
-`.lovable/plan-warehouse-plan-round-6-verification-resume-2026-07-29.md`):
+- `wms_receiving_sessions` = supervised unit of work, bound to appointment /
+  trailer visit / dock / source document (typed, picked — never typed by hand).
+- `wms_receiving_lines` = the receiving ledger of record for *execution*. Every
+  scan writes exactly one line via `wms_capture_receiving_line`, idempotent on
+  `client_scan_id`, quantity always in base units via `scanToBaseUnits`.
+- Expected lines are materialised from PO / ASN / inbound-shipment items when
+  the session opens; unexpected scans create lines with `expected_qty = 0`.
+- Posting stays a distinct, guarded transition. Inventory remains the only
+  writer of quants/movements/cost layers; WMS posts by delegating to the
+  sanctioned GRN/inventory RPCs and emits `warehouse.receiving.*`.
+- Shortage / overage / damage / hold are derived from line data, not typed
+  states; each raises a `wms_exceptions` row with a typed resolution.
+- One receiving path. Purchases GRN becomes the *document* produced by
+  receiving, not a second capture UI.
 
-1. **Phase 4 · UX & error-proofing** — start with `<OutboxTimeline aggregateId />` over
-   `business_event_outbox` (six call sites: LPN, wave, manifest, QC inspection, count session,
-   receiving session), because typed exception triage and the role dashboards both consume it.
-2. Then typed exception triage (`wms_exception_resolution_kind` enum + `due_by` SLA on
-   `wms_exceptions`, `wms_resolve_exception` requiring a kind, `ExceptionsInbox` grouped by breach).
-3. Then contention toast, `useScanFeedback()`, the two-context realtime Playwright smoke, the three
-   role dashboards, and the `e2e/wms/**` de-scaffold audit — in that order.
+UX target (workspace, not a table):
 
-Deferred, still open, from Phase 5 of that plan: desktop double-submit audit (LoadingBay, PickList,
-PackStation, CountSession through the replay dispatcher), trailer no-show → labour reclaim,
-`wms-no-orphan-modules.test.ts`, and 3PL billing event coverage.
+- Session board: lane per state, each card showing carrier/trailer, dock,
+  appointment window, supervisor, progress bar, and shortage/overage/hold chips.
+- Session detail: header rail (truck, dock, timer, operator), line grid with
+  expected vs received vs variance, live scan capture panel, exception strip,
+  activity/event timeline, label actions.
+- Persistent scanner status chip (connected / listening / last scan / failure).
+- Mobile: purpose-built loop — scan LPN → scan item → qty → lot → expiry →
+  confirm → next, offline-queued, one thumb, large targets.
 
-## Instructions for the next agent
+## 4. Migration strategy (phased, each phase shippable)
 
-1. **Verify before you build.** Do not trust this file. Re-run
-   `bunx vitest run src/test/architecture` and `bunx tsgo --noEmit`, then confirm in the database
-   that: `wms_carton_types`, `suggest_carton`, `assign_carton_to_pack` and
-   `wms_pack_cartons.carton_type_id` are all absent; `wms_packaging_consume` has no EXECUTE for
-   `authenticated`/`anon`/`PUBLIC`; and the packaging tables grant `SELECT` only to
-   `authenticated`. Confirm `wms_replay_guarded_call`'s whitelist contains no legacy carton case.
-2. **Check the UI end to end** if you have a signed-in session: `/warehouse-app/packaging` list,
-   filters, detail tabs, create/edit through the RPC seam, a stale-`row_version` save surfacing the
-   `WMS_PKG_STALE` message, and the `/warehouse-app/cartons` redirect.
-3. **Then resume chronologically** at Phase 4 §1 above. Do not start unrelated modules, do not
-   leave a phase half-built, and replace legacy paths in the same change rather than layering on
-   top of them.
-4. **Update this file at the end of every implementation** with evidence (query output, test
-   output), not assertions.
+1. **Bind reality**: typed source-document picker (PO / ASN / inbound shipment)
+   + appointment/trailer/dock/supervisor selection on session create; expected
+   lines materialised from the chosen document.
+2. **Line capture**: replace the session-level scan handlers with per-line
+   capture through `wms_capture_receiving_line` (qty in base units, lot, serial,
+   expiry, LPN, staging bin, `client_scan_id` idempotency). Session state becomes
+   derived from line progress, not from a single scan.
+3. **Variance & exceptions**: derived shortage/overage/unexpected/damage;
+   `wms_exceptions` raised on each; QC hold / quarantine routing wired.
+4. **Post once**: session posting delegates to the sanctioned GRN/inventory
+   RPCs, produces the GRN document, fans out putaway tasks; retire the
+   after-the-fact `ReceiveToWMSDialog` path.
+5. **Workspace UI**: session board + session detail workspace with progress,
+   variance, timeline, scanner status chip — built on existing design-system
+   primitives and shadcn, plus a proven charting/timeline library where it
+   materially helps rather than hand-rolled layout.
+6. **Mobile receiving loop**: dedicated scan-first flow, offline queue.
+7. **Labels**: add putaway / quality-hold / quarantine keys to `WMS_LABEL_KEY`,
+   route every receiving print through `printWmsLabel`, remove the ad-hoc
+   `receiving_label` call.
+8. **Guards**: architecture tests pinning "no session-level scan transitions",
+   "capture only via RPC", "no direct `product_identifiers` reads", "labels only
+   via the WMS seam".
 
-## Working rules (unchanged)
+## 5. Technical notes
 
-- One phase at a time; each ends green on `bunx tsgo --noEmit` plus the architecture suite.
-- Hard cut, no compatibility shims (no production users).
-- Never write `state` / `status` directly to a WMS aggregate — always a `wms_transition_*` RPC.
-- No new client seam may duplicate `packagingEngine.ts` / `packagingMaster.ts` / `cartonSscc.ts`.
-- A feature is not shipped until a real call site consumes it.
+No new receiving tables or RPCs are needed for phases 1–4 — the schema and
+`SECURITY DEFINER` functions already exist and are unused. Expected work is
+frontend wiring plus small SQL additions for expected-line materialisation and
+exception raising. No changes to `stock_movements`, `stock_quants`, valuation,
+lots, POS, Finance or Localization.
