@@ -84,6 +84,19 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
     }
   };
 
+  const emitVendorNote = async () => {
+    if (!order) return;
+    setVendorNoteBusy(true);
+    try {
+      await dispatchVendorReturnNote(order.id);
+      toast.success("Vendor return note archived and routed");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Vendor return note failed");
+    } finally {
+      setVendorNoteBusy(false);
+    }
+  };
+
   if (!order) return null;
 
   const terminal = order.state === "closed" || order.state === "cancelled";
