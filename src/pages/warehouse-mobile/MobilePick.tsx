@@ -13,6 +13,7 @@ import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 
 interface Task {
@@ -114,9 +115,15 @@ export default function MobilePick() {
             <div className="font-mono">{task.dest_loc?.code ?? "—"}</div>
           </div>
         </div>
-        <div>
-PLACEHOLDER
-        </div>
+        <BinScanField
+          label="Scan source bin"
+          intent="pick.location"
+          expectedLocationId={task.source_location_id}
+          expectedCode={task.source_loc?.code ?? null}
+          warehouseId={task.warehouse_id}
+          disabled={done}
+          onConfirmedChange={setBinConfirmed}
+        />
         <div>
           <Label>Scan product SKU</Label>
           <Input
