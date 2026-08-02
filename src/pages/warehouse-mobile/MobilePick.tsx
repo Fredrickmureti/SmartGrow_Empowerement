@@ -1,5 +1,8 @@
 /**
  * Mobile pick — scan source bin + product SKU, enter qty, confirm.
+ *
+ * The bin leg goes through `BinScanField` so the label barcode resolves via
+ * `resolve_location_identity` (ADR 0104) instead of a code string compare.
  */
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -17,6 +20,8 @@ interface Task {
   state: string;
   quantity: number | null;
   lot_number: string | null;
+  warehouse_id: string | null;
+  source_location_id: string | null;
   source_loc: { code: string | null } | null;
   dest_loc: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
@@ -25,7 +30,7 @@ interface Task {
 export default function MobilePick() {
   const { id } = useParams();
   const nav = useNavigate();
-  const [binScan, setBinScan] = useState("");
+  const [binConfirmed, setBinConfirmed] = useState(false);
   const [skuScan, setSkuScan] = useState("");
   const [qty, setQty] = useState<string>("");
   const [busy, setBusy] = useState(false);
@@ -36,7 +41,7 @@ export default function MobilePick() {
       const { data, error } = await supabase
         .from("wms_tasks")
         .select(
-          "id, state, quantity, lot_number, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
+          "id, state, quantity, lot_number, warehouse_id, source_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
         )
         .eq("id", id!)
         .maybeSingle();
@@ -49,10 +54,9 @@ export default function MobilePick() {
 
   const submit = async () => {
     if (!task) return;
-    const expectedBin = (task.source_loc?.code ?? "").toLowerCase();
     const expectedSku = (task.product?.sku ?? "").toLowerCase();
-    if (binScan.trim().toLowerCase() !== expectedBin) {
-      toast.error(`Wrong bin — scan ${task.source_loc?.code}`);
+    if (!binConfirmed) {
+      toast.error(`Scan ${task.source_loc?.code ?? "the source bin"} first`);
       return;
     }
     if (skuScan.trim().toLowerCase() !== expectedSku) {
@@ -111,14 +115,7 @@ export default function MobilePick() {
           </div>
         </div>
         <div>
-          <Label>Scan source bin</Label>
-          <Input
-            autoFocus
-            value={binScan}
-            onChange={(e) => setBinScan(e.target.value)}
-            placeholder={task.source_loc?.code ?? ""}
-            className="h-12 text-lg font-mono"
-          />
+PLACEHOLDER
         </div>
         <div>
           <Label>Scan product SKU</Label>
