@@ -14,7 +14,7 @@
  * Replaces the legacy CRUD tree (ADR 0079 Phase 0). See ADR 0104.
  */
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from "lucide-react";
 
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
