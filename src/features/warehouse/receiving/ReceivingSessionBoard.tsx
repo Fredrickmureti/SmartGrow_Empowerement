@@ -61,10 +61,13 @@ interface Props {
   progress: Map<string, BoardProgress> | undefined;
   dockLabel: (id: string | null) => string | null;
   appointment: (id: string | null) => AppointmentWindow | null;
+  /** Physical trailer behind the appointment (carrier, seal, dwell) — read-only. */
+  trailerVisit?: (appointmentId: string | null) => TrailerVisitInfo | null;
   supervisorLabel: (id: string | null) => string;
   actions: (s: BoardSession) => BoardAction[];
   onOpen: (s: BoardSession) => void;
 }
+
 
 /** Lanes in operational order — the path a trailer walks through the dock. */
 const LANES: { state: RcvState; title: string; tone: "neutral" | "info" | "warning" | "danger" | "success" }[] = [
