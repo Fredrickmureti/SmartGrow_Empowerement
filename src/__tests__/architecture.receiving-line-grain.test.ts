@@ -160,7 +160,7 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     for (const f of [WORKSPACE, MOBILE_LOOP]) {
       const src = read(f);
       expect(src, `${f} must use the shared unit conversion`).toMatch(
-        /from "@\/features\/warehouse\/receiving\/receivingUnits"/,
+        /from "(@\/features\/warehouse\/receiving\/receivingUnits|\.\/receivingUnits)"/,
       );
       expect(src, `${f} must convert typed quantities`).toMatch(/toBaseUnits\(/);
       // A raw Number(qty) may never reach the capture payload.
