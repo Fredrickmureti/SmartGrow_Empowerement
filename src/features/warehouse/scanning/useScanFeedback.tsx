@@ -84,7 +84,7 @@ export interface ScanFeedback {
   warn: () => void;
   error: () => void;
   /** Render this inside the screen to get the colour flash. */
-  Flash: () => JSX.Element | null;
+  Flash: () => ReactElement | null;
   muted: boolean;
   setMuted: (m: boolean) => void;
 }
