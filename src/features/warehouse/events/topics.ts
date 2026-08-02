@@ -137,6 +137,20 @@ export const WMS_TOPIC = {
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
 
+/**
+ * Topics that exist in `wms_events_catalog` for historic decoding but are
+ * emitted by no producer. They are intentionally absent from `WMS_TOPIC` so
+ * runtime code cannot subscribe to a dead topic; the parity guard uses this
+ * list to reconcile the SQL catalog with the TypeScript catalog in both
+ * directions.
+ */
+export const WMS_DEPRECATED_TOPICS = [
+  "warehouse.return.opened",
+  "warehouse.return.inspected",
+  "warehouse.return.dispositioned",
+] as const;
+
+
 /** Canonical idempotency key shape used across producers. */
 export const idempotencyKey = (
   aggregate:
