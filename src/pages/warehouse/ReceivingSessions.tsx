@@ -38,7 +38,9 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
-import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck } from "lucide-react";
+import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck, LayoutGrid, Rows3 } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import ReceivingSessionBoard from "@/features/warehouse/receiving/ReceivingSessionBoard";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -97,6 +99,10 @@ export default function ReceivingSessions() {
   const captureLine = useCaptureReceivingLine();
   const materialize = useMaterializeExpectedLines();
   const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
+
+  // Phase 5b — the dock board is the default read: lanes per state, one card
+  // per trailer. The table stays available for audit-style scanning.
+  const [view, setView] = useState<"board" | "table">("board");
 
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("open_all");
@@ -182,6 +188,48 @@ export default function ReceivingSessions() {
       return d ? (d.name ? `${d.code} — ${d.name}` : d.code) : id.slice(0, 8);
     },
     [docks],
+  );
+
+  // Supervisor of record — resolved once per board render, never per card.
+  const supervisorIds = useMemo(
+    () => Array.from(new Set((rows ?? []).map((r) => r.supervisor_id).filter(Boolean) as string[])),
+    [rows],
+  );
+  const { data: supervisors } = useQuery({
+    queryKey: ["wms-receiving-supervisors", supervisorIds],
+    enabled: supervisorIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", supervisorIds);
+      if (error) throw error;
+      const map = new Map<string, string>();
+      for (const p of (data ?? []) as { user_id: string; full_name: string | null; email: string | null }[]) {
+        map.set(p.user_id, p.full_name || p.email || p.user_id.slice(0, 8));
+      }
+      return map;
+    },
+  });
+
+  const supervisorLabel = useCallback(
+    (id: string | null) => {
+      if (!id) return "no supervisor";
+      if (id === user?.id) return "you";
+      return supervisors?.get(id) ?? "supervisor";
+    },
+    [supervisors, user?.id],
+  );
+
+  const appointmentFor = useCallback(
+    (id: string | null) => {
+      if (!id) return null;
+      const a = (appointments ?? []).find((x) => x.id === id);
+      return a
+        ? { window_start: a.window_start, window_end: a.window_end, reference: a.reference, state: a.state }
+        : null;
+    },
+    [appointments],
   );
 
   const transition = useMutation({
@@ -447,6 +495,20 @@ export default function ReceivingSessions() {
                     {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <ToggleGroup
+                  type="single"
+                  value={view}
+                  onValueChange={(v) => v && setView(v as "board" | "table")}
+                  variant="outline"
+                  size="sm"
+                >
+                  <ToggleGroupItem value="board" aria-label="Board view">
+                    <LayoutGrid className="h-4 w-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="table" aria-label="Table view">
+                    <Rows3 className="h-4 w-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
                 <ScanStatusChip
                   expectedLabel="receiving-sessions.item"
                   hint="Scan an LPN to start unloading, or an item to capture a line"
@@ -458,6 +520,16 @@ export default function ReceivingSessions() {
                 <LoadingState />
               ) : (rows ?? []).length === 0 ? (
                 <EmptyState icon={PackageOpen} title={emptyLabel} description="Create a session when a truck arrives or an ASN is opened." />
+              ) : view === "board" ? (
+                <ReceivingSessionBoard
+                  sessions={rows ?? []}
+                  progress={progress}
+                  dockLabel={dockLabel}
+                  appointment={appointmentFor}
+                  supervisorLabel={supervisorLabel}
+                  actions={nextActions}
+                  onOpen={(s) => setActiveSession(s as SessionRow)}
+                />
               ) : (
                 <Table>
                   <TableHeader>
