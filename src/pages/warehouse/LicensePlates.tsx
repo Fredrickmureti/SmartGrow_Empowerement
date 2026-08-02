@@ -82,6 +82,8 @@ export default function LicensePlates() {
     type: typeFilter,
     status: statusFilter,
   });
+  // Status vocabulary comes from the FSM rulebook, never a hardcoded list.
+  const { data: statuses } = useLpnStatusCatalog();
 
   // Scan a plate barcode anywhere on this board → open its cockpit.
   useWmsScanIntent({
@@ -105,7 +107,8 @@ export default function LicensePlates() {
     return list.filter(
       (r) =>
         r.code.toLowerCase().includes(s) ||
-        (r.location_code ?? "").toLowerCase().includes(s),
+        (r.location_code ?? "").toLowerCase().includes(s) ||
+        (r.location_path ?? "").toLowerCase().includes(s),
     );
   }, [rows, search]);
 
