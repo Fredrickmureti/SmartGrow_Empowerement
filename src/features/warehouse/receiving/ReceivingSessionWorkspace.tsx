@@ -165,6 +165,16 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     };
   }, [lines]);
 
+  // Trailer context for the session on screen — resolved through the dock
+  // appointment from the yard's visit record. Read-only.
+  const trailerVisits = useReceivingTrailerVisits(
+    businessId,
+    session?.appointment_id ? [session.appointment_id] : [],
+  );
+  const visit = session?.appointment_id ? (trailerVisits?.get(session.appointment_id) ?? null) : null;
+
+
+
   // A pallet scan binds the handling unit; it never captures a line.
   useWmsScanIntent({
     intent: "receiving.lpn",
