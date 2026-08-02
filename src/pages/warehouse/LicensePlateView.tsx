@@ -93,22 +93,6 @@ export default function LicensePlateView() {
     },
   });
 
-  const { data: products } = useQuery({
-    queryKey: ["wms-lpn-products", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku")
-        .eq("business_id", currentBusiness!.id)
-        .eq("is_active", true)
-        .order("name")
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
   const [dialog, setDialog] = useState<null | "move" | "load" | "unload" | "split" | "nest">(null);
   const [labelOpen, setLabelOpen] = useState(false);
   const [moveDest, setMoveDest] = useState("");
