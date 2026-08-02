@@ -62,8 +62,11 @@ as originally scoped.
   `QUARANTINE`, `QUALITY_HOLD`, `PUTAWAY`, `LPN` keys plus new
   `wms.label.return_receipt` and `wms.label.disposition` templates seeded in
   SQL. No printer code inside Returns.
-- **Mobile operator route** `/warehouse-app/returns/scan` — single-column,
-  scan-first, thumb-reachable, offline-tolerant queueing on `client_scan_id`.
+- **Mobile operator surface** added to the existing `warehouse-mobile` shell
+  (`src/apps/warehouse-mobile`), reusing its IndexedDB offline queue and
+  `client_scan_id` idempotency rather than building a second mobile stack:
+  scan-first, single-column returns capture and disposition.
+
 
 ## Phase 6 — Document and finance integration
 
