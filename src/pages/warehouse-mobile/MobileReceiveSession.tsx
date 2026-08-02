@@ -22,7 +22,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import {
+  useReceivingUnitOptions, optionByKey, toBaseUnits, BASE_UNIT_KEY,
+} from "@/features/warehouse/receiving/receivingUnits";
 import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
 import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
@@ -113,6 +119,9 @@ export function MobileReceiveSession() {
   const [expiry, setExpiry] = useState("");
   const [damaged, setDamaged] = useState("");
   const [hold, setHold] = useState(false);
+  // Phase 11 — the operator counts in whatever unit is in their hands; the
+  // ledger only ever receives base units.
+  const [unitKey, setUnitKey] = useState<string>(BASE_UNIT_KEY);
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   // Phase 4c — pallet identity travels with every captured line.
@@ -175,6 +184,23 @@ export function MobileReceiveSession() {
     ? Math.max(Number(matched.expected_qty ?? 0) - Number(matched.received_qty ?? 0), 0)
     : 0;
 
+  // Packaging levels for the scanned product (batched with the session lines).
+  const unitOptions = useReceivingUnitOptions(
+    useMemo(
+      () => [
+        ...(lines ?? []).map((l) => l.product_id ?? ""),
+        scan?.identity.productId ?? "",
+      ].filter(Boolean),
+      [lines, scan],
+    ),
+  );
+  const units = (scan && unitOptions.get(scan.identity.productId)) || [];
+  const unit = optionByKey(units.length ? units : [
+    { key: BASE_UNIT_KEY, label: "ea", uom: "ea", qtyInBaseUom: 1, isBase: true },
+  ], unitKey);
+  const baseQty = toBaseUnits(Number(qty), unit);
+  const baseDamaged = toBaseUnits(Number(damaged), unit);
+
   const onResolved = (s: GatedScan | null) => {
     setScan(s);
     if (!s) return;
@@ -182,6 +208,9 @@ export function MobileReceiveSession() {
     const rest = line
       ? Math.max(Number(line.expected_qty ?? 0) - Number(line.received_qty ?? 0), 0)
       : 0;
+    // A scan already carries its packaging level, so the typed quantity that
+    // follows is expressed in base units unless the operator changes the unit.
+    setUnitKey(BASE_UNIT_KEY);
     setQty(String(rest || s.baseUnits || 1));
     setLot(s.lot ?? "");
     setExpiry(s.expiry ? s.expiry.toISOString().slice(0, 10) : "");
@@ -194,29 +223,32 @@ export function MobileReceiveSession() {
     setExpiry("");
     setDamaged("");
     setHold(false);
+    setUnitKey(BASE_UNIT_KEY);
     setResetKey((k) => k + 1);
   };
 
   const capture = async () => {
-    if (!id || !scan || !Number(qty)) return;
+    if (!id || !scan || !baseQty) return;
     setBusy(true);
     try {
       const r = await enqueue("wms_capture_receiving_line", {
         p_session_id: id,
         p_product_id: scan.identity.productId,
-        p_received_qty: Number(qty),
+        p_received_qty: baseQty,
         p_expected_qty: matched?.expected_qty ?? null,
         p_lpn_id: activeLpn?.id ?? null,
         p_lot_number: lot.trim() || null,
         p_serial_number: scan.serial ?? null,
-        p_uom: null,
+        p_uom: unit.uom,
         p_staging_location_id: null,
         p_notes: null,
         p_expiry_date: expiry || null,
-        p_damaged_qty: Number(damaged) || 0,
+        p_damaged_qty: baseDamaged,
         p_qc_hold: hold,
       });
-      toast.success(r.queued ? "Queued (offline)" : `Captured ${qty} × ${scan.identity.productName}`);
+      toast.success(
+        r.queued ? "Queued (offline)" : `Captured ${baseQty} × ${scan.identity.productName}`,
+      );
       reset();
       qc.invalidateQueries({ queryKey: ["wm-receiving-lines", id] });
     } catch (e: unknown) {
@@ -234,7 +266,7 @@ export function MobileReceiveSession() {
         <Button
           className="h-12 w-full"
           size="lg"
-          disabled={busy || !scan || !Number(qty)}
+          disabled={busy || !scan || !baseQty}
           onClick={capture}
         >
           {busy ? "Working…" : "Capture line"}
@@ -296,13 +328,26 @@ export function MobileReceiveSession() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Quantity (base units)</Label>
+            <Label>Quantity</Label>
             <Input
               className="h-12"
               inputMode="decimal"
               value={qty}
               onChange={(e) => setQty(e.target.value)}
             />
+          </div>
+          <div>
+            <Label>Unit</Label>
+            <Select value={unitKey} onValueChange={setUnitKey} disabled={units.length < 2}>
+              <SelectTrigger className="h-12">
+                <SelectValue placeholder="ea" />
+              </SelectTrigger>
+              <SelectContent>
+                {(units.length ? units : [unit]).map((u) => (
+                  <SelectItem key={u.key} value={u.key}>{u.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <Label>Damaged</Label>
@@ -327,6 +372,13 @@ export function MobileReceiveSession() {
             />
           </div>
         </div>
+
+        {!unit.isBase && baseQty > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Books {baseQty} base unit{baseQty === 1 ? "" : "s"}
+            {baseDamaged > 0 ? ` · ${baseDamaged} damaged` : ""}
+          </p>
+        )}
 
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={hold} onCheckedChange={(v) => setHold(!!v)} /> Quality hold
