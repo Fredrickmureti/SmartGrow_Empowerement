@@ -38,6 +38,7 @@ import {
   type ReceivingLine,
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
+import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 
 export interface ReceivingSessionSummary {
@@ -47,7 +48,10 @@ export interface ReceivingSessionSummary {
   row_version: number;
   source_doc_type: string | null;
   source_doc_id: string | null;
+  /** Link to the yard's trailer visit (carrier, seal, dwell) when scheduled. */
+  appointment_id?: string | null;
 }
+
 
 interface Props {
   session: ReceivingSessionSummary | null;
