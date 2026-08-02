@@ -51,9 +51,20 @@ import { useLocationMutations } from "@/features/warehouse/locations/useLocation
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
+/** Deep-link into the full-page structure builder (no modal, no lost work). */
+function buildHref(warehouseId: string | null, parentId: string | null) {
+  const q = new URLSearchParams();
+  if (warehouseId) q.set("warehouse", warehouseId);
+  if (parentId) q.set("parent", parentId);
+  const s = q.toString();
+  return `/warehouse-app/layout/design${s ? `?${s}` : ""}`;
+}
+
 export default function WarehouseLayoutWorkspace() {
+  const navigate = useNavigate();
   const { warehouses, isLoading: whLoading } = useWarehouses();
   const { currentBranch } = useBranches();
+
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
   const activeWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
 
