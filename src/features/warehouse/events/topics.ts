@@ -67,6 +67,10 @@ export const WMS_TOPIC = {
   RETURN_LINE_DISPOSITIONED: "warehouse.return.line_dispositioned",
   RETURN_DISPOSITIONS_POSTED: "warehouse.return.dispositions_posted",
   RETURN_BLOCKED: "warehouse.return.blocked",
+  /** Finance doc (credit note / sales or purchase return) attached to the RMA. */
+  RETURN_FINANCE_LINKED: "warehouse.return.finance_linked",
+
+
 
 
   // ---- Exception inbox ------------------------------------------------
