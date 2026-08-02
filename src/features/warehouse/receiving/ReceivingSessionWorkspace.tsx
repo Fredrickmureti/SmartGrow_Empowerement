@@ -24,7 +24,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
-import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History } from "lucide-react";
+import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History, Truck } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -38,6 +38,7 @@ import {
   type ReceivingLine,
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
+import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 
 export interface ReceivingSessionSummary {
@@ -47,7 +48,10 @@ export interface ReceivingSessionSummary {
   row_version: number;
   source_doc_type: string | null;
   source_doc_id: string | null;
+  /** Link to the yard's trailer visit (carrier, seal, dwell) when scheduled. */
+  appointment_id?: string | null;
 }
+
 
 interface Props {
   session: ReceivingSessionSummary | null;
@@ -161,6 +165,16 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     };
   }, [lines]);
 
+  // Trailer context for the session on screen — resolved through the dock
+  // appointment from the yard's visit record. Read-only.
+  const trailerVisits = useReceivingTrailerVisits(
+    businessId,
+    session?.appointment_id ? [session.appointment_id] : [],
+  );
+  const visit = session?.appointment_id ? (trailerVisits?.get(session.appointment_id) ?? null) : null;
+
+
+
   // A pallet scan binds the handling unit; it never captures a line.
   useWmsScanIntent({
     intent: "receiving.lpn",
@@ -235,6 +249,25 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             Scans land on lines while this panel is open — quantity, lot, expiry and damage are recorded, not narrated.
           </SheetDescription>
         </SheetHeader>
+
+        {visit ? (
+          <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="flex items-center gap-1.5">
+              <Truck className="h-3.5 w-3.5" />
+              {[visit.carrier_name, visit.trailer_ref].filter(Boolean).join(" · ") || "trailer on dock"}
+            </span>
+            {visit.driver_name ? <span>driver {visit.driver_name}</span> : null}
+            {visit.seal_in || visit.seal_out ? (
+              <span>seal in {visit.seal_in ?? "—"}{visit.seal_out ? ` · out ${visit.seal_out}` : ""}</span>
+            ) : null}
+            {(() => {
+              const d = dwellMinutes(visit);
+              return d == null ? null : <span>{visit.departed_at ? "dwell" : "on site"} {d} min</span>;
+            })()}
+          </div>
+        ) : null}
+
+
 
         <ScanStatusChip
           expectedLabel="receiving-workspace.item"

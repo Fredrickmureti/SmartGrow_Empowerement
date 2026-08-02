@@ -101,4 +101,14 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(read(SESSIONS_PAGE)).toMatch(/ReceivingSessionBoard/);
     expect(read(WORKSPACE)).toMatch(/OutboxTimeline/);
   });
+  it("trailer context is read through the yard visit, never re-written (Phase 1 remainder)", () => {
+    const hook = read("features/warehouse/receiving/useReceivingTrailerVisits.ts");
+    // Resolved through the shared dock appointment — no duplicated columns.
+    expect(hook).toMatch(/wms_trailer_visits/);
+    expect(hook).toMatch(/appointment_id/);
+    // Receiving is a reader: the yard board owns the visit lifecycle.
+    expect(hook).not.toMatch(/\.insert\(|\.update\(|\.upsert\(|\.delete\(/);
+    expect(read("features/warehouse/receiving/ReceivingSessionBoard.tsx")).toMatch(/trailerVisit/);
+    expect(read(SESSIONS_PAGE)).toMatch(/useReceivingTrailerVisits/);
+  });
 });

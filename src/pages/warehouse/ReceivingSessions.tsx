@@ -41,6 +41,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck, LayoutGrid, Rows3 } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ReceivingSessionBoard from "@/features/warehouse/receiving/ReceivingSessionBoard";
+import { useReceivingTrailerVisits } from "@/features/warehouse/receiving/useReceivingTrailerVisits";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -231,6 +232,20 @@ export default function ReceivingSessions() {
     },
     [appointments],
   );
+
+  // Phase 1 remainder — the physical trailer behind the appointment: carrier,
+  // trailer reference, driver, seals and dwell, read from the yard's
+  // `wms_trailer_visits`. Receiving never writes it; the yard board owns it.
+  const sessionAppointmentIds = useMemo(
+    () => (rows ?? []).map((r) => r.appointment_id).filter(Boolean) as string[],
+    [rows],
+  );
+  const trailerVisits = useReceivingTrailerVisits(currentBusiness?.id, sessionAppointmentIds);
+  const trailerVisitFor = useCallback(
+    (appointmentId: string | null) => (appointmentId ? (trailerVisits?.get(appointmentId) ?? null) : null),
+    [trailerVisits],
+  );
+
 
   const transition = useMutation({
     mutationFn: async (input: { id: string; to: RcvState; rowVersion: number; reason?: string }) => {
@@ -526,6 +541,7 @@ export default function ReceivingSessions() {
                   progress={progress}
                   dockLabel={dockLabel}
                   appointment={appointmentFor}
+                  trailerVisit={trailerVisitFor}
                   supervisorLabel={supervisorLabel}
                   actions={nextActions}
                   onOpen={(s) => setActiveSession(s as SessionRow)}
