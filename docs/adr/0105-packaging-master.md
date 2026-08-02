@@ -85,3 +85,19 @@ idempotent: tare is applied once per stamped packaging type.
 minted server-side only, carton labels only via `printWmsLabel`,
 PackStation calls `suggest_packaging`, plates carry
 `packaging_type_id`.
+
+## Phase 5 — handling-unit unification (2026-08-02)
+
+- `wms_license_plates.packaging_type_id` is the plate's physical identity;
+  `wms_lpn_type` is derived from the packaging class by
+  `wms_packaging_class_to_lpn_type`, never set by the client.
+- `wms_lpn_set_packaging` is the only write path (row_version checked,
+  audited on `wms_lpn_events`) and is registered in the
+  `wms_replay_guarded_call` dispatcher so offline stamps drain idempotently.
+- A pack carton propagates its packaging type to its shipment plate via
+  `trg_wms_pack_carton_propagate_packaging`.
+- `wms_resolve_carton_scan` resolves an SSCC-18, a GS1 `(00)` element string
+  or a bare plate code to one handling unit; the `pack.carton` intent on
+  PackStation calls it instead of parsing codes client-side.
+- Both pack stations now read `packaging_type_id`; the legacy
+  `carton_type_id` column is untouched by client code and drops in Phase 8.
