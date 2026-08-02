@@ -32,13 +32,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  PackageOpen, ArrowLeft, MoveRight, Lock, Archive, Printer,
+  PackageOpen, ArrowLeft, MoveRight, Printer,
   Download, Upload, Split, Link2, Unlink, ScanLine,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
+import { LpnLifecycleRail } from "@/features/warehouse/lpn/LpnLifecycleRail";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
@@ -169,7 +170,10 @@ export default function LicensePlateView() {
     );
   }
 
-  const locked = lpn.status === "shipped" || lpn.status === "voided" || lpn.status === "consumed";
+  // Stock cannot be restructured once the unit has left the building or
+  // been closed out; the lifecycle rail below is governed by the FSM.
+  const locked = lpn.status === "shipped" || lpn.status === "voided"
+    || lpn.status === "retired" || lpn.status === "consumed";
   const sealed = !!lpn.sealed_at;
 
   return (
@@ -217,24 +221,7 @@ export default function LicensePlateView() {
                 <Link2 className="mr-2 h-4 w-4" /> Nest
               </Button>
             )}
-            {lpn.status === "open" && (
-              <Button
-                variant="outline"
-                onClick={() => action.run({ kind: "transition", toStatus: "sealed", expectedVersion: lpn.row_version })}
-              >
-                <Lock className="mr-2 h-4 w-4" /> Seal
-              </Button>
-            )}
-            {!locked && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  action.run({ kind: "transition", toStatus: "voided", expectedVersion: lpn.row_version, reason: "Manual retire" })
-                }
-              >
-                <Archive className="mr-2 h-4 w-4" /> Retire
-              </Button>
-            )}
+            <LpnLifecycleRail plate={lpn} locations={locations ?? []} />
           </div>
         }
       />

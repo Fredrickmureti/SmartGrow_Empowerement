@@ -59,6 +59,21 @@ export interface LpnEventRow {
   counterpart_lpn_id: string | null;
 }
 
+/**
+ * A legal status change, as declared by the database rulebook
+ * (`wms_lpn_status_edges`). The UI never hardcodes lifecycle rules — it
+ * renders exactly the edges the FSM will accept.
+ */
+export interface LpnStatusEdge {
+  from_status: string;
+  to_status: string;
+  verb: string;
+  description: string | null;
+  requires_reason: boolean;
+  rpc_name: string | null;
+  sort_order: number;
+}
+
 const sb = supabase as any;
 
 export interface LpnFilters {
@@ -158,6 +173,24 @@ export function useLpnEvents(id: string | undefined, limit = 100) {
   });
 }
 
+/** Legal transitions out of a status, straight from the FSM edge table. */
+export function useLpnAllowedTransitions(status: string | undefined) {
+  return useQuery({
+    queryKey: ["wms-lpn-edges", status],
+    enabled: !!status,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<LpnStatusEdge[]> => {
+      const { data, error } = await sb
+        .from("wms_lpn_status_edges")
+        .select("from_status, to_status, verb, description, requires_reason, rpc_name, sort_order")
+        .eq("from_status", status)
+        .order("sort_order");
+      if (error) throw error;
+      return (data ?? []) as LpnStatusEdge[];
+    },
+  });
+}
+
 /** Resolve a scanned code to a plate in the active business. */
 export async function resolveLpnByCode(businessId: string, code: string) {
   const { data, error } = await sb
@@ -189,6 +222,10 @@ export type LpnAction =
   | { kind: "merge"; sourceIds: string[] }
   | { kind: "nest"; parentId: string }
   | { kind: "unnest" }
+  | { kind: "seal"; expectedVersion?: number | null }
+  | { kind: "dispatch"; expectedVersion?: number | null; reference?: string | null }
+  | { kind: "return"; toLocationId: string; reason: string; expectedVersion?: number | null }
+  | { kind: "retire"; reason: string; expectedVersion?: number | null }
   | { kind: "transition"; toStatus: string; expectedVersion?: number | null; reason?: string | null };
 
 const SUCCESS_COPY: Record<LpnAction["kind"], string> = {
@@ -199,6 +236,10 @@ const SUCCESS_COPY: Record<LpnAction["kind"], string> = {
   merge: "Plates merged",
   nest: "Plate nested",
   unnest: "Plate detached",
+  seal: "Plate sealed",
+  dispatch: "Plate dispatched — stock left the warehouse",
+  return: "Return received — contents restored for inspection",
+  retire: "Plate retired",
   transition: "Plate status updated",
 };
 
@@ -218,6 +259,14 @@ function actionToRpc(lpnId: string, a: LpnAction): { name: string; args: Record<
       return { name: "wms_lpn_nest", args: { _child_lpn_id: lpnId, _parent_lpn_id: a.parentId } };
     case "unnest":
       return { name: "wms_lpn_unnest", args: { _child_lpn_id: lpnId } };
+    case "seal":
+      return { name: "wms_lpn_seal", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion ?? null } };
+    case "dispatch":
+      return { name: "wms_lpn_dispatch", args: { _lpn_id: lpnId, _expected_version: a.expectedVersion ?? null, _reference: a.reference ?? null } };
+    case "return":
+      return { name: "wms_lpn_receive_return", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _reason: a.reason, _expected_version: a.expectedVersion ?? null } };
+    case "retire":
+      return { name: "wms_lpn_retire", args: { _lpn_id: lpnId, _reason: a.reason, _expected_version: a.expectedVersion ?? null } };
     case "transition":
       return { name: "wms_transition_lpn", args: { _lpn_id: lpnId, _to_status: a.toStatus, _expected_version: a.expectedVersion ?? 0, _reason: a.reason ?? null } };
   }
