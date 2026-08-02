@@ -95,6 +95,12 @@ export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside
               <Plus className="mr-2 h-4 w-4" /> {addActionLabel(node.structure_level)}
             </Button>
           )}
+          {onMove && node.structure_level && (
+            <Button size="sm" variant="outline" onClick={() => onMove(node)}>
+              <MoveRight className="mr-2 h-4 w-4" /> Move to…
+            </Button>
+          )}
+
           <Button
             size="sm"
             variant={node.is_active ? "outline" : "default"}
