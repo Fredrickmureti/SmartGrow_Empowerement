@@ -37,8 +37,8 @@ import { useResolveLocationIdentity } from "@/features/warehouse/locations/useRe
 import { LocationStructureTree } from "@/features/warehouse/locations/LocationStructureTree";
 import { LocationMap } from "@/features/warehouse/locations/LocationMap";
 import { LocationInspector } from "@/features/warehouse/locations/LocationInspector";
-import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBuilderDialog";
 import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
+
 
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
 import { LabelVerifyDialog } from "@/features/warehouse/locations/LabelVerifyDialog";
