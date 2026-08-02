@@ -186,27 +186,32 @@ function SessionCard({
       ) : null}
 
       {/*
-        Actions must never punch out of the lane. A lane can be as narrow as
-        ~270px, so buttons live in an auto-fit grid: one column when cramped,
-        two when there is room, each cell clipping its own label.
+        Verbs never get abbreviated on a dock board: "Post to inventory" that
+        reads "Post to inv…" is an operational hazard. Each state action gets
+        its own full-width row so the label always renders in full; "Open" is
+        the secondary row underneath.
       */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-1 pt-1">
-        <Button size="sm" variant="outline" className="w-full min-w-0" onClick={() => onOpen(s)}>
-          Open
-        </Button>
+      <div className="flex flex-col gap-1 pt-1">
         {actions(s).map((a, i) => (
           <Button
             key={i}
             size="sm"
             variant={a.label.startsWith("Post") ? "default" : "outline"}
-            className="w-full min-w-0 px-2"
-            title={a.label}
+            className="w-full justify-center whitespace-nowrap px-2"
             onClick={a.run}
           >
-            <a.icon className="mr-1 h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{a.label}</span>
+            <a.icon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+            {a.label}
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="w-full justify-center whitespace-nowrap"
+          onClick={() => onOpen(s)}
+        >
+          Open session
+        </Button>
       </div>
     </div>
   );
@@ -227,7 +232,7 @@ export function ReceivingSessionBoard(props: Props) {
           return (
             <div
               key={lane.state}
-              className="flex w-[19rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 2xl:w-auto 2xl:min-w-0"
+              className="flex w-[21rem] shrink-0 flex-col rounded-lg bg-muted/40 p-2 2xl:w-auto 2xl:min-w-[17rem]"
             >
               <div className="mb-2 flex items-center justify-between gap-2 px-1">
                 <span className="truncate text-sm font-medium">{lane.title}</span>
