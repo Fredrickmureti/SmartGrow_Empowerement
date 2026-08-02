@@ -83,4 +83,22 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
       /["']receiving_label["']/,
     );
   });
+
+  it("capture surfaces stamp the handling unit (Phase 4c)", () => {
+    expect(read(WORKSPACE)).toMatch(/lpnId:\s*activeLpn\?\.id/);
+    expect(read(MOBILE_LOOP)).toMatch(/p_lpn_id:\s*activeLpn\?\.id/);
+  });
+
+  it("the dock board is lane-per-state and the workspace shows the event timeline (Phase 5b)", () => {
+    const board = read("features/warehouse/receiving/ReceivingSessionBoard.tsx");
+    // Lanes follow the trailer's path; the board never mutates state itself.
+    for (const lane of ["open", "unloading", "captured", "discrepant", "posted"]) {
+      expect(board).toMatch(new RegExp(`state:\\s*"${lane}"`));
+    }
+    expect(board, "the board is presentational — transitions belong to the page").not.toMatch(
+      /supabase\.|\.rpc\(/,
+    );
+    expect(read(SESSIONS_PAGE)).toMatch(/ReceivingSessionBoard/);
+    expect(read(WORKSPACE)).toMatch(/OutboxTimeline/);
+  });
 });

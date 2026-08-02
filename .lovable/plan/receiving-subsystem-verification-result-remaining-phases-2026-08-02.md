@@ -98,3 +98,19 @@ Next: **Phase 5b** — lane-per-state session board (carrier/trailer, dock,
 appointment window, supervisor, progress) plus a per-session activity
 timeline, then the trailer-visit link and the Purchases GRN wizard
 convergence.
+
+### Phase 5b — dock board + activity timeline (landed)
+
+- `src/features/warehouse/receiving/ReceivingSessionBoard.tsx`: lane per state
+  (arrived → unloading → captured → discrepant → posted), one card per trailer
+  with dock, appointment window, supervisor of record, source document,
+  received/expected progress bar and variance chips. Purely presentational —
+  transitions stay with the page, posting stays with the workspace.
+- `ReceivingSessions.tsx`: board is the default view with a board/table toggle;
+  supervisors resolved once from `profiles` for the whole board.
+- `ReceivingSessionWorkspace.tsx`: per-session `OutboxTimeline` activity feed.
+- Guards added in `src/__tests__/architecture.receiving-line-grain.test.ts`
+  for LPN stamping and the board/timeline invariants.
+
+Remaining: trailer-visit (`wms_trailer_visits`) link for seal/dwell context,
+and the Purchases GRN wizard convergence onto the receiving document.

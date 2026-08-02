@@ -24,7 +24,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
-import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X } from "lucide-react";
+import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -38,6 +38,7 @@ import {
   type ReceivingLine,
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
+import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -410,6 +411,20 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
               })}
             </TableBody>
           </Table>
+        )}
+        {session && (
+          <>
+            <Separator className="my-4" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                <History className="h-4 w-4" /> Activity
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Lifecycle events emitted for this session — arrival, capture, variance, posting.
+              </p>
+              <OutboxTimeline aggregateId={session.id} limit={50} />
+            </div>
+          </>
         )}
       </SheetContent>
     </Sheet>
