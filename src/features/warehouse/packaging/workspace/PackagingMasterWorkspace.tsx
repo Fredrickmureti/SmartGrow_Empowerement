@@ -1,7 +1,7 @@
 /**
  * Packaging Master workspace (ADR 0105, Phase 7).
  *
- * Replaces the legacy `wms_carton_types` CRUD table. Master/detail:
+ * Replaces the legacy carton-type CRUD table. Master/detail:
  * a virtualisable TanStack Table grid of every packaging type on the left,
  * a tabbed record on the right (specification, carrier rules, warehouse
  * availability, activity journal). Writes never touch the table — they go
