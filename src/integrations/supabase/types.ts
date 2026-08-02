@@ -67424,14 +67424,20 @@ export type Database = {
           captured_at: string | null
           captured_by: string | null
           created_at: string
+          damaged_qty: number
           discrepancy_reason: string | null
           expected_qty: number | null
+          expiry_date: string | null
           id: string
+          inbound_shipment_item_id: string | null
+          line_state: string
           lot_number: string | null
           lpn_id: string | null
           notes: string | null
           organization_id: string
           product_id: string
+          purchase_order_item_id: string | null
+          qc_hold: boolean
           received_qty: number
           serial_number: string | null
           session_id: string
@@ -67445,14 +67451,20 @@ export type Database = {
           captured_at?: string | null
           captured_by?: string | null
           created_at?: string
+          damaged_qty?: number
           discrepancy_reason?: string | null
           expected_qty?: number | null
+          expiry_date?: string | null
           id?: string
+          inbound_shipment_item_id?: string | null
+          line_state?: string
           lot_number?: string | null
           lpn_id?: string | null
           notes?: string | null
           organization_id: string
           product_id: string
+          purchase_order_item_id?: string | null
+          qc_hold?: boolean
           received_qty?: number
           serial_number?: string | null
           session_id: string
@@ -67466,14 +67478,20 @@ export type Database = {
           captured_at?: string | null
           captured_by?: string | null
           created_at?: string
+          damaged_qty?: number
           discrepancy_reason?: string | null
           expected_qty?: number | null
+          expiry_date?: string | null
           id?: string
+          inbound_shipment_item_id?: string | null
+          line_state?: string
           lot_number?: string | null
           lpn_id?: string | null
           notes?: string | null
           organization_id?: string
           product_id?: string
+          purchase_order_item_id?: string | null
+          qc_hold?: boolean
           received_qty?: number
           serial_number?: string | null
           session_id?: string
@@ -67483,6 +67501,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_receiving_lines_inbound_shipment_item_id_fkey"
+            columns: ["inbound_shipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "inbound_shipment_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_receiving_lines_lpn_id_fkey"
             columns: ["lpn_id"]
@@ -67496,6 +67521,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wms_license_plates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "po_three_way_match"
+            referencedColumns: ["po_item_id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_purchase_order_item_id_fkey"
+            columns: ["purchase_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_po_line_billed_progress"
+            referencedColumns: ["po_item_id"]
+          },
+          {
+            foreignKeyName: "wms_receiving_lines_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "wms_receiving_session_progress"
+            referencedColumns: ["session_id"]
           },
           {
             foreignKeyName: "wms_receiving_lines_session_id_fkey"
@@ -76007,6 +76060,33 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wms_tasks_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_receiving_session_progress: {
+        Row: {
+          business_id: string | null
+          captured_lines: number | null
+          damaged_lines: number | null
+          damaged_qty: number | null
+          expected_qty: number | null
+          hold_lines: number | null
+          line_count: number | null
+          over_lines: number | null
+          received_qty: number | null
+          session_id: string | null
+          short_lines: number | null
+          state: Database["public"]["Enums"]["wms_receiving_state"] | null
+          unexpected_lines: number | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_receiving_sessions_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -89309,23 +89389,44 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
-      wms_capture_receiving_line: {
-        Args: {
-          p_client_scan_id?: string
-          p_device_id?: string
-          p_expected_qty?: number
-          p_lot_number?: string
-          p_lpn_id?: string
-          p_notes?: string
-          p_product_id: string
-          p_received_qty: number
-          p_serial_number?: string
-          p_session_id: string
-          p_staging_location_id?: string
-          p_uom?: string
-        }
-        Returns: Json
-      }
+      wms_capture_receiving_line:
+        | {
+            Args: {
+              p_client_scan_id?: string
+              p_device_id?: string
+              p_expected_qty?: number
+              p_lot_number?: string
+              p_lpn_id?: string
+              p_notes?: string
+              p_product_id: string
+              p_received_qty: number
+              p_serial_number?: string
+              p_session_id: string
+              p_staging_location_id?: string
+              p_uom?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_client_scan_id?: string
+              p_damaged_qty?: number
+              p_device_id?: string
+              p_expected_qty?: number
+              p_expiry_date?: string
+              p_lot_number?: string
+              p_lpn_id?: string
+              p_notes?: string
+              p_product_id: string
+              p_qc_hold?: boolean
+              p_received_qty: number
+              p_serial_number?: string
+              p_session_id: string
+              p_staging_location_id?: string
+              p_uom?: string
+            }
+            Returns: Json
+          }
       wms_claim_next_task: {
         Args: {
           _lease_seconds?: number
@@ -89380,6 +89481,10 @@ export type Database = {
         }
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
+      wms_flag_receiving_variances: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
       wms_generate_locations: {
         Args: {
           p_barcode_auto?: boolean
@@ -89833,6 +89938,10 @@ export type Database = {
         Args: { p_manifest_id: string }
         Returns: string[]
       }
+      wms_materialize_expected_lines: {
+        Args: { p_session_id: string }
+        Returns: Json
+      }
       wms_next_lpn_code: {
         Args: {
           _business_id: string
@@ -90029,6 +90138,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_post_receiving_session: {
+        Args: {
+          p_row_version: number
+          p_session_id: string
+          p_staging_location_id?: string
+        }
+        Returns: Json
       }
       wms_raise_exception: {
         Args: {
