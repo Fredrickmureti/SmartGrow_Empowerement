@@ -201,6 +201,13 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           </SheetDescription>
         </SheetHeader>
 
+        <ScanStatusChip
+          expectedLabel="receiving-workspace.item"
+          hint="Scan an item to capture against its expected line"
+          className="mt-3"
+        />
+
+
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
           <StatusBadge tone="neutral">expected {totals.expected}</StatusBadge>
           <StatusBadge tone="info">received {totals.received}</StatusBadge>
