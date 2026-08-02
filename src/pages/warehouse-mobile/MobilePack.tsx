@@ -156,24 +156,28 @@ export default function MobilePack() {
           }
         }
       }
-      // 2. Open the carton (`open_pack_carton` RETURNS uuid — a scalar).
-      const openRes = await enqueue<string>("open_pack_carton", {
+      // 2. Open the carton. The replay dispatcher wraps the scalar uuid that
+      //    `open_pack_carton` returns as `{ carton_id }` — mobile previously
+      //    read the envelope as a bare string, so it never stamped packaging.
+      const openRes = await enqueue<{ carton_id?: string } | null>("open_pack_carton", {
         p_wave_id: waveId!,
         p_sales_order_id: salesOrderId,
       });
+      const cartonId = openRes.data?.carton_id ?? null;
       if (openRes.queued) {
         toast.success("Queued (offline)");
       } else {
         toast.success(suggestedCode ? `Carton opened · ${suggestedCode}` : "Carton opened");
         if (failureReason) toast.warning(packagingFailureMessage(failureReason));
         // 3. Stamp the suggested packaging (tare-safe, idempotent server-side).
-        if (openRes.data && suggestedTypeId) {
+        if (cartonId && suggestedTypeId) {
           await enqueue("assign_packaging_to_pack", {
-            p_carton_id: openRes.data,
+            p_carton_id: cartonId,
             p_packaging_type_id: suggestedTypeId,
           });
         }
       }
+
 
       invalidate();
     } catch (e) {
