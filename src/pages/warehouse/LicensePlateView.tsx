@@ -218,10 +218,19 @@ export default function LicensePlateView() {
             <Button onClick={() => setDialog("move")} disabled={locked}>
               <MoveRight className="mr-2 h-4 w-4" /> Move
             </Button>
-            <Button variant="outline" onClick={() => setDialog("load")} disabled={locked || sealed}>
+            <Button
+              variant="outline"
+              onClick={() => setDialog("load")}
+              disabled={locked || sealed || unlocated}
+              title={unlocated ? "Move the plate into a bin before loading stock" : undefined}
+            >
               <Download className="mr-2 h-4 w-4" /> Load
             </Button>
-            <Button variant="outline" onClick={() => setDialog("unload")} disabled={locked || sealed}>
+            <Button
+              variant="outline"
+              onClick={() => setDialog("unload")}
+              disabled={locked || sealed || unlocated || !contents?.length}
+            >
               <Upload className="mr-2 h-4 w-4" /> Unload
             </Button>
             <Button variant="outline" onClick={() => setDialog("split")} disabled={locked || sealed}>
@@ -261,7 +270,18 @@ export default function LicensePlateView() {
                   icon={PackageOpen}
                   title="Empty plate"
                   description="Load stock from a bin to start building this handling unit."
-                  action={<Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>}
+                  description={
+                    unlocated
+                      ? "This plate is not in a bin yet. Move it to a bin, then load stock from that bin."
+                      : "Load stock from this plate's bin to start building the handling unit."
+                  }
+                  action={
+                    unlocated ? (
+                      <Button onClick={() => setDialog("move")} disabled={locked}>Move to a bin</Button>
+                    ) : (
+                      <Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>
+                    )
+                  }
                 />
               ) : (
                 <Table>
