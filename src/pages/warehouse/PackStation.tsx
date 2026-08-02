@@ -50,6 +50,8 @@ import {
   cartonScanFailureMessage,
 } from "@/features/warehouse/packaging/handlingUnitPackaging";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { usePackScale } from "@/features/warehouse/packaging/usePackScale";
+import { Scale, RotateCcw } from "lucide-react";
 
 
 interface WaveLine {
@@ -271,6 +273,21 @@ export default function PackStation() {
   const [lenCm, setLenCm] = useState("");
   const [widCm, setWidCm] = useState("");
   const [hgtCm, setHgtCm] = useState("");
+
+  // Phase 6 — the sealed weight comes off the bound scale via the hardware
+  // command router, not the operator's fingers. Manual entry stays available
+  // for sites without a scale.
+  const scale = usePackScale();
+  const captureWeight = async () => {
+    const w = await scale.read();
+    if (!w) {
+      toast.error(scale.error ?? "Scale read failed");
+      return;
+    }
+    setWeightKg(String(w.kg));
+    if (!w.stable) toast.warning("Scale reading is not stable — re-weigh before sealing");
+    else toast.success(`Captured ${w.kg} kg`);
+  };
 
   const sealMut = useSealCarton(waveId);
   const sealCarton = {
@@ -582,7 +599,21 @@ export default function PackStation() {
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <Label htmlFor="wt">Weight (kg)</Label>
-              <Input id="wt" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+              <div className="flex items-center gap-2">
+                <Input id="wt" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />
+                <Button type="button" variant="outline" size="sm" disabled={scale.busy} onClick={() => void captureWeight()}>
+                  <Scale className="h-4 w-4 mr-1" /> Read scale
+                </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={scale.busy} onClick={() => void scale.tare()} aria-label="Tare scale">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+              {scale.reading && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Scale: {scale.reading.kg} kg · {scale.reading.stable ? "stable" : "unstable"}
+                </p>
+              )}
+              {scale.error && <p className="text-xs text-destructive mt-1">{scale.error}</p>}
             </div>
             <div>
               <Label htmlFor="l">Length (cm)</Label>

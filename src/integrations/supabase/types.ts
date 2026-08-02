@@ -66671,6 +66671,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          packaging_consumed_at: string | null
           packaging_type_id: string | null
           row_version: number
           sales_order_id: string
@@ -66696,6 +66697,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id: string
+          packaging_consumed_at?: string | null
           packaging_type_id?: string | null
           row_version?: number
           sales_order_id: string
@@ -66721,6 +66723,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id?: string
+          packaging_consumed_at?: string | null
           packaging_type_id?: string | null
           row_version?: number
           sales_order_id?: string
@@ -77905,6 +77908,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          packaging_consumed_at: string | null
           packaging_type_id: string | null
           row_version: number
           sales_order_id: string
@@ -77954,6 +77958,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          packaging_consumed_at: string | null
           packaging_type_id: string | null
           row_version: number
           sales_order_id: string
@@ -89973,6 +89978,17 @@ export type Database = {
       wms_packaging_class_to_lpn_type: {
         Args: { _class: Database["public"]["Enums"]["wms_packaging_class"] }
         Returns: Database["public"]["Enums"]["wms_lpn_type"]
+      }
+      wms_packaging_consume: {
+        Args: {
+          p_business_id: string
+          p_packaging_type_id: string
+          p_qty?: number
+          p_reference_id?: string
+          p_reference_type?: string
+          p_warehouse_id: string
+        }
+        Returns: Json
       }
       wms_packaging_fits_item: {
         Args: {
