@@ -87,13 +87,15 @@ function windowLabel(w: AppointmentWindow | null): string | null {
 }
 
 function SessionCard({
-  s, progress, dockLabel, appointment, supervisorLabel, actions, onOpen,
+  s, progress, dockLabel, appointment, trailerVisit, supervisorLabel, actions, onOpen,
 }: Props & { s: BoardSession }) {
   const pr = progress?.get(s.id);
   const expected = Number(pr?.expected_qty ?? 0);
   const received = Number(pr?.received_qty ?? 0);
   const pct = expected > 0 ? Math.min(100, Math.round((received / expected) * 100)) : received > 0 ? 100 : 0;
   const appt = appointment(s.appointment_id);
+  const visit = trailerVisit?.(s.appointment_id) ?? null;
+  const dwell = visit ? dwellMinutes(visit) : null;
 
   return (
     <div className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
@@ -109,6 +111,32 @@ function SessionCard({
           <DoorOpen className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{dockLabel(s.dock_id) ?? "unassigned door"}</span>
         </div>
+        {visit ? (
+          <div className="flex items-center gap-1.5">
+            <Truck className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {[visit.carrier_name, visit.trailer_ref].filter(Boolean).join(" · ") || "trailer on dock"}
+              {visit.driver_name ? ` · ${visit.driver_name}` : ""}
+            </span>
+          </div>
+        ) : null}
+        {visit && (visit.seal_in || visit.seal_out) ? (
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              seal in {visit.seal_in ?? "—"}
+              {visit.seal_out ? ` · out ${visit.seal_out}` : ""}
+            </span>
+          </div>
+        ) : null}
+        {dwell != null ? (
+          <div className="flex items-center gap-1.5">
+            <Timer className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {visit?.departed_at ? "dwell" : "on site"} {dwell} min
+            </span>
+          </div>
+        ) : null}
         <div className="flex items-center gap-1.5">
           <CalendarClock className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">
@@ -127,6 +155,8 @@ function SessionCard({
           </span>
         </div>
       </div>
+
+
 
       <div className="space-y-1">
         <Progress value={pct} className="h-1.5" />
