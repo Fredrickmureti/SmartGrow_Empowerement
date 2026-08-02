@@ -431,37 +431,76 @@ export default function LicensePlateView() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Product</Label>
-              <ProductCombobox
-                products={(products ?? []) as { id: string; name: string; sku?: string | null }[]}
+              <Label>
+                {dialog === "load"
+                  ? `Available in ${lpn.location_code ?? "this bin"}`
+                  : "On this plate"}
+              </Label>
+              <Select
                 value={line.productId}
-                onChange={(pid) => setLine((l) => ({ ...l, productId: pid }))}
-              />
+                onValueChange={(v) => {
+                  const row = sourceLines.find((r) => lineKey(r) === v);
+                  setLine((l) => ({
+                    ...l,
+                    productId: v,
+                    lot: row?.lot_number ?? "",
+                    quantity: l.quantity || "1",
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      sourceLines.length
+                        ? "Pick a stock line"
+                        : dialog === "load"
+                          ? "No unassigned stock in this bin"
+                          : "This plate is empty"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {sourceLines.map((r) => (
+                    <SelectItem key={lineKey(r)} value={lineKey(r)}>
+                      {r.products?.name ?? "Product"}
+                      {r.lot_number ? ` · lot ${r.lot_number}` : ""} ·{" "}
+                      {Number(r.quantity || 0) - Number(r.reserved_quantity || 0)} available
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dialog === "load" && !sourceLines.length && (
+                <p className="text-xs text-muted-foreground">
+                  A plate can only pick up stock that is already loose in its own bin
+                  ({lpn.location_path ?? lpn.location_code ?? "unlocated"}). Put stock away
+                  into that bin first.
+                </p>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number" min="0" step="any"
-                  value={line.quantity}
-                  onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Lot (optional)</Label>
-                <Input value={line.lot} onChange={(e) => setLine((l) => ({ ...l, lot: e.target.value }))} />
-              </div>
+            <div className="space-y-2">
+              <Label>Quantity</Label>
+              <Input
+                type="number" min="0" max={available || undefined} step="any"
+                value={line.quantity}
+                onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
+              />
+              {!!selected && (
+                <p className="text-xs text-muted-foreground">Max {available}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button
-              disabled={!line.productId || Number(line.quantity) <= 0 || action.isPending}
+              disabled={
+                !selected || Number(line.quantity) <= 0
+                || Number(line.quantity) > available || action.isPending
+              }
               onClick={() =>
-                action.run(
+                selected && action.run(
                   dialog === "load"
-                    ? { kind: "load", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null }
-                    : { kind: "unload", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null },
+                    ? { kind: "load", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null }
+                    : { kind: "unload", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null },
                   { onSuccess: () => { setDialog(null); setLine({ productId: "", quantity: "1", lot: "", serial: "" }); } },
                 )
               }
