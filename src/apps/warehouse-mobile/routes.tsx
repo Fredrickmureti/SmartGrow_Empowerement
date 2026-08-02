@@ -36,6 +36,9 @@ export default function WarehouseMobileApp() {
         <Route path="pick/:id" element={<MobilePick />} />
         <Route path="count/:id" element={<MobileCount />} />
         <Route path="receive/:id" element={<MobileReceive />} />
+        <Route path="receiving" element={<MobileReceivingSessions />} />
+        <Route path="receiving/:id" element={<MobileReceiveSession />} />
+
         <Route path="pack/:packId" element={<MobilePack />} />
         <Route path="dispatch/:shipmentId" element={<MobileDispatch />} />
         <Route path="qc/:taskId" element={<MobileQC />} />
