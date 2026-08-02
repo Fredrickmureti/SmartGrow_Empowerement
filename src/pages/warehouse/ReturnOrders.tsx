@@ -163,107 +163,124 @@ export default function ReturnOrders() {
       />
       <PageBody>
         <Section>
-          <div className="space-y-4">
-            <ReturnsLaneBoard
-              orders={orders ?? []}
-              linesByOrder={lineMap}
-              activeLane={lane}
-              onSelectLane={setLane}
-            />
+          <ResizablePanelGroup
+            direction="horizontal"
+            className="min-h-[70vh] items-stretch rounded-lg border"
+          >
+            <ResizablePanel defaultSize={activeOrder ? 55 : 100} minSize={30}>
+              <div className="h-full space-y-4 overflow-y-auto p-4">
+                <ReturnsLaneBoard
+                  orders={orders ?? []}
+                  linesByOrder={lineMap}
+                  activeLane={lane}
+                  onSelectLane={setLane}
+                />
 
-            <Card>
-              <CardContent className="space-y-4 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={stateFilter} onValueChange={setStateFilter}>
-                    <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open_all">Open (default)</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="authorized">Authorized</SelectItem>
-                      <SelectItem value="in_transit">In transit</SelectItem>
-                      <SelectItem value="received">Received</SelectItem>
-                      <SelectItem value="inspecting">Inspecting</SelectItem>
-                      <SelectItem value="disposed">Disposed</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="all">All</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All warehouses</SelectItem>
-                      {warehouses.map((w) => (
-                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {lane !== "all" && (
-                    <Button variant="ghost" size="sm" onClick={() => setLane("all")}>
-                      Clear lane: {RETURN_LANE_LABEL[lane]}
-                    </Button>
-                  )}
-                </div>
+                <Card>
+                  <CardContent className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={stateFilter} onValueChange={setStateFilter}>
+                        <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open_all">Open (default)</SelectItem>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="authorized">Authorized</SelectItem>
+                          <SelectItem value="in_transit">In transit</SelectItem>
+                          <SelectItem value="received">Received</SelectItem>
+                          <SelectItem value="inspecting">Inspecting</SelectItem>
+                          <SelectItem value="disposed">Disposed</SelectItem>
+                          <SelectItem value="closed">Closed</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                          <SelectItem value="all">All</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Warehouse" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All warehouses</SelectItem>
+                          {warehouses.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {lane !== "all" && (
+                        <Button variant="ghost" size="sm" onClick={() => setLane("all")}>
+                          Clear lane: {RETURN_LANE_LABEL[lane]}
+                        </Button>
+                      )}
+                    </div>
 
-                {isLoading ? (
-                  <LoadingState />
-                ) : visible.length === 0 ? (
-                  <EmptyState
-                    icon={Undo2}
-                    title="No returns in this view"
-                    description="Create a return when an RMA is issued or a customer parcel arrives at the dock."
-                  />
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Kind</TableHead>
-                        <TableHead>State</TableHead>
-                        <TableHead>Lane</TableHead>
-                        <TableHead className="text-right">Lines</TableHead>
-                        <TableHead className="text-right">Age</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visible.map((o) => {
-                        const rows = lineMap.get(o.id) ?? [];
-                        const age = ageHours(o.received_at ?? o.created_at);
-                        return (
-                          <TableRow
-                            key={o.id}
-                            className="cursor-pointer"
-                            onClick={() => setSelected(o)}
-                          >
-                            <TableCell className="font-mono">{o.code}</TableCell>
-                            <TableCell className="text-sm">{label(o.return_kind)}</TableCell>
-                            <TableCell>
-                              <StatusBadge tone={RETURN_STATE_TONE[o.state]}>
-                                {label(o.state)}
-                              </StatusBadge>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {RETURN_LANE_LABEL[returnLane(o, rows)]}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{rows.length}</TableCell>
-                            <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
-                              {age == null ? "—" : `${Math.round(age)}h`}
-                            </TableCell>
+                    {isLoading ? (
+                      <LoadingState />
+                    ) : visible.length === 0 ? (
+                      <EmptyState
+                        icon={Undo2}
+                        title="No returns in this view"
+                        description="Create a return when an RMA is issued or a customer parcel arrives at the dock."
+                      />
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Kind</TableHead>
+                            <TableHead>State</TableHead>
+                            <TableHead>Lane</TableHead>
+                            <TableHead className="text-right">Lines</TableHead>
+                            <TableHead className="text-right">Age</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                        </TableHeader>
+                        <TableBody>
+                          {visible.map((o) => {
+                            const rows = lineMap.get(o.id) ?? [];
+                            const age = ageHours(o.received_at ?? o.created_at);
+                            return (
+                              <TableRow
+                                key={o.id}
+                                className={`cursor-pointer ${
+                                  activeOrder?.id === o.id ? "bg-muted/60" : ""
+                                }`}
+                                onClick={() => setSelected(o)}
+                              >
+                                <TableCell className="font-mono">{o.code}</TableCell>
+                                <TableCell className="text-sm">{label(o.return_kind)}</TableCell>
+                                <TableCell>
+                                  <StatusBadge tone={RETURN_STATE_TONE[o.state]}>
+                                    {label(o.state)}
+                                  </StatusBadge>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {RETURN_LANE_LABEL[returnLane(o, rows)]}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums">{rows.length}</TableCell>
+                                <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
+                                  {age == null ? "—" : `${Math.round(age)}h`}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </ResizablePanel>
+
+            {activeOrder && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={45} minSize={30}>
+                  <ReturnWorkspace order={activeOrder} onClose={() => setSelected(null)} />
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
         </Section>
       </PageBody>
 
-      <ReturnWorkspace order={activeOrder} onClose={() => setSelected(null)} />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
