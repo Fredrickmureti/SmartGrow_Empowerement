@@ -320,14 +320,14 @@ export default function PackStation() {
         try {
           const res = await resolveCartonScan(businessId, payload.raw || payload.resolveCode);
           if (!res.ok) {
-            cartonScan.reportUnexpected(cartonScanFailureMessage(res.reason), payload.raw);
+            cartonScan.reportUnexpected(payload.raw, cartonScanFailureMessage(res.reason));
             return;
           }
           const match = (cartons ?? []).find(
             (c) => c.id === res.carton?.id || c.shipment_lpn_id === res.lpn?.id,
           );
           if (!match) {
-            cartonScan.reportUnexpected("That handling unit is not part of this wave", payload.raw);
+            cartonScan.reportUnexpected(payload.raw, "That handling unit is not part of this wave");
             return;
           }
           setScannedCartonId(match.id);
@@ -340,8 +340,8 @@ export default function PackStation() {
           }
         } catch (err) {
           cartonScan.reportUnexpected(
-            err instanceof Error ? err.message : "Carton scan failed",
             payload.raw,
+            err instanceof Error ? err.message : "Carton scan failed",
           );
         }
       })();
