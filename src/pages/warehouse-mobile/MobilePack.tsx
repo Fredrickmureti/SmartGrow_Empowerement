@@ -56,7 +56,7 @@ interface Carton {
   sealed_at: string | null;
   weight_kg: number | null;
   sales_order_id: string | null;
-  carton_type: { code: string | null } | null;
+  packaging_type: { code: string | null; name: string | null } | null;
 }
 
 export default function MobilePack() {
@@ -106,7 +106,7 @@ export default function MobilePack() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
-        .select("id, sealed_at, weight_kg, sales_order_id, carton_type:carton_type_id(code)")
+        .select("id, sealed_at, weight_kg, sales_order_id, packaging_type:packaging_type_id(code, name)")
         .eq("wave_id", waveId!)
         .eq("sales_order_id", salesOrderId!)
         .order("created_at", { ascending: true });
@@ -285,7 +285,7 @@ export default function MobilePack() {
                           {c.id.slice(0, 8)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {c.carton_type?.code ?? "no type"}
+                          {c.packaging_type?.code ?? "no packaging"}
                           {c.sealed_at ? " · sealed" : " · open"}
                           {c.weight_kg != null ? ` · ${c.weight_kg}kg` : ""}
                         </div>
