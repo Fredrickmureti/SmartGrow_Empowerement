@@ -22,7 +22,8 @@ the build.
 | Task | `wms_tasks` | `wms_transition_task`, `wms_claim_next_task`, `assign_wms_task`, task-type completion RPCs | `src/features/warehouse/aggregates/task/*` |
 | License plate | `wms_license_plates` | `wms_transition_lpn`, `move_lpn`, `seal_lpn` | `aggregates/lpn/*` |
 | Pick wave | `wms_pick_waves` | `wms_transition_wave`, `release_pick_wave`, `cancel_pick_wave` | `aggregates/wave/*` |
-| Carton | `wms_pack_cartons` | `open_pack_carton`, `seal_pack_carton`, `load_carton_onto_manifest` | `aggregates/pack/*` |
+| Carton | `wms_pack_cartons` | `open_pack_carton`, `assign_packaging_to_pack`, `seal_pack_carton`, `load_carton_onto_manifest` | `aggregates/pack/*` |
+| Packaging master | `wms_packaging_types`, `_carriers`, `_availability`, `_events` | `wms_packaging_upsert`, `wms_packaging_set_lifecycle`, `wms_packaging_archive`, `wms_packaging_set_carrier_rule`, `wms_packaging_set_availability`, `wms_packaging_consume` (server-internal) | `features/warehouse/packaging/*` (ADR 0105) |
 | Loading manifest | `wms_loading_manifests` | `wms_transition_manifest`, `open/close/dispatch_loading_manifest` | `aggregates/manifest/*` |
 | QC inspection | `wms_qc_inspections` | `wms_transition_qc`, `open/accept/reject/cancel_qc_inspection` | `aggregates/qc/*` |
 | Count session | `wms_count_sessions` | `wms_transition_count_session`, `create_count_session`, `record_count(_scan)`, `post_count_session` | `aggregates/count/*` |
