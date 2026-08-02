@@ -90188,7 +90188,15 @@ export type Database = {
         Args: { p_business_id: string; p_code: string }
         Returns: Json
       }
+      wms_seed_base_label_templates: {
+        Args: { _actor?: string; _org_id: string }
+        Returns: undefined
+      }
       wms_seed_default_label_templates: {
+        Args: { _actor?: string; _org_id: string }
+        Returns: undefined
+      }
+      wms_seed_receiving_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }

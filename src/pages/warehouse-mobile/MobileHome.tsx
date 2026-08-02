@@ -110,6 +110,20 @@ export default function MobileHome() {
     <MobileWarehouseLayout title="My tasks">
       <div className="space-y-4">
         <Link
+          to="/wm/receiving"
+          className="flex items-center justify-between rounded border p-3 active:bg-muted"
+        >
+          <div className="flex items-center gap-3">
+            <Truck className="h-5 w-5 text-primary" />
+            <div>
+              <div className="text-sm font-medium">Receiving sessions</div>
+              <div className="text-xs text-muted-foreground">Scan-driven line capture on the dock</div>
+            </div>
+          </div>
+          <span className="text-xs text-muted-foreground">tap →</span>
+        </Link>
+
+        <Link
           to="/wm/plate"
           className="flex items-center justify-between rounded border p-3 active:bg-muted"
         >

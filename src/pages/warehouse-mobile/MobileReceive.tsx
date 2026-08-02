@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
 interface Receipt {
   id: string;
@@ -112,8 +113,8 @@ export default function MobileReceive() {
               <div className="text-xs text-muted-foreground">{receipt.status}</div>
               <div className="pt-2">
                 <PrintLabelButton
-                  label="Print receiving label"
-                  templateKey="receiving_label"
+                  label="Print put-away label"
+                  templateKey={WMS_LABEL_KEY.PUTAWAY}
                   workflow="receiving"
                   product={{
                     id: receipt.id,
@@ -123,8 +124,9 @@ export default function MobileReceive() {
                   }}
                   sourceDocType="goods_receipt"
                   sourceDocId={receipt.id}
-                  idempotencyKey={`receiving_label:${receipt.id}`}
+                  idempotencyKey={`${WMS_LABEL_KEY.PUTAWAY}:${receipt.id}`}
                   extraVars={{ receipt_number: receipt.receipt_number }}
+
                   className="w-full h-11"
                   variant="secondary"
                 />

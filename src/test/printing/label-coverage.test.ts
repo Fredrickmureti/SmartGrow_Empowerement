@@ -14,12 +14,18 @@ import { resolve } from "node:path";
 
 const R = (p: string) => resolve(__dirname, "../../", p);
 
-const CALLERS: { path: string; template: string; workflow: string }[] = [
+const CALLERS: { path: string; template: string; workflow: string; templateRef?: string }[] = [
   { path: "pages/Products.tsx", template: "product_label", workflow: "product_tag" },
   { path: "pages/Products.tsx", template: "shelf_label", workflow: "shelf_edge" },
   { path: "pages/inventory/LotDetail.tsx", template: "lot_label", workflow: "product_tag" },
   { path: "pages/warehouse/PutawayQueue.tsx", template: "bin_label", workflow: "receiving" },
-  { path: "pages/warehouse-mobile/MobileReceive.tsx", template: "receiving_label", workflow: "receiving" },
+  {
+    // Receiving audit Phase 7 — routed through the canonical WMS label key.
+    path: "pages/warehouse-mobile/MobileReceive.tsx",
+    template: "wms.label.putaway",
+    templateRef: "WMS_LABEL_KEY\\.PUTAWAY",
+    workflow: "receiving",
+  },
   { path: "pages/warehouse/PackStation.tsx", template: "pallet_label", workflow: "receiving" },
   { path: "pages/warehouse/PackStation.tsx", template: "shipping_label", workflow: "shipping" },
   // POS callers (Phase 17 · step 15).
@@ -32,9 +38,10 @@ describe("Label print coverage (Phase 17)", () => {
   for (const c of CALLERS) {
     it(`${c.path} dispatches ${c.template} via ${c.workflow}`, () => {
       const src = readFileSync(R(c.path), "utf-8");
-      expect(src).toMatch(new RegExp(`["']${c.template}["']`));
+      expect(src).toMatch(new RegExp(c.templateRef ?? `["']${c.template}["']`));
       expect(src).toMatch(new RegExp(`["']${c.workflow}["']`));
     });
+
 
     it(`${c.path} never reaches around the seam to hardwareClient or raw ZPL`, () => {
       const src = readFileSync(R(c.path), "utf-8");
