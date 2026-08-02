@@ -69,3 +69,32 @@ LPN argument, held/damaged quantity never reaches the goods receipt.
   writer of quants, movements and cost layers; no changes to valuation, lots,
   POS, Finance or Localization.
 - Each phase ships on its own and this file is updated as each lands.
+
+---
+
+## Execution log — 2026-08-02
+
+Landed and verified (`tsgo --noEmit` clean; `wms-phase2`,
+`architecture.receiving-line-grain`, `wms-label-keys-sync` green):
+
+- **Posting hardened (Phase 4a defect).** `wms_post_receiving_session` now
+  excludes damaged/held quantity from the available ledger, routes it to a
+  `quarantine` stock location, and supports `inbound_shipment` (ASN) sources
+  through `receive_inbound_shipment`. The stale 12-arg
+  `wms_capture_receiving_line` overload was dropped.
+- **Phase 4b — single staging path.** `src/pages/warehouse/ReceiveToWMSDialog.tsx`
+  deleted; `PutawayQueue.tsx` now links to the receiving sessions workspace.
+  `src/test/architecture/wms-phase2.test.ts` asserts that no client file calls
+  `receive_goods_to_wms` — posting a session is the only way stock stages.
+- **Phase 4c — license plates on capture.**
+  `src/features/warehouse/receiving/useReceivingLpn.ts` resolves a plate from
+  `wms_license_plates`. The desktop workspace binds one via the
+  `receiving.lpn` scan intent or a typed code (with a release control), the
+  mobile loop has a pallet field, and both stamp `p_lpn_id` on every captured
+  line. Captures without a plate remain valid (unpalletised).
+- Session-creation form reset no longer drops `appointment_id`.
+
+Next: **Phase 5b** — lane-per-state session board (carrier/trailer, dock,
+appointment window, supervisor, progress) plus a per-session activity
+timeline, then the trailer-visit link and the Purchases GRN wizard
+convergence.
