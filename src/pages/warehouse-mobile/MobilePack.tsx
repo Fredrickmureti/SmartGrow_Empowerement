@@ -129,17 +129,29 @@ export default function MobilePack() {
     if (!task || !salesOrderId || busy) return;
     setBusy(true);
     try {
+      // 1. Ask the Packaging Master engine (geometry + weight + carrier aware).
       let suggestedTypeId: string | null = null;
+      let suggestedCode: string | null = null;
+      let failureReason: string | null = null;
       if (task.business_id && remaining.length > 0) {
-        const sug = await enqueue<{ id?: string } | null>("suggest_carton", {
+        const sug = await enqueue<PackagingSuggestion | null>("suggest_packaging", {
           p_business_id: task.business_id,
-          p_product_ids: remaining.map((l) => l.product_id),
-          p_quantities: remaining.map(
-            (l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
-          ),
+          p_lines: remaining.map((l) => ({
+            product_id: l.product_id,
+            quantity: (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
+          })),
+          p_options: { include_restricted: false },
         });
-        if (!sug.queued && sug.data?.id) suggestedTypeId = sug.data.id;
+        if (!sug.queued && sug.data) {
+          if (sug.data.ok && sug.data.recommended) {
+            suggestedTypeId = sug.data.recommended.packaging_type_id;
+            suggestedCode = sug.data.recommended.code;
+          } else {
+            failureReason = sug.data.reason ?? "no_packaging_matches_constraints";
+          }
+        }
       }
+      // 2. Open the carton (`open_pack_carton` RETURNS uuid — a scalar).
       const openRes = await enqueue<string>("open_pack_carton", {
         p_wave_id: waveId!,
         p_sales_order_id: salesOrderId,
@@ -147,14 +159,17 @@ export default function MobilePack() {
       if (openRes.queued) {
         toast.success("Queued (offline)");
       } else {
-        toast.success("Carton opened");
+        toast.success(suggestedCode ? `Carton opened · ${suggestedCode}` : "Carton opened");
+        if (failureReason) toast.warning(packagingFailureMessage(failureReason));
+        // 3. Stamp the suggested packaging (tare-safe, idempotent server-side).
         if (openRes.data && suggestedTypeId) {
-          await enqueue("assign_carton_to_pack", {
+          await enqueue("assign_packaging_to_pack", {
             p_carton_id: openRes.data,
-            p_carton_type_id: suggestedTypeId,
+            p_packaging_type_id: suggestedTypeId,
           });
         }
       }
+
       invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Open failed");
