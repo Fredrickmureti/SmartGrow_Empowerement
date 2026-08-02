@@ -43,6 +43,8 @@ import { ReceivingExceptionStrip } from "./ReceivingExceptionStrip";
 import { useReceivingExceptions, RECEIVING_OPEN_EXCEPTION_STATES } from "./useReceivingExceptions";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
+import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -525,6 +527,28 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                         </StatusBadge>
                       </TableCell>
                       <TableCell className="text-right">
+                        {/* Phase 7 — the desktop grid prints through the same
+                            canonical label seam as the mobile loop. */}
+                        {Number(l.received_qty ?? 0) > 0 && (
+                          <PrintLabelButton
+                            label={l.qc_hold ? "Hold label" : "Put-away"}
+                            templateKey={l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.PUTAWAY}
+                            workflow="receiving"
+                            variant={l.qc_hold ? "destructive" : "outline"}
+                            size="sm"
+                            product={{
+                              id: l.product_id ?? l.id,
+                              name: l.products?.name ?? "Item",
+                              sku: l.products?.sku ?? "",
+                              barcode: null,
+                            }}
+                            sourceDocType="wms_receiving_line"
+                            sourceDocId={l.id}
+                            idempotencyKey={`${l.qc_hold ? WMS_LABEL_KEY.QUALITY_HOLD : WMS_LABEL_KEY.PUTAWAY}:${l.id}`}
+                            extraVars={{ lot: l.lot_number ?? "", qty: l.received_qty ?? 0 }}
+                            className="mr-2"
+                          />
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
