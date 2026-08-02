@@ -47,8 +47,14 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId, bra
     setBusy(true);
     setDone(0);
     try {
+      // Reprint provenance: the idempotency key is derived from how many
+      // times this exact position has been labelled before, so the audit
+      // trail can answer "how many times was A-01-02 relabelled" — a
+      // timestamp key would make every reprint look like a first print.
+      const revisions = await priorPrintCounts(printable.map((l) => l.id));
       for (const loc of printable) {
         const code = loc.barcode || loc.code;
+        const revision = (revisions.get(loc.id) ?? 0) + 1;
         await print({
           templateKey: WMS_LABEL_KEY.BIN,
           workflow: "receiving",
@@ -60,10 +66,11 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId, bra
             path: loc.path.join(" / "),
             pick_sequence: loc.pick_sequence ?? "",
             copies,
+            label_revision: revision,
           },
           sourceDocType: "stock_location",
           sourceDocId: loc.id,
-          idempotencyKey: `wms.bin-label:${loc.id}:${Date.now()}`,
+          idempotencyKey: `wms.bin-label:${loc.id}:r${revision}`,
         });
         setDone((d) => d + 1);
       }
@@ -71,6 +78,7 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId, bra
       setBusy(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
