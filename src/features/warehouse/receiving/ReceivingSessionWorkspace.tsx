@@ -225,6 +225,29 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   // Live only while the trailer has not departed.
   useDwellTicker(open && !!visit && !visit.departed_at);
 
+  // Phase 5c — say *why* posting is unavailable before the operator reaches
+  // for the button, instead of letting the RPC fail into a toast.
+  const { data: sessionExceptions } = useReceivingExceptions(session?.id);
+  const postBlockers = useMemo(() => {
+    const reasons: string[] = [];
+    if (!session) return reasons;
+    if (!["captured", "discrepant"].includes(session.state)) {
+      reasons.push(`session is ${session.state} — capture at least one line first`);
+    }
+    const rows = lines ?? [];
+    if (rows.length === 0) reasons.push("no lines on the session");
+    if (rows.length > 0 && rows.every((l) => Number(l.received_qty ?? 0) === 0)) {
+      reasons.push("nothing received yet");
+    }
+    const escalated = (sessionExceptions ?? []).filter((e) => e.state === "escalated").length;
+    if (escalated) reasons.push(`${escalated} escalated exception(s) must be resolved`);
+    return reasons;
+  }, [session, lines, sessionExceptions]);
+
+  const openExceptionCount = (sessionExceptions ?? []).filter((e) =>
+    (RECEIVING_OPEN_EXCEPTION_STATES as string[]).includes(e.state),
+  ).length;
+
 
 
   // A pallet scan binds the handling unit; it never captures a line.
