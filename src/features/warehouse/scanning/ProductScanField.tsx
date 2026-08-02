@@ -29,6 +29,12 @@ interface Props {
   expectedProductId?: string | null;
   expectedSku?: string | null;
   disabled?: boolean;
+  /**
+   * Optional pre-check run before the product identity gate. Return `true` when
+   * the code was consumed by the surface (e.g. a license-plate label scanned
+   * into the item field), so it is never reported as an unknown product.
+   */
+  interceptScan?: (code: string) => Promise<boolean> | boolean;
   /** Emits the gated scan on success, `null` on every failure/reset. */
   onResolved: (scan: GatedScan | null) => void;
 }
@@ -41,6 +47,7 @@ export function ProductScanField({
   expectedProductId,
   expectedSku,
   disabled,
+  interceptScan,
   onResolved,
 }: Props) {
   const [value, setValue] = useState("");
@@ -58,6 +65,13 @@ export function ProductScanField({
         return;
       }
       setState("checking");
+      if (interceptScan && (await interceptScan(trimmed))) {
+        setValue("");
+        setState("idle");
+        setMessage(null);
+        onResolved(null);
+        return;
+      }
       const scan = await gate({ raw: trimmed, resolveCode: trimmed, workflow: "identity" });
       if (!scan) {
         setState("unknown");
@@ -77,7 +91,7 @@ export function ProductScanField({
       );
       onResolved(scan);
     },
-    [gate, expectedProductId, expectedSku, onResolved],
+    [gate, expectedProductId, expectedSku, onResolved, interceptScan],
   );
 
   useWmsScanIntent({

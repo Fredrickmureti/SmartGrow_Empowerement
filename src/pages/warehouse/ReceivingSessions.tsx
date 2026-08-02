@@ -43,6 +43,7 @@ import { PackageOpen, Plus, Play, Check, AlertTriangle, PackageCheck, LayoutGrid
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import ReceivingSessionBoard from "@/features/warehouse/receiving/ReceivingSessionBoard";
 import { useReceivingTrailerVisits } from "@/features/warehouse/receiving/useReceivingTrailerVisits";
+import { tryResolvePlateScan } from "@/features/warehouse/receiving/useReceivingLpn";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
@@ -420,6 +421,13 @@ export default function ReceivingSessions() {
   // never narrated as a success.
   const handleItemScan = useCallback(
     async (p: WmsScanPayload) => {
+      // Plate labels reach this handler too (it outranks the LPN intent at the
+      // same priority). A plate must start unloading, not fail the product gate.
+      const plate = await tryResolvePlateScan(currentBusiness?.id, p.raw, p.isGs1);
+      if (plate) {
+        handleLpnScan({ ...p, resolveCode: plate.code });
+        return;
+      }
       if (unloadingSessions.length !== 1) {
         scanFeedbackBus.emit({
           kind: "error",
@@ -468,7 +476,7 @@ export default function ReceivingSessions() {
         });
       }
     },
-    [unloadingSessions, identityGate, captureLine],
+    [unloadingSessions, identityGate, captureLine, currentBusiness?.id, handleLpnScan],
   );
 
 
