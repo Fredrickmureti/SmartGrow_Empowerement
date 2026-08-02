@@ -154,27 +154,40 @@ export function useCloseReturn() {
   });
 }
 
-/** Link the finance document (sales/purchase return + credit note) to the RMA. */
+/**
+ * Link the finance document (sales/purchase return + credit note) to the RMA.
+ *
+ * Goes through `wms_link_return_finance` — never a direct table write — so the
+ * link is access-checked, optimistic-concurrency guarded on `row_version`, and
+ * published as `warehouse.return.finance_linked` on the event fabric.
+ */
 export function useLinkReturnFinance() {
   const invalidate = useInvalidateReturns();
   return useMutation({
     mutationFn: async (input: {
       returnId: string;
+      rowVersion: number;
       financeDocType: string;
       financeDocId: string;
       creditNoteId?: string | null;
     }) => {
-      const { error } = await supabase
-        .from("wms_return_orders" as any)
-        .update({
-          finance_doc_type: input.financeDocType,
-          finance_doc_id: input.financeDocId,
-          credit_note_id: input.creditNoteId ?? null,
-        })
-        .eq("id", input.returnId);
+      const { data, error } = await supabase.rpc("wms_link_return_finance" as any, {
+        p_return_id: input.returnId,
+        p_row_version: input.rowVersion,
+        p_finance_doc_type: input.financeDocType,
+        p_finance_doc_id: input.financeDocId,
+        p_credit_note_id: input.creditNoteId ?? null,
+      });
       if (error) throw error;
-      return true;
+      return data as {
+        return_id: string;
+        row_version: number;
+        finance_doc_type: string;
+        finance_doc_id: string;
+        credit_note_id: string | null;
+      };
     },
     onSuccess: invalidate,
   });
 }
+

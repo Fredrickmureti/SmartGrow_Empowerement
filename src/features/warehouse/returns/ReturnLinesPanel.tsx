@@ -26,12 +26,15 @@ import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { Boxes, ClipboardCheck, ListPlus, Split } from "lucide-react";
 import { useProducts } from "@/hooks/useProducts";
 import { useWarehouseLocations } from "@/features/warehouse/locations/useWarehouseLocations";
+import { ReturnPhotoStrip } from "./ReturnPhotoStrip";
+import { ReturnRuleHint } from "./ReturnRuleHint";
 import {
   useCaptureReturnLine,
   useDispositionReturnLine,
   useInspectReturnLine,
   useReturnLines,
 } from "./useReturnLines";
+
 import {
   RETURN_CONDITIONS,
   RETURN_DISPOSITIONS,
@@ -427,7 +430,11 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 onChange={(e) => setInspectForm({ ...inspectForm, notes: e.target.value })}
               />
             </div>
+            {inspectLine && (
+              <ReturnPhotoStrip order={order} line={inspectLine} kind="inspection" readOnly={readOnly} />
+            )}
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setInspectLine(null)}>Cancel</Button>
             <Button onClick={submitInspection} disabled={inspect.isPending}>Record</Button>
@@ -453,6 +460,10 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 </SelectContent>
               </Select>
             </div>
+            {dispForm.mode === "rule" && dispLine && (
+              <ReturnRuleHint order={order} line={dispLine} />
+            )}
+
             {dispForm.mode === "manual" && (
               <>
                 <div>
