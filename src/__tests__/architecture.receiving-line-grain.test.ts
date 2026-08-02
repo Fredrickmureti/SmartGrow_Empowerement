@@ -1,0 +1,71 @@
+/**
+ * Architecture guard — Receiving audit, Phase 8.
+ *
+ * Receiving is a line-grain execution ledger, not a session-level state flip.
+ * These assertions pin the invariants the audit established so a later change
+ * cannot quietly re-introduce "one scan completes a truck":
+ *
+ *   1. No receiving surface transitions a session on a product scan.
+ *   2. Line capture happens only through `wms_capture_receiving_line`
+ *      (desktop) or the mobile offline queue (which wraps the same RPC in the
+ *      replay-guarded dispatcher).
+ *   3. Posting happens only through `wms_post_receiving_session`.
+ *   4. Receiving labels go through the canonical WMS label keys — no ad-hoc
+ *      `receiving_label` template string.
+ */
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const R = (p: string) => resolve(__dirname, "../", p);
+const read = (p: string) => readFileSync(R(p), "utf8");
+
+const WORKSPACE = "features/warehouse/receiving/ReceivingSessionWorkspace.tsx";
+const HOOKS = "features/warehouse/receiving/useReceivingLines.ts";
+const MOBILE_LOOP = "pages/warehouse-mobile/MobileReceiveSession.tsx";
+const MOBILE_RECEIVE = "pages/warehouse-mobile/MobileReceive.tsx";
+const SESSIONS_PAGE = "pages/warehouse/ReceivingSessions.tsx";
+
+describe("Receiving — line grain (Phase 8 guards)", () => {
+  it("scan handlers capture lines instead of transitioning the session", () => {
+    for (const p of [WORKSPACE, MOBILE_LOOP]) {
+      const src = read(p);
+      expect(src, `${p} must not transition a session from a scan`).not.toMatch(
+        /wms_transition_receiving/,
+      );
+      expect(src).toMatch(/wms_capture_receiving_line|useCaptureReceivingLine/);
+    }
+  });
+
+  it("capture and posting go through the sanctioned RPCs only", () => {
+    const hooks = read(HOOKS);
+    expect(hooks).toMatch(/wms_capture_receiving_line/);
+    expect(hooks).toMatch(/wms_post_receiving_session/);
+    expect(hooks).toMatch(/wms_flag_receiving_variances/);
+    expect(hooks).toMatch(/wms_materialize_expected_lines/);
+    // Inventory stays the only writer of quants/movements.
+    expect(hooks).not.toMatch(/stock_quants|stock_movements/);
+  });
+
+  it("the mobile loop only reaches the database through the offline queue", () => {
+    const src = read(MOBILE_LOOP);
+    expect(src).toMatch(/from "@\/apps\/warehouse-mobile\/offlineQueue"/);
+    expect(src, "mobile surfaces must not call supabase.rpc directly").not.toMatch(
+      /supabase\.rpc\(/,
+    );
+  });
+
+  it("the session list no longer owns product-scan capture", () => {
+    const src = read(SESSIONS_PAGE);
+    // A product scan must not be handled at list level; the workspace owns it.
+    expect(src).not.toMatch(/intent:\s*"receiving\.item"/);
+  });
+
+  it("receiving labels use canonical WMS label keys", () => {
+    const src = read(MOBILE_RECEIVE);
+    expect(src).toMatch(/WMS_LABEL_KEY\.PUTAWAY/);
+    expect(src, "ad-hoc receiving_label template must be gone").not.toMatch(
+      /["']receiving_label["']/,
+    );
+  });
+});
