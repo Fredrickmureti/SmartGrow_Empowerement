@@ -8,6 +8,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { dispatchGoodsReceipt } from "@/features/purchases/goods-receipt/dispatchGoodsReceipt";
 
 export interface ReceivingLine {
   id: string;
