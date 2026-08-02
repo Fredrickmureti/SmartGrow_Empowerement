@@ -186,23 +186,31 @@ export default function PackStation() {
 
   const openCarton = useMutation({
     mutationFn: async (sales_order_id: string) => {
-      // 1. Ask the engine which carton type fits the remaining unpacked lines
+      // 1. Ask the Packaging Master engine (geometry-aware) what fits.
       const remaining = (lines ?? []).filter(
         (l) => l.sales_order_id === sales_order_id && !l.packed_carton_id,
       );
       let suggestedTypeId: string | null = null;
       let suggestedCode: string | null = null;
+      let failureReason: string | null = null;
       if (wave?.business_id && remaining.length > 0) {
-        const { data: suggestion } = await supabase.rpc("suggest_carton", {
-          p_business_id: wave.business_id,
-          p_product_ids: remaining.map((l) => l.product_id),
-          p_quantities: remaining.map((l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0)),
-        });
-        // RPC returns a wms_carton_types row (or null)
-        const row = suggestion as { id?: string; code?: string } | null;
-        if (row && row.id) {
-          suggestedTypeId = row.id;
-          suggestedCode = row.code ?? null;
+        try {
+          const suggestion = await suggestPackaging(
+            wave.business_id,
+            remaining.map((l) => ({
+              product_id: l.product_id,
+              quantity: (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
+            })),
+            { warehouse_id: wave.warehouse_id ?? null, include_restricted: false },
+          );
+          if (suggestion.ok && suggestion.recommended) {
+            suggestedTypeId = suggestion.recommended.packaging_type_id;
+            suggestedCode = suggestion.recommended.code;
+          } else {
+            failureReason = suggestion.reason ?? "no_packaging_matches_constraints";
+          }
+        } catch (sErr) {
+          console.warn("suggest_packaging failed", sErr);
         }
       }
       // 2. Open the carton
@@ -211,21 +219,19 @@ export default function PackStation() {
         { p_wave_id: waveId!, p_sales_order_id: sales_order_id },
       );
       const cartonId = opened?.carton_id ?? null;
-      // 3. Stamp the suggested carton type (best effort — do not fail the open)
+      // 3. Stamp the suggested packaging (best effort — never fail the open)
       if (cartonId && suggestedTypeId) {
         try {
-          await replayGuardedCall("assign_carton_to_pack", {
-            p_carton_id: cartonId,
-            p_carton_type_id: suggestedTypeId,
-          });
+          await assignPackagingToPack(cartonId, suggestedTypeId);
         } catch (aErr) {
-          console.warn("assign_carton_to_pack failed", aErr);
+          console.warn("assign_packaging_to_pack failed", aErr);
         }
       }
-      return { cartonId, suggestedCode };
+      return { cartonId, suggestedCode, failureReason };
     },
-    onSuccess: ({ suggestedCode }) => {
+    onSuccess: ({ suggestedCode, failureReason }) => {
       toast.success(suggestedCode ? `Carton opened · suggested ${suggestedCode}` : "Carton opened");
+      if (failureReason) toast.warning(packagingFailureMessage(failureReason));
       invalidateAll();
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Open failed"),
@@ -233,14 +239,12 @@ export default function PackStation() {
 
   const assignCartonType = useMutation({
     mutationFn: async (v: { carton_id: string; carton_type_id: string }) => {
-      await replayGuardedCall("assign_carton_to_pack", {
-        p_carton_id: v.carton_id,
-        p_carton_type_id: v.carton_type_id,
-      });
+      await assignPackagingToPack(v.carton_id, v.carton_type_id);
     },
-    onSuccess: () => { toast.success("Carton type updated"); invalidateAll(); },
+    onSuccess: () => { toast.success("Packaging updated"); invalidateAll(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
+
 
   const assignLine = useMutation({
     mutationFn: async (v: { carton_id: string; wave_line_id: string; qty: number }) => {
