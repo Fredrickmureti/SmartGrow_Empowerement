@@ -1,84 +1,41 @@
-## Status — receiving subsystem (authoritative)
+## Verification result (checked in code + live DB, not against the notes)
 
-**Active phase: Phase 8 (architecture guards) — next milestone.**
+I re-audited every claim in `.lovable/plan.md` and the receiving handoff file.
 
-### Fully implemented and verified
-- **Phase 1–3** — typed source-doc binding, expected-line materialisation, line-grain capture via `wms_capture_receiving_line`, variance rollups.
-- **Phase 4a/4c/4d** — posting via `wms_post_receiving_session`, LPN stamped on capture, GRN wizard retired (`grn-convergence.test.ts`).
-- **Phase 4b (closed this cycle)** — `MobileReceive.tsx` deleted, `/wm/receive/:id` redirects to the session loop, `MobileHome` lists receiving sessions. `wms_replay_guarded_call` now accepts `wms_capture_receiving_line` (idempotent on device + scan id) and **rejects** `receive_goods_to_wms`. `wms-phase2.test.ts` rejects the bare identifier in any call shape.
-- **Phase 5b** — lane board + `OutboxTimeline`.
-- **Phase 5c (complete)** — live dwell ticker on the trailer rail (30 s, destructive past 120 min), `ReceivingExceptionStrip` resolving session-scoped `wms_exceptions` only through `wms_resolve_exception` with `p_row_version` + `p_resolution_kind`, and pre-post blocking clarity: Post is disabled with the reasons rendered inline (wrong state, no lines, nothing received, escalated exceptions).
-- **Phase 6 / 6b** — mobile scan-first loop with offline `enqueue` capture.
-- **Phase 7 (complete)** — put-away / quality-hold / quarantine labels on the mobile session loop **and** the desktop line grid, all through `PrintLabelButton` + `WMS_LABEL_KEY`; no surface builds a template key by hand.
-- **DB hardening** — `wms_receiving_sessions.source_doc_type` constrained to `purchase_order` | `inbound_shipment`.
+**Confirmed genuinely complete**
+- Phases 1–3: typed source binding (`appointment_id`/`dock_id`/`supervisor_id` all bound on create), `wms_materialize_expected_lines`, line-grain capture, variance rollups.
+- Phase 4a/4c/4d: `wms_post_receiving_session` exists and (verified in the live function body) excludes `qc_hold` lines, deducts `damaged_qty`, routes held/damaged lines to a `quarantine` location, and supports `inbound_shipment`/`asn` sources. LPN is stamped on desktop (`lpnId: activeLpn?.id`) and mobile (`p_lpn_id`). No `GoodsReceiptWizardPage` remains.
+- Phase 4b: no client file calls `receive_goods_to_wms`; mobile reaches the DB only through the offline queue.
+- Phase 5b/5c: lane-per-state board, `OutboxTimeline`, `ReceivingExceptionStrip` mounted on the session, resolution only via `wms_resolve_exception` with `p_row_version`, live dwell ticker, `postBlockers` disabling Post.
+- Phase 6/6b, Phase 7: mobile scan-first loop with offline capture; put-away / quality-hold / quarantine labels on both mobile and the desktop grid through `PrintLabelButton` + `WMS_LABEL_KEY`, with no hand-built template keys.
+- Trailer visits resolved read-only through the shared dock appointment.
 
-### Still pending
-- **Phase 8** — the remaining guard set (see Step 3 below): no session-level scan transition, capture only via RPC in base units, single staging path (done), exception resolution only via `wms_resolve_exception` (partially asserted in `architecture.receiving-line-grain.test.ts`).
-- **Step 4 follow-ups** — retire `goods_receipt_discrepancies` as a write target (backfill from `wms_exceptions` at post time).
+**Not complete, contrary to the status file**
+1. **Phase 8 is further along than claimed but still incomplete.** `architecture.receiving-line-grain.test.ts` already pins scan/transition separation, RPC-only capture and posting, label keys, LPN stamping, exception FSM, board/timeline and trailer-read-only. Missing: the base-unit invariant, and the "no direct `wms_receiving_lines` write from a component" invariant.
+2. **Step 4 was never started.** Nothing in `src/` or in any RPC writes `goods_receipt_discrepancies`. The wizard was the only writer and it is gone, so discrepancies are now recorded *nowhere* on the Purchases side — the plan's intended backfill from `wms_exceptions` at post time does not exist.
+3. **New defect — unit of measure is a free-text label, not a conversion.** `wms_capture_receiving_line` stores `p_uom` verbatim and adds `p_received_qty` straight onto `received_qty`; posting passes that number to `create_goods_receipt` untouched. An operator receiving 5 cases of 12 books 5 base units. The capture panels expose no packaging selector even though the packaging/multi-unit modules exist. This is a valuation-correctness bug, not cosmetics.
+4. **New defect — quarantined stock is invisible to Inventory.** Posting excludes held/damaged quantity from the receipt and only stamps `staging_location_id` on the receiving line. No movement is emitted into the quarantine location, so physically-present held goods exist in no inventory ledger. Enterprise WMS receive quarantined units into a non-available location rather than not receiving them.
 
-### Instructions for the next agent
-1. **Verify before extending.** Re-read `ReceivingSessionWorkspace.tsx`, `ReceivingExceptionStrip.tsx`, `useReceivingExceptions.ts`, `MobileReceiveSession.tsx`, then run `bunx vitest run src/__tests__/architecture.receiving-line-grain.test.ts src/test/architecture/wms-phase2.test.ts src/test/architecture/wms-phase4-ux.test.ts src/test/printing/label-coverage.test.ts` plus `tsgo --noEmit`. Confirm the Phase 5c/7 claims above hold in code, not just in this file.
-2. **Then resume at Phase 8 (Step 3)** — write the missing architecture guards as a single coherent suite. Do not start Step 4 until Phase 8 is green.
-3. Update this file at the end of the work.
+## Remaining work, in order
 
----
+### Phase 8 — close the guard suite
+Extend `src/__tests__/architecture.receiving-line-grain.test.ts` with: capture quantity is converted to base units before the RPC; no receiving component writes `wms_receiving_lines` directly (insert/update/upsert); posting is the only staging path (re-assert across the offline replay allow-list).
 
-## Original verification notes (historic)
+### Phase 11 — packaging-aware capture (base units)
+- Desktop capture panel and mobile loop gain a packaging/unit selector sourced from the existing packaging catalogue for the scanned product, defaulting to the product's base unit and to the packaging encoded in a GS1/product-identifier scan when present.
+- Quantity is converted to base units in one shared helper before it reaches `wms_capture_receiving_line`; the captured packaging and factor are recorded on the line for audit, and the grid shows both "3 cases" and the base-unit equivalent.
+- `wms_capture_receiving_line` validates that the supplied unit resolves for the product and rejects an unknown one instead of silently storing text.
 
-Claims in `.lovable/plan.md` were checked against the codebase, not taken at face value.
+### Phase 12 — quarantine becomes real inventory
+Posting emits the held/damaged quantity into the warehouse quarantine location through the existing Inventory writer (Inventory stays the only writer of quants/movements/cost layers), so quarantined units are on the books but not available for allocation. Release/scrap continues through the existing exception resolutions. Quarantine label already exists and is reused.
 
-**Genuinely done (verified):**
-- Phase 1–3: typed source-doc binding, expected-line materialisation, line-grain capture through `wms_capture_receiving_line`, variance rollups (`useReceivingLines.ts`, `ReceivingSessionWorkspace.tsx`).
-- Phase 4a/4c: posting via `wms_post_receiving_session`, LPN stamped on capture (`useReceivingLpn.ts`).
-- Phase 4d GRN convergence: `GoodsReceiptWizardPage` and `complete_goods_receipt_atomic` are absent from `src/`; guard `grn-convergence.test.ts` exists.
-- Phase 5b: lane board + `OutboxTimeline`.
-- Phase 6 base **and 6b**: `MobileReceiveSession.tsx` already routes capture through `enqueue("wms_capture_receiving_line", …)` — the offline queue the plan lists as pending is in fact implemented. Plan status is stale here.
-- Scanner presence: `ScanStatusChip` is rendered on both the session list and the workspace.
+### Phase 13 — retire `goods_receipt_discrepancies` as a write target
+At post time, backfill it from the session's `wms_exceptions` for historical continuity. No UI writes it; add a guard asserting that.
 
-**Claimed but NOT true — Phase 4b is leaking:**
-`src/pages/warehouse-mobile/MobileReceive.tsx` still stages a receipt after the fact via `enqueue("receive_goods_to_wms", …)`, and it is still routed at `/wm/receive/:id`. The guard in `wms-phase2.test.ts` only matches `supabase.rpc("receive_goods_to_wms")`, so the offline-queue call slips past it. This is a live second staging path that violates invariant 3.
-
-**Genuinely pending:**
-- Phase 5c entirely — no exception strip, no live unload timer, no pre-post blocking explanation in the workspace (`wms_exceptions` is not referenced by any receiving file).
-- Phase 7 partial — `WMS_LABEL_KEY` gained `PUTAWAY`/`QUALITY_HOLD`/`QUARANTINE`, and `MobileReceive` prints a put-away label, but the desktop workspace prints nothing and no receiving surface calls `printWmsLabel` (only `lpnLabels.ts` does).
-- Phase 8 guards not written.
-
----
-
-## Plan
-
-### Step 0 — Close the Phase 4b leak (correctness first)
-- Delete `MobileReceive.tsx` and its `/wm/receive/:id` route; redirect any inbound link to the session loop (`/wm/receiving/:id`), reached from the receipt's session.
-- Move its put-away label action into the surviving mobile session loop.
-- Strengthen the guard: `wms-phase2.test.ts` must reject `receive_goods_to_wms` reached through **any** call shape, including `enqueue(...)` and the offline replay allow-list.
-- Confirm the offline queue's server-side replay allow-list no longer accepts that RPC name from clients.
-
-### Step 1 — Phase 5c: session detail rail hardening
-- **Header rail** (always visible in `ReceivingSessionWorkspace`): trailer/carrier, dock, appointment window, supervisor, operator, and a live unload timer derived from the session start / trailer-visit arrival (read-only from yard data — receiving never writes it).
-- **Exception strip**: query open `wms_exceptions` for the session, grouped by type, with typed resolution actions through the existing `wms_resolve_exception` RPC (accept overage, short-close, damage claim, QC-hold release). Row-version optimistic concurrency preserved; no direct `state` writes.
-- **Pre-post blocking clarity**: compute and display why posting is unavailable (unmatched/unresolved lines, all quantity held, open blocking exceptions) *before* the operator clicks Post; disable Post with the reason attached rather than failing in a toast.
-
-### Step 2 — Phase 7: finish the label seam
-- Route every receiving print through `printWmsLabel`: put-away label on staged lines, quality-hold label when a line is flagged held, quarantine label when posting routes units to quarantine.
-- Add label actions to the desktop workspace line grid and the mobile session loop; reprints flagged `isReprint`.
-- Ensure no receiving surface constructs a `templateKey` directly.
-
-### Step 3 — Phase 8: guards
-Architecture tests pinning:
-- no session-level scan transition (`wms_transition_receiving` never called from a scan handler);
-- capture only via the RPC, in base units;
-- labels on receiving surfaces only via `printWmsLabel`/`WMS_LABEL_KEY`;
-- one staging path (Step 0's strengthened check);
-- exception resolution only via `wms_resolve_exception`.
-
-### Step 4 — Scheduled follow-ups (previously "unscheduled")
-- **Discrepancy duplication**: `goods_receipt_discrepancies` and `wms_exceptions` model the same fact. Since the wizard was the only writer, retire the Purchases table as a write target — posting backfills it from `wms_exceptions` for historical continuity, and no UI writes it.
-- **`source_doc_type` typing**: add a DB check/enum limiting it to `purchase_order` and `inbound_shipment`, the only reachable values.
-
-### Step 5 — Refresh `.lovable/plan.md`
-Correct the stale entries (6b already shipped, 4b was not complete), and record each milestone as it lands.
+### Phase 14 — status refresh
+Rewrite `.lovable/plan.md` to the state above so the next engineer inherits accurate claims.
 
 ## Technical notes
-- No new tables. `wms_exceptions`, `wms_resolve_exception`, `wms_post_receiving_session` and the label templates all exist; work is frontend wiring plus one small migration for the `source_doc_type` constraint and the discrepancy backfill.
-- Inventory remains the only writer of quants/movements/cost layers; WMS continues to post by delegation and emit `warehouse.receiving.*` events.
-- Verification after each step: `tsgo --noEmit` plus the receiving architecture test suite.
+- No new tables. Changes are: two receiving RPC revisions (unit validation, quarantine movement, discrepancy backfill), one shared unit-conversion helper, capture-panel wiring on two surfaces, and guard tests.
+- Domain boundaries unchanged: Inventory owns quantity/valuation, Warehouse owns execution and posts by delegation while emitting `warehouse.receiving.*` events.
+- Verification after each phase: `tsgo --noEmit` plus `architecture.receiving-line-grain`, `wms-phase2`, `wms-phase4-ux`, `grn-convergence`, `label-coverage`.
