@@ -337,7 +337,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     },
   });
 
-  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean }) => {
+  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean; uom: string | null }) => {
     if (!session || !line.product_id) return;
     capture.mutate(
       {
@@ -350,6 +350,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         expiryDate: v.expiry,
         damagedQty: v.damaged,
         qcHold: v.hold,
+        uom: v.uom,
         lpnId: activeLpn?.id ?? null,
       },
       {
