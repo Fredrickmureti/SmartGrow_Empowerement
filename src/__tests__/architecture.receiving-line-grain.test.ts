@@ -64,6 +64,17 @@ describe("Receiving — line grain (Phase 8 guards)", () => {
     expect(src).toMatch(/enabled:\s*!activeSession/);
   });
 
+  it("desktop receiving surfaces show scanner presence, and sessions bind the truck", () => {
+    for (const p of [SESSIONS_PAGE, WORKSPACE]) {
+      expect(read(p), `${p} must render scanner presence feedback`).toMatch(/ScanStatusChip/);
+    }
+    const src = read(SESSIONS_PAGE);
+    // Phase 1 — appointment / dock / supervisor are bound, never left null.
+    expect(src).toMatch(/appointment_id/);
+    expect(src).toMatch(/dock_id/);
+    expect(src).toMatch(/supervisor_id/);
+  });
+
 
   it("receiving labels use canonical WMS label keys", () => {
     const src = read(MOBILE_RECEIVE);
