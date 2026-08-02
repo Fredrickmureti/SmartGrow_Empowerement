@@ -60,6 +60,8 @@ export default function WarehouseLayoutWorkspace() {
   const [builderParent, setBuilderParent] = useState<LocationNode | null>(null);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
+  const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
+
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const { resolve, resolution } = useResolveLocationIdentity(activeWarehouseId);
