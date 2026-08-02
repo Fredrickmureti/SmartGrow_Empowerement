@@ -65,7 +65,9 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
             input.key === WMS_LABEL_KEY.BIN ||
             input.key === WMS_LABEL_KEY.PUTAWAY ||
             input.key === WMS_LABEL_KEY.QUALITY_HOLD ||
-            input.key === WMS_LABEL_KEY.QUARANTINE
+            input.key === WMS_LABEL_KEY.QUARANTINE ||
+            input.key === WMS_LABEL_KEY.RETURN_RECEIPT ||
+            input.key === WMS_LABEL_KEY.DISPOSITION
           ? "receiving"
           : "generic",
 
