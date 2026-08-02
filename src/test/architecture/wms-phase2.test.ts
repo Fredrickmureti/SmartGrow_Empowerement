@@ -91,6 +91,9 @@ describe("wms phase 2 architecture", () => {
     // check that survives new indirection layers.
     const offenders = files.filter((f) => {
       if (f === SELF) return false;
+      // Generated Supabase types enumerate every RPC in the database; the
+      // function still exists server-side (posting calls it).
+      if (f.endsWith(path.join("integrations", "supabase", "types.ts"))) return false;
       return /receive_goods_to_wms/.test(readFileSync(f, "utf8"));
     });
     expect(
