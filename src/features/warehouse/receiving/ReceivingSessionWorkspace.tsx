@@ -375,6 +375,9 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           <StatusBadge tone={totals.holds ? "danger" : "neutral"}>holds {totals.holds}</StatusBadge>
         </div>
 
+        {/* Phase 5c — variances are resolved at the dock, with a cause. */}
+        {session && <ReceivingExceptionStrip sessionId={session.id} />}
+
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             size="sm"
