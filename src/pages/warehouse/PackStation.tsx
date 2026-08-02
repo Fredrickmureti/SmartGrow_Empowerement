@@ -213,12 +213,13 @@ export default function PackStation() {
           console.warn("suggest_packaging failed", sErr);
         }
       }
-      // 2. Open the carton
-      const { data: opened } = await replayGuardedCall<{ carton_id?: string } | null>(
+      // 2. Open the carton. `open_pack_carton` RETURNS uuid — a scalar, not a row.
+      const { data: opened } = await replayGuardedCall<string | null>(
         "open_pack_carton",
         { p_wave_id: waveId!, p_sales_order_id: sales_order_id },
       );
-      const cartonId = opened?.carton_id ?? null;
+      const cartonId = typeof opened === "string" ? opened : null;
+
       // 3. Stamp the suggested packaging (best effort — never fail the open)
       if (cartonId && suggestedTypeId) {
         try {

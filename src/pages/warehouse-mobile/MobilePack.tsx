@@ -5,7 +5,10 @@
  * boxed. On mobile we present a task-scoped workspace:
  *
  *   1. List open cartons for the task's sales order.
- *   2. Open a new carton (auto-suggests carton type via `suggest_carton`).
+ *   2. Open a new carton (auto-suggests packaging via `suggest_packaging`,
+ *      the geometry-aware Packaging Master engine — ADR 0105 — never the
+ *      legacy volume-only `suggest_carton`).
+
  *   3. Seal an open carton (optional weight input).
  *   4. Complete the pack task.
  *
@@ -23,7 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import {
+  packagingFailureMessage,
+  type PackagingSuggestion,
+} from "@/features/warehouse/packaging/packagingEngine";
 import { PackagePlus, Package, CheckCircle2 } from "lucide-react";
+
 
 interface PackTask {
   id: string;
@@ -48,7 +56,7 @@ interface Carton {
   sealed_at: string | null;
   weight_kg: number | null;
   sales_order_id: string | null;
-  carton_type: { code: string | null } | null;
+  packaging_type: { code: string | null; name: string | null } | null;
 }
 
 export default function MobilePack() {
@@ -98,7 +106,7 @@ export default function MobilePack() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
-        .select("id, sealed_at, weight_kg, sales_order_id, carton_type:carton_type_id(code)")
+        .select("id, sealed_at, weight_kg, sales_order_id, packaging_type:packaging_type_id(code, name)")
         .eq("wave_id", waveId!)
         .eq("sales_order_id", salesOrderId!)
         .order("created_at", { ascending: true });
@@ -126,17 +134,29 @@ export default function MobilePack() {
     if (!task || !salesOrderId || busy) return;
     setBusy(true);
     try {
+      // 1. Ask the Packaging Master engine (geometry + weight + carrier aware).
       let suggestedTypeId: string | null = null;
+      let suggestedCode: string | null = null;
+      let failureReason: string | null = null;
       if (task.business_id && remaining.length > 0) {
-        const sug = await enqueue<{ id?: string } | null>("suggest_carton", {
+        const sug = await enqueue<PackagingSuggestion | null>("suggest_packaging", {
           p_business_id: task.business_id,
-          p_product_ids: remaining.map((l) => l.product_id),
-          p_quantities: remaining.map(
-            (l) => (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
-          ),
+          p_lines: remaining.map((l) => ({
+            product_id: l.product_id,
+            quantity: (l.quantity_picked ?? 0) - (l.quantity_packed ?? 0),
+          })),
+          p_options: { include_restricted: false },
         });
-        if (!sug.queued && sug.data?.id) suggestedTypeId = sug.data.id;
+        if (!sug.queued && sug.data) {
+          if (sug.data.ok && sug.data.recommended) {
+            suggestedTypeId = sug.data.recommended.packaging_type_id;
+            suggestedCode = sug.data.recommended.code;
+          } else {
+            failureReason = sug.data.reason ?? "no_packaging_matches_constraints";
+          }
+        }
       }
+      // 2. Open the carton (`open_pack_carton` RETURNS uuid — a scalar).
       const openRes = await enqueue<string>("open_pack_carton", {
         p_wave_id: waveId!,
         p_sales_order_id: salesOrderId,
@@ -144,14 +164,17 @@ export default function MobilePack() {
       if (openRes.queued) {
         toast.success("Queued (offline)");
       } else {
-        toast.success("Carton opened");
+        toast.success(suggestedCode ? `Carton opened · ${suggestedCode}` : "Carton opened");
+        if (failureReason) toast.warning(packagingFailureMessage(failureReason));
+        // 3. Stamp the suggested packaging (tare-safe, idempotent server-side).
         if (openRes.data && suggestedTypeId) {
-          await enqueue("assign_carton_to_pack", {
+          await enqueue("assign_packaging_to_pack", {
             p_carton_id: openRes.data,
-            p_carton_type_id: suggestedTypeId,
+            p_packaging_type_id: suggestedTypeId,
           });
         }
       }
+
       invalidate();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Open failed");
@@ -262,7 +285,7 @@ export default function MobilePack() {
                           {c.id.slice(0, 8)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {c.carton_type?.code ?? "no type"}
+                          {c.packaging_type?.code ?? "no packaging"}
                           {c.sealed_at ? " · sealed" : " · open"}
                           {c.weight_kg != null ? ` · ${c.weight_kg}kg` : ""}
                         </div>
