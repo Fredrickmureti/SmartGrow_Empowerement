@@ -57,3 +57,27 @@ A "Verify labels" toggle in the workspace: armed scanning switches from *navigat
 - No new dependencies: `@tanstack/react-virtual`, the print pipeline, `scanRouter`/`scanBus`, and `@zxing` are all present and sufficient.
 - No Inventory-owned table or valuation logic is touched; Phase 5 only supplies the resolved `location_id` that existing writers already accept.
 - All state colour encoding uses design-system tokens.
+
+---
+
+## Status board — verified 2026-08-02
+
+| Phase | State | Evidence |
+| --- | --- | --- |
+| 1 — server-side location master | done | migration `20260802095247`: `resolve_location_identity`, `wms_location_overview`, `wms_generate_locations` |
+| 2 — workspace replaces CRUD page | done | `WarehouseLayoutWorkspace.tsx` (tree + map + inspector + table); old `WarehouseLayoutPage.tsx` deleted |
+| 3 — authoring | done | `LayoutDesigner.tsx`, `LocationRunBuilder.tsx`, `MoveLocationDialog.tsx`, `vocabulary.ts` |
+| 4a — table + multi-select | done | `locations/LocationTable.tsx` (virtualised, operational filters, bulk print / mint barcodes) |
+| 4b — label lifecycle | done | `BinLabelDialog.tsx` revision-keyed idempotency via `priorPrintCounts`; `assignBarcodes` in `useLocationMutations.ts`; unlabelled-bin KPI |
+| 4c — verify mode | done | `useLabelVerification.ts` + `LabelVerifyDialog.tsx` (pass/fail walk, reprint failures) |
+| 4d — resolver guard | done | `src/test/architecture/wms-location-resolver-single-seam.test.ts` (3 cases) |
+| 5 — operator surfaces on the resolvers | done | `MobilePutaway` / `MobilePick` use `BinScanField`; `MobileCount` matches on resolved location **and** product id; new `scanning/ProductScanField.tsx` puts the item leg on `useWmsIdentityGate` |
+| 6 — records | done | ADR 0104 addenda 1–2, ADR 0064 unblock note, this board |
+
+**Green gate (2026-08-02):** `tsgo --noEmit -p tsconfig.app.json` clean;
+`vitest run src/test/architecture/wms-location-resolver-single-seam.test.ts
+src/test/architecture/identity-resolver-single-seam.test.ts` → 20 passed;
+eslint clean on all touched files.
+
+No remaining scope in this workstream. Next natural step is outside it:
+consume the resolved `location_id` in the stock writers (ADR 0064 Phase 2).
