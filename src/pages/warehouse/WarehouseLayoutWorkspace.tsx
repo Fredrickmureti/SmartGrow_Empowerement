@@ -164,6 +164,12 @@ export default function WarehouseLayoutWorkspace() {
             >
               <Printer className="mr-2 h-4 w-4" /> Print all bin labels
             </Button>
+            <Button variant="outline" asChild>
+              <Link to="/warehouse-app/layout/design">
+                <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
+              </Link>
+            </Button>
+
             <Button
               onClick={() => {
                 setBuilderParent(selected);
