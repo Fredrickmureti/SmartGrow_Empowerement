@@ -232,6 +232,55 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     },
   );
 
+  // ---------------------------------------------------------------- Phase 6
+  // Hardware-sourced seal weight + packaging supply consumption (ADR 0105 §3).
+
+  it("consumes packaging supply exactly once when a carton seals", () => {
+    expect(sql).toMatch(/FUNCTION public\.wms_packaging_consume\(/i);
+    expect(sql).toMatch(/wms_pack_cartons[\s\S]{0,120}packaging_consumed_at/i);
+    // seal_pack_carton is the single consumption call site, guarded by the stamp
+    const seal = sql.slice(sql.lastIndexOf("FUNCTION public.seal_pack_carton"));
+    expect(seal).toContain("wms_packaging_consume");
+    expect(seal).toContain("packaging_consumed_at IS NULL");
+    // a supply problem must never fail the seal
+    expect(seal).toMatch(/EXCEPTION WHEN OTHERS THEN[\s\S]{0,200}RAISE WARNING/i);
+  });
+
+  it("emits consumption and reorder events with per-reference idempotency keys", () => {
+    expect(sql).toMatch(/warehouse\.packaging\.consumed/);
+    expect(sql).toMatch(/warehouse\.packaging\.reorder_needed/);
+    expect(sql).toMatch(/'wms\.packaging\.consumed:'/);
+    expect(sql).toMatch(/'wms\.packaging\.reorder_needed:'/);
+  });
+
+  it("keeps packaging consumption off the client (server-side only)", () => {
+    expect(sql).toMatch(
+      /REVOKE ALL ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM PUBLIC/i,
+    );
+    const offenders: string[] = [];
+    for (const file of walk(SRC_DIR)) {
+      if (file.includes(path.join("integrations", "supabase"))) continue;
+      if (file.includes(path.join("test", "architecture"))) continue;
+      if (/wms_packaging_consume/.test(fs.readFileSync(file, "utf8"))) {
+        offenders.push(path.relative(SRC_DIR, file));
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("reads the seal weight through the hardware command router, not a driver", () => {
+    const hook = fs.readFileSync(
+      path.join(SRC_DIR, "features/warehouse/packaging/usePackScale.ts"),
+      "utf8",
+    );
+    expect(hook).toContain("useHardwareProxy");
+    // no direct driver / WebSerial / raw IPC access from the pack surface
+    expect(hook).not.toMatch(/SerialScaleDriver|navigator\.serial|window\.lovableHardware|ipcRenderer/);
+
+    const page = fs.readFileSync(path.join(SRC_DIR, "pages/warehouse/PackStation.tsx"), "utf8");
+    expect(page).toContain("usePackScale");
+  });
+
   it("has no client-side write to the packaging master", () => {
     const offenders: string[] = [];
     for (const file of walk(SRC_DIR)) {
