@@ -218,15 +218,13 @@ export default function WarehouseLayoutWorkspace() {
             </Button>
 
 
-            <Button
-              onClick={() => {
-                setBuilderParent(selected);
-                setBuilderOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {selected ? `Build inside ${selected.code}` : "Build structure"}
+            <Button asChild>
+              <Link to={buildHref(activeWarehouseId, selected?.id ?? null)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {selected ? `Build inside ${selected.code}` : "Build structure"}
+              </Link>
             </Button>
+
           </div>
         }
       />
