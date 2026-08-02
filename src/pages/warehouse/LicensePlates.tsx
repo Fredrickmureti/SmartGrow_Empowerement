@@ -1,41 +1,30 @@
 /**
- * LicensePlates — WMS License Plate Number (LPN) registry (ADR 0079, Phase 1).
+ * License Plates — WMS handling-unit control tower (ADR 0079).
  *
- * A license plate is a handling unit (pallet / carton / tote / other) that
- * carries stock through the warehouse. Operations address the plate rather
- * than enumerating contents. Movement/seal events are emitted by DB
- * triggers onto `business_event_outbox`.
+ * Not a CRUD list: this is the operational surface operators live in.
+ * Scan a plate barcode to jump straight to its cockpit, watch occupancy
+ * and stock-bearing state at a glance, and drive bulk label printing and
+ * consolidation without leaving the board.
  */
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  PageHeader,
-  PageBody,
-  Section,
-  LoadingState,
-  EmptyState,
-  StatusBadge,
+  PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -44,143 +33,229 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
-import { PackageOpen, Plus, Search } from "lucide-react";
+import { PackageOpen, Plus, Search, Printer, Layers, ScanLine } from "lucide-react";
+import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import {
+  useLpnOverview, useLpnAction, resolveLpnByCode, nextLpnCode,
+  type LpnOverviewRow, type LpnType,
+} from "@/features/warehouse/lpn/useLpnOps";
+import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
-type LpnType = "pallet" | "carton" | "tote" | "other";
-type LpnStatus = "open" | "sealed" | "shipped" | "retired";
-
-interface LpnRow {
-  id: string;
-  code: string;
-  lpn_type: LpnType;
-  status: LpnStatus;
-  parent_lpn_id: string | null;
-  current_location_id: string | null;
-  warehouse_id: string;
-  sealed_at: string | null;
-  created_at: string;
-  stock_locations?: { code: string; name: string } | null;
-}
-
-function randomCode(): string {
-  const yy = new Date().getFullYear().toString().slice(-2);
-  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `LPN-${yy}${rnd}`;
-}
-
-const STATUS_TONE: Record<LpnStatus, "success" | "warning" | "info" | "neutral"> = {
+const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
   open: "info",
   sealed: "warning",
   shipped: "success",
   retired: "neutral",
+  voided: "danger",
+  consumed: "neutral",
 };
+
+function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LicensePlates() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const { warehouses } = useWarehouses();
   const { currentBusiness } = useBusinesses();
   const { currentOrg } = useOrganization();
   const { user } = useAuth();
 
-  const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [warehouseFilter, setWarehouseFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
 
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ["wms-lpns", currentBusiness?.id, warehouseFilter, typeFilter, statusFilter],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      let q = supabase
-        .from("wms_license_plates")
-        .select("id, code, lpn_type, status, parent_lpn_id, current_location_id, warehouse_id, sealed_at, created_at, stock_locations:current_location_id(code, name)")
-        .eq("business_id", currentBusiness!.id)
-        .order("created_at", { ascending: false })
-        .limit(500);
-      if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      if (typeFilter !== "all") q = q.eq("lpn_type", typeFilter as LpnType);
-      if (statusFilter !== "all") q = q.eq("status", statusFilter as LpnStatus);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as unknown as LpnRow[];
+  const { data: rows, isLoading } = useLpnOverview({
+    businessId: currentBusiness?.id,
+    warehouseId: warehouseFilter,
+    type: typeFilter,
+    status: statusFilter,
+  });
+
+  // Scan a plate barcode anywhere on this board → open its cockpit.
+  useWmsScanIntent({
+    intent: "putaway.lpn",
+    label: "lpn-board",
+    onScan: async (payload) => {
+      if (!currentBusiness?.id) return;
+      const plate = await resolveLpnByCode(currentBusiness.id, payload.resolveCode);
+      if (!plate) {
+        toast.error(`No plate matches ${payload.resolveCode}`);
+        return;
+      }
+      nav(`/warehouse-app/plates/${plate.id}`);
     },
   });
 
   const filtered = useMemo(() => {
-    if (!rows) return [];
+    const list = rows ?? [];
     const s = search.trim().toLowerCase();
-    if (!s) return rows;
-    return rows.filter((r) => r.code.toLowerCase().includes(s));
+    if (!s) return list;
+    return list.filter(
+      (r) =>
+        r.code.toLowerCase().includes(s) ||
+        (r.location_code ?? "").toLowerCase().includes(s),
+    );
   }, [rows, search]);
 
+  const metrics = useMemo(() => {
+    const list = rows ?? [];
+    return {
+      total: list.length,
+      stocked: list.filter((r) => Number(r.total_quantity) > 0).length,
+      empty: list.filter((r) => Number(r.total_quantity) === 0).length,
+      sealed: list.filter((r) => r.status === "sealed").length,
+      unlocated: list.filter((r) => !r.current_location_id).length,
+      units: list.reduce((a, r) => a + Number(r.total_quantity || 0), 0),
+    };
+  }, [rows]);
+
+  const mergeTarget = selected[0];
+  const mergeAction = useLpnAction(mergeTarget);
+
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({
-    code: randomCode(),
-    lpn_type: "pallet" as LpnType,
-    warehouse_id: "",
-    parent_lpn_id: "",
-  });
+  const [form, setForm] = useState({ code: "", lpn_type: "pallet" as LpnType, warehouse_id: "" });
 
   const create = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id || !currentOrg?.id) throw new Error("No active organization");
       if (!form.warehouse_id) throw new Error("Choose a warehouse");
       const wh = warehouses.find((w) => w.id === form.warehouse_id);
-      const { error } = await supabase.from("wms_license_plates").insert({
-        organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
-        branch_id: wh?.branch_id ?? null,
-        warehouse_id: form.warehouse_id,
-        code: form.code.trim(),
-        lpn_type: form.lpn_type,
-        parent_lpn_id: form.parent_lpn_id || null,
-        created_by: user?.id ?? null,
-      });
+      const code = form.code.trim() || (await nextLpnCode(currentBusiness.id, form.warehouse_id, form.lpn_type));
+      const { data, error } = await supabase
+        .from("wms_license_plates")
+        .insert({
+          organization_id: currentOrg.id,
+          business_id: currentBusiness.id,
+          branch_id: wh?.branch_id ?? null,
+          warehouse_id: form.warehouse_id,
+          code,
+          lpn_type: form.lpn_type,
+          created_by: user?.id ?? null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+      return data.id as string;
     },
-    onSuccess: () => {
-      toast.success("License plate created");
+    onSuccess: (id) => {
+      toast.success("Plate created");
       setCreateOpen(false);
-      setForm({ code: randomCode(), lpn_type: "pallet", warehouse_id: "", parent_lpn_id: "" });
+      setForm({ code: "", lpn_type: "pallet", warehouse_id: "" });
       qc.invalidateQueries({ queryKey: ["wms-lpns"] });
+      nav(`/warehouse-app/plates/${id}`);
     },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed to create"),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Create failed"),
   });
+
+  async function printSelected() {
+    if (!currentOrg?.id) return toast.error("No active organization");
+    const targets = (rows ?? []).filter((r) => selected.includes(r.id));
+    let ok = 0;
+    for (const plate of targets) {
+      const res = await printWmsLabel({
+        key: WMS_LABEL_KEY.LPN,
+        orgId: currentOrg.id,
+        businessId: currentBusiness?.id ?? null,
+        sourceDocType: "wms_license_plate",
+        sourceDocId: plate.id,
+        vars: {
+          lpn_code: plate.code,
+          warehouse_name: plate.warehouse_name ?? "",
+          current_location: plate.location_code ?? "Unlocated",
+          created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+        },
+      });
+      if (res.success) ok += 1;
+    }
+    ok === targets.length
+      ? toast.success(`${ok} label(s) sent to printer`)
+      : toast.error(`${ok}/${targets.length} labels printed`);
+  }
+
+  function toggle(id: string) {
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }
 
   return (
     <>
       <PageHeader
         title="License plates"
-        description="Handling units (pallet, carton, tote) tracked through the warehouse. Movements address the plate, not its contents."
+        description="Handling units carrying stock through the warehouse — scan, move, consolidate, label."
         actions={
-          <Button onClick={() => { setForm((f) => ({ ...f, code: randomCode() })); setCreateOpen(true); }}>
-            <Plus className="mr-2 h-4 w-4" /> New plate
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {selected.length > 0 && (
+              <>
+                <Button variant="outline" onClick={printSelected}>
+                  <Printer className="mr-2 h-4 w-4" /> Print {selected.length}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={selected.length < 2 || mergeAction.isPending}
+                  onClick={() =>
+                    mergeAction.run(
+                      { kind: "merge", sourceIds: selected.slice(1) },
+                      { onSuccess: () => setSelected([]) },
+                    )
+                  }
+                >
+                  <Layers className="mr-2 h-4 w-4" /> Merge into {(rows ?? []).find((r) => r.id === mergeTarget)?.code}
+                </Button>
+              </>
+            )}
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> New plate
+            </Button>
+          </div>
         }
       />
       <PageBody>
-        <Section>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <Metric label="Plates" value={metrics.total} />
+          <Metric label="Carrying stock" value={metrics.stocked} hint={`${metrics.units.toLocaleString()} units`} />
+          <Metric label="Empty" value={metrics.empty} hint="Available to build" />
+          <Metric label="Sealed" value={metrics.sealed} hint="Ready to ship" />
+          <Metric label="Unlocated" value={metrics.unlocated} hint="No bin assigned" />
+        </div>
+
+        <Section
+          title="Board"
+          description="Scan a plate barcode at any time to open its cockpit."
+        >
           <Card>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-[220px]">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    className="pl-8"
-                    placeholder="Search by code"
+                    className="pl-9"
+                    placeholder="Search plate or bin code"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
                 <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All warehouses</SelectItem>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
                     <SelectItem value="pallet">Pallet</SelectItem>
@@ -190,15 +265,19 @@ export default function LicensePlates() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Any status</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
                     <SelectItem value="sealed">Sealed</SelectItem>
                     <SelectItem value="shipped">Shipped</SelectItem>
-                    <SelectItem value="retired">Retired</SelectItem>
+                    <SelectItem value="consumed">Consumed</SelectItem>
+                    <SelectItem value="voided">Voided</SelectItem>
                   </SelectContent>
                 </Select>
+                <Badge variant="outline" className="gap-1">
+                  <ScanLine className="h-3 w-3" /> Scanner armed
+                </Badge>
               </div>
 
               {isLoading ? (
@@ -206,51 +285,67 @@ export default function LicensePlates() {
               ) : filtered.length === 0 ? (
                 <EmptyState
                   icon={PackageOpen}
-                  title="No license plates yet"
-                  description="Create your first plate to start tracking pallets, cartons, or totes through the warehouse."
-                  action={
-                    <Button onClick={() => { setForm((f) => ({ ...f, code: randomCode() })); setCreateOpen(true); }}>
-                      <Plus className="mr-2 h-4 w-4" /> New plate
-                    </Button>
-                  }
+                  title="No plates match"
+                  description="Adjust the filters or build a new handling unit."
+                  action={<Button onClick={() => setCreateOpen(true)}>New plate</Button>}
                 />
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Current location</TableHead>
-                      <TableHead>Sealed</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell>
-                          <Link className="font-mono text-sm underline underline-offset-2" to={`/warehouse-app/plates/${r.id}`}>
-                            {r.code}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="capitalize">{r.lpn_type}</TableCell>
-                        <TableCell><StatusBadge tone={STATUS_TONE[r.status]}>{r.status}</StatusBadge></TableCell>
-                        <TableCell className="text-sm">
-                          {r.stock_locations
-                            ? <span>{r.stock_locations.code} <span className="text-muted-foreground">· {r.stock_locations.name}</span></span>
-                            : <span className="text-muted-foreground">—</span>}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {r.sealed_at ? new Date(r.sealed_at).toLocaleString() : "—"}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(r.created_at).toLocaleString()}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8" />
+                        <TableHead>Plate</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead className="text-right">SKUs</TableHead>
+                        <TableHead className="text-right">Units</TableHead>
+                        <TableHead className="text-right">Nested</TableHead>
+                        <TableHead>Updated</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filtered.map((r: LpnOverviewRow) => (
+                        <TableRow key={r.id} className="cursor-pointer">
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selected.includes(r.id)}
+                              onCheckedChange={() => toggle(r.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              to={`/warehouse-app/plates/${r.id}`}
+                              className="font-mono font-medium hover:underline"
+                            >
+                              {r.code}
+                            </Link>
+                            {r.parent_lpn_id && (
+                              <Badge variant="secondary" className="ml-2">nested</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="capitalize">{r.lpn_type}</TableCell>
+                          <TableCell>
+                            <StatusBadge
+                              status={r.status}
+                              tone={STATUS_TONE[r.status] ?? "neutral"}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {r.location_code ?? <span className="text-muted-foreground">Unlocated</span>}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">{Number(r.sku_count ?? 0)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{Number(r.total_quantity ?? 0)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{Number(r.child_count ?? 0)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {new Date(r.updated_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -260,17 +355,27 @@ export default function LicensePlates() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>New license plate</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Code</Label>
-              <div className="flex gap-2">
-                <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className="font-mono" />
-                <Button variant="outline" type="button" onClick={() => setForm({ ...form, code: randomCode() })}>Regenerate</Button>
-              </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Warehouse</Label>
+              <Select
+                value={form.warehouse_id}
+                onValueChange={(v) => setForm((f) => ({ ...f, warehouse_id: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Choose warehouse" /></SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
+            <div className="space-y-2">
               <Label>Type</Label>
-              <Select value={form.lpn_type} onValueChange={(v) => setForm({ ...form, lpn_type: v as LpnType })}>
+              <Select
+                value={form.lpn_type}
+                onValueChange={(v) => setForm((f) => ({ ...f, lpn_type: v as LpnType }))}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pallet">Pallet</SelectItem>
@@ -280,29 +385,13 @@ export default function LicensePlates() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Warehouse</Label>
-              <Select value={form.warehouse_id} onValueChange={(v) => setForm({ ...form, warehouse_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Choose warehouse" /></SelectTrigger>
-                <SelectContent>
-                  {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Parent plate (optional)</Label>
-              <Select
-                value={form.parent_lpn_id || "none"}
-                onValueChange={(v) => setForm({ ...form, parent_lpn_id: v === "none" ? "" : v })}
-              >
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  {(rows ?? []).filter((r) => r.status !== "retired").map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.code}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label>Code</Label>
+              <Input
+                placeholder="Leave blank for the next sequential code"
+                value={form.code}
+                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>
