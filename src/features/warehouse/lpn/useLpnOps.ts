@@ -194,6 +194,25 @@ export function useLpnAllowedTransitions(status: string | undefined) {
 }
 
 /** Resolve a scanned code to a plate in the active business. */
+export function useLpnStatusCatalog() {
+  return useQuery({
+    queryKey: ["wms-lpn-status-catalog"],
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await sb
+        .from("wms_lpn_status_edges")
+        .select("from_status, to_status");
+      if (error) throw error;
+      const set = new Set<string>();
+      for (const e of (data ?? []) as { from_status: string; to_status: string }[]) {
+        set.add(e.from_status);
+        set.add(e.to_status);
+      }
+      return [...set].sort();
+    },
+  });
+}
+
 export async function resolveLpnByCode(businessId: string, code: string) {
   const { data, error } = await sb
     .from("v_wms_lpn_overview")
