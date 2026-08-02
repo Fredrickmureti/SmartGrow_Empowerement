@@ -269,7 +269,6 @@ export default function LicensePlateView() {
                 <EmptyState
                   icon={PackageOpen}
                   title="Empty plate"
-                  description="Load stock from a bin to start building this handling unit."
                   description={
                     unlocated
                       ? "This plate is not in a bin yet. Move it to a bin, then load stock from that bin."
