@@ -541,6 +541,7 @@ export default function ReceivingSessions() {
                   progress={progress}
                   dockLabel={dockLabel}
                   appointment={appointmentFor}
+                  trailerVisit={trailerVisitFor}
                   supervisorLabel={supervisorLabel}
                   actions={nextActions}
                   onOpen={(s) => setActiveSession(s as SessionRow)}
