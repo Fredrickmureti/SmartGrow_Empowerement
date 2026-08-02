@@ -68,3 +68,21 @@ Three additions close the loop between the authored twin and the floor:
   scan intent, so barcode-vs-code divergence and cross-warehouse code clashes
   are handled once. Enforced by
   `src/test/architecture/wms-location-resolver-single-seam.test.ts`.
+
+## Addendum 2 — the item leg of an RF scan (2026-08-02)
+
+A bin scan resolved through one seam while the SKU next to it was still a
+`toLowerCase()` compare is only half a scan: a case GTIN, a GS1-128 label with
+lot and expiry, or an alternate identifier all read as "wrong product".
+
+`src/features/warehouse/scanning/ProductScanField.tsx` is now the counterpart
+to `BinScanField`: it runs every item scan through `useWmsIdentityGate` →
+`resolve_product_identity` (ADR-0017 / ADR-0071), blocks on unknown and
+ambiguous codes with scan feedback rather than a bare toast, reports the
+matched packaging level, and registers the `pick.item` / `count.item` intent so
+wedge, ring and paired-phone scanners feed it directly.
+
+Consequence: `MobilePick` confirms the item by product id, and `MobileCount`
+matches its count line on `(resolved location id, resolved product id)` — no
+string compare survives on either leg. A third case in the guard test forbids
+`sku*/item*/product*.trim().toLowerCase() ===` in `warehouse-mobile`.

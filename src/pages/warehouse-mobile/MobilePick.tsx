@@ -1,10 +1,11 @@
 /**
- * Mobile pick — scan source bin + product SKU, enter qty, confirm.
+ * Mobile pick — scan source bin + product, enter qty, confirm.
  *
- * The bin leg goes through `BinScanField` so the label barcode resolves via
- * `resolve_location_identity` (ADR 0104) instead of a code string compare.
+ * Both legs go through their resolver seams: `BinScanField`
+ * (`resolve_location_identity`, ADR 0104) and `ProductScanField`
+ * (`resolve_product_identity`, ADR-0017/0071) instead of string compares.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -14,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BinScanField } from "@/features/warehouse/locations/BinScanField";
+import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
+import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 
 interface Task {
@@ -23,6 +27,7 @@ interface Task {
   lot_number: string | null;
   warehouse_id: string | null;
   source_location_id: string | null;
+  product_id: string | null;
   source_loc: { code: string | null } | null;
   dest_loc: { code: string | null } | null;
   product: { sku: string | null; name: string | null } | null;
@@ -31,10 +36,13 @@ interface Task {
 export default function MobilePick() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { currentBusiness } = useBusinesses();
   const [binConfirmed, setBinConfirmed] = useState(false);
-  const [skuScan, setSkuScan] = useState("");
+  const [productScan, setProductScan] = useState<GatedScan | null>(null);
+  const handleProductScan = useCallback((scan: GatedScan | null) => setProductScan(scan), []);
   const [qty, setQty] = useState<string>("");
   const [busy, setBusy] = useState(false);
+
 
   const { data: task, isLoading } = useQuery({
     queryKey: ["wm-pick-task", id],
@@ -42,7 +50,7 @@ export default function MobilePick() {
       const { data, error } = await supabase
         .from("wms_tasks")
         .select(
-          "id, state, quantity, lot_number, warehouse_id, source_location_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
+          "id, state, quantity, lot_number, warehouse_id, source_location_id, product_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code), product:product_id(sku, name)",
         )
         .eq("id", id!)
         .maybeSingle();
@@ -55,15 +63,15 @@ export default function MobilePick() {
 
   const submit = async () => {
     if (!task) return;
-    const expectedSku = (task.product?.sku ?? "").toLowerCase();
     if (!binConfirmed) {
       toast.error(`Scan ${task.source_loc?.code ?? "the source bin"} first`);
       return;
     }
-    if (skuScan.trim().toLowerCase() !== expectedSku) {
-      toast.error(`Wrong product — scan ${task.product?.sku}`);
+    if (!productScan) {
+      toast.error(`Scan ${task.product?.sku ?? "the product"} to confirm the item`);
       return;
     }
+
     const n = Number(qty);
     if (!Number.isFinite(n) || n <= 0) {
       toast.error("Enter a valid quantity");
@@ -124,15 +132,16 @@ export default function MobilePick() {
           disabled={done}
           onConfirmedChange={setBinConfirmed}
         />
-        <div>
-          <Label>Scan product SKU</Label>
-          <Input
-            value={skuScan}
-            onChange={(e) => setSkuScan(e.target.value)}
-            placeholder={task.product?.sku ?? ""}
-            className="h-12 text-lg font-mono"
-          />
-        </div>
+        <ProductScanField
+          label="Scan product"
+          intent="pick.item"
+          businessId={currentBusiness?.id}
+          expectedProductId={task.product_id}
+          expectedSku={task.product?.sku ?? null}
+          disabled={done}
+          onResolved={handleProductScan}
+        />
+
         <div>
           <Label>Picked qty</Label>
           <Input

@@ -122,3 +122,11 @@ stock_quants
 - Zero regression risk in Phase 1 because no reader or writer changes.
 - Unblocks WMS, QC, split transfer, quarantine state machine.
 - Requires a follow-up migration per phase; each is a separate ADR.
+
+## Note — location stamping unblocked (2026-08-02)
+
+Phase 2 (stamping `location_id` on stock writes) was waiting on a trustworthy
+way for an operator surface to name a position. That now exists:
+`resolve_location_identity` plus `BinScanField` (ADR 0104) hand every RF screen
+a resolved `location_id`, so the writers this ADR describes can accept it
+without inventing a code lookup of their own.

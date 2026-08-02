@@ -17,7 +17,7 @@ import { Check, ScanLine, TriangleAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useResolveLocationIdentity } from "./useResolveLocationIdentity";
+import { useResolveLocationIdentity, type ResolvedLocation } from "./useResolveLocationIdentity";
 import { useWmsScanIntent, type WmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { useScanFeedback } from "@/features/warehouse/scanning/useScanFeedback";
 
@@ -32,6 +32,12 @@ interface Props {
   warehouseId?: string | null;
   disabled?: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
+  /**
+   * Emits the resolved position (or null when the scan fails). Surfaces with
+   * no pre-assigned bin — a cycle count, say — use this instead of the
+   * expected-id compare.
+   */
+  onResolvedLocation?: (location: ResolvedLocation | null) => void;
 }
 
 export function BinScanField({
@@ -42,6 +48,7 @@ export function BinScanField({
   warehouseId,
   disabled,
   onConfirmedChange,
+  onResolvedLocation,
 }: Props) {
   const [value, setValue] = useState("");
   const [state, setState] = useState<BinScanState>("idle");
@@ -56,6 +63,7 @@ export function BinScanField({
         setState("idle");
         setMessage(null);
         onConfirmedChange(false);
+        onResolvedLocation?.(null);
         return;
       }
       setState("checking");
@@ -65,6 +73,7 @@ export function BinScanField({
         setMessage(result.message ?? "That label is not a known position.");
         feedback.error();
         onConfirmedChange(false);
+        onResolvedLocation?.(null);
         return;
       }
       if (expectedLocationId && result.location.location_id !== expectedLocationId) {
@@ -72,14 +81,16 @@ export function BinScanField({
         setMessage(`Wrong position — this job needs ${expectedCode ?? "the assigned bin"}.`);
         feedback.error();
         onConfirmedChange(false);
+        onResolvedLocation?.(null);
         return;
       }
       setState("confirmed");
       setMessage(`${result.location.code} confirmed`);
       feedback.success();
       onConfirmedChange(true);
+      onResolvedLocation?.(result.location);
     },
-    [resolve, expectedLocationId, expectedCode, feedback, onConfirmedChange],
+    [resolve, expectedLocationId, expectedCode, feedback, onConfirmedChange, onResolvedLocation],
   );
 
   useWmsScanIntent({

@@ -56,4 +56,18 @@ describe("wms location identity — single seam", () => {
       `Use BinScanField / useResolveLocationIdentity instead:\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
+
+  it("operator screens do not confirm a product by comparing typed text to a SKU", () => {
+    const mobile = files.filter((f) => f.includes("warehouse-mobile"));
+    const offenders = mobile.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      // e.g. skuScan.trim().toLowerCase() !== expectedSku
+      return /(sku|item|product)[A-Za-z]*\s*\.trim\(\)\s*\.toLowerCase\(\)\s*[!=]==/i.test(src);
+    });
+    expect(
+      offenders,
+      `Use ProductScanField / useWmsIdentityGate instead:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
 });
+
