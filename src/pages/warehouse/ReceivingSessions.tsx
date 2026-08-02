@@ -5,7 +5,8 @@
  * All transitions go through `wms_transition_receiving` — FSM-guarded,
  * row_version optimistic, emits `warehouse.receiving.*` to outbox.
  */
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -144,6 +145,25 @@ export default function ReceivingSessions() {
     },
   });
 
+  // GRN convergence: an ASN (inbound shipment) is a first-class source document
+  // — posting delegates to `receive_inbound_shipment` for it — so it must be
+  // bindable at session creation, not only a purchase order.
+  const { data: shipmentDocs } = useQuery({
+    queryKey: ["wms-receiving-source-docs", currentBusiness?.id, "inbound_shipment"],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inbound_shipments")
+        .select("id, shipment_number, status")
+        .eq("business_id", currentBusiness!.id)
+        .not("status", "in", "(received,cancelled)")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as { id: string; shipment_number: string | null; status: string | null }[];
+    },
+  });
+
   // Phase 1 — the truck must be visible. Sessions bind to a real inbound dock
   // appointment (which carries carrier, dock and window) instead of leaving
   // `appointment_id` / `dock_id` null, so an operator can answer "which trailer
@@ -271,6 +291,29 @@ export default function ReceivingSessions() {
     appointment_id: "",
     notes: "",
   });
+
+  // Deep-link binding: `Receive goods` from a purchase order or inbound
+  // shipment lands here with the document already chosen, so the operator
+  // never retypes a reference and the session is always bound to real
+  // expected lines.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const type = searchParams.get("source_doc_type");
+    const id = searchParams.get("source_doc_id");
+    if (!type || !id) return;
+    setForm((f) => ({
+      ...f,
+      code: newCode(),
+      source_doc_type: type,
+      source_doc_id: id,
+      warehouse_id: f.warehouse_id || (warehouses.length === 1 ? warehouses[0].id : ""),
+    }));
+    setCreateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("source_doc_type");
+    next.delete("source_doc_id");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, warehouses]);
 
   const create = useMutation({
     mutationFn: async () => {
@@ -633,6 +676,7 @@ export default function ReceivingSessions() {
                 <SelectContent>
                   <SelectItem value="none">Blind receipt (no document)</SelectItem>
                   <SelectItem value="purchase_order">Purchase order</SelectItem>
+                  <SelectItem value="inbound_shipment">Inbound shipment (ASN)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -651,6 +695,24 @@ export default function ReceivingSessions() {
                 </Select>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Expected lines are loaded from this order so shortages and overages are measurable.
+                </p>
+              </div>
+            )}
+            {form.source_doc_type === "inbound_shipment" && (
+              <div>
+                <Label>Inbound shipment</Label>
+                <Select value={form.source_doc_id} onValueChange={(v) => setForm({ ...form, source_doc_id: v })}>
+                  <SelectTrigger><SelectValue placeholder="Choose inbound shipment" /></SelectTrigger>
+                  <SelectContent>
+                    {(shipmentDocs ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.shipment_number ?? d.id.slice(0, 8)} · {d.status ?? "—"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Expected lines come from the ASN; posting receives against the shipment.
                 </p>
               </div>
             )}
