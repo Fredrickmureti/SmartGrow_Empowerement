@@ -68,10 +68,15 @@ export default function WarehouseLayoutWorkspace() {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
   const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
+  const [tableFilter, setTableFilter] = useState<TableFilter>("bins");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
+  const { assignBarcodes } = useLocationMutations(activeWarehouseId);
 
   const selected = selectedId ? byId.get(selectedId) ?? null : null;
   const { resolve, resolution } = useResolveLocationIdentity(activeWarehouseId);
+
 
   const revealPath = useCallback(
     (node: LocationNode) => {
