@@ -445,8 +445,8 @@ export default function PackStation() {
                                 if (v) assignCartonType.mutate({ carton_id: c.id, carton_type_id: v });
                               }}
                             >
-                              <option value="">carton type…</option>
-                              {(cartonTypes ?? []).map((t) => (
+                              <option value="">packaging…</option>
+                              {(packagingTypes ?? []).map((t) => (
                                 <option key={t.id} value={t.id}>{t.code} — {t.name}</option>
                               ))}
                             </select>
@@ -456,6 +456,19 @@ export default function PackStation() {
                               <Lock className="h-4 w-4 mr-1" /> Seal
                             </Button>
                           )}
+                          {c.sealed_at && wave.business_id && (
+                            <CartonSsccLabelButton
+                              businessId={wave.business_id}
+                              cartonId={c.id}
+                              packagingTypeId={c.carton_type_id}
+                              warehouseId={wave.warehouse_id}
+                              packagingName={c.carton_type?.name ?? null}
+                              orderNumber={c.sales_order_id.slice(0, 8)}
+                              cartonSequence={c.shipment_lpn?.code ?? c.id.slice(0, 8)}
+                              grossWeightKg={c.weight_kg}
+                            />
+                          )}
+
                           {c.sealed_at && c.shipment_lpn?.code && (
                             <>
                               <PrintLabelButton
