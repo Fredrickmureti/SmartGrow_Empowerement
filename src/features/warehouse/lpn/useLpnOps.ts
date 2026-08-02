@@ -177,105 +177,77 @@ export async function nextLpnCode(businessId: string, warehouseId: string, lpnTy
   return data as string;
 }
 
-/** Every plate mutation, keyed by operation. */
-export function useLpnMutations(lpnId?: string) {
+/** Operations available on a plate. */
+export type LpnAction =
+  | { kind: "move"; toLocationId: string; expectedVersion?: number | null; reason?: string | null }
+  | { kind: "load"; productId: string; quantity: number; lotNumber?: string | null; serialNumber?: string | null }
+  | { kind: "unload"; productId: string; quantity: number; lotNumber?: string | null }
+  | { kind: "split"; lines: Array<{ product_id: string; quantity: number; lot_number?: string | null }>; newType?: LpnType | null }
+  | { kind: "merge"; sourceIds: string[] }
+  | { kind: "nest"; parentId: string }
+  | { kind: "unnest" }
+  | { kind: "transition"; toStatus: string; expectedVersion?: number | null; reason?: string | null };
+
+const SUCCESS_COPY: Record<LpnAction["kind"], string> = {
+  move: "Plate moved — stock relocated",
+  load: "Stock loaded onto plate",
+  unload: "Stock unloaded to bin",
+  split: "Plate split",
+  merge: "Plates merged",
+  nest: "Plate nested",
+  unnest: "Plate detached",
+  transition: "Plate status updated",
+};
+
+function actionToRpc(lpnId: string, a: LpnAction): { name: string; args: Record<string, unknown> } {
+  switch (a.kind) {
+    case "move":
+      return { name: "wms_lpn_move", args: { _lpn_id: lpnId, _to_location_id: a.toLocationId, _expected_version: a.expectedVersion ?? null, _reason: a.reason ?? null } };
+    case "load":
+      return { name: "wms_lpn_load", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _lot_number: a.lotNumber ?? null, _serial_number: a.serialNumber ?? null } };
+    case "unload":
+      return { name: "wms_lpn_unload", args: { _lpn_id: lpnId, _product_id: a.productId, _quantity: a.quantity, _lot_number: a.lotNumber ?? null } };
+    case "split":
+      return { name: "wms_lpn_split", args: { _lpn_id: lpnId, _lines: a.lines, _new_lpn_type: a.newType ?? null } };
+    case "merge":
+      return { name: "wms_lpn_merge", args: { _source_lpn_ids: a.sourceIds, _target_lpn_id: lpnId } };
+    case "nest":
+      return { name: "wms_lpn_nest", args: { _child_lpn_id: lpnId, _parent_lpn_id: a.parentId } };
+    case "unnest":
+      return { name: "wms_lpn_unnest", args: { _child_lpn_id: lpnId } };
+    case "transition":
+      return { name: "wms_transition_lpn", args: { _lpn_id: lpnId, _to_status: a.toStatus, _expected_version: a.expectedVersion ?? 0, _reason: a.reason ?? null } };
+  }
+}
+
+/**
+ * Single mutation entry point for every plate operation. One hook keeps
+ * the invalidation policy and the error surface identical across actions.
+ */
+export function useLpnAction(lpnId?: string) {
   const qc = useQueryClient();
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["wms-lpns"] });
-    qc.invalidateQueries({ queryKey: ["wms-lpn"] });
-    qc.invalidateQueries({ queryKey: ["wms-lpn-contents"] });
-    qc.invalidateQueries({ queryKey: ["wms-lpn-children"] });
-    qc.invalidateQueries({ queryKey: ["wms-lpn-events"] });
+    for (const key of ["wms-lpns", "wms-lpn", "wms-lpn-contents", "wms-lpn-children", "wms-lpn-events"]) {
+      qc.invalidateQueries({ queryKey: [key] });
+    }
   };
 
-  function op<TVars>(
-    fn: (vars: TVars) => Promise<void>,
-    successMessage: string,
-  ) {
-    return useMutation({
-      mutationFn: fn,
-      onSuccess: () => {
-        toast.success(successMessage);
-        invalidate();
-      },
-      onError: (e: unknown) =>
-        toast.error(e instanceof Error ? e.message : "Operation rejected"),
-    });
-  }
+  const mutation = useMutation({
+    mutationFn: async (action: LpnAction) => {
+      if (!lpnId) throw new Error("No plate selected");
+      const { name, args } = actionToRpc(lpnId, action);
+      const { error } = await sb.rpc(name, args);
+      if (error) throw error;
+      return action.kind;
+    },
+    onSuccess: (kind) => {
+      toast.success(SUCCESS_COPY[kind]);
+      invalidate();
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Operation rejected"),
+  });
 
-  const rpc = async (name: string, args: Record<string, unknown>) => {
-    const { error } = await sb.rpc(name, args);
-    if (error) throw error;
-  };
-
-  return {
-    move: op<{ toLocationId: string; expectedVersion?: number; reason?: string }>(
-      (v) =>
-        rpc("wms_lpn_move", {
-          _lpn_id: lpnId,
-          _to_location_id: v.toLocationId,
-          _expected_version: v.expectedVersion ?? null,
-          _reason: v.reason ?? null,
-        }),
-      "Plate moved — stock relocated",
-    ),
-    load: op<{ productId: string; quantity: number; lotNumber?: string | null; serialNumber?: string | null }>(
-      (v) =>
-        rpc("wms_lpn_load", {
-          _lpn_id: lpnId,
-          _product_id: v.productId,
-          _quantity: v.quantity,
-          _lot_number: v.lotNumber ?? null,
-          _serial_number: v.serialNumber ?? null,
-        }),
-      "Stock loaded onto plate",
-    ),
-    unload: op<{ productId: string; quantity: number; lotNumber?: string | null }>(
-      (v) =>
-        rpc("wms_lpn_unload", {
-          _lpn_id: lpnId,
-          _product_id: v.productId,
-          _quantity: v.quantity,
-          _lot_number: v.lotNumber ?? null,
-        }),
-      "Stock unloaded to bin",
-    ),
-    split: op<{ lines: Array<{ product_id: string; quantity: number; lot_number?: string | null }>; newType?: LpnType }>(
-      (v) =>
-        rpc("wms_lpn_split", {
-          _lpn_id: lpnId,
-          _lines: v.lines,
-          _new_lpn_type: v.newType ?? null,
-        }),
-      "Plate split",
-    ),
-    merge: op<{ sourceIds: string[] }>(
-      (v) =>
-        rpc("wms_lpn_merge", {
-          _source_lpn_ids: v.sourceIds,
-          _target_lpn_id: lpnId,
-        }),
-      "Plates merged",
-    ),
-    nest: op<{ parentId: string }>(
-      (v) => rpc("wms_lpn_nest", { _child_lpn_id: lpnId, _parent_lpn_id: v.parentId }),
-      "Plate nested",
-    ),
-    unnest: op<void>(
-      () => rpc("wms_lpn_unnest", { _child_lpn_id: lpnId }),
-      "Plate detached",
-    ),
-    transition: op<{ toStatus: string; expectedVersion?: number; reason?: string }>(
-      (v) =>
-        rpc("wms_transition_lpn", {
-          _lpn_id: lpnId,
-          _to_status: v.toStatus,
-          _expected_version: v.expectedVersion ?? 0,
-          _reason: v.reason ?? null,
-        }),
-      "Plate status updated",
-    ),
-    invalidate,
-  };
+  return { run: mutation.mutate, runAsync: mutation.mutateAsync, isPending: mutation.isPending, invalidate };
 }
