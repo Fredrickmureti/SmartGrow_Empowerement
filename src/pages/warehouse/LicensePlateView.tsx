@@ -44,7 +44,7 @@ import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
   useLpn, useLpnContents, useLpnChildren, useLpnEvents, useLpnAction,
-  resolveLpnByCode,
+  resolveLpnByCode, useBinLooseStock,
 } from "@/features/warehouse/lpn/useLpnOps";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
