@@ -68,8 +68,8 @@ import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton
 import { StudioQuickPanelTrigger } from "@/components/studio/StudioQuickPanelTrigger";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 // GoodsReceiptDialog retired — Goods Receipt is now a WizardShell route at
-// /purchases/goods-receipt/new?po=<id>. See
-// src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx.
+// /warehouse-app/receiving?source_doc_type=purchase_order&source_doc_id=<id>:
+// receiving is captured once, in the WMS receiving session (GRN convergence).
 // EditPODialog retired — editing is now the RecordShell route at
 // /purchases/orders/:id/edit. See src/features/purchases/orders/PurchaseOrderEditPage.tsx.
 // Create-PO dialog retired — creation is now the RecordFormShell route at
@@ -618,7 +618,9 @@ export default function PurchaseOrders() {
                           {["sent", "partial_received"].includes(po.status) && (
                             <DropdownMenuItem
                               onClick={() =>
-                                navigate(`/purchases/goods-receipt/new?po=${po.id}`)
+                                navigate(
+                                  `/warehouse-app/receiving?source_doc_type=purchase_order&source_doc_id=${po.id}`,
+                                )
                               }
                             >
                               <Package className="mr-2 h-4 w-4" /> Receive Goods

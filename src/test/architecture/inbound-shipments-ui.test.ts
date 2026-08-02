@@ -54,8 +54,10 @@ describe("Phase D.3 — InboundShipmentDetail page", () => {
     expect(src).toMatch(/inbound_shipment_items/);
   });
 
-  it("launches the GRN wizard with the ?po= contract pinned by grn-asn-prefill", () => {
-    expect(src).toMatch(/\/purchases\/goods-receipt\/new\?po=\$\{[^}]+\}/);
+  it("launches receiving with the purchase order pre-bound", () => {
+    expect(src).toMatch(
+      /\/warehouse-app\/receiving\?source_doc_type=purchase_order&source_doc_id=\$\{[^}]+\}/,
+    );
   });
 
   it("gates Start Goods Receipt behind a linked PO in an active status", () => {

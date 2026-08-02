@@ -59,10 +59,13 @@ describe("Phase H — scanner hook wraps the parser", () => {
 });
 
 describe("Phase H — capture surfaces route scans through the interpreter", () => {
-  it("GRN wizard uses interpretScan on the scan input", () => {
-    const src = read("src/features/purchases/goods-receipt/GoodsReceiptWizardPage.tsx");
-    expect(src).toMatch(/interpretScan|useGs1Scanner/);
-    expect(src).toMatch(/from ["']@\/lib\/gs1\/useGs1Scanner["']/);
+  it("receiving capture routes scans through the WMS identity gate", () => {
+    // GRN convergence: the Purchases wizard is retired; the receiving session
+    // workspace is the only PO/ASN capture surface, and it gates every scan
+    // through `useWmsIdentityGate` (which owns GS1 interpretation).
+    const src = read("src/features/warehouse/receiving/ReceivingSessionWorkspace.tsx");
+    expect(src).toMatch(/useWmsIdentityGate/);
+    expect(src).toMatch(/gate\.gate\(/);
   });
 
   it("LotPickerPopover accepts a scanned lot / expiry seed", () => {

@@ -40,6 +40,7 @@ import {
 import { useActiveLpn } from "./useReceivingLpn";
 import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
+import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 
 export interface ReceivingSessionSummary {
   id: string;
@@ -67,26 +68,48 @@ function CaptureRow({
   line,
   onCapture,
   busy,
+  serialTracked,
 }: {
   line: ReceivingLine;
   onCapture: (v: {
-    qty: number; lot: string | null; expiry: string | null; damaged: number; hold: boolean;
+    qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean;
   }) => void;
   busy: boolean;
+  /** ADR-0067: serial-tracked products need one serial per unit at receipt. */
+  serialTracked: boolean;
 }) {
   const outstanding = Math.max(Number(line.expected_qty ?? 0) - Number(line.received_qty ?? 0), 0);
-  const [qty, setQty] = useState<string>(outstanding ? String(outstanding) : "");
+  const [qty, setQty] = useState<string>(serialTracked ? "1" : outstanding ? String(outstanding) : "");
   const [lot, setLot] = useState(line.lot_number ?? "");
+  const [serial, setSerial] = useState("");
   const [expiry, setExpiry] = useState(line.expiry_date ?? "");
   const [damaged, setDamaged] = useState("");
   const [hold, setHold] = useState(false);
+  // One unit per capture keeps the serial ↔ unit relationship 1:1, which the
+  // `enforce_serial_on_movement` trigger requires when the receipt posts.
+  const serialInvalid = serialTracked && (!serial.trim() || Number(qty) !== 1);
 
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/40 p-3">
       <div className="w-24">
         <Label className="text-xs">Qty</Label>
-        <Input value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
+        <Input
+          value={qty}
+          onChange={(e) => setQty(e.target.value)}
+          inputMode="decimal"
+          disabled={serialTracked}
+        />
       </div>
+      {serialTracked && (
+        <div className="w-40">
+          <Label className="text-xs">Serial</Label>
+          <Input
+            value={serial}
+            onChange={(e) => setSerial(e.target.value)}
+            placeholder="One unit per capture"
+          />
+        </div>
+      )}
       <div className="w-32">
         <Label className="text-xs">Lot</Label>
         <Input value={lot} onChange={(e) => setLot(e.target.value)} />
@@ -104,19 +127,26 @@ function CaptureRow({
       </label>
       <Button
         size="sm"
-        disabled={busy || !Number(qty)}
-        onClick={() =>
+        disabled={busy || !Number(qty) || serialInvalid}
+        onClick={() => {
           onCapture({
-            qty: Number(qty),
+            qty: serialTracked ? 1 : Number(qty),
             lot: lot.trim() || null,
+            serial: serialTracked ? serial.trim() : null,
             expiry: expiry || null,
             damaged: Number(damaged) || 0,
             hold,
-          })
-        }
+          });
+          if (serialTracked) setSerial("");
+        }}
       >
         <PackageCheck className="mr-1 h-3.5 w-3.5" /> Capture
       </Button>
+      {serialInvalid && (
+        <p className="w-full text-xs text-destructive">
+          Serial-tracked item — capture one unit at a time with its serial number.
+        </p>
+      )}
     </div>
   );
 }
@@ -130,6 +160,10 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   const post = usePostReceivingSession();
   const gate = useWmsIdentityGate(businessId);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
+
+  // Tracking flags for every product on the session — batched once so each
+  // capture row knows whether it must demand a serial.
+  const tracking = useProductTrackingFlags((lines ?? []).map((l) => l.product_id));
 
   // Phase 4c — the pallet under the operator's hands. Bound by a
   // `receiving.lpn` scan or typed, then stamped onto every capture.
@@ -196,6 +230,10 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
       const gated = await gate.gate({ raw: p.raw, resolveCode: p.resolveCode, workflow: "receive" });
       if (!gated) return;
       const { identity, baseUnits, lot, serial, expiry } = gated;
+      if (tracking.get(identity.productId).is_serial_tracked && !serial) {
+        toast.error(`${identity.productName} is serial-tracked — scan the unit serial (GS1 AI 21)`);
+        return;
+      }
       await capture.mutateAsync({
         sessionId: session.id,
         productId: identity.productId,
@@ -212,7 +250,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
     },
   });
 
-  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; expiry: string | null; damaged: number; hold: boolean }) => {
+  const runCapture = (line: ReceivingLine, v: { qty: number; lot: string | null; serial: string | null; expiry: string | null; damaged: number; hold: boolean }) => {
     if (!session || !line.product_id) return;
     capture.mutate(
       {
@@ -221,6 +259,7 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         receivedQty: v.qty,
         expectedQty: line.expected_qty,
         lotNumber: v.lot,
+        serialNumber: v.serial,
         expiryDate: v.expiry,
         damagedQty: v.damaged,
         qcHold: v.hold,
@@ -435,7 +474,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
                     {expandedLine === l.id && (
                       <TableRow>
                         <TableCell colSpan={7}>
-                          <CaptureRow line={l} busy={capture.isPending} onCapture={(v2) => runCapture(l, v2)} />
+                          <CaptureRow
+                            line={l}
+                            busy={capture.isPending}
+                            serialTracked={tracking.get(l.product_id).is_serial_tracked}
+                            onCapture={(v2) => runCapture(l, v2)}
+                          />
                         </TableCell>
                       </TableRow>
                     )}

@@ -8,6 +8,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { dispatchGoodsReceipt } from "@/features/purchases/goods-receipt/dispatchGoodsReceipt";
 
 export interface ReceivingLine {
   id: string;
@@ -181,7 +182,14 @@ export function usePostReceivingSession() {
         p_staging_location_id: input.stagingLocationId ?? null,
       });
       if (error) throw error;
-      return data as { goods_receipt_id: string; receipt_number: string };
+      const result = data as { goods_receipt_id: string; receipt_number: string };
+      // GRN convergence: the receiving session is the only capture path, so it
+      // is also the only producer of the GRN paper. Archiving the document is
+      // best-effort — a failed print must never invalidate a posted receipt.
+      if (result?.goods_receipt_id) {
+        void dispatchGoodsReceipt({ goodsReceiptId: result.goods_receipt_id }).catch(() => undefined);
+      }
+      return result;
     },
     onSuccess: invalidate,
   });

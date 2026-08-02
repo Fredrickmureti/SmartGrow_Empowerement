@@ -128,3 +128,19 @@ and the Purchases GRN wizard convergence onto the receiving document.
   (visit resolved via appointment, no writes from receiving).
 
 Remaining: the Purchases GRN wizard convergence onto the receiving document.
+
+### Phase 4d — GRN convergence (landed)
+
+- `GoodsReceiptWizardPage.tsx` deleted; `/purchases/goods-receipt/new` now
+  forwards (via `GoodsReceiptRedirect.tsx`) to the receiving workspace with the
+  source document pre-bound. PO list and inbound-shipment detail link there too.
+- `ReceivingSessions.tsx` reads `source_doc_type` / `source_doc_id` from the URL
+  and can bind an inbound shipment (ASN) as well as a purchase order.
+- `usePostReceivingSession` dispatches the GRN document after posting, so the
+  paper is still archived through the document engine.
+- Serial-tracked parity kept: one unit per capture with a mandatory serial.
+- Guard: `src/test/architecture/grn-convergence.test.ts`; wizard-only guards
+  retired, three sibling guards re-pointed at the receiving workspace.
+
+Authoritative status now lives in `.lovable/plan.md`. Next: Phase 5c —
+session header rail + typed exception strip.
