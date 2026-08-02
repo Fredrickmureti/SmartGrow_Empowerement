@@ -64,8 +64,6 @@ export default function WarehouseLayoutWorkspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [builderParent, setBuilderParent] = useState<LocationNode | null>(null);
-  const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
   const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
   const [tableFilter, setTableFilter] = useState<TableFilter>("bins");
