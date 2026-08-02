@@ -42,8 +42,11 @@ const ExpenseCreatePage = lazy(
 const ExpenseEditPage = lazy(
   () => import("@/features/purchases/expenses/ExpenseEditPage"),
 );
-const GoodsReceiptWizardPage = lazy(
-  () => import("@/features/purchases/goods-receipt/GoodsReceiptWizardPage"),
+// GRN convergence: goods receipts are captured in the WMS receiving session
+// (`/warehouse-app/receiving`) and produced as a document by posting it. This
+// legacy route only forwards historic deep links.
+const GoodsReceiptRedirect = lazy(
+  () => import("@/features/purchases/goods-receipt/GoodsReceiptRedirect"),
 );
 const PurchaseReturns = lazy(() => import("@/pages/PurchaseReturns"));
 const PurchaseReturnCreatePage = lazy(
