@@ -27,6 +27,7 @@ import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
 import { AlertTriangle, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
+import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
 import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import {
   useReceivingLines,
