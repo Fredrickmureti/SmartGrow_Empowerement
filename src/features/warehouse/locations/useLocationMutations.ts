@@ -8,6 +8,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeError } from "@/services/resilience";
 import { locationsQueryKey, overviewQueryKey } from "./useWarehouseLocations";
 import type { StructureLevel } from "./types";
 
@@ -63,7 +64,10 @@ export function useLocationMutations(warehouseId: string | null) {
       invalidate();
       toast.success("Location added");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
   });
 
   const update = useMutation({
@@ -78,7 +82,10 @@ export function useLocationMutations(warehouseId: string | null) {
       invalidate();
       toast.success("Location saved");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
   });
 
   const setActive = useMutation({
@@ -93,7 +100,10 @@ export function useLocationMutations(warehouseId: string | null) {
       invalidate();
       toast.success(v.active ? "Location back in service" : "Location blocked");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
   });
 
   const generate = useMutation({
@@ -119,7 +129,10 @@ export function useLocationMutations(warehouseId: string | null) {
       invalidate();
       toast.success(`${rows.length} location${rows.length === 1 ? "" : "s"} created`);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: unknown) => {
+      const n = normalizeError(e);
+      toast.error(n.title, { description: n.message });
+    },
   });
 
   return { create, update, setActive, generate };
