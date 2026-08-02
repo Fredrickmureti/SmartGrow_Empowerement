@@ -9,13 +9,10 @@
  */
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/design-system";
-import { Check, FileText, PackageCheck, Play, Receipt, Truck, XCircle } from "lucide-react";
+import { Check, FileText, PackageCheck, Play, Receipt, Truck, X, XCircle } from "lucide-react";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
@@ -127,22 +124,27 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
   const canClose = order.state === "disposed" && totals.unposted === 0;
 
   return (
-    <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-3xl">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <span className="font-mono">{order.code}</span>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono font-semibold">{order.code}</span>
             <StatusBadge tone={RETURN_STATE_TONE[order.state]}>{label(order.state)}</StatusBadge>
             {lane && <span className="text-xs text-muted-foreground">{RETURN_LANE_LABEL[lane]}</span>}
-          </SheetTitle>
-          <SheetDescription>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
             {label(order.return_kind)} return
             {order.rma_reference ? ` · RMA ${order.rma_reference}` : ""}
             {order.tracking_reference ? ` · tracking ${order.tracking_reference}` : ""}
-          </SheetDescription>
-        </SheetHeader>
+          </p>
+        </div>
+        <Button variant="ghost" size="icon" aria-label="Close return workspace" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
 
-        <div className="mt-4 space-y-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-4 gap-2 text-sm">
             {[
               ["Received", totals.received],
@@ -313,7 +315,7 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
             <OutboxTimeline aggregateId={order.id} compact />
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   );
 }
