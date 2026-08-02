@@ -127,6 +127,21 @@ export default function MobileHome() {
         </Link>
 
         <Link
+          to="/wm/returns"
+          className="flex items-center justify-between rounded border p-3 active:bg-muted"
+        >
+          <div className="flex items-center gap-3">
+            <Undo2 className="h-5 w-5 text-primary" />
+            <div>
+              <div className="text-sm font-medium">Returns</div>
+              <div className="text-xs text-muted-foreground">RMA intake, condition capture</div>
+            </div>
+          </div>
+          <span className="text-xs text-muted-foreground">tap →</span>
+        </Link>
+
+
+        <Link
           to="/wm/plate"
           className="flex items-center justify-between rounded border p-3 active:bg-muted"
         >
