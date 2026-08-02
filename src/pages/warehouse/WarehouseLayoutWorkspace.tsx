@@ -223,7 +223,7 @@ export default function WarehouseLayoutWorkspace() {
               <ScanLine className="mr-2 h-4 w-4" /> Verify labels
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/warehouse-app/layout/design">
+              <Link to={buildHref(activeWarehouseId, null)}>
                 <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
               </Link>
             </Button>
