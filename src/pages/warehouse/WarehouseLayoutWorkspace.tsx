@@ -234,13 +234,19 @@ export default function WarehouseLayoutWorkspace() {
       />
 
       <PageBody>
-        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
           <Stat label="Locations" value={stats.total} />
           <Stat label="Bins" value={stats.bins} />
           <Stat label="Bins holding stock" value={stats.stocked} />
+          <Stat
+            label="Bins without a label"
+            value={stats.unlabelled}
+            tone={stats.unlabelled ? "danger" : undefined}
+          />
           <Stat label="Blocked" value={stats.blocked} tone={stats.blocked ? "danger" : undefined} />
           <Stat label="Open jobs" value={stats.work} />
         </div>
+
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Card className="flex h-[calc(100vh-20rem)] min-h-[28rem] flex-col overflow-hidden">
