@@ -1,4 +1,29 @@
-## Verification result (what I actually confirmed in the code)
+## Status — receiving subsystem (authoritative)
+
+**Active phase: Phase 8 (architecture guards) — next milestone.**
+
+### Fully implemented and verified
+- **Phase 1–3** — typed source-doc binding, expected-line materialisation, line-grain capture via `wms_capture_receiving_line`, variance rollups.
+- **Phase 4a/4c/4d** — posting via `wms_post_receiving_session`, LPN stamped on capture, GRN wizard retired (`grn-convergence.test.ts`).
+- **Phase 4b (closed this cycle)** — `MobileReceive.tsx` deleted, `/wm/receive/:id` redirects to the session loop, `MobileHome` lists receiving sessions. `wms_replay_guarded_call` now accepts `wms_capture_receiving_line` (idempotent on device + scan id) and **rejects** `receive_goods_to_wms`. `wms-phase2.test.ts` rejects the bare identifier in any call shape.
+- **Phase 5b** — lane board + `OutboxTimeline`.
+- **Phase 5c (complete)** — live dwell ticker on the trailer rail (30 s, destructive past 120 min), `ReceivingExceptionStrip` resolving session-scoped `wms_exceptions` only through `wms_resolve_exception` with `p_row_version` + `p_resolution_kind`, and pre-post blocking clarity: Post is disabled with the reasons rendered inline (wrong state, no lines, nothing received, escalated exceptions).
+- **Phase 6 / 6b** — mobile scan-first loop with offline `enqueue` capture.
+- **Phase 7 (complete)** — put-away / quality-hold / quarantine labels on the mobile session loop **and** the desktop line grid, all through `PrintLabelButton` + `WMS_LABEL_KEY`; no surface builds a template key by hand.
+- **DB hardening** — `wms_receiving_sessions.source_doc_type` constrained to `purchase_order` | `inbound_shipment`.
+
+### Still pending
+- **Phase 8** — the remaining guard set (see Step 3 below): no session-level scan transition, capture only via RPC in base units, single staging path (done), exception resolution only via `wms_resolve_exception` (partially asserted in `architecture.receiving-line-grain.test.ts`).
+- **Step 4 follow-ups** — retire `goods_receipt_discrepancies` as a write target (backfill from `wms_exceptions` at post time).
+
+### Instructions for the next agent
+1. **Verify before extending.** Re-read `ReceivingSessionWorkspace.tsx`, `ReceivingExceptionStrip.tsx`, `useReceivingExceptions.ts`, `MobileReceiveSession.tsx`, then run `bunx vitest run src/__tests__/architecture.receiving-line-grain.test.ts src/test/architecture/wms-phase2.test.ts src/test/architecture/wms-phase4-ux.test.ts src/test/printing/label-coverage.test.ts` plus `tsgo --noEmit`. Confirm the Phase 5c/7 claims above hold in code, not just in this file.
+2. **Then resume at Phase 8 (Step 3)** — write the missing architecture guards as a single coherent suite. Do not start Step 4 until Phase 8 is green.
+3. Update this file at the end of the work.
+
+---
+
+## Original verification notes (historic)
 
 Claims in `.lovable/plan.md` were checked against the codebase, not taken at face value.
 
