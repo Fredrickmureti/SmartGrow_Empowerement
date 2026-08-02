@@ -89389,44 +89389,26 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
-      wms_capture_receiving_line:
-        | {
-            Args: {
-              p_client_scan_id?: string
-              p_device_id?: string
-              p_expected_qty?: number
-              p_lot_number?: string
-              p_lpn_id?: string
-              p_notes?: string
-              p_product_id: string
-              p_received_qty: number
-              p_serial_number?: string
-              p_session_id: string
-              p_staging_location_id?: string
-              p_uom?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_client_scan_id?: string
-              p_damaged_qty?: number
-              p_device_id?: string
-              p_expected_qty?: number
-              p_expiry_date?: string
-              p_lot_number?: string
-              p_lpn_id?: string
-              p_notes?: string
-              p_product_id: string
-              p_qc_hold?: boolean
-              p_received_qty: number
-              p_serial_number?: string
-              p_session_id: string
-              p_staging_location_id?: string
-              p_uom?: string
-            }
-            Returns: Json
-          }
+      wms_capture_receiving_line: {
+        Args: {
+          p_client_scan_id?: string
+          p_damaged_qty?: number
+          p_device_id?: string
+          p_expected_qty?: number
+          p_expiry_date?: string
+          p_lot_number?: string
+          p_lpn_id?: string
+          p_notes?: string
+          p_product_id: string
+          p_qc_hold?: boolean
+          p_received_qty: number
+          p_serial_number?: string
+          p_session_id: string
+          p_staging_location_id?: string
+          p_uom?: string
+        }
+        Returns: Json
+      }
       wms_claim_next_task: {
         Args: {
           _lease_seconds?: number
