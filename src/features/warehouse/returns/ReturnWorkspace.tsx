@@ -9,13 +9,10 @@
  */
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/design-system";
-import { Check, FileText, PackageCheck, Play, Receipt, Truck, XCircle } from "lucide-react";
+import { Check, FileText, PackageCheck, Play, Receipt, Truck, X, XCircle } from "lucide-react";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
