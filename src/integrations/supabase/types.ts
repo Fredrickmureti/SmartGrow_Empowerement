@@ -86654,6 +86654,24 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_location_identity: {
+        Args: { p_business_id: string; p_code: string; p_warehouse_id?: string }
+        Returns: {
+          barcode: string
+          code: string
+          is_active: boolean
+          is_putaway_target: boolean
+          location_id: string
+          location_type: string
+          match_count: number
+          name: string
+          parent_location_id: string
+          path: string
+          structure_level: string
+          usage: string
+          warehouse_id: string
+        }[]
+      }
       resolve_my_employee: {
         Args: never
         Returns: {
@@ -88620,6 +88638,42 @@ export type Database = {
         }
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
+      wms_generate_locations: {
+        Args: {
+          p_barcode_auto?: boolean
+          p_capacity?: number
+          p_code_prefix?: string
+          p_dry_run?: boolean
+          p_levels: Json
+          p_parent_id: string
+          p_separator?: string
+          p_serpentine?: boolean
+          p_warehouse_id: string
+        }
+        Returns: {
+          code: string
+          created: boolean
+          level: string
+        }[]
+      }
+      wms_location_overview: {
+        Args: { p_warehouse_id: string }
+        Returns: {
+          capacity_units: number
+          count_tasks: number
+          direct_on_hand: number
+          last_movement_at: string
+          location_id: string
+          lot_count: number
+          occupancy_pct: number
+          on_hand_units: number
+          open_tasks: number
+          pick_tasks: number
+          putaway_tasks: number
+          reserved_units: number
+          sku_count: number
+        }[]
+      }
       wms_manifest_short_cartons: {
         Args: { p_manifest_id: string }
         Returns: string[]
