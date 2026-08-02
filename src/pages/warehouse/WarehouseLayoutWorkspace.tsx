@@ -14,7 +14,7 @@
  * Replaces the legacy CRUD tree (ADR 0079 Phase 0). See ADR 0104.
  */
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from "lucide-react";
 
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
@@ -37,8 +37,8 @@ import { useResolveLocationIdentity } from "@/features/warehouse/locations/useRe
 import { LocationStructureTree } from "@/features/warehouse/locations/LocationStructureTree";
 import { LocationMap } from "@/features/warehouse/locations/LocationMap";
 import { LocationInspector } from "@/features/warehouse/locations/LocationInspector";
-import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBuilderDialog";
 import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
+
 
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
 import { LabelVerifyDialog } from "@/features/warehouse/locations/LabelVerifyDialog";
@@ -51,9 +51,20 @@ import { useLocationMutations } from "@/features/warehouse/locations/useLocation
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
+/** Deep-link into the full-page structure builder (no modal, no lost work). */
+function buildHref(warehouseId: string | null, parentId: string | null) {
+  const q = new URLSearchParams();
+  if (warehouseId) q.set("warehouse", warehouseId);
+  if (parentId) q.set("parent", parentId);
+  const s = q.toString();
+  return `/warehouse-app/layout/design${s ? `?${s}` : ""}`;
+}
+
 export default function WarehouseLayoutWorkspace() {
+  const navigate = useNavigate();
   const { warehouses, isLoading: whLoading } = useWarehouses();
   const { currentBranch } = useBranches();
+
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
   const activeWarehouseId = warehouseId ?? warehouses[0]?.id ?? null;
 
@@ -64,8 +75,6 @@ export default function WarehouseLayoutWorkspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [builderParent, setBuilderParent] = useState<LocationNode | null>(null);
-  const [builderOpen, setBuilderOpen] = useState(false);
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
   const [moveTarget, setMoveTarget] = useState<LocationNode | null>(null);
   const [tableFilter, setTableFilter] = useState<TableFilter>("bins");
@@ -214,21 +223,19 @@ export default function WarehouseLayoutWorkspace() {
               <ScanLine className="mr-2 h-4 w-4" /> Verify labels
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/warehouse-app/layout/design">
+              <Link to={buildHref(activeWarehouseId, null)}>
                 <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
               </Link>
             </Button>
 
 
-            <Button
-              onClick={() => {
-                setBuilderParent(selected);
-                setBuilderOpen(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {selected ? `Build inside ${selected.code}` : "Build structure"}
+            <Button asChild>
+              <Link to={buildHref(activeWarehouseId, selected?.id ?? null)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {selected ? `Build inside ${selected.code}` : "Build structure"}
+              </Link>
             </Button>
+
           </div>
         }
       />
@@ -375,22 +382,16 @@ export default function WarehouseLayoutWorkspace() {
               node={selected}
               warehouseId={activeWarehouseId}
               onPrintLabel={setLabelTargets}
-              onAddInside={(parent) => {
-                setBuilderParent(parent);
-                setBuilderOpen(true);
-              }}
+              onAddInside={(parent) =>
+                navigate(buildHref(activeWarehouseId, parent?.id ?? null))
+              }
               onMove={(n) => setMoveTarget(n)}
             />
           </Card>
         </div>
       </PageBody>
 
-      <LocationBuilderDialog
-        open={builderOpen}
-        onOpenChange={setBuilderOpen}
-        warehouseId={activeWarehouseId}
-        parent={builderParent}
-      />
+
       <MoveLocationDialog
         open={!!moveTarget}
         onOpenChange={(v) => !v && setMoveTarget(null)}
