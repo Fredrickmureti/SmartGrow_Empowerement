@@ -39,3 +39,23 @@ Rewrite `.lovable/plan.md` to the state above so the next engineer inherits accu
 - No new tables. Changes are: two receiving RPC revisions (unit validation, quarantine movement, discrepancy backfill), one shared unit-conversion helper, capture-panel wiring on two surfaces, and guard tests.
 - Domain boundaries unchanged: Inventory owns quantity/valuation, Warehouse owns execution and posts by delegation while emitting `warehouse.receiving.*` events.
 - Verification after each phase: `tsgo --noEmit` plus `architecture.receiving-line-grain`, `wms-phase2`, `wms-phase4-ux`, `grn-convergence`, `label-coverage`.
+
+## Receiving audit — Phases 8, 11–13 (2026-08-02)
+
+- **Phase 8 (guards, closed):** `src/__tests__/architecture.receiving-line-grain.test.ts`
+  now also pins (a) no receiving surface writes `wms_receiving_lines`
+  directly, (b) desktop + mobile capture route typed quantities through the
+  shared `receivingUnits` conversion seam and never send a raw `Number(qty)`.
+- **Phase 11 (packaging-aware capture):** new
+  `src/features/warehouse/receiving/receivingUnits.ts` converts operator
+  units (case/box) to base units. Unit selector added to the desktop
+  `CaptureRow` and the mobile capture loop; `wms_capture_receiving_line` now
+  rejects a `p_uom` naming a packaging level with a multiplier > 1, so an
+  unconverted case count can no longer be booked as loose pieces.
+- **Phase 12 (quarantine visibility):** `wms_post_receiving_session` books the
+  FULL captured quantity onto the receipt and then emits `quarantine_hold`
+  transfer movements (staging → quarantine bin) for held/damaged units.
+  Quarantined stock is now on the ledger but not available.
+- **Phase 13 (discrepancy retirement):** `goods_receipt_discrepancies` dropped
+  (0 rows; superseded by `wms_exceptions` raised by
+  `wms_flag_receiving_variances`) and stripped from `reset_module__inventory`.
