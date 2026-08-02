@@ -16,7 +16,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveLpn } from "@/features/warehouse/receiving/useReceivingLpn";
+import { useActiveLpn, tryResolvePlateScan } from "@/features/warehouse/receiving/useReceivingLpn";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,6 +312,12 @@ export function MobileReceiveSession() {
           label="Scan item"
           intent="receiving.item"
           businessId={currentBusiness?.id}
+          interceptScan={async (code) => {
+            const plate = await tryResolvePlateScan(currentBusiness?.id, code);
+            if (!plate) return false;
+            await applyLpn(plate.code);
+            return true;
+          }}
           onResolved={onResolved}
         />
 
