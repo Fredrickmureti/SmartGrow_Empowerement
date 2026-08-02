@@ -15,7 +15,7 @@
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler } from "lucide-react";
+import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from "lucide-react";
 
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -405,6 +405,14 @@ export default function WarehouseLayoutWorkspace() {
         locations={labelTargets ?? []}
         warehouseId={activeWarehouseId}
         branchId={currentBranch?.id ?? null}
+      />
+
+      <LabelVerifyDialog
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        warehouseId={activeWarehouseId}
+        expected={ordered.filter((n) => n.structure_level === "bin")}
+        onReprint={setLabelTargets}
       />
     </>
   );
