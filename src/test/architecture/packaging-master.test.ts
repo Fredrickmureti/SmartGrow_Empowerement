@@ -293,5 +293,57 @@ describe("ADR 0105 — Packaging Master server-owned writes", () => {
     }
     expect(offenders).toEqual([]);
   });
-});
 
+  // ------------------------------------------------------------- Phase 6.1
+  // The consume/suggest routines are server-internal. Client roles must not
+  // hold EXECUTE on them, and the legacy carton table is read-only.
+  it("keeps wms_packaging_consume and suggest_carton off the client", () => {
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM PUBLIC/i);
+    expect(sql).toMatch(
+      /REVOKE[^;]*ON FUNCTION public\.wms_packaging_consume\([^)]*\) FROM[^;]*authenticated/i,
+    );
+    expect(sql).toMatch(
+      /REVOKE[^;]*ON FUNCTION public\.suggest_carton\([^)]*\) FROM[^;]*authenticated/i,
+    );
+  });
+
+  // --------------------------------------------------------------- Phase 7
+  // The packaging catalogue is the only master-data surface, it writes only
+  // through the RPC seam, and the legacy carton page is gone.
+  it("retires the legacy carton catalogue page", () => {
+    expect(fs.existsSync(path.resolve(SRC_DIR, "pages/warehouse/CartonTypes.tsx"))).toBe(false);
+    const routes = fs.readFileSync(path.resolve(SRC_DIR, "apps/warehouse/routes.tsx"), "utf8");
+    expect(routes).toMatch(/path="packaging"/);
+    expect(routes).toMatch(/path="cartons" element=\{<Navigate/);
+  });
+
+  it("routes every catalogue write through the sanctioned RPCs", () => {
+    const seam = fs.readFileSync(
+      path.resolve(SRC_DIR, "features/warehouse/packaging/packagingMaster.ts"),
+      "utf8",
+    );
+    for (const fn of [
+      "wms_packaging_upsert",
+      "wms_packaging_set_lifecycle",
+      "wms_packaging_archive",
+      "wms_packaging_set_carrier_rule",
+      "wms_packaging_set_availability",
+    ]) {
+      expect(seam, `${fn} must be called from the packaging master seam`).toContain(fn);
+    }
+    // optimistic concurrency is carried, not dropped
+    expect(seam).toMatch(/p_row_version/);
+    expect(seam).toMatch(/WMS_PKG_STALE/);
+  });
+
+  it("ships the packaging master workspace", () => {
+    const ws = path.resolve(
+      SRC_DIR,
+      "features/warehouse/packaging/workspace/PackagingMasterWorkspace.tsx",
+    );
+    expect(fs.existsSync(ws)).toBe(true);
+    const src = fs.readFileSync(ws, "utf8");
+    expect(src).toMatch(/@tanstack\/react-table/);
+    expect(src).not.toMatch(/wms_carton_types/);
+  });
+});

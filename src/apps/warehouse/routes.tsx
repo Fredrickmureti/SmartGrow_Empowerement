@@ -48,7 +48,7 @@ const YardBoard = lazy(() => import("@/pages/warehouse/YardBoard"));
 const LabourBoard = lazy(() => import("@/pages/warehouse/LabourBoard"));
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
-const CartonTypes = lazy(() => import("@/pages/warehouse/CartonTypes"));
+const PackagingCatalogue = lazy(() => import("@/pages/warehouse/PackagingCatalogue"));
 const ExceptionsInbox = lazy(() => import("@/pages/warehouse/ExceptionsInbox"));
 const ReceivingSessions = lazy(() => import("@/pages/warehouse/ReceivingSessions"));
 const ReturnOrders = lazy(() => import("@/pages/warehouse/ReturnOrders"));
@@ -270,7 +270,9 @@ export function WarehouseApp() {
         <Route path="labour" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Labour"><LabourBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="crossdock" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Cross-dock"><CrossdockBoard /></LazyRoute></SubscriptionProtectedRoute>} />
-        <Route path="cartons" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Carton catalogue"><CartonTypes /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="packaging" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging catalogue"><PackagingCatalogue /></LazyRoute></SubscriptionProtectedRoute>} />
+        {/* Legacy carton catalogue — superseded by the Packaging Master (ADR 0105). */}
+        <Route path="cartons" element={<Navigate to="../packaging" replace />} />
         <Route path="exceptions" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Exceptions Inbox"><ExceptionsInbox /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="receiving" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Receiving Sessions"><ReceivingSessions /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="returns" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Return Orders"><ReturnOrders /></LazyRoute></SubscriptionProtectedRoute>} />
