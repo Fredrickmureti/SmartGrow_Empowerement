@@ -66610,6 +66610,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          packaging_type_id: string | null
           row_version: number
           sales_order_id: string
           sealed_at: string | null
@@ -66633,6 +66634,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id: string
+          packaging_type_id?: string | null
           row_version?: number
           sales_order_id: string
           sealed_at?: string | null
@@ -66656,6 +66658,7 @@ export type Database = {
           opened_at?: string
           opened_by?: string | null
           organization_id?: string
+          packaging_type_id?: string | null
           row_version?: number
           sales_order_id?: string
           sealed_at?: string | null
@@ -66683,6 +66686,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_pack_cartons_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_pack_cartons_shipment_lpn_id_fkey"
             columns: ["shipment_lpn_id"]
             isOneToOne: false
@@ -66704,6 +66714,289 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wms_packaging_availability: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          is_stocked: boolean
+          last_counted_at: string | null
+          packaging_type_id: string
+          qty_on_hand: number
+          reorder_point: number
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          is_stocked?: boolean
+          last_counted_at?: string | null
+          packaging_type_id: string
+          qty_on_hand?: number
+          reorder_point?: number
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          is_stocked?: boolean
+          last_counted_at?: string | null
+          packaging_type_id?: string
+          qty_on_hand?: number
+          reorder_point?: number
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_packaging_availability_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_packaging_carriers: {
+        Row: {
+          business_id: string
+          carrier_id: string
+          created_at: string
+          dim_weight_divisor: number | null
+          id: string
+          is_allowed: boolean
+          is_oversize: boolean
+          notes: string | null
+          packaging_type_id: string
+          service_code: string | null
+          surcharge_amount: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          carrier_id: string
+          created_at?: string
+          dim_weight_divisor?: number | null
+          id?: string
+          is_allowed?: boolean
+          is_oversize?: boolean
+          notes?: string | null
+          packaging_type_id: string
+          service_code?: string | null
+          surcharge_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          carrier_id?: string
+          created_at?: string
+          dim_weight_divisor?: number | null
+          id?: string
+          is_allowed?: boolean
+          is_oversize?: boolean
+          notes?: string | null
+          packaging_type_id?: string
+          service_code?: string | null
+          surcharge_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_packaging_carriers_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_packaging_carriers_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_packaging_events: {
+        Row: {
+          actor_id: string | null
+          business_id: string
+          created_at: string
+          event_type: string
+          from_status:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          id: string
+          packaging_type_id: string
+          payload: Json
+          qty_delta: number | null
+          reason: string | null
+          to_status:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          business_id: string
+          created_at?: string
+          event_type: string
+          from_status?:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          id?: string
+          packaging_type_id: string
+          payload?: Json
+          qty_delta?: number | null
+          reason?: string | null
+          to_status?:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          business_id?: string
+          created_at?: string
+          event_type?: string
+          from_status?:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          id?: string
+          packaging_type_id?: string
+          payload?: Json
+          qty_delta?: number | null
+          reason?: string | null
+          to_status?:
+            | Database["public"]["Enums"]["wms_packaging_lifecycle"]
+            | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_packaging_events_packaging_type_id_fkey"
+            columns: ["packaging_type_id"]
+            isOneToOne: false
+            referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_packaging_types: {
+        Row: {
+          business_id: string
+          code: string
+          cost: number
+          created_at: string
+          created_by: string | null
+          dim_weight_divisor: number | null
+          hazmat_class: string | null
+          id: string
+          inner_height_cm: number
+          inner_length_cm: number
+          inner_width_cm: number
+          is_returnable: boolean
+          is_stackable: boolean
+          layers_per_unit: number | null
+          lifecycle_status: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          material: string | null
+          max_volume_fill_pct: number
+          max_weight_kg: number
+          name: string
+          nest_ratio: number | null
+          notes: string | null
+          organization_id: string | null
+          outer_height_cm: number | null
+          outer_length_cm: number | null
+          outer_width_cm: number | null
+          packaging_class: Database["public"]["Enums"]["wms_packaging_class"]
+          row_version: number
+          tare_weight_kg: number
+          temp_max_c: number | null
+          temp_min_c: number | null
+          un_rating: string | null
+          units_per_layer: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_id: string
+          code: string
+          cost?: number
+          created_at?: string
+          created_by?: string | null
+          dim_weight_divisor?: number | null
+          hazmat_class?: string | null
+          id?: string
+          inner_height_cm: number
+          inner_length_cm: number
+          inner_width_cm: number
+          is_returnable?: boolean
+          is_stackable?: boolean
+          layers_per_unit?: number | null
+          lifecycle_status?: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          material?: string | null
+          max_volume_fill_pct?: number
+          max_weight_kg?: number
+          name: string
+          nest_ratio?: number | null
+          notes?: string | null
+          organization_id?: string | null
+          outer_height_cm?: number | null
+          outer_length_cm?: number | null
+          outer_width_cm?: number | null
+          packaging_class?: Database["public"]["Enums"]["wms_packaging_class"]
+          row_version?: number
+          tare_weight_kg?: number
+          temp_max_c?: number | null
+          temp_min_c?: number | null
+          un_rating?: string | null
+          units_per_layer?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          cost?: number
+          created_at?: string
+          created_by?: string | null
+          dim_weight_divisor?: number | null
+          hazmat_class?: string | null
+          id?: string
+          inner_height_cm?: number
+          inner_length_cm?: number
+          inner_width_cm?: number
+          is_returnable?: boolean
+          is_stackable?: boolean
+          layers_per_unit?: number | null
+          lifecycle_status?: Database["public"]["Enums"]["wms_packaging_lifecycle"]
+          material?: string | null
+          max_volume_fill_pct?: number
+          max_weight_kg?: number
+          name?: string
+          nest_ratio?: number | null
+          notes?: string | null
+          organization_id?: string | null
+          outer_height_cm?: number | null
+          outer_length_cm?: number | null
+          outer_width_cm?: number | null
+          packaging_class?: Database["public"]["Enums"]["wms_packaging_class"]
+          row_version?: number
+          tare_weight_kg?: number
+          temp_max_c?: number | null
+          temp_min_c?: number | null
+          un_rating?: string | null
+          units_per_layer?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       wms_pick_wave_lines: {
         Row: {
@@ -77398,6 +77691,7 @@ export type Database = {
           opened_at: string
           opened_by: string | null
           organization_id: string
+          packaging_type_id: string | null
           row_version: number
           sales_order_id: string
           sealed_at: string | null
@@ -90226,6 +90520,17 @@ export type Database = {
         | "dispatched"
         | "cancelled"
       wms_pack_state: "open" | "sealed" | "labeled" | "staged" | "voided"
+      wms_packaging_class:
+        | "carton"
+        | "envelope"
+        | "tube"
+        | "crate"
+        | "pallet"
+        | "tote"
+        | "insulated"
+        | "drum"
+        | "bag"
+      wms_packaging_lifecycle: "draft" | "active" | "restricted" | "retired"
       wms_qc_state:
         | "pending"
         | "in_progress"
@@ -91158,6 +91463,18 @@ export const Constants = {
         "cancelled",
       ],
       wms_pack_state: ["open", "sealed", "labeled", "staged", "voided"],
+      wms_packaging_class: [
+        "carton",
+        "envelope",
+        "tube",
+        "crate",
+        "pallet",
+        "tote",
+        "insulated",
+        "drum",
+        "bag",
+      ],
+      wms_packaging_lifecycle: ["draft", "active", "restricted", "retired"],
       wms_qc_state: [
         "pending",
         "in_progress",
