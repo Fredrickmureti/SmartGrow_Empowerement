@@ -39,29 +39,21 @@ describe("wms phase 12 architecture", () => {
     expect(offenders, `wms_crossdock_opportunities is RPC-only:\n${offenders.join("\n")}`).toEqual([]);
   });
 
-  // ADR 0105 Phase 7 — the legacy carton catalogue page is gone. NOTHING in
-  // the client may write `wms_carton_types`; the packaging master owns it.
-  it("wms_carton_types has no client writers at all", () => {
-    const write = /from\(\s*["']wms_carton_types["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
+  // ADR 0105 Phase 8 — the legacy carton catalogue is decommissioned. The
+  // table, its cartonizer pair and the shadow column no longer exist, so
+  // nothing in the client may name them. `packaging-master.test.ts` owns the
+  // engine wiring guard for BOTH pack stations.
+  it("no legacy carton catalogue identifier survives in client code", () => {
+    const legacy = /wms_carton_types|carton_type_id|["']suggest_carton["']|["']assign_carton_to_pack["']/;
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(f, "utf8");
-      if (write.test(src)) offenders.push(path.relative(SRC, f));
+      if (legacy.test(src)) offenders.push(path.relative(SRC, f));
     }
-    expect(offenders).toEqual([]);
-  });
-
-  it("no client writes to wms_pack_cartons.carton_type_id (assign_carton_to_pack RPC only)", () => {
-    const banned = /carton_type_id\s*:/;
-    const packWrite = /from\(\s*["']wms_pack_cartons["']\s*\)\s*\.(insert|update|upsert)\s*\(/;
-    const offenders: string[] = [];
-    for (const f of files) {
-      const src = readFileSync(f, "utf8");
-      if (packWrite.test(src) && banned.test(src)) {
-        offenders.push(path.relative(SRC, f));
-      }
-    }
-    expect(offenders, `Use assign_carton_to_pack RPC instead:\n${offenders.join("\n")}`).toEqual([]);
+    expect(
+      offenders,
+      `Legacy carton catalogue is dropped (ADR 0105 Phase 8):\n${offenders.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("CrossdockBoard calls the required RPCs", () => {
@@ -71,14 +63,6 @@ describe("wms phase 12 architecture", () => {
     expect(src).toMatch(/from\(\s*["']wms_crossdock_opportunities["']/);
   });
 
-  // Superseded by ADR 0105 (Packaging Master). The legacy volume-only
-  // `suggest_carton` / `assign_carton_to_pack` pair is no longer the pack path;
-  // `packaging-master.test.ts` owns the engine wiring guard for BOTH stations.
-  it("PackStation no longer uses the legacy carton cartonizer", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/PackStation.tsx"), "utf8");
-    expect(src).not.toMatch(/["']suggest_carton["']/);
-    expect(src).not.toMatch(/["']assign_carton_to_pack["']/);
-  });
 
 
   it("route and nav wire /crossdock and the packaging catalogue", () => {
