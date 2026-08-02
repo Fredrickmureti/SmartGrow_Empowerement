@@ -37,14 +37,13 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
 import { LpnLifecycleRail } from "@/features/warehouse/lpn/LpnLifecycleRail";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import {
   useLpn, useLpnContents, useLpnChildren, useLpnEvents, useLpnAction,
-  resolveLpnByCode,
+  resolveLpnByCode, useBinLooseStock,
 } from "@/features/warehouse/lpn/useLpnOps";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
@@ -75,6 +74,8 @@ export default function LicensePlateView() {
   const { data: children } = useLpnChildren(id);
   const { data: events } = useLpnEvents(id);
   const action = useLpnAction(id);
+  // Load can only draw from unassigned stock in the plate's own bin.
+  const { data: binStock } = useBinLooseStock(lpn?.current_location_id);
 
   const { data: locations } = useQuery({
     queryKey: ["wms-lpn-loc-options", lpn?.warehouse_id],
@@ -86,22 +87,6 @@ export default function LicensePlateView() {
         .eq("warehouse_id", lpn!.warehouse_id)
         .eq("is_active", true)
         .order("code");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: products } = useQuery({
-    queryKey: ["wms-lpn-products", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, name, sku")
-        .eq("business_id", currentBusiness!.id)
-        .eq("is_active", true)
-        .order("name")
-        .limit(2000);
       if (error) throw error;
       return data ?? [];
     },
@@ -175,6 +160,17 @@ export default function LicensePlateView() {
   const locked = lpn.status === "shipped" || lpn.status === "voided"
     || lpn.status === "retired" || lpn.status === "consumed";
   const sealed = !!lpn.sealed_at;
+  // A plate with no bin has no source of stock: `wms_lpn_load` rejects it.
+  const unlocated = !lpn.current_location_id;
+  // Lines the current dialog may act on: loose bin stock to load, plate
+  // contents to unload. Both carry the quantity ceiling the RPC enforces.
+  const sourceLines = (dialog === "unload" ? contents : binStock) ?? [];
+  const lineKey = (r: { product_id: string; lot_number?: string | null }) =>
+    `${r.product_id}|${r.lot_number ?? ""}`;
+  const selected = sourceLines.find((r) => lineKey(r) === line.productId);
+  const available = selected
+    ? Number(selected.quantity || 0) - Number(selected.reserved_quantity || 0)
+    : 0;
 
   return (
     <>
@@ -205,10 +201,19 @@ export default function LicensePlateView() {
             <Button onClick={() => setDialog("move")} disabled={locked}>
               <MoveRight className="mr-2 h-4 w-4" /> Move
             </Button>
-            <Button variant="outline" onClick={() => setDialog("load")} disabled={locked || sealed}>
+            <Button
+              variant="outline"
+              onClick={() => setDialog("load")}
+              disabled={locked || sealed || unlocated}
+              title={unlocated ? "Move the plate into a bin before loading stock" : undefined}
+            >
               <Download className="mr-2 h-4 w-4" /> Load
             </Button>
-            <Button variant="outline" onClick={() => setDialog("unload")} disabled={locked || sealed}>
+            <Button
+              variant="outline"
+              onClick={() => setDialog("unload")}
+              disabled={locked || sealed || unlocated || !contents?.length}
+            >
               <Upload className="mr-2 h-4 w-4" /> Unload
             </Button>
             <Button variant="outline" onClick={() => setDialog("split")} disabled={locked || sealed}>
@@ -247,8 +252,18 @@ export default function LicensePlateView() {
                 <EmptyState
                   icon={PackageOpen}
                   title="Empty plate"
-                  description="Load stock from a bin to start building this handling unit."
-                  action={<Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>}
+                  description={
+                    unlocated
+                      ? "This plate is not in a bin yet. Move it to a bin, then load stock from that bin."
+                      : "Load stock from this plate's bin to start building the handling unit."
+                  }
+                  action={
+                    unlocated ? (
+                      <Button onClick={() => setDialog("move")} disabled={locked}>Move to a bin</Button>
+                    ) : (
+                      <Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>
+                    )
+                  }
                 />
               ) : (
                 <Table>
@@ -399,37 +414,76 @@ export default function LicensePlateView() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Product</Label>
-              <ProductCombobox
-                products={(products ?? []) as { id: string; name: string; sku?: string | null }[]}
+              <Label>
+                {dialog === "load"
+                  ? `Available in ${lpn.location_code ?? "this bin"}`
+                  : "On this plate"}
+              </Label>
+              <Select
                 value={line.productId}
-                onChange={(pid) => setLine((l) => ({ ...l, productId: pid }))}
-              />
+                onValueChange={(v) => {
+                  const row = sourceLines.find((r) => lineKey(r) === v);
+                  setLine((l) => ({
+                    ...l,
+                    productId: v,
+                    lot: row?.lot_number ?? "",
+                    quantity: l.quantity || "1",
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      sourceLines.length
+                        ? "Pick a stock line"
+                        : dialog === "load"
+                          ? "No unassigned stock in this bin"
+                          : "This plate is empty"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {sourceLines.map((r) => (
+                    <SelectItem key={lineKey(r)} value={lineKey(r)}>
+                      {r.products?.name ?? "Product"}
+                      {r.lot_number ? ` · lot ${r.lot_number}` : ""} ·{" "}
+                      {Number(r.quantity || 0) - Number(r.reserved_quantity || 0)} available
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {dialog === "load" && !sourceLines.length && (
+                <p className="text-xs text-muted-foreground">
+                  A plate can only pick up stock that is already loose in its own bin
+                  ({lpn.location_path ?? lpn.location_code ?? "unlocated"}). Put stock away
+                  into that bin first.
+                </p>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Quantity</Label>
-                <Input
-                  type="number" min="0" step="any"
-                  value={line.quantity}
-                  onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Lot (optional)</Label>
-                <Input value={line.lot} onChange={(e) => setLine((l) => ({ ...l, lot: e.target.value }))} />
-              </div>
+            <div className="space-y-2">
+              <Label>Quantity</Label>
+              <Input
+                type="number" min="0" max={available || undefined} step="any"
+                value={line.quantity}
+                onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
+              />
+              {!!selected && (
+                <p className="text-xs text-muted-foreground">Max {available}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
             <Button
-              disabled={!line.productId || Number(line.quantity) <= 0 || action.isPending}
+              disabled={
+                !selected || Number(line.quantity) <= 0
+                || Number(line.quantity) > available || action.isPending
+              }
               onClick={() =>
-                action.run(
+                selected && action.run(
                   dialog === "load"
-                    ? { kind: "load", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null }
-                    : { kind: "unload", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null },
+                    ? { kind: "load", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null }
+                    : { kind: "unload", productId: selected.product_id, quantity: Number(line.quantity), lotNumber: selected.lot_number || null },
                   { onSuccess: () => { setDialog(null); setLine({ productId: "", quantity: "1", lot: "", serial: "" }); } },
                 )
               }
