@@ -41,6 +41,13 @@ import { LocationBuilderDialog } from "@/features/warehouse/locations/LocationBu
 import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
 
 import { BinLabelDialog } from "@/features/warehouse/locations/BinLabelDialog";
+import { LabelVerifyDialog } from "@/features/warehouse/locations/LabelVerifyDialog";
+import {
+  LocationTable,
+  matchesTableFilter,
+  type TableFilter,
+} from "@/features/warehouse/locations/LocationTable";
+import { useLocationMutations } from "@/features/warehouse/locations/useLocationMutations";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 
