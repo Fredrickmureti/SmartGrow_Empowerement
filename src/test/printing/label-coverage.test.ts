@@ -19,7 +19,7 @@ const CALLERS: { path: string; template: string; workflow: string }[] = [
   { path: "pages/Products.tsx", template: "shelf_label", workflow: "shelf_edge" },
   { path: "pages/inventory/LotDetail.tsx", template: "lot_label", workflow: "product_tag" },
   { path: "pages/warehouse/PutawayQueue.tsx", template: "bin_label", workflow: "receiving" },
-  { path: "pages/warehouse-mobile/MobileReceive.tsx", template: "receiving_label", workflow: "receiving" },
+  { path: "pages/warehouse-mobile/MobileReceive.tsx", template: "wms.label.putaway", workflow: "receiving" },
   { path: "pages/warehouse/PackStation.tsx", template: "pallet_label", workflow: "receiving" },
   { path: "pages/warehouse/PackStation.tsx", template: "shipping_label", workflow: "shipping" },
   // POS callers (Phase 17 · step 15).

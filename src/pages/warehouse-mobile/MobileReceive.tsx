@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
+import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 
 interface Receipt {
   id: string;
