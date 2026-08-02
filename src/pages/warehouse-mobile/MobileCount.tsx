@@ -135,6 +135,13 @@ export default function MobileCount() {
             autoFocus
             value={binScan}
             onChange={(e) => setBinScan(e.target.value)}
+            onBlur={(e) => void resolveBin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void resolveBin(binScan);
+              }
+            }}
             className="h-12 text-lg font-mono"
           />
         </div>
