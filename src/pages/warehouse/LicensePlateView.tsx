@@ -1,56 +1,79 @@
 /**
- * LicensePlateView — LPN detail with move / seal / retire actions.
- * Move goes through the `move_lpn` RPC so the outbox event is guaranteed
- * atomically with the location update.
+ * License Plate cockpit — one handling unit, everything an operator can
+ * do with it (ADR 0079).
+ *
+ * Contents come from `stock_quants.lpn_id` (plates are inventory-bearing),
+ * and every action is an atomic RPC: move relocates the stock with the
+ * plate, load/unload transfers between bin and plate, split/merge/nest
+ * restructure handling units. The event ledger below is the plate's own
+ * `wms_lpn_events` audit trail.
  */
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  PageHeader,
-  PageBody,
-  Section,
-  LoadingState,
-  EmptyState,
-  StatusBadge,
+  PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { PackageOpen, ArrowLeft, MoveRight, Lock, Archive, Printer } from "lucide-react";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import {
+  PackageOpen, ArrowLeft, MoveRight, Lock, Archive, Printer,
+  Download, Upload, Split, Link2, Unlink, ScanLine,
+} from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
+import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import {
+  useLpn, useLpnContents, useLpnChildren, useLpnEvents, useLpnAction,
+  resolveLpnByCode,
+} from "@/features/warehouse/lpn/useLpnOps";
 
-type LpnStatus = "open" | "sealed" | "shipped" | "retired";
+const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
+  open: "info", sealed: "warning", shipped: "success",
+  retired: "neutral", voided: "danger", consumed: "neutral",
+};
+
+function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LicensePlateView() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
-  const qc = useQueryClient();
   const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
 
-  const { data: lpn, isLoading } = useQuery({
-    queryKey: ["wms-lpn", id],
-    enabled: !!id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_license_plates")
-        .select("*, stock_locations:current_location_id(code, name), parent:parent_lpn_id(code)")
-        .eq("id", id!)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-  });
+  const { data: lpn, isLoading } = useLpn(id);
+  const { data: contents } = useLpnContents(id);
+  const { data: children } = useLpnChildren(id);
+  const { data: events } = useLpnEvents(id);
+  const action = useLpnAction(id);
 
   const { data: locations } = useQuery({
     queryKey: ["wms-lpn-loc-options", lpn?.warehouse_id],
@@ -58,8 +81,8 @@ export default function LicensePlateView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stock_locations")
-        .select("id, code, name, structure_level, is_default")
-        .eq("warehouse_id", lpn!.warehouse_id!)
+        .select("id, code, name")
+        .eq("warehouse_id", lpn!.warehouse_id)
         .eq("is_active", true)
         .order("code");
       if (error) throw error;
@@ -67,93 +90,71 @@ export default function LicensePlateView() {
     },
   });
 
-  const { data: contents } = useQuery({
-    queryKey: ["wms-lpn-contents", id],
-    enabled: !!id,
+  const { data: products } = useQuery({
+    queryKey: ["wms-lpn-products", currentBusiness?.id],
+    enabled: !!currentBusiness?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("stock_quants")
-        .select("id, product_id, quantity, reserved_quantity, lot_number, products:product_id(name, sku)")
-        .eq("package_id", id!)
-        .limit(500);
+        .from("products")
+        .select("id, name, sku")
+        .eq("business_id", currentBusiness!.id)
+        .eq("is_active", true)
+        .order("name")
+        .limit(2000);
       if (error) throw error;
       return data ?? [];
     },
   });
 
-  // Putaway suggestions surfaced for whichever task references this plate
-  // (usually the freshly staged receiving task). Keeps operators from
-  // guessing which bin the WMS ranked #1.
-  const { data: suggestions } = useQuery({
-    queryKey: ["wms-lpn-suggestions", id],
-    enabled: !!id,
-    queryFn: async () => {
-      const { data: tasks, error: tErr } = await supabase
-        .from("wms_tasks")
-        .select("id, task_type, state")
-        .eq("lpn_id", id!)
-        .eq("task_type", "putaway")
-        .in("state", ["pending", "assigned", "in_progress"])
-        .limit(5);
-      if (tErr) throw tErr;
-      const taskIds = (tasks ?? []).map((t) => t.id);
-      if (!taskIds.length) return [];
-      const { data, error } = await supabase
-        .from("wms_putaway_suggestions")
-        .select("id, task_id, rank, reason, chosen, location:location_id(code, name)")
-        .in("task_id", taskIds)
-        .order("rank");
-      if (error) throw error;
-      return data ?? [];
+  const [dialog, setDialog] = useState<null | "move" | "load" | "unload" | "split" | "nest">(null);
+  const [moveDest, setMoveDest] = useState("");
+  const [moveNote, setMoveNote] = useState("");
+  const [line, setLine] = useState({ productId: "", quantity: "1", lot: "", serial: "" });
+  const [splitLines, setSplitLines] = useState<Record<string, string>>({});
+  const [parentCode, setParentCode] = useState("");
+
+  // Scanning: a bin scan while the move dialog is open picks the bin; a
+  // plate scan while nesting picks the parent. Otherwise a plate scan
+  // navigates to that plate.
+  useWmsScanIntent({
+    intent: "putaway.bin",
+    priority: 30,
+    enabled: dialog === "move",
+    label: "lpn-move-bin",
+    onScan: (p) => {
+      const bin = (locations ?? []).find(
+        (l) => l.code.toLowerCase() === p.resolveCode.trim().toLowerCase(),
+      );
+      if (!bin) return toast.error(`No bin ${p.resolveCode} in this warehouse`);
+      setMoveDest(bin.id);
+      toast.success(`Destination ${bin.code}`);
     },
   });
 
-  const [moveOpen, setMoveOpen] = useState(false);
-  const [moveDest, setMoveDest] = useState<string>("");
-  const [moveNote, setMoveNote] = useState<string>("");
-
-  const move = useMutation({
-    mutationFn: async () => {
-      if (!id || !moveDest) throw new Error("Choose destination bin");
-      const { error } = await supabase.rpc("move_lpn", {
-        p_lpn_id: id,
-        p_dest_location_id: moveDest,
-        p_note: moveNote || null,
-      });
-      if (error) throw error;
+  useWmsScanIntent({
+    intent: "putaway.lpn",
+    label: "lpn-cockpit",
+    enabled: dialog !== "move",
+    onScan: async (p) => {
+      if (!currentBusiness?.id) return;
+      if (dialog === "nest") {
+        setParentCode(p.resolveCode);
+        return;
+      }
+      const plate = await resolveLpnByCode(currentBusiness.id, p.resolveCode);
+      if (!plate) return toast.error(`No plate ${p.resolveCode}`);
+      if (plate.id !== id) nav(`/warehouse-app/plates/${plate.id}`);
     },
-    onSuccess: () => {
-      toast.success("Plate moved");
-      setMoveOpen(false); setMoveDest(""); setMoveNote("");
-      qc.invalidateQueries({ queryKey: ["wms-lpn", id] });
-      qc.invalidateQueries({ queryKey: ["wms-lpns"] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Move failed"),
   });
 
-  const setStatus = useMutation({
-    mutationFn: async (input: { toState: string; reason?: string }) => {
-      if (!id) throw new Error("No plate");
-      const { error } = await supabase.rpc("wms_transition_lpn" as any, {
-        _lpn_id: id,
-        _to_status: input.toState,
-        _expected_version: (lpn as any)?.row_version ?? 0,
-        _reason: input.reason ?? null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["wms-lpn", id] });
-      qc.invalidateQueries({ queryKey: ["wms-lpns"] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Transition rejected"),
-  });
-
-
-  const currentLoc = useMemo(
-    () => (lpn?.stock_locations ? `${lpn.stock_locations.code} · ${lpn.stock_locations.name}` : "—"),
-    [lpn],
-  );
+  const totals = useMemo(() => {
+    const list = contents ?? [];
+    return {
+      skus: list.length,
+      units: list.reduce((a, c) => a + Number(c.quantity || 0), 0),
+      reserved: list.reduce((a, c) => a + Number(c.reserved_quantity || 0), 0),
+    };
+  }, [contents]);
 
   if (isLoading) return <LoadingState />;
   if (!lpn) {
@@ -161,142 +162,376 @@ export default function LicensePlateView() {
       <EmptyState
         icon={PackageOpen}
         title="License plate not found"
-        description="It may have been deleted or you do not have access."
-        action={<Button onClick={() => nav("/warehouse-app/plates")}>Back to list</Button>}
+        description="It may have been consumed by a merge, or you do not have access."
+        action={<Button onClick={() => nav("/warehouse-app/plates")}>Back to board</Button>}
       />
     );
   }
 
-  const status = lpn.status as LpnStatus;
+  const locked = lpn.status === "shipped" || lpn.status === "voided" || lpn.status === "consumed";
+  const sealed = !!lpn.sealed_at;
+
+  async function printLabel() {
+    if (!currentOrg?.id || !lpn) return toast.error("No active organization");
+    const res = await printWmsLabel({
+      key: WMS_LABEL_KEY.LPN,
+      orgId: currentOrg.id,
+      businessId: currentBusiness?.id ?? null,
+      sourceDocType: "wms_license_plate",
+      sourceDocId: lpn.id,
+      vars: {
+        lpn_code: lpn.code,
+        warehouse_name: lpn.warehouse_name ?? "",
+        current_location: lpn.location_code ?? "Unlocated",
+        created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+      },
+      isReprint: true,
+    });
+    res.success ? toast.success("Label sent to printer") : toast.error(res.error ?? "Print failed");
+  }
 
   return (
     <>
       <PageHeader
-        title={<span className="font-mono">{lpn.code}</span>}
-        description={<span className="capitalize">{lpn.lpn_type} plate</span>}
+        title={
+          <span className="flex items-center gap-3">
+            <span className="font-mono">{lpn.code}</span>
+            <StatusBadge tone={STATUS_TONE[lpn.status] ?? "neutral"}>{lpn.status}</StatusBadge>
+            {sealed && <Badge variant="secondary">sealed</Badge>}
+          </span>
+        }
+        description={
+          <span className="capitalize">
+            {lpn.lpn_type} · {lpn.warehouse_name ?? "—"} ·{" "}
+            {lpn.location_code ? `${lpn.location_code} ${lpn.location_name ?? ""}` : "Unlocated"}
+          </span>
+        }
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" asChild>
-              <Link to="/warehouse-app/plates"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
+              <Link to="/warehouse-app/plates"><ArrowLeft className="mr-2 h-4 w-4" /> Board</Link>
             </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (!currentOrg?.id) {
-                  toast.error("No active organization");
-                  return;
-                }
-                const res = await printWmsLabel({
-                  key: WMS_LABEL_KEY.LPN,
-                  orgId: currentOrg.id,
-                  sourceDocType: "wms_license_plate",
-                  sourceDocId: lpn.id,
-                  vars: {
-                    lpn_code: lpn.code,
-                    warehouse_name: (lpn as { warehouse_name?: string | null }).warehouse_name ?? "",
-                    current_location: currentLoc,
-                    created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
-                  },
-                });
-                if (res.success) toast.success("Label sent to printer");
-                else toast.error(res.error ?? "Print failed");
-              }}
-            >
+            <Button variant="outline" onClick={printLabel}>
               <Printer className="mr-2 h-4 w-4" /> Print label
             </Button>
-            <Button onClick={() => setMoveOpen(true)} disabled={status === "retired" || status === "shipped"}>
+            <Button onClick={() => setDialog("move")} disabled={locked}>
               <MoveRight className="mr-2 h-4 w-4" /> Move
             </Button>
-            {status === "open" && (
-              <Button variant="outline" onClick={() => setStatus.mutate({ toState: "sealed" })}>
+            <Button variant="outline" onClick={() => setDialog("load")} disabled={locked || sealed}>
+              <Download className="mr-2 h-4 w-4" /> Load
+            </Button>
+            <Button variant="outline" onClick={() => setDialog("unload")} disabled={locked || sealed}>
+              <Upload className="mr-2 h-4 w-4" /> Unload
+            </Button>
+            <Button variant="outline" onClick={() => setDialog("split")} disabled={locked || sealed}>
+              <Split className="mr-2 h-4 w-4" /> Split
+            </Button>
+            {lpn.parent_lpn_id ? (
+              <Button variant="outline" onClick={() => action.run({ kind: "unnest" })} disabled={locked}>
+                <Unlink className="mr-2 h-4 w-4" /> Detach
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setDialog("nest")} disabled={locked}>
+                <Link2 className="mr-2 h-4 w-4" /> Nest
+              </Button>
+            )}
+            {lpn.status === "open" && (
+              <Button
+                variant="outline"
+                onClick={() => action.run({ kind: "transition", toStatus: "sealed", expectedVersion: lpn.row_version })}
+              >
                 <Lock className="mr-2 h-4 w-4" /> Seal
               </Button>
             )}
-            {(status as string) !== "retired" && (status as string) !== "voided" && (
-              <Button variant="outline" onClick={() => setStatus.mutate({ toState: "voided", reason: "Manual retire" })}>
+            {!locked && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  action.run({ kind: "transition", toStatus: "voided", expectedVersion: lpn.row_version, reason: "Manual retire" })
+                }
+              >
                 <Archive className="mr-2 h-4 w-4" /> Retire
               </Button>
             )}
-
           </div>
         }
       />
+
       <PageBody>
-        <Section>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Status</CardTitle></CardHeader>
-              <CardContent><StatusBadge tone={status === "sealed" ? "warning" : status === "shipped" ? "success" : status === "retired" ? "neutral" : "info"} >{status}</StatusBadge></CardContent></Card>
-            <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Current location</CardTitle></CardHeader>
-              <CardContent className="text-sm">{currentLoc}</CardContent></Card>
-            <Card><CardHeader className="pb-1"><CardTitle className="text-xs uppercase text-muted-foreground">Parent plate</CardTitle></CardHeader>
-              <CardContent className="text-sm font-mono">{lpn.parent?.code ?? "—"}</CardContent></Card>
-          </div>
-        </Section>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric label="SKUs" value={totals.skus} />
+          <Metric label="Units" value={totals.units} hint={`${totals.reserved} reserved`} />
+          <Metric label="Nested plates" value={Number(lpn.child_count ?? 0)} />
+          <Metric label="Bin" value={lpn.location_code ?? "—"} hint={lpn.location_name ?? "Unlocated"} />
+        </div>
 
-        <Section title="Contents" description="Aggregated from stock quants where package_id references this plate.">
+        <Section title="Contents" description="Stock physically carried by this handling unit.">
           <Card>
             <CardContent className="p-4">
-              {(contents ?? []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No stock currently addressed to this plate.</div>
+              {!contents?.length ? (
+                <EmptyState
+                  icon={PackageOpen}
+                  title="Empty plate"
+                  description="Load stock from a bin to start building this handling unit."
+                  action={<Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>}
+                />
               ) : (
-                <ul className="text-sm divide-y">
-                  {contents!.map((c) => (
-                    <li key={c.id} className="py-2 flex justify-between">
-                      <span>{c.products?.name ?? c.product_id} <span className="text-muted-foreground">{c.products?.sku ?? ""}</span></span>
-                      <span className="font-mono">{Number(c.quantity).toFixed(2)}{c.reserved_quantity ? ` (res ${Number(c.reserved_quantity).toFixed(2)})` : ""}</span>
-                    </li>
-                  ))}
-                </ul>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Lot</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Reserved</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contents.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>{c.products?.name ?? c.product_id}</TableCell>
+                        <TableCell className="font-mono text-sm">{c.products?.sku ?? "—"}</TableCell>
+                        <TableCell className="font-mono text-sm">{c.lot_number ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(c.quantity)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(c.reserved_quantity ?? 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
             </CardContent>
           </Card>
         </Section>
 
-        <Section title="Putaway suggestions" description="Bins the WMS ranks for this plate. #1 is preselected on the task destination.">
+        {!!children?.length && (
+          <Section title="Nested plates" description="Child handling units that travel with this plate.">
+            <Card>
+              <CardContent className="p-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Plate</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">SKUs</TableHead>
+                      <TableHead className="text-right">Units</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {children.map((c) => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <Link to={`/warehouse-app/plates/${c.id}`} className="font-mono hover:underline">
+                            {c.code}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="capitalize">{c.lpn_type}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(c.sku_count ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(c.total_quantity ?? 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </Section>
+        )}
+
+        <Section title="Handling ledger" description="Every load, move, split, merge and status change on this plate.">
           <Card>
             <CardContent className="p-4">
-              {(suggestions ?? []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No open putaway task references this plate.</div>
+              {!events?.length ? (
+                <p className="text-sm text-muted-foreground">No plate events yet.</p>
               ) : (
-                <ul className="text-sm divide-y">
-                  {suggestions!.map((s) => (
-                    <li key={s.id} className="py-2 flex justify-between">
-                      <span>
-                        <span className="font-mono mr-2">#{s.rank}</span>
-                        {s.location?.code ?? "—"} · {s.location?.name ?? ""}
-                        <span className="text-muted-foreground ml-2">{s.reason}</span>
+                <ol className="space-y-2">
+                  {events.map((e) => (
+                    <li key={e.id} className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium capitalize">{e.event_type.replace(/_/g, " ")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {e.from_status || e.to_status
+                            ? `${e.from_status ?? "—"} → ${e.to_status ?? "—"}`
+                            : null}
+                          {e.quantity_delta ? ` · ${Number(e.quantity_delta)} units` : ""}
+                        </p>
+                      </div>
+                      <span className="whitespace-nowrap text-xs text-muted-foreground">
+                        {new Date(e.created_at).toLocaleString()}
                       </span>
-                      {s.chosen ? <StatusBadge tone="success">chosen</StatusBadge> : null}
                     </li>
                   ))}
-                </ul>
+                </ol>
               )}
             </CardContent>
           </Card>
         </Section>
 
-        <ActivitySection aggregateId={id} description="Lifecycle events emitted for this license plate." />
+        <ActivitySection aggregateId={lpn.id} />
       </PageBody>
 
-      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+      {/* Move */}
+      <Dialog open={dialog === "move"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Move license plate</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
+          <DialogHeader><DialogTitle>Move plate {lpn.code}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <ScanLine className="h-4 w-4" /> Scan the destination bin, or pick it below.
+            </p>
+            <div className="space-y-2">
+              <Label>Destination bin</Label>
               <Select value={moveDest} onValueChange={setMoveDest}>
-                <SelectTrigger><SelectValue placeholder="Choose destination location" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Choose bin" /></SelectTrigger>
                 <SelectContent>
                   {(locations ?? []).map((l) => (
-                    <SelectItem key={l.id} value={l.id}>{l.code} · {l.name}{l.is_default ? " (default)" : ""}</SelectItem>
+                    <SelectItem key={l.id} value={l.id}>{l.code} · {l.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Textarea placeholder="Optional note" value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
+            <div className="space-y-2">
+              <Label>Reason / note</Label>
+              <Textarea value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoveOpen(false)}>Cancel</Button>
-            <Button onClick={() => move.mutate()} disabled={move.isPending || !moveDest}>Move</Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button
+              disabled={!moveDest || action.isPending}
+              onClick={() =>
+                action.run(
+                  { kind: "move", toLocationId: moveDest, expectedVersion: lpn.row_version, reason: moveNote || null },
+                  { onSuccess: () => { setDialog(null); setMoveDest(""); setMoveNote(""); } },
+                )
+              }
+            >
+              Move plate & stock
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Load / Unload */}
+      <Dialog open={dialog === "load" || dialog === "unload"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{dialog === "load" ? "Load stock onto" : "Unload stock from"} {lpn.code}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Product</Label>
+              <ProductCombobox
+                products={(products ?? []) as { id: string; name: string; sku?: string | null }[]}
+                value={line.productId}
+                onChange={(pid) => setLine((l) => ({ ...l, productId: pid }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number" min="0" step="any"
+                  value={line.quantity}
+                  onChange={(e) => setLine((l) => ({ ...l, quantity: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Lot (optional)</Label>
+                <Input value={line.lot} onChange={(e) => setLine((l) => ({ ...l, lot: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button
+              disabled={!line.productId || Number(line.quantity) <= 0 || action.isPending}
+              onClick={() =>
+                action.run(
+                  dialog === "load"
+                    ? { kind: "load", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null }
+                    : { kind: "unload", productId: line.productId, quantity: Number(line.quantity), lotNumber: line.lot || null },
+                  { onSuccess: () => { setDialog(null); setLine({ productId: "", quantity: "1", lot: "", serial: "" }); } },
+                )
+              }
+            >
+              {dialog === "load" ? "Load" : "Unload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Split */}
+      <Dialog open={dialog === "split"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Split {lpn.code}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Quantities entered below move onto a brand-new plate at the same bin.
+          </p>
+          <div className="max-h-[320px] space-y-3 overflow-y-auto">
+            {(contents ?? []).map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm">{c.products?.name ?? c.product_id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.lot_number ? `Lot ${c.lot_number} · ` : ""}on plate: {Number(c.quantity)}
+                  </p>
+                </div>
+                <Input
+                  className="w-28"
+                  type="number" min="0" step="any"
+                  value={splitLines[c.id] ?? ""}
+                  onChange={(e) => setSplitLines((s) => ({ ...s, [c.id]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button
+              disabled={action.isPending}
+              onClick={() => {
+                const lines = (contents ?? [])
+                  .map((c) => ({
+                    product_id: c.product_id,
+                    quantity: Number(splitLines[c.id] ?? 0),
+                    lot_number: c.lot_number,
+                  }))
+                  .filter((l) => l.quantity > 0);
+                if (!lines.length) return toast.error("Enter at least one quantity");
+                action.run({ kind: "split", lines }, { onSuccess: () => { setDialog(null); setSplitLines({}); } });
+              }}
+            >
+              Split to new plate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Nest */}
+      <Dialog open={dialog === "nest"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Nest {lpn.code} under a parent</DialogTitle></DialogHeader>
+          <div className="space-y-2">
+            <Label>Parent plate code</Label>
+            <Input
+              placeholder="Scan or type the parent plate code"
+              value={parentCode}
+              onChange={(e) => setParentCode(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button
+              disabled={!parentCode.trim() || action.isPending}
+              onClick={async () => {
+                if (!currentBusiness?.id) return;
+                const parent = await resolveLpnByCode(currentBusiness.id, parentCode);
+                if (!parent) return toast.error(`No plate ${parentCode}`);
+                action.run({ kind: "nest", parentId: parent.id }, {
+                  onSuccess: () => { setDialog(null); setParentCode(""); },
+                });
+              }}
+            >
+              Nest plate
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
