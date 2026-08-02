@@ -10,7 +10,7 @@
  * (`wms_post_receiving_session`) which creates the goods receipt, stages the
  * stock for put-away, and only then advances the session.
  */
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
@@ -39,6 +39,7 @@ import {
 } from "./useReceivingLines";
 import { useActiveLpn } from "./useReceivingLpn";
 import { useReceivingTrailerVisits, dwellMinutes } from "./useReceivingTrailerVisits";
+import { ReceivingExceptionStrip } from "./ReceivingExceptionStrip";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { useProductTrackingFlags } from "@/hooks/useProductTrackingFlags";
 
@@ -62,6 +63,20 @@ interface Props {
 
 function variance(line: ReceivingLine): number {
   return Number(line.received_qty ?? 0) - Number(line.expected_qty ?? 0);
+}
+
+/**
+ * Phase 5c — dwell is an operational clock, not a static field. A trailer
+ * still on the dock re-renders every 30s so the number on screen is the number
+ * the yard is being billed for.
+ */
+function useDwellTicker(active: boolean) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => setTick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, [active]);
 }
 
 function CaptureRow({
