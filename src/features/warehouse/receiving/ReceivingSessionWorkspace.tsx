@@ -436,7 +436,8 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           </Button>
           <Button
             size="sm"
-            disabled={!session || post.isPending || !["captured", "discrepant"].includes(session.state)}
+            disabled={!session || post.isPending || postBlockers.length > 0}
+            title={postBlockers.length ? `Cannot post — ${postBlockers.join("; ")}` : undefined}
             onClick={() =>
               session &&
               post.mutate(
@@ -453,6 +454,17 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
           >
             <Check className="mr-1 h-3.5 w-3.5" /> Post to inventory
           </Button>
+          {postBlockers.length > 0 && (
+            <p className="w-full text-xs text-muted-foreground">
+              Posting unavailable — {postBlockers.join("; ")}.
+            </p>
+          )}
+          {postBlockers.length === 0 && openExceptionCount > 0 && (
+            <p className="w-full text-xs text-muted-foreground">
+              {openExceptionCount} open exception(s) will post as recorded variance — resolve them above to
+              attach a cause.
+            </p>
+          )}
         </div>
 
         <Separator className="my-4" />
