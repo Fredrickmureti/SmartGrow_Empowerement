@@ -66507,6 +66507,45 @@ export type Database = {
           },
         ]
       }
+      wms_lpn_status_edges: {
+        Row: {
+          created_at: string
+          description: string | null
+          from_status: Database["public"]["Enums"]["wms_lpn_status"]
+          id: string
+          requires_reason: boolean
+          rpc_name: string | null
+          sort_order: number
+          to_status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          verb: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          from_status: Database["public"]["Enums"]["wms_lpn_status"]
+          id?: string
+          requires_reason?: boolean
+          rpc_name?: string | null
+          sort_order?: number
+          to_status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at?: string
+          verb: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          from_status?: Database["public"]["Enums"]["wms_lpn_status"]
+          id?: string
+          requires_reason?: boolean
+          rpc_name?: string | null
+          sort_order?: number
+          to_status?: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at?: string
+          verb?: string
+        }
+        Relationships: []
+      }
       wms_manifest_cartons: {
         Row: {
           business_id: string
@@ -88935,6 +88974,38 @@ export type Database = {
           sku_count: number
         }[]
       }
+      wms_lpn_dispatch: {
+        Args: {
+          _expected_version?: number
+          _lpn_id: string
+          _reference?: string
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_lpn_load: {
         Args: {
           _lot_number?: string
@@ -89032,6 +89103,95 @@ export type Database = {
       }
       wms_lpn_nest: {
         Args: { _child_lpn_id: string; _parent_lpn_id: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_lpn_receive_return: {
+        Args: {
+          _expected_version?: number
+          _lpn_id: string
+          _reason: string
+          _to_location_id: string
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_lpn_retire: {
+        Args: { _expected_version?: number; _lpn_id: string; _reason: string }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          code: string
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          current_location_id: string | null
+          id: string
+          lpn_type: Database["public"]["Enums"]["wms_lpn_type"]
+          notes: string | null
+          organization_id: string
+          parent_lpn_id: string | null
+          row_version: number
+          sealed_at: string | null
+          status: Database["public"]["Enums"]["wms_lpn_status"]
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_license_plates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_lpn_seal: {
+        Args: { _expected_version?: number; _lpn_id: string }
         Returns: {
           branch_id: string | null
           business_id: string
