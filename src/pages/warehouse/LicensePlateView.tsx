@@ -37,7 +37,6 @@ import {
 } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
 import { LpnLifecycleRail } from "@/features/warehouse/lpn/LpnLifecycleRail";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
