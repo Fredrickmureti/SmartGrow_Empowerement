@@ -101,6 +101,9 @@ export default function CountSession() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),
   });
 
+  const recount = useRequestRecount(sessionId);
+
+
   const flash = (msg: string, ms = 2500) => {
     setScanFlash(msg);
     window.setTimeout(() => setScanFlash(null), ms);
