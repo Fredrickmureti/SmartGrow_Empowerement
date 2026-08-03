@@ -67,7 +67,9 @@ export default function CountReview() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save the reason"),
   });
 
+  const recount = useRequestRecount(sessionId);
   const post = usePostCountSession(sessionId);
+
   const handlePost = () =>
     post.mutate(undefined, {
       onSuccess: () => {
