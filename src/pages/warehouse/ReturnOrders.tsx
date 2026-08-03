@@ -42,6 +42,9 @@ import {
   RETURN_OPEN_STATES,
   RETURN_STATE_TONE,
   ageHours,
+  isLaneBreached,
+  returnLaneClock,
+
   returnLane,
   type ReturnKind,
   type ReturnLane,
