@@ -69292,6 +69292,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -69303,6 +69306,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -69317,6 +69321,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           departed_at?: string | null
+          departure_approved_at?: string | null
+          departure_approved_by?: string | null
+          departure_override_reason?: string | null
           dock_id?: string | null
           docked_at?: string | null
           driver_name?: string | null
@@ -69328,6 +69335,7 @@ export type Database = {
           seal_in?: string | null
           seal_out?: string | null
           status?: string
+          trailer_id?: string | null
           trailer_ref: string
           updated_at?: string
           warehouse_id: string
@@ -69342,6 +69350,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           departed_at?: string | null
+          departure_approved_at?: string | null
+          departure_approved_by?: string | null
+          departure_override_reason?: string | null
           dock_id?: string | null
           docked_at?: string | null
           driver_name?: string | null
@@ -69353,6 +69364,7 @@ export type Database = {
           seal_in?: string | null
           seal_out?: string | null
           status?: string
+          trailer_id?: string | null
           trailer_ref?: string
           updated_at?: string
           warehouse_id?: string
@@ -69381,6 +69393,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_trailer_visits_trailer_id_fkey"
+            columns: ["trailer_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_trailer_visits_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
@@ -69392,6 +69411,161 @@ export type Database = {
             columns: ["yard_slot_id"]
             isOneToOne: false
             referencedRelation: "wms_yard_slots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_trailers: {
+        Row: {
+          business_id: string
+          capacity_volume: number | null
+          capacity_weight: number | null
+          carrier_id: string | null
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          length_ft: number | null
+          notes: string | null
+          organization_id: string
+          ownership: string
+          trailer_type: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          capacity_volume?: number | null
+          capacity_weight?: number | null
+          carrier_id?: string | null
+          code: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          length_ft?: number | null
+          notes?: string | null
+          organization_id: string
+          ownership?: string
+          trailer_type?: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          capacity_volume?: number | null
+          capacity_weight?: number | null
+          carrier_id?: string | null
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          length_ft?: number | null
+          notes?: string | null
+          organization_id?: string
+          ownership?: string
+          trailer_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_trailers_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_yard_moves: {
+        Row: {
+          actor_user_id: string | null
+          business_id: string
+          created_at: string
+          from_dock_id: string | null
+          from_slot_id: string | null
+          from_status: string | null
+          id: string
+          notes: string | null
+          occurred_at: string
+          organization_id: string
+          reason: string
+          to_dock_id: string | null
+          to_slot_id: string | null
+          to_status: string | null
+          visit_id: string
+          warehouse_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          business_id: string
+          created_at?: string
+          from_dock_id?: string | null
+          from_slot_id?: string | null
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          organization_id: string
+          reason: string
+          to_dock_id?: string | null
+          to_slot_id?: string | null
+          to_status?: string | null
+          visit_id: string
+          warehouse_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          business_id?: string
+          created_at?: string
+          from_dock_id?: string | null
+          from_slot_id?: string | null
+          from_status?: string | null
+          id?: string
+          notes?: string | null
+          occurred_at?: string
+          organization_id?: string
+          reason?: string
+          to_dock_id?: string | null
+          to_slot_id?: string | null
+          to_status?: string | null
+          visit_id?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_yard_moves_from_dock_id_fkey"
+            columns: ["from_dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_yard_moves_from_slot_id_fkey"
+            columns: ["from_slot_id"]
+            isOneToOne: false
+            referencedRelation: "wms_yard_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_yard_moves_to_dock_id_fkey"
+            columns: ["to_dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_yard_moves_to_slot_id_fkey"
+            columns: ["to_slot_id"]
+            isOneToOne: false
+            referencedRelation: "wms_yard_slots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_yard_moves_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visits"
             referencedColumns: ["id"]
           },
         ]
@@ -77503,6 +77677,20 @@ export type Database = {
         }
         Returns: string
       }
+      _wms_log_yard_move: {
+        Args: {
+          p_from_dock?: string
+          p_from_slot?: string
+          p_from_status?: string
+          p_notes?: string
+          p_reason: string
+          p_to_dock?: string
+          p_to_slot?: string
+          p_to_status?: string
+          p_visit: Database["public"]["Tables"]["wms_trailer_visits"]["Row"]
+        }
+        Returns: string
+      }
       _wms_lpn_branch: {
         Args: {
           _lpn: Database["public"]["Tables"]["wms_license_plates"]["Row"]
@@ -77584,6 +77772,15 @@ export type Database = {
           p_qty: number
         }
         Returns: number
+      }
+      _wms_resolve_trailer: {
+        Args: {
+          p_business_id: string
+          p_carrier_id?: string
+          p_code: string
+          p_organization_id: string
+        }
+        Returns: string
       }
       _wms_sscc_log: {
         Args: {
@@ -78539,6 +78736,44 @@ export type Database = {
         Args: { _submission_id: string }
         Returns: undefined
       }
+      approve_trailer_departure: {
+        Args: { p_override_reason?: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       approve_vendor_credit_note: {
         Args: { p_id: string }
         Returns: {
@@ -78823,6 +79058,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -78834,6 +79072,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -79573,6 +79812,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -79584,6 +79826,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -80666,6 +80909,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -80677,6 +80923,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -82480,6 +82727,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -82491,6 +82741,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -82514,6 +82765,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -82525,6 +82779,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -84440,6 +84695,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
           dock_id: string | null
           docked_at: string | null
           driver_name: string | null
@@ -84451,6 +84709,7 @@ export type Database = {
           seal_in: string | null
           seal_out: string | null
           status: string
+          trailer_id: string | null
           trailer_ref: string
           updated_at: string
           warehouse_id: string
@@ -88018,6 +88277,82 @@ export type Database = {
         Args: { p_organization_id: string; p_reservation_id: string }
         Returns: Json
       }
+      release_trailer_from_dock: {
+        Args: { p_notes?: string; p_slot_id?: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      relocate_trailer: {
+        Args: { p_notes?: string; p_slot_id: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       remove_device: { Args: { p_device_id: string }; Returns: boolean }
       rename_department: {
         Args: { p_department_id: string; p_new_name: string }
@@ -89912,6 +90247,10 @@ export type Database = {
       }
       terminate_procurement_contract: {
         Args: { p_contract_id: string; p_reason?: string }
+        Returns: Json
+      }
+      trailer_departure_blockers: {
+        Args: { p_visit_id: string }
         Returns: Json
       }
       transfer_employee: {
