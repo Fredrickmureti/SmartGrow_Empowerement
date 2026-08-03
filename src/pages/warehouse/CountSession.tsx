@@ -322,13 +322,26 @@ export default function CountSession() {
                           )}
                           <td className="p-2">
                             {outcome ? (
-                              <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
-                                {TOLERANCE_COPY[outcome]?.label ?? outcome}
-                              </StatusBadge>
+                              <div className="flex items-center gap-2">
+                                <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                                  {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                                </StatusBadge>
+                                {outcome === "recount_required" && !supersededIds.has(l.id) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={recount.isPending}
+                                    onClick={() => recount.mutate({ line_id: l.id })}
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
+                                  </Button>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
+
                         </tr>
                       );
                     })}
