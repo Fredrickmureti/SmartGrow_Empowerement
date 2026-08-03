@@ -313,7 +313,9 @@ export default function BillingBoard() {
     queryFn: async () => {
       let q = supabase
         .from("wms_billable_activities_summary_view")
-        .select("client_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,unpriced_count,last_occurred_at")
+        .select(
+          "client_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,unpriced_count,disputed_count,last_occurred_at",
+        )
         .eq("business_id", currentBusiness!.id)
         .order("last_occurred_at", { ascending: false });
       if (clientFilter !== "all") {
@@ -327,6 +329,79 @@ export default function BillingBoard() {
       if (error) throw error;
       return (data ?? []) as Summary[];
     },
+  });
+
+  // ---------- Ledger entries (corrections drill-down) ----------
+  const { data: entries, isLoading: entriesLoading } = useQuery({
+    queryKey: ["wms-billable-entries", currentBusiness?.id, clientFilter],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      let q = supabase
+        .from("wms_billable_activities")
+        .select(
+          "id,client_id,activity,uom,quantity,amount,currency,occurred_at,invoice_id,disputed_at,dispute_reason,dispute_resolved_at,reverses_activity_id",
+        )
+        .eq("business_id", currentBusiness!.id)
+        .order("occurred_at", { ascending: false })
+        .limit(50);
+      if (clientFilter !== "all") {
+        if (clientFilter === "__none__") q = q.is("client_id", null);
+        else q = q.eq("client_id", clientFilter);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as LedgerEntry[];
+    },
+  });
+
+  const invalidateLedger = () => {
+    qc.invalidateQueries({ queryKey: ["wms-billable-summary"] });
+    qc.invalidateQueries({ queryKey: ["wms-billable-entries"] });
+  };
+
+  /**
+   * Corrections never edit history: a dispute flags the row so the
+   * invoice generator holds it back, and a reversal appends a mirrored
+   * negative entry. Both are RPC-only (the ledger is immutable).
+   */
+  const disputeEntry = useMutation({
+    mutationFn: async (row: LedgerEntry) => {
+      const resolving = !!row.disputed_at && !row.dispute_resolved_at;
+      const reason = window.prompt(
+        resolving ? "Resolution note" : "Why is this entry disputed?",
+        "",
+      );
+      if (reason === null || !reason.trim()) throw new Error("A reason is required");
+      const { error } = await supabase.rpc("wms_dispute_billable_activity", {
+        p_activity_id: row.id,
+        p_reason: reason.trim(),
+        p_resolve: resolving,
+      });
+      if (error) throw error;
+      return resolving;
+    },
+    onSuccess: (resolving) => {
+      toast.success(resolving ? "Dispute resolved" : "Entry disputed and held back");
+      invalidateLedger();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reverseEntry = useMutation({
+    mutationFn: async (row: LedgerEntry) => {
+      const reason = window.prompt("Why is this entry being reversed?", "");
+      if (reason === null || !reason.trim()) throw new Error("A reason is required");
+      const { error } = await supabase.rpc("wms_reverse_billable_activity", {
+        p_activity_id: row.id,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reversing entry posted");
+      invalidateLedger();
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const captureDrain = useMutation({
@@ -404,7 +479,7 @@ export default function BillingBoard() {
         acc.unpriced += Number(r.unpriced_count) || 0;
         return acc;
       },
-      { entries: 0, billed: 0, unbilled: 0, unpriced: 0 }
+      { entries: 0, billed: 0, unbilled: 0, unpriced: 0, disputed: 0 }
     );
   }, [summary]);
 
