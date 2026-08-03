@@ -83,3 +83,33 @@ Schema through the migration tool; every mutation in a `SECURITY DEFINER` RPC wi
 migration; each phase closes with architecture tests plus pgTAP invariants; Dispatch
 orchestrates only — Inventory owns stock, Warehouse owns pick/pack, Finance owns revenue,
 the Document Platform owns rendering.
+
+---
+
+## Closed — 2026-08-03
+
+All phases delivered; this plan is closed.
+
+- **A — dispatch relieves inventory:** verified shipped (ADR-0109).
+- **B — one outbound spine:** verified shipped (ADR-0109). The generated
+  `types.ts` gap noted during verification has since regenerated and now carries
+  `delivery_note_id` / `manifest_id`; the Loading Bay surfaces the linked delivery notes.
+- **C — proof of dispatch:** `wms_dispatch_proofs`, `wms_capture_dispatch_proof`
+  (also stamps the trailer visit `seal_out`), `wms_manifest_proof_status`, FSM
+  enforcement via `WMS_PROOF_REQUIRED` gated on `warehouses.require_dispatch_proof`.
+  Captured from the Loading Bay and, through the offline queue, the RF handheld. The
+  handheld no longer re-derives the verdict; both shells read the server's.
+- **D — carrier abstraction:** `carriers.carrier_kind`, `carrier_services`, manifest
+  `carrier_service_id` / `tracking_number` / `tracking_url`, allocated idempotently by
+  `wms_allocate_tracking_number` and surfaced in the Loading Bay. ADR-0110.
+- **E — dispatch documents:** `bill_of_lading`, `dispatch_manifest`, `packing_list`,
+  `carrier_label` registered in `generate-document`; requested from the bay via
+  `DispatchDocumentsMenu` → `printDocument`. Coverage matrix rows plus a wiring guard.
+- **F — control tower and live-ness:** `wms-manifest*` key drift fixed,
+  `wms_trailer_visits` / `wms_yard_slots` published and subscribed, both 15s polls
+  deleted, `OutboundDashboard` gained late departures, awaiting seal, waiting trucks and
+  free yard slots. No timeline library was needed.
+
+Tests: `supabase/tests/wms_dispatch_proof_and_carrier_test.sql`,
+`src/test/architecture/wms-dispatch-proof-and-liveness.test.ts`,
+`src/test/printing/dispatch-documents-wiring.test.ts`.
