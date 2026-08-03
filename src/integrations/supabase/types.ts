@@ -65523,11 +65523,13 @@ export type Database = {
       }
       wms_count_lines: {
         Row: {
+          assigned_to: string | null
           business_id: string
           counted_at: string | null
           counted_by: string | null
           counted_qty: number | null
           created_at: string
+          expiry_date: string | null
           id: string
           location_id: string
           lot_number: string | null
@@ -65535,17 +65537,26 @@ export type Database = {
           organization_id: string
           posted_adjustment_id: string | null
           product_id: string
+          recount_of_line_id: string | null
+          recount_round: number
+          serial_numbers: string[] | null
           session_id: string
           system_qty: number
+          tolerance_outcome: string | null
           updated_at: string
           variance_qty: number | null
+          variance_reason:
+            | Database["public"]["Enums"]["wms_count_variance_reason"]
+            | null
         }
         Insert: {
+          assigned_to?: string | null
           business_id: string
           counted_at?: string | null
           counted_by?: string | null
           counted_qty?: number | null
           created_at?: string
+          expiry_date?: string | null
           id?: string
           location_id: string
           lot_number?: string | null
@@ -65553,17 +65564,26 @@ export type Database = {
           organization_id: string
           posted_adjustment_id?: string | null
           product_id: string
+          recount_of_line_id?: string | null
+          recount_round?: number
+          serial_numbers?: string[] | null
           session_id: string
           system_qty?: number
+          tolerance_outcome?: string | null
           updated_at?: string
           variance_qty?: number | null
+          variance_reason?:
+            | Database["public"]["Enums"]["wms_count_variance_reason"]
+            | null
         }
         Update: {
+          assigned_to?: string | null
           business_id?: string
           counted_at?: string | null
           counted_by?: string | null
           counted_qty?: number | null
           created_at?: string
+          expiry_date?: string | null
           id?: string
           location_id?: string
           lot_number?: string | null
@@ -65571,12 +65591,26 @@ export type Database = {
           organization_id?: string
           posted_adjustment_id?: string | null
           product_id?: string
+          recount_of_line_id?: string | null
+          recount_round?: number
+          serial_numbers?: string[] | null
           session_id?: string
           system_qty?: number
+          tolerance_outcome?: string | null
           updated_at?: string
           variance_qty?: number | null
+          variance_reason?:
+            | Database["public"]["Enums"]["wms_count_variance_reason"]
+            | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_count_lines_recount_of_line_id_fkey"
+            columns: ["recount_of_line_id"]
+            isOneToOne: false
+            referencedRelation: "wms_count_lines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_count_lines_session_id_fkey"
             columns: ["session_id"]
@@ -65594,11 +65628,14 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_blind: boolean
           notes: string | null
           organization_id: string
           physical_count_id: string | null
           posted_at: string | null
           posted_by: string | null
+          recount_round: number
+          requires_approval: boolean
           row_version: number
           state: Database["public"]["Enums"]["wms_count_state"]
           strategy: Database["public"]["Enums"]["wms_count_strategy"]
@@ -65612,11 +65649,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_blind?: boolean
           notes?: string | null
           organization_id: string
           physical_count_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
+          recount_round?: number
+          requires_approval?: boolean
           row_version?: number
           state?: Database["public"]["Enums"]["wms_count_state"]
           strategy?: Database["public"]["Enums"]["wms_count_strategy"]
@@ -65630,11 +65670,14 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_blind?: boolean
           notes?: string | null
           organization_id?: string
           physical_count_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
+          recount_round?: number
+          requires_approval?: boolean
           row_version?: number
           state?: Database["public"]["Enums"]["wms_count_state"]
           strategy?: Database["public"]["Enums"]["wms_count_strategy"]
@@ -81561,6 +81604,16 @@ export type Database = {
         Args: { _business_id: string }
         Returns: Json
       }
+      evaluate_count_tolerance: {
+        Args: {
+          p_business_id: string
+          p_counted_qty: number
+          p_product_id: string
+          p_system_qty: number
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
       evaluate_crossdock_on_grn: { Args: { p_grn_id: string }; Returns: number }
       evaluate_crossdock_on_receiving_line: {
         Args: { p_line_id: string }
@@ -82250,6 +82303,31 @@ export type Database = {
               sub_ledger_total: number
             }[]
           }
+      get_count_lines: {
+        Args: { p_session_id: string }
+        Returns: {
+          assigned_to: string
+          counted_at: string
+          counted_qty: number
+          expiry_date: string
+          id: string
+          is_blind: boolean
+          location_code: string
+          location_id: string
+          location_name: string
+          lot_number: string
+          product_id: string
+          product_name: string
+          product_sku: string
+          recount_of_line_id: string
+          recount_round: number
+          serial_numbers: string[]
+          system_qty: number
+          tolerance_outcome: string
+          variance_qty: number
+          variance_reason: string
+        }[]
+      }
       get_current_employee: {
         Args: { _organization_id?: string }
         Returns: string
@@ -86865,10 +86943,22 @@ export type Database = {
         }
         Returns: Json
       }
-      record_count: {
-        Args: { p_counted_qty: number; p_line_id: string; p_note?: string }
-        Returns: Json
-      }
+      record_count:
+        | {
+            Args: { p_counted_qty: number; p_line_id: string; p_note?: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_counted_qty: number
+              p_expiry_date?: string
+              p_line_id: string
+              p_note?: string
+              p_serial_numbers?: string[]
+              p_variance_reason?: string
+            }
+            Returns: Json
+          }
       record_count_scan: {
         Args: {
           p_counted_qty: number
@@ -87436,6 +87526,10 @@ export type Database = {
       }
       request_app_access: {
         Args: { _app_id: string; _message?: string }
+        Returns: string
+      }
+      request_count_recount: {
+        Args: { p_line_id: string; p_reason?: string }
         Returns: string
       }
       request_employee_loan: {
@@ -91567,6 +91661,16 @@ export type Database = {
         | "cancelled"
       wms_count_state: "draft" | "counting" | "review" | "posted" | "cancelled"
       wms_count_strategy: "abc" | "random" | "targeted"
+      wms_count_variance_reason:
+        | "damage"
+        | "mis_pick"
+        | "wrong_location"
+        | "shrinkage"
+        | "receiving_error"
+        | "production_error"
+        | "duplicate_count"
+        | "unknown_loss"
+        | "system_error"
       wms_dock_type: "receiving" | "shipping" | "both"
       wms_exception_kind:
         | "receiving_discrepancy"
@@ -92541,6 +92645,17 @@ export const Constants = {
       ],
       wms_count_state: ["draft", "counting", "review", "posted", "cancelled"],
       wms_count_strategy: ["abc", "random", "targeted"],
+      wms_count_variance_reason: [
+        "damage",
+        "mis_pick",
+        "wrong_location",
+        "shrinkage",
+        "receiving_error",
+        "production_error",
+        "duplicate_count",
+        "unknown_loss",
+        "system_error",
+      ],
       wms_dock_type: ["receiving", "shipping", "both"],
       wms_exception_kind: [
         "receiving_discrepancy",
