@@ -17,6 +17,16 @@ import path from "node:path";
 
 const ROOT = path.resolve(__dirname, "../../..");
 
+/** Concatenated text of every migration — used for cross-migration facts. */
+function allMigrationSql(): string {
+  const dir = path.join(ROOT, "supabase/migrations");
+  return readdirSync(dir)
+    .filter((n) => n.endsWith(".sql"))
+    .sort()
+    .map((n) => readFileSync(path.join(dir, n), "utf8"))
+    .join("\n");
+}
+
 /** Newest migration whose body defines generate_3pl_invoice. */
 function billingRpcSql(): string {
   const dir = path.join(ROOT, "supabase/migrations");
@@ -106,4 +116,56 @@ describe("3PL billing invoice contract", () => {
     expect(sql).toContain("default_tax_rate_id");
     expect(sql).toMatch(/tax_amount\s*=/);
   });
+});
+
+describe("3PL billing pricing, ledger integrity and corrections", () => {
+  const all = allMigrationSql();
+  const board = readFileSync(
+    path.join(ROOT, "src/pages/warehouse/BillingBoard.tsx"),
+    "utf8",
+  );
+
+  it("tariffs carry the pricing-engine columns", () => {
+    for (const col of ["min_charge", "included_quantity", "tier_from", "tier_to"]) {
+      expect(all, `wms_billing_tariffs.${col} was never added`).toContain(col);
+      expect(board, `BillingBoard does not expose ${col}`).toContain(col);
+    }
+  });
+
+  it("the ledger is immutable except for invoicing and dispute fields", () => {
+    expect(all).toMatch(/wms_billable_activities.*immutab/is);
+    expect(all).toMatch(/BEFORE\s+UPDATE\s+OR\s+DELETE\s+ON\s+public\.wms_billable_activities/i);
+  });
+
+  it("corrections go through dispute/reverse RPCs, never row edits", () => {
+    expect(all).toContain("FUNCTION public.wms_dispute_billable_activity");
+    expect(all).toContain("FUNCTION public.wms_reverse_billable_activity");
+    expect(board).toContain("wms_dispute_billable_activity");
+    expect(board).toContain("wms_reverse_billable_activity");
+    // The board must never UPDATE or DELETE the ledger directly.
+    expect(board).not.toMatch(/from\("wms_billable_activities"\)\s*\.\s*(update|delete)/);
+  });
+
+  it("disputed activity is held back from invoicing and surfaced in the UI", () => {
+    expect(sqlDefining("generate_3pl_invoice")).toMatch(/disputed_at/);
+    expect(board).toContain("disputed_count");
+  });
+
+  it("storage accrual and event capture are scheduled, not manual-only", () => {
+    expect(all).toMatch(/cron\.schedule\(/);
+    expect(all).toMatch(/wms-3pl-billing-nightly-sweep/);
+  });
+
+  /** Newest migration body that defines the named function. */
+  function sqlDefining(fn: string): string {
+    const dir = path.join(ROOT, "supabase/migrations");
+    const hits = readdirSync(dir)
+      .filter((n) => n.endsWith(".sql"))
+      .sort()
+      .filter((n) =>
+        readFileSync(path.join(dir, n), "utf8").includes(`FUNCTION public.${fn}`),
+      );
+    expect(hits.length, `no migration defines ${fn}`).toBeGreaterThan(0);
+    return readFileSync(path.join(dir, hits[hits.length - 1]), "utf8");
+  }
 });
