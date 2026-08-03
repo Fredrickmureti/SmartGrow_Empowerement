@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader, PageBody } from "@/design-system";
 import { Loader2, PackageCheck, Play } from "lucide-react";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { supabase } from "@/integrations/supabase/client";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import type { WmsTaskType } from "@/features/warehouse/events/topics";
 
