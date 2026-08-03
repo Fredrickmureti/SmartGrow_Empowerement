@@ -15,6 +15,8 @@ import { StatusBadge } from "@/design-system";
 import { Check, FileText, PackageCheck, Play, Receipt, Truck, X, XCircle } from "lucide-react";
 import { OutboxTimeline } from "@/features/warehouse/events/OutboxTimeline";
 import { ReturnLinesPanel } from "./ReturnLinesPanel";
+import { ReturnLogisticsStrip } from "./ReturnLogisticsStrip";
+import { ReturnLpnRail } from "./ReturnLpnRail";
 import { useReturnLines, usePostReturnDispositions } from "./useReturnLines";
 import { useCloseReturn, useCreateReturnFinanceDoc, useTransitionReturn } from "./useReturnOrders";
 import { dispatchReturnDocument, dispatchVendorReturnNote } from "./dispatchReturnDocument";
