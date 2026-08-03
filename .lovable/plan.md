@@ -1,87 +1,75 @@
-# Dock Scheduling & Yard Operations — Project Plan (authoritative status)
+# Sales scanning on phones — device-mode correctness pass
 
-Last updated: 2026-08-03
+## Verdict (from reading the current code)
 
-## Status summary
+1. **The Rapid/Browse chip is unconditionally mounted.** `SalesLayout` renders
+   `<SalesScanChip>` and `<SalesScanReviewDrawer>` in a `fixed bottom-3 right-3`
+   stack for every viewport. `SalesScanChip` only checks `available` (is the
+   Sales scan provider mounted) — it never consults `scannerDeviceMode`. On a
+   phone that overlay sits exactly where the Sales list's primary action lives,
+   so it collides with "Create invoice".
 
-All phases (A–G) of the Dock Scheduling & Yard Operations roadmap are
-implemented and verified. The module is at a coherent, production-ready
-state. **No phase is currently active** — the roadmap is complete.
+2. **The mode itself is a workstation concept.** Rapid/Browse decides what
+   happens when an *unattended* stream (USB wedge or paired companion phone)
+   fires while no invoice dialog is open. On a handheld the operator opens the
+   camera deliberately — there is no unattended stream, so the toggle is
+   meaningless there, not just visually inconvenient.
 
-## Completed & verified
+3. **Camera scanning inside invoice creation is technically present but not
+   discoverable.** `InvoiceCreatePage` / `InvoiceEditPage` render
+   `<InvoiceLineScanner>` on all breakpoints, and its `<ScannerPairingButton>`
+   is already handheld-aware (primary "Scan" via `useLocalScan`, pairing
+   demoted). But the surrounding block is written for a desk: the header copy
+   is "press F2 to refocus", the camera action is a small `size="sm"` button
+   competing with the hint text, and there is no continuous-scan affordance —
+   so on a phone it reads as "pair a phone", which is exactly the confusion
+   reported. The plumbing (LocalScanOverlay mounted once in
+   `AuthenticatedShell`, decode → `scanBus` → `scanRouter` → Sales controller)
+   is correct and needs no change.
 
-### Phase A — Appointment as a first-class object (done)
-- `wms_dock_appointments` extended: `appointment_no` (sequence-backed
-  `APT-XXXXXX`), `priority`, driver/trailer/tractor fields, `qr_token`,
-  `scheduled_departure`, lifecycle timestamps.
-- `wms_appointment_documents` — typed polymorphic links to PO / ASN /
-  goods receipt / SO / delivery note / manifest / return / transfer.
-- Existing rows backfilled with numbers and QR tokens.
-- UI: `src/pages/warehouse/AppointmentPlanner.tsx` captures the full
-  enriched schema with live feasibility feedback.
+Nothing about the pipeline is architecturally wrong. This is a device-mode
+presentation gap, per ADR 0107 / the scanner-device-modes memory.
 
-### Phase B — Dock capability model (done)
-- `warehouse_docks.capabilities` (JSONB: refrigerated, hazmat, tail_lift,
-  dock_leveller, max_vehicle_length_m, max_weight_kg) and
-  `operating_hours`, `default_turn_minutes`.
-- `wms_dock_downtime` for maintenance windows.
-- `schedule_dock_appointment` rewritten: feasibility validation
-  (capability match, overlap, downtime, operating hours) enforced
-  server-side.
+## Changes
 
-### Phase C — Yard zones (done)
-- Yard slot zone vocabulary (parking / waiting / staging / quarantine /
-  maintenance); `check_in_trailer` is zone-aware.
-- Presentation vocabulary centralised in
-  `src/features/warehouse/dock/dockScheduling.ts`.
+### A. Chip becomes workstation-only
+- `SalesScanChip` returns `null` when `useLocalScan().handheld` is true
+  (in addition to the existing `available` check), so the mode toggle only
+  appears where mode has meaning.
+- `SalesLayout`'s floating stack is hidden on handheld too, so no empty
+  fixed container overlaps the mobile primary action; the review drawer keeps
+  rendering on workstations exactly as today.
 
-### Phase D — Gate operations subsystem (done)
-- `wms_gate_events` with RLS + triggers; RPCs `gate_check_in`,
-  `gate_approve`, `gate_exit`. All writes RPC-only.
+### B. Invoice line scanner gets a real phone surface
+In `InvoiceLineScanner`:
+- Read `useLocalScan()`.
+- **Handheld layout:** a full-width primary "Scan with camera" button
+  (`<ScanCameraButton withText continuous>`), label "Scan product", placed
+  above the manual field; the manual `<BarcodeInputField>` stays as the
+  type-a-code fallback with a phone-appropriate placeholder; the F2 hint copy
+  is replaced with "Tap scan, or type a code" and the pairing icon is demoted
+  to the corner (already the `ScannerPairingButton` handheld behaviour).
+- **Workstation layout:** unchanged — same hint text, same pairing button,
+  same field.
+- Focus/refocus logic, the `useSalesScanController` registration, `onResolved`,
+  and the flash feedback are untouched, so a camera decode lands on the same
+  path as a wedge scan.
 
-### Phase E — Scheduling command centre (done)
-- `src/features/warehouse/dock/DockTimeline.tsx` — resource-timeline
-  Gantt (one lane per dock), now-marker, drag-to-reschedule with 15-min
-  snap validated server-side (`@dnd-kit/core`).
-- `AppointmentDrawer.tsx` — progressive disclosure: QR gate pass, linked
-  documents, gate event timeline.
-- `DockSchedule.tsx` — KPI strip (utilisation, dwell, on-time %),
-  list/timeline toggle, "On site now" rail.
-- `useDockScheduling.ts` — all data hooks; no direct table writes.
+### C. No new plumbing
+No new `useScanTarget`, no second camera engine, no new RPC — the camera button
+routes through the existing `openLocalScan` seam only.
 
-### Phase F — Hardware-ready gate ops (done)
-- `src/pages/warehouse-mobile/MobileGate.tsx` handheld guard console.
-- `gate.pass` scan intent registered in `wmsScanIntent.ts`; route wired
-  in `src/apps/warehouse-mobile/routes.tsx` and `MobileHome.tsx`.
+## Verification
+- `bunx tsgo --noEmit`.
+- Existing guards must stay green:
+  `src/test/architecture/scanner-single-camera-engine.test.ts`,
+  `src/test/architecture/invoice-scanner-no-domquery.test.ts`,
+  `src/test/sales/sales-scan-context.test.tsx`.
+- Playwright pass at 390x844 with the device-mode override forced to
+  `handheld`: Sales list shows no floating chip over the Create button; the
+  invoice create page shows the "Scan with camera" primary action.
+- Desktop pass at 1280 wide: chip and pairing flow unchanged.
 
-### Phase G — Cross-module origination (done)
-- `RequestDockSlotDialog.tsx` — reusable slot request surface for
-  Purchasing / Sales / Returns without coupling those modules to WMS
-  internals.
-
-## Verification performed
-- `bunx tsgo --noEmit` — clean.
-- Routes `/warehouse-app/schedule` and `/warehouse-app/schedule/new`
-  resolve to `DockSchedule` / `AppointmentPlanner`.
-- Smoke test of the schedule page and planner in preview.
-
-## Pending
-None for this module.
-
-## Instructions for the next agent
-
-1. **Verify before building.** Re-check this module against
-   enterprise-grade expectations before starting anything new:
-   - Confirm every appointment/yard/gate mutation goes through an RPC
-     (no direct `.from('wms_*').insert/update` in `src/`).
-   - Confirm RLS policies exist on `wms_appointment_documents`,
-     `wms_dock_downtime`, `wms_gate_events`.
-   - Run `bunx tsgo --noEmit` and the architecture tests under
-     `src/test/architecture/`.
-2. **Do not start unrelated work inside this module.** Dock/yard is
-   closed. The next logical milestone lives in the wider warehouse
-   roadmap — see the archived plans in `.lovable/plan/` (most recent:
-   cycle-count verification verdict, 2026-08-03) for the next
-   chronological item.
-3. Keep this file updated as the authoritative status document whenever
-   a phase lands.
+## Out of scope
+- Changing scan routing, dedupe, or the Rapid/Browse semantics themselves.
+- Warehouse `/wm` surfaces (already handheld-correct via `scanLabel`).
