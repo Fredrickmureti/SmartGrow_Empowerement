@@ -1,12 +1,13 @@
 /**
- * Replenishment — Phase 8 supervisor view.
+ * Replenishment — supervisor view (ADR 0106).
  *
- * Reads `wms_replenishment_rules` (per warehouse), triggers
- * `generate_replenishment_tasks(warehouse_id)` to enqueue `wms_tasks`
- * of type `replenish`, and shows the resulting open queue. Rule writes
- * go through the standard PostgREST path (RLS-scoped). Task writes are
- * RPC-only.
+ * Reads `wms_replenishment_rules` (per warehouse), runs the
+ * `plan_replenishment(warehouse_id, mode)` engine to create
+ * `wms_replen_orders` and dispatch `replenish` tasks, and shows the
+ * resulting open queue. Rule writes go through the standard PostgREST
+ * path (RLS-scoped). Order/task writes are RPC-only.
  */
+
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
