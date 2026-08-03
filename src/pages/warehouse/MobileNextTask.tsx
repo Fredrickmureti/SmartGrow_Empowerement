@@ -70,14 +70,21 @@ export default function MobileNextTask() {
   async function handleClaim() {
     if (!warehouseId) return;
     const res = await claimNext.mutateAsync({ warehouseId });
-    if (res?.task_id) {
-      // Fetch the task_type minimally via a follow-up read on the queue
-      // view isn't necessary — the RPC returns the full row. But the
-      // hook currently returns only id+row_version. To keep this change
-      // small we route to the generic task screen with the task id and
-      // let it dispatch. Deep-linking with task_type is a follow-up.
-      navigate(`/warehouse/tasks?claimed=${encodeURIComponent(res.task_id)}`);
+    if (!res?.task_id) return;
+
+    // Count work deep-links to its session: the operator lands on the bin
+    // they claimed rather than a generic queue. The target is resolved by
+    // an RPC so blind counting is never defeated by a table read.
+    const { data } = await supabase.rpc("get_count_task_target" as never, {
+      p_task_id: res.task_id,
+    } as never);
+    const target = data as { session_id?: string | null } | null;
+    if (target?.session_id) {
+      navigate(`/warehouse-app/counts/${target.session_id}`);
+      return;
     }
+
+    navigate(`/warehouse-app/tasks?claimed=${encodeURIComponent(res.task_id)}`);
   }
 
   return (
