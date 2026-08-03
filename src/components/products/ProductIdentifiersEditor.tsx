@@ -89,11 +89,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     const [rows, setRows] = useState<IdentifierRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [scanOpen, setScanOpen] = useState(false);
-    const [scanError, setScanError] = useState<string | null>(null);
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    const rafRef = useRef<number | null>(null);
-    const zxingRef = useRef<{ stop: () => void } | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
     const initialAppliedRef = useRef(false);
     const seededRef = useRef(false);
     const fieldRefs = useRef<Array<BarcodeInputFieldHandle | null>>([]);
