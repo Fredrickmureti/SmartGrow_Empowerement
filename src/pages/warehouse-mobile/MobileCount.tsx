@@ -4,12 +4,14 @@
  * Both legs run on their resolver seams: `BinScanField`
  * (`resolve_location_identity`, ADR 0104) and `ProductScanField`
  * (`resolve_product_identity`, ADR-0017/0071). Neither leg string-compares.
+ *
+ * Lines are read through `get_count_lines`, never the table, so a blind
+ * session really does hide the expected quantity from the counter.
  */
 import { useCallback, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
 import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
@@ -19,17 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
-
-interface Line {
-  id: string;
-  system_qty: number | null;
-  counted_qty: number | null;
-  variance_qty: number | null;
-  location_id: string | null;
-  product_id: string | null;
-  location: { code: string | null } | null;
-  product: { sku: string | null; name: string | null } | null;
-}
+import { useCountLines } from "@/features/warehouse/counts/useCountLines";
 
 export default function MobileCount() {
   const { id } = useParams();
@@ -41,20 +33,8 @@ export default function MobileCount() {
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
-  const { data: lines } = useQuery({
-    queryKey: ["wm-count-lines", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_count_lines")
-        .select(
-          "id, system_qty, counted_qty, variance_qty, location_id, product_id, location:location_id(code), product:product_id(sku, name)",
-        )
-        .eq("session_id", id!)
-        .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as Line[];
-    },
-  });
+  const { data: lines } = useCountLines(id);
+  const blind = (lines ?? []).some((l) => l.is_blind);
 
   // Both legs are resolved identities, so the line match is an id comparison:
   // a bin label whose barcode differs from the code, or a case GTIN instead of
@@ -91,13 +71,22 @@ export default function MobileCount() {
         p_counted_qty: n,
         p_note: null,
       });
-      toast.success(r.queued ? "Queued (offline)" : "Count recorded");
+      const outcome = (r as { result?: { tolerance_outcome?: string } })?.result?.tolerance_outcome;
+      if (r.queued) {
+        toast.success("Queued (offline)");
+      } else if (outcome === "recount_required") {
+        toast.warning("Outside tolerance — count this bin again");
+      } else if (outcome === "approval_required") {
+        toast.warning("Outside tolerance — supervisor approval needed");
+      } else {
+        toast.success("Count recorded");
+      }
       setBinLocationId(null);
       setProductScan(null);
       setCountedQty("");
       setResetKey((k) => k + 1);
 
-      qc.invalidateQueries({ queryKey: ["wm-count-lines", id] });
+      qc.invalidateQueries({ queryKey: ["wms-count-lines", id] });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -107,6 +96,7 @@ export default function MobileCount() {
 
   const open = (lines ?? []).filter((l) => l.counted_qty == null);
   const done = (lines ?? []).length - open.length;
+  const recounts = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required");
 
   return (
     <MobileWarehouseLayout
@@ -116,7 +106,7 @@ export default function MobileCount() {
       scanContinuous
       bottomBar={
         <Button className="w-full h-12" size="lg" disabled={busy || !active} onClick={submit}>
-          {busy ? "Working…" : active ? `Record @ ${active.location?.code}` : "Scan bin + SKU"}
+          {busy ? "Working…" : active ? `Record @ ${active.location_code ?? ""}` : "Scan bin + SKU"}
         </Button>
       }
     >
@@ -131,6 +121,16 @@ export default function MobileCount() {
             <div className="text-lg font-semibold">{done}</div>
           </div>
         </div>
+        {blind && (
+          <div className="rounded border bg-muted/40 p-2 text-xs text-muted-foreground">
+            Blind count — record exactly what is on the shelf. The expected quantity is hidden.
+          </div>
+        )}
+        {recounts.length > 0 && (
+          <div className="rounded border border-destructive/40 bg-destructive/5 p-2 text-xs">
+            {recounts.length} bin{recounts.length === 1 ? "" : "s"} need counting again.
+          </div>
+        )}
         <BinScanField
           key={`bin-${resetKey}`}
           label="Scan bin"
@@ -150,8 +150,11 @@ export default function MobileCount() {
         {active && (
           <div className="rounded border border-primary p-3 text-sm">
             <div className="text-xs text-muted-foreground">Matched line</div>
-            <div className="font-medium">{active.product?.name}</div>
-            <div className="text-xs">System qty: {active.system_qty ?? "—"}</div>
+            <div className="font-medium">{active.product_name}</div>
+            {!blind && <div className="text-xs">System qty: {active.system_qty ?? "—"}</div>}
+            {(active.recount_round ?? 0) > 0 && (
+              <div className="text-xs text-muted-foreground">Recount #{active.recount_round}</div>
+            )}
           </div>
         )}
         <div>
