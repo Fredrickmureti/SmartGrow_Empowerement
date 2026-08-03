@@ -31,6 +31,9 @@ import {
   type LabourTargetUpsert, type ScorecardRow,
 } from "./useLabourPerformance";
 import { isoDay } from "./useLabourPlanning";
+import {
+  usePayrollInputCodes, usePostIncentiveInputs, useStagedIncentives,
+} from "./useLabourIncentive";
 import { WMS_TASK_TYPES, type WmsTaskType } from "./useLabourOperators";
 
 interface Props {
