@@ -23,10 +23,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Truck, Check, X, PackageCheck, Forklift, AlertTriangle, RefreshCw } from "lucide-react";
+import { Truck, Check, X, PackageCheck, Forklift, AlertTriangle, RefreshCw, Printer } from "lucide-react";
+import { toast } from "sonner";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useOrganization } from "@/hooks/useOrganization";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { CrossdockRulesEditor } from "@/features/warehouse/crossdock/CrossdockRulesEditor";
+import { printCrossdockRoutingLabel } from "@/features/warehouse/crossdock/crossdockLabels";
 import {
   useCrossdockOpportunities,
   useCrossdockMetrics,
@@ -64,7 +67,9 @@ function hoursLeft(expiresAt: string | null): number | null {
 
 export default function CrossdockBoard() {
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
   const { warehouses } = useWarehouses();
+  const [printingId, setPrintingId] = useState<string | null>(null);
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [lane, setLane] = useState<string>("decide");
 
@@ -128,6 +133,42 @@ export default function CrossdockBoard() {
     reason?: string,
   ) => transition.mutate({ action, id: row.id, rowVersion: row.row_version, reason });
 
+  /**
+   * A flow-through pallet must look different from a put-away pallet on
+   * the floor. Rendering and device routing stay on the print platform.
+   */
+  const printRouting = async (row: CrossdockOpportunity) => {
+    if (!currentOrg?.id) {
+      toast.error("No active organization");
+      return;
+    }
+    setPrintingId(row.id);
+    try {
+      const res = await printCrossdockRoutingLabel({
+        orgId: currentOrg.id,
+        row,
+        businessId: currentBusiness?.id ?? null,
+      });
+      if (res.success) toast.success("Routing label sent to the printer");
+      else toast.error(res.error ?? "Could not print the routing label");
+    } finally {
+      setPrintingId(null);
+    }
+  };
+
+  const printButton = (r: CrossdockOpportunity) => (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={printingId === r.id}
+      onClick={() => printRouting(r)}
+      title="Print cross-dock routing label"
+    >
+      <Printer className="h-4 w-4" />
+    </Button>
+  );
+
+
   const rowActions = (r: CrossdockOpportunity) => {
     switch (r.state) {
       case "detected":
@@ -145,6 +186,7 @@ export default function CrossdockBoard() {
       case "approved":
         return (
           <>
+            {printButton(r)}
             <Button size="sm" onClick={() => act(r, "startStaging")}>
               <Forklift className="h-4 w-4 mr-1" /> Issue move
             </Button>
@@ -156,6 +198,7 @@ export default function CrossdockBoard() {
       case "staging":
         return (
           <>
+            {printButton(r)}
             <Button size="sm" onClick={() => act(r, "confirmStaged")}>
               <PackageCheck className="h-4 w-4 mr-1" /> Confirm staged
             </Button>
@@ -166,9 +209,12 @@ export default function CrossdockBoard() {
         );
       case "staged":
         return (
-          <Button size="sm" onClick={() => act(r, "markLoaded")}>
-            <Truck className="h-4 w-4 mr-1" /> Mark loaded
-          </Button>
+          <>
+            {printButton(r)}
+            <Button size="sm" onClick={() => act(r, "markLoaded")}>
+              <Truck className="h-4 w-4 mr-1" /> Mark loaded
+            </Button>
+          </>
         );
       case "loaded":
         return (

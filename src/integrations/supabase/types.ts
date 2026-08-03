@@ -94306,6 +94306,10 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_seed_crossdock_label_templates: {
+        Args: { _actor?: string; _org_id: string }
+        Returns: undefined
+      }
       wms_seed_default_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
