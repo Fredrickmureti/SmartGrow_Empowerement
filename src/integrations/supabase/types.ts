@@ -67029,6 +67029,227 @@ export type Database = {
           },
         ]
       }
+      wms_operator_certifications: {
+        Row: {
+          business_id: string
+          code: string
+          created_at: string
+          expires_on: string | null
+          id: string
+          issued_on: string | null
+          label: string | null
+          operator_id: string
+        }
+        Insert: {
+          business_id: string
+          code: string
+          created_at?: string
+          expires_on?: string | null
+          id?: string
+          issued_on?: string | null
+          label?: string | null
+          operator_id: string
+        }
+        Update: {
+          business_id?: string
+          code?: string
+          created_at?: string
+          expires_on?: string | null
+          id?: string
+          issued_on?: string | null
+          label?: string | null
+          operator_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_operator_certifications_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operator_board_view"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "wms_operator_certifications_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_operator_skills: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          operator_id: string
+          proficiency: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          operator_id: string
+          proficiency?: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          operator_id?: string
+          proficiency?: number
+          task_type?: Database["public"]["Enums"]["wms_task_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_operator_skills_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operator_board_view"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "wms_operator_skills_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_operators: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          employee_id: string | null
+          equipment_classes: string[]
+          home_zone_id: string | null
+          id: string
+          is_active: boolean
+          max_concurrent_tasks: number
+          notes: string | null
+          operator_code: string | null
+          organization_id: string
+          status: string
+          status_changed_at: string
+          updated_at: string
+          user_id: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          equipment_classes?: string[]
+          home_zone_id?: string | null
+          id?: string
+          is_active?: boolean
+          max_concurrent_tasks?: number
+          notes?: string | null
+          operator_code?: string | null
+          organization_id: string
+          status?: string
+          status_changed_at?: string
+          updated_at?: string
+          user_id?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string | null
+          equipment_classes?: string[]
+          home_zone_id?: string | null
+          id?: string
+          is_active?: boolean
+          max_concurrent_tasks?: number
+          notes?: string | null
+          operator_code?: string | null
+          organization_id?: string
+          status?: string
+          status_changed_at?: string
+          updated_at?: string
+          user_id?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_home_zone_id_fkey"
+            columns: ["home_zone_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_home_zone_id_fkey"
+            columns: ["home_zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_operators_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_pack_cartons: {
         Row: {
           branch_id: string | null
@@ -69062,6 +69283,53 @@ export type Database = {
             columns: ["packaging_type_id"]
             isOneToOne: false
             referencedRelation: "wms_packaging_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_task_requirements: {
+        Row: {
+          business_id: string
+          created_at: string
+          equipment_class: string | null
+          id: string
+          is_active: boolean
+          min_proficiency: number
+          required_certs: string[]
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          equipment_class?: string | null
+          id?: string
+          is_active?: boolean
+          min_proficiency?: number
+          required_certs?: string[]
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          equipment_class?: string | null
+          id?: string
+          is_active?: boolean
+          min_proficiency?: number
+          required_certs?: string[]
+          task_type?: Database["public"]["Enums"]["wms_task_type"]
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_task_requirements_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -77063,6 +77331,99 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
+          },
+        ]
+      }
+      wms_operator_board_view: {
+        Row: {
+          actual_seconds_today: number | null
+          business_id: string | null
+          earned_seconds_today: number | null
+          employee_id: string | null
+          employee_number: string | null
+          equipment_classes: string[] | null
+          home_zone_id: string | null
+          is_active: boolean | null
+          max_concurrent_tasks: number | null
+          open_tasks: number | null
+          operator_code: string | null
+          operator_id: string | null
+          operator_name: string | null
+          status: string | null
+          status_changed_at: string | null
+          user_id: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_directory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employee_setup_health"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_employees_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_home_zone_id_fkey"
+            columns: ["home_zone_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operators_home_zone_id_fkey"
+            columns: ["home_zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_operators_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -91674,6 +92035,14 @@ export type Database = {
           _warehouse_id: string
         }
         Returns: string
+      }
+      wms_operator_can_do_task: {
+        Args: { _task_id: string; _user_id: string }
+        Returns: boolean
+      }
+      wms_operator_eligibility_enforced: {
+        Args: { _warehouse_id: string }
+        Returns: boolean
       }
       wms_packaging_archive: {
         Args: { p_id: string; p_reason?: string }
