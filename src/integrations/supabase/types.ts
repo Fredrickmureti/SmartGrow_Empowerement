@@ -79672,6 +79672,54 @@ export type Database = {
         Args: { p_transfer_id: string }
         Returns: Json
       }
+      cancel_yard_move: {
+        Args: { p_reason?: string; p_task_id: string }
+        Returns: {
+          actual_seconds: number | null
+          assignee_user_id: string | null
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          destination_location_id: string | null
+          device_id: string | null
+          earned_seconds: number | null
+          expires_at: string | null
+          heartbeat_at: string | null
+          id: string
+          lot_number: string | null
+          lpn_id: string | null
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          payload: Json
+          priority: number
+          product_id: string | null
+          quantity: number | null
+          row_version: number
+          sla_at: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_location_id: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["wms_task_state"]
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          updated_at: string
+          warehouse_id: string
+          zone_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       canonicalise_salary_components: {
         Args: { p_structure_id: string }
         Returns: Json
@@ -80410,6 +80458,44 @@ export type Database = {
       complete_tenant_ownership_transfer: {
         Args: { p_transfer_id: string }
         Returns: Json
+      }
+      complete_yard_move: {
+        Args: { p_confirmed_code?: string; p_task_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          departure_approved_at: string | null
+          departure_approved_by: string | null
+          departure_override_reason: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_id: string | null
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       compute_employee_user_access_status: {
         Args: { p_employee_id: string }
@@ -88555,6 +88641,60 @@ export type Database = {
           p_source_doc_type: string
         }
         Returns: string
+      }
+      request_yard_move: {
+        Args: {
+          p_notes?: string
+          p_priority?: number
+          p_to_dock_id?: string
+          p_to_slot_id?: string
+          p_visit_id: string
+        }
+        Returns: {
+          actual_seconds: number | null
+          assignee_user_id: string | null
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          correlation_id: string | null
+          created_at: string
+          created_by: string | null
+          destination_location_id: string | null
+          device_id: string | null
+          earned_seconds: number | null
+          expires_at: string | null
+          heartbeat_at: string | null
+          id: string
+          lot_number: string | null
+          lpn_id: string | null
+          metadata: Json
+          notes: string | null
+          organization_id: string
+          payload: Json
+          priority: number
+          product_id: string | null
+          quantity: number | null
+          row_version: number
+          sla_at: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_location_id: string | null
+          started_at: string | null
+          state: Database["public"]["Enums"]["wms_task_state"]
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          updated_at: string
+          warehouse_id: string
+          zone_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       requeue_print_job: {
         Args: { p_job_id: string }
