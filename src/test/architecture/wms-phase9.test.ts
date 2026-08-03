@@ -97,6 +97,9 @@ describe("yard architecture (ADR 0086)", () => {
     expect(/path="yard"/.test(routes)).toBe(true);
     expect(/path="yard\/gate"/.test(routes)).toBe(true);
     expect(/path="yard\/trailers"/.test(routes)).toBe(true);
+    // Phase 6 — the handheld jockey surface.
+    expect(nav).toContain("/warehouse-app/yard/marshal");
+    expect(/path="yard\/marshal"/.test(routes)).toBe(true);
   });
 
   it("realtime subscribes the yard tables", () => {
@@ -128,6 +131,16 @@ describe("yard architecture (ADR 0086)", () => {
       expect(src, `useYard is missing ${rpc}`).toContain(rpc);
     }
     expect(src).toContain("useYardMoveTasks");
+  });
+
+  it("the yard marshal executes moves through the RPC layer and a scan intent", () => {
+    const src = readFileSync(path.join(SRC, "pages/warehouse/YardMarshal.tsx"), "utf8");
+    expect(src).toContain("useWmsScanIntent");
+    expect(src).toContain("yard.trailer");
+    expect(src).toContain("yard.slot");
+    expect(src).toContain("useCompleteYardMove");
+    // Confirmation must be server-checked, never a client-side comparison.
+    expect(src).toContain("confirmedCode");
   });
 
   it("realtime refreshes yard work orders when wms_tasks changes", () => {
