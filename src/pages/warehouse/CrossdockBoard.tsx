@@ -223,10 +223,14 @@ export default function CrossdockBoard() {
           <Table>
             <TableHeader>
               <TableRow>
+                {lane === "decide" && <TableHead className="w-8" />}
                 <TableHead>Score</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Qty</TableHead>
                 <TableHead>Demand</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Dock / lane</TableHead>
+                <TableHead>Operator</TableHead>
                 <TableHead>Cut-off</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -237,22 +241,48 @@ export default function CrossdockBoard() {
                 const h = hoursLeft(r.expires_at);
                 return (
                   <TableRow key={r.id}>
+                    {lane === "decide" && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selected.includes(r.id)}
+                          onCheckedChange={(v) =>
+                            setSelected((s) =>
+                              v ? [...s, r.id] : s.filter((id) => id !== r.id),
+                            )
+                          }
+                          aria-label="Select plan"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-semibold">{r.score ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.product_id.slice(0, 8)}</TableCell>
+                    <TableCell>
+                      <span className="font-medium">{r.product_name ?? "Unnamed product"}</span>
+                      {r.product_sku && (
+                        <p className="text-xs text-muted-foreground">{r.product_sku}</p>
+                      )}
+                    </TableCell>
                     <TableCell>{Number(r.quantity)}</TableCell>
                     <TableCell className="text-xs">
                       <span className="capitalize">{r.demand_type.replace("_", " ")}</span>{" "}
-                      <span className="font-mono text-muted-foreground">
-                        {r.demand_doc_id ? r.demand_doc_id.slice(0, 8) : "—"}
-                      </span>
+                      <span className="font-medium">{r.demand_number ?? "—"}</span>
                     </TableCell>
+                    <TableCell className="text-xs">{r.customer_name ?? "—"}</TableCell>
+                    <TableCell className="text-xs">
+                      {r.dock_code ?? "—"}
+                      {r.staging_code && (
+                        <span className="text-muted-foreground"> · {r.staging_code}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs">{r.assignee_name ?? "—"}</TableCell>
                     <TableCell className="text-xs">
                       {h === null ? "—" : h <= 0 ? (
                         <span className="text-destructive inline-flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3" /> lapsed
                         </span>
                       ) : (
-                        `${h.toFixed(1)}h`
+                        <span className={h <= 4 ? "text-destructive font-medium" : undefined}>
+                          {h.toFixed(1)}h
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -273,14 +303,8 @@ export default function CrossdockBoard() {
           </Table>
         )}
 
-        {rules && rules.length > 0 && (
-          <p className="text-xs text-muted-foreground mt-6">
-            Active policy: <strong>{rules[0].name}</strong> — min shelf life{" "}
-            {rules[0].min_shelf_life_days ?? "n/a"} days, cut-off window{" "}
-            {rules[0].min_hours_to_cutoff}–{rules[0].max_hours_to_cutoff}h, auto-approve at score{" "}
-            {rules[0].auto_approve_score ?? "off"}.
-          </p>
-        )}
+        <CrossdockRulesEditor businessId={currentBusiness?.id} />
+
       </PageBody>
     </>
   );
