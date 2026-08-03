@@ -94,4 +94,18 @@ describe("cycle count seams", () => {
       expect(src, `${page} must use the sanctioned read seam`).toMatch(/useCountLines/);
     }
   });
+
+  // Invariant 4 (Phase 7) — count work closes on evidence, not on a click.
+  it("the operator queue never hand-completes a count task", () => {
+    const src = readFileSync(join(process.cwd(), "src/pages/warehouse/OperatorTasks.tsx"), "utf8");
+    expect(src, "count tasks must route to their session").toMatch(/task_type === "count"/);
+    expect(src, "count tasks must deep-link to the count session").toMatch(/counts\/\$\{t\.source_doc_id\}/);
+  });
+
+  it("event-triggered count rules have an admin surface", () => {
+    const src = readFileSync(join(process.cwd(), "src/pages/warehouse/CountTriggers.tsx"), "utf8");
+    expect(src).toMatch(/wms_count_triggers/);
+    expect(src).toMatch(/cooldown_hours/);
+  });
 });
+
