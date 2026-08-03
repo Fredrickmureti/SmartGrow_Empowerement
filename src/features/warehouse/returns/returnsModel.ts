@@ -224,3 +224,60 @@ export function ageHours(iso: string | null): number | null {
   if (!iso) return null;
   return Math.max(0, (Date.now() - new Date(iso).getTime()) / 3_600_000);
 }
+
+/**
+ * Lane SLA in hours — how long a return may sit in a lane before the lane
+ * board calls it late. Physical lanes are tight (a parcel on the dock is
+ * blocking a door); paperwork lanes get a working day.
+ */
+export const RETURN_LANE_SLA_HOURS: Record<ReturnLane, number> = {
+  expected: 72,
+  at_dock: 4,
+  unloading: 4,
+  awaiting_inspection: 8,
+  awaiting_disposition: 12,
+  awaiting_posting: 4,
+  awaiting_finance: 24,
+  blocked: 2,
+  closed: Number.POSITIVE_INFINITY,
+};
+
+/** The clock a lane is measured against. */
+export function returnLaneClock(order: ReturnOrder): string | null {
+  return order.received_at ?? order.expected_at ?? order.created_at;
+}
+
+export interface LaneStat {
+  count: number;
+  /** Returns in this lane past their lane SLA. */
+  breached: number;
+  /** Age in hours of the oldest return in the lane. */
+  oldestHours: number | null;
+}
+
+export function laneStats(
+  orders: ReturnOrder[],
+  linesByOrder: Map<string, ReturnLine[]>,
+): Map<ReturnLane, LaneStat> {
+  const stats = new Map<ReturnLane, LaneStat>();
+  for (const order of orders) {
+    const lane = returnLane(order, linesByOrder.get(order.id) ?? []);
+    const age = ageHours(returnLaneClock(order));
+    const prev = stats.get(lane) ?? { count: 0, breached: 0, oldestHours: null };
+    stats.set(lane, {
+      count: prev.count + 1,
+      breached: prev.breached + (age != null && age > RETURN_LANE_SLA_HOURS[lane] ? 1 : 0),
+      oldestHours:
+        age == null ? prev.oldestHours : Math.max(prev.oldestHours ?? 0, age),
+    });
+  }
+  return stats;
+}
+
+/** True when a single return has outstayed its lane SLA. */
+export function isLaneBreached(order: ReturnOrder, lines: ReturnLine[]): boolean {
+  const lane = returnLane(order, lines);
+  const age = ageHours(returnLaneClock(order));
+  return age != null && age > RETURN_LANE_SLA_HOURS[lane];
+}
+
