@@ -92,6 +92,14 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-dock-appointments"],
     ["wms-dock-appointment"],
   ],
+  // ADR 0108 — replenishment control centre replaces its 15s poll.
+  wms_replen_orders: [
+    ["wms-replen-orders"],
+    ["wms-replen-tasks"],
+  ],
+  wms_replenishment_rules: [
+    ["wms-replen-rules"],
+  ],
 };
 
 /** Public list of subscribed tables — exported so the guard test can
