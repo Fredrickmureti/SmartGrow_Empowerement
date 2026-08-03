@@ -239,6 +239,57 @@ export function useCaptureDispatchProof(manifestId: string | null | undefined) {
   });
 }
 
+// -------------------------------------------------------------------
+// Carrier abstraction (Phase D, ADR-0110)
+//
+// `wms_allocate_tracking_number` is the ONLY write path for a manifest's
+// tracking identity. It is adapter-shaped: today it mints an internal
+// deterministic number, tomorrow a live carrier API can return one under
+// the same contract, and no caller changes.
+// -------------------------------------------------------------------
+export interface ManifestTracking {
+  manifest_id: string;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  carrier_kind: string | null;
+}
+
+export function useCarrierServices(carrierId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["wms-carrier-services", carrierId],
+    enabled: !!carrierId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("carrier_services")
+        .select("id, code, name, transit_days")
+        .eq("carrier_id", carrierId!)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useAllocateTrackingNumber(manifestId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (serviceId?: string | null) => {
+      const { data } = await replayGuardedCall<ManifestTracking>(
+        "wms_allocate_tracking_number",
+        { p_manifest_id: manifestId!, p_service_id: serviceId ?? null },
+      );
+      return data ?? null;
+    },
+    onSuccess: (res) => {
+      toast.success(res?.tracking_number ? `Tracking ${res.tracking_number}` : "Tracking allocated");
+      qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] });
+      qc.invalidateQueries({ queryKey: ["wms-loading-manifests"] });
+    },
+    onError: (e) => toast.error(normalizeError(e, "Could not allocate tracking")),
+  });
+}
+
 
 // -------------------------------------------------------------------
 // QC — accept / reject / cancel
