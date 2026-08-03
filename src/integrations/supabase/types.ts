@@ -67150,6 +67150,89 @@ export type Database = {
           },
         ]
       }
+      wms_operator_shifts: {
+        Row: {
+          break_minutes: number
+          business_id: string
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          notes: string | null
+          operator_id: string
+          organization_id: string
+          pattern_id: string | null
+          shift_date: string
+          start_time: string
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          break_minutes?: number
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          notes?: string | null
+          operator_id: string
+          organization_id: string
+          pattern_id?: string | null
+          shift_date: string
+          start_time: string
+          status?: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          break_minutes?: number
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          notes?: string | null
+          operator_id?: string
+          organization_id?: string
+          pattern_id?: string | null
+          shift_date?: string
+          start_time?: string
+          status?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_operator_shifts_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operator_board_view"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "wms_operator_shifts_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operator_shifts_pattern_id_fkey"
+            columns: ["pattern_id"]
+            isOneToOne: false
+            referencedRelation: "wms_shift_patterns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_operator_shifts_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_operator_skills: {
         Row: {
           business_id: string
@@ -69156,6 +69239,65 @@ export type Database = {
             columns: ["return_order_id"]
             isOneToOne: false
             referencedRelation: "wms_return_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_shift_patterns: {
+        Row: {
+          break_minutes: number
+          business_id: string
+          code: string
+          created_at: string
+          created_by: string | null
+          days_of_week: number[]
+          end_time: string
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          start_time: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          break_minutes?: number
+          business_id: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          days_of_week?: number[]
+          end_time: string
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          start_time: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          break_minutes?: number
+          business_id?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          days_of_week?: number[]
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          start_time?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_shift_patterns_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -78341,6 +78483,10 @@ export type Database = {
           p_organization_id: string
         }
         Returns: string
+      }
+      _wms_roster_seconds: {
+        Args: { _break_minutes: number; _end: string; _start: string }
+        Returns: number
       }
       _wms_sscc_log: {
         Args: {
@@ -91497,6 +91643,15 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
+      wms_apply_roster_pattern: {
+        Args: {
+          _from: string
+          _operator_ids: string[]
+          _pattern_id: string
+          _to: string
+        }
+        Returns: number
+      }
       wms_capture_dispatch_proof: {
         Args: {
           p_driver_id_ref?: string
@@ -91732,6 +91887,34 @@ export type Database = {
           p_row_version: number
         }
         Returns: Json
+      }
+      wms_labour_demand: {
+        Args: { _from?: string; _to?: string; _warehouse_id?: string }
+        Returns: {
+          demand_date: string
+          open_tasks: number
+          overdue_tasks: number
+          required_seconds: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          unassigned_tasks: number
+          unstandardised: number
+          warehouse_id: string
+        }[]
+      }
+      wms_labour_plan: {
+        Args: { _from?: string; _to?: string; _warehouse_id?: string }
+        Returns: {
+          actual_seconds: number
+          gap_seconds: number
+          open_tasks: number
+          overdue_tasks: number
+          plan_date: string
+          planned_operators: number
+          planned_seconds: number
+          published_seconds: number
+          required_seconds: number
+          warehouse_id: string
+        }[]
       }
       wms_link_return_finance: {
         Args: {
@@ -92440,6 +92623,15 @@ export type Database = {
       }
       wms_post_return_dispositions: {
         Args: { p_return_id: string; p_row_version: number }
+        Returns: Json
+      }
+      wms_publish_labour_plan: {
+        Args: {
+          _from: string
+          _gap_threshold_hours?: number
+          _to: string
+          _warehouse_id: string
+        }
         Returns: Json
       }
       wms_raise_exception: {

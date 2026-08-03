@@ -39,6 +39,8 @@ import { LabourQueuePanel } from "@/features/warehouse/labour/LabourQueuePanel";
 import { StandardsPanel } from "@/features/warehouse/labour/StandardsPanel";
 import { useUtilisation } from "@/features/warehouse/labour/useLabourQueue";
 import { useOperatorBoard } from "@/features/warehouse/labour/useLabourOperators";
+import { LabourPlanningPanel } from "@/features/warehouse/labour/LabourPlanningPanel";
+
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -196,9 +198,20 @@ export default function LabourBoard() {
           <TabsList>
             <TabsTrigger value="queue">Control centre</TabsTrigger>
             <TabsTrigger value="operators">Operators</TabsTrigger>
+            <TabsTrigger value="planning">Planning</TabsTrigger>
             <TabsTrigger value="standards">Standards</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="planning" className="mt-4">
+            <Section
+              title="Labour planning"
+              description="Projected standard hours for open work against the rostered operator hours, day by day. Publishing raises a gap alert when demand outruns capacity."
+            >
+              <LabourPlanningPanel warehouseId={warehouseFilter} warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
+
 
           <TabsContent value="queue" className="mt-4">
             <Section
