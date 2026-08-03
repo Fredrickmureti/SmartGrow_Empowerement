@@ -3762,7 +3762,13 @@ serve(async (req) => {
 
 
     const bizId = await getBusinessId(supabase, documentType, documentId);
-    const template = await fetchTemplate(supabase, orgId, templateType, bizId);
+    const fetchedTemplate = await fetchTemplate(supabase, orgId, templateType, bizId);
+    // WLM Phase I — labour paperwork forces its operational shape on top of
+    // whatever the tenant configured, so no finance block can leak onto it.
+    const template = LABOUR_TEMPLATE_OVERRIDES[documentType]
+      ? { ...fetchedTemplate, ...LABOUR_TEMPLATE_OVERRIDES[documentType] }
+      : fetchedTemplate;
+
 
     // Fetch structured payment methods — template-level flag is the single source of truth
     const showPaymentMethods = (template as any).show_payment_methods !== false; // default true
