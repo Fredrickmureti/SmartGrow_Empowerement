@@ -66132,6 +66132,13 @@ export type Database = {
             foreignKeyName: "wms_crossdock_history_opportunity_id_fkey"
             columns: ["opportunity_id"]
             isOneToOne: false
+            referencedRelation: "wms_crossdock_board_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_history_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
             referencedRelation: "wms_crossdock_opportunities"
             referencedColumns: ["id"]
           },
@@ -78001,6 +78008,161 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wms_crossdock_board_view: {
+        Row: {
+          appointment_id: string | null
+          approved_at: string | null
+          assigned_user_id: string | null
+          assignee_name: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string | null
+          completed_at: string | null
+          customer_name: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_number: string | null
+          demand_type:
+            | Database["public"]["Enums"]["wms_crossdock_demand_type"]
+            | null
+          dock_code: string | null
+          expires_at: string | null
+          grn_id: string | null
+          grn_line_id: string | null
+          hours_to_cutoff: number | null
+          id: string | null
+          load_task_id: string | null
+          loaded_at: string | null
+          matched_at: string | null
+          organization_id: string | null
+          outbound_dock_id: string | null
+          product_id: string | null
+          product_name: string | null
+          product_sku: string | null
+          qualified_at: string | null
+          quantity: number | null
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number | null
+          rule_id: string | null
+          sales_order_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_code: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"] | null
+          status: string | null
+          warehouse_id: string | null
+          warehouse_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_crossdock_opportunities_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_id_fkey"
+            columns: ["grn_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
+            columns: ["grn_line_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
+            columns: ["grn_line_id"]
+            isOneToOne: false
+            referencedRelation: "goods_receipt_lines_with_suspect_cost"
+            referencedColumns: ["goods_receipt_item_id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_outbound_dock_id_fkey"
+            columns: ["outbound_dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_receiving_line_id_fkey"
+            columns: ["receiving_line_id"]
+            isOneToOne: false
+            referencedRelation: "wms_receiving_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "wms_crossdock_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
+            columns: ["stage_task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
+            columns: ["stage_task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
+            columns: ["staging_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
+            columns: ["staging_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+        ]
+      }
+      wms_crossdock_metrics_view: {
+        Row: {
+          avg_dwell_hours: number | null
+          broken: number | null
+          business_id: string | null
+          completed: number | null
+          expired: number | null
+          metric_date: string | null
+          opportunities: number | null
+          rejected: number | null
+          savings_estimate: number | null
+          storage_days_avoided: number | null
+          success_rate_pct: number | null
+          touches_avoided: number | null
+          units_flowed: number | null
+          warehouse_id: string | null
+        }
+        Relationships: []
       }
       wms_labour_queue_view: {
         Row: {
