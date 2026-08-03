@@ -274,6 +274,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                 <TableHead className="text-right">Perf %</TableHead>
                 <TableHead className="text-right">Util %</TableHead>
                 <TableHead className="text-right">Incentive at</TableHead>
+                <TableHead className="text-right">Rate / earned h</TableHead>
                 <TableHead>From</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -281,7 +282,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
             <TableBody>
               {(targets ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
                     No targets yet — operators are measured without a goal.
                   </TableCell>
                 </TableRow>
@@ -299,6 +300,9 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                   <TableCell className="text-right">{t.target_performance_pct}</TableCell>
                   <TableCell className="text-right">{t.target_utilisation_pct}</TableCell>
                   <TableCell className="text-right">{t.incentive_threshold_pct ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {Number(t.incentive_rate_per_earned_hour ?? 0) || "—"}
+                  </TableCell>
                   <TableCell>{t.effective_from}</TableCell>
                   <TableCell>
                     <Button
