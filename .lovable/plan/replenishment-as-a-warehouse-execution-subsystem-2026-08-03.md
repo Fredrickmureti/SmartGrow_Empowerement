@@ -68,3 +68,7 @@ The page becomes a supervisor workspace, decomposed into `src/features/warehouse
 3. `complete_replenish_task` + scan intents + operator screen + MobileNextTask routing.
 4. Supervisor control centre UI + realtime wiring.
 5. ADR + architecture tests + ownership doc update.
+
+---
+
+**Status: complete (2026-08-03).** All five delivery steps shipped — migration + FSM, `plan_replenishment` engine and TS reference engine with tests, `complete_replenish_task` with scan intents, the supervisor control centre with realtime, and ADR 0108 + architecture guards.
