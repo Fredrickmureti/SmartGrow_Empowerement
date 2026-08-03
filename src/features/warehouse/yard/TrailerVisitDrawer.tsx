@@ -31,6 +31,7 @@ import {
   LogOut,
   Printer,
   ShieldCheck,
+  PackageCheck,
   Timer,
   XCircle,
 } from "lucide-react";
@@ -42,9 +43,13 @@ import {
   gateEventLabel,
   VISIT_STATUS_LABEL,
   YARD_MOVE_LABEL,
+  LOAD_READINESS_LABEL,
+  LOAD_READINESS_TONE,
+  receivingProgressPct,
   yardTaskDestination,
   yardTaskStateLabel,
   type VisitRow,
+  type TrailerLoadSummaryRow,
   type YardMoveTaskRow,
   type YardSlotRow,
 } from "./yardModel";
@@ -52,6 +57,7 @@ import {
   useApproveDeparture,
   useAssignTrailerToDock,
   useCancelYardMove,
+  useTrailerLoadSummaries,
   useCompleteYardMove,
   useDepartureBlockers,
   useGateApprove,
@@ -68,6 +74,52 @@ import { toast } from "sonner";
 
 function ts(v: string | null | undefined) {
   return v ? format(new Date(v), "dd MMM HH:mm") : "—";
+}
+
+/**
+ * Load & readiness panel (ADR 0086 Phase 7).
+ *
+ * Answers the question the yard could not previously answer: what is on
+ * this trailer, and has the warehouse finished with it? Read-only — the
+ * numbers come from `wms_trailer_visit_load_summary` and are owned by the
+ * inbound/outbound modules, never edited from the yard.
+ */
+function TrailerLoadPanel({ summary }: { summary: TrailerLoadSummaryRow | null | undefined }) {
+  if (!summary) return null;
+  const pct = receivingProgressPct(summary);
+  const tone = LOAD_READINESS_TONE[summary.readiness];
+  return (
+    <div className="rounded-lg border p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium flex items-center gap-1.5">
+          <PackageCheck className="h-3.5 w-3.5" /> Load &amp; readiness
+        </span>
+        <Badge
+          variant={tone === "success" ? "default" : tone === "neutral" ? "outline" : "secondary"}
+          className="text-[10px]"
+        >
+          {LOAD_READINESS_LABEL[summary.readiness]}
+        </Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+        <div>
+          Outbound: {summary.manifest_count} manifest(s), {summary.carton_count} carton(s)
+          {summary.open_manifest_count > 0 ? ` — ${summary.open_manifest_count} still open` : ""}
+        </div>
+        <div>
+          Inbound: {summary.receiving_session_count} session(s)
+          {summary.open_receiving_count > 0 ? ` — ${summary.open_receiving_count} open` : ""}
+          {pct !== null ? ` — ${pct}% received` : ""}
+        </div>
+        {summary.earliest_planned_departure_at && (
+          <div>Planned departure: {ts(summary.earliest_planned_departure_at)}</div>
+        )}
+        {Number(summary.damaged_qty) > 0 && (
+          <div className="text-destructive">Damaged units recorded: {summary.damaged_qty}</div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function TrailerVisitDrawer({
@@ -91,6 +143,8 @@ export function TrailerVisitDrawer({
   const [printing, setPrinting] = useState(false);
 
   const { currentOrg } = useOrganization();
+  const loadSummaries = useTrailerLoadSummaries(visit?.warehouse_id ?? null);
+  const loadSummary = visit ? loadSummaries.data?.get(visit.id) ?? null : null;
 
   async function printPlacard(v: VisitRow) {
     if (!currentOrg?.id) {
@@ -198,6 +252,8 @@ export function TrailerVisitDrawer({
             <Printer className="h-3.5 w-3.5" /> Print yard placard
           </Button>
 
+
+          <TrailerLoadPanel summary={loadSummary} />
 
           {openMoveTask && (
             <Alert>
