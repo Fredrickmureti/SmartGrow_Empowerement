@@ -113,9 +113,22 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_trailer_visits: [
     ["wms-trailer-visits"],
     ["wms-loading-manifests"],
+    ["dock-live-visits"],
+    ["wms-departure-blockers"],
   ],
   wms_yard_slots: [
     ["wms-yard-slots"],
+  ],
+  // Yard control tower (ADR 0086) — trailer master + physical move ledger.
+  wms_trailers: [
+    ["wms-trailers"],
+  ],
+  wms_yard_moves: [
+    ["wms-yard-moves"],
+    ["wms-trailer-visits"],
+  ],
+  wms_gate_events: [
+    ["wms-gate-events"],
   ],
 };
 
