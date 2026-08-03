@@ -413,6 +413,21 @@ export default function PayrollRuns() {
       } else {
         toast({ title: "Payroll run created" });
       }
+      // Staged inputs that fed this run are now spent. Reversing the run
+      // releases them again (see ReversePayrollDialog).
+      if (currentBusiness?.id) {
+        try {
+          await consumePendingPayrollInputs(
+            currentBusiness.id,
+            (result as any)?.payroll_run?.id ?? (result as any)?.payroll_run_id ?? null,
+            formData.pay_period_start,
+            formData.pay_period_end,
+          );
+        } catch {
+          // Non-fatal: the run exists. The rows stay pending and will be
+          // offered again rather than silently disappearing.
+        }
+      }
       setShowPreview(false); setPreviewData(null); setVariableEarnings([]);
       setRunType("regular"); setParentRunId(null); setProrationOverrides({});
     } catch (err: any) {
