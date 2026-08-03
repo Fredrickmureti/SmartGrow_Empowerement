@@ -343,6 +343,102 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Coins className="h-4 w-4" /> Incentive pay staged for payroll
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Window</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead className="text-right">Earned h</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(staged ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                    Nothing staged. Posted incentive pay appears here until a payroll
+                    run consumes it.
+                  </TableCell>
+                </TableRow>
+              )}
+              {(staged ?? []).map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>
+                    {s.period_start} → {s.period_end}
+                  </TableCell>
+                  <TableCell>{s.label ?? s.code}</TableCell>
+                  <TableCell className="text-right">
+                    {Math.round(Number(s.quantity || 0) * 10) / 10}
+                  </TableCell>
+                  <TableCell className="text-right">{Number(s.amount || 0)}</TableCell>
+                  <TableCell>
+                    <Badge variant={s.status === "pending" ? "secondary" : "default"}>
+                      {s.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={incentiveOpen} onOpenChange={setIncentiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Post incentive pay to payroll</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Operators at or above their incentive threshold between{" "}
+              <strong>{from}</strong> and <strong>{to}</strong> will be staged for
+              payroll at their target's rate per earned hour. Re-posting the same
+              window replaces the previous figures rather than adding to them.
+            </p>
+            <div className="space-y-2">
+              <Label>Pay input</Label>
+              <Select value={incentiveCode} onValueChange={setIncentiveCode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a payroll input" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(inputCodes ?? []).map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIncentiveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!incentiveCode || postIncentive.isPending}
+              onClick={() =>
+                postIncentive.mutate(
+                  { code: incentiveCode, from, to, warehouseId: scoped },
+                  { onSuccess: () => setIncentiveOpen(false) },
+                )
+              }
+            >
+              {postIncentive.isPending ? "Posting…" : "Post to payroll"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <Dialog open={targetOpen} onOpenChange={setTargetOpen}>
         <DialogContent>
           <DialogHeader>
