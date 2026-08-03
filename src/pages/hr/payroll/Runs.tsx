@@ -122,18 +122,6 @@ export default function PayrollRuns() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Phase H.3 — pre-run input inbox. Other modules (warehouse incentive pay
-  // today) stage pay inputs in `payroll_pending_inputs`; the grid is prefilled
-  // from them so nothing has to be retyped, and manual entries always win.
-  const { data: pendingInputs } = usePendingPayrollInputs(
-    formData.pay_period_start,
-    formData.pay_period_end,
-  );
-
-  useEffect(() => {
-    if (!showDialog || !pendingInputs?.length) return;
-    setVariableEarnings((prev) => mergePendingIntoVariableEarnings(prev, pendingInputs));
-  }, [showDialog, pendingInputs]);
 
 
   // Phase 3 · Realtime job-status subscription.
