@@ -22,17 +22,20 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Truck, Check, X, PackageCheck, Forklift, AlertTriangle, RefreshCw } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { CrossdockRulesEditor } from "@/features/warehouse/crossdock/CrossdockRulesEditor";
 import {
   useCrossdockOpportunities,
-  useCrossdockRules,
+  useCrossdockMetrics,
   useCrossdockSweep,
   useCrossdockTransition,
   type CrossdockOpportunity,
   type CrossdockState,
 } from "@/features/warehouse/crossdock/useCrossdock";
+
 
 const LANES: { key: string; label: string; states: CrossdockState[] }[] = [
   { key: "decide", label: "Awaiting decision", states: ["detected", "qualified"] },
