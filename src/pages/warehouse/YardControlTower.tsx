@@ -111,7 +111,6 @@ export default function YardControlTower() {
       <PageHeader
         title="Yard Control Tower"
         description="Live trailer visibility from gate to dock to departure — dwell, appointments, seals and chain of custody."
-        icon={ParkingSquare}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" asChild>

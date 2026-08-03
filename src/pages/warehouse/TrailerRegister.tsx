@@ -185,7 +185,6 @@ export default function TrailerRegister() {
       <PageHeader
         title="Trailer Register"
         description="Master data for every trailer, container and vehicle that visits your sites."
-        icon={Container}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild>

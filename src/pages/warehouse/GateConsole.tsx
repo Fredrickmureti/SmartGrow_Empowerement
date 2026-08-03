@@ -65,7 +65,6 @@ export default function GateConsole() {
       <PageHeader
         title="Gate Console"
         description="Check trailers in and out of site. Every action is recorded against the visit's chain of custody."
-        icon={DoorOpen}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" asChild>
