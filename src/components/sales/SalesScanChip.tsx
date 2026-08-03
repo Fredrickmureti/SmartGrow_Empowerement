@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSalesScanMode } from "@/contexts/SalesScanContext";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useToast } from "@/hooks/use-toast";
 
 const HINT_KEY = "sales.scan.rapid.hint.seen";
