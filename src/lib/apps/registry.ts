@@ -600,7 +600,9 @@ export const REPORTS_APP: AppDefinition = {
   description: "Financial reports, analytics, and business intelligence",
   icon: BarChart3,
   color: "hsl(280, 65%, 60%)", // Violet
-  basePath: "/reports",
+  // Reports have no standalone router mount — they live under the Finance app
+  // routes (/finance/reports/*). Pointing the tile at /reports 404'd.
+  basePath: "/finance/reports",
   requiredPlan: "starter",
   requiredPermissions: ["viewReports"],
   sortOrder: 10,
