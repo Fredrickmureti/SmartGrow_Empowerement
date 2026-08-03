@@ -3062,6 +3062,9 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   carrier_label: fetchCarrierLabel,
   // WLM Phase F — the paper twin of the handheld work list; read model only.
   labour_worksheet: fetchLabourWorksheet,
+  // WLM Phase I — shift roster sheet keyed by warehouse id.
+  labour_roster: fetchLabourRoster,
+
 
 };
 
