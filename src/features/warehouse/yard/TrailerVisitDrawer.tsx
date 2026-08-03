@@ -42,12 +42,17 @@ import {
   gateEventLabel,
   VISIT_STATUS_LABEL,
   YARD_MOVE_LABEL,
+  yardTaskDestination,
+  yardTaskStateLabel,
   type VisitRow,
+  type YardMoveTaskRow,
   type YardSlotRow,
 } from "./yardModel";
 import {
   useApproveDeparture,
   useAssignTrailerToDock,
+  useCancelYardMove,
+  useCompleteYardMove,
   useDepartureBlockers,
   useGateApprove,
   useGateExit,
@@ -69,11 +74,14 @@ export function TrailerVisitDrawer({
   visit,
   slots,
   docks,
+  openMoveTask = null,
   onClose,
 }: {
   visit: VisitRow | null;
   slots: YardSlotRow[];
   docks: { id: string; code: string; name: string | null }[];
+  /** The dispatched jockey work order for this visit, when one is open. */
+  openMoveTask?: YardMoveTaskRow | null;
   onClose: () => void;
 }) {
   const [slotId, setSlotId] = useState("");
@@ -113,6 +121,8 @@ export function TrailerVisitDrawer({
   const approveDeparture = useApproveDeparture();
   const exit = useGateExit();
   const noShow = useMarkNoShow();
+  const completeMove = useCompleteYardMove();
+  const cancelMove = useCancelYardMove();
 
   if (!visit) return null;
 
@@ -188,6 +198,42 @@ export function TrailerVisitDrawer({
             <Printer className="h-3.5 w-3.5" /> Print yard placard
           </Button>
 
+
+          {openMoveTask && (
+            <Alert>
+              <ArrowRightLeft className="h-4 w-4" />
+              <AlertTitle className="flex items-center gap-2">
+                Yard move in flight
+                <Badge variant="outline" className="text-[10px]">
+                  {yardTaskStateLabel(openMoveTask.state)}
+                </Badge>
+              </AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p className="text-xs">
+                  Requested move to {yardTaskDestination(openMoveTask, slots, docks)}.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    disabled={completeMove.isPending}
+                    onClick={() => completeMove.mutate({ taskId: openMoveTask.id })}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Mark done
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={cancelMove.isPending}
+                    onClick={() => cancelMove.mutate({ taskId: openMoveTask.id })}
+                  >
+                    Cancel move
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Separator />
 
