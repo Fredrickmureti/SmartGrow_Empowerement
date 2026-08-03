@@ -92839,6 +92839,7 @@ export type Database = {
         | "replenish"
         | "move"
         | "qc"
+        | "yard_move"
       wms_wave_state:
         | "draft"
         | "released"
@@ -93839,6 +93840,7 @@ export const Constants = {
         "replenish",
         "move",
         "qc",
+        "yard_move",
       ],
       wms_wave_state: [
         "draft",
