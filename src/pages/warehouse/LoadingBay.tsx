@@ -156,6 +156,29 @@ export default function LoadingBay() {
   const proofStatus = proof.data ?? null;
   const proofSatisfied = proofStatus ? proofStatus.satisfied : true;
 
+  // Phase D — carrier abstraction. Tracking identity is allocated by an RPC,
+  // never typed into the manifest by the client.
+  const services = useCarrierServices(manifest?.carrier_id);
+  const allocate = useAllocateTrackingNumber(manifestId);
+  const [serviceId, setServiceId] = useState<string>("");
+  const isOwnFleet = (manifest?.carrier?.carrier_kind ?? "own_fleet") === "own_fleet";
+
+  // ADR 0109 — the manifest is the outbound spine; show the sales-side
+  // deliveries this load actually carries.
+  const { data: linkedNotes } = useQuery({
+    queryKey: ["wms-manifest-delivery-notes", manifestId],
+    enabled: !!manifestId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("delivery_notes")
+        .select("id, delivery_number, status")
+        .eq("manifest_id", manifestId!)
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; delivery_number: string; status: string }>;
+    },
+  });
+
   const submitScan = () => {
     if (!scanCode.trim()) return;
     const match = (available ?? []).find((c) => c.shipment_lpn?.code?.toLowerCase() === scanCode.trim().toLowerCase());
