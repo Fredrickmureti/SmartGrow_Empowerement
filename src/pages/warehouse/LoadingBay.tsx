@@ -17,13 +17,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
-import { useDispatchManifest, useLoadCartonOntoManifest } from "@/features/warehouse/aggregates/useDomainOperations";
+import {
+  useCaptureDispatchProof,
+  useDispatchManifest,
+  useLoadCartonOntoManifest,
+  useManifestProofStatus,
+} from "@/features/warehouse/aggregates/useDomainOperations";
+import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle2, PackageCheck, Truck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, PackageCheck, ShieldCheck, Truck } from "lucide-react";
 
 interface Manifest {
   id: string; code: string; state: string; warehouse_id: string;
@@ -130,6 +136,13 @@ export default function LoadingBay() {
   const dispatch = useDispatchManifest(manifestId);
   const handleDispatch = () => dispatch.mutate(null, { onSuccess: () => toast.success("Manifest dispatched") });
 
+  // Phase C — proof of dispatch. The FSM refuses the departure without it
+  // when the warehouse requires proof; the button mirrors that server rule.
+  const proof = useManifestProofStatus(manifestId);
+  const captureProof = useCaptureDispatchProof(manifestId);
+  const proofStatus = proof.data ?? null;
+  const proofSatisfied = proofStatus ? proofStatus.satisfied : true;
+
   const submitScan = () => {
     if (!scanCode.trim()) return;
     const match = (available ?? []).find((c) => c.shipment_lpn?.code?.toLowerCase() === scanCode.trim().toLowerCase());
@@ -143,7 +156,8 @@ export default function LoadingBay() {
   const isComplete = shortCount === 0;
   const canLoad = manifest.state === "loading";
   const canClose = manifest.state === "loading" && isComplete;
-  const canDispatch = (manifest.state === "loading" || manifest.state === "closed") && isComplete;
+  const canDispatch =
+    (manifest.state === "loading" || manifest.state === "closed") && isComplete && proofSatisfied;
 
 
   return (
@@ -164,6 +178,38 @@ export default function LoadingBay() {
         }
       />
       <PageBody>
+        {manifest.state !== "dispatched" && proofStatus?.required && (
+          <Section
+            title="Proof of dispatch"
+            description={
+              proofStatus.satisfied
+                ? "Custody evidence is on file — this load may depart."
+                : "This warehouse requires seal, driver and signature before the load can leave."
+            }
+          >
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
+                  <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
+                    {proofStatus.satisfied ? "Captured" : "Outstanding"}
+                  </StatusBadge>
+                  {proofStatus.captured_at && (
+                    <span className="text-muted-foreground">
+                      {new Date(proofStatus.captured_at).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                <DispatchProofForm
+                  status={proofStatus}
+                  submitting={captureProof.isPending}
+                  onSubmit={(v) => captureProof.mutate(v)}
+                />
+              </CardContent>
+            </Card>
+          </Section>
+        )}
+
         {manifest.state !== "dispatched" && (
           <Section title={`Scan-out progress · ${scannedPct}%`}
             description={isComplete
