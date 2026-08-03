@@ -8,6 +8,7 @@
  * outbox event stay in sync. Direct `.update({ state })` is forbidden.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
@@ -41,7 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
 import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
-import { ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
+import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
 
 interface TaskRow {
   id: string;
@@ -62,6 +63,8 @@ interface TaskRow {
   notes: string | null;
   cancel_reason: string | null;
   row_version: number;
+  source_doc_type: string | null;
+  source_doc_id: string | null;
   source_loc: { code: string } | null;
   dest_loc: { code: string } | null;
 }
@@ -85,6 +88,7 @@ export default function OperatorTasks() {
   const { currentOrg } = useOrganization();
   const { user } = useAuth();
   const engine = useTaskEngine();
+  const navigate = useNavigate();
 
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [stateFilter, setStateFilter] = useState<string>("open");
@@ -97,7 +101,7 @@ export default function OperatorTasks() {
     queryFn: async () => {
       let q = supabase
         .from("wms_tasks")
-        .select("id, task_type, state, priority, sla_at, assignee_user_id, warehouse_id, source_location_id, destination_location_id, product_id, lot_number, quantity, started_at, completed_at, created_at, notes, cancel_reason, row_version, source_loc:source_location_id(code), dest_loc:destination_location_id(code)")
+        .select("id, task_type, state, priority, sla_at, assignee_user_id, warehouse_id, source_location_id, destination_location_id, product_id, lot_number, quantity, started_at, completed_at, created_at, notes, cancel_reason, row_version, source_doc_type, source_doc_id, source_loc:source_location_id(code), dest_loc:destination_location_id(code)")
         .eq("business_id", currentBusiness!.id)
         .order("priority", { ascending: false })
         .order("sla_at", { ascending: true, nullsFirst: false })
@@ -129,12 +133,24 @@ export default function OperatorTasks() {
     engine.transition.mutate({ taskId: t.id, toState: to, rowVersion: t.row_version, reason });
 
   const claim = (t: TaskRow) => transition(t, "claimed");
+  const isCountTask = (t: TaskRow) =>
+    t.task_type === "count" && t.source_doc_type === "wms_count_session" && !!t.source_doc_id;
+  const openCount = (t: TaskRow) => {
+    if (!t.source_doc_id) { toast.error("This count task has no session"); return; }
+    navigate(`/warehouse-app/counts/${t.source_doc_id}`);
+  };
   const start = (t: TaskRow) => transition(t, "in_progress");
   const [replenTask, setReplenTask] = useState<TaskRow | null>(null);
 
   const complete = (t: TaskRow) => {
     if (t.task_type === "putaway") {
       completePutaway.mutate(t.id);
+      return;
+    }
+    if (t.task_type === "count") {
+      // A count task closes on evidence (record_count), never on a click.
+      // Send the operator to the bin instead of faking completion.
+      openCount(t);
       return;
     }
     if (t.task_type === "replenish") {
@@ -358,6 +374,11 @@ export default function OperatorTasks() {
                           {t.sla_at ? new Date(t.sla_at).toLocaleString() : "—"}
                         </TableCell>
                         <TableCell className="text-right space-x-1">
+                          {isCountTask(t) && (
+                            <Button size="sm" variant="outline" onClick={() => openCount(t)}>
+                              <ClipboardList className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           {(t.state === "pending" || t.state === "available") && (
                             <Button size="sm" variant="outline" onClick={() => claim(t)}><UserPlus className="h-3.5 w-3.5" /></Button>
                           )}
