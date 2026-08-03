@@ -150,6 +150,13 @@ export function ReversePayrollDialog({
     },
     onSuccess: (data: any) => {
       const idempotent = !!data?.idempotent;
+      // Phase H.3 — a reversed run no longer consumes its staged pay inputs;
+      // release them so they are offered to the replacement run.
+      if (scope === "whole" && businessId) {
+        void import("@/hooks/payroll/usePendingPayrollInputs")
+          .then((m) => m.releasePendingPayrollInputs(businessId, run.id))
+          .catch(() => undefined);
+      }
       toast({
         title: scope !== "whole"
           ? "Correction run created"
