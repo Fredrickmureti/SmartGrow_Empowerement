@@ -1,29 +1,36 @@
 /**
- * CountReview — supervisor review + post surface for a
- * `wms_count_session`. Posting delegates to `post_count_session`, which
- * routes every non-zero variance through the sanctioned inventory
- * adjustment RPC. The client never touches `stock_quants` directly.
+ * CountReview — supervisor review + submit surface for a
+ * `wms_count_session`.
+ *
+ * Submitting delegates to `post_count_session`, which hands the counted
+ * result to the canonical Inventory count document. Inventory — not the
+ * warehouse — evaluates tolerance, takes approval and posts the stock
+ * adjustment and its journal entry. The client never touches
+ * `stock_quants`.
+ *
+ * Every non-zero difference must carry a reason code before the session
+ * can be submitted; the server rejects submission otherwise, and this
+ * screen collects the codes so operators never meet that error blind.
  */
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOperations";
+import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-
-interface Line {
-  id: string;
-  system_qty: number;
-  counted_qty: number | null;
-  variance_qty: number | null;
-  lot_number: string | null;
-  location: { name: string; code: string | null } | null;
-  product: { name: string; sku: string | null } | null;
-}
+import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import {
+  VARIANCE_REASONS,
+  TOLERANCE_COPY,
+  type ToleranceOutcome,
+  type VarianceReason,
+} from "@/features/warehouse/counts/varianceReasons";
 
 export default function CountReview() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -36,7 +43,7 @@ export default function CountReview() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_count_sessions")
-        .select("id, code, state, row_version, posted_at")
+        .select("id, code, state, row_version, posted_at, is_blind")
         .eq("id", sessionId!)
         .maybeSingle();
       if (error) throw error;
@@ -44,27 +51,25 @@ export default function CountReview() {
     },
   });
 
-  const { data: lines } = useQuery({
-    queryKey: ["wms-count-lines-review", sessionId],
-    enabled: !!sessionId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_count_lines")
-        .select(
-          "id, system_qty, counted_qty, variance_qty, lot_number, location:location_id(name, code), product:product_id(name, sku)",
-        )
-        .eq("session_id", sessionId!)
-        .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as Line[];
+  const { data: lines } = useCountLines(sessionId);
+
+  const setReason = useMutation({
+    mutationFn: async (v: { line_id: string; counted_qty: number; reason: VarianceReason }) => {
+      await replayGuardedCall("record_count", {
+        p_line_id: v.line_id,
+        p_counted_qty: v.counted_qty,
+        p_variance_reason: v.reason,
+      });
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wms-count-lines", sessionId] }),
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save the reason"),
   });
 
   const post = usePostCountSession(sessionId);
   const handlePost = () =>
     post.mutate(undefined, {
       onSuccess: () => {
-        toast.success("Session posted");
+        toast.success("Count submitted to Inventory for approval and posting");
         nav("/warehouse-app/counts");
       },
     });
@@ -82,7 +87,14 @@ export default function CountReview() {
 
   const variances = (lines ?? []).filter((l) => l.counted_qty != null && Number(l.variance_qty ?? 0) !== 0);
   const uncounted = (lines ?? []).filter((l) => l.counted_qty == null);
-  const canPost = session.state !== "posted" && session.state !== "cancelled";
+  const missingReasons = variances.filter((l) => !l.variance_reason);
+  const openRecounts = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required");
+  const needsApproval = (lines ?? []).filter((l) => l.tolerance_outcome === "approval_required");
+  const canPost =
+    session.state !== "posted" &&
+    session.state !== "cancelled" &&
+    missingReasons.length === 0 &&
+    openRecounts.length === 0;
 
   return (
     <>
@@ -107,28 +119,51 @@ export default function CountReview() {
               }}
             />
             <Button disabled={!canPost || post.isPending} onClick={handlePost}>
-              <CheckCircle2 className="h-4 w-4 mr-2" /> Post {variances.length} variance{variances.length === 1 ? "" : "s"}
+              <CheckCircle2 className="h-4 w-4 mr-2" /> Submit {variances.length} difference{variances.length === 1 ? "" : "s"}
             </Button>
           </div>
         }
       />
       <PageBody>
+        <p className="text-sm text-muted-foreground -mt-2">
+          Submitting hands this count to Inventory. Stock and the ledger are only updated once the
+          count is approved there — the warehouse never changes stock on its own.
+        </p>
+
+        {openRecounts.length > 0 && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+            {openRecounts.length} line{openRecounts.length === 1 ? "" : "s"} still need a recount.
+            Submission stays locked until they are counted again.
+          </div>
+        )}
+        {needsApproval.length > 0 && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            {needsApproval.length} line{needsApproval.length === 1 ? "" : "s"} exceed the allowed
+            difference and will need a manager's approval in Inventory before stock moves.
+          </div>
+        )}
+        {missingReasons.length > 0 && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Choose a reason for each difference below before submitting.
+          </div>
+        )}
+
         {uncounted.length > 0 && (
-          <Section title={`Uncounted (${uncounted.length})`} description="These lines were snapshotted but never counted. Posting treats them as no variance.">
+          <Section title={`Not counted (${uncounted.length})`} description="These lines were included in the count but never recorded. Submitting treats them as no difference.">
             <Card><CardContent className="p-3 text-sm text-muted-foreground">
               {uncounted.slice(0, 20).map((l) => (
-                <div key={l.id}>{l.location?.code ?? "—"} · {l.product?.name ?? l.product?.sku ?? "?"}</div>
+                <div key={l.id}>{l.location_code ?? "—"} · {l.product_name ?? l.product_sku ?? "?"}</div>
               ))}
               {uncounted.length > 20 && <div>…and {uncounted.length - 20} more</div>}
             </CardContent></Card>
           </Section>
         )}
 
-        <Section title={`Variances (${variances.length})`}>
+        <Section title={`Differences (${variances.length})`}>
           <Card>
             <CardContent className="p-0">
               {variances.length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">No variances — posting will just close the session.</div>
+                <div className="p-4 text-sm text-muted-foreground">No differences — submitting will simply close the count.</div>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
@@ -136,22 +171,60 @@ export default function CountReview() {
                       <th className="p-2">Bin</th>
                       <th className="p-2">Product</th>
                       <th className="p-2">Lot</th>
-                      <th className="p-2 text-right">System</th>
+                      <th className="p-2 text-right">Expected</th>
                       <th className="p-2 text-right">Counted</th>
-                      <th className="p-2 text-right">Variance</th>
+                      <th className="p-2 text-right">Difference</th>
+                      <th className="p-2">Check</th>
+                      <th className="p-2">Reason</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {variances.map((l) => (
-                      <tr key={l.id} className="border-t">
-                        <td className="p-2 font-mono">{l.location?.code ?? "—"}</td>
-                        <td className="p-2">{l.product?.name ?? l.product?.sku ?? "?"}</td>
-                        <td className="p-2">{l.lot_number ?? "—"}</td>
-                        <td className="p-2 text-right font-mono">{Number(l.system_qty).toFixed(2)}</td>
-                        <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
-                        <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
-                      </tr>
-                    ))}
+                    {variances.map((l) => {
+                      const outcome = l.tolerance_outcome as ToleranceOutcome | null;
+                      return (
+                        <tr key={l.id} className="border-t">
+                          <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
+                          <td className="p-2">{l.product_name ?? l.product_sku ?? "?"}</td>
+                          <td className="p-2">{l.lot_number ?? "—"}</td>
+                          <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
+                          <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
+                          <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
+                          <td className="p-2">
+                            {outcome ? (
+                              <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                                {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                              </StatusBadge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="p-2">
+                            <Select
+                              value={l.variance_reason ?? undefined}
+                              disabled={session.state === "posted" || setReason.isPending}
+                              onValueChange={(value) =>
+                                setReason.mutate({
+                                  line_id: l.id,
+                                  counted_qty: Number(l.counted_qty ?? 0),
+                                  reason: value as VarianceReason,
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-56">
+                                <SelectValue placeholder="Why is it different?" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VARIANCE_REASONS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>
+                                    {r.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
