@@ -17,7 +17,7 @@ import { join } from "node:path";
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
 const BAY = read("src/pages/warehouse/LoadingBay.tsx");
-const YARD = read("src/pages/warehouse/YardBoard.tsx");
+const YARD = read("src/pages/warehouse/YardControlTower.tsx");
 const MOBILE = read("src/pages/warehouse-mobile/MobileDispatch.tsx");
 const OPS = read("src/features/warehouse/aggregates/useDomainOperations.ts");
 const FORM = read("src/features/warehouse/dispatch/DispatchProofForm.tsx");
@@ -45,7 +45,7 @@ describe("wms dispatch proof (Phase C)", () => {
 
 describe("wms dispatch liveness (Phase F)", () => {
   it("no 15s polls remain on the dispatch and yard surfaces", () => {
-    for (const [name, src] of [["LoadingBay", BAY], ["YardBoard", YARD]] as const) {
+    for (const [name, src] of [["LoadingBay", BAY], ["YardControlTower", YARD]] as const) {
       expect(src, `${name} still polls`).not.toMatch(/refetchInterval:\s*15_?000/);
     }
   });
