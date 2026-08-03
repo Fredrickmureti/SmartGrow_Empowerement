@@ -47,6 +47,11 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-tasks-loc-options"],
     // ADR 0086 Phase 5 — jockey work orders live on the yard surfaces.
     ["wms-yard-move-tasks"],
+    // Labour control centre — the queue and the operator board are both
+    // projections of wms_tasks, so a task change must move both.
+    ["wms-labour-queue-view"],
+    ["wms-operator-board"],
+    ["wms-operator-utilisation"],
   ],
   wms_license_plates: [
     ["wms-lpns"],
