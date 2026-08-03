@@ -82414,6 +82414,7 @@ export type Database = {
           variance_reason: string
         }[]
       }
+      get_count_task_target: { Args: { p_task_id: string }; Returns: Json }
       get_current_employee: {
         Args: { _organization_id?: string }
         Returns: string
