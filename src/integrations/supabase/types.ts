@@ -78593,8 +78593,16 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      _wms_accrue_storage_days_internal: {
+        Args: { p_as_of: string; p_business_id: string }
+        Returns: number
+      }
       _wms_assert_business_access: {
         Args: { p_business_id: string }
+        Returns: undefined
+      }
+      _wms_assert_period_open: {
+        Args: { _business_id: string; _on_date: string }
         Returns: undefined
       }
       _wms_caller_business_branch: {
@@ -92035,6 +92043,7 @@ export type Database = {
         }
         Returns: number
       }
+      wms_billing_nightly_sweep: { Args: never; Returns: number }
       wms_capture_dispatch_proof: {
         Args: {
           p_driver_id_ref?: string
