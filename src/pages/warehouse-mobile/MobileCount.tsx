@@ -1,5 +1,6 @@
 /**
- * Mobile cycle count — scan bin + item, enter counted qty, record.
+ * Mobile cycle count — scan bin + item, verify lot/serial/expiry where the
+ * product demands it, enter counted qty, record.
  *
  * Both legs run on their resolver seams: `BinScanField`
  * (`resolve_location_identity`, ADR 0104) and `ProductScanField`
@@ -7,6 +8,10 @@
  *
  * Lines are read through `get_count_lines`, never the table, so a blind
  * session really does hide the expected quantity from the counter.
+ *
+ * Superseded attempts (a line that has been recounted) are excluded from
+ * matching and from the open/recount roll-ups — the same rule
+ * `post_count_session` applies server-side.
  */
 import { useCallback, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -22,6 +27,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import {
+  useProductTracking,
+  serialCaptureError,
+} from "@/features/warehouse/counts/useProductTracking";
 
 export default function MobileCount() {
   const { id } = useParams();
@@ -30,11 +39,23 @@ export default function MobileCount() {
   const [binLocationId, setBinLocationId] = useState<string | null>(null);
   const [productScan, setProductScan] = useState<GatedScan | null>(null);
   const [countedQty, setCountedQty] = useState("");
+  const [serialEntry, setSerialEntry] = useState("");
+  const [serials, setSerials] = useState<string[]>([]);
+  const [expiry, setExpiry] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
   const { data: lines } = useCountLines(id);
   const blind = (lines ?? []).some((l) => l.is_blind);
+
+  const supersededIds = useMemo(
+    () => new Set((lines ?? []).map((l) => l.recount_of_line_id).filter(Boolean) as string[]),
+    [lines],
+  );
+  const latest = useMemo(
+    () => (lines ?? []).filter((l) => !supersededIds.has(l.id)),
+    [lines, supersededIds],
+  );
 
   // Both legs are resolved identities, so the line match is an id comparison:
   // a bin label whose barcode differs from the code, or a case GTIN instead of
@@ -43,16 +64,23 @@ export default function MobileCount() {
     const productId = productScan?.identity.productId ?? null;
     if (!binLocationId || !productId) return null;
     return (
-      (lines ?? []).find((l) => l.location_id === binLocationId && l.product_id === productId) ??
-      null
+      latest.find((l) => l.location_id === binLocationId && l.product_id === productId) ?? null
     );
-  }, [binLocationId, productScan, lines]);
+  }, [binLocationId, productScan, latest]);
+
+  const { data: tracking } = useProductTracking(active?.product_id);
 
   const handleBinConfirmed = useCallback((confirmed: boolean) => {
     if (!confirmed) setBinLocationId(null);
   }, []);
   const handleProductScan = useCallback((scan: GatedScan | null) => setProductScan(scan), []);
 
+  const addSerial = (raw: string) => {
+    const s = raw.trim();
+    if (!s) return;
+    setSerials((prev) => (prev.some((p) => p.toLowerCase() === s.toLowerCase()) ? prev : [...prev, s]));
+    setSerialEntry("");
+  };
 
   const submit = async () => {
     if (!active) {
@@ -64,12 +92,23 @@ export default function MobileCount() {
       toast.error("Enter counted qty");
       return;
     }
+    const serialProblem = serialCaptureError(tracking, n, serials);
+    if (serialProblem) {
+      toast.error(serialProblem);
+      return;
+    }
+    if (tracking?.is_expiry_tracked && !expiry) {
+      toast.error("Confirm the expiry date printed on the stock");
+      return;
+    }
     setBusy(true);
     try {
       const r = await enqueue<{ tolerance_outcome?: string }>("record_count", {
         p_line_id: active.id,
         p_counted_qty: n,
         p_note: null,
+        p_serial_numbers: serials.length > 0 ? serials : null,
+        p_expiry_date: expiry || null,
       });
       const outcome = r.data?.tolerance_outcome;
       if (r.queued) {
@@ -84,6 +123,9 @@ export default function MobileCount() {
       setBinLocationId(null);
       setProductScan(null);
       setCountedQty("");
+      setSerials([]);
+      setSerialEntry("");
+      setExpiry("");
       setResetKey((k) => k + 1);
 
       qc.invalidateQueries({ queryKey: ["wms-count-lines", id] });
@@ -94,9 +136,10 @@ export default function MobileCount() {
     }
   };
 
-  const open = (lines ?? []).filter((l) => l.counted_qty == null);
-  const done = (lines ?? []).length - open.length;
-  const recounts = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required");
+  const open = latest.filter((l) => l.counted_qty == null);
+  const done = latest.length - open.length;
+  const recounts = latest.filter((l) => l.tolerance_outcome === "recount_required");
+
 
   return (
     <MobileWarehouseLayout
@@ -167,7 +210,57 @@ export default function MobileCount() {
             className="h-12 text-lg"
           />
         </div>
+
+        {tracking?.is_serial_tracked && (
+          <div className="space-y-2">
+            <Label>Scan each serial number</Label>
+            <Input
+              value={serialEntry}
+              onChange={(e) => setSerialEntry(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addSerial(serialEntry);
+                }
+              }}
+              placeholder="Scan or type, then Enter"
+              className="h-12 text-lg"
+            />
+            <div className="text-xs text-muted-foreground">
+              {serials.length} captured{countedQty ? ` of ${Math.round(Number(countedQty) || 0)}` : ""}
+            </div>
+            {serials.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {serials.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSerials((prev) => prev.filter((p) => p !== s))}
+                    className="rounded border px-2 py-1 text-xs font-mono"
+                  >
+                    {s} ×
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(tracking?.is_expiry_tracked || tracking?.is_lot_tracked) && (
+          <div>
+            <Label>
+              Expiry date{tracking?.is_expiry_tracked ? "" : " (optional)"}
+            </Label>
+            <Input
+              type="date"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              className="h-12 text-lg"
+            />
+          </div>
+        )}
       </div>
+
     </MobileWarehouseLayout>
   );
 }

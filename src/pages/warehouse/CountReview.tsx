@@ -22,15 +22,17 @@ import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, CheckCircle2, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import {
   VARIANCE_REASONS,
   TOLERANCE_COPY,
   type ToleranceOutcome,
   type VarianceReason,
 } from "@/features/warehouse/counts/varianceReasons";
+
 
 export default function CountReview() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -65,7 +67,9 @@ export default function CountReview() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save the reason"),
   });
 
+  const recount = useRequestRecount(sessionId);
   const post = usePostCountSession(sessionId);
+
   const handlePost = () =>
     post.mutate(undefined, {
       onSuccess: () => {
@@ -85,11 +89,19 @@ export default function CountReview() {
     );
   }
 
-  const variances = (lines ?? []).filter((l) => l.counted_qty != null && Number(l.variance_qty ?? 0) !== 0);
-  const uncounted = (lines ?? []).filter((l) => l.counted_qty == null);
+  const all = lines ?? [];
+  // A flagged attempt stops blocking once a newer round supersedes it —
+  // the same rule `post_count_session` applies server-side.
+  const superseded = new Set(all.map((l) => l.recount_of_line_id).filter(Boolean) as string[]);
+  const isLatest = (id: string) => !superseded.has(id);
+  const variances = all.filter(
+    (l) => isLatest(l.id) && l.counted_qty != null && Number(l.variance_qty ?? 0) !== 0,
+  );
+  const uncounted = all.filter((l) => isLatest(l.id) && l.counted_qty == null);
   const missingReasons = variances.filter((l) => !l.variance_reason);
-  const openRecounts = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required");
-  const needsApproval = (lines ?? []).filter((l) => l.tolerance_outcome === "approval_required");
+  const openRecounts = all.filter((l) => l.tolerance_outcome === "recount_required" && isLatest(l.id));
+  const needsApproval = all.filter((l) => l.tolerance_outcome === "approval_required" && isLatest(l.id));
+
   const canPost =
     session.state !== "posted" &&
     session.state !== "cancelled" &&
@@ -131,11 +143,33 @@ export default function CountReview() {
         </p>
 
         {openRecounts.length > 0 && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-            {openRecounts.length} line{openRecounts.length === 1 ? "" : "s"} still need a recount.
-            Submission stays locked until they are counted again.
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm space-y-2">
+            <p>
+              {openRecounts.length} line{openRecounts.length === 1 ? "" : "s"} fell outside the
+              allowed difference and must be counted again. Submission stays locked until a second
+              round is opened and recorded.
+            </p>
+            <div className="space-y-1">
+              {openRecounts.map((l) => (
+                <div key={l.id} className="flex items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono">{l.location_code ?? "—"}</span>{" "}
+                    · {l.product_name ?? l.product_sku ?? "?"}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={recount.isPending || session.state === "posted"}
+                    onClick={() => recount.mutate({ line_id: l.id })}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
         {needsApproval.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             {needsApproval.length} line{needsApproval.length === 1 ? "" : "s"} exceed the allowed

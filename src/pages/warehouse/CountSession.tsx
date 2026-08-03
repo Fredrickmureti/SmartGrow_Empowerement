@@ -24,14 +24,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ClipboardCheck, EyeOff } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, EyeOff, RotateCcw } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import { TOLERANCE_COPY, type ToleranceOutcome } from "@/features/warehouse/counts/varianceReasons";
+
 import { useQuery } from "@tanstack/react-query";
 
 export default function CountSession() {
@@ -99,6 +101,9 @@ export default function CountSession() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),
   });
 
+  const recount = useRequestRecount(sessionId);
+
+
   const flash = (msg: string, ms = 2500) => {
     setScanFlash(msg);
     window.setTimeout(() => setScanFlash(null), ms);
@@ -139,7 +144,16 @@ export default function CountSession() {
     return line?.id ?? null;
   }, [lines, scanBin, scanProduct, scanProductId]);
 
-  const recountCount = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required").length;
+  // A flagged attempt stops blocking once a newer round supersedes it —
+  // the same rule `post_count_session` applies server-side.
+  const supersededIds = new Set(
+    (lines ?? []).map((l) => l.recount_of_line_id).filter(Boolean) as string[],
+  );
+  const openRecounts = (lines ?? []).filter(
+    (l) => l.tolerance_outcome === "recount_required" && !supersededIds.has(l.id),
+  );
+  const recountCount = openRecounts.length;
+
 
   if (isLoading) return <LoadingState />;
   if (!session) {
@@ -308,13 +322,26 @@ export default function CountSession() {
                           )}
                           <td className="p-2">
                             {outcome ? (
-                              <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
-                                {TOLERANCE_COPY[outcome]?.label ?? outcome}
-                              </StatusBadge>
+                              <div className="flex items-center gap-2">
+                                <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                                  {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                                </StatusBadge>
+                                {outcome === "recount_required" && !supersededIds.has(l.id) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={recount.isPending}
+                                    onClick={() => recount.mutate({ line_id: l.id })}
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
+                                  </Button>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </td>
+
                         </tr>
                       );
                     })}
