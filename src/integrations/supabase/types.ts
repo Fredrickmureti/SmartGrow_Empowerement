@@ -78924,6 +78924,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_crossdock_auto_break: {
+        Args: {
+          p_opportunity_id: string
+          p_reason: string
+          p_terminal?: Database["public"]["Enums"]["wms_crossdock_state"]
+        }
+        Returns: undefined
+      }
+      _wms_crossdock_break_for_demand_doc: {
+        Args: { p_doc_id: string; p_reason: string }
+        Returns: undefined
+      }
       _wms_crossdock_detect: {
         Args: {
           p_business_id: string
@@ -92954,6 +92966,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      wms_crossdock_requalify_sweep: { Args: never; Returns: number }
       wms_crossdock_start_staging: {
         Args: { p_opportunity_id: string; p_row_version?: number }
         Returns: {
