@@ -38,6 +38,11 @@ import { PayrollSetupGuideDialog } from "@/components/payroll/PayrollSetupGuideD
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  usePendingPayrollInputs,
+  mergePendingIntoVariableEarnings,
+  consumePendingPayrollInputs,
+} from "@/hooks/payroll/usePendingPayrollInputs";
 
 export default function PayrollRuns() {
   const [searchParams, setSearchParams] = useSearchParams();
