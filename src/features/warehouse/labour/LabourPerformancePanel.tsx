@@ -49,6 +49,7 @@ const EMPTY_TARGET: LabourTargetUpsert = {
   target_performance_pct: 100,
   target_utilisation_pct: 85,
   incentive_threshold_pct: null,
+  incentive_rate_per_earned_hour: 0,
   notes: null,
   effective_from: isoDay(0),
   effective_to: null,
@@ -411,6 +412,25 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                   }
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Incentive rate per earned hour</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={targetForm.incentive_rate_per_earned_hour}
+                onChange={(e) =>
+                  setTargetForm((f) => ({
+                    ...f,
+                    incentive_rate_per_earned_hour: Number(e.target.value || 0),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Pay staged for payroll is earned hours × this rate. Zero means this
+                target earns no incentive pay.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
