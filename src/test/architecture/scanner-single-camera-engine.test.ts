@@ -79,7 +79,10 @@ describe("scanner: one camera engine", () => {
 
   it("the handheld viewfinder is mounted exactly once, in the app shell", () => {
     const mounts = files.filter(
-      (f) => f.rel !== "src/components/scanner/LocalScanOverlay.tsx" && /<LocalScanOverlay/.test(f.body),
+      (f) =>
+        f.rel !== "src/components/scanner/LocalScanOverlay.tsx" &&
+        !f.rel.startsWith("src/test/") &&
+        /<LocalScanOverlay/.test(code(f.body)),
     );
     expect(mounts.map((f) => f.rel)).toEqual(["src/components/auth/AuthenticatedShell.tsx"]);
   });
