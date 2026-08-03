@@ -893,10 +893,17 @@ export default function BillingBoard() {
               </div>
               <div>
                 <Label>Currency</Label>
-                <Input
+                <Select
                   value={tariffForm.currency}
-                  onChange={(e) => setTariffForm((f) => ({ ...f, currency: e.target.value }))}
-                />
+                  onValueChange={(v) => setTariffForm((f) => ({ ...f, currency: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
+                  <SelectContent>
+                    {(currencies ?? []).map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Effective from</Label>
@@ -904,6 +911,54 @@ export default function BillingBoard() {
                   type="date"
                   value={tariffForm.effective_from}
                   onChange={(e) => setTariffForm((f) => ({ ...f, effective_from: e.target.value }))}
+                />
+              </div>
+            </div>
+            {/* Pricing engine: allowance is consumed first, then the tier
+                band rate applies, then the minimum charge acts as a floor. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Included quantity (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Free allowance per entry"
+                  value={tariffForm.included_quantity}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, included_quantity: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Minimum charge (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Floor amount"
+                  value={tariffForm.min_charge}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, min_charge: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tier from (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="0"
+                  value={tariffForm.tier_from}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, tier_from: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tier to (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Unbounded"
+                  value={tariffForm.tier_to}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, tier_to: e.target.value }))}
                 />
               </div>
             </div>
