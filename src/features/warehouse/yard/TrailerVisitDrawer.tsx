@@ -97,8 +97,8 @@ export function TrailerVisitDrawer({
   if (!visit) return null;
 
   const open = visit.status === "arrived" || visit.status === "in_yard" || visit.status === "at_dock";
-  const blocking = (blockers.data ?? []) as ReturnType<typeof Array.prototype.slice> extends never ? never[] : NonNullable<typeof blockers.data>;
-  const hasBlockers = (blocking?.length ?? 0) > 0;
+  const blocking = blockers.data ?? [];
+  const hasBlockers = blocking.length > 0;
   const freeSlots = slots.filter((s) => s.status !== "blocked" || s.id === visit.yard_slot_id);
 
   return (
