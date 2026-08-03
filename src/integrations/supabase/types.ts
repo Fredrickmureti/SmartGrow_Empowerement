@@ -82379,6 +82379,10 @@ export type Database = {
               sub_ledger_total: number
             }[]
           }
+      get_count_command_center: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
       get_count_lines: {
         Args: { p_session_id: string }
         Returns: {
@@ -82402,6 +82406,35 @@ export type Database = {
           tolerance_outcome: string
           variance_qty: number
           variance_reason: string
+        }[]
+      }
+      get_count_session_board: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_warehouse_id?: string
+        }
+        Returns: {
+          abs_variance_qty: number
+          code: string
+          counted_count: number
+          counters: number
+          created_at: string
+          figures_masked: boolean
+          id: string
+          is_blind: boolean
+          last_activity_at: string
+          line_count: number
+          open_recounts: number
+          posted_at: string
+          recount_round: number
+          requires_approval: boolean
+          state: string
+          strategy: string
+          unexplained_variances: number
+          variance_lines: number
+          warehouse_id: string
+          warehouse_name: string
         }[]
       }
       get_count_task_target: { Args: { p_task_id: string }; Returns: Json }
