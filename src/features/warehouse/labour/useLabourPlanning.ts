@@ -187,15 +187,16 @@ export function useLabourDemand(warehouseId: string | undefined, from: string, t
 export function useUpsertShiftPattern() {
   const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
-  const { organization } = useOrganization();
+  const { currentOrg } = useOrganization();
   return useMutation({
     mutationFn: async (input: ShiftPatternUpsert) => {
-      if (!currentBusiness?.id || !organization?.id) throw new Error("No business selected");
+      if (!currentBusiness?.id || !currentOrg?.id) throw new Error("No business selected");
       const row = {
         ...input,
         business_id: currentBusiness.id,
-        organization_id: organization.id,
+        organization_id: currentOrg.id,
       };
+
       const { error } = await supabase.from("wms_shift_patterns").upsert(row);
       if (error) throw error;
     },
