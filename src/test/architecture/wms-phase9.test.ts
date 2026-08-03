@@ -105,4 +105,33 @@ describe("yard architecture (ADR 0086)", () => {
     expect(sync).toContain("wms_yard_moves:");
     expect(sync).toContain('["wms-yard-moves"]');
   });
+
+  /* ---------------------------------------------------------------- */
+  /* Phase 5 — jockey work orders                                      */
+  /* ---------------------------------------------------------------- */
+
+  it("yard move work orders go through the RPCs, never a direct wms_tasks write", () => {
+    const offenders: string[] = [];
+    for (const f of walk(path.join(SRC, "features/warehouse/yard"))
+      .concat(walk(path.join(SRC, "pages/warehouse")).filter((f) => /Yard|Gate|Trailer/.test(f)))) {
+      const src = readFileSync(f, "utf8");
+      if (/from\(["'`]wms_tasks["'`]\)\s*\n?\s*\.(insert|update|upsert|delete)/.test(src)) {
+        offenders.push(path.relative(SRC, f));
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("the yard data layer exposes the yard move task lifecycle", () => {
+    const src = readFileSync(YARD_HOOKS, "utf8");
+    for (const rpc of ["request_yard_move", "complete_yard_move", "cancel_yard_move"]) {
+      expect(src, `useYard is missing ${rpc}`).toContain(rpc);
+    }
+    expect(src).toContain("useYardMoveTasks");
+  });
+
+  it("realtime refreshes yard work orders when wms_tasks changes", () => {
+    const sync = readFileSync(path.join(SRC, "features/warehouse/realtime/useWmsRealtimeSync.ts"), "utf8");
+    expect(sync).toContain('["wms-yard-move-tasks"]');
+  });
 });
