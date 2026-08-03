@@ -271,9 +271,6 @@ export default function CrossdockBoard() {
             variant="outline"
             size="sm"
             className={lane === "decide" && selected.length > 0 ? "" : "ml-auto"}
-            variant="outline"
-            size="sm"
-            className="ml-auto"
             onClick={() => sweep.mutate()}
             disabled={sweep.isPending}
           >
