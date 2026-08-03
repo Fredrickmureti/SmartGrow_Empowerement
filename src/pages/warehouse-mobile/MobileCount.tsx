@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
-import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
 import {
   useProductTracking,
   serialCaptureError,
@@ -193,7 +193,7 @@ export default function MobileCount() {
         {active && (
           <div className="rounded border border-primary p-3 text-sm">
             <div className="text-xs text-muted-foreground">Matched line</div>
-            <div className="font-medium">{active.product_name}</div>
+            <div className="font-medium">{countLineProductLabel(active)}</div>
             {!blind && <div className="text-xs">System qty: {active.system_qty ?? "—"}</div>}
             {(active.recount_round ?? 0) > 0 && (
               <div className="text-xs text-muted-foreground">Recount #{active.recount_round}</div>

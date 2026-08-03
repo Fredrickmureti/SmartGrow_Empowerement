@@ -24,7 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import {
   VARIANCE_REASONS,
@@ -154,7 +154,7 @@ export default function CountReview() {
                 <div key={l.id} className="flex items-center justify-between gap-2">
                   <span>
                     <span className="font-mono">{l.location_code ?? "—"}</span>{" "}
-                    · {l.product_name ?? l.product_sku ?? "?"}
+                    · {countLineProductLabel(l)}
                   </span>
                   <Button
                     size="sm"
@@ -186,7 +186,7 @@ export default function CountReview() {
           <Section title={`Not counted (${uncounted.length})`} description="These lines were included in the count but never recorded. Submitting treats them as no difference.">
             <Card><CardContent className="p-3 text-sm text-muted-foreground">
               {uncounted.slice(0, 20).map((l) => (
-                <div key={l.id}>{l.location_code ?? "—"} · {l.product_name ?? l.product_sku ?? "?"}</div>
+                <div key={l.id}>{l.location_code ?? "—"} · {countLineProductLabel(l)}</div>
               ))}
               {uncounted.length > 20 && <div>…and {uncounted.length - 20} more</div>}
             </CardContent></Card>
@@ -218,7 +218,7 @@ export default function CountReview() {
                       return (
                         <tr key={l.id} className="border-t">
                           <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
-                          <td className="p-2">{l.product_name ?? l.product_sku ?? "?"}</td>
+                          <td className="p-2">{countLineProductLabel(l)}</td>
                           <td className="p-2">{l.lot_number ?? "—"}</td>
                           <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
                           <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
