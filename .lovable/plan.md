@@ -1,128 +1,46 @@
-# Cycle Count Subsystem — Enterprise Remediation Plan
+# Cycle Count — verification verdict and remaining work
 
-Authoritative status for the Cycle Count architecture programme
-(ADR 0106 — "Cycle counting: one count engine, Inventory-owned").
+## What I verified (not taken on trust)
 
-**Currently active phase:** Phase 7 — complete. Next up: Phase 8.
-**Last updated:** 2026-08-03
+I compared the parent prompt, the previous engineer's plan (`.lovable/plan/cycle-count-subsystem-architecture-audit-remediation-2026-08-03.md`), ADR 0106, the live database (columns, policies, function bodies) and the client surfaces.
 
----
-
-## Architecture verdict (baseline audit)
-
-| Subsystem | Verdict at audit | Status now |
+| Claim | Verdict | Evidence |
 |---|---|---|
-| Canonical stock ownership | Enterprise-grade | Held |
-| Scan pipeline / identity | Enterprise-grade | Held |
-| Two competing count engines | Architecturally insufficient | Fixed (Phase 1) |
-| Tolerance policy | Architecturally insufficient | Fixed (Phase 2) |
-| Approval of differences | Architecturally insufficient | Fixed (Phase 1–2) |
-| Blind counting | Architecturally insufficient | Fixed (Phase 2, 4, 5) |
-| Reason codes | Architecturally insufficient | Fixed (Phase 2, 4) |
-| Recounts | Architecturally insufficient | Fixed (Phase 2, 4) |
-| Task orchestration | Architecturally insufficient | Fixed (Phase 3, 7) |
-| Event-triggered counts | Architecturally insufficient | Fixed (Phase 3, 7) |
-| Branch isolation on count data | Needs improvement | Fixed (Phase 6) |
-| Count performance / accuracy KPIs | Needs improvement | **Pending (Phase 8)** |
+| Phase 1 — one ledger path | ✅ real | `wms_count_sessions.physical_count_id` exists; `post_count_session` records lines into `physical_count_record_line` then `physical_count_submit`, raises if the count document is missing, and no longer adjusts stock |
+| Phase 2 — control plane | ✅ mostly real | `is_blind`, `recount_round`, `requires_approval` on sessions; `variance_reason`, `recount_of_line_id`, `assigned_to`, `serial_numbers`, `expiry_date`, `tolerance_outcome` on lines; `record_count` calls `evaluate_count_tolerance`; submission rejects unexplained variances and open recounts |
+| Blind counting seam | ✅ real | `get_count_lines` masks expected/difference; `useCountLines` is the only read path; guard test `cycle-count-integrity.test.ts` enforces it |
+| Phase 3 — tasks, schedules, triggers | ✅ real | `create_count_session_as`, `cycle_count_schedules.execution_mode/blind/location_ids`, `wms_count_triggers`, `sync_count_task_for_line`, `close_count_tasks_on_session_state`, `get_count_task_target` |
+| Phase 6 — RLS | ✅ real | all three WMS count tables are branch-gated on read and write |
+| Phase 4 — operator/supervisor UI | ⚠ half done | mobile counting loop and blind handling exist; the supervisor side is a 92-line unvirtualised table with no KPIs, queues, heatmap or activity feed |
+| Phase 5 — documents | ❌ not started | no count sheet, blind sheet, variance report or audit report artifact registered |
+| Phase 6 — pgTAP | ❌ not started | no count test file under `supabase/tests/` |
 
----
+## Defects the previous engineer left behind
 
-## Completed and verified
+1. **Recount deadlock (blocking).** `post_count_session` refuses to submit while any line is `recount_required`, and `request_count_recount` exists in the database — but no client surface calls it. A session that trips tolerance can never be submitted or cancelled cleanly. This is a functional dead end in the happy path.
+2. **Legacy RPC overloads still live (control-plane bypass).** Both `record_count(line, qty, note)` and `create_count_session(warehouse, strategy, locations, notes)` still exist next to their new signatures. The legacy `record_count` writes `counted_qty` with no tolerance evaluation, no reason code and no blind awareness; the legacy `create_count_session` creates a session with **no** linked inventory count document, no tasks and no blind flag — i.e. a session that can never post. Any caller (or a stale client bundle) reaching the old signature silently defeats every control ADR 0106 claims.
+3. **Serial / expiry captured nowhere.** The columns and RPC parameters exist; neither the desktop nor the mobile counting screen collects them, so lot/serial/expiry verification is still unimplemented in practice.
+4. **Approval separation of duties unproven.** Approval lives in Inventory, but nothing in the count path asserts approver ≠ counter; there is no test pinning it.
 
-### Phase 1 — One ledger path (done)
-- `physical_count_freeze_scoped` — scoped snapshot of only the bins/products in scope.
-- `create_count_session` bridges every session to a canonical Inventory count document.
-- `post_count_session` hands off to the Inventory approval → adjustment → JE path;
-  the warehouse no longer touches stock.
+## Remaining phases
 
-### Phase 2 — Control plane (done)
-- Schema: `is_blind`, `recount_round`, `recount_of_line_id`, `variance_reason`
-  (enum `wms_count_variance_reason`), `tolerance_outcome`.
-- `evaluate_count_tolerance` — server-side policy evaluation.
-- `record_count` returns `within_tolerance` / `recount_required` / `approval_required`
-  and masks expected quantities in blind mode.
-- Submission rejected server-side when a non-zero difference has no reason code.
+**Phase A — close the deadlock and delete the bypass**
+- Wire `request_count_recount` into `CountSession` and `CountReview` (supervisor action per flagged line) and surface the resulting recount line in the mobile queue.
+- Drop the two legacy overloads in one migration; add an architecture/pgTAP guard asserting only the current signatures exist and that a session without `physical_count_id` cannot be created.
 
-### Phase 3 — Task orchestration, scheduling, event triggers (done)
-- `create_count_session_as` (actor-explicit) emits one `wms_tasks` row of type `count`
-  per bin, optionally pre-assigned.
-- `cycle_count_schedules.execution_mode` ('warehouse' | 'inventory') + `is_blind`.
-- `wms_count_triggers` table + outbox-driven evaluation with per-bin cooldown.
+**Phase B — lot / serial / expiry verification**
+- Add serial and expiry capture to the scan loop for lot- and serial-tracked products only (driven by `products.is_lot_tracked` / `is_expiry_tracked`), passing them through the existing `record_count` parameters. No new RPC.
 
-### Phase 4 — Desktop wiring (done)
-- `useCountLines` (`get_count_lines`) is the only sanctioned read seam.
-- `CountSession` — blind UI, tolerance badges, scan-to-line resolution, recount rounds.
-- `CountReview` — mandatory reason codes before submission.
-- `CycleCountPlanner` — blind toggle + operator assignment.
+**Phase C — supervisor command center**
+- Replace `CycleCounts.tsx` with a split-pane operational console: virtualised session grid (TanStack Virtual), overdue counts, recount queue, approval queue, open/critical variances, accuracy KPI trend, operator productivity, bin heatmap, live activity feed — fed by the existing `useWmsRealtimeSync` channel and read-only aggregate RPCs (no client-side warehouse rules).
 
-### Phase 5 — Mobile scan-first loop (done)
-- `MobileCount` on the same read seam, blind masking, offline-queued tolerance outcomes.
+**Phase D — documents**
+- Register count sheet, blind count sheet, variance report and audit report as artifacts in the sanctioned printing pipeline (ADR 0084/0085), reusing the existing generator and snapshot pattern — no ad-hoc PDF code, no new print transport.
 
-### Phase 6 — Access control (done)
-- Branch-gated RLS on `wms_count_sessions`, `wms_count_lines`, `wms_count_triggers`.
+**Phase E — hardening**
+- pgTAP suite: tolerance branching, blind-mode leakage, recount linkage, single posting path, reason-code gate, approver ≠ counter, legacy-overload absence.
+- Update ADR 0106 with a verification addendum recording what was found unimplemented and what now guarantees it.
 
-### Phase 7 — Close the count-work loop (done, this iteration)
-- DB trigger `sync_count_task_for_line` — a bin's count task moves to `in_progress`
-  on first capture and `done` when every line in that bin is counted. Count work
-  closes on **evidence**, never on an operator clicking "complete".
-- DB trigger `close_count_tasks_on_session_state` — posting a session closes remaining
-  count tasks; cancelling one cancels them with a reason. No orphaned queue work.
-- `get_count_task_target(task_id)` — resolves a claimed count task to its session/bin
-  without exposing `wms_count_lines` (blind counting preserved).
-- `MobileNextTask` — claim-next deep-links count tasks straight to their session;
-  fixed the capture-route map, which pointed at the non-existent `/warehouse/*` base
-  instead of `/warehouse-app/*` (every route in that map was dead).
-- `OperatorTasks` — count tasks expose "open count" and can no longer be hand-completed.
-- `CountTriggers` page (`/warehouse-app/counts/automation`) — admin surface for the
-  event-trigger rules created in Phase 3, which until now had no UI.
-- Architecture guard extended: no hand-completion of count tasks, automation surface exists.
+## Technical notes
 
-Verification for Phase 7: `tsgo --noEmit` clean; `cycle-count-integrity.test.ts` (7 tests)
-and `wms-phase4c.test.ts` green; migration applied successfully.
-
----
-
-## Pending
-
-### Phase 8 — Count performance & accuracy analytics (next)
-The only subsystem still rated "needs improvement". Reference systems (SAP EWM
-count analytics, Manhattan labour/accuracy reporting) treat count accuracy as a
-first-class KPI feeding ABC re-classification.
-
-Scope:
-1. `wms_count_accuracy` reporting function (SECURITY DEFINER, branch-gated) returning
-   per-warehouse/per-period: lines counted, lines with variance, absolute and net
-   variance value, accuracy %, average count duration, recount rate, variance
-   reason mix.
-2. Per-operator accuracy and throughput derived from `counted_by` / task timestamps.
-3. A supervisor analytics section on `SupervisorDashboard` (or a `CountAnalytics`
-   page) rendering those KPIs — read via RPC only, never off `wms_count_lines`.
-4. Feed accuracy back into scheduling: bins/products with repeated variance get a
-   higher count frequency (ABC re-classification input on `cycle_count_schedules`).
-5. Extend the architecture guard with the analytics read seam.
-
-### Phase 9 — Backlog (not started)
-- Count-by-license-plate (LPN-level counting) alongside bin/product counting.
-- Serial-controlled count reconciliation against the serial register.
-- Scheduled-count SLA breach alerting through the exceptions inbox.
-
----
-
-## Instructions for the next agent
-
-1. **Verify before you build.** Confirm Phase 7 actually holds:
-   - `sync_count_task_for_line` and `close_count_tasks_on_session_state` exist and are
-     attached as triggers; open a session, count a bin, confirm its `wms_tasks` row
-     reaches `done`; post the session and confirm no `count` task is left open.
-   - `get_count_task_target` returns the session for a count task and denies
-     cross-business access.
-   - `/warehouse-app/counts/automation` renders, and rules save/toggle/delete.
-   - `bunx vitest run src/test/architecture/cycle-count-integrity.test.ts` is green
-     and `tsgo --noEmit` is clean.
-2. If any of the above fails, fix it before starting new work.
-3. Then resume at **Phase 8** above — do not jump to Phase 9 or to unrelated
-   warehouse subsystems.
-4. Keep every invariant in ADR 0106 intact: one ledger path, `get_count_lines` as the
-   only read seam, server-evaluated tolerance, mandatory reason codes, queued count work.
-5. Update this file at the end of each phase: what is done and verified, what is
-   pending, which phase is active, what comes next.
+Hardware needs no work: wedge, camera and Bluetooth scanners all land on the same `BarcodeInputField` → `resolve_*_identity` seam, and RF terminals already run the mobile shell. New libraries are limited to virtualisation and charting for the supervisor console. All stock movement continues to flow only through Inventory's approval → adjustment → journal-entry path.
