@@ -91,6 +91,14 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
   const [coachRow, setCoachRow] = useState<ScorecardRow | null>(null);
   const [coachBody, setCoachBody] = useState("");
 
+  // Phase H.3 — incentive hand-off. Staging is the only route to pay; the
+  // amounts themselves are computed by `wms_post_incentive_inputs`.
+  const { data: inputCodes } = usePayrollInputCodes();
+  const { data: staged } = useStagedIncentives();
+  const postIncentive = usePostIncentiveInputs();
+  const [incentiveOpen, setIncentiveOpen] = useState(false);
+  const [incentiveCode, setIncentiveCode] = useState("");
+
   const rows = scorecard ?? [];
 
   const totals = useMemo(() => {
