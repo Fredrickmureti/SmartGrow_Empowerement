@@ -1,99 +1,99 @@
-# Enterprise Warehouse Labour Management (WLM) — Implementation Plan
+# Warehouse Labour Management — Verification Result and Final Phase (H.3)
 
-Authoritative status document. Update it after every implementation step.
+## Verification of the previous engineer's claims (done this session)
 
-## Vision
+Every claim was checked against the live database and the codebase, not the notes.
 
-Labour is a managed resource, not a report. The system must know who is
-available, what they are qualified to do, what the work *should* take, what it
-actually took, and what to do when reality diverges. One task engine
-(`wms_tasks`, ADR 0101) remains the single source of work; labour adds the
-resource, standard, and control layers around it.
+Confirmed present in the database:
+- Standards/eligibility layer: `wms_resolve_labour_standard`, `wms_claim_next_task`,
+  `assign_wms_task`, `wms_reassign_task`, `wms_release_task`, `wms_set_operator_status`,
+  `wms_set_task_priority`.
+- Operator shift layer: `wms_operator_clock`, `wms_my_operator`, `wms_my_performance`,
+  `wms_log_labour_entry`, `_wms_labour_open` / `_wms_labour_close_open`.
+- Planning layer (Phase G): `wms_labour_demand`, `wms_labour_plan`, `wms_publish_labour_plan`.
+- Performance layer (Phase H.1–H.2): `wms_resolve_labour_target`,
+  `wms_operator_scorecard`, `wms_log_coaching_note`.
 
-## Phase status
+Confirmed present in the codebase: `LabourPlanningPanel`, `LabourPerformancePanel`,
+`LabourQueuePanel`, `StandardsPanel`, `OperatorBoard`, `LabourRosterButton`,
+`LabourWorksheetButton`, plus the matching hooks, and `labour_worksheet` /
+`labour_roster` registered in the shared `generate-document` platform.
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| A | Operators as first-class resources (`wms_operators`, skills, certifications, task requirements) | Complete |
-| B | Eligibility-aware assignment (claim/assign enforce skills, certs, workload) | Complete |
-| C | Dimensioned engineered standards (warehouse / zone / category / equipment; setup + handle + travel) | Complete |
-| D | Real-time labour sync (task events invalidate queue + board) | Complete |
-| E | Supervisor Labour Control Centre (roster, queue, standards, intervention RPCs) | Complete |
-| F | Operator mobile surface + labour paperwork | Complete |
-| G | Labour planning & forecasting (demand → required hours → roster gap) | Not started — next |
-| H | Incentive / performance management (goal setting, coaching, payroll hand-off) | Not started |
+Verdict: Phases A–G and I are genuinely implemented; Phase H steps 1–2 are
+genuinely implemented. Only the incentive payroll hand-off (H.3) remains.
 
-**Currently active phase: G (not yet started).**
+## What the remaining phase actually has to solve
 
-## Completed and verified
+The prior notes said "reuse existing payroll input pipelines". Investigation shows
+those pipelines are not persisted, which changes the design:
 
-### Phase A/B/C — data and logic (migrations `20260803195252`, `20260803195500`)
-- `wms_operators`, `wms_operator_skills`, `wms_operator_certifications`,
-  `wms_task_requirements` with grants, RLS and updated_at triggers.
-- `wms_task_standards` extended with `warehouse_id`, `zone_id`,
-  `product_category_id`, `equipment_class`, `setup_seconds`,
-  `travel_seconds_per_metre`.
-- `wms_resolve_labour_standard` — most-specific-wins resolution; used by the
-  earned-seconds trigger so standards are never computed client-side.
-- `wms_claim_next_task` and `assign_wms_task` enforce eligibility,
-  certification validity and concurrent-task limits.
-- `wms_labour_time_entries` + `wms_operator_utilisation_view` (direct +
-  indirect + idle → true utilisation).
-- Supervisor RPCs: `wms_reassign_task`, `wms_release_task`,
-  `wms_set_operator_status`, `wms_set_task_priority`.
+- `payroll_input_types` declares the per-run input slots a localization pack allows.
+- Variable earnings are held as transient React state in the payroll create dialog
+  and passed straight into `compute-payroll` at run creation.
+- `payslip_inputs` is written by the engine *after* computation as provenance keyed
+  to a payslip — it is not an inbox a warehouse could post into.
 
-### Phase D/E — supervisor control centre
-- `src/features/warehouse/labour/useLabourOperators.ts` — roster, skills,
-  certifications, status.
-- `src/features/warehouse/labour/useLabourQueue.ts` — queue view, supervisor
-  RPC wrappers, utilisation.
-- `OperatorDialog.tsx`, `OperatorBoard.tsx`, `LabourQueuePanel.tsx`,
-  `StandardsPanel.tsx`.
-- `src/pages/warehouse/LabourBoard.tsx` rebuilt as a tabbed control centre
-  (on-shift count, true utilisation, performance).
-- `useWmsRealtimeSync.ts` invalidates labour queue + board on task events.
+So there is no persisted place for a pre-run input to wait. Warehouse incentive pay
+must land in a persisted, payroll-owned staging store that the existing create-run
+flow reads, rather than a warehouse-only earnings path.
 
-### Phase F — operator surface and paperwork (migration: WLM Phase F)
-- Shift clock RPCs: `wms_operator_clock` (off_shift / on_shift / break),
-  `wms_my_operator`, `wms_my_performance`, `wms_log_labour_entry`.
-- Idle/break time is opened and closed exclusively by status transitions
-  (`_wms_labour_open` / `_wms_labour_close_open`), so overlapping entries are
-  structurally impossible.
-- `trg_wms_operator_activity_sync` on `wms_tasks` flips the operator to
-  `executing` (closing idle) when work is in hand and back to `on_shift`
-  (reopening idle) when the last task closes.
-- Clocking off or taking a break is refused while tasks are still held.
-- `src/features/warehouse/labour/useMyShift.ts` — self-scoped hooks
-  (operator, open tasks, performance, clock / claim-next / log-indirect).
-- `src/pages/warehouse-mobile/MobileMyWork.tsx` at `/wm/my-work`, linked from
-  the mobile home; clock controls, eligibility-aware "Claim next task",
-  open-task list, today's earned/clocked/performance, indirect-time capture.
-- `labour_worksheet` document type registered in `generate-document`
-  (fetcher + template map) and printed via `printDocument` from
-  `LabourWorksheetButton` on the operator board. Read model only.
+## Phase H.3 — incentive pay hand-off
 
-Verification performed: full TypeScript typecheck clean; migration applied
-successfully; new RPCs present in generated Supabase types.
+1. **Payroll-owned staging table** `payroll_pending_inputs`
+   (org, business, employee, `code` matching a `payroll_input_types.code`, quantity,
+   amount, uom, period window, `source_kind` + `source_id` for provenance, status
+   `pending` / `consumed` / `cancelled`, consumed run id, timestamps).
+   Grants, RLS scoped to business membership, and an `updated_at` trigger.
+   This is a payroll-domain object, not a WMS one: any module can post to it.
 
-## Pending work
+2. **Warehouse producer RPC** `wms_post_incentive_inputs(warehouse, from, to, code)`
+   — reads `wms_operator_scorecard` for the window, keeps only operators flagged
+   `incentive_eligible`, resolves each operator to its employee, computes the
+   incentive amount from the resolved target (earned vs target performance), and
+   inserts one `pending` row per employee. Idempotent per
+   (employee, code, window, source) so re-running cannot double-pay. No earnings
+   maths in the browser.
 
-### Phase G — labour planning and forecasting (next)
-1. `wms_labour_demand` projection: convert open/forecast workload (orders,
-   receipts, replenishment) into required standard hours per warehouse, zone
-   and task type per shift window.
-2. `wms_shift_patterns` / `wms_operator_shifts`: planned availability per
-   operator so supply can be compared with demand.
-3. Planning view on the Labour Control Centre: required vs. planned vs.
-   actual hours, gap highlighting, and a "publish plan" action.
-4. Alerting when the projected gap breaches a threshold, reusing the existing
-   business event outbox rather than a new notification path.
+3. **Payroll consumption** — the create-run flow prefills its variable-earnings
+   state from `payroll_pending_inputs` for the selected period (grouped by code,
+   only codes the active structure permits), shows them as pre-populated and
+   overridable, and marks the rows `consumed` with the run id once the run is
+   created. Reversal/cancel of a run releases them back to `pending`.
 
-### Phase H — incentive and performance management
-1. Goal/target management per operator and task type.
-2. Coaching records tied to `continuous_feedback`.
-3. Payroll hand-off for incentive pay (must reuse existing payroll input
-   pipelines; do not create a parallel earnings path).
+4. **Warehouse UI** — an action on the existing "Targets & coaching" tab that posts
+   the window's incentive inputs and reports what was staged. Reuses the panel,
+   table and dialog primitives already in the tab; no new dashboard, chart or
+   bespoke grid.
+
+5. **Guards** — an architecture test asserting nothing in `src/features/warehouse`
+   writes payslip/earnings tables directly, so the only route from labour
+   performance to pay stays this staging table.
+
+## Defect to fix first (blocking the build)
+
+`src/features/warehouse/labour/useLabourPerformance.ts` (line 125) destructures
+`organization` from `useOrganization()`, which exposes `currentOrg`. This is a
+typecheck failure left by the previous engineer, so the target-save path was never
+compiled. Fix: use `currentOrg` and reference `currentOrg?.id` when stamping
+`organization_id`.
+
+## Additional gaps appended to the plan (found during verification)
+
+
+- **Consumption audit trail.** Every incentive row records the scorecard window and
+  target version used, so a paid figure can be re-derived later.
+- **Period safety.** Posting is refused when the target payroll period is closed or
+  locked, reusing the existing fiscal/period lock checks rather than a new one.
+
+## Technical notes
+
+- One migration for the table, one for the producer RPC; `CREATE TABLE` → `GRANT`
+  → `ENABLE ROW LEVEL SECURITY` → policies, in that order.
+- All amount computation stays server-side in SQL; hooks only call RPCs and read.
+- Documents continue through `printDocument` / `generate-document`.
 
 ## Instructions for the next agent
-Phase I is closed out (dedicated labour worksheet/roster templates, roster fetcher deployed, Print roster on the Planning tab) and Phase H steps 1–2 are in: date-effective wms_labour_targets with most-specific-wins resolution, a server-side operator scorecard with variance and incentive eligibility, and coaching notes written into the existing employee feedback record — surfaced as a new Targets & coaching tab. Next up is the payroll hand-off for incentive pay.
 
+1. A–G, I and H.1–H.2 are shipped and verified. Start at H.3, step 1.
+2. Ship each step whole: schema, RPC, hook, UI, guard test.
+3. Update this file immediately after each step.
