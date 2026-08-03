@@ -78,8 +78,8 @@ export default function MobileGate() {
   useWmsScanIntent({
     intent: "gate.pass",
     onScan: (payload) => {
-      setCode(payload.code);
-      void lookup(payload.code);
+      setCode(payload.resolveCode);
+      void lookup(payload.resolveCode);
     },
   });
 
