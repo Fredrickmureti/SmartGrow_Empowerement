@@ -44,3 +44,28 @@ export function useCountLines(sessionId: string | undefined) {
     },
   });
 }
+
+/**
+ * How a count line names its product on screen.
+ *
+ * `get_count_lines` LEFT JOINs `products`, so a line whose product has
+ * since been deleted (or that came from a pre-hardening session created
+ * through the now-dropped legacy RPC) carries a NULL name and SKU. A raw
+ * UUID is not a product name — a counter cannot walk to a bin and find
+ * "b0791390-…" — so an unresolvable product is labelled as missing and the
+ * identifier is kept out of the operator's way.
+ */
+export function countLineProductLabel(l: Pick<CountLineRow, "product_name" | "product_sku">): string {
+  return l.product_name?.trim() || l.product_sku?.trim() || "Product no longer in catalogue";
+}
+
+/** Secondary line under the product name — the SKU, when it adds anything. */
+export function countLineProductSubLabel(
+  l: Pick<CountLineRow, "product_name" | "product_sku">,
+): string | null {
+  const sku = l.product_sku?.trim();
+  if (!sku) return null;
+  if (!l.product_name?.trim()) return null; // the SKU is already the label
+  return sku;
+}
+
