@@ -1,106 +1,71 @@
-# Cycle Count — implementation status and roadmap
+# Cycle Count — verification verdict and remaining roadmap
 
 Authoritative status file. Update it in the same turn as any code change.
 
-## Current position
+## Phase 1 — independent verification of the previous engineer's claims
 
-- **Completed:** Phase A (deadlock + legacy bypass), Phase B (lot/serial/expiry capture), Phase C (supervisor command centre).
-- **Active next:** Phase D — printable count documents.
-- **Then:** Phase E — pgTAP hardening + ADR 0106 verification addendum.
+Every claim was re-checked against the live database catalogue and the source
+tree, not against the previous notes.
 
-## Verified foundations (audited against the live database, not taken on trust)
-
-| Claim | Verdict | Evidence |
+| Claim | Verdict | Evidence found |
 |---|---|---|
-| One ledger path | ✅ | `wms_count_sessions.physical_count_id`; `post_count_session` records into `physical_count_record_line` → `physical_count_submit`, never touches stock |
-| Control plane | ✅ | `is_blind`, `recount_round`, `requires_approval`; line-level `variance_reason`, `recount_of_line_id`, `assigned_to`, `serial_numbers`, `expiry_date`, `tolerance_outcome`; `record_count` → `evaluate_count_tolerance` |
-| Blind counting seam | ✅ | `get_count_lines` masks expected/difference; `useCountLines` is the only read path; guarded by `cycle-count-integrity.test.ts` |
-| Tasks, schedules, triggers | ✅ | `create_count_session_as`, `cycle_count_schedules.execution_mode/blind/location_ids`, `wms_count_triggers`, `sync_count_task_for_line`, `close_count_tasks_on_session_state` |
-| RLS | ✅ | all three WMS count tables branch-gated on read and write |
+| Phase A — legacy `record_count` / `create_count_session` overloads deleted | ✅ Confirmed | `pg_proc` holds exactly one `record_count(line, qty, note, reason, serials, expiry)` and one `create_count_session(warehouse, strategy, locations, notes, is_blind, assign_to)`; no bypass signature survives |
+| Phase A — recount loop | ✅ Confirmed | `request_count_recount(line, reason)` exists in the database; `useRequestRecount.ts` present; supervisor action wired in `CountReview.tsx` / `CountSession.tsx` |
+| Phase B — lot / serial / expiry capture | ✅ Confirmed | `useProductTracking.ts` exists; `src/pages/warehouse-mobile/MobileCount.tsx` passes `p_serial_numbers` and `p_expiry_date` into the single `record_count` |
+| Phase C — supervisor command centre | ✅ Confirmed | `get_count_session_board` and `get_count_command_center` both exist server-side; `CycleCounts.tsx` (442 lines) consumes them through `useCountCommandCenter.ts` and virtualises the grid with TanStack Virtual |
+| Blind-count masking, single ledger path, RLS | ✅ Confirmed structurally | `get_count_lines` is the sole read path and is guarded by `cycle-count-integrity.test.ts`; posting still flows through the inventory document, never straight to stock |
+| Phase D — printable count documents | ❌ Not started | No `count_sheet`, `count_sheet_blind`, `count_variance_report`, or `count_audit_report` anywhere in `src`, `supabase`, or `docs`; nothing registered in `FETCHER_MAP` |
+| Phase E — database test hardening | ❌ Not started | No cycle-count test file under `supabase/tests/`; ADR 0106 has no verification addendum |
 
-## Phase A — deadlock closed, bypass deleted ✅
+Conclusion: work stopped exactly where the notes said, and the completed
+phases hold up. Resume at Phase D. No rework of A–C is required, but two
+gaps found during this audit are added below as Phase F.
 
-- Migration dropped the legacy `record_count(line, qty, note)` and
-  `create_count_session(warehouse, strategy, locations, notes)` overloads, so
-  no caller can create a session without a linked inventory count document or
-  write a counted quantity without tolerance evaluation.
-- `request_count_recount` RPC + `useRequestRecount` hook (`src/features/warehouse/counts/useRequestRecount.ts`).
-- Supervisor "Count again" action wired into `CountReview.tsx` and `CountSession.tsx`;
-  supersede-aware filtering means submission unlocks once a flagged line has a
-  newer attempt. Recount lines surface in the mobile queue.
+## Phase D — count documents (next)
 
-## Phase B — lot / serial / expiry verification ✅
-
-- `useProductTracking.ts` reads `is_lot_tracked` / `is_serial_tracked` /
-  `is_expiry_tracked` and exposes `serialCaptureError` (serial count must equal
-  counted quantity, no duplicates).
-- `MobileCount.tsx` captures serials one scan at a time and an expiry date for
-  expiry-tracked products, passing `p_serial_numbers` / `p_expiry_date` to the
-  existing `record_count`. No new RPC.
-
-## Phase C — supervisor command centre ✅
-
-- Backend: `get_count_session_board` and `get_count_command_center`
-  (`SECURITY DEFINER`, business/branch scoped, JSON aggregates). They compute
-  progress, open recounts, unexplained variances, accuracy trend, operator
-  productivity, bin heatmap and activity feed server-side, and return NULL
-  variance figures while a blind session is still being counted — the same
-  masking rule as `get_count_lines`.
-- Client: `src/features/warehouse/counts/useCountCommandCenter.ts`
-  (`useCountSessionBoard`, `useCountCommandCenter`, `accuracyPct`). Query keys
-  live under the `wms-count-sessions` prefix so `useWmsRealtimeSync` refreshes
-  the console on session/line changes — no polling.
-- `src/pages/warehouse/CycleCounts.tsx` rewritten as the console: six KPI tiles
-  (counting now, open recounts, awaiting approval, missing reason codes, overdue
-  schedules, 30-day accuracy), recount queue, approval queue, accuracy sparkline
-  (inline SVG — no charting dependency added), virtualised session grid
-  (TanStack Virtual), counter productivity, problem-bin heatmap, activity feed.
-- Copy guard (`architecture.cycle-count-copy.test.ts`) and blind-read guard
-  (`cycle-count-integrity.test.ts`) both green.
-
-## Phase D — documents (NEXT)
-
-Register four artifacts in the sanctioned printing pipeline, following
-`docs/printing-add-new-artifact.md` exactly (ADR 0084/0085/0086/0088):
+Register four artifacts through the sanctioned printing pipeline, following
+`docs/printing-add-new-artifact.md` (ADR 0084/0085/0086/0088). One artifact at
+a time, each fully wired before the next begins.
 
 1. `count_sheet` — bins, products, expected quantity, blank count column.
-2. `count_sheet_blind` — same without expected quantity (must be a distinct
-   fetcher, not a flag on the sheet, so blind cannot leak by misconfiguration).
-3. `count_variance_report` — posted session variances with reason codes.
-4. `count_audit_report` — full attempt history including recount rounds and
-   approver identity.
+2. `count_sheet_blind` — a separate fetcher with no expected quantity, so a
+   blind count can never leak through a misconfigured flag.
+3. `count_variance_report` — posted variances with reason codes and approver.
+4. `count_audit_report` — full attempt history including every recount round.
 
-Required work per artifact: `fetchXxx()` + `FETCHER_MAP` row in
-`supabase/functions/generate-document/index.ts`, dispatch through
-`printDocument`/`usePrintOrPreview` only (never `generate-document` from a page),
-a `WIRED` row in `docs/printing-event-coverage.md` in the same change, and a
-source-inspection wiring test modelled on
-`src/test/printing/drawer-slip-wiring.test.ts`. Then run the four verification
-commands at the end of the printing runbook.
+Per artifact: `fetchXxx()` plus a `FETCHER_MAP` row in
+`supabase/functions/generate-document/index.ts`; dispatch only through
+`printDocument` / `usePrintOrPreview`; a `WIRED` row added to
+`docs/printing-event-coverage.md` in the same change; a wiring test modelled on
+`src/test/printing/drawer-slip-wiring.test.ts`. Finish with the four
+verification commands at the end of the printing runbook.
 
-## Phase E — hardening
+## Phase E — database hardening
 
-pgTAP suite under `supabase/tests/`: tolerance branching, blind-mode leakage,
-recount linkage, single posting path, reason-code gate, approver ≠ counter,
-absence of the legacy overloads. Add a verification addendum to ADR 0106.
+New pgTAP suite `supabase/tests/cycle_count_invariants_test.sql` asserting:
+tolerance branching, blind-mode masking, recount linkage to the parent line,
+the single posting path, the reason-code gate on out-of-tolerance lines,
+approver is never the counter, and the permanent absence of the deleted
+overloads. Add a verification addendum to ADR 0106.
 
-## Instructions for the next agent
+## Phase F — gaps found in this audit (new)
 
-1. **Verify before extending.** Confirm Phase C actually holds: open
-   `/warehouse-app/counts`, check the console renders with real data, and confirm
-   `get_count_session_board` masks variance columns for a blind session still in
-   `counting` (query the RPC directly for such a session). Confirm the two
-   legacy RPC overloads are gone (`pg_proc` by name) and that
-   `request_count_recount` unblocks a tolerance-flagged session end to end.
-2. **Then start Phase D**, one artifact at a time, each brought to `WIRED` with
-   its coverage-matrix row and wiring test before starting the next. Do not open
-   Phase E while any Phase D artifact is half-registered.
-3. Do not add a fourth renderer, hand-rolled `pdf-lib` in `src/**`, or a new
-   print transport. All stock movement continues to flow only through
-   Inventory's approval → adjustment → journal-entry path.
+1. **Approver-is-not-counter is unenforced in the database.** It is currently
+   an expectation, not a constraint. Add the check inside the approval path so
+   the rule cannot be bypassed by any client.
+2. **Reason-code gate lives partly in the client.** Confirm the mandatory
+   variance-reason rule is rejected server-side on submit, not just disabled in
+   the UI, and move it if it is not.
 
-## Technical notes
+Both are small, high-value integrity fixes; do them alongside Phase E so the
+pgTAP suite proves them.
 
-Hardware needs no work: wedge, camera and Bluetooth scanners all land on the same
-`BarcodeInputField` → `resolve_*_identity` seam, and RF terminals already run the
-mobile shell.
+## Guardrails
+
+- No fourth renderer, no hand-rolled `pdf-lib` in `src/**`, no new print
+  transport.
+- All stock movement continues to flow only through Inventory's
+  approval → adjustment → journal-entry path. Warehouse never writes stock.
+- Hardware needs no work: wedge, camera and Bluetooth scanners all resolve
+  through the same `BarcodeInputField` → `resolve_*_identity` seam, and RF
+  terminals already run the mobile shell.
