@@ -43,7 +43,7 @@ function walk(dir: string, out: string[] = []): string[] {
     if (statSync(full).isDirectory()) {
       if (entry === "node_modules") continue;
       walk(full, out);
-    } else if (/\.(ts|tsx)$/.test(entry)) {
+    } else if (/\.(ts|tsx)$/.test(entry) && !entry.endsWith(".d.ts")) {
       out.push(full);
     }
   }
