@@ -79958,27 +79958,17 @@ export type Database = {
         }
         Returns: number
       }
-      create_count_session:
-        | {
-            Args: {
-              p_location_ids?: string[]
-              p_notes?: string
-              p_strategy?: string
-              p_warehouse_id: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_assign_to?: string
-              p_is_blind?: boolean
-              p_location_ids?: string[]
-              p_notes?: string
-              p_strategy?: string
-              p_warehouse_id: string
-            }
-            Returns: string
-          }
+      create_count_session: {
+        Args: {
+          p_assign_to?: string
+          p_is_blind?: boolean
+          p_location_ids?: string[]
+          p_notes?: string
+          p_strategy?: string
+          p_warehouse_id: string
+        }
+        Returns: string
+      }
       create_count_session_as: {
         Args: {
           p_actor: string
@@ -87030,22 +87020,17 @@ export type Database = {
         }
         Returns: Json
       }
-      record_count:
-        | {
-            Args: { p_counted_qty: number; p_line_id: string; p_note?: string }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_counted_qty: number
-              p_expiry_date?: string
-              p_line_id: string
-              p_note?: string
-              p_serial_numbers?: string[]
-              p_variance_reason?: string
-            }
-            Returns: Json
-          }
+      record_count: {
+        Args: {
+          p_counted_qty: number
+          p_expiry_date?: string
+          p_line_id: string
+          p_note?: string
+          p_serial_numbers?: string[]
+          p_variance_reason?: string
+        }
+        Returns: Json
+      }
       record_count_scan: {
         Args: {
           p_counted_qty: number
