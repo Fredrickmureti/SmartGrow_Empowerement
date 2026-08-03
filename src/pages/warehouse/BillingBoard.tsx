@@ -238,7 +238,9 @@ export default function BillingBoard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_billing_tariffs")
-        .select("id,client_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes")
+        .select(
+          "id,client_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes,min_charge,included_quantity,tier_from,tier_to",
+        )
         .eq("business_id", currentBusiness!.id)
         .order("activity");
       if (error) throw error;
@@ -249,6 +251,12 @@ export default function BillingBoard() {
   const createTariff = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id) throw new Error("No active business");
+      const num = (v: string) => (v.trim() === "" ? null : Number(v));
+      const from = num(tariffForm.tier_from);
+      const to = num(tariffForm.tier_to);
+      if (from !== null && to !== null && to <= from) {
+        throw new Error("Tier ceiling must be above the tier floor");
+      }
       const { error } = await supabase.from("wms_billing_tariffs").insert({
         business_id: currentBusiness.id,
         client_id: tariffForm.client_id || null,
@@ -258,6 +266,10 @@ export default function BillingBoard() {
         currency: tariffForm.currency.trim().toUpperCase() || "USD",
         effective_from: tariffForm.effective_from,
         notes: tariffForm.notes.trim() || null,
+        min_charge: num(tariffForm.min_charge),
+        included_quantity: num(tariffForm.included_quantity),
+        tier_from: from,
+        tier_to: to,
       });
       if (error) throw error;
     },
