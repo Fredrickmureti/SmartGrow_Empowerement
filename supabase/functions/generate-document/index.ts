@@ -2393,6 +2393,7 @@ async function fetchCountAuditReport(
 
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
+
   estimate: "estimate",
   proforma: "proforma",
   credit_note: "credit_note",
