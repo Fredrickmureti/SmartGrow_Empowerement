@@ -210,7 +210,57 @@ export default function MobileCount() {
             className="h-12 text-lg"
           />
         </div>
+
+        {tracking?.is_serial_tracked && (
+          <div className="space-y-2">
+            <Label>Scan each serial number</Label>
+            <Input
+              value={serialEntry}
+              onChange={(e) => setSerialEntry(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addSerial(serialEntry);
+                }
+              }}
+              placeholder="Scan or type, then Enter"
+              className="h-12 text-lg"
+            />
+            <div className="text-xs text-muted-foreground">
+              {serials.length} captured{countedQty ? ` of ${Math.round(Number(countedQty) || 0)}` : ""}
+            </div>
+            {serials.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {serials.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSerials((prev) => prev.filter((p) => p !== s))}
+                    className="rounded border px-2 py-1 text-xs font-mono"
+                  >
+                    {s} ×
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(tracking?.is_expiry_tracked || tracking?.is_lot_tracked) && (
+          <div>
+            <Label>
+              Expiry date{tracking?.is_expiry_tracked ? "" : " (optional)"}
+            </Label>
+            <Input
+              type="date"
+              value={expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              className="h-12 text-lg"
+            />
+          </div>
+        )}
       </div>
+
     </MobileWarehouseLayout>
   );
 }
