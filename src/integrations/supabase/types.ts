@@ -66571,6 +66571,79 @@ export type Database = {
         }
         Relationships: []
       }
+      wms_labour_time_entries: {
+        Row: {
+          business_id: string
+          category: string
+          created_at: string
+          created_by: string | null
+          ended_at: string | null
+          id: string
+          notes: string | null
+          operator_id: string | null
+          organization_id: string
+          seconds: number | null
+          started_at: string
+          updated_at: string
+          user_id: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          category: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          operator_id?: string | null
+          organization_id: string
+          seconds?: number | null
+          started_at?: string
+          updated_at?: string
+          user_id?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          notes?: string | null
+          operator_id?: string | null
+          organization_id?: string
+          seconds?: number | null
+          started_at?: string
+          updated_at?: string
+          user_id?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_labour_time_entries_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operator_board_view"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "wms_labour_time_entries_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_labour_time_entries_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_license_plates: {
         Row: {
           branch_id: string | null
@@ -69339,39 +69412,86 @@ export type Database = {
           business_id: string
           created_at: string
           created_by: string | null
+          equipment_class: string | null
           id: string
           is_active: boolean
           notes: string | null
+          product_category_id: string | null
           seconds_per_uom: number
+          setup_seconds: number
           task_type: Database["public"]["Enums"]["wms_task_type"]
+          travel_seconds_per_metre: number
           uom: string
           updated_at: string
+          warehouse_id: string | null
+          zone_id: string | null
         }
         Insert: {
           business_id: string
           created_at?: string
           created_by?: string | null
+          equipment_class?: string | null
           id?: string
           is_active?: boolean
           notes?: string | null
+          product_category_id?: string | null
           seconds_per_uom: number
+          setup_seconds?: number
           task_type: Database["public"]["Enums"]["wms_task_type"]
+          travel_seconds_per_metre?: number
           uom?: string
           updated_at?: string
+          warehouse_id?: string | null
+          zone_id?: string | null
         }
         Update: {
           business_id?: string
           created_at?: string
           created_by?: string | null
+          equipment_class?: string | null
           id?: string
           is_active?: boolean
           notes?: string | null
+          product_category_id?: string | null
           seconds_per_uom?: number
+          setup_seconds?: number
           task_type?: Database["public"]["Enums"]["wms_task_type"]
+          travel_seconds_per_metre?: number
           uom?: string
           updated_at?: string
+          warehouse_id?: string | null
+          zone_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wms_task_standards_product_category_id_fkey"
+            columns: ["product_category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_task_standards_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_task_standards_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_task_standards_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+        ]
       }
       wms_tasks: {
         Row: {
@@ -77447,6 +77567,22 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wms_operator_utilisation_view: {
+        Row: {
+          business_id: string | null
+          day: string | null
+          direct_seconds: number | null
+          earned_seconds: number | null
+          idle_seconds: number | null
+          indirect_seconds: number | null
+          tasks_completed: number | null
+          travel_seconds: number | null
+          true_utilisation: number | null
+          user_id: string | null
+          warehouse_id: string | null
+        }
+        Relationships: []
       }
       wms_receiving_session_progress: {
         Row: {
@@ -92259,6 +92395,18 @@ export type Database = {
         }
         Returns: string
       }
+      wms_reassign_task: {
+        Args: {
+          p_assignee_user_id: string
+          p_reason?: string
+          p_task_id: string
+        }
+        Returns: Json
+      }
+      wms_release_task: {
+        Args: { p_reason?: string; p_task_id: string }
+        Returns: Json
+      }
       wms_replay_guarded_call: {
         Args: {
           p_args: Json
@@ -92281,6 +92429,41 @@ export type Database = {
           p_to_state: Database["public"]["Enums"]["wms_exception_state"]
         }
         Returns: Json
+      }
+      wms_resolve_labour_standard: {
+        Args: {
+          _business_id: string
+          _equipment_class?: string
+          _product_category_id?: string
+          _task_type: Database["public"]["Enums"]["wms_task_type"]
+          _uom?: string
+          _warehouse_id?: string
+          _zone_id?: string
+        }
+        Returns: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          equipment_class: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          product_category_id: string | null
+          seconds_per_uom: number
+          setup_seconds: number
+          task_type: Database["public"]["Enums"]["wms_task_type"]
+          travel_seconds_per_metre: number
+          uom: string
+          updated_at: string
+          warehouse_id: string | null
+          zone_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_task_standards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_resolve_sscc: {
         Args: { p_business_id: string; p_code: string }
@@ -92309,6 +92492,14 @@ export type Database = {
       wms_seed_yard_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
+      }
+      wms_set_operator_status: {
+        Args: { p_operator_id: string; p_status: string }
+        Returns: Json
+      }
+      wms_set_task_priority: {
+        Args: { p_priority: number; p_task_id: string }
+        Returns: Json
       }
       wms_sscc_allocate: {
         Args: {
