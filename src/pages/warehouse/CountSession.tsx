@@ -139,7 +139,16 @@ export default function CountSession() {
     return line?.id ?? null;
   }, [lines, scanBin, scanProduct, scanProductId]);
 
-  const recountCount = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required").length;
+  // A flagged attempt stops blocking once a newer round supersedes it —
+  // the same rule `post_count_session` applies server-side.
+  const supersededIds = new Set(
+    (lines ?? []).map((l) => l.recount_of_line_id).filter(Boolean) as string[],
+  );
+  const openRecounts = (lines ?? []).filter(
+    (l) => l.tolerance_outcome === "recount_required" && !supersededIds.has(l.id),
+  );
+  const recountCount = openRecounts.length;
+
 
   if (isLoading) return <LoadingState />;
   if (!session) {
