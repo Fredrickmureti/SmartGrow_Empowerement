@@ -126,6 +126,31 @@ export interface YardMoveRow {
   to_dock?: { code: string } | null;
 }
 
+/**
+ * A jockey work order (ADR 0086 Phase 5). Yard moves are dispatched onto
+ * the shared `wms_tasks` fabric so the physical move is claimable and
+ * measurable, rather than being applied silently by a supervisor's drag.
+ */
+export interface YardMoveTaskRow {
+  id: string;
+  warehouse_id: string;
+  state: string;
+  priority: number;
+  notes: string | null;
+  created_at: string;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  assignee_user_id: string | null;
+  payload: {
+    visit_id?: string;
+    trailer_ref?: string;
+    from_slot_id?: string | null;
+    from_dock_id?: string | null;
+    to_slot_id?: string | null;
+    to_dock_id?: string | null;
+  } | null;
+}
+
 export interface GateEventRow {
   id: string;
   event_type: string;
@@ -301,4 +326,50 @@ export function isOverdue(v: VisitRow): boolean {
 
 export function isDepartureReady(v: VisitRow): boolean {
   return isOnSite(v) && v.departure_approved_at != null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Jockey work orders                                                  */
+/* ------------------------------------------------------------------ */
+
+export const YARD_TASK_STATE_LABEL: Record<string, string> = {
+  pending: "Queued",
+  ready: "Queued",
+  claimed: "In progress",
+  in_progress: "In progress",
+  done: "Completed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+export function yardTaskStateLabel(s: string): string {
+  return YARD_TASK_STATE_LABEL[s] ?? s.replace(/_/g, " ");
+}
+
+export function isOpenYardMoveTask(t: YardMoveTaskRow): boolean {
+  return t.state !== "done" && t.state !== "completed" && t.state !== "cancelled";
+}
+
+/** Human destination for a work order, resolved against loaded master data. */
+export function yardTaskDestination(
+  t: YardMoveTaskRow,
+  slots: YardSlotRow[],
+  docks: { id: string; code: string; name: string | null }[],
+): string {
+  const slotId = t.payload?.to_slot_id;
+  if (slotId) return slots.find((s) => s.id === slotId)?.code ?? "yard slot";
+  const dockId = t.payload?.to_dock_id;
+  if (dockId) {
+    const d = docks.find((x) => x.id === dockId);
+    return d ? `Dock ${d.name || d.code}` : "dock";
+  }
+  return "—";
+}
+
+/** The open work order for a visit, if the yard has already dispatched one. */
+export function openTaskForVisit(
+  visitId: string,
+  tasks: YardMoveTaskRow[] | undefined,
+): YardMoveTaskRow | null {
+  return (tasks ?? []).find((t) => t.payload?.visit_id === visitId && isOpenYardMoveTask(t)) ?? null;
 }

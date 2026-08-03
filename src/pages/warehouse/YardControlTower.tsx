@@ -23,7 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ParkingSquare, Plus, LogIn, Truck, CalendarClock, Search } from "lucide-react";
 import { useWarehouses } from "@/features/warehouse/dock/useDockScheduling";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
+  useCancelYardMove,
+  useCompleteYardMove,
+  useRequestYardMove,
+  useYardMoveTasks,
   useRelocateTrailer,
   useAssignTrailerToDock,
   useSetSlotBlocked,
@@ -35,6 +41,9 @@ import {
   dwellMinutes,
   formatDwell,
   isOnSite,
+  openTaskForVisit,
+  yardTaskDestination,
+  yardTaskStateLabel,
   VISIT_STATUS_LABEL,
   type VisitRow,
   type YardSlotRow,
@@ -58,6 +67,10 @@ export default function YardControlTower() {
     slot: null,
   });
   const [dragging, setDragging] = useState<VisitRow | null>(null);
+  // Dispatch mode is the enterprise default: a supervisor asks for the move,
+  // a jockey executes it. Turning it off applies the move immediately, which
+  // is only correct when the supervisor *is* the person moving the trailer.
+  const [dispatchMode, setDispatchMode] = useState(true);
 
   const warehouses = useWarehouses();
   const effectiveWarehouse = warehouseId || warehouses.data?.[0]?.id || "";
@@ -68,11 +81,16 @@ export default function YardControlTower() {
   const relocate = useRelocateTrailer();
   const assignDock = useAssignTrailerToDock();
   const setBlocked = useSetSlotBlocked();
+  const moveTasks = useYardMoveTasks(effectiveWarehouse || null);
+  const requestMove = useRequestYardMove();
+  const completeMove = useCompleteYardMove();
+  const cancelMove = useCancelYardMove();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const allVisits = visits.data ?? [];
   const liveVisits = useMemo(() => allVisits.filter(isOnSite), [allVisits]);
+  const openMoveTasks = moveTasks.data ?? [];
   const kpis = useMemo(() => deriveYardKpis(allVisits, slots.data ?? []), [allVisits, slots.data]);
 
   const filtered = useMemo(() => {
@@ -98,11 +116,13 @@ export default function YardControlTower() {
     if (overId.startsWith("slot:")) {
       const slotId = overId.slice(5);
       if (visit.yard_slot_id === slotId) return;
-      relocate.mutate({ visitId: visit.id, slotId });
+      if (dispatchMode) requestMove.mutate({ visitId: visit.id, slotId });
+      else relocate.mutate({ visitId: visit.id, slotId });
     } else if (overId.startsWith("dock:")) {
       const dockId = overId.slice(5);
       if (visit.dock_id === dockId) return;
-      assignDock.mutate({ visitId: visit.id, dockId });
+      if (dispatchMode) requestMove.mutate({ visitId: visit.id, dockId });
+      else assignDock.mutate({ visitId: visit.id, dockId });
     }
   }
 
@@ -168,9 +188,68 @@ export default function YardControlTower() {
           >
             <Plus className="h-3.5 w-3.5" /> Yard slot
           </Button>
+          <div className="flex items-center gap-2 rounded-md border px-3 h-9">
+            <Switch id="yard-dispatch-mode" checked={dispatchMode} onCheckedChange={setDispatchMode} />
+            <Label htmlFor="yard-dispatch-mode" className="text-xs cursor-pointer">
+              {dispatchMode ? "Dispatch move to jockey" : "Apply move immediately"}
+            </Label>
+          </div>
         </div>
 
         <YardKpiStrip kpis={kpis} />
+
+        {openMoveTasks.length > 0 && (
+          <Section
+            title="Jockey work orders"
+            description="Moves requested but not yet executed on the ground."
+          >
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {openMoveTasks.map((t) => {
+                const visit = allVisits.find((v) => v.id === t.payload?.visit_id) ?? null;
+                return (
+                  <Card key={t.id}>
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          className="font-medium text-sm text-left hover:underline"
+                          onClick={() => visit && setSelected(visit)}
+                        >
+                          {t.payload?.trailer_ref ?? visit?.trailer_ref ?? "Trailer"}
+                        </button>
+                        <Badge variant="outline" className="text-[10px]">
+                          {yardTaskStateLabel(t.state)}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Move to {yardTaskDestination(t, slots.data ?? [], docks.data ?? [])}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          disabled={completeMove.isPending}
+                          onClick={() => completeMove.mutate({ taskId: t.id })}
+                        >
+                          Mark done
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          disabled={cancelMove.isPending}
+                          onClick={() => cancelMove.mutate({ taskId: t.id })}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </Section>
+        )}
 
         {visits.isLoading || slots.isLoading ? (
           <LoadingState />
@@ -293,6 +372,7 @@ export default function YardControlTower() {
         visit={selectedLive}
         slots={slots.data ?? []}
         docks={docks.data ?? []}
+        openMoveTask={selectedLive ? openTaskForVisit(selectedLive.id, openMoveTasks) : null}
         onClose={() => setSelected(null)}
       />
     </>
