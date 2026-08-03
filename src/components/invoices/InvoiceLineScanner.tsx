@@ -59,6 +59,7 @@ export function InvoiceLineScanner({
   disabled,
 }: Props) {
   const { resolveTagged } = useResolveBarcode(businessId, branchId);
+  const { handheld } = useLocalScan();
   const inputRef = useRef<BarcodeInputFieldHandle | null>(null);
   const [scanCode, setScanCode] = useState("");
   const [resolving, setResolving] = useState(false);
