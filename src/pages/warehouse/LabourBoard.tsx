@@ -39,6 +39,8 @@ import { LabourQueuePanel } from "@/features/warehouse/labour/LabourQueuePanel";
 import { StandardsPanel } from "@/features/warehouse/labour/StandardsPanel";
 import { useUtilisation } from "@/features/warehouse/labour/useLabourQueue";
 import { useOperatorBoard } from "@/features/warehouse/labour/useLabourOperators";
+import { LabourPlanningPanel } from "@/features/warehouse/labour/LabourPlanningPanel";
+
 
 function daysAgo(n: number): string {
   const d = new Date();
