@@ -2419,6 +2419,14 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   count_sheet_blind: "invoice",
   count_variance_report: "invoice",
   count_audit_report: "invoice",
+  // ADR 0110 — dispatch paperwork. The bill of lading and the dispatch
+  // manifest are the carrier-facing artifacts; the packing list travels
+  // with the goods; the carrier label is a 4x6 thermal artifact and is
+  // deliberately NOT an A4 invoice shape.
+  bill_of_lading: "invoice",
+  dispatch_manifest: "invoice",
+  packing_list: "invoice",
+  carrier_label: "invoice",
 
 };
 
@@ -2471,6 +2479,12 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   count_sheet_blind: fetchCountSheetBlind,
   count_variance_report: fetchCountVarianceReport,
   count_audit_report: fetchCountAuditReport,
+  // ADR 0110 — dispatch documents. Dispatch REQUESTS documents; it never
+  // renders them. Four artifacts, four fetchers over one manifest bundle.
+  bill_of_lading: fetchBillOfLading,
+  dispatch_manifest: fetchDispatchManifest,
+  packing_list: fetchPackingList,
+  carrier_label: fetchCarrierLabel,
 
 };
 
