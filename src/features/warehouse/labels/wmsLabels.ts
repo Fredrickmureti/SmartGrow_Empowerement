@@ -20,6 +20,9 @@ export const WMS_LABEL_KEY = {
   /** Returns audit Phase 5 — RMA dock intake + disposition routing. */
   RETURN_RECEIPT: "wms.label.return_receipt",
   DISPOSITION: "wms.label.disposition",
+  /** Yard audit Phase 4 (ADR 0086) — trailer placard + parking position. */
+  TRAILER_PLACARD: "wms.label.trailer_placard",
+  YARD_SLOT: "wms.label.yard_slot",
 } as const;
 
 
@@ -67,7 +70,9 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
             input.key === WMS_LABEL_KEY.QUALITY_HOLD ||
             input.key === WMS_LABEL_KEY.QUARANTINE ||
             input.key === WMS_LABEL_KEY.RETURN_RECEIPT ||
-            input.key === WMS_LABEL_KEY.DISPOSITION
+            input.key === WMS_LABEL_KEY.DISPOSITION ||
+            input.key === WMS_LABEL_KEY.TRAILER_PLACARD ||
+            input.key === WMS_LABEL_KEY.YARD_SLOT
           ? "receiving"
           : "generic",
 
