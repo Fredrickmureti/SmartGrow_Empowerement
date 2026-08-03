@@ -3766,7 +3766,7 @@ serve(async (req) => {
     // WLM Phase I — labour paperwork forces its operational shape on top of
     // whatever the tenant configured, so no finance block can leak onto it.
     const template = LABOUR_TEMPLATE_OVERRIDES[documentType]
-      ? { ...fetchedTemplate, ...LABOUR_TEMPLATE_OVERRIDES[documentType] }
+      ? ({ ...fetchedTemplate, ...LABOUR_TEMPLATE_OVERRIDES[documentType] } as typeof fetchedTemplate)
       : fetchedTemplate;
 
 
@@ -4495,6 +4495,19 @@ const TABLE_MAP: Record<string, string> = {
   purchase_return: "purchase_returns",
   goods_received_note: "goods_receipts",
   goods_receipt: "goods_receipts",
+  // ADR 0106 — cycle-count paperwork is a read model over the count session.
+  count_sheet: "wms_count_sessions",
+  count_sheet_blind: "wms_count_sessions",
+  count_variance_report: "wms_count_sessions",
+  count_audit_report: "wms_count_sessions",
+  // ADR 0110 — every dispatch artifact hangs off one loading manifest.
+  bill_of_lading: "wms_loading_manifests",
+  dispatch_manifest: "wms_loading_manifests",
+  packing_list: "wms_loading_manifests",
+  carrier_label: "wms_loading_manifests",
+  // WLM — the worksheet is keyed by operator, the roster by warehouse.
+  labour_worksheet: "wms_operators",
+  labour_roster: "warehouses",
 };
 
 async function getOrganizationId(supabase: any, docType: string, docId: string): Promise<string> {
