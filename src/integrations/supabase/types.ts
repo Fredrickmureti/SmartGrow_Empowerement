@@ -65527,10 +65527,16 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           id: string
           invoice_id: string | null
           occurred_at: string
           quantity: number
+          reverses_activity_id: string | null
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -65547,10 +65553,16 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_resolved_at?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           id?: string
           invoice_id?: string | null
           occurred_at?: string
           quantity?: number
+          reverses_activity_id?: string | null
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -65567,10 +65579,16 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_resolved_at?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           id?: string
           invoice_id?: string | null
           occurred_at?: string
           quantity?: number
+          reverses_activity_id?: string | null
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -65613,6 +65631,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_reverses_activity_id_fkey"
+            columns: ["reverses_activity_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billable_activities"
             referencedColumns: ["id"]
           },
           {
@@ -78623,10 +78648,16 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           id: string
           invoice_id: string | null
           occurred_at: string
           quantity: number
+          reverses_activity_id: string | null
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -80838,10 +80869,16 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           id: string
           invoice_id: string | null
           occurred_at: string
           quantity: number
+          reverses_activity_id: string | null
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -92198,6 +92235,46 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_dispute_billable_activity: {
+        Args: {
+          p_activity_id: string
+          p_reason: string
+          p_resolution?: string
+          p_resolve?: boolean
+        }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
       wms_effective_replen_rule: {
         Args: {
@@ -93227,6 +93304,41 @@ export type Database = {
       wms_resolve_sscc: {
         Args: { p_business_id: string; p_code: string }
         Returns: Json
+      }
+      wms_reverse_billable_activity: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_seed_base_label_templates: {
         Args: { _actor?: string; _org_id: string }
