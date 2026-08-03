@@ -2658,6 +2658,153 @@ async function fetchCarrierLabel(
   } as unknown as DocumentData;
 }
 
+/**
+ * Labour worksheet (WLM Phase F) — the paper counterpart of an operator's
+ * handheld work list. `documentId` is a `wms_operators.id`.
+ *
+ * Read model only: it projects the operator's currently held tasks plus the
+ * day's earned/clocked figures. It never assigns, never claims and never
+ * writes a labour entry — paper is an output of the labour engine, never an
+ * input to it.
+ */
+async function fetchLabourWorksheet(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const { data: operator, error } = await supabase
+    .from("wms_operators")
+    .select(`
+      *,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      warehouse:warehouses(name, code, branch_id),
+      employee:employees(first_name, last_name, employee_number)
+    `)
+    .eq("id", documentId)
+    .single();
+
+  if (error || !operator) {
+    throw new Error(`Operator not found: ${error?.message}`);
+  }
+
+  const { data: tasks } = await supabase
+    .from("wms_tasks")
+    .select(
+      "id, task_type, state, priority, quantity, uom, sla_at, zone_id, product_id, source_location_id, destination_location_id",
+    )
+    .eq("warehouse_id", operator.warehouse_id)
+    .eq("assignee_user_id", operator.user_id)
+    .in("state", ["assigned", "claimed", "in_progress", "paused", "resumed"])
+    .order("priority", { ascending: false })
+    .limit(200);
+
+  const rows: any[] = tasks || [];
+  const productIds = [...new Set(rows.map((t) => t.product_id).filter(Boolean))];
+  const locationIds = [
+    ...new Set(
+      [
+        ...rows.map((t) => t.source_location_id),
+        ...rows.map((t) => t.destination_location_id),
+      ].filter(Boolean),
+    ),
+  ];
+
+  const [productRes, locationRes] = await Promise.all([
+    productIds.length
+      ? supabase.from("products").select("id, name, sku").in("id", productIds)
+      : Promise.resolve({ data: [] }),
+    locationIds.length
+      ? supabase
+          .from("stock_locations")
+          .select("id, name, code, barcode")
+          .in("id", locationIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const products: Record<string, any> = {};
+  for (const p of productRes?.data || []) products[p.id] = p;
+  const locations: Record<string, any> = {};
+  for (const l of locationRes?.data || []) locations[l.id] = l;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: util } = await supabase
+    .from("wms_operator_utilisation_view")
+    .select("tasks_completed, earned_seconds, direct_seconds, indirect_seconds, idle_seconds, true_utilisation")
+    .eq("warehouse_id", operator.warehouse_id)
+    .eq("user_id", operator.user_id)
+    .eq("day", today)
+    .maybeSingle();
+
+  const operatorName =
+    [operator.employee?.first_name, operator.employee?.last_name]
+      .filter(Boolean)
+      .join(" ") ||
+    operator.operator_code ||
+    "Operator";
+
+  return {
+    document_number: operator.operator_code || operator.id.slice(0, 8),
+    document_type: "labour_worksheet",
+    document_type_label: "LABOUR WORKSHEET",
+    status: operator.status,
+    issue_date: new Date().toISOString(),
+    due_date: null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: operator.business?.base_currency || "USD",
+    notes: operator.notes || null,
+    terms: null,
+    contact: null,
+    business_id: operator.business_id,
+    organization_id: operator.organization_id,
+    hide_amounts: true,
+    warehouse_name: operator.warehouse?.name ?? null,
+    operator_name: operatorName,
+    operator_status: operator.status,
+    tasks_completed_today: Number(util?.tasks_completed ?? 0),
+    earned_minutes_today: Math.round(Number(util?.earned_seconds ?? 0) / 60),
+    clocked_minutes_today: Math.round(
+      (Number(util?.direct_seconds ?? 0) +
+        Number(util?.indirect_seconds ?? 0) +
+        Number(util?.idle_seconds ?? 0)) /
+        60,
+    ),
+    organization: await mapBusinessToOrg(
+      supabase,
+      operator.business,
+      operator.organization,
+      operator.warehouse?.branch_id ?? null,
+    ),
+    items: rows.map((t) => ({
+      description:
+        products[t.product_id]?.name ||
+        String(t.task_type).replace(/_/g, " ").toUpperCase(),
+      sku: products[t.product_id]?.sku ?? null,
+      location_name:
+        locations[t.source_location_id]?.name ||
+        locations[t.source_location_id]?.code ||
+        null,
+      location_barcode: locations[t.source_location_id]?.barcode ?? null,
+      destination_name:
+        locations[t.destination_location_id]?.name ||
+        locations[t.destination_location_id]?.code ||
+        null,
+      quantity: Number(t.quantity ?? 0),
+      uom: t.uom ?? null,
+      task_state: t.state,
+      task_priority: t.priority ?? 0,
+      sla_at: t.sla_at ?? null,
+      unit_price: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: 0,
+    })),
+  } as unknown as DocumentData;
+}
+
+
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
   estimate: "estimate",
@@ -2694,6 +2841,8 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   dispatch_manifest: "invoice",
   packing_list: "invoice",
   carrier_label: "invoice",
+  // WLM Phase F — operator labour worksheet (A4, no money column).
+  labour_worksheet: "invoice",
 
 };
 
@@ -2752,6 +2901,8 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   dispatch_manifest: fetchDispatchManifest,
   packing_list: fetchPackingList,
   carrier_label: fetchCarrierLabel,
+  // WLM Phase F — the paper twin of the handheld work list; read model only.
+  labour_worksheet: fetchLabourWorksheet,
 
 };
 

@@ -78217,6 +78217,14 @@ export type Database = {
         }
         Returns: number
       }
+      _wms_labour_close_open: {
+        Args: { p_operator_id: string }
+        Returns: undefined
+      }
+      _wms_labour_open: {
+        Args: { p_category: string; p_notes?: string; p_operator_id: string }
+        Returns: string
+      }
       _wms_log_gate_event: {
         Args: {
           p_approved?: boolean
@@ -91754,6 +91762,15 @@ export type Database = {
         }[]
       }
       wms_location_path: { Args: { _location_id: string }; Returns: string }
+      wms_log_labour_entry: {
+        Args: {
+          _category: string
+          _notes?: string
+          _seconds: number
+          _warehouse_id: string
+        }
+        Returns: string
+      }
       wms_lpn_dispatch: {
         Args: {
           _expected_version?: number
@@ -92164,6 +92181,46 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: Json
       }
+      wms_my_operator: {
+        Args: { _warehouse_id: string }
+        Returns: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          employee_id: string | null
+          equipment_classes: string[]
+          home_zone_id: string | null
+          id: string
+          is_active: boolean
+          max_concurrent_tasks: number
+          notes: string | null
+          operator_code: string | null
+          organization_id: string
+          status: string
+          status_changed_at: string
+          updated_at: string
+          user_id: string | null
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_operators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_my_performance: {
+        Args: { _days?: number; _warehouse_id: string }
+        Returns: {
+          day: string
+          direct_seconds: number
+          earned_seconds: number
+          idle_seconds: number
+          indirect_seconds: number
+          tasks_completed: number
+          true_utilisation: number
+        }[]
+      }
       wms_next_lpn_code: {
         Args: {
           _business_id: string
@@ -92175,6 +92232,10 @@ export type Database = {
       wms_operator_can_do_task: {
         Args: { _task_id: string; _user_id: string }
         Returns: boolean
+      }
+      wms_operator_clock: {
+        Args: { _notes?: string; _status: string; _warehouse_id: string }
+        Returns: Json
       }
       wms_operator_eligibility_enforced: {
         Args: { _warehouse_id: string }

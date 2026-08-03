@@ -177,7 +177,7 @@ export function useEnrollableEmployees() {
 export function useOperatorMutations() {
   const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
-  const { currentOrganization } = useOrganization();
+  const { currentOrg: currentOrganization } = useOrganization();
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: LABOUR_KEYS.board });

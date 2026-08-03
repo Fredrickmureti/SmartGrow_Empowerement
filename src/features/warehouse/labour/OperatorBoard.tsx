@@ -22,6 +22,7 @@ import {
   type OperatorBoardRow, type OperatorStatus,
 } from "./useLabourOperators";
 import { OperatorDialog } from "./OperatorDialog";
+import { LabourWorksheetButton } from "./LabourWorksheetButton";
 
 function statusVariant(s: OperatorStatus): "default" | "secondary" | "outline" | "destructive" {
   if (s === "executing") return "default";
@@ -168,6 +169,7 @@ export function OperatorBoard({ warehouseId, warehouses }: Props) {
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
+                      <LabourWorksheetButton operatorId={o.operator_id} />
                       <Button
                         size="icon" variant="ghost"
                         onClick={() => { setEditing(o); setDialogOpen(true); }}
