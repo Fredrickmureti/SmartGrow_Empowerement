@@ -163,7 +163,7 @@ describe("yard architecture (ADR 0086)", () => {
 
   it("the yard ADR documents the execution, handheld and readiness layers", () => {
     const adr = readFileSync(
-      path.join(ROOT, "docs/adr/0086-enterprise-yard-management.md"),
+      path.resolve(SRC, "../docs/adr/0086-enterprise-yard-management.md"),
       "utf8",
     );
     for (const token of [
