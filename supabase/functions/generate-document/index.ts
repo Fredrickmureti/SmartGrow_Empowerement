@@ -2841,6 +2841,8 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   dispatch_manifest: "invoice",
   packing_list: "invoice",
   carrier_label: "invoice",
+  // WLM Phase F — operator labour worksheet (A4, no money column).
+  labour_worksheet: "invoice",
 
 };
 
@@ -2899,6 +2901,8 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   dispatch_manifest: fetchDispatchManifest,
   packing_list: fetchPackingList,
   carrier_label: fetchCarrierLabel,
+  // WLM Phase F — the paper twin of the handheld work list; read model only.
+  labour_worksheet: fetchLabourWorksheet,
 
 };
 
