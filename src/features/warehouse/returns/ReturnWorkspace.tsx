@@ -161,6 +161,8 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <div className="space-y-4">
+          <ReturnLogisticsStrip order={order} />
+
           <div className="grid grid-cols-4 gap-2 text-sm">
             {[
               ["Received", totals.received],
@@ -175,7 +177,10 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
             ))}
           </div>
 
+          <ReturnLpnRail lines={rows} />
+
           <div className="flex flex-wrap gap-2">
+
             {headerActions.map((a) => (
               <Button key={a.label} size="sm" variant="outline" onClick={a.run} disabled={transition.isPending}>
                 <a.icon className="mr-1.5 h-3.5 w-3.5" />{a.label}
