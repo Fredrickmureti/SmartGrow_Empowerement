@@ -175,11 +175,16 @@ export function TrailerVisitDrawer({
             </div>
           </div>
 
-          {onPrintPlacard && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onPrintPlacard(visit)}>
-              <Printer className="h-3.5 w-3.5" /> Print yard placard
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={printing}
+            onClick={() => void printPlacard(visit)}
+          >
+            <Printer className="h-3.5 w-3.5" /> Print yard placard
+          </Button>
+
 
           <Separator />
 
