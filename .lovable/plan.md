@@ -69,7 +69,16 @@ flow reads, rather than a warehouse-only earnings path.
    writes payslip/earnings tables directly, so the only route from labour
    performance to pay stays this staging table.
 
+## Defect to fix first (blocking the build)
+
+`src/features/warehouse/labour/useLabourPerformance.ts` (line 125) destructures
+`organization` from `useOrganization()`, which exposes `currentOrg`. This is a
+typecheck failure left by the previous engineer, so the target-save path was never
+compiled. Fix: use `currentOrg` and reference `currentOrg?.id` when stamping
+`organization_id`.
+
 ## Additional gaps appended to the plan (found during verification)
+
 
 - **Consumption audit trail.** Every incentive row records the scorecard window and
   target version used, so a paid figure can be re-derived later.
