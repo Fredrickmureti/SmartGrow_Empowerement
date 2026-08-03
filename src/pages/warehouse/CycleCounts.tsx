@@ -416,7 +416,7 @@ export default function CycleCounts() {
                             <StatusBadge tone="warning">round {a.recount_round}</StatusBadge>
                           ) : null}
                           {a.tolerance_outcome === "recount_required" ? (
-                            <StatusBadge tone="destructive">recount</StatusBadge>
+                            <StatusBadge tone="danger">recount</StatusBadge>
                           ) : null}
                           <span className="w-20 shrink-0 text-right tabular-nums">
                             {a.variance_qty === null ? (
