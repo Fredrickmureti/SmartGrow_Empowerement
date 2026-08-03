@@ -124,7 +124,7 @@ describe("planPickFace", () => {
     const out = planPickFace([faceRule], { ...ctx, onHand: 4 }, candidates);
     expect(out.kind).toBe("planned");
     if (out.kind !== "planned") return;
-    expect(out.item.requestedQty).toBe(44); // 48 - 4 = 44, already a multiple of 6? -> ceil(44/6)*6
+    expect(out.item.requestedQty).toBe(48); // 48 - 4 = 44, rounded up to the pack multiple of 6
     expect(out.item.sourceLocationId).toBe("S1");
     expect(out.item.lotNumber).toBe("L-1");
     expect(out.item.trace.reasonCode).toBe("ok");
