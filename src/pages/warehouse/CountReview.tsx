@@ -143,11 +143,33 @@ export default function CountReview() {
         </p>
 
         {openRecounts.length > 0 && (
-          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-            {openRecounts.length} line{openRecounts.length === 1 ? "" : "s"} still need a recount.
-            Submission stays locked until they are counted again.
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm space-y-2">
+            <p>
+              {openRecounts.length} line{openRecounts.length === 1 ? "" : "s"} fell outside the
+              allowed difference and must be counted again. Submission stays locked until a second
+              round is opened and recorded.
+            </p>
+            <div className="space-y-1">
+              {openRecounts.map((l) => (
+                <div key={l.id} className="flex items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono">{l.location_code ?? "—"}</span>{" "}
+                    · {l.product_name ?? l.product_sku ?? "?"}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={recount.isPending || session.state === "posted"}
+                    onClick={() => recount.mutate({ line_id: l.id })}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
         {needsApproval.length > 0 && (
           <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             {needsApproval.length} line{needsApproval.length === 1 ? "" : "s"} exceed the allowed
