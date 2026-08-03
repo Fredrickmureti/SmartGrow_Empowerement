@@ -67562,92 +67562,157 @@ export type Database = {
           },
         ]
       }
-      wms_replen_rules: {
+      wms_replen_orders: {
         Row: {
+          branch_id: string | null
           business_id: string
+          cancel_reason: string | null
+          completed_at: string | null
           created_at: string
           created_by: string | null
+          decision_trace: Json
+          dispatched_at: string | null
+          due_at: string | null
           id: string
-          is_active: boolean
-          max_qty: number
-          min_qty: number
+          lot_number: string | null
+          moved_qty: number
           organization_id: string
-          pick_face_location_id: string
+          pick_location_id: string
           priority: number
           product_id: string
-          source_zone_id: string | null
-          target_qty: number
-          uom: string | null
+          reason_code: string
+          requested_qty: number
+          reserved_qty: number
+          row_version: number
+          rule_id: string | null
+          source_location_id: string | null
+          state: Database["public"]["Enums"]["wms_replen_order_state"]
+          task_id: string | null
           updated_at: string
           warehouse_id: string
         }
         Insert: {
+          branch_id?: string | null
           business_id: string
+          cancel_reason?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decision_trace?: Json
+          dispatched_at?: string | null
+          due_at?: string | null
           id?: string
-          is_active?: boolean
-          max_qty: number
-          min_qty: number
+          lot_number?: string | null
+          moved_qty?: number
           organization_id: string
-          pick_face_location_id: string
+          pick_location_id: string
           priority?: number
           product_id: string
-          source_zone_id?: string | null
-          target_qty: number
-          uom?: string | null
+          reason_code?: string
+          requested_qty: number
+          reserved_qty?: number
+          row_version?: number
+          rule_id?: string | null
+          source_location_id?: string | null
+          state?: Database["public"]["Enums"]["wms_replen_order_state"]
+          task_id?: string | null
           updated_at?: string
           warehouse_id: string
         }
         Update: {
+          branch_id?: string | null
           business_id?: string
+          cancel_reason?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decision_trace?: Json
+          dispatched_at?: string | null
+          due_at?: string | null
           id?: string
-          is_active?: boolean
-          max_qty?: number
-          min_qty?: number
+          lot_number?: string | null
+          moved_qty?: number
           organization_id?: string
-          pick_face_location_id?: string
+          pick_location_id?: string
           priority?: number
           product_id?: string
-          source_zone_id?: string | null
-          target_qty?: number
-          uom?: string | null
+          reason_code?: string
+          requested_qty?: number
+          reserved_qty?: number
+          row_version?: number
+          rule_id?: string | null
+          source_location_id?: string | null
+          state?: Database["public"]["Enums"]["wms_replen_order_state"]
+          task_id?: string | null
           updated_at?: string
           warehouse_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "wms_replen_rules_pick_face_location_id_fkey"
-            columns: ["pick_face_location_id"]
+            foreignKeyName: "wms_replen_orders_pick_location_id_fkey"
+            columns: ["pick_location_id"]
             isOneToOne: false
             referencedRelation: "stock_locations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "wms_replen_rules_pick_face_location_id_fkey"
-            columns: ["pick_face_location_id"]
+            foreignKeyName: "wms_replen_orders_pick_location_id_fkey"
+            columns: ["pick_location_id"]
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
           },
           {
-            foreignKeyName: "wms_replen_rules_source_zone_id_fkey"
-            columns: ["source_zone_id"]
+            foreignKeyName: "wms_replen_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_replen_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replen_orders_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "wms_replenishment_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replen_orders_source_location_id_fkey"
+            columns: ["source_location_id"]
             isOneToOne: false
             referencedRelation: "stock_locations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "wms_replen_rules_source_zone_id_fkey"
-            columns: ["source_zone_id"]
+            foreignKeyName: "wms_replen_orders_source_location_id_fkey"
+            columns: ["source_location_id"]
             isOneToOne: false
             referencedRelation: "v_location_summary"
             referencedColumns: ["location_id"]
           },
           {
-            foreignKeyName: "wms_replen_rules_warehouse_id_fkey"
+            foreignKeyName: "wms_replen_orders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
+          },
+          {
+            foreignKeyName: "wms_replen_orders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replen_orders_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -67657,61 +67722,94 @@ export type Database = {
       }
       wms_replenishment_rules: {
         Row: {
+          auto_dispatch: boolean
           business_id: string
+          category_id: string | null
           created_at: string
           created_by: string | null
+          effective_from: string | null
+          effective_to: string | null
           id: string
           is_active: boolean
+          is_emergency: boolean
           last_run_at: string | null
           max_qty: number
           min_qty: number
           notes: string | null
           organization_id: string
           pack_multiple: number
-          pick_location_id: string
+          pick_location_id: string | null
           priority: number
-          product_id: string
+          product_id: string | null
+          row_version: number
+          scope: Database["public"]["Enums"]["wms_replen_scope"]
           source_location_id: string | null
+          strategy: Database["public"]["Enums"]["wms_replen_strategy"]
+          target_qty: number | null
           updated_at: string
+          velocity_class: string | null
           warehouse_id: string
+          zone_location_id: string | null
         }
         Insert: {
+          auto_dispatch?: boolean
           business_id: string
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
           id?: string
           is_active?: boolean
+          is_emergency?: boolean
           last_run_at?: string | null
           max_qty: number
           min_qty: number
           notes?: string | null
           organization_id: string
           pack_multiple?: number
-          pick_location_id: string
+          pick_location_id?: string | null
           priority?: number
-          product_id: string
+          product_id?: string | null
+          row_version?: number
+          scope?: Database["public"]["Enums"]["wms_replen_scope"]
           source_location_id?: string | null
+          strategy?: Database["public"]["Enums"]["wms_replen_strategy"]
+          target_qty?: number | null
           updated_at?: string
+          velocity_class?: string | null
           warehouse_id: string
+          zone_location_id?: string | null
         }
         Update: {
+          auto_dispatch?: boolean
           business_id?: string
+          category_id?: string | null
           created_at?: string
           created_by?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
           id?: string
           is_active?: boolean
+          is_emergency?: boolean
           last_run_at?: string | null
           max_qty?: number
           min_qty?: number
           notes?: string | null
           organization_id?: string
           pack_multiple?: number
-          pick_location_id?: string
+          pick_location_id?: string | null
           priority?: number
-          product_id?: string
+          product_id?: string | null
+          row_version?: number
+          scope?: Database["public"]["Enums"]["wms_replen_scope"]
           source_location_id?: string | null
+          strategy?: Database["public"]["Enums"]["wms_replen_strategy"]
+          target_qty?: number | null
           updated_at?: string
+          velocity_class?: string | null
           warehouse_id?: string
+          zone_location_id?: string | null
         }
         Relationships: [
           {
@@ -67762,6 +67860,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "warehouses"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_zone_location_id_fkey"
+            columns: ["zone_location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_replenishment_rules_zone_location_id_fkey"
+            columns: ["zone_location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
           },
         ]
       }
@@ -76916,6 +77028,20 @@ export type Database = {
       }
       _wms_replay_lpn_move: { Args: { p_args: Json }; Returns: Json }
       _wms_replay_lpn_set_packaging: { Args: { p_args: Json }; Returns: Json }
+      _wms_replen_release: {
+        Args: {
+          p_order: Database["public"]["Tables"]["wms_replen_orders"]["Row"]
+          p_qty: number
+        }
+        Returns: undefined
+      }
+      _wms_replen_reserve: {
+        Args: {
+          p_order: Database["public"]["Tables"]["wms_replen_orders"]["Row"]
+          p_qty: number
+        }
+        Returns: number
+      }
       _wms_sscc_log: {
         Args: {
           p_copies?: number
@@ -79474,6 +79600,16 @@ export type Database = {
         Returns: Json
       }
       complete_putaway_task: { Args: { p_task_id: string }; Returns: Json }
+      complete_replenish_task: {
+        Args: {
+          p_destination_scan?: string
+          p_lot_number?: string
+          p_moved_qty: number
+          p_source_scan?: string
+          p_task_id: string
+        }
+        Returns: Json
+      }
       complete_stock_transfer_atomic: {
         Args: { p_items: Json; p_transfer_id: string; p_user_id: string }
         Returns: Json
@@ -81856,10 +81992,6 @@ export type Database = {
           p_year?: number
         }
         Returns: number
-      }
-      generate_replenishment_tasks: {
-        Args: { p_warehouse_id: string }
-        Returns: Json
       }
       get_account_balance_at_date: {
         Args: { p_account_id: string; p_as_of_date: string }
@@ -85753,6 +85885,10 @@ export type Database = {
           p_source_count_id: string
           p_user_id: string
         }
+        Returns: Json
+      }
+      plan_replenishment: {
+        Args: { p_mode?: string; p_warehouse_id: string }
         Returns: Json
       }
       platform_delete_organization: {
@@ -89685,6 +89821,49 @@ export type Database = {
         Returns: Json
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
+      wms_effective_replen_rule: {
+        Args: {
+          p_pick_location_id: string
+          p_product_id: string
+          p_warehouse_id: string
+        }
+        Returns: {
+          auto_dispatch: boolean
+          business_id: string
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          is_active: boolean
+          is_emergency: boolean
+          last_run_at: string | null
+          max_qty: number
+          min_qty: number
+          notes: string | null
+          organization_id: string
+          pack_multiple: number
+          pick_location_id: string | null
+          priority: number
+          product_id: string | null
+          row_version: number
+          scope: Database["public"]["Enums"]["wms_replen_scope"]
+          source_location_id: string | null
+          strategy: Database["public"]["Enums"]["wms_replen_strategy"]
+          target_qty: number | null
+          updated_at: string
+          velocity_class: string | null
+          warehouse_id: string
+          zone_location_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_replenishment_rules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_flag_receiving_variances: {
         Args: { p_session_id: string }
         Returns: Json
@@ -90612,6 +90791,48 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_transition_replen_order: {
+        Args: {
+          p_expected_version: number
+          p_order_id: string
+          p_reason?: string
+          p_to_state: Database["public"]["Enums"]["wms_replen_order_state"]
+        }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          cancel_reason: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          decision_trace: Json
+          dispatched_at: string | null
+          due_at: string | null
+          id: string
+          lot_number: string | null
+          moved_qty: number
+          organization_id: string
+          pick_location_id: string
+          priority: number
+          product_id: string
+          reason_code: string
+          requested_qty: number
+          reserved_qty: number
+          row_version: number
+          rule_id: string | null
+          source_location_id: string | null
+          state: Database["public"]["Enums"]["wms_replen_order_state"]
+          task_id: string | null
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_replen_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_transition_return: {
         Args: {
           p_payload?: Json
@@ -91406,6 +91627,21 @@ export type Database = {
         | "posted"
         | "closed"
         | "cancelled"
+      wms_replen_order_state:
+        | "planned"
+        | "approved"
+        | "dispatched"
+        | "in_progress"
+        | "completed"
+        | "short"
+        | "cancelled"
+      wms_replen_scope:
+        | "warehouse"
+        | "zone"
+        | "category"
+        | "product"
+        | "pick_face"
+      wms_replen_strategy: "min_max" | "demand_driven" | "topoff" | "manual"
       wms_return_condition:
         | "unopened"
         | "opened"
@@ -92373,6 +92609,23 @@ export const Constants = {
         "closed",
         "cancelled",
       ],
+      wms_replen_order_state: [
+        "planned",
+        "approved",
+        "dispatched",
+        "in_progress",
+        "completed",
+        "short",
+        "cancelled",
+      ],
+      wms_replen_scope: [
+        "warehouse",
+        "zone",
+        "category",
+        "product",
+        "pick_face",
+      ],
+      wms_replen_strategy: ["min_max", "demand_driven", "topoff", "manual"],
       wms_return_condition: [
         "unopened",
         "opened",

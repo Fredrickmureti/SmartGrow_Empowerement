@@ -134,20 +134,29 @@ export default function Replenishment() {
   const generate = useMutation({
     mutationFn: async () => {
       if (!effectiveWarehouseId) throw new Error("Pick a warehouse first");
-      const { data, error } = await supabase.rpc("generate_replenishment_tasks", {
+      const { data, error } = await supabase.rpc("plan_replenishment", {
         p_warehouse_id: effectiveWarehouseId,
+        p_mode: "plan_and_dispatch",
       });
       if (error) throw error;
-      return data as { tasks_created: number; rules_skipped: number };
+      return (data ?? {}) as unknown as {
+        orders_created: number;
+        orders_dispatched: number;
+        faces_skipped: number;
+      };
     },
     onSuccess: (r) => {
-      toast.success(`Created ${r?.tasks_created ?? 0} task(s); skipped ${r?.rules_skipped ?? 0}`);
+      toast.success(
+        `Planned ${r?.orders_created ?? 0} order(s), dispatched ${r?.orders_dispatched ?? 0}; skipped ${r?.faces_skipped ?? 0}`,
+      );
       qc.invalidateQueries({ queryKey: ["wms-replen-tasks"] });
       qc.invalidateQueries({ queryKey: ["wms-replen-rules"] });
+      qc.invalidateQueries({ queryKey: ["wms-replen-orders"] });
       qc.invalidateQueries({ queryKey: ["wms-tasks"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const toggleActive = useMutation({
     mutationFn: async (row: RuleRow) => {
