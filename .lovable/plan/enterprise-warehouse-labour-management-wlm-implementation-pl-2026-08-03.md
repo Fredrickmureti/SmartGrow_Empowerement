@@ -81,19 +81,23 @@ Defects carried forward:
    emit through the existing warehouse business-event outbox
    (`src/features/warehouse/events`) — not a new notification path.
 
-## Phase H — incentive and performance management
+## Phase H — incentive and performance management (steps 1–2 done)
 
-1. Goal/target management per operator and task type, resolved with the same
-   most-specific-wins precedence as standards.
-2. Coaching records tied to the existing `continuous_feedback` surface.
-3. Payroll hand-off for incentive pay reusing existing payroll input
+1. **Done.** `wms_labour_targets` + `wms_resolve_labour_target` — business /
+   warehouse / task-type / operator scope, most-specific-wins, date-effective.
+2. **Done.** `wms_operator_scorecard(_warehouse_id,_from,_to)` (actual vs target
+   performance and utilisation, incentive eligibility) and
+   `wms_log_coaching_note` writing into `continuous_feedback`. Surfaced as the
+   "Targets & coaching" tab (`LabourPerformancePanel`).
+3. **Next.** Payroll hand-off for incentive pay reusing existing payroll input
    pipelines; no parallel earnings path.
 
-## Phase I — paperwork correction
+## Phase I — paperwork correction (done)
 
-1. Give `labour_worksheet` a dedicated template instead of reusing `invoice`.
-2. Add a shift plan / roster document once Phase G data exists, through the
-   same document platform.
+1. **Done.** `labour_worksheet` has its own template type plus operational
+   overrides that strip every finance block; `TABLE_MAP` tenancy entries added.
+2. **Done.** `labour_roster` document (`fetchLabourRoster`, 14-day window) with
+   a "Print roster" action on the Planning tab, via `printDocument`.
 
 ## Technical notes
 
@@ -107,6 +111,7 @@ Defects carried forward:
 
 ## Instructions for the next agent
 
-1. Resume at Phase G, step 1. Do not restart A–F; they are verified.
+1. Resume at Phase H, step 3 (payroll hand-off). A–G and I are shipped.
 2. Ship each step whole: schema, RPC, hook, UI, document.
 3. Update this file immediately after each step.
+

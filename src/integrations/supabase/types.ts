@@ -66571,6 +66571,85 @@ export type Database = {
         }
         Relationships: []
       }
+      wms_labour_targets: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          incentive_threshold_pct: number | null
+          is_active: boolean
+          notes: string | null
+          operator_id: string | null
+          organization_id: string
+          target_performance_pct: number
+          target_utilisation_pct: number
+          task_type: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          incentive_threshold_pct?: number | null
+          is_active?: boolean
+          notes?: string | null
+          operator_id?: string | null
+          organization_id: string
+          target_performance_pct?: number
+          target_utilisation_pct?: number
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          incentive_threshold_pct?: number | null
+          is_active?: boolean
+          notes?: string | null
+          operator_id?: string | null
+          organization_id?: string
+          target_performance_pct?: number
+          target_utilisation_pct?: number
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_labour_targets_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operator_board_view"
+            referencedColumns: ["operator_id"]
+          },
+          {
+            foreignKeyName: "wms_labour_targets_operator_id_fkey"
+            columns: ["operator_id"]
+            isOneToOne: false
+            referencedRelation: "wms_operators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_labour_targets_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_labour_time_entries: {
         Row: {
           business_id: string
@@ -91945,6 +92024,10 @@ export type Database = {
         }[]
       }
       wms_location_path: { Args: { _location_id: string }; Returns: string }
+      wms_log_coaching_note: {
+        Args: { _body: string; _feedback_type?: string; _operator_id: string }
+        Returns: string
+      }
       wms_log_labour_entry: {
         Args: {
           _category: string
@@ -92424,6 +92507,28 @@ export type Database = {
         Args: { _warehouse_id: string }
         Returns: boolean
       }
+      wms_operator_scorecard: {
+        Args: { _from?: string; _to?: string; _warehouse_id?: string }
+        Returns: {
+          direct_seconds: number
+          earned_seconds: number
+          idle_seconds: number
+          incentive_eligible: boolean
+          indirect_seconds: number
+          operator_code: string
+          operator_id: string
+          operator_name: string
+          performance_pct: number
+          performance_variance: number
+          target_performance_pct: number
+          target_utilisation_pct: number
+          tasks_completed: number
+          user_id: string
+          utilisation_pct: number
+          utilisation_variance: number
+          warehouse_id: string
+        }[]
+      }
       wms_packaging_archive: {
         Args: { p_id: string; p_reason?: string }
         Returns: Json
@@ -92714,6 +92819,39 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "wms_task_standards"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_resolve_labour_target: {
+        Args: {
+          _business_id: string
+          _on_date?: string
+          _operator_id?: string
+          _task_type?: Database["public"]["Enums"]["wms_task_type"]
+          _warehouse_id?: string
+        }
+        Returns: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          incentive_threshold_pct: number | null
+          is_active: boolean
+          notes: string | null
+          operator_id: string | null
+          organization_id: string
+          target_performance_pct: number
+          target_utilisation_pct: number
+          task_type: Database["public"]["Enums"]["wms_task_type"] | null
+          updated_at: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_labour_targets"
           isOneToOne: true
           isSetofReturn: false
         }

@@ -40,6 +40,7 @@ import { StandardsPanel } from "@/features/warehouse/labour/StandardsPanel";
 import { useUtilisation } from "@/features/warehouse/labour/useLabourQueue";
 import { useOperatorBoard } from "@/features/warehouse/labour/useLabourOperators";
 import { LabourPlanningPanel } from "@/features/warehouse/labour/LabourPlanningPanel";
+import { LabourPerformancePanel } from "@/features/warehouse/labour/LabourPerformancePanel";
 
 
 function daysAgo(n: number): string {
@@ -201,6 +202,7 @@ export default function LabourBoard() {
             <TabsTrigger value="planning">Planning</TabsTrigger>
             <TabsTrigger value="standards">Standards</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="targets">Targets &amp; coaching</TabsTrigger>
           </TabsList>
 
           <TabsContent value="planning" className="mt-4">
@@ -288,7 +290,17 @@ export default function LabourBoard() {
               )}
             </Section>
           </TabsContent>
+
+          <TabsContent value="targets" className="mt-4">
+            <Section
+              title="Targets & coaching"
+              description="Goals resolved most-specific-wins, measured against earned hours, with coaching written to the employee record."
+            >
+              <LabourPerformancePanel warehouseId={warehouseFilter} warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
         </Tabs>
+
       </PageBody>
     </>
   );

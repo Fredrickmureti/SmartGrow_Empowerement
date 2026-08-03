@@ -10,6 +10,7 @@
  */
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { LabourRosterButton } from "./LabourRosterButton";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -171,6 +172,8 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
           >
             <CalendarRange className="h-4 w-4 mr-2" /> Roll out roster
           </Button>
+          <LabourRosterButton warehouseId={scoped} />
+
           <Button
             onClick={() =>
               scoped && publishPlan.mutate({ warehouseId: scoped, from, to })
