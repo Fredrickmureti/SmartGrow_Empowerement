@@ -26,6 +26,8 @@ import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
 import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
+import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
+
 import {
   VARIANCE_REASONS,
   TOLERANCE_COPY,
