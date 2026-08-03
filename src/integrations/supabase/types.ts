@@ -91742,6 +91742,10 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_seed_yard_label_templates: {
+        Args: { _actor?: string; _org_id: string }
+        Returns: undefined
+      }
       wms_sscc_allocate: {
         Args: {
           p_business_id: string

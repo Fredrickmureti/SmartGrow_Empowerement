@@ -57,6 +57,9 @@ import {
   useVisitGateEvents,
   useYardMoves,
 } from "./useYard";
+import { printTrailerPlacard } from "./yardLabels";
+import { useOrganization } from "@/hooks/useOrganization";
+import { toast } from "sonner";
 
 function ts(v: string | null | undefined) {
   return v ? format(new Date(v), "dd MMM HH:mm") : "—";
@@ -67,18 +70,35 @@ export function TrailerVisitDrawer({
   slots,
   docks,
   onClose,
-  onPrintPlacard,
 }: {
   visit: VisitRow | null;
   slots: YardSlotRow[];
   docks: { id: string; code: string; name: string | null }[];
   onClose: () => void;
-  onPrintPlacard?: (v: VisitRow) => void;
 }) {
   const [slotId, setSlotId] = useState("");
   const [dockId, setDockId] = useState("");
   const [sealOut, setSealOut] = useState("");
   const [override, setOverride] = useState("");
+  const [printing, setPrinting] = useState(false);
+
+  const { currentOrg } = useOrganization();
+
+  async function printPlacard(v: VisitRow) {
+    if (!currentOrg?.id) {
+      toast.error("No active organization");
+      return;
+    }
+    setPrinting(true);
+    try {
+      const res = await printTrailerPlacard({ orgId: currentOrg.id, visit: v });
+      if (res.success) toast.success("Placard sent to the printer");
+      else toast.error(res.error ?? "Could not print the placard");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
 
   const gateEvents = useVisitGateEvents(visit?.id ?? null);
   const moves = useYardMoves(visit?.id ?? null);
@@ -158,11 +178,16 @@ export function TrailerVisitDrawer({
             </div>
           </div>
 
-          {onPrintPlacard && (
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onPrintPlacard(visit)}>
-              <Printer className="h-3.5 w-3.5" /> Print yard placard
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={printing}
+            onClick={() => void printPlacard(visit)}
+          >
+            <Printer className="h-3.5 w-3.5" /> Print yard placard
+          </Button>
+
 
           <Separator />
 
