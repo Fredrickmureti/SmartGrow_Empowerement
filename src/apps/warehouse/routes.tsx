@@ -34,6 +34,7 @@ const PackStation = lazy(() => import("@/pages/warehouse/PackStation"));
 const CycleCounts = lazy(() => import("@/pages/warehouse/CycleCounts"));
 const CycleCountPlanner = lazy(() => import("@/pages/warehouse/CycleCountPlanner"));
 const CountSession = lazy(() => import("@/pages/warehouse/CountSession"));
+const CountTriggers = lazy(() => import("@/pages/warehouse/CountTriggers"));
 const CountReview = lazy(() => import("@/pages/warehouse/CountReview"));
 const LoadingManifests = lazy(() => import("@/pages/warehouse/LoadingManifests"));
 const LoadingManifestPlanner = lazy(() => import("@/pages/warehouse/LoadingManifestPlanner"));
@@ -226,6 +227,14 @@ export function WarehouseApp() {
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Cycle Counts"><CycleCounts /></LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+        <Route
+          path="counts/automation"
+          element={
+            <SubscriptionProtectedRoute>
+              <LazyRoute module="Count Automation"><CountTriggers /></LazyRoute>
             </SubscriptionProtectedRoute>
           }
         />
