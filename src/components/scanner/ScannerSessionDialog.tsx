@@ -150,6 +150,8 @@ function ControlledDialog({
           </DialogTitle>
           <DialogDescription>{label}</DialogDescription>
         </DialogHeader>
+        <DeviceModeChoice label={label} onUseThisDevice={() => onOpenChange(false)} />
+
         <SessionBody
           isConnected={isConnected}
           loading={loading}
