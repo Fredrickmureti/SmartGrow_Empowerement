@@ -67,18 +67,35 @@ export function TrailerVisitDrawer({
   slots,
   docks,
   onClose,
-  onPrintPlacard,
 }: {
   visit: VisitRow | null;
   slots: YardSlotRow[];
   docks: { id: string; code: string; name: string | null }[];
   onClose: () => void;
-  onPrintPlacard?: (v: VisitRow) => void;
 }) {
   const [slotId, setSlotId] = useState("");
   const [dockId, setDockId] = useState("");
   const [sealOut, setSealOut] = useState("");
   const [override, setOverride] = useState("");
+  const [printing, setPrinting] = useState(false);
+
+  const { currentOrg } = useOrganization();
+
+  async function printPlacard(v: VisitRow) {
+    if (!currentOrg?.id) {
+      toast.error("No active organization");
+      return;
+    }
+    setPrinting(true);
+    try {
+      const res = await printTrailerPlacard({ orgId: currentOrg.id, visit: v });
+      if (res.success) toast.success("Placard sent to the printer");
+      else toast.error(res.error ?? "Could not print the placard");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
 
   const gateEvents = useVisitGateEvents(visit?.id ?? null);
   const moves = useYardMoves(visit?.id ?? null);
