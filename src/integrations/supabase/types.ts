@@ -34358,6 +34358,75 @@ export type Database = {
           },
         ]
       }
+      payroll_pending_inputs: {
+        Row: {
+          amount: number
+          business_id: string
+          code: string
+          consumed_at: string | null
+          consumed_payroll_run_id: string | null
+          created_at: string
+          created_by: string | null
+          employee_id: string
+          id: string
+          label: string | null
+          metadata: Json
+          organization_id: string
+          period_end: string
+          period_start: string
+          quantity: number
+          source_id: string | null
+          source_kind: string
+          status: string
+          uom: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          business_id: string
+          code: string
+          consumed_at?: string | null
+          consumed_payroll_run_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id: string
+          id?: string
+          label?: string | null
+          metadata?: Json
+          organization_id: string
+          period_end: string
+          period_start: string
+          quantity?: number
+          source_id?: string | null
+          source_kind: string
+          status?: string
+          uom?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          business_id?: string
+          code?: string
+          consumed_at?: string | null
+          consumed_payroll_run_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          employee_id?: string
+          id?: string
+          label?: string | null
+          metadata?: Json
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          quantity?: number
+          source_id?: string | null
+          source_kind?: string
+          status?: string
+          uom?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payroll_period_audit: {
         Row: {
           actor_id: string | null
@@ -66579,6 +66648,7 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           id: string
+          incentive_rate_per_earned_hour: number
           incentive_threshold_pct: number | null
           is_active: boolean
           notes: string | null
@@ -66597,6 +66667,7 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          incentive_rate_per_earned_hour?: number
           incentive_threshold_pct?: number | null
           is_active?: boolean
           notes?: string | null
@@ -66615,6 +66686,7 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          incentive_rate_per_earned_hour?: number
           incentive_threshold_pct?: number | null
           is_active?: boolean
           notes?: string | null
@@ -86542,6 +86614,15 @@ export type Database = {
         }
         Returns: Json
       }
+      payroll_consume_pending_inputs: {
+        Args: {
+          _business_id: string
+          _payroll_run_id: string
+          _period_end: string
+          _period_start: string
+        }
+        Returns: number
+      }
       payroll_create_and_map_account: {
         Args: {
           _account_type: string
@@ -87454,6 +87535,10 @@ export type Database = {
       payroll_recompute_run_payment_status: {
         Args: { _run_id: string }
         Returns: undefined
+      }
+      payroll_release_pending_inputs: {
+        Args: { _business_id: string; _payroll_run_id: string }
+        Returns: number
       }
       payroll_remittance_dashboard: {
         Args: { p_business_id: string; p_organization_id: string }
@@ -92718,6 +92803,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      wms_post_incentive_inputs: {
+        Args: {
+          _business_id: string
+          _code: string
+          _from: string
+          _to: string
+          _warehouse_id?: string
+        }
+        Returns: {
+          employees_staged: number
+          total_amount: number
+        }[]
+      }
       wms_post_receiving_session: {
         Args: {
           p_row_version: number
@@ -92838,6 +92936,7 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           id: string
+          incentive_rate_per_earned_hour: number
           incentive_threshold_pct: number | null
           is_active: boolean
           notes: string | null

@@ -38,6 +38,11 @@ import { PayrollSetupGuideDialog } from "@/components/payroll/PayrollSetupGuideD
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  usePendingPayrollInputs,
+  mergePendingIntoVariableEarnings,
+  consumePendingPayrollInputs,
+} from "@/hooks/payroll/usePendingPayrollInputs";
 
 export default function PayrollRuns() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -117,6 +122,8 @@ export default function PayrollRuns() {
     }
   }, [searchParams, setSearchParams]);
 
+
+
   // Phase 3 · Realtime job-status subscription.
   // The HTTP response from compute-payroll is no longer the source of truth
   // for whether payroll ran (a transport drop can hide a successful run).
@@ -172,6 +179,20 @@ export default function PayrollRuns() {
     pay_period_end: format(endOfMonth(today), "yyyy-MM-dd"),
     payment_date: format(new Date(), "yyyy-MM-dd"),
   });
+
+  // Phase H.3 — pre-run input inbox. Other modules (warehouse incentive pay
+  // today) stage pay inputs in `payroll_pending_inputs`; the variable-earnings
+  // grid is prefilled from them so nothing is retyped, and manual entries win.
+  const { data: pendingInputs } = usePendingPayrollInputs(
+    formData.pay_period_start,
+    formData.pay_period_end,
+  );
+
+  useEffect(() => {
+    if (!showDialog || !pendingInputs?.length) return;
+    setVariableEarnings((prev) => mergePendingIntoVariableEarnings(prev, pendingInputs));
+  }, [showDialog, pendingInputs]);
+
 
   /**
    * Classify an error from the payroll edge function.
@@ -391,6 +412,21 @@ export default function PayrollRuns() {
         });
       } else {
         toast({ title: "Payroll run created" });
+      }
+      // Staged inputs that fed this run are now spent. Reversing the run
+      // releases them again (see ReversePayrollDialog).
+      if (currentBusiness?.id) {
+        try {
+          await consumePendingPayrollInputs(
+            currentBusiness.id,
+            (result as any)?.payroll_run?.id ?? (result as any)?.payroll_run_id ?? null,
+            formData.pay_period_start,
+            formData.pay_period_end,
+          );
+        } catch {
+          // Non-fatal: the run exists. The rows stay pending and will be
+          // offered again rather than silently disappearing.
+        }
       }
       setShowPreview(false); setPreviewData(null); setVariableEarnings([]);
       setRunType("regular"); setParentRunId(null); setProrationOverrides({});

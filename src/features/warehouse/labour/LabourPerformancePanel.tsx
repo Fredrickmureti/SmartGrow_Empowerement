@@ -8,7 +8,7 @@
  * surface through `wms_log_coaching_note`.
  */
 import { useMemo, useState } from "react";
-import { MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
+import { Coins, MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,9 @@ import {
   type LabourTargetUpsert, type ScorecardRow,
 } from "./useLabourPerformance";
 import { isoDay } from "./useLabourPlanning";
+import {
+  usePayrollInputCodes, usePostIncentiveInputs, useStagedIncentives,
+} from "./useLabourIncentive";
 import { WMS_TASK_TYPES, type WmsTaskType } from "./useLabourOperators";
 
 interface Props {
@@ -49,6 +52,7 @@ const EMPTY_TARGET: LabourTargetUpsert = {
   target_performance_pct: 100,
   target_utilisation_pct: 85,
   incentive_threshold_pct: null,
+  incentive_rate_per_earned_hour: 0,
   notes: null,
   effective_from: isoDay(0),
   effective_to: null,
@@ -86,6 +90,14 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachRow, setCoachRow] = useState<ScorecardRow | null>(null);
   const [coachBody, setCoachBody] = useState("");
+
+  // Phase H.3 — incentive hand-off. Staging is the only route to pay; the
+  // amounts themselves are computed by `wms_post_incentive_inputs`.
+  const { data: inputCodes } = usePayrollInputCodes();
+  const { data: staged } = useStagedIncentives();
+  const postIncentive = usePostIncentiveInputs();
+  const [incentiveOpen, setIncentiveOpen] = useState(false);
+  const [incentiveCode, setIncentiveCode] = useState("");
 
   const rows = scorecard ?? [];
 
@@ -137,9 +149,19 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" onClick={openTargetDialog}>
-          <Plus className="h-4 w-4 mr-2" /> Performance target
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openTargetDialog}>
+            <Plus className="h-4 w-4 mr-2" /> Performance target
+          </Button>
+          <Button
+            onClick={() => {
+              setIncentiveCode(inputCodes?.[0]?.code ?? "");
+              setIncentiveOpen(true);
+            }}
+          >
+            <Coins className="h-4 w-4 mr-2" /> Post incentive pay
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -274,6 +296,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                 <TableHead className="text-right">Perf %</TableHead>
                 <TableHead className="text-right">Util %</TableHead>
                 <TableHead className="text-right">Incentive at</TableHead>
+                <TableHead className="text-right">Rate / earned h</TableHead>
                 <TableHead>From</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -281,7 +304,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
             <TableBody>
               {(targets ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-6">
                     No targets yet — operators are measured without a goal.
                   </TableCell>
                 </TableRow>
@@ -299,6 +322,9 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                   <TableCell className="text-right">{t.target_performance_pct}</TableCell>
                   <TableCell className="text-right">{t.target_utilisation_pct}</TableCell>
                   <TableCell className="text-right">{t.incentive_threshold_pct ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {Number(t.incentive_rate_per_earned_hour ?? 0) || "—"}
+                  </TableCell>
                   <TableCell>{t.effective_from}</TableCell>
                   <TableCell>
                     <Button
@@ -316,6 +342,102 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
           </Table>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Coins className="h-4 w-4" /> Incentive pay staged for payroll
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Window</TableHead>
+                <TableHead>Code</TableHead>
+                <TableHead className="text-right">Earned h</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(staged ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                    Nothing staged. Posted incentive pay appears here until a payroll
+                    run consumes it.
+                  </TableCell>
+                </TableRow>
+              )}
+              {(staged ?? []).map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>
+                    {s.period_start} → {s.period_end}
+                  </TableCell>
+                  <TableCell>{s.label ?? s.code}</TableCell>
+                  <TableCell className="text-right">
+                    {Math.round(Number(s.quantity || 0) * 10) / 10}
+                  </TableCell>
+                  <TableCell className="text-right">{Number(s.amount || 0)}</TableCell>
+                  <TableCell>
+                    <Badge variant={s.status === "pending" ? "secondary" : "default"}>
+                      {s.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={incentiveOpen} onOpenChange={setIncentiveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Post incentive pay to payroll</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Operators at or above their incentive threshold between{" "}
+              <strong>{from}</strong> and <strong>{to}</strong> will be staged for
+              payroll at their target's rate per earned hour. Re-posting the same
+              window replaces the previous figures rather than adding to them.
+            </p>
+            <div className="space-y-2">
+              <Label>Pay input</Label>
+              <Select value={incentiveCode} onValueChange={setIncentiveCode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a payroll input" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(inputCodes ?? []).map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.name} ({c.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIncentiveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!incentiveCode || postIncentive.isPending}
+              onClick={() =>
+                postIncentive.mutate(
+                  { code: incentiveCode, from, to, warehouseId: scoped },
+                  { onSuccess: () => setIncentiveOpen(false) },
+                )
+              }
+            >
+              {postIncentive.isPending ? "Posting…" : "Post to payroll"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={targetOpen} onOpenChange={setTargetOpen}>
         <DialogContent>
@@ -407,6 +529,25 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                   }
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Incentive rate per earned hour</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={targetForm.incentive_rate_per_earned_hour}
+                onChange={(e) =>
+                  setTargetForm((f) => ({
+                    ...f,
+                    incentive_rate_per_earned_hour: Number(e.target.value || 0),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Pay staged for payroll is earned hours × this rate. Zero means this
+                target earns no incentive pay.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
