@@ -22995,6 +22995,7 @@ export type Database = {
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
           etims_verification_url: string | null
+          exchange_rate: number | null
           id: string
           invoice_number: string
           is_sample_data: boolean
@@ -23054,6 +23055,7 @@ export type Database = {
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
           etims_verification_url?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_number: string
           is_sample_data?: boolean
@@ -23113,6 +23115,7 @@ export type Database = {
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
           etims_verification_url?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_number?: string
           is_sample_data?: boolean
@@ -65717,9 +65720,13 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           id: string
+          included_quantity: number
           is_active: boolean
+          min_charge: number | null
           notes: string | null
           rate: number
+          tier_from: number
+          tier_to: number | null
           uom: string
           updated_at: string
         }
@@ -65734,9 +65741,13 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           is_active?: boolean
+          min_charge?: number | null
           notes?: string | null
           rate: number
+          tier_from?: number
+          tier_to?: number | null
           uom?: string
           updated_at?: string
         }
@@ -65751,9 +65762,13 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           is_active?: boolean
+          min_charge?: number | null
           notes?: string | null
           rate?: number
+          tier_from?: number
+          tier_to?: number | null
           uom?: string
           updated_at?: string
         }
@@ -83931,6 +83946,7 @@ export type Database = {
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
           etims_verification_url: string | null
+          exchange_rate: number | null
           id: string
           invoice_number: string
           is_sample_data: boolean
@@ -94117,6 +94133,7 @@ export type Database = {
         | "capacity_exceeded"
         | "stale_task"
         | "other"
+        | "billing_unpriced"
       wms_exception_resolution_kind:
         | "short_scan"
         | "damaged"
@@ -95103,6 +95120,7 @@ export const Constants = {
         "capacity_exceeded",
         "stale_task",
         "other",
+        "billing_unpriced",
       ],
       wms_exception_resolution_kind: [
         "short_scan",
