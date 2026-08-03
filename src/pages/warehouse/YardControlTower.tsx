@@ -137,6 +137,9 @@ export default function YardControlTower() {
               <Link to="/warehouse-app/yard/gate">Gate console</Link>
             </Button>
             <Button variant="outline" size="sm" asChild>
+              <Link to="/warehouse-app/yard/marshal">Yard marshal</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
               <Link to="/warehouse-app/yard/trailers">Trailer register</Link>
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
