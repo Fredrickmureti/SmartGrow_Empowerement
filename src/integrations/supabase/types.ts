@@ -66501,6 +66501,13 @@ export type Database = {
             foreignKeyName: "wms_gate_events_visit_id_fkey"
             columns: ["visit_id"]
             isOneToOne: false
+            referencedRelation: "wms_trailer_visit_load_summary"
+            referencedColumns: ["trailer_visit_id"]
+          },
+          {
+            foreignKeyName: "wms_gate_events_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
             referencedRelation: "wms_trailer_visits"
             referencedColumns: ["id"]
           },
@@ -66780,6 +66787,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "warehouse_docks"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_trailer_visit_id_fkey"
+            columns: ["trailer_visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visit_load_summary"
+            referencedColumns: ["trailer_visit_id"]
           },
           {
             foreignKeyName: "wms_loading_manifests_trailer_visit_id_fkey"
@@ -68770,6 +68784,13 @@ export type Database = {
             foreignKeyName: "wms_return_orders_trailer_visit_id_fkey"
             columns: ["trailer_visit_id"]
             isOneToOne: false
+            referencedRelation: "wms_trailer_visit_load_summary"
+            referencedColumns: ["trailer_visit_id"]
+          },
+          {
+            foreignKeyName: "wms_return_orders_trailer_visit_id_fkey"
+            columns: ["trailer_visit_id"]
+            isOneToOne: false
             referencedRelation: "wms_trailer_visits"
             referencedColumns: ["id"]
           },
@@ -69560,6 +69581,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wms_yard_slots"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_yard_moves_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visit_load_summary"
+            referencedColumns: ["trailer_visit_id"]
           },
           {
             foreignKeyName: "wms_yard_moves_visit_id_fkey"
@@ -77113,6 +77141,33 @@ export type Database = {
           },
           {
             foreignKeyName: "wms_tasks_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_trailer_visit_load_summary: {
+        Row: {
+          business_id: string | null
+          carton_count: number | null
+          damaged_qty: number | null
+          earliest_planned_departure_at: string | null
+          expected_qty: number | null
+          manifest_count: number | null
+          open_manifest_count: number | null
+          open_receiving_count: number | null
+          organization_id: string | null
+          readiness: string | null
+          received_qty: number | null
+          receiving_session_count: number | null
+          trailer_visit_id: string | null
+          warehouse_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_trailer_visits_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
