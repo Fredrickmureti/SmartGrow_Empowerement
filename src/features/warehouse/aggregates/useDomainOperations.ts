@@ -16,7 +16,8 @@
  * etc.) live in `useAggregateTransitions.ts` and go through
  * `wms_transition_<aggregate>` RPCs directly.
  */
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
 
@@ -166,6 +167,75 @@ export function useDispatchManifest(manifestId: string | null | undefined) {
       }
       toast.error(normalizeError(e, "Dispatch failed"));
     },
+  });
+}
+
+// -------------------------------------------------------------------
+// Proof of dispatch (Phase C)
+// -------------------------------------------------------------------
+export interface DispatchProofInput {
+  sealNumber?: string | null;
+  driverName?: string | null;
+  driverIdRef?: string | null;
+  signatureUrl?: string | null;
+  photoUrls?: string[];
+  gpsLat?: number | null;
+  gpsLng?: number | null;
+  notes?: string | null;
+}
+
+export interface ManifestProofStatus {
+  required: boolean;
+  captured: boolean;
+  satisfied: boolean;
+  seal_number: string | null;
+  driver_name: string | null;
+  signature_url: string | null;
+  photo_urls: string[];
+  captured_at: string | null;
+}
+
+/** Args for `wms_capture_dispatch_proof`, shared by desktop and RF shells. */
+export function dispatchProofArgs(manifestId: string, v: DispatchProofInput) {
+  return {
+    p_manifest_id: manifestId,
+    p_seal_number: v.sealNumber ?? null,
+    p_driver_name: v.driverName ?? null,
+    p_driver_id_ref: v.driverIdRef ?? null,
+    p_signature_url: v.signatureUrl ?? null,
+    p_photo_urls: v.photoUrls ?? [],
+    p_gps_lat: v.gpsLat ?? null,
+    p_gps_lng: v.gpsLng ?? null,
+    p_notes: v.notes ?? null,
+  };
+}
+
+export function useManifestProofStatus(manifestId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["wms-manifest-proof", manifestId],
+    enabled: !!manifestId,
+    queryFn: async (): Promise<ManifestProofStatus | null> => {
+      const { data, error } = await supabase.rpc("wms_manifest_proof_status", {
+        p_manifest_id: manifestId!,
+      });
+      if (error) throw error;
+      return (data ?? null) as unknown as ManifestProofStatus | null;
+    },
+  });
+}
+
+export function useCaptureDispatchProof(manifestId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (values: DispatchProofInput) => {
+      await replayGuardedCall("wms_capture_dispatch_proof", dispatchProofArgs(manifestId!, values));
+    },
+    onSuccess: () => {
+      toast.success("Proof of dispatch captured");
+      qc.invalidateQueries({ queryKey: ["wms-manifest-proof", manifestId] });
+      qc.invalidateQueries({ queryKey: ["wms-manifest", manifestId] });
+    },
+    onError: (e) => toast.error(normalizeError(e, "Could not capture proof")),
   });
 }
 

@@ -17,6 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
+import {
+  dispatchProofArgs,
+  type DispatchProofInput,
+  type ManifestProofStatus,
+} from "@/features/warehouse/aggregates/useDomainOperations";
 import { Truck, PackageCheck } from "lucide-react";
 
 interface Manifest {
@@ -49,6 +55,33 @@ export default function MobileDispatch() {
   const qc = useQueryClient();
   const [scan, setScan] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Phase C — proof of dispatch. Read-only status comes from the manifest's
+  // proof row; the capture write goes through the offline queue so a driver
+  // in a dead zone can still take custody evidence.
+  const { data: proofStatus } = useQuery({
+    queryKey: ["wm-manifest-proof", shipmentId],
+    enabled: !!shipmentId,
+    queryFn: async (): Promise<ManifestProofStatus | null> => {
+      const { data, error } = await supabase
+        .from("wms_dispatch_proofs")
+        .select("seal_number, driver_name, signature_url, photo_urls, captured_at")
+        .eq("manifest_id", shipmentId!)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        required: true,
+        captured: true,
+        satisfied: !!(data.seal_number && data.driver_name && (data.signature_url || (data.photo_urls ?? []).length > 0)),
+        seal_number: data.seal_number,
+        driver_name: data.driver_name,
+        signature_url: data.signature_url,
+        photo_urls: data.photo_urls ?? [],
+        captured_at: data.captured_at,
+      };
+    },
+  });
 
   const { data: manifest, isLoading } = useQuery({
     queryKey: ["wm-manifest", shipmentId],
@@ -102,6 +135,21 @@ export default function MobileDispatch() {
     qc.invalidateQueries({ queryKey: ["wm-manifest", shipmentId] });
     qc.invalidateQueries({ queryKey: ["wm-manifest-cartons", shipmentId] });
     qc.invalidateQueries({ queryKey: ["wm-cartons-available"] });
+    qc.invalidateQueries({ queryKey: ["wm-manifest-proof", shipmentId] });
+  };
+
+  const captureProof = async (values: DispatchProofInput) => {
+    if (!manifest || busy) return;
+    setBusy(true);
+    try {
+      const r = await enqueue("wms_capture_dispatch_proof", dispatchProofArgs(manifest.id, values));
+      toast.success(r.queued ? "Queued (offline)" : "Proof captured");
+      invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not capture proof");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const loadCode = async () => {
@@ -220,8 +268,17 @@ export default function MobileDispatch() {
           <div className="text-xs mt-1">State: {manifest.state}</div>
         </div>
 
-
-
+        {manifest.state !== "dispatched" && (
+          <section className="rounded border p-3">
+            <h2 className="mb-2 text-sm font-semibold">
+              Proof of dispatch{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                {proofStatus?.satisfied ? "· captured" : "· outstanding"}
+              </span>
+            </h2>
+            <DispatchProofForm compact status={proofStatus} submitting={busy} onSubmit={captureProof} />
+          </section>
+        )}
 
         {canLoad && (
           <div>

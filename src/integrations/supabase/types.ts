@@ -12300,6 +12300,7 @@ export type Database = {
           is_backorder: boolean
           is_return: boolean
           is_sample_data: boolean
+          manifest_id: string | null
           notes: string | null
           organization_id: string
           ready_at: string | null
@@ -12344,6 +12345,7 @@ export type Database = {
           is_backorder?: boolean
           is_return?: boolean
           is_sample_data?: boolean
+          manifest_id?: string | null
           notes?: string | null
           organization_id: string
           ready_at?: string | null
@@ -12388,6 +12390,7 @@ export type Database = {
           is_backorder?: boolean
           is_return?: boolean
           is_sample_data?: boolean
+          manifest_id?: string | null
           notes?: string | null
           organization_id?: string
           ready_at?: string | null
@@ -12460,6 +12463,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: false
+            referencedRelation: "wms_loading_manifests"
             referencedColumns: ["id"]
           },
           {
@@ -65162,6 +65172,7 @@ export type Database = {
           manager_phone: string | null
           name: string
           organization_id: string
+          require_dispatch_proof: boolean
           require_qc_on_receipt: boolean
           updated_at: string
         }
@@ -65183,6 +65194,7 @@ export type Database = {
           manager_phone?: string | null
           name: string
           organization_id: string
+          require_dispatch_proof?: boolean
           require_qc_on_receipt?: boolean
           updated_at?: string
         }
@@ -65204,6 +65216,7 @@ export type Database = {
           manager_phone?: string | null
           name?: string
           organization_id?: string
+          require_dispatch_proof?: boolean
           require_qc_on_receipt?: boolean
           updated_at?: string
         }
@@ -65885,6 +65898,80 @@ export type Database = {
           },
         ]
       }
+      wms_dispatch_proofs: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          captured_at: string
+          captured_by: string | null
+          created_at: string
+          driver_id_ref: string | null
+          driver_name: string | null
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          is_sample_data: boolean
+          manifest_id: string
+          notes: string | null
+          organization_id: string
+          photo_urls: string[]
+          seal_number: string | null
+          signature_url: string | null
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          driver_id_ref?: string | null
+          driver_name?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          is_sample_data?: boolean
+          manifest_id: string
+          notes?: string | null
+          organization_id: string
+          photo_urls?: string[]
+          seal_number?: string | null
+          signature_url?: string | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          driver_id_ref?: string | null
+          driver_name?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          is_sample_data?: boolean
+          manifest_id?: string
+          notes?: string | null
+          organization_id?: string
+          photo_urls?: string[]
+          seal_number?: string | null
+          signature_url?: string | null
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_dispatch_proofs_manifest_id_fkey"
+            columns: ["manifest_id"]
+            isOneToOne: true
+            referencedRelation: "wms_loading_manifests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_dock_appointments: {
         Row: {
           appointment_type: string
@@ -66306,6 +66393,7 @@ export type Database = {
           code: string
           created_at: string
           created_by: string | null
+          delivery_note_id: string | null
           dispatched_at: string | null
           dispatched_by: string | null
           dock_id: string | null
@@ -66329,6 +66417,7 @@ export type Database = {
           code: string
           created_at?: string
           created_by?: string | null
+          delivery_note_id?: string | null
           dispatched_at?: string | null
           dispatched_by?: string | null
           dock_id?: string | null
@@ -66352,6 +66441,7 @@ export type Database = {
           code?: string
           created_at?: string
           created_by?: string | null
+          delivery_note_id?: string | null
           dispatched_at?: string | null
           dispatched_by?: string | null
           dock_id?: string | null
@@ -66371,6 +66461,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
             referencedColumns: ["id"]
           },
           {
@@ -77106,6 +77203,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_manifest_after_dispatch: {
+        Args: { p_manifest_id: string }
+        Returns: Json
+      }
       _wms_map_event_to_activity: {
         Args: { p_event_type: string; p_payload?: Json }
         Returns: string
@@ -79597,10 +79698,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      close_loading_manifest: {
-        Args: { p_manifest_id: string }
-        Returns: undefined
-      }
+      close_loading_manifest: { Args: { p_manifest_id: string }; Returns: Json }
       close_pos_shift: {
         Args: {
           p_actual_cash: number
@@ -84051,24 +84149,15 @@ export type Database = {
         Returns: string
       }
       notify_probation_expiry: { Args: never; Returns: number }
-      open_loading_manifest:
-        | {
-            Args: {
-              p_carrier_id?: string
-              p_dock_id: string
-              p_planned_departure_at?: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_appointment_id?: string
-              p_carrier_id?: string
-              p_dock_id: string
-              p_planned_departure_at?: string
-            }
-            Returns: string
-          }
+      open_loading_manifest: {
+        Args: {
+          p_appointment_id?: string
+          p_carrier_id?: string
+          p_dock_id: string
+          p_planned_departure_at?: string
+        }
+        Returns: string
+      }
       open_pack_carton: {
         Args: {
           p_sales_order_id: string
@@ -89928,6 +90017,20 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
+      wms_capture_dispatch_proof: {
+        Args: {
+          p_driver_id_ref?: string
+          p_driver_name?: string
+          p_gps_lat?: number
+          p_gps_lng?: number
+          p_manifest_id: string
+          p_notes?: string
+          p_photo_urls?: string[]
+          p_seal_number?: string
+          p_signature_url?: string
+        }
+        Returns: Json
+      }
       wms_capture_receiving_line: {
         Args: {
           p_client_scan_id?: string
@@ -90565,6 +90668,21 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_manifest_bridge_delivery_notes: {
+        Args: { p_manifest_id: string }
+        Returns: Json
+      }
+      wms_manifest_delivery_notes: {
+        Args: { p_manifest_id: string }
+        Returns: {
+          delivery_note_id: string
+          status: string
+        }[]
+      }
+      wms_manifest_proof_status: {
+        Args: { p_manifest_id: string }
+        Returns: Json
       }
       wms_manifest_short_cartons: {
         Args: { p_manifest_id: string }
