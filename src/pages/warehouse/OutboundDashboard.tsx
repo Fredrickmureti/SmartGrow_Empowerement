@@ -13,7 +13,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Waves, Boxes, Truck, AlertTriangle } from "lucide-react";
+import { Waves, Boxes, Truck, AlertTriangle, ShieldCheck, Clock, ParkingSquare } from "lucide-react";
 import { StateBreakdown, MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
 
 export default function OutboundDashboard() {
@@ -77,6 +77,52 @@ export default function OutboundDashboard() {
     },
   });
 
+  // Phase F — the control tower also answers "what is stuck at the kerb?".
+  // All three prefixes are invalidated by the WMS realtime channel; nothing
+  // here polls.
+  const proofs = useQuery({
+    queryKey: ["wms-manifest-proof", "outbound-dashboard", businessId],
+    enabled: !!businessId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_dispatch_proofs")
+        .select("manifest_id")
+        .eq("business_id", businessId!)
+        .limit(1000);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const visits = useQuery({
+    queryKey: ["wms-trailer-visits", "outbound-dashboard", businessId],
+    enabled: !!businessId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_trailer_visits")
+        .select("id, status, dock_id, arrived_at, departed_at")
+        .eq("business_id", businessId!)
+        .is("departed_at", null)
+        .limit(500);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const slots = useQuery({
+    queryKey: ["wms-yard-slots", "outbound-dashboard", businessId],
+    enabled: !!businessId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_yard_slots")
+        .select("id, status")
+        .eq("business_id", businessId!)
+        .limit(500);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const loading =
     waves.isLoading || cartons.isLoading || manifests.isLoading || exceptions.isLoading;
 
@@ -88,6 +134,16 @@ export default function OutboundDashboard() {
   const sealedUnloaded = c.filter((x) => x.sealed_at && !x.manifest_id);
   const awaitingDispatch = m.filter((x) => ["loading", "closed"].includes(String(x.state)));
   const shortScan = exc.filter((e) => /short|scan|dispatch/.test(String(e.kind ?? "")));
+
+  const now = Date.now();
+  const lateDepartures = awaitingDispatch.filter(
+    (x) => x.planned_departure_at && new Date(x.planned_departure_at).getTime() < now,
+  );
+  const provenManifestIds = new Set((proofs.data ?? []).map((p) => String(p.manifest_id)));
+  const awaitingSeal = awaitingDispatch.filter((x) => !provenManifestIds.has(String(x.id)));
+  const openVisits = visits.data ?? [];
+  const waitingTrucks = openVisits.filter((v) => !v.dock_id);
+  const freeSlots = (slots.data ?? []).filter((s) => String(s.status) === "free" || String(s.status) === "available");
 
   return (
     <>
@@ -139,6 +195,41 @@ export default function OutboundDashboard() {
                   sub={`${exc.length} open in total`}
                   icon={AlertTriangle}
                   to="/warehouse-app/exceptions"
+                />
+              </div>
+            </Section>
+
+            <Section title="At the kerb">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MetricTile
+                  label="Late departures"
+                  value={lateDepartures.length}
+                  tone={lateDepartures.length > 0 ? "bad" : "ok"}
+                  sub="Past planned departure, still not dispatched"
+                  icon={Clock}
+                  to="/warehouse-app/dispatch"
+                />
+                <MetricTile
+                  label="Awaiting seal & signature"
+                  value={awaitingSeal.length}
+                  tone={awaitingSeal.length > 0 ? "warn" : "ok"}
+                  sub="No proof of dispatch captured yet"
+                  icon={ShieldCheck}
+                  to="/warehouse-app/dispatch"
+                />
+                <MetricTile
+                  label="Trucks waiting for a dock"
+                  value={waitingTrucks.length}
+                  sub={`${openVisits.length} on site`}
+                  icon={Truck}
+                  to="/warehouse-app/yard"
+                />
+                <MetricTile
+                  label="Free yard slots"
+                  value={freeSlots.length}
+                  sub={`${(slots.data ?? []).length} total`}
+                  icon={ParkingSquare}
+                  to="/warehouse-app/yard"
                 />
               </div>
             </Section>
