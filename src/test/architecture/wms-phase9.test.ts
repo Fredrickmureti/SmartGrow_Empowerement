@@ -1,15 +1,17 @@
 /**
- * Architecture guard — WMS Phase 9 (Yard & Trailer Management).
+ * Architecture guard — Yard & Trailer Management (ADR 0086, supersedes
+ * the Phase 9 Yard Board guard).
  *
- * - `wms_trailer_visits` is RPC-only. No client code may
- *   insert/update/delete it directly; every state transition MUST go
- *   through `check_in_trailer` / `assign_trailer_to_dock` /
- *   `depart_trailer`.
- * - `wms_yard_slots` is master data — client writes are allowed, but
- *   only from the YardBoard page (defence in depth against random
- *   inserts elsewhere).
- * - The YardBoard page must call all three RPCs.
- * - Nav + routes wire `/warehouse-app/yard`.
+ * Invariants:
+ * - `wms_trailer_visits` and `wms_yard_moves` are RPC-only. No client
+ *   code may insert/update/delete them.
+ * - The UI never calls the raw `check_in_trailer` / `depart_trailer`
+ *   primitives — every arrival and exit goes through `gate_check_in` /
+ *   `gate_exit` so the chain of custody in `wms_gate_events` is complete.
+ * - Yard master-data writes (`wms_yard_slots`, `wms_trailers`) are
+ *   funnelled through the single feature data layer `useYard.ts`.
+ * - The yard data layer exposes the full transition set.
+ * - Nav + routes wire the control tower, gate console and register.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
@@ -29,48 +31,78 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe("wms phase 9 architecture", () => {
+const YARD_HOOKS = path.join(SRC, "features/warehouse/yard/useYard.ts");
+
+describe("yard architecture (ADR 0086)", () => {
   const files = walk(SRC).filter((f) => f !== SELF && !/\btest\b/.test(f));
 
-  it("no client code writes to wms_trailer_visits (RPC-only)", () => {
+  it("no client code writes to wms_trailer_visits or wms_yard_moves (RPC-only)", () => {
     const offenders: string[] = [];
-    const banned = /from\(\s*["']wms_trailer_visits["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
+    const banned =
+      /from\(\s*["'](wms_trailer_visits|wms_yard_moves)["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
     for (const f of files) {
-      const src = readFileSync(f, "utf8");
-      if (banned.test(src)) offenders.push(path.relative(SRC, f));
+      if (banned.test(readFileSync(f, "utf8"))) offenders.push(path.relative(SRC, f));
     }
     expect(
       offenders,
-      `Use check_in_trailer / assign_trailer_to_dock / depart_trailer RPCs instead:\n${offenders.join("\n")}`
+      `Use the gate/yard RPCs instead:\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
 
-  it("wms_yard_slots writes originate only from the YardBoard page", () => {
+  it("the UI never calls the raw check_in_trailer / depart_trailer primitives", () => {
     const offenders: string[] = [];
-    const allowed = path.join(SRC, "pages/warehouse/YardBoard.tsx");
-    const write = /from\(\s*["']wms_yard_slots["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
+    const raw = /rpc\s*\)?\s*\(\s*["'](check_in_trailer|depart_trailer)["']/;
     for (const f of files) {
-      if (f === allowed) continue;
-      const src = readFileSync(f, "utf8");
-      if (write.test(src)) offenders.push(path.relative(SRC, f));
+      if (raw.test(readFileSync(f, "utf8"))) offenders.push(path.relative(SRC, f));
+    }
+    expect(
+      offenders,
+      `Arrivals and exits must go through gate_check_in / gate_exit:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("yard master-data writes originate only from the yard data layer", () => {
+    const offenders: string[] = [];
+    const write = /from\(\s*["'](wms_yard_slots|wms_trailers)["']\s*\)\s*\.(insert|update|upsert|delete)\s*\(/;
+    for (const f of files) {
+      if (f === YARD_HOOKS) continue;
+      if (write.test(readFileSync(f, "utf8"))) offenders.push(path.relative(SRC, f));
     }
     expect(offenders).toEqual([]);
   });
 
-  it("YardBoard page calls the three yard RPCs", () => {
-    const src = readFileSync(path.join(SRC, "pages/warehouse/YardBoard.tsx"), "utf8");
-    expect(/rpc\(\s*["']check_in_trailer["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']assign_trailer_to_dock["']/.test(src)).toBe(true);
-    expect(/rpc\(\s*["']depart_trailer["']/.test(src)).toBe(true);
+  it("the yard data layer exposes the full transition set", () => {
+    const src = readFileSync(YARD_HOOKS, "utf8");
+    for (const rpc of [
+      "gate_check_in",
+      "gate_approve",
+      "relocate_trailer",
+      "assign_trailer_to_dock",
+      "release_trailer_from_dock",
+      "approve_trailer_departure",
+      "gate_exit",
+      "mark_trailer_no_show",
+      "trailer_departure_blockers",
+    ]) {
+      expect(src, `useYard is missing ${rpc}`).toContain(rpc);
+    }
   });
 
-  it("nav wires the yard page", () => {
+  it("nav and routes wire the yard surfaces", () => {
     const nav = readFileSync(path.join(SRC, "apps/warehouse/nav.ts"), "utf8");
-    expect(nav.includes("/warehouse-app/yard")).toBe(true);
+    const routes = readFileSync(path.join(SRC, "apps/warehouse/routes.tsx"), "utf8");
+    expect(nav).toContain("/warehouse-app/yard");
+    expect(nav).toContain("/warehouse-app/yard/gate");
+    expect(nav).toContain("/warehouse-app/yard/trailers");
+    expect(/path="yard"/.test(routes)).toBe(true);
+    expect(/path="yard\/gate"/.test(routes)).toBe(true);
+    expect(/path="yard\/trailers"/.test(routes)).toBe(true);
   });
 
-  it("routes register /yard", () => {
-    const routes = readFileSync(path.join(SRC, "apps/warehouse/routes.tsx"), "utf8");
-    expect(/path="yard"/.test(routes)).toBe(true);
+  it("realtime subscribes the yard tables", () => {
+    const sync = readFileSync(path.join(SRC, "features/warehouse/realtime/useWmsRealtimeSync.ts"), "utf8");
+    expect(sync).toContain("wms_trailers:");
+    expect(sync).toContain("wms_yard_moves:");
+    expect(sync).toContain('["wms-yard-moves"]');
   });
 });
