@@ -39,6 +39,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
+import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
 import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
 import { ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
 
@@ -129,9 +130,16 @@ export default function OperatorTasks() {
 
   const claim = (t: TaskRow) => transition(t, "claimed");
   const start = (t: TaskRow) => transition(t, "in_progress");
+  const [replenTask, setReplenTask] = useState<TaskRow | null>(null);
+
   const complete = (t: TaskRow) => {
     if (t.task_type === "putaway") {
       completePutaway.mutate(t.id);
+      return;
+    }
+    if (t.task_type === "replenish") {
+      // Replenishment must move stock — capture the scans + moved qty.
+      setReplenTask(t);
       return;
     }
     transition(t, "completed");
@@ -372,6 +380,11 @@ export default function OperatorTasks() {
           </Card>
         </Section>
       </PageBody>
+
+      <ReplenishCompleteDialog
+        task={replenTask}
+        onOpenChange={(o) => !o && setReplenTask(null)}
+      />
 
       <Dialog open={!!cancelOpen} onOpenChange={(o) => !o && setCancelOpen(null)}>
         <DialogContent>
