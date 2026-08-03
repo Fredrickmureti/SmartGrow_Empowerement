@@ -1,46 +1,106 @@
-# Cycle Count — verification verdict and remaining work
+# Cycle Count — implementation status and roadmap
 
-## What I verified (not taken on trust)
+Authoritative status file. Update it in the same turn as any code change.
 
-I compared the parent prompt, the previous engineer's plan (`.lovable/plan/cycle-count-subsystem-architecture-audit-remediation-2026-08-03.md`), ADR 0106, the live database (columns, policies, function bodies) and the client surfaces.
+## Current position
+
+- **Completed:** Phase A (deadlock + legacy bypass), Phase B (lot/serial/expiry capture), Phase C (supervisor command centre).
+- **Active next:** Phase D — printable count documents.
+- **Then:** Phase E — pgTAP hardening + ADR 0106 verification addendum.
+
+## Verified foundations (audited against the live database, not taken on trust)
 
 | Claim | Verdict | Evidence |
 |---|---|---|
-| Phase 1 — one ledger path | ✅ real | `wms_count_sessions.physical_count_id` exists; `post_count_session` records lines into `physical_count_record_line` then `physical_count_submit`, raises if the count document is missing, and no longer adjusts stock |
-| Phase 2 — control plane | ✅ mostly real | `is_blind`, `recount_round`, `requires_approval` on sessions; `variance_reason`, `recount_of_line_id`, `assigned_to`, `serial_numbers`, `expiry_date`, `tolerance_outcome` on lines; `record_count` calls `evaluate_count_tolerance`; submission rejects unexplained variances and open recounts |
-| Blind counting seam | ✅ real | `get_count_lines` masks expected/difference; `useCountLines` is the only read path; guard test `cycle-count-integrity.test.ts` enforces it |
-| Phase 3 — tasks, schedules, triggers | ✅ real | `create_count_session_as`, `cycle_count_schedules.execution_mode/blind/location_ids`, `wms_count_triggers`, `sync_count_task_for_line`, `close_count_tasks_on_session_state`, `get_count_task_target` |
-| Phase 6 — RLS | ✅ real | all three WMS count tables are branch-gated on read and write |
-| Phase 4 — operator/supervisor UI | ⚠ half done | mobile counting loop and blind handling exist; the supervisor side is a 92-line unvirtualised table with no KPIs, queues, heatmap or activity feed |
-| Phase 5 — documents | ❌ not started | no count sheet, blind sheet, variance report or audit report artifact registered |
-| Phase 6 — pgTAP | ❌ not started | no count test file under `supabase/tests/` |
+| One ledger path | ✅ | `wms_count_sessions.physical_count_id`; `post_count_session` records into `physical_count_record_line` → `physical_count_submit`, never touches stock |
+| Control plane | ✅ | `is_blind`, `recount_round`, `requires_approval`; line-level `variance_reason`, `recount_of_line_id`, `assigned_to`, `serial_numbers`, `expiry_date`, `tolerance_outcome`; `record_count` → `evaluate_count_tolerance` |
+| Blind counting seam | ✅ | `get_count_lines` masks expected/difference; `useCountLines` is the only read path; guarded by `cycle-count-integrity.test.ts` |
+| Tasks, schedules, triggers | ✅ | `create_count_session_as`, `cycle_count_schedules.execution_mode/blind/location_ids`, `wms_count_triggers`, `sync_count_task_for_line`, `close_count_tasks_on_session_state` |
+| RLS | ✅ | all three WMS count tables branch-gated on read and write |
 
-## Defects the previous engineer left behind
+## Phase A — deadlock closed, bypass deleted ✅
 
-1. **Recount deadlock (blocking).** `post_count_session` refuses to submit while any line is `recount_required`, and `request_count_recount` exists in the database — but no client surface calls it. A session that trips tolerance can never be submitted or cancelled cleanly. This is a functional dead end in the happy path.
-2. **Legacy RPC overloads still live (control-plane bypass).** Both `record_count(line, qty, note)` and `create_count_session(warehouse, strategy, locations, notes)` still exist next to their new signatures. The legacy `record_count` writes `counted_qty` with no tolerance evaluation, no reason code and no blind awareness; the legacy `create_count_session` creates a session with **no** linked inventory count document, no tasks and no blind flag — i.e. a session that can never post. Any caller (or a stale client bundle) reaching the old signature silently defeats every control ADR 0106 claims.
-3. **Serial / expiry captured nowhere.** The columns and RPC parameters exist; neither the desktop nor the mobile counting screen collects them, so lot/serial/expiry verification is still unimplemented in practice.
-4. **Approval separation of duties unproven.** Approval lives in Inventory, but nothing in the count path asserts approver ≠ counter; there is no test pinning it.
+- Migration dropped the legacy `record_count(line, qty, note)` and
+  `create_count_session(warehouse, strategy, locations, notes)` overloads, so
+  no caller can create a session without a linked inventory count document or
+  write a counted quantity without tolerance evaluation.
+- `request_count_recount` RPC + `useRequestRecount` hook (`src/features/warehouse/counts/useRequestRecount.ts`).
+- Supervisor "Count again" action wired into `CountReview.tsx` and `CountSession.tsx`;
+  supersede-aware filtering means submission unlocks once a flagged line has a
+  newer attempt. Recount lines surface in the mobile queue.
 
-## Remaining phases
+## Phase B — lot / serial / expiry verification ✅
 
-**Phase A — close the deadlock and delete the bypass**
-- Wire `request_count_recount` into `CountSession` and `CountReview` (supervisor action per flagged line) and surface the resulting recount line in the mobile queue.
-- Drop the two legacy overloads in one migration; add an architecture/pgTAP guard asserting only the current signatures exist and that a session without `physical_count_id` cannot be created.
+- `useProductTracking.ts` reads `is_lot_tracked` / `is_serial_tracked` /
+  `is_expiry_tracked` and exposes `serialCaptureError` (serial count must equal
+  counted quantity, no duplicates).
+- `MobileCount.tsx` captures serials one scan at a time and an expiry date for
+  expiry-tracked products, passing `p_serial_numbers` / `p_expiry_date` to the
+  existing `record_count`. No new RPC.
 
-**Phase B — lot / serial / expiry verification**
-- Add serial and expiry capture to the scan loop for lot- and serial-tracked products only (driven by `products.is_lot_tracked` / `is_expiry_tracked`), passing them through the existing `record_count` parameters. No new RPC.
+## Phase C — supervisor command centre ✅
 
-**Phase C — supervisor command center**
-- Replace `CycleCounts.tsx` with a split-pane operational console: virtualised session grid (TanStack Virtual), overdue counts, recount queue, approval queue, open/critical variances, accuracy KPI trend, operator productivity, bin heatmap, live activity feed — fed by the existing `useWmsRealtimeSync` channel and read-only aggregate RPCs (no client-side warehouse rules).
+- Backend: `get_count_session_board` and `get_count_command_center`
+  (`SECURITY DEFINER`, business/branch scoped, JSON aggregates). They compute
+  progress, open recounts, unexplained variances, accuracy trend, operator
+  productivity, bin heatmap and activity feed server-side, and return NULL
+  variance figures while a blind session is still being counted — the same
+  masking rule as `get_count_lines`.
+- Client: `src/features/warehouse/counts/useCountCommandCenter.ts`
+  (`useCountSessionBoard`, `useCountCommandCenter`, `accuracyPct`). Query keys
+  live under the `wms-count-sessions` prefix so `useWmsRealtimeSync` refreshes
+  the console on session/line changes — no polling.
+- `src/pages/warehouse/CycleCounts.tsx` rewritten as the console: six KPI tiles
+  (counting now, open recounts, awaiting approval, missing reason codes, overdue
+  schedules, 30-day accuracy), recount queue, approval queue, accuracy sparkline
+  (inline SVG — no charting dependency added), virtualised session grid
+  (TanStack Virtual), counter productivity, problem-bin heatmap, activity feed.
+- Copy guard (`architecture.cycle-count-copy.test.ts`) and blind-read guard
+  (`cycle-count-integrity.test.ts`) both green.
 
-**Phase D — documents**
-- Register count sheet, blind count sheet, variance report and audit report as artifacts in the sanctioned printing pipeline (ADR 0084/0085), reusing the existing generator and snapshot pattern — no ad-hoc PDF code, no new print transport.
+## Phase D — documents (NEXT)
 
-**Phase E — hardening**
-- pgTAP suite: tolerance branching, blind-mode leakage, recount linkage, single posting path, reason-code gate, approver ≠ counter, legacy-overload absence.
-- Update ADR 0106 with a verification addendum recording what was found unimplemented and what now guarantees it.
+Register four artifacts in the sanctioned printing pipeline, following
+`docs/printing-add-new-artifact.md` exactly (ADR 0084/0085/0086/0088):
+
+1. `count_sheet` — bins, products, expected quantity, blank count column.
+2. `count_sheet_blind` — same without expected quantity (must be a distinct
+   fetcher, not a flag on the sheet, so blind cannot leak by misconfiguration).
+3. `count_variance_report` — posted session variances with reason codes.
+4. `count_audit_report` — full attempt history including recount rounds and
+   approver identity.
+
+Required work per artifact: `fetchXxx()` + `FETCHER_MAP` row in
+`supabase/functions/generate-document/index.ts`, dispatch through
+`printDocument`/`usePrintOrPreview` only (never `generate-document` from a page),
+a `WIRED` row in `docs/printing-event-coverage.md` in the same change, and a
+source-inspection wiring test modelled on
+`src/test/printing/drawer-slip-wiring.test.ts`. Then run the four verification
+commands at the end of the printing runbook.
+
+## Phase E — hardening
+
+pgTAP suite under `supabase/tests/`: tolerance branching, blind-mode leakage,
+recount linkage, single posting path, reason-code gate, approver ≠ counter,
+absence of the legacy overloads. Add a verification addendum to ADR 0106.
+
+## Instructions for the next agent
+
+1. **Verify before extending.** Confirm Phase C actually holds: open
+   `/warehouse-app/counts`, check the console renders with real data, and confirm
+   `get_count_session_board` masks variance columns for a blind session still in
+   `counting` (query the RPC directly for such a session). Confirm the two
+   legacy RPC overloads are gone (`pg_proc` by name) and that
+   `request_count_recount` unblocks a tolerance-flagged session end to end.
+2. **Then start Phase D**, one artifact at a time, each brought to `WIRED` with
+   its coverage-matrix row and wiring test before starting the next. Do not open
+   Phase E while any Phase D artifact is half-registered.
+3. Do not add a fourth renderer, hand-rolled `pdf-lib` in `src/**`, or a new
+   print transport. All stock movement continues to flow only through
+   Inventory's approval → adjustment → journal-entry path.
 
 ## Technical notes
 
-Hardware needs no work: wedge, camera and Bluetooth scanners all land on the same `BarcodeInputField` → `resolve_*_identity` seam, and RF terminals already run the mobile shell. New libraries are limited to virtualisation and charting for the supervisor console. All stock movement continues to flow only through Inventory's approval → adjustment → journal-entry path.
+Hardware needs no work: wedge, camera and Bluetooth scanners all land on the same
+`BarcodeInputField` → `resolve_*_identity` seam, and RF terminals already run the
+mobile shell.
