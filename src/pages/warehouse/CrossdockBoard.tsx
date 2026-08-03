@@ -205,6 +205,31 @@ export default function CrossdockBoard() {
           ))}
         </div>
 
+        <Card className="mb-4">
+          <CardContent className="grid gap-4 pt-6 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              {
+                label: "Flow-through rate (30d)",
+                value: perf.successRate === null ? "—" : `${perf.successRate.toFixed(0)}%`,
+              },
+              { label: "Units flowed", value: perf.unitsFlowed.toLocaleString() },
+              { label: "Touches avoided", value: perf.touchesAvoided.toLocaleString() },
+              { label: "Storage days avoided", value: perf.storageDaysAvoided.toLocaleString() },
+              {
+                label: "Avg dwell",
+                value: perf.avgDwell === null ? "—" : `${perf.avgDwell.toFixed(1)}h`,
+              },
+              { label: "Estimated saving", value: perf.savings.toLocaleString() },
+            ].map((m) => (
+              <div key={m.label}>
+                <p className="text-xs text-muted-foreground">{m.label}</p>
+                <p className="text-lg font-semibold">{m.value}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div className="w-56">
             <Label>Warehouse</Label>
