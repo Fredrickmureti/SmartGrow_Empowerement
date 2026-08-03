@@ -23,6 +23,7 @@ import type {
   TrailerRow,
   VisitRow,
   YardMoveRow,
+  YardMoveTaskRow,
   YardSlotRow,
 } from "./yardModel";
 
@@ -563,5 +564,114 @@ export function useSaveTrailer() {
       toast.success("Trailer saved");
     },
     onError: (e) => toast.error("Could not save trailer", { description: rpcError(e) }),
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Jockey work orders (ADR 0086 Phase 5)                               */
+/*                                                                     */
+/* A supervisor does not physically drag a trailer — a jockey does.    */
+/* `request_yard_move` puts the intent on the shared `wms_tasks`       */
+/* execution fabric so the move is dispatchable, claimable and         */
+/* measurable, and `complete_yard_move` performs the real transition   */
+/* through the same RPC layer used by the control tower.               */
+/* ------------------------------------------------------------------ */
+
+/** Open yard-move work orders for a warehouse (pending or claimed). */
+export function useYardMoveTasks(warehouseId: string | null) {
+  const { currentBusiness } = useBusinesses();
+  return useQuery({
+    // Realtime (`useWmsRealtimeSync` → wms_tasks) invalidates this prefix.
+    queryKey: ["wms-yard-move-tasks", currentBusiness?.id, warehouseId],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("wms_tasks")
+        .select(
+          "id, warehouse_id, state, priority, notes, created_at, claimed_by, claimed_at, assignee_user_id, payload",
+        )
+        .eq("business_id", currentBusiness!.id)
+        .eq("task_type", "yard_move")
+        .not("state", "in", "(done,completed,cancelled)")
+        .order("priority", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(200);
+      if (warehouseId) q = q.eq("warehouse_id", warehouseId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as YardMoveTaskRow[];
+    },
+  });
+}
+
+function invalidateYardTasks(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["wms-yard-move-tasks"] });
+  qc.invalidateQueries({ queryKey: ["wms_tasks"] });
+}
+
+export function useRequestYardMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      visitId: string;
+      slotId?: string | null;
+      dockId?: string | null;
+      priority?: number;
+      notes?: string | null;
+    }) => {
+      const { data, error } = await (supabase.rpc as any)("request_yard_move", {
+        p_visit_id: input.visitId,
+        p_to_slot_id: input.slotId ?? null,
+        p_to_dock_id: input.dockId ?? null,
+        p_priority: input.priority ?? 100,
+        p_notes: input.notes ?? null,
+      });
+      if (error) throw error;
+      return data as YardMoveTaskRow;
+    },
+    onSuccess: () => {
+      invalidateYardTasks(qc);
+      invalidateYard(qc);
+      toast.success("Yard move dispatched to jockeys");
+    },
+    onError: (e) => toast.error("Could not dispatch the move", { description: rpcError(e) }),
+  });
+}
+
+export function useCompleteYardMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { taskId: string; confirmedCode?: string | null }) => {
+      const { error } = await (supabase.rpc as any)("complete_yard_move", {
+        p_task_id: input.taskId,
+        p_confirmed_code: input.confirmedCode ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateYardTasks(qc);
+      invalidateYard(qc);
+      toast.success("Yard move completed");
+    },
+    onError: (e) => toast.error("Could not complete the move", { description: rpcError(e) }),
+  });
+}
+
+export function useCancelYardMove() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { taskId: string; reason?: string | null }) => {
+      const { error } = await (supabase.rpc as any)("cancel_yard_move", {
+        p_task_id: input.taskId,
+        p_reason: input.reason ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidateYardTasks(qc);
+      invalidateYard(qc);
+      toast.success("Yard move cancelled");
+    },
+    onError: (e) => toast.error("Could not cancel the move", { description: rpcError(e) }),
   });
 }
