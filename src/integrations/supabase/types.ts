@@ -11587,15 +11587,19 @@ export type Database = {
           abc_class: string | null
           active: boolean
           auto_freeze: boolean
+          blind: boolean
           branch_id: string | null
           business_id: string | null
           cadence: string
           category_id: string | null
           created_at: string
           created_by: string | null
+          execution_mode: string
           id: string
           last_generated_count_id: string | null
+          last_generated_session_id: string | null
           last_run_at: string | null
+          location_ids: string[] | null
           name: string
           next_run_at: string
           organization_id: string
@@ -11610,15 +11614,19 @@ export type Database = {
           abc_class?: string | null
           active?: boolean
           auto_freeze?: boolean
+          blind?: boolean
           branch_id?: string | null
           business_id?: string | null
           cadence: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          execution_mode?: string
           id?: string
           last_generated_count_id?: string | null
+          last_generated_session_id?: string | null
           last_run_at?: string | null
+          location_ids?: string[] | null
           name: string
           next_run_at?: string
           organization_id: string
@@ -11633,15 +11641,19 @@ export type Database = {
           abc_class?: string | null
           active?: boolean
           auto_freeze?: boolean
+          blind?: boolean
           branch_id?: string | null
           business_id?: string | null
           cadence?: string
           category_id?: string | null
           created_at?: string
           created_by?: string | null
+          execution_mode?: string
           id?: string
           last_generated_count_id?: string | null
+          last_generated_session_id?: string | null
           last_run_at?: string | null
+          location_ids?: string[] | null
           name?: string
           next_run_at?: string
           organization_id?: string
@@ -65694,6 +65706,56 @@ export type Database = {
           },
         ]
       }
+      wms_count_triggers: {
+        Row: {
+          blind: boolean
+          business_id: string
+          cooldown_hours: number
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          organization_id: string
+          trigger_event: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          blind?: boolean
+          business_id: string
+          cooldown_hours?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          trigger_event: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          blind?: boolean
+          business_id?: string
+          cooldown_hours?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          trigger_event?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_count_triggers_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_crossdock_opportunities: {
         Row: {
           branch_id: string | null
@@ -79896,8 +79958,32 @@ export type Database = {
         }
         Returns: number
       }
-      create_count_session: {
+      create_count_session:
+        | {
+            Args: {
+              p_location_ids?: string[]
+              p_notes?: string
+              p_strategy?: string
+              p_warehouse_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_assign_to?: string
+              p_is_blind?: boolean
+              p_location_ids?: string[]
+              p_notes?: string
+              p_strategy?: string
+              p_warehouse_id: string
+            }
+            Returns: string
+          }
+      create_count_session_as: {
         Args: {
+          p_actor: string
+          p_assign_to?: string
+          p_is_blind?: boolean
           p_location_ids?: string[]
           p_notes?: string
           p_strategy?: string
@@ -89977,6 +90063,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_evaluate_count_trigger: {
+        Args: {
+          p_actor?: string
+          p_location_id: string
+          p_trigger_event: string
+          p_warehouse_id: string
+        }
+        Returns: string
       }
       wms_flag_receiving_variances: {
         Args: { p_session_id: string }
