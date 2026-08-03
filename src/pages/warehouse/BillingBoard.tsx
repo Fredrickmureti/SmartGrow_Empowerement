@@ -549,11 +549,12 @@ export default function BillingBoard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <KpiCard label="Activity entries" value={String(totals.entries)} />
           <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
           <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
           <KpiCard label="Unpriced entries" value={String(totals.unpriced)} tone={totals.unpriced > 0 ? "bad" : undefined} />
+          <KpiCard label="Disputed entries" value={String(totals.disputed)} tone={totals.disputed > 0 ? "warn" : undefined} />
         </div>
 
         <Section
@@ -614,6 +615,7 @@ export default function BillingBoard() {
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Unbilled</TableHead>
                   <TableHead className="text-right">Unpriced</TableHead>
+                  <TableHead className="text-right">Disputed</TableHead>
                   <TableHead>Currency</TableHead>
                 </TableRow>
               </TableHeader>
@@ -628,7 +630,85 @@ export default function BillingBoard() {
                     <TableCell className="text-right">{Number(r.total_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.unbilled_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{r.unpriced_count}</TableCell>
+                    <TableCell className="text-right">{r.disputed_count ?? 0}</TableCell>
                     <TableCell>{r.currency ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
+
+        <Section
+          title="Recent entries & corrections"
+          description="The ledger is immutable. Dispute holds an entry back from invoicing; reverse posts a mirrored negative entry."
+        >
+          {entriesLoading ? (
+            <LoadingState />
+          ) : (entries ?? []).length === 0 ? (
+            <EmptyState
+              title="No ledger entries yet"
+              description="Capture events or accrue storage to populate the billing ledger."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Occurred</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(entries ?? []).map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {new Date(e.occurred_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>{clientLabel(e.client_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">{e.activity}</TableCell>
+                    <TableCell className="text-right">{Number(e.quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {e.amount === null ? "—" : `${Number(e.amount).toFixed(2)} ${e.currency ?? ""}`}
+                    </TableCell>
+                    <TableCell className="space-x-1">
+                      {e.reverses_activity_id && <Badge variant="outline">Reversal</Badge>}
+                      {e.invoice_id && <Badge variant="secondary">Invoiced</Badge>}
+                      {e.disputed_at && !e.dispute_resolved_at && (
+                        <Badge variant="destructive">Disputed</Badge>
+                      )}
+                      {e.dispute_resolved_at && <Badge variant="outline">Dispute resolved</Badge>}
+                      {e.amount === null && <Badge variant="destructive">Unpriced</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={
+                          e.disputed_at && !e.dispute_resolved_at
+                            ? "Resolve dispute"
+                            : "Dispute entry"
+                        }
+                        title={e.dispute_reason ?? undefined}
+                        disabled={disputeEntry.isPending || !!e.reverses_activity_id}
+                        onClick={() => disputeEntry.mutate(e)}
+                      >
+                        <Flag className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Reverse entry"
+                        disabled={reverseEntry.isPending || !!e.reverses_activity_id}
+                        onClick={() => reverseEntry.mutate(e)}
+                      >
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
