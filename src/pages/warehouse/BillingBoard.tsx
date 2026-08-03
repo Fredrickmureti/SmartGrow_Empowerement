@@ -477,6 +477,7 @@ export default function BillingBoard() {
         acc.billed += Number(r.total_amount) || 0;
         acc.unbilled += Number(r.unbilled_amount) || 0;
         acc.unpriced += Number(r.unpriced_count) || 0;
+        acc.disputed += Number(r.disputed_count) || 0;
         return acc;
       },
       { entries: 0, billed: 0, unbilled: 0, unpriced: 0, disputed: 0 }
