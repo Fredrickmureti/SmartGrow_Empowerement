@@ -64,6 +64,33 @@ export interface CrossdockOpportunity {
   staged_at: string | null;
   loaded_at: string | null;
   completed_at: string | null;
+  /* Enrichment supplied by wms_crossdock_board_view — never written. */
+  product_name: string | null;
+  product_sku: string | null;
+  warehouse_name: string | null;
+  dock_code: string | null;
+  staging_code: string | null;
+  assignee_name: string | null;
+  demand_number: string | null;
+  customer_name: string | null;
+  hours_to_cutoff: number | null;
+  savings_estimate: number | null;
+}
+
+export interface CrossdockMetrics {
+  warehouse_id: string;
+  metric_date: string;
+  opportunities: number;
+  completed: number;
+  broken: number;
+  expired: number;
+  rejected: number;
+  success_rate_pct: number | null;
+  units_flowed: number;
+  touches_avoided: number;
+  storage_days_avoided: number;
+  avg_dwell_hours: number | null;
+  savings_estimate: number;
 }
 
 export interface CrossdockRule {
