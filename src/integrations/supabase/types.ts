@@ -78924,6 +78924,55 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_crossdock_detect: {
+        Args: {
+          p_business_id: string
+          p_expiry_date?: string
+          p_grn_id?: string
+          p_grn_line_id?: string
+          p_lot_number?: string
+          p_product_id: string
+          p_qc_hold?: boolean
+          p_quantity: number
+          p_receiving_line_id?: string
+          p_warehouse_id: string
+        }
+        Returns: number
+      }
+      _wms_crossdock_resolve_rule: {
+        Args: { p_business_id: string; p_warehouse_id: string }
+        Returns: {
+          allow_cold_chain: boolean
+          allow_hazardous: boolean
+          allow_lot_tracked: boolean
+          allow_serial_tracked: boolean
+          auto_approve_score: number | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          max_hours_to_cutoff: number
+          max_quantity: number | null
+          min_hours_to_cutoff: number
+          min_quantity: number
+          min_shelf_life_days: number | null
+          name: string
+          notes: string | null
+          organization_id: string
+          priority: number
+          require_full_line: boolean
+          require_qc_pass: boolean
+          updated_at: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_rules"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_default_putaway: {
         Args: { p_warehouse_id: string }
         Returns: string
