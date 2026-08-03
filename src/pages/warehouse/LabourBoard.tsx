@@ -1,86 +1,44 @@
 /**
- * Labour Board — Phase 10.
+ * Labour Control Centre — Enterprise WLM surface.
  *
- * Engineered labour standards + operator productivity.
+ * Warehouse Labour Management is a resource-management discipline, not a
+ * report. This page therefore has three working surfaces, not charts:
  *
- *  - `wms_task_standards` is master data (seconds_per_uom per task_type).
- *  - `wms_tasks.earned_seconds` / `actual_seconds` are stamped by the
- *    `_wms_stamp_labour_metrics` BEFORE-UPDATE trigger when a task
- *    transitions to `state='done'`. Direct client writes to those
- *    columns are blocked at the DB.
- *  - `wms_operator_productivity_view` rolls up per operator / warehouse
- *    / day with a utilisation ratio (earned / actual).
+ *  - Control centre: the live cross-domain task queue with supervisor
+ *    intervention (reassign, escalate, release). Every action is an RPC
+ *    so eligibility and the state machine stay server-enforced (ADR 0101).
+ *  - Operators: the roster of warehouse operators with skills,
+ *    certifications, equipment and live availability. This is what makes
+ *    assignment capability-aware rather than a raw UUID drop.
+ *  - Standards: dimensioned engineered standards (setup + handle +
+ *    travel, by warehouse / zone / category / equipment) which produce
+ *    earned hours.
+ *
+ * Performance shows true utilisation — earned hours against direct,
+ * indirect AND idle time — because measuring only direct time flatters
+ * the number and hides the real labour cost.
  */
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import {
-  PageHeader,
-  PageBody,
-  Section,
-  LoadingState,
-  EmptyState,
+  PageHeader, PageBody, Section, LoadingState,
 } from "@/design-system";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Gauge, Plus, Trash2 } from "lucide-react";
-import { useBusinesses } from "@/hooks/useBusinesses";
+import { EmptyState } from "@/design-system";
+import { Gauge, Users, ListChecks, Timer } from "lucide-react";
 import { useWarehouses } from "@/hooks/useWarehouses";
-
-type TaskType =
-  | "putaway" | "pick" | "pack" | "load"
-  | "count" | "replenish" | "move" | "qc";
-
-const TASK_TYPES: TaskType[] = [
-  "putaway", "pick", "pack", "load", "count", "replenish", "move", "qc",
-];
-
-interface Standard {
-  id: string;
-  task_type: TaskType;
-  uom: string;
-  seconds_per_uom: number;
-  is_active: boolean;
-  notes: string | null;
-}
-
-interface ProductivityRow {
-  operator_id: string;
-  warehouse_id: string;
-  day: string;
-  tasks_completed: number;
-  earned_seconds: number;
-  actual_seconds: number;
-  utilisation_ratio: number | null;
-}
-
-interface LabourQueueRow {
-  task_id: string;
-  task_type: TaskType;
-  state: string;
-  priority: number | null;
-  sla_at: string | null;
-  sla_breached: boolean | null;
-  warehouse_id: string | null;
-  assignee_user_id: string | null;
-  source_doc_type: string | null;
-  quantity: number | null;
-  created_at: string | null;
-}
+import { OperatorBoard } from "@/features/warehouse/labour/OperatorBoard";
+import { LabourQueuePanel } from "@/features/warehouse/labour/LabourQueuePanel";
+import { StandardsPanel } from "@/features/warehouse/labour/StandardsPanel";
+import { useUtilisation } from "@/features/warehouse/labour/useLabourQueue";
+import { useOperatorBoard } from "@/features/warehouse/labour/useLabourOperators";
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -94,183 +52,77 @@ function fmtHours(seconds: number): string {
   return h >= 10 ? `${h.toFixed(1)}h` : `${h.toFixed(2)}h`;
 }
 
+function pct(v: number | null): string {
+  return v === null ? "—" : `${Math.round(v * 100)}%`;
+}
+
 export default function LabourBoard() {
-  const qc = useQueryClient();
-  const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
   const [rangeDays, setRangeDays] = useState<number>(7);
-  const [standardOpen, setStandardOpen] = useState(false);
-  const [queueTypeFilter, setQueueTypeFilter] = useState<TaskType | "all">("all");
 
-  const [form, setForm] = useState({
-    task_type: "pick" as TaskType,
-    uom: "unit",
-    seconds_per_uom: 30,
-    notes: "",
-  });
-
-  // ---------- Standards ----------
-  const { data: standards, isLoading: standardsLoading } = useQuery({
-    queryKey: ["wms-task-standards", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_task_standards")
-        .select("id,task_type,uom,seconds_per_uom,is_active,notes")
-        .eq("business_id", currentBusiness!.id)
-        .order("task_type");
-      if (error) throw error;
-      return (data ?? []) as Standard[];
-    },
-  });
-
-  const createStandard = useMutation({
-    mutationFn: async () => {
-      if (!currentBusiness?.id) throw new Error("No active business");
-      const { error } = await supabase.from("wms_task_standards").insert({
-        business_id: currentBusiness.id,
-        task_type: form.task_type,
-        uom: form.uom.trim() || "unit",
-        seconds_per_uom: Number(form.seconds_per_uom),
-        notes: form.notes.trim() || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Standard saved");
-      setStandardOpen(false);
-      qc.invalidateQueries({ queryKey: ["wms-task-standards"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const toggleStandard = useMutation({
-    mutationFn: async (row: Standard) => {
-      const { error } = await supabase
-        .from("wms_task_standards")
-        .update({ is_active: !row.is_active })
-        .eq("id", row.id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-task-standards"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const deleteStandard = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("wms_task_standards").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Standard removed");
-      qc.invalidateQueries({ queryKey: ["wms-task-standards"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  // ---------- Productivity ----------
   const since = useMemo(() => daysAgo(rangeDays), [rangeDays]);
+  const { data: utilisation, isLoading: utilLoading } = useUtilisation(warehouseFilter, since);
+  const { data: operators } = useOperatorBoard(warehouseFilter);
 
-  const { data: productivity, isLoading: prodLoading } = useQuery({
-    queryKey: ["wms-operator-productivity", currentBusiness?.id, warehouseFilter, rangeDays],
-    enabled: !!currentBusiness?.id,
-    refetchInterval: 30_000,
-    queryFn: async () => {
-      let q = supabase
-        .from("wms_operator_productivity_view")
-        .select("operator_id,warehouse_id,day,tasks_completed,earned_seconds,actual_seconds,utilisation_ratio")
-        .eq("business_id", currentBusiness!.id)
-        .gte("day", since)
-        .order("day", { ascending: false });
-      if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as ProductivityRow[];
-    },
-  });
+  const nameByUser = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of operators ?? []) {
+      if (o.user_id) m.set(o.user_id, o.operator_name || o.operator_code || o.user_id.slice(0, 8));
+    }
+    return m;
+  }, [operators]);
 
-  const leaderboard = useMemo(() => {
-    const map = new Map<string, { earned: number; actual: number; tasks: number }>();
-    for (const r of productivity ?? []) {
-      const acc = map.get(r.operator_id) ?? { earned: 0, actual: 0, tasks: 0 };
+  const byOperator = useMemo(() => {
+    const map = new Map<string, {
+      earned: number; direct: number; indirect: number; idle: number; travel: number; tasks: number;
+    }>();
+    for (const r of utilisation ?? []) {
+      const acc = map.get(r.user_id) ?? { earned: 0, direct: 0, indirect: 0, idle: 0, travel: 0, tasks: 0 };
       acc.earned += Number(r.earned_seconds) || 0;
-      acc.actual += Number(r.actual_seconds) || 0;
-      acc.tasks += r.tasks_completed;
-      map.set(r.operator_id, acc);
+      acc.direct += Number(r.direct_seconds) || 0;
+      acc.indirect += Number(r.indirect_seconds) || 0;
+      acc.idle += Number(r.idle_seconds) || 0;
+      acc.travel += Number(r.travel_seconds) || 0;
+      acc.tasks += Number(r.tasks_completed) || 0;
+      map.set(r.user_id, acc);
     }
     return Array.from(map.entries())
-      .map(([operator_id, v]) => ({
-        operator_id,
-        ...v,
-        utilisation: v.actual > 0 ? v.earned / v.actual : null,
-      }))
-      .sort((a, b) => (b.utilisation ?? -1) - (a.utilisation ?? -1));
-  }, [productivity]);
+      .map(([user_id, v]) => {
+        const paid = v.direct + v.indirect + v.idle;
+        return {
+          user_id,
+          ...v,
+          paid,
+          trueUtil: paid > 0 ? v.earned / paid : null,
+          directUtil: v.direct > 0 ? v.earned / v.direct : null,
+        };
+      })
+      .sort((a, b) => (b.trueUtil ?? -1) - (a.trueUtil ?? -1));
+  }, [utilisation]);
 
-  const totals = useMemo(() => {
-    return leaderboard.reduce(
-      (acc, r) => {
-        acc.earned += r.earned;
-        acc.actual += r.actual;
-        acc.tasks += r.tasks;
-        return acc;
-      },
-      { earned: 0, actual: 0, tasks: 0 }
-    );
-  }, [leaderboard]);
+  const totals = useMemo(
+    () =>
+      byOperator.reduce(
+        (acc, r) => {
+          acc.earned += r.earned;
+          acc.paid += r.paid;
+          acc.idle += r.idle;
+          acc.tasks += r.tasks;
+          return acc;
+        },
+        { earned: 0, paid: 0, idle: 0, tasks: 0 },
+      ),
+    [byOperator],
+  );
 
-  const overallUtil =
-    totals.actual > 0 ? totals.earned / totals.actual : null;
-
-  // ---------- Unified live labour queue (Phase 3.6) ----------
-  const { data: queue, isLoading: queueLoading } = useQuery({
-    queryKey: ["wms-labour-queue-view", currentBusiness?.id, warehouseFilter, queueTypeFilter],
-    enabled: !!currentBusiness?.id,
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      let q = supabase
-        .from("wms_labour_queue_view")
-        .select(
-          "task_id,task_type,state,priority,sla_at,sla_breached,warehouse_id,assignee_user_id,source_doc_type,quantity,created_at",
-        )
-        .eq("business_id", currentBusiness!.id)
-        .order("sla_breached", { ascending: false })
-        .order("priority", { ascending: false })
-        .order("sla_at", { ascending: true, nullsFirst: false })
-        .limit(200);
-      if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      if (queueTypeFilter !== "all") q = q.eq("task_type", queueTypeFilter);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as LabourQueueRow[];
-    },
-  });
-
-  const queueSummary = useMemo(() => {
-    const rows = queue ?? [];
-    const byType = new Map<string, number>();
-    let breached = 0;
-    let unassigned = 0;
-    for (const r of rows) {
-      byType.set(r.task_type, (byType.get(r.task_type) ?? 0) + 1);
-      if (r.sla_breached) breached += 1;
-      if (!r.assignee_user_id) unassigned += 1;
-    }
-    return { total: rows.length, breached, unassigned, byType };
-  }, [queue]);
+  const onShift = (operators ?? []).filter((o) => o.status === "on_shift" || o.status === "executing").length;
 
   return (
     <>
       <PageHeader
-        title="Labour management"
-        description="Engineered standards, earned vs actual hours, per-operator utilisation."
-        
-        actions={
-          <Button onClick={() => setStandardOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" /> New standard
-          </Button>
-        }
+        title="Labour control centre"
+        description="Operators, capability-aware assignment, engineered standards and true utilisation."
       />
       <PageBody>
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -300,274 +152,131 @@ export default function LabourBoard() {
           </div>
         </div>
 
-        <Section
-          title="Live labour queue"
-          description="Unified open tasks across pick / pack / putaway / replenish / count / qc / move / load — sourced from wms_labour_queue_view."
-        >
-          <div className="flex flex-wrap items-center gap-3 mb-3">
-            <div className="w-56">
-              <Label>Task type</Label>
-              <Select
-                value={queueTypeFilter}
-                onValueChange={(v) => setQueueTypeFilter(v as TaskType | "all")}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All types</SelectItem>
-                  {TASK_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-wrap gap-2 pt-6">
-              <Badge variant="secondary">Open: {queueSummary.total}</Badge>
-              <Badge variant={queueSummary.breached > 0 ? "destructive" : "secondary"}>
-                SLA breached: {queueSummary.breached}
-              </Badge>
-              <Badge variant="outline">Unassigned: {queueSummary.unassigned}</Badge>
-            </div>
-          </div>
-
-          {queueLoading ? (
-            <LoadingState />
-          ) : (queue ?? []).length === 0 ? (
-            <EmptyState
-              title="No open tasks"
-              description="The unified labour queue is empty for the current filters."
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead className="text-right">Priority</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead>SLA</TableHead>
-                  <TableHead>Assignee</TableHead>
-                  <TableHead>Source</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(queue ?? []).map((r) => {
-                  const sla = r.sla_at ? new Date(r.sla_at) : null;
-                  return (
-                    <TableRow key={r.task_id} className={r.sla_breached ? "bg-destructive/5" : undefined}>
-                      <TableCell className="font-mono text-xs">{r.task_id.slice(0, 8)}…</TableCell>
-                      <TableCell className="capitalize">{r.task_type}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            r.state === "paused" ? "outline" :
-                            r.state === "in_progress" || r.state === "resumed" ? "default" :
-                            "secondary"
-                          }
-                          className="capitalize"
-                        >
-                          {r.state}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">{r.priority ?? "—"}</TableCell>
-                      <TableCell className="text-right">{r.quantity ?? "—"}</TableCell>
-                      <TableCell className={r.sla_breached ? "text-destructive font-medium" : ""}>
-                        {sla ? sla.toLocaleString() : "—"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {r.assignee_user_id ? `${r.assignee_user_id.slice(0, 8)}…` : "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {r.source_doc_type ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </Section>
-
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <KpiCard label="Tasks completed" value={String(totals.tasks)} />
-          <KpiCard label="Earned hours" value={fmtHours(totals.earned)} />
-          <KpiCard label="Actual hours" value={fmtHours(totals.actual)} />
-          <KpiCard
-            label="Utilisation"
-            value={overallUtil == null ? "—" : `${(overallUtil * 100).toFixed(0)}%`}
-            tone={
-              overallUtil == null ? undefined :
-              overallUtil >= 0.9 ? "good" :
-              overallUtil >= 0.7 ? "warn" : "bad"
-            }
-          />
+        <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Users className="h-4 w-4" /> Operators on shift
+              </div>
+              <div className="text-2xl font-semibold mt-1">
+                {onShift}/{(operators ?? []).length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Gauge className="h-4 w-4" /> True utilisation
+              </div>
+              <div className="text-2xl font-semibold mt-1">
+                {pct(totals.paid > 0 ? totals.earned / totals.paid : null)}
+              </div>
+              <p className="text-xs text-muted-foreground">Earned ÷ (direct + indirect + idle)</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Timer className="h-4 w-4" /> Idle time
+              </div>
+              <div className="text-2xl font-semibold mt-1">{fmtHours(totals.idle)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <ListChecks className="h-4 w-4" /> Tasks completed
+              </div>
+              <div className="text-2xl font-semibold mt-1">{totals.tasks}</div>
+            </CardContent>
+          </Card>
         </div>
 
-        <Section title="Operator leaderboard">
-          {prodLoading ? (
-            <LoadingState />
-          ) : leaderboard.length === 0 ? (
-            <EmptyState
-              title="No completed tasks in range"
-              description="Once operators start completing tasks, earned vs actual metrics will appear."
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Operator</TableHead>
-                  <TableHead className="text-right">Tasks</TableHead>
-                  <TableHead className="text-right">Earned</TableHead>
-                  <TableHead className="text-right">Actual</TableHead>
-                  <TableHead className="text-right">Utilisation</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {leaderboard.map((r) => (
-                  <TableRow key={r.operator_id}>
-                    <TableCell className="font-mono text-xs">
-                      {r.operator_id.slice(0, 8)}…
-                    </TableCell>
-                    <TableCell className="text-right">{r.tasks}</TableCell>
-                    <TableCell className="text-right">{fmtHours(r.earned)}</TableCell>
-                    <TableCell className="text-right">{fmtHours(r.actual)}</TableCell>
-                    <TableCell className="text-right">
-                      {r.utilisation == null ? "—" : `${(r.utilisation * 100).toFixed(0)}%`}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Section>
+        <Tabs defaultValue="queue">
+          <TabsList>
+            <TabsTrigger value="queue">Control centre</TabsTrigger>
+            <TabsTrigger value="operators">Operators</TabsTrigger>
+            <TabsTrigger value="standards">Standards</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+          </TabsList>
 
-        <Section title="Engineered standards" description="Seconds per unit for each task type. Missing standards default to 0 earned seconds.">
-          {standardsLoading ? (
-            <LoadingState />
-          ) : (standards ?? []).length === 0 ? (
-            <EmptyState
-              title="No standards yet"
-              description="Add a standard so completed tasks stamp earned seconds."
-              action={<Button onClick={() => setStandardOpen(true)}><Plus className="h-4 w-4 mr-2" />New standard</Button>}
-            />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Task type</TableHead>
-                  <TableHead>UoM</TableHead>
-                  <TableHead className="text-right">Seconds / unit</TableHead>
-                  <TableHead>Active</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(standards ?? []).map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="capitalize">{s.task_type}</TableCell>
-                    <TableCell>{s.uom}</TableCell>
-                    <TableCell className="text-right">{Number(s.seconds_per_uom).toFixed(1)}</TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={s.is_active}
-                        onCheckedChange={() => toggleStandard.mutate(s)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{s.notes ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteStandard.mutate(s.id)}
-                        aria-label="Delete standard"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Section>
-      </PageBody>
-
-      <Dialog open={standardOpen} onOpenChange={setStandardOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>New labour standard</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div>
-              <Label>Task type</Label>
-              <Select
-                value={form.task_type}
-                onValueChange={(v) => setForm((f) => ({ ...f, task_type: v as TaskType }))}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TASK_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Unit of measure</Label>
-                <Input
-                  value={form.uom}
-                  onChange={(e) => setForm((f) => ({ ...f, uom: e.target.value }))}
-                  placeholder="unit"
-                />
-              </div>
-              <div>
-                <Label>Seconds / unit</Label>
-                <Input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  value={form.seconds_per_uom}
-                  onChange={(e) => setForm((f) => ({ ...f, seconds_per_uom: Number(e.target.value) }))}
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Notes (optional)</Label>
-              <Input
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStandardOpen(false)}>Cancel</Button>
-            <Button
-              onClick={() => createStandard.mutate()}
-              disabled={createStandard.isPending || form.seconds_per_uom <= 0}
+          <TabsContent value="queue" className="mt-4">
+            <Section
+              title="Live labour queue"
+              description="Every open task across pick, pack, putaway, replenish, count, QC, move and load — one engine, one queue."
             >
-              Save standard
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+              <LabourQueuePanel warehouseId={warehouseFilter} />
+            </Section>
+          </TabsContent>
 
-function KpiCard({
-  label, value, tone,
-}: { label: string; value: string; tone?: "good" | "warn" | "bad" }) {
-  const toneCls =
-    tone === "good" ? "text-emerald-600" :
-    tone === "warn" ? "text-amber-600" :
-    tone === "bad"  ? "text-rose-600" : "";
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="text-sm text-muted-foreground">{label}</div>
-        <div className={`text-3xl font-semibold mt-1 ${toneCls}`}>{value}</div>
-      </CardContent>
-    </Card>
+          <TabsContent value="operators" className="mt-4">
+            <Section
+              title="Operator roster"
+              description="Skills, certifications, equipment and live availability. Eligibility is enforced when tasks are claimed or assigned."
+            >
+              <OperatorBoard warehouseId={warehouseFilter} warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="standards" className="mt-4">
+            <Section
+              title="Engineered standards"
+              description="Setup, handling and travel time by warehouse, zone, product category and equipment class."
+            >
+              <StandardsPanel warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
+
+          <TabsContent value="performance" className="mt-4">
+            <Section
+              title="Operator performance"
+              description="Earned hours against all paid time — direct execution, indirect work and idle."
+            >
+              {utilLoading ? (
+                <LoadingState />
+              ) : byOperator.length === 0 ? (
+                <EmptyState
+                  title="No labour recorded"
+                  description="Complete tasks with active standards in place to start earning hours."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operator</TableHead>
+                      <TableHead className="text-right">Tasks</TableHead>
+                      <TableHead className="text-right">Earned</TableHead>
+                      <TableHead className="text-right">Direct</TableHead>
+                      <TableHead className="text-right">Indirect</TableHead>
+                      <TableHead className="text-right">Idle</TableHead>
+                      <TableHead className="text-right">Travel</TableHead>
+                      <TableHead className="text-right">Direct util.</TableHead>
+                      <TableHead className="text-right">True util.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byOperator.map((r) => (
+                      <TableRow key={r.user_id}>
+                        <TableCell className="font-medium">
+                          {nameByUser.get(r.user_id) ?? r.user_id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{r.tasks}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtHours(r.earned)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtHours(r.direct)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtHours(r.indirect)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtHours(r.idle)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtHours(r.travel)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{pct(r.directUtil)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{pct(r.trueUtil)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </Section>
+          </TabsContent>
+        </Tabs>
+      </PageBody>
+    </>
   );
 }
