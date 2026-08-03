@@ -89,11 +89,19 @@ export default function CountReview() {
     );
   }
 
-  const variances = (lines ?? []).filter((l) => l.counted_qty != null && Number(l.variance_qty ?? 0) !== 0);
-  const uncounted = (lines ?? []).filter((l) => l.counted_qty == null);
+  const all = lines ?? [];
+  // A flagged attempt stops blocking once a newer round supersedes it —
+  // the same rule `post_count_session` applies server-side.
+  const superseded = new Set(all.map((l) => l.recount_of_line_id).filter(Boolean) as string[]);
+  const isLatest = (id: string) => !superseded.has(id);
+  const variances = all.filter(
+    (l) => isLatest(l.id) && l.counted_qty != null && Number(l.variance_qty ?? 0) !== 0,
+  );
+  const uncounted = all.filter((l) => isLatest(l.id) && l.counted_qty == null);
   const missingReasons = variances.filter((l) => !l.variance_reason);
-  const openRecounts = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required");
-  const needsApproval = (lines ?? []).filter((l) => l.tolerance_outcome === "approval_required");
+  const openRecounts = all.filter((l) => l.tolerance_outcome === "recount_required" && isLatest(l.id));
+  const needsApproval = all.filter((l) => l.tolerance_outcome === "approval_required" && isLatest(l.id));
+
   const canPost =
     session.state !== "posted" &&
     session.state !== "cancelled" &&
