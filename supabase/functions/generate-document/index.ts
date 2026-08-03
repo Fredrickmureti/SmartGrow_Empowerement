@@ -2414,6 +2414,12 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   stock_transfer: "invoice",
   vendor_return: "credit_note",
   purchase_return: "credit_note",
+  // ADR 0106 — cycle-count paperwork. Tabular body, no money column.
+  count_sheet: "invoice",
+  count_sheet_blind: "invoice",
+  count_variance_report: "invoice",
+  count_audit_report: "invoice",
+
 };
 
 const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<DocumentData>> = {
