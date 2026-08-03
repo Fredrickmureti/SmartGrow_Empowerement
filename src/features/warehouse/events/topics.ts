@@ -132,7 +132,15 @@ export const WMS_TOPIC = {
 
   // ---- Cross-docking ---------------------------------------------------
   CROSSDOCK_MATCHED: "warehouse.crossdock.matched",
+  CROSSDOCK_QUALIFIED: "warehouse.crossdock.qualified",
+  CROSSDOCK_REJECTED: "warehouse.crossdock.rejected",
+  CROSSDOCK_APPROVED: "warehouse.crossdock.approved",
+  CROSSDOCK_STAGING: "warehouse.crossdock.staging",
   CROSSDOCK_STAGED: "warehouse.crossdock.staged",
+  CROSSDOCK_LOADED: "warehouse.crossdock.loaded",
+  CROSSDOCK_COMPLETED: "warehouse.crossdock.completed",
+  CROSSDOCK_BROKEN: "warehouse.crossdock.broken",
+  CROSSDOCK_EXPIRED: "warehouse.crossdock.expired",
   CROSSDOCK_CANCELLED: "warehouse.crossdock.cancelled",
 
   // ---- Replenishment (stock_quants trigger, Phase 3.4) ----------------
