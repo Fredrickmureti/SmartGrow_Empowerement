@@ -22,18 +22,25 @@ import {
   useDispatchManifest,
   useLoadCartonOntoManifest,
   useManifestProofStatus,
+  useAllocateTrackingNumber,
+  useCarrierServices,
 } from "@/features/warehouse/aggregates/useDomainOperations";
 import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
+import { DispatchDocumentsMenu } from "@/features/warehouse/dispatch/DispatchDocumentsMenu";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle2, PackageCheck, ShieldCheck, Truck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, PackageCheck, ShieldCheck, Tag, Truck } from "lucide-react";
 
 interface Manifest {
   id: string; code: string; state: string; warehouse_id: string;
   planned_departure_at: string | null; dispatched_at: string | null; closed_at: string | null;
+  carrier_id: string | null; carrier_service_id: string | null;
+  tracking_number: string | null; tracking_url: string | null;
+  delivery_note_id: string | null;
+  carrier: { name: string | null; carrier_kind: string | null } | null;
 }
 interface Loaded {
   id: string; sequence: number; loaded_at: string;
@@ -55,10 +62,14 @@ export default function LoadingBay() {
     enabled: !!manifestId,
     queryFn: async () => {
       const { data, error } = await supabase.from("wms_loading_manifests")
-        .select("id, code, state, warehouse_id, planned_departure_at, dispatched_at, closed_at")
+        .select(
+          "id, code, state, warehouse_id, planned_departure_at, dispatched_at, closed_at, " +
+          "carrier_id, carrier_service_id, tracking_number, tracking_url, delivery_note_id, " +
+          "carrier:carrier_id(name, carrier_kind)",
+        )
         .eq("id", manifestId!).maybeSingle();
       if (error) throw error;
-      return data as Manifest | null;
+      return (data ?? null) as unknown as Manifest | null;
     },
   });
 
