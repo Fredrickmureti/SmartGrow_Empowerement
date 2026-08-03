@@ -1,118 +1,186 @@
 /**
- * Cross-dock Board — Phase 12.
+ * Cross-dock Decision Center.
  *
- * Shows open cross-dock opportunities detected when a GRN is completed
- * and the same product has an unfulfilled sales order line waiting.
- * Operators can confirm the stage move (bypass put-away) or cancel it
- * back to normal put-away flow.
+ * Cross-docking = inbound freight that never enters storage. This board is
+ * where a supervisor triages qualified matches, approves them to a dock and
+ * staging lane, watches execution (staging → staged → loaded → completed),
+ * and breaks a plan back to put-away when the floor says no.
  *
- * Writes go exclusively through:
- *   - confirm_crossdock_stage(opportunity_id)
- *   - cancel_crossdock_opportunity(opportunity_id, reason)
- *   - evaluate_crossdock_on_grn(grn_id)  (manual re-scan)
+ * All writes go through `useCrossdockTransition()` (aggregate wrapper) —
+ * this page never calls a cross-dock RPC directly.
  */
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Truck, Check, X } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Truck, Check, X, PackageCheck, Forklift, AlertTriangle, RefreshCw } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import {
+  useCrossdockOpportunities,
+  useCrossdockRules,
+  useCrossdockSweep,
+  useCrossdockTransition,
+  type CrossdockOpportunity,
+  type CrossdockState,
+} from "@/features/warehouse/crossdock/useCrossdock";
 
-interface Opportunity {
-  id: string;
-  warehouse_id: string;
-  grn_id: string;
-  grn_line_id: string;
-  product_id: string;
-  quantity: number;
-  sales_order_id: string | null;
-  sales_order_item_id: string | null;
-  status: "open" | "staged" | "cancelled";
-  matched_at: string;
-  staged_at: string | null;
-  cancelled_at: string | null;
+const LANES: { key: string; label: string; states: CrossdockState[] }[] = [
+  { key: "decide", label: "Awaiting decision", states: ["detected", "qualified"] },
+  { key: "execute", label: "In execution", states: ["approved", "staging", "staged", "loaded"] },
+  { key: "closed", label: "Closed", states: ["completed", "rejected", "expired", "broken", "cancelled"] },
+];
+
+const STATE_TONE: Record<CrossdockState, "default" | "secondary" | "outline" | "destructive"> = {
+  detected: "outline",
+  qualified: "default",
+  approved: "default",
+  staging: "secondary",
+  staged: "secondary",
+  loaded: "secondary",
+  completed: "secondary",
+  rejected: "destructive",
+  expired: "destructive",
+  broken: "destructive",
+  cancelled: "outline",
+};
+
+function hoursLeft(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  return (new Date(expiresAt).getTime() - Date.now()) / 3_600_000;
 }
 
 export default function CrossdockBoard() {
-  const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
   const [warehouseFilter, setWarehouseFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("open");
+  const [lane, setLane] = useState<string>("decide");
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["wms-crossdock", currentBusiness?.id, warehouseFilter, statusFilter],
-    enabled: !!currentBusiness?.id,
-    refetchInterval: 15_000,
-    queryFn: async () => {
-      let q = supabase
-        .from("wms_crossdock_opportunities")
-        .select("id,warehouse_id,grn_id,grn_line_id,product_id,quantity,sales_order_id,sales_order_item_id,status,matched_at,staged_at,cancelled_at")
-        .eq("business_id", currentBusiness!.id)
-        .order("matched_at", { ascending: false });
-      if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
-      if (statusFilter !== "all") q = q.eq("status", statusFilter);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as Opportunity[];
-    },
-  });
+  const activeLane = LANES.find((l) => l.key === lane) ?? LANES[0];
 
-  const confirmStage = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("confirm_crossdock_stage", { p_opportunity_id: id });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Cross-dock staged");
-      qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
+  const { data, isLoading } = useCrossdockOpportunities({
+    businessId: currentBusiness?.id,
+    warehouseId: warehouseFilter,
+    states: activeLane.states,
   });
-
-  const cancel = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("cancel_crossdock_opportunity", {
-        p_opportunity_id: id,
-        p_reason: "Cancelled from board",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Opportunity cancelled");
-      qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
+  const { data: allRows } = useCrossdockOpportunities({
+    businessId: currentBusiness?.id,
+    warehouseId: warehouseFilter,
   });
+  const { data: rules } = useCrossdockRules(currentBusiness?.id);
+  const transition = useCrossdockTransition();
+  const sweep = useCrossdockSweep();
 
   const kpis = useMemo(() => {
-    const rows = data ?? [];
+    const rows = allRows ?? [];
+    const count = (s: CrossdockState[]) => rows.filter((r) => s.includes(r.state)).length;
+    const expiring = rows.filter((r) => {
+      const h = hoursLeft(r.expires_at);
+      return h !== null && h > 0 && h <= 4 && !["completed", "cancelled", "rejected", "expired", "broken"].includes(r.state);
+    }).length;
+    const touchesSaved = count(["completed"]);
     return {
-      open: rows.filter((r) => r.status === "open").length,
-      staged: rows.filter((r) => r.status === "staged").length,
-      cancelled: rows.filter((r) => r.status === "cancelled").length,
+      awaiting: count(["detected", "qualified"]),
+      executing: count(["approved", "staging", "staged", "loaded"]),
+      completed: touchesSaved,
+      failed: count(["expired", "broken"]),
+      expiring,
     };
-  }, [data]);
+  }, [allRows]);
+
+  const act = (
+    row: CrossdockOpportunity,
+    action: Parameters<typeof transition.mutate>[0]["action"],
+    reason?: string,
+  ) => transition.mutate({ action, id: row.id, rowVersion: row.row_version, reason });
+
+  const rowActions = (r: CrossdockOpportunity) => {
+    switch (r.state) {
+      case "detected":
+      case "qualified":
+        return (
+          <>
+            <Button size="sm" onClick={() => act(r, "approve")}>
+              <Check className="h-4 w-4 mr-1" /> Approve
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => act(r, "reject", "Rejected from board")}>
+              <X className="h-4 w-4 mr-1" /> Reject
+            </Button>
+          </>
+        );
+      case "approved":
+        return (
+          <>
+            <Button size="sm" onClick={() => act(r, "startStaging")}>
+              <Forklift className="h-4 w-4 mr-1" /> Issue move
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => act(r, "break", "Broken from board")}>
+              Break
+            </Button>
+          </>
+        );
+      case "staging":
+        return (
+          <>
+            <Button size="sm" onClick={() => act(r, "confirmStaged")}>
+              <PackageCheck className="h-4 w-4 mr-1" /> Confirm staged
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => act(r, "break", "Broken from board")}>
+              Break
+            </Button>
+          </>
+        );
+      case "staged":
+        return (
+          <Button size="sm" onClick={() => act(r, "markLoaded")}>
+            <Truck className="h-4 w-4 mr-1" /> Mark loaded
+          </Button>
+        );
+      case "loaded":
+        return (
+          <Button size="sm" onClick={() => act(r, "complete")}>
+            <Check className="h-4 w-4 mr-1" /> Complete
+          </Button>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
       <PageHeader
-        title="Cross-dock opportunities"
-        description="Inbound receipts that can bypass put-away and ship straight to open sales orders."
+        title="Cross-dock decision center"
+        description="Inbound freight that can skip storage entirely — qualify, approve to a dock, direct the move, and ship straight out."
       />
       <PageBody>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-4">
+          {[
+            { label: "Awaiting decision", value: kpis.awaiting },
+            { label: "In execution", value: kpis.executing },
+            { label: "Completed", value: kpis.completed },
+            { label: "Expiring < 4h", value: kpis.expiring },
+            { label: "Expired / broken", value: kpis.failed },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">{k.label}</p>
+                <p className="text-2xl font-semibold">{k.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3 mb-4">
           <div className="w-56">
             <Label>Warehouse</Label>
             <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
@@ -125,23 +193,22 @@ export default function CrossdockBoard() {
               </SelectContent>
             </Select>
           </div>
-          <div className="w-40">
-            <Label>Status</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="staged">Staged</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="ml-auto flex gap-2 text-sm">
-            <Badge variant="outline">Open: {kpis.open}</Badge>
-            <Badge variant="outline">Staged: {kpis.staged}</Badge>
-            <Badge variant="outline">Cancelled: {kpis.cancelled}</Badge>
-          </div>
+          <Tabs value={lane} onValueChange={setLane}>
+            <TabsList>
+              {LANES.map((l) => (
+                <TabsTrigger key={l.key} value={l.key}>{l.label}</TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={() => sweep.mutate()}
+            disabled={sweep.isPending}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" /> Sweep lapsed
+          </Button>
         </div>
 
         {isLoading ? (
@@ -149,54 +216,70 @@ export default function CrossdockBoard() {
         ) : !data || data.length === 0 ? (
           <EmptyState
             icon={Truck}
-            title="No opportunities"
-            description="Cross-dock candidates appear here automatically when a GRN is completed and matches an open sales order."
+            title="Nothing in this lane"
+            description="Cross-dock candidates are qualified automatically as receipts are captured, using the active cross-dock policy."
           />
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Matched</TableHead>
+                <TableHead>Score</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Qty</TableHead>
-                <TableHead>Sales order</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead />
+                <TableHead>Demand</TableHead>
+                <TableHead>Cut-off</TableHead>
+                <TableHead>State</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {new Date(r.matched_at).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{r.product_id.slice(0, 8)}</TableCell>
-                  <TableCell>{Number(r.quantity)}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {r.sales_order_id ? r.sales_order_id.slice(0, 8) : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      r.status === "open" ? "default" :
-                      r.status === "staged" ? "secondary" : "outline"
-                    }>{r.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {r.status === "open" && (
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" onClick={() => confirmStage.mutate(r.id)}>
-                          <Check className="h-4 w-4 mr-1" /> Stage
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => cancel.mutate(r.id)}>
-                          <X className="h-4 w-4 mr-1" /> Cancel
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {data.map((r) => {
+                const h = hoursLeft(r.expires_at);
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-semibold">{r.score ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.product_id.slice(0, 8)}</TableCell>
+                    <TableCell>{Number(r.quantity)}</TableCell>
+                    <TableCell className="text-xs">
+                      <span className="capitalize">{r.demand_type.replace("_", " ")}</span>{" "}
+                      <span className="font-mono text-muted-foreground">
+                        {r.demand_doc_id ? r.demand_doc_id.slice(0, 8) : "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {h === null ? "—" : h <= 0 ? (
+                        <span className="text-destructive inline-flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> lapsed
+                        </span>
+                      ) : (
+                        `${h.toFixed(1)}h`
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STATE_TONE[r.state]}>{r.state}</Badge>
+                      {(r.reject_reason || r.break_reason) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {r.reject_reason ?? r.break_reason}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2 justify-end">{rowActions(r)}</div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+        )}
+
+        {rules && rules.length > 0 && (
+          <p className="text-xs text-muted-foreground mt-6">
+            Active policy: <strong>{rules[0].name}</strong> — min shelf life{" "}
+            {rules[0].min_shelf_life_days ?? "n/a"} days, cut-off window{" "}
+            {rules[0].min_hours_to_cutoff}–{rules[0].max_hours_to_cutoff}h, auto-approve at score{" "}
+            {rules[0].auto_approve_score ?? "off"}.
+          </p>
         )}
       </PageBody>
     </>
