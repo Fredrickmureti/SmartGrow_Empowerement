@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useResolveLocationIdentity, type ResolvedLocation } from "./useResolveLocationIdentity";
 import { useWmsScanIntent, type WmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { useScanFeedback } from "@/features/warehouse/scanning/useScanFeedback";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 
 export type BinScanState = "idle" | "checking" | "confirmed" | "mismatch" | "unknown";
 
@@ -115,6 +116,8 @@ export function BinScanField({
     <div className="space-y-1.5">
       <Label className="flex items-center gap-1.5">
         <ScanLine className="h-4 w-4" /> {label}
+        {/* Handheld mode: scan the bin label with this device's camera. */}
+        <ScanCameraButton label={label} disabled={disabled} className="ml-auto" />
       </Label>
       <Input
         className={cn(

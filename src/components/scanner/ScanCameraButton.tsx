@@ -47,7 +47,7 @@ export function ScanCameraButton({
 
   if (withText) {
     return (
-      <Button type="button" variant="secondary" disabled={disabled} onClick={open} className={cn("gap-2", className)}>
+      <Button type="button" variant="secondary" disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={open} className={cn("gap-2", className)}>
         <Camera className="h-4 w-4" /> Scan with camera
       </Button>
     );
@@ -60,6 +60,7 @@ export function ScanCameraButton({
       size="icon"
       aria-label="Scan with this device's camera"
       disabled={disabled}
+      onMouseDown={(e) => e.preventDefault()}
       onClick={open}
       className={cn("h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground", className)}
     >

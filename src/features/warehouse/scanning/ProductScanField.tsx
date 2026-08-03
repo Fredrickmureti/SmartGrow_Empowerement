@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useWmsIdentityGate, describeLevel, type GatedScan } from "./useWmsIdentityGate";
 import { useWmsScanIntent, type WmsScanIntent } from "./wmsScanIntent";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 
 export type ProductScanState = "idle" | "checking" | "confirmed" | "mismatch" | "unknown";
 
@@ -115,6 +116,8 @@ export function ProductScanField({
     <div className="space-y-1.5">
       <Label className="flex items-center gap-1.5">
         <ScanBarcode className="h-4 w-4" /> {label}
+        {/* Handheld mode: scan the item label with this device's camera. */}
+        <ScanCameraButton label={label} disabled={disabled} className="ml-auto" />
       </Label>
       <Input
         className={cn(
