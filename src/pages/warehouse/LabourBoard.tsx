@@ -288,7 +288,17 @@ export default function LabourBoard() {
               )}
             </Section>
           </TabsContent>
+
+          <TabsContent value="targets" className="mt-4">
+            <Section
+              title="Targets & coaching"
+              description="Goals resolved most-specific-wins, measured against earned hours, with coaching written to the employee record."
+            >
+              <LabourPerformancePanel warehouseId={warehouseFilter} warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
         </Tabs>
+
       </PageBody>
     </>
   );
