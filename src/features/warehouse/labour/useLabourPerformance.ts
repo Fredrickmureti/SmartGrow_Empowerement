@@ -122,7 +122,7 @@ export function useOperatorScorecard(warehouseId: string | undefined, from: stri
 export function useSaveLabourTarget() {
   const qc = useQueryClient();
   const { currentBusiness } = useBusinesses();
-  const { organization } = useOrganization();
+  const { currentOrg } = useOrganization();
 
   return useMutation({
     mutationFn: async (input: LabourTargetUpsert) => {
@@ -130,7 +130,7 @@ export function useSaveLabourTarget() {
       const row = {
         ...input,
         business_id: currentBusiness.id,
-        organization_id: organization?.id ?? null,
+        organization_id: currentOrg?.id ?? null,
       };
       const { data, error } = await supabase
         .from("wms_labour_targets")
