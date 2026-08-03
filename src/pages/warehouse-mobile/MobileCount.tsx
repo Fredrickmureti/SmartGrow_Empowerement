@@ -66,12 +66,12 @@ export default function MobileCount() {
     }
     setBusy(true);
     try {
-      const r = await enqueue("record_count", {
+      const r = await enqueue<{ tolerance_outcome?: string }>("record_count", {
         p_line_id: active.id,
         p_counted_qty: n,
         p_note: null,
       });
-      const outcome = (r as { result?: { tolerance_outcome?: string } })?.result?.tolerance_outcome;
+      const outcome = r.data?.tolerance_outcome;
       if (r.queued) {
         toast.success("Queued (offline)");
       } else if (outcome === "recount_required") {

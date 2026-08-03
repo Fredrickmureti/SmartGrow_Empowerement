@@ -152,6 +152,34 @@ export default function CycleCountPlanner() {
                   </div>
                 </div>
               )}
+              <div className="rounded border p-3 space-y-1">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={isBlind}
+                    onChange={(e) => setIsBlind(e.target.checked)}
+                  />
+                  Hide the expected quantity from counters
+                </label>
+                <p className="text-xs text-muted-foreground">{blindHint}</p>
+              </div>
+              <div>
+                <Label>Assign to</Label>
+                <select
+                  className="border rounded px-2 py-1 w-full bg-background"
+                  value={assignTo}
+                  onChange={(e) => setAssignTo(e.target.value)}
+                >
+                  <option value="">Leave in the shared task queue</option>
+                  {(operators ?? []).map((o) => (
+                    <option key={o.id} value={o.id}>{o.full_name ?? o.id}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  A count task is created for every bin in scope so the work shows up alongside
+                  picking and putaway.
+                </p>
+              </div>
               <div>
                 <Label>Notes</Label>
                 <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
