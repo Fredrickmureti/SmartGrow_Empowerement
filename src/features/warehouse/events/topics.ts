@@ -181,7 +181,8 @@ export const idempotencyKey = (
     | "trailer"
     | "appointment"
     | "crossdock"
-    | "replen",
+    | "replen"
+    | "replen_order",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;
