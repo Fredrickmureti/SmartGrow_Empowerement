@@ -70,10 +70,19 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_manifest_cartons: [
     ["wms-loading-manifest"],
     ["wms-loading-manifests"],
+    ["wms-manifest-cartons"],
+    ["wms-manifest-shortage"],
   ],
   wms_loading_manifests: [
     ["wms-loading-manifests"],
     ["wms-loading-manifest"],
+    // Phase F — the Loading Bay registers its detail queries under
+    // `wms-manifest*`, not `wms-loading-manifest`. That drift is why the
+    // bay was still polling; both prefixes are invalidated now.
+    ["wms-manifest"],
+    ["wms-manifest-cartons"],
+    ["wms-manifest-shortage"],
+    ["wms-manifest-proof"],
   ],
   wms_qc_inspections: [
     ["wms-qc-inspections"],
@@ -99,6 +108,14 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   ],
   wms_replenishment_rules: [
     ["wms-replen-rules"],
+  ],
+  // Phase F — the yard boards go live; both surfaces polled every 15s.
+  wms_trailer_visits: [
+    ["wms-trailer-visits"],
+    ["wms-loading-manifests"],
+  ],
+  wms_yard_slots: [
+    ["wms-yard-slots"],
   ],
 };
 
