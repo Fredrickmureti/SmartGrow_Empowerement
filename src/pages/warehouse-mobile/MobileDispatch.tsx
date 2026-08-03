@@ -56,30 +56,20 @@ export default function MobileDispatch() {
   const [scan, setScan] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Phase C — proof of dispatch. Read-only status comes from the manifest's
-  // proof row; the capture write goes through the offline queue so a driver
-  // in a dead zone can still take custody evidence.
+  // Phase C — proof of dispatch. The *server* decides whether proof is
+  // required and whether what was captured satisfies it (`wms_manifest_
+  // proof_status`); the handheld never re-derives that rule. The capture
+  // write goes through the offline queue so a driver in a dead zone can
+  // still take custody evidence.
   const { data: proofStatus } = useQuery({
     queryKey: ["wm-manifest-proof", shipmentId],
     enabled: !!shipmentId,
     queryFn: async (): Promise<ManifestProofStatus | null> => {
-      const { data, error } = await supabase
-        .from("wms_dispatch_proofs")
-        .select("seal_number, driver_name, signature_url, photo_urls, captured_at")
-        .eq("manifest_id", shipmentId!)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc("wms_manifest_proof_status", {
+        p_manifest_id: shipmentId!,
+      });
       if (error) throw error;
-      if (!data) return null;
-      return {
-        required: true,
-        captured: true,
-        satisfied: !!(data.seal_number && data.driver_name && (data.signature_url || (data.photo_urls ?? []).length > 0)),
-        seal_number: data.seal_number,
-        driver_name: data.driver_name,
-        signature_url: data.signature_url,
-        photo_urls: data.photo_urls ?? [],
-        captured_at: data.captured_at,
-      };
+      return (data ?? null) as unknown as ManifestProofStatus | null;
     },
   });
 
