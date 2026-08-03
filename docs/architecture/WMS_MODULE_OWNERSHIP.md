@@ -117,6 +117,19 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | `warehouse.return.inspected` | returns RPCs | returns desk, QC |
 | `warehouse.return.dispositioned` | returns RPCs | inventory projection |
 | `warehouse.return.closed` | returns RPCs | returns desk |
+| `warehouse.return.draft` | `wms_transition_return` | returns desk |
+| `warehouse.return.authorized` | `wms_transition_return` | returns desk, finance |
+| `warehouse.return.in_transit` | `wms_transition_return` | returns desk |
+| `warehouse.return.received` | `wms_transition_return` | returns desk, inventory projection |
+| `warehouse.return.inspecting` | `wms_transition_return` | QC |
+| `warehouse.return.disposed` | `wms_transition_return` | inventory projection |
+| `warehouse.return.cancelled` | `wms_transition_return` | returns desk |
+| `warehouse.return.line_captured` | returns execution RPCs | returns desk |
+| `warehouse.return.line_inspected` | returns execution RPCs | QC |
+| `warehouse.return.line_dispositioned` | returns execution RPCs | inventory projection |
+| `warehouse.return.dispositions_posted` | returns execution RPCs | inventory projection, finance |
+| `warehouse.return.blocked` | returns execution RPCs | exception inbox |
+| `warehouse.return.finance_linked` | returns execution RPCs | finance |
 
 ### Exceptions
 
@@ -204,6 +217,13 @@ The legacy vocabulary (`warehouse.qc.opened/accepted/rejected`,
 | Topic | Producer | Consumers |
 | --- | --- | --- |
 | `warehouse.replen.enqueued` | `_wms_maybe_enqueue_replen` via `trg_stock_quants_replen` | replenishment board, labour |
+| `warehouse.replen.planned` | `plan_replenishment` via `trg_wms_replen_orders_emit` | replenishment control centre |
+| `warehouse.replen.approved` | `wms_transition_replen_order` | replenishment control centre, labour |
+| `warehouse.replen.dispatched` | `plan_replenishment` / `wms_transition_replen_order` | labour board, operator queue |
+| `warehouse.replen.in_progress` | `wms_transition_replen_order` | replenishment control centre |
+| `warehouse.replen.completed` | `complete_replenish_task` | replenishment control centre, inventory projection |
+| `warehouse.replen.short` | `complete_replenish_task` | exception inbox, replenishment control centre |
+| `warehouse.replen.cancelled` | `wms_transition_replen_order` | replenishment control centre |
 
 
 ## 4. Inventory consumption rules

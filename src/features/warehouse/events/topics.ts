@@ -137,7 +137,17 @@ export const WMS_TOPIC = {
 
   // ---- Replenishment (stock_quants trigger, Phase 3.4) ----------------
   REPLEN_ENQUEUED: "warehouse.replen.enqueued",
+
+  // ---- Replenishment orders (ADR 0106 — wms_replen_orders FSM) --------
+  REPLEN_PLANNED: "warehouse.replen.planned",
+  REPLEN_APPROVED: "warehouse.replen.approved",
+  REPLEN_DISPATCHED: "warehouse.replen.dispatched",
+  REPLEN_IN_PROGRESS: "warehouse.replen.in_progress",
+  REPLEN_COMPLETED: "warehouse.replen.completed",
+  REPLEN_SHORT: "warehouse.replen.short",
+  REPLEN_CANCELLED: "warehouse.replen.cancelled",
 } as const;
+
 
 export type WmsTopic = (typeof WMS_TOPIC)[keyof typeof WMS_TOPIC];
 
@@ -171,7 +181,8 @@ export const idempotencyKey = (
     | "trailer"
     | "appointment"
     | "crossdock"
-    | "replen",
+    | "replen"
+    | "replen_order",
   id: string,
   transition: string,
 ) => `wms.${aggregate}:${id}:${transition}`;

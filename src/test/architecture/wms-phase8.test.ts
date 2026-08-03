@@ -55,12 +55,13 @@ describe("wms phase 8 architecture", () => {
         }
       }
     }
-    expect(offenders, `Use rpc('generate_replenishment_tasks') instead:\n${offenders.join("\n")}`).toEqual([]);
+    expect(offenders, `Use rpc('plan_replenishment') instead:\n${offenders.join("\n")}`).toEqual([]);
   });
 
-  it("Replenishment page calls generate_replenishment_tasks RPC", () => {
+  it("Replenishment page calls the plan_replenishment engine (ADR 0106)", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/Replenishment.tsx"), "utf8");
-    expect(/rpc\(\s*["']generate_replenishment_tasks["']/.test(src)).toBe(true);
+    expect(/rpc\(\s*["']plan_replenishment["']/.test(src)).toBe(true);
+    expect(/generate_replenishment_tasks/.test(src)).toBe(false);
   });
 
   it("nav wires Replenishment and Slotting", () => {
