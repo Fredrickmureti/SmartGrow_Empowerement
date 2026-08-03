@@ -32,8 +32,10 @@ import {
   type BarcodeInputFieldHandle,
 } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useResolveBarcode, type ResolvedScan } from "@/hooks/scanner";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useSalesScanController } from "@/contexts/SalesScanContext";
 
 interface Props {
