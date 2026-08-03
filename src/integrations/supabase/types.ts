@@ -78939,6 +78939,64 @@ export type Database = {
         }
         Returns: number
       }
+      _wms_crossdock_guard: {
+        Args: {
+          p_allowed: Database["public"]["Enums"]["wms_crossdock_state"][]
+          p_id: string
+          p_row_version: number
+        }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_crossdock_resolve_rule: {
         Args: { p_business_id: string; p_warehouse_id: string }
         Returns: {
@@ -78972,6 +79030,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _wms_crossdock_staging_location: {
+        Args: { p_warehouse_id: string }
+        Returns: string
       }
       _wms_default_putaway: {
         Args: { p_warehouse_id: string }
@@ -92550,6 +92612,403 @@ export type Database = {
         Args: { p_return_id: string; p_row_version: number }
         Returns: Json
       }
+      wms_crossdock_approve: {
+        Args: {
+          p_appointment_id?: string
+          p_opportunity_id: string
+          p_outbound_dock_id?: string
+          p_row_version?: number
+          p_staging_location_id?: string
+        }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_break: {
+        Args: {
+          p_opportunity_id: string
+          p_reason: string
+          p_row_version?: number
+        }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_complete: {
+        Args: { p_opportunity_id: string; p_row_version?: number }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_confirm_staged: {
+        Args: { p_opportunity_id: string; p_row_version?: number }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_mark_loaded: {
+        Args: {
+          p_manifest_id?: string
+          p_opportunity_id: string
+          p_row_version?: number
+        }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_reject: {
+        Args: {
+          p_opportunity_id: string
+          p_reason: string
+          p_row_version?: number
+        }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_start_staging: {
+        Args: { p_opportunity_id: string; p_row_version?: number }
+        Returns: {
+          appointment_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          break_reason: string | null
+          business_id: string
+          cancel_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          demand_doc_id: string | null
+          demand_line_id: string | null
+          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
+          expires_at: string | null
+          grn_id: string
+          grn_line_id: string | null
+          id: string
+          load_task_id: string | null
+          loaded_at: string | null
+          manifest_id: string | null
+          matched_at: string
+          organization_id: string
+          outbound_dock_id: string | null
+          product_id: string
+          qualified_at: string | null
+          quantity: number
+          receiving_line_id: string | null
+          reject_reason: string | null
+          row_version: number
+          rule_id: string | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          savings_estimate: number | null
+          score: number | null
+          stage_task_id: string | null
+          staged_at: string | null
+          staging_location_id: string | null
+          state: Database["public"]["Enums"]["wms_crossdock_state"]
+          status: string
+          updated_at: string
+          warehouse_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_crossdock_opportunities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      wms_crossdock_sweep_expired: { Args: never; Returns: number }
       wms_disposition_return_line: {
         Args: {
           p_destination_location_id?: string
