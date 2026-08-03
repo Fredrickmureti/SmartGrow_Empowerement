@@ -6,6 +6,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from "react";
 
 const MobileHome = lazy(() => import("@/pages/warehouse-mobile/MobileHome"));
+const MobileMyWork = lazy(() => import("@/pages/warehouse-mobile/MobileMyWork"));
 const MobilePutaway = lazy(() => import("@/pages/warehouse-mobile/MobilePutaway"));
 const MobilePick = lazy(() => import("@/pages/warehouse-mobile/MobilePick"));
 const MobileCount = lazy(() => import("@/pages/warehouse-mobile/MobileCount"));
@@ -39,6 +40,7 @@ export default function WarehouseMobileApp() {
     <Suspense fallback={<div className="p-6 text-sm">Loading…</div>}>
       <Routes>
         <Route index element={<MobileHome />} />
+        <Route path="my-work" element={<MobileMyWork />} />
         <Route path="putaway/:id" element={<MobilePutaway />} />
         <Route path="pick/:id" element={<MobilePick />} />
         <Route path="count/:id" element={<MobileCount />} />
