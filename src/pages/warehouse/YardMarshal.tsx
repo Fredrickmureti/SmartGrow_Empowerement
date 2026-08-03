@@ -103,7 +103,7 @@ export default function YardMarshal() {
   });
 
   /* Step 2 — the destination label confirms the drop. */
-  const destScan = useWmsScanIntent({
+  useWmsScanIntent({
     intent: "yard.slot",
     enabled: !!activeTask,
     onScan: ({ resolveCode }) => {
@@ -264,9 +264,6 @@ export default function YardMarshal() {
             ))}
           </div>
         )}
-
-        {/* Keeps the destination intent referenced while a move is active. */}
-        <span className="sr-only">{destScan ? "" : ""}</span>
       </PageBody>
     </>
   );

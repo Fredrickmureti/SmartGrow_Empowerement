@@ -48,6 +48,7 @@ const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
 const YardControlTower = lazy(() => import("@/pages/warehouse/YardControlTower"));
 const GateConsole = lazy(() => import("@/pages/warehouse/GateConsole"));
 const TrailerRegister = lazy(() => import("@/pages/warehouse/TrailerRegister"));
+const YardMarshal = lazy(() => import("@/pages/warehouse/YardMarshal"));
 const LabourBoard = lazy(() => import("@/pages/warehouse/LabourBoard"));
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
@@ -279,6 +280,7 @@ export function WarehouseApp() {
         <Route path="slotting" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Slotting"><Slotting /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard & Trailers"><YardControlTower /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/gate" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Gate Console"><GateConsole /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="yard/marshal" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard Marshal"><YardMarshal /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/trailers" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer Register"><TrailerRegister /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="labour" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Labour"><LabourBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
