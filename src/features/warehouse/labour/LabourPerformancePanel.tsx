@@ -8,7 +8,7 @@
  * surface through `wms_log_coaching_note`.
  */
 import { useMemo, useState } from "react";
-import { MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
+import { Coins, MessageSquarePlus, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -149,9 +149,19 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" onClick={openTargetDialog}>
-          <Plus className="h-4 w-4 mr-2" /> Performance target
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openTargetDialog}>
+            <Plus className="h-4 w-4 mr-2" /> Performance target
+          </Button>
+          <Button
+            onClick={() => {
+              setIncentiveCode(inputCodes?.[0]?.code ?? "");
+              setIncentiveOpen(true);
+            }}
+          >
+            <Coins className="h-4 w-4 mr-2" /> Post incentive pay
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
