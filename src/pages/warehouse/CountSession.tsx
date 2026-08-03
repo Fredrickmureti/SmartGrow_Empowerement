@@ -32,6 +32,8 @@ import { useBranches } from "@/hooks/useBranches";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
 import { useCountLines, countLineProductLabel, countLineProductSubLabel } from "@/features/warehouse/counts/useCountLines";
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
+import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
+
 import { TOLERANCE_COPY, type ToleranceOutcome } from "@/features/warehouse/counts/varianceReasons";
 
 import { useQuery } from "@tanstack/react-query";
@@ -199,9 +201,18 @@ export default function CountSession() {
                 state: session.state ?? "",
               }}
             />
+            {/* ADR 0106 — the counting screen only ever offers the sheet the
+              * operator walks the aisle with. Blind sessions get the blind
+              * sheet, which carries no expected quantity at all. */}
+            <CountDocumentsMenu
+              sessionId={session.id}
+              isBlind={blind}
+              only={["count_sheet"]}
+            />
             <Button onClick={() => nav(`/warehouse-app/counts/${sessionId}/review`)}>
               <ClipboardCheck className="h-4 w-4 mr-2" /> Review + post
             </Button>
+
           </div>
         }
       />

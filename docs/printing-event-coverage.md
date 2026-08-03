@@ -79,6 +79,11 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Stock adjustment voucher | `stock_adjustment` | PdfBuilder | WIRED (Wave 21 — `fetchStockAdjustment`) |
 | Stock transfer note | `stock_transfer` | PdfBuilder | WIRED (Wave 21 — `fetchStockTransfer`) |
 | Vendor return note (A4) | `vendor_return` | PdfBuilder | WIRED (Wave 21 — `fetchPurchaseReturn`; alias `purchase_return`) |
+| Cycle count sheet | `count_sheet` | PdfBuilder | WIRED (ADR 0106 — `fetchCountSheet`; dispatched from `CountSession`/`CountReview` via `CountDocumentsMenu` → `printDocument({ intent: 'a4_document' })`) |
+| Cycle count sheet (blind) | `count_sheet_blind` | PdfBuilder | WIRED (ADR 0106 — `fetchCountSheetBlind`; separate fetcher, never a flag, so expected quantity cannot leak onto a blind sheet) |
+| Cycle count difference report | `count_variance_report` | PdfBuilder | WIRED (ADR 0106 — `fetchCountVarianceReport`; latest attempt per line, reason code + approver) |
+| Cycle count audit report | `count_audit_report` | PdfBuilder | WIRED (ADR 0106 — `fetchCountAuditReport`; every attempt and recount round, counter and approver identity) |
+
 
 ## Cross-cutting invariants
 
