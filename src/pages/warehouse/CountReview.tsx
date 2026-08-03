@@ -120,6 +120,10 @@ export default function CountReview() {
             <Button variant="outline" asChild>
               <Link to={`/warehouse-app/counts/${sessionId}`}><ArrowLeft className="h-4 w-4 mr-2" /> Back to counting</Link>
             </Button>
+            {/* ADR 0106 — supervisor paperwork: the sheet, the difference
+              * report and the full attempt-by-attempt audit report. */}
+            <CountDocumentsMenu sessionId={session.id} isBlind={session.is_blind === true} />
+
             <CancelAggregateButton
               aggregate="count"
               id={session.id}
