@@ -112,6 +112,8 @@ export default function MobileCount() {
     <MobileWarehouseLayout
       title="Cycle count"
       back="/wm"
+      scanLabel="Scan location or item"
+      scanContinuous
       bottomBar={
         <Button className="w-full h-12" size="lg" disabled={busy || !active} onClick={submit}>
           {busy ? "Working…" : active ? `Record @ ${active.location?.code}` : "Scan bin + SKU"}

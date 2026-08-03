@@ -262,6 +262,8 @@ export function MobileReceiveSession() {
     <MobileWarehouseLayout
       title={session?.code ?? "Receiving"}
       back="/wm/receiving"
+      scanLabel="Scan item or LPN"
+      scanContinuous
       bottomBar={
         <Button
           className="h-12 w-full"

@@ -51,7 +51,7 @@ export default function MobilePlateLookup() {
   });
 
   return (
-    <MobileWarehouseLayout title="License plate" back="/wm">
+    <MobileWarehouseLayout title="License plate" back="/wm" scanLabel="Scan plate label">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Scan a plate label, or type its code.
