@@ -79,6 +79,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   ],
   wms_loading_manifests: [
     ["wms-loading-manifests"],
+    // ADR 0086 Phase 7 — manifest state drives yard load readiness.
+    ["wms-trailer-load-summary"],
     ["wms-loading-manifest"],
     // Phase F — the Loading Bay registers its detail queries under
     // `wms-manifest*`, not `wms-loading-manifest`. That drift is why the
