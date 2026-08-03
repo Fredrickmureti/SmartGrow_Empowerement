@@ -28,6 +28,23 @@ export default function CycleCountPlanner() {
   const [strategy, setStrategy] = useState<"abc" | "random" | "targeted">("targeted");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
+  // Blind counting is the enterprise default: hide the expected figure so
+  // the count is evidence, not confirmation.
+  const [isBlind, setIsBlind] = useState(true);
+  const [assignTo, setAssignTo] = useState("");
+
+  const { data: operators } = useQuery({
+    queryKey: ["count-operators"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name")
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as { id: string; full_name: string | null }[];
+    },
+  });
 
   const { data: warehouses } = useQuery({
     queryKey: ["warehouses-for-count"],
@@ -65,6 +82,8 @@ export default function CycleCountPlanner() {
         p_strategy: strategy,
         p_location_ids: selected.size ? Array.from(selected) : null,
         p_notes: notes || null,
+        p_is_blind: isBlind,
+        p_assign_to: assignTo || null,
       });
       if (error) throw error;
       return data as string;
@@ -75,6 +94,10 @@ export default function CycleCountPlanner() {
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
+
+  const blindHint = isBlind
+    ? "Counters will not see the expected quantity — the strongest guard against counting to the system figure."
+    : "Counters can see the expected quantity. Faster, but far weaker as a control.";
 
   return (
     <>
@@ -129,6 +152,34 @@ export default function CycleCountPlanner() {
                   </div>
                 </div>
               )}
+              <div className="rounded border p-3 space-y-1">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={isBlind}
+                    onChange={(e) => setIsBlind(e.target.checked)}
+                  />
+                  Hide the expected quantity from counters
+                </label>
+                <p className="text-xs text-muted-foreground">{blindHint}</p>
+              </div>
+              <div>
+                <Label>Assign to</Label>
+                <select
+                  className="border rounded px-2 py-1 w-full bg-background"
+                  value={assignTo}
+                  onChange={(e) => setAssignTo(e.target.value)}
+                >
+                  <option value="">Leave in the shared task queue</option>
+                  {(operators ?? []).map((o) => (
+                    <option key={o.id} value={o.id}>{o.full_name ?? o.id}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  A count task is created for every bin in scope so the work shows up alongside
+                  picking and putaway.
+                </p>
+              </div>
               <div>
                 <Label>Notes</Label>
                 <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />

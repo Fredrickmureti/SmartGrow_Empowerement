@@ -3,45 +3,36 @@
  * of on-hand rows. Every record goes through `record_count` — the client
  * never writes `counted_qty` / `variance_qty` directly.
  *
- * Scan-first UX borrows the `BarcodeInputField` used by the Phase 4a
- * pick screen: scan a bin to focus, scan a product to select the row,
- * type the counted qty. Variance is derived server-side and displayed
- * back on the row.
+ * Reads go through `get_count_lines` (never the table) so BLIND sessions
+ * genuinely hide the expected quantity from the operator until review —
+ * the control every enterprise WMS relies on to stop counters "counting
+ * to the system figure".
  *
- * The "Review + post" affordance routes the operator to CountReview,
- * where a supervisor posts the session and every non-zero variance is
- * routed through the sanctioned inventory adjustment RPC.
+ * `record_count` returns a tolerance outcome per line. A line outside
+ * policy is flagged for recount or supervisor approval before the
+ * session can be submitted.
  */
 import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { toast } from "sonner";
-import { PageHeader, PageBody, Section, LoadingState, EmptyState } from "@/design-system";
+import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, EyeOff } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
-
-interface CountLine {
-  id: string;
-  location_id: string;
-  product_id: string;
-  lot_number: string | null;
-  system_qty: number;
-  counted_qty: number | null;
-  variance_qty: number | null;
-  location: { name: string; code: string | null } | null;
-  product: { name: string; sku: string | null } | null;
-}
+import { useCountLines } from "@/features/warehouse/counts/useCountLines";
+import { TOLERANCE_COPY, type ToleranceOutcome } from "@/features/warehouse/counts/varianceReasons";
+import { useQuery } from "@tanstack/react-query";
 
 export default function CountSession() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -71,7 +62,7 @@ export default function CountSession() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_count_sessions")
-        .select("id, code, state, warehouse_id, strategy")
+        .select("id, code, state, warehouse_id, strategy, is_blind")
         .eq("id", sessionId!)
         .maybeSingle();
       if (error) throw error;
@@ -79,33 +70,32 @@ export default function CountSession() {
     },
   });
 
-  const { data: lines } = useQuery({
-    queryKey: ["wms-count-lines", sessionId],
-    enabled: !!sessionId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_count_lines")
-        .select(
-          "id, location_id, product_id, lot_number, system_qty, counted_qty, variance_qty, location:location_id(name, code), product:product_id(name, sku)",
-        )
-        .eq("session_id", sessionId!)
-        .order("created_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as CountLine[];
-    },
-  });
+  const { data: lines } = useCountLines(sessionId);
+
+  // Blind while counting: the RPC returns NULL for system/variance, and we
+  // stop rendering those columns entirely so nothing leaks through.
+  const blind = !!session?.is_blind && session.state !== "review" && session.state !== "posted";
 
   const record = useMutation({
     mutationFn: async (v: { line_id: string; counted_qty: number }) => {
       // Phase 5.1 — replay-guarded: a double-tapped "Record" cannot post
       // the same count twice.
-      await replayGuardedCall("record_count", {
+      const { data } = await replayGuardedCall("record_count", {
         p_line_id: v.line_id,
         p_counted_qty: v.counted_qty,
         p_note: null,
       });
+      return data as { tolerance_outcome?: ToleranceOutcome } | null;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-count-lines", sessionId] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["wms-count-lines", sessionId] });
+      const outcome = data?.tolerance_outcome;
+      if (outcome === "recount_required") {
+        toast.warning("Outside tolerance — count this bin again.");
+      } else if (outcome === "approval_required") {
+        toast.warning("Outside tolerance — a supervisor must approve this line.");
+      }
+    },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Record failed"),
   });
 
@@ -142,12 +132,14 @@ export default function CountSession() {
     if (!scanBin || (!scanProduct && !scanProductId)) return null;
     const bin = scanBin.trim().toLowerCase();
     const line = (lines ?? []).find((l) => {
-      if ((l.location?.code ?? "").toLowerCase() !== bin) return false;
+      if ((l.location_code ?? "").toLowerCase() !== bin) return false;
       if (scanProductId) return l.product_id === scanProductId;
-      return (l.product?.sku ?? "").toLowerCase() === scanProduct.trim().toLowerCase();
+      return (l.product_sku ?? "").toLowerCase() === scanProduct.trim().toLowerCase();
     });
     return line?.id ?? null;
   }, [lines, scanBin, scanProduct, scanProductId]);
+
+  const recountCount = (lines ?? []).filter((l) => l.tolerance_outcome === "recount_required").length;
 
   if (isLoading) return <LoadingState />;
   if (!session) {
@@ -200,6 +192,23 @@ export default function CountSession() {
         }
       />
       <PageBody>
+        {blind && (
+          <div className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <EyeOff className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Blind count.</span>{" "}
+              The expected quantity is hidden until the count is submitted for review, so what you
+              record is what you actually see on the shelf.
+            </p>
+          </div>
+        )}
+        {recountCount > 0 && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+            {recountCount} line{recountCount === 1 ? "" : "s"} fell outside the allowed difference and
+            must be counted again before this session can be submitted.
+          </div>
+        )}
+
         <Section title="Scan">
           <Card>
             <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -239,24 +248,36 @@ export default function CountSession() {
                       <th className="p-2">Bin</th>
                       <th className="p-2">Product</th>
                       <th className="p-2">Lot</th>
-                      <th className="p-2 text-right">System</th>
+                      {!blind && <th className="p-2 text-right">System</th>}
                       <th className="p-2">Counted</th>
-                      <th className="p-2 text-right">Variance</th>
+                      {!blind && <th className="p-2 text-right">Difference</th>}
+                      <th className="p-2">Check</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(lines ?? []).map((l) => {
                       const isActive = l.id === activeLineId;
+                      const outcome = l.tolerance_outcome as ToleranceOutcome | null;
                       return (
                         <tr
                           key={l.id}
                           ref={isActive ? activeRowRef : null}
                           className={`border-t ${isActive ? "bg-primary/10" : ""}`}
                         >
-                          <td className="p-2 font-mono">{l.location?.code ?? "—"}</td>
-                          <td className="p-2">{l.product?.name ?? l.product_id}<span className="text-muted-foreground text-xs"> · {l.product?.sku ?? ""}</span></td>
+                          <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
+                          <td className="p-2">
+                            {l.product_name ?? l.product_id}
+                            <span className="text-muted-foreground text-xs"> · {l.product_sku ?? ""}</span>
+                            {(l.recount_round ?? 0) > 0 && (
+                              <span className="ml-2 text-xs text-muted-foreground">recount #{l.recount_round}</span>
+                            )}
+                          </td>
                           <td className="p-2">{l.lot_number ?? "—"}</td>
-                          <td className="p-2 text-right font-mono">{Number(l.system_qty).toFixed(2)}</td>
+                          {!blind && (
+                            <td className="p-2 text-right font-mono">
+                              {l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}
+                            </td>
+                          )}
                           <td className="p-2">
                             <div className="flex gap-1">
                               <Input
@@ -280,8 +301,19 @@ export default function CountSession() {
                               </Button>
                             </div>
                           </td>
-                          <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
-                            {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}
+                          {!blind && (
+                            <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
+                              {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}
+                            </td>
+                          )}
+                          <td className="p-2">
+                            {outcome ? (
+                              <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                                {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                              </StatusBadge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </td>
                         </tr>
                       );
