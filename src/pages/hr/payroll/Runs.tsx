@@ -180,6 +180,20 @@ export default function PayrollRuns() {
     payment_date: format(new Date(), "yyyy-MM-dd"),
   });
 
+  // Phase H.3 — pre-run input inbox. Other modules (warehouse incentive pay
+  // today) stage pay inputs in `payroll_pending_inputs`; the variable-earnings
+  // grid is prefilled from them so nothing is retyped, and manual entries win.
+  const { data: pendingInputs } = usePendingPayrollInputs(
+    formData.pay_period_start,
+    formData.pay_period_end,
+  );
+
+  useEffect(() => {
+    if (!showDialog || !pendingInputs?.length) return;
+    setVariableEarnings((prev) => mergePendingIntoVariableEarnings(prev, pendingInputs));
+  }, [showDialog, pendingInputs]);
+
+
   /**
    * Classify an error from the payroll edge function.
    *  - "setup"    → opens PayrollSetupGuideDialog. Prefers structured
