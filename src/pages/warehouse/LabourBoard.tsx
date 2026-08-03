@@ -196,9 +196,20 @@ export default function LabourBoard() {
           <TabsList>
             <TabsTrigger value="queue">Control centre</TabsTrigger>
             <TabsTrigger value="operators">Operators</TabsTrigger>
+            <TabsTrigger value="planning">Planning</TabsTrigger>
             <TabsTrigger value="standards">Standards</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="planning" className="mt-4">
+            <Section
+              title="Labour planning"
+              description="Projected standard hours for open work against the rostered operator hours, day by day. Publishing raises a gap alert when demand outruns capacity."
+            >
+              <LabourPlanningPanel warehouseId={warehouseFilter} warehouses={warehouses ?? []} />
+            </Section>
+          </TabsContent>
+
 
           <TabsContent value="queue" className="mt-4">
             <Section
