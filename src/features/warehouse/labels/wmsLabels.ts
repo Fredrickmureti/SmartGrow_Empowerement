@@ -23,6 +23,8 @@ export const WMS_LABEL_KEY = {
   /** Yard audit Phase 4 (ADR 0086) — trailer placard + parking position. */
   TRAILER_PLACARD: "wms.label.trailer_placard",
   YARD_SLOT: "wms.label.yard_slot",
+  /** Cross-dock Phase 6 (ADR 0107) — flow-through routing instruction. */
+  CROSSDOCK_ROUTING: "wms.label.crossdock_routing",
 } as const;
 
 
@@ -72,7 +74,8 @@ export async function printWmsLabel(input: PrintWmsLabelInput): Promise<LabelPri
             input.key === WMS_LABEL_KEY.RETURN_RECEIPT ||
             input.key === WMS_LABEL_KEY.DISPOSITION ||
             input.key === WMS_LABEL_KEY.TRAILER_PLACARD ||
-            input.key === WMS_LABEL_KEY.YARD_SLOT
+            input.key === WMS_LABEL_KEY.YARD_SLOT ||
+            input.key === WMS_LABEL_KEY.CROSSDOCK_ROUTING
           ? "receiving"
           : "generic",
 

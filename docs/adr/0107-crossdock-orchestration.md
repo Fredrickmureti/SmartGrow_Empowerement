@@ -42,20 +42,60 @@ _complete / _break` are the only writers of `state`. They resolve the outbound
 staging lane, create the `move` task to staging and the `load` task off the staging
 lane, close/cancel those tasks on completion or break, and raise a `wms_exceptions`
 row when a plan breaks. `wms_crossdock_sweep_expired()` runs hourly via pg_cron.
+Cross-dock writes no stock ledger rows: the physical movement stays with the
+task/movement aggregate, and the opportunity only records the decision.
 
-### 4. Boundaries
-Cross-dock still owns **no** stock ledger writes — Receiving (Phase 2) and Dispatch
-(Phase 5) remain the only movement writers. Cross-dock decides and directs; it does
-not post inventory.
 
-### 5. Client contract
+
+### 4. Exception matrix (Phase 4)
+
+Reality changes after a plan is made, so the engine breaks its own plans.
+`_wms_crossdock_auto_break(id, reason, terminal_state)` is the single automatic
+writer; each break raises a `wms_exceptions` row for the supervisor and emits
+`warehouse.crossdock.broken` (or `.expired`).
+
+| Trigger source | Condition | Outcome |
+|---|---|---|
+| `sales_orders` / `sales_order_items` | cancelled, or line quantity cut below the matched quantity | break |
+| `stock_transfers` / items | cancelled or reduced | break |
+| `wms_qc_inspections` | inspection fails after detection | break |
+| `wms_dock_appointments`, `warehouse_docks` | appointment cancelled or dock deactivated while held | break, dock cleared |
+| `wms_crossdock_sweep_expired` (hourly) | cut-off passed | expired |
+| `wms_crossdock_requalify_sweep` (15 min) | demand vanished, already fulfilled, or reduced | break |
+
+Every trigger wraps its work in `EXCEPTION WHEN OTHERS THEN RAISE WARNING`, so a
+cross-dock failure never blocks a sales order, a QC record or a GRN.
+
+### 5. Demand coverage (Phase 6)
+
+`_wms_crossdock_detect` matches sales-order lines, outbound transfer lines and
+pick-face replenishment (`wms_replen_orders`, which stamps the plan's
+`staging_location_id` with the pick location so the freight flows to the face
+rather than an outbound lane). Production demand is out of scope until
+work-order tables exist.
+
+### 6. Read model, metrics and labels
+
+`wms_crossdock_board_view` (security invoker) supplies product, SKU, demand
+number, customer, dock, staging lane, assignee and hours-to-cut-off, so the
+client joins nothing. `wms_crossdock_metrics_view` supplies flow-through rate,
+units flowed, touches avoided, storage days avoided, average dwell and the
+saving estimate. The table is in the `supabase_realtime` publication; the board
+subscribes and does not poll. The routing label
+(`wms.label.crossdock_routing`, seeded by `wms_seed_default_label_templates`) is
+dispatched through `printWmsLabel` → `PrintService`; no local rendering.
+
+### 7. Client contract
+
 `src/features/warehouse/crossdock/useCrossdock.ts` is the sole client entry point;
 `CrossdockBoard` is a decision center (lanes: awaiting decision / in execution /
-closed) and calls no RPC directly. Guarded by `wms-phase12.test.ts`.
+closed) and calls no RPC directly. Guarded by `wms-phase12.test.ts` and
+`crossdock-orchestration.test.ts`.
 
 ## Non-goals
 
 - Cross-warehouse cross-dock (still ADR 0083 Phase 14).
+- Production demand matching (no work-order aggregate exists yet).
 - Automatic carrier cut-off derivation from carrier services — cut-off currently comes
   from the demand document's expected date.
 - Opportunistic re-matching when a better order arrives after approval.
