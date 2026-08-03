@@ -250,7 +250,27 @@ export default function CrossdockBoard() {
               ))}
             </TabsList>
           </Tabs>
+          {lane === "decide" && selected.length > 0 && (
+            <Button
+              size="sm"
+              className="ml-auto"
+              disabled={transition.isPending}
+              onClick={() => {
+                (data ?? [])
+                  .filter((r) => selected.includes(r.id))
+                  .forEach((r) =>
+                    transition.mutate({ action: "approve", id: r.id, rowVersion: r.row_version }),
+                  );
+                setSelected([]);
+              }}
+            >
+              <Check className="h-4 w-4 mr-1" /> Approve {selected.length} selected
+            </Button>
+          )}
           <Button
+            variant="outline"
+            size="sm"
+            className={lane === "decide" && selected.length > 0 ? "" : "ml-auto"}
             variant="outline"
             size="sm"
             className="ml-auto"
