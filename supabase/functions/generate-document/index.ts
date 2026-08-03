@@ -2465,6 +2465,13 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   // short-circuit renderer bypasses the invoice/receipt pipeline
   // entirely (no templates, no branding config, no fiscal blocks).
   drawer_slip: fetchDrawerSlip,
+  // ADR 0106 — cycle-count documents. `count_sheet_blind` is a distinct
+  // fetcher, never a flag, so a blind session cannot leak expected qty.
+  count_sheet: fetchCountSheet,
+  count_sheet_blind: fetchCountSheetBlind,
+  count_variance_report: fetchCountVarianceReport,
+  count_audit_report: fetchCountAuditReport,
+
 };
 
 // ── Main Handler ───────────────────────────────────────────────────────────
