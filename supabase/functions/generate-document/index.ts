@@ -2804,6 +2804,121 @@ async function fetchLabourWorksheet(
   } as unknown as DocumentData;
 }
 
+/**
+ * WLM Phase I — shift roster / labour plan sheet.
+ *
+ * `documentId` is a `warehouses.id`; the window defaults to today .. +13 days
+ * and can be narrowed with `periodStart` / `periodEnd` on the request body.
+ * Read model only — the roster lives in `wms_operator_shifts`.
+ */
+async function fetchLabourRoster(
+  supabase: any,
+  documentId: string,
+  opts?: { periodStart?: string; periodEnd?: string },
+): Promise<DocumentData> {
+  const { data: warehouse, error } = await supabase
+    .from("warehouses")
+    .select(`
+      id, name, code, branch_id, business_id, organization_id,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS})
+    `)
+    .eq("id", documentId)
+    .single();
+
+  if (error || !warehouse) {
+    throw new Error(`Warehouse not found: ${error?.message}`);
+  }
+
+  const today = new Date();
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const from = opts?.periodStart || iso(today);
+  const to =
+    opts?.periodEnd ||
+    iso(new Date(today.getTime() + 13 * 24 * 60 * 60 * 1000));
+
+  const { data: shifts } = await supabase
+    .from("wms_operator_shifts")
+    .select(`
+      id, shift_date, start_time, end_time, break_minutes, status, notes,
+      operator:wms_operators(
+        operator_code,
+        employee:employees(first_name, last_name, employee_number)
+      ),
+      pattern:wms_shift_patterns(code, name)
+    `)
+    .eq("warehouse_id", documentId)
+    .gte("shift_date", from)
+    .lte("shift_date", to)
+    .neq("status", "cancelled")
+    .order("shift_date", { ascending: true })
+    .order("start_time", { ascending: true })
+    .limit(500);
+
+  const rows: any[] = shifts || [];
+
+  const plannedMinutes = rows.reduce((sum, s) => {
+    const [sh, sm] = String(s.start_time).split(":").map(Number);
+    const [eh, em] = String(s.end_time).split(":").map(Number);
+    let mins = eh * 60 + em - (sh * 60 + sm);
+    if (mins <= 0) mins += 24 * 60;
+    return sum + Math.max(0, mins - Number(s.break_minutes || 0));
+  }, 0);
+
+  return {
+    document_number: `${warehouse.code || "WH"}-${from}`,
+    document_type: "labour_roster",
+    document_type_label: "SHIFT ROSTER",
+    status: "published",
+    issue_date: new Date().toISOString(),
+    due_date: null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: warehouse.business?.base_currency || "USD",
+    notes: null,
+    terms: null,
+    contact: null,
+    business_id: warehouse.business_id,
+    organization_id: warehouse.organization_id,
+    hide_amounts: true,
+    warehouse_name: warehouse.name ?? null,
+    period_start: from,
+    period_end: to,
+    planned_shifts: rows.length,
+    planned_hours: Math.round((plannedMinutes / 60) * 10) / 10,
+    organization: await mapBusinessToOrg(
+      supabase,
+      warehouse.business,
+      warehouse.organization,
+      warehouse.branch_id ?? null,
+    ),
+    items: rows.map((s) => {
+      const emp = s.operator?.employee;
+      const name =
+        [emp?.first_name, emp?.last_name].filter(Boolean).join(" ") ||
+        s.operator?.operator_code ||
+        "Operator";
+      return {
+        description: `${s.shift_date} — ${name}`,
+        sku: s.operator?.operator_code ?? emp?.employee_number ?? null,
+        shift_date: s.shift_date,
+        operator_name: name,
+        shift_window: `${String(s.start_time).slice(0, 5)}–${String(s.end_time).slice(0, 5)}`,
+        pattern_name: s.pattern?.name ?? null,
+        break_minutes: Number(s.break_minutes || 0),
+        shift_status: s.status,
+        quantity: 1,
+        uom: "shift",
+        unit_price: 0,
+        tax_rate: 0,
+        tax_amount: 0,
+        line_total: 0,
+      };
+    }),
+  } as unknown as DocumentData;
+}
 
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
@@ -2841,10 +2956,54 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   dispatch_manifest: "invoice",
   packing_list: "invoice",
   carrier_label: "invoice",
-  // WLM Phase F — operator labour worksheet (A4, no money column).
-  labour_worksheet: "invoice",
-
+  // WLM Phase I — labour paperwork resolves its OWN template rows. It must
+  // not inherit the tenant's invoice template: bank details, payment
+  // instructions and finance watermarks have no business on a work sheet.
+  labour_worksheet: "labour_worksheet",
+  labour_roster: "labour_roster",
 };
+
+/**
+ * WLM Phase I — per-type template overlay for labour paperwork.
+ *
+ * Applied on top of whatever `fetchTemplate` resolves so that a tenant who
+ * has never configured a `labour_worksheet` template still gets a work sheet
+ * (no money columns, no banking block, an operator signature line) rather
+ * than the invoice defaults.
+ */
+const LABOUR_TEMPLATE_OVERRIDES: Record<string, Record<string, unknown>> = {
+  labour_worksheet: {
+    show_unit_price: false,
+    show_tax_column: false,
+    show_discount_column: false,
+    show_subtotal: false,
+    show_discount_total: false,
+    show_tax_breakdown: false,
+    show_total_in_words: false,
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_signature_line: true,
+    signature_label: "Operator signature",
+    show_status_badge: true,
+  },
+  labour_roster: {
+    show_unit_price: false,
+    show_tax_column: false,
+    show_discount_column: false,
+    show_subtotal: false,
+    show_discount_total: false,
+    show_tax_breakdown: false,
+    show_total_in_words: false,
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_signature_line: true,
+    signature_label: "Supervisor signature",
+    show_status_badge: false,
+  },
+};
+
 
 const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<DocumentData>> = {
   invoice: fetchInvoice,
