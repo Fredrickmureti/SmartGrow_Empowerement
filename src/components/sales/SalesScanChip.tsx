@@ -25,6 +25,7 @@ const HINT_KEY = "sales.scan.rapid.hint.seen";
 export function SalesScanChip() {
   const { mode, setMode, available } = useSalesScanMode();
   const scanner = useWorkspaceScanner();
+  const { handheld } = useLocalScan();
   const { toast } = useToast();
   const [pulse, setPulse] = useState(false);
   const lastModeRef = useRef(mode);
