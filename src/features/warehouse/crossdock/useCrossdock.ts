@@ -121,22 +121,52 @@ export interface CrossdockHistoryRow {
 }
 
 const OPP_COLUMNS =
-  "id,warehouse_id,grn_id,grn_line_id,receiving_line_id,product_id,quantity,demand_type,demand_doc_id,demand_line_id,sales_order_id,state,score,expires_at,staging_location_id,outbound_dock_id,stage_task_id,load_task_id,reject_reason,break_reason,row_version,matched_at,staged_at,loaded_at,completed_at";
+  "id,warehouse_id,grn_id,grn_line_id,receiving_line_id,product_id,quantity,demand_type,demand_doc_id,demand_line_id,sales_order_id,state,score,expires_at,staging_location_id,outbound_dock_id,stage_task_id,load_task_id,reject_reason,break_reason,row_version,matched_at,staged_at,loaded_at,completed_at,savings_estimate,product_name,product_sku,warehouse_name,dock_code,staging_code,assignee_name,demand_number,customer_name,hours_to_cutoff";
 
+/**
+ * Board read. Sources the enriched view so the console shows product,
+ * customer, dock and operator names instead of UUIDs, and stays live via
+ * Realtime on the underlying table (no polling).
+ */
 export function useCrossdockOpportunities(params: {
   businessId?: string;
   warehouseId?: string;
   states?: CrossdockState[];
 }) {
   const { businessId, warehouseId, states } = params;
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`wms-crossdock-${businessId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wms_crossdock_opportunities",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
+          qc.invalidateQueries({ queryKey: ["wms-crossdock-metrics"] });
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, qc]);
+
   return useQuery({
     queryKey: ["wms-crossdock", businessId, warehouseId, states?.join(",")],
     enabled: !!businessId,
-    refetchInterval: 15_000,
     queryFn: async () => {
-      let q = (supabase.from("wms_crossdock_opportunities") as any)
+      let q = (supabase.from("wms_crossdock_board_view") as any)
         .select(OPP_COLUMNS)
         .eq("business_id", businessId)
+        .order("expires_at", { ascending: true, nullsFirst: false })
         .order("score", { ascending: false, nullsFirst: false })
         .order("matched_at", { ascending: false })
         .limit(300);
@@ -145,6 +175,27 @@ export function useCrossdockOpportunities(params: {
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as CrossdockOpportunity[];
+    },
+  });
+}
+
+/** Cross-dock KPI rollup (last 30 days by default). */
+export function useCrossdockMetrics(businessId?: string, warehouseId?: string, days = 30) {
+  return useQuery({
+    queryKey: ["wms-crossdock-metrics", businessId, warehouseId, days],
+    enabled: !!businessId,
+    queryFn: async () => {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+      let q = (supabase.from("wms_crossdock_metrics_view") as any)
+        .select(
+          "warehouse_id,metric_date,opportunities,completed,broken,expired,rejected,success_rate_pct,units_flowed,touches_avoided,storage_days_avoided,avg_dwell_hours,savings_estimate",
+        )
+        .eq("business_id", businessId)
+        .gte("metric_date", since);
+      if (warehouseId && warehouseId !== "all") q = q.eq("warehouse_id", warehouseId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as CrossdockMetrics[];
     },
   });
 }
