@@ -65596,6 +65596,7 @@ export type Database = {
           id: string
           notes: string | null
           organization_id: string
+          physical_count_id: string | null
           posted_at: string | null
           posted_by: string | null
           row_version: number
@@ -65613,6 +65614,7 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id: string
+          physical_count_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
           row_version?: number
@@ -65630,6 +65632,7 @@ export type Database = {
           id?: string
           notes?: string | null
           organization_id?: string
+          physical_count_id?: string | null
           posted_at?: string | null
           posted_by?: string | null
           row_version?: number
@@ -65638,7 +65641,15 @@ export type Database = {
           updated_at?: string
           warehouse_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wms_count_sessions_physical_count_id_fkey"
+            columns: ["physical_count_id"]
+            isOneToOne: false
+            referencedRelation: "physical_counts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       wms_crossdock_opportunities: {
         Row: {
@@ -85849,6 +85860,15 @@ export type Database = {
       }
       physical_count_freeze: {
         Args: { p_count_id: string; p_user_id: string }
+        Returns: Json
+      }
+      physical_count_freeze_scoped: {
+        Args: {
+          p_count_id: string
+          p_line_seed?: Json
+          p_product_ids?: string[]
+          p_user_id: string
+        }
         Returns: Json
       }
       physical_count_post: {
