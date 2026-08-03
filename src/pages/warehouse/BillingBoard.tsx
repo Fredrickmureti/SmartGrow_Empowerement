@@ -1,15 +1,19 @@
 /**
- * 3PL Billing Board — Phase 11.
+ * 3PL Billing Board.
  *
- * Activity-based billing for multi-tenant warehouses:
- *  - `wms_billing_tariffs` — master data (rate per activity per UoM per
- *    client), business-scoped, PostgREST writes gated by inventory:write.
- *  - `wms_billable_activities` — RPC-only ledger populated from
- *    `business_event_outbox` via `capture_billable_activity` /
- *    `capture_pending_billable_activities`.
- *  - `generate_3pl_invoice` — aggregates unbilled activity into a draft
- *    Sales invoice for a client and stamps the invoice link back onto
- *    the captured activity rows.
+ * Phase 1-2 model:
+ *  - `wms_billing_clients` — the spine. One row per warehouse client,
+ *    carrying the AR contact that actually gets invoiced, a short code,
+ *    and the billing currency. Tariffs, activity and invoices all key
+ *    off this row rather than off a sibling business.
+ *  - `wms_billing_tariffs` — rate per (client, activity, uom, date).
+ *    A NULL client is the business-wide default rate.
+ *  - `wms_billable_activities` — RPC-only ledger drained from
+ *    `business_event_outbox` (`capture_pending_billable_activities`)
+ *    plus the time-based `wms_accrue_storage_days` accrual.
+ *  - `generate_3pl_invoice` — aggregates unbilled activity for one
+ *    client into a draft Sales invoice addressed to that client's AR
+ *    contact, numbered through the canonical `generate_invoice_number`.
  */
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -36,8 +40,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, RefreshCw, FileText, CalendarClock } from "lucide-react";
+import { Plus, Trash2, RefreshCw, FileText, CalendarClock, Users } from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { useCurrencies } from "@/hooks/useCurrencies";
 
 const ACTIVITIES = [
   "receive_lpn",
@@ -52,9 +57,18 @@ const ACTIVITIES = [
 ] as const;
 type Activity = (typeof ACTIVITIES)[number];
 
+interface BillingClient {
+  id: string;
+  code: string;
+  name: string | null;
+  contact_id: string;
+  currency: string | null;
+  is_active: boolean;
+}
+
 interface Tariff {
   id: string;
-  client_business_id: string | null;
+  client_id: string | null;
   activity: string;
   uom: string;
   rate: number;
@@ -66,7 +80,7 @@ interface Tariff {
 }
 
 interface Summary {
-  client_business_id: string | null;
+  client_id: string | null;
   activity: string;
   uom: string;
   currency: string | null;
@@ -74,6 +88,7 @@ interface Summary {
   total_quantity: number;
   total_amount: number;
   unbilled_amount: number;
+  unpriced_count: number;
   last_occurred_at: string;
 }
 
@@ -89,17 +104,23 @@ function firstOfMonthIso(): string {
 
 export default function BillingBoard() {
   const qc = useQueryClient();
-  const { currentBusiness, businesses } = useBusinesses();
+  const { currentBusiness } = useBusinesses();
+  const { currencies } = useCurrencies();
 
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tariffOpen, setTariffOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
-  const [accrualDate, setAccrualDate] = useState<string>(
-    () => new Date().toISOString().slice(0, 10),
-  );
+  const [clientOpen, setClientOpen] = useState(false);
+  const [accrualDate, setAccrualDate] = useState<string>(() => todayIso());
+
+  const [clientForm, setClientForm] = useState({
+    contact_id: "",
+    code: "",
+    currency: "",
+  });
 
   const [tariffForm, setTariffForm] = useState({
-    client_business_id: "",
+    client_id: "",
     activity: "pick_line" as Activity,
     uom: "unit",
     rate: 0.5,
@@ -109,9 +130,76 @@ export default function BillingBoard() {
   });
 
   const [invoiceForm, setInvoiceForm] = useState({
-    client_business_id: "",
+    client_id: "",
     period_from: firstOfMonthIso(),
     period_to: todayIso(),
+  });
+
+  // ---------- Billing clients ----------
+  const { data: clients, isLoading: clientsLoading } = useQuery({
+    queryKey: ["wms-billing-clients", currentBusiness?.id],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wms_billing_clients")
+        .select("id,code,name,contact_id,currency,is_active")
+        .eq("business_id", currentBusiness!.id)
+        .order("code");
+      if (error) throw error;
+      return (data ?? []) as BillingClient[];
+    },
+  });
+
+  const { data: contacts } = useQuery({
+    queryKey: ["wms-billing-contact-options", currentBusiness?.id],
+    enabled: !!currentBusiness?.id && clientOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id,name")
+        .eq("business_id", currentBusiness!.id)
+        .order("name")
+        .limit(500);
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  const createClient = useMutation({
+    mutationFn: async () => {
+      if (!currentBusiness?.id) throw new Error("No active business");
+      if (!clientForm.contact_id) throw new Error("Pick the customer to invoice");
+      if (!clientForm.code.trim()) throw new Error("A client code is required");
+      const { error } = await supabase.from("wms_billing_clients").insert({
+        business_id: currentBusiness.id,
+        organization_id: currentBusiness.organization_id ?? null,
+        contact_id: clientForm.contact_id,
+        code: clientForm.code.trim().toUpperCase(),
+        name:
+          contacts?.find((c) => c.id === clientForm.contact_id)?.name ?? null,
+        currency: clientForm.currency || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Billing client added");
+      setClientOpen(false);
+      setClientForm({ contact_id: "", code: "", currency: "" });
+      qc.invalidateQueries({ queryKey: ["wms-billing-clients"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleClient = useMutation({
+    mutationFn: async (row: BillingClient) => {
+      const { error } = await supabase
+        .from("wms_billing_clients")
+        .update({ is_active: !row.is_active })
+        .eq("id", row.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["wms-billing-clients"] }),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   // ---------- Tariffs ----------
@@ -121,7 +209,7 @@ export default function BillingBoard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_billing_tariffs")
-        .select("id,client_business_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes")
+        .select("id,client_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes")
         .eq("business_id", currentBusiness!.id)
         .order("activity");
       if (error) throw error;
@@ -134,7 +222,7 @@ export default function BillingBoard() {
       if (!currentBusiness?.id) throw new Error("No active business");
       const { error } = await supabase.from("wms_billing_tariffs").insert({
         business_id: currentBusiness.id,
-        client_business_id: tariffForm.client_business_id || null,
+        client_id: tariffForm.client_id || null,
         activity: tariffForm.activity,
         uom: tariffForm.uom.trim() || "unit",
         rate: Number(tariffForm.rate),
@@ -184,14 +272,14 @@ export default function BillingBoard() {
     queryFn: async () => {
       let q = supabase
         .from("wms_billable_activities_summary_view")
-        .select("client_business_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,last_occurred_at")
+        .select("client_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,unpriced_count,last_occurred_at")
         .eq("business_id", currentBusiness!.id)
         .order("last_occurred_at", { ascending: false });
       if (clientFilter !== "all") {
         if (clientFilter === "__none__") {
-          q = q.is("client_business_id", null);
+          q = q.is("client_id", null);
         } else {
-          q = q.eq("client_business_id", clientFilter);
+          q = q.eq("client_id", clientFilter);
         }
       }
       const { data, error } = await q;
@@ -218,10 +306,10 @@ export default function BillingBoard() {
   });
 
   /**
-   * Phase 5.4 — storage is time-based, so it can never arrive on the event
-   * outbox. `wms_accrue_storage_days` snapshots occupying license plates for
-   * a given day and writes one `storage_lpn_day` line per warehouse. The RPC
-   * is idempotent, so re-running for the same day is a no-op.
+   * Storage is time-based, so it can never arrive on the event outbox.
+   * `wms_accrue_storage_days` snapshots occupying license plates for a
+   * given day and writes one `storage_lpn_day` line per warehouse. The
+   * RPC is idempotent, so re-running for the same day is a no-op.
    */
   const accrueStorage = useMutation({
     mutationFn: async (asOf: string) => {
@@ -247,10 +335,10 @@ export default function BillingBoard() {
   const generateInvoice = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id) throw new Error("No active business");
-      if (!invoiceForm.client_business_id) throw new Error("Pick a client");
+      if (!invoiceForm.client_id) throw new Error("Pick a client");
       const { data, error } = await supabase.rpc("generate_3pl_invoice", {
         p_business_id: currentBusiness.id,
-        p_client_business_id: invoiceForm.client_business_id,
+        p_client_id: invoiceForm.client_id,
         p_period_from: invoiceForm.period_from,
         p_period_to: invoiceForm.period_to,
       });
@@ -272,26 +360,29 @@ export default function BillingBoard() {
         acc.entries += Number(r.entry_count) || 0;
         acc.billed += Number(r.total_amount) || 0;
         acc.unbilled += Number(r.unbilled_amount) || 0;
+        acc.unpriced += Number(r.unpriced_count) || 0;
         return acc;
       },
-      { entries: 0, billed: 0, unbilled: 0 }
+      { entries: 0, billed: 0, unbilled: 0, unpriced: 0 }
     );
   }, [summary]);
 
-  const clientOptions = useMemo(() => {
-    return (businesses ?? []).filter((b) => b.id !== currentBusiness?.id);
-  }, [businesses, currentBusiness?.id]);
+  const activeClients = useMemo(
+    () => (clients ?? []).filter((c) => c.is_active),
+    [clients],
+  );
 
   const clientLabel = (id: string | null): string => {
     if (!id) return "Default (no client)";
-    return clientOptions.find((c) => c.id === id)?.name ?? `${id.slice(0, 8)}…`;
+    const row = (clients ?? []).find((c) => c.id === id);
+    return row ? `${row.code}${row.name ? ` — ${row.name}` : ""}` : `${id.slice(0, 8)}…`;
   };
 
   return (
     <>
       <PageHeader
         title="3PL activity billing"
-        description="Turn warehouse events into billable 3PL activity. Tariffs, activity ledger, and month-end invoice generation."
+        description="Turn warehouse events into billable 3PL activity. Clients, tariffs, activity ledger, and month-end invoice generation."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={() => captureDrain.mutate()} disabled={captureDrain.isPending}>
@@ -302,7 +393,7 @@ export default function BillingBoard() {
               className="w-40"
               aria-label="Storage accrual date"
               value={accrualDate}
-              max={new Date().toISOString().slice(0, 10)}
+              max={todayIso()}
               onChange={(e) => setAccrualDate(e.target.value)}
             />
             <Button
@@ -314,6 +405,9 @@ export default function BillingBoard() {
             </Button>
             <Button variant="outline" onClick={() => setInvoiceOpen(true)}>
               <FileText className="h-4 w-4 mr-2" /> Generate invoice
+            </Button>
+            <Button variant="outline" onClick={() => setClientOpen(true)}>
+              <Users className="h-4 w-4 mr-2" /> New client
             </Button>
             <Button onClick={() => setTariffOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> New tariff
@@ -330,19 +424,58 @@ export default function BillingBoard() {
               <SelectContent>
                 <SelectItem value="all">All clients</SelectItem>
                 <SelectItem value="__none__">Default (no client)</SelectItem>
-                {clientOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                {activeClients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{clientLabel(c.id)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <KpiCard label="Activity entries" value={String(totals.entries)} />
           <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
           <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
+          <KpiCard label="Unpriced entries" value={String(totals.unpriced)} tone={totals.unpriced > 0 ? "bad" : undefined} />
         </div>
+
+        <Section
+          title="Billing clients"
+          description="Each warehouse client maps to the customer record that receives the invoice."
+        >
+          {clientsLoading ? (
+            <LoadingState />
+          ) : (clients ?? []).length === 0 ? (
+            <EmptyState
+              title="No billing clients yet"
+              description="Add a client and link it to the customer you invoice — activity cannot be priced or billed without one."
+              action={<Button onClick={() => setClientOpen(true)}><Users className="h-4 w-4 mr-2" />New client</Button>}
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Currency</TableHead>
+                  <TableHead>Active</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(clients ?? []).map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                    <TableCell>{c.name ?? "—"}</TableCell>
+                    <TableCell>{c.currency ?? "Business default"}</TableCell>
+                    <TableCell>
+                      <Switch checked={c.is_active} onCheckedChange={() => toggleClient.mutate(c)} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
 
         <Section title="Activity ledger" description="Rolling summary from wms_billable_activities_summary_view.">
           {summaryLoading ? (
@@ -363,19 +496,21 @@ export default function BillingBoard() {
                   <TableHead className="text-right">Quantity</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Unbilled</TableHead>
+                  <TableHead className="text-right">Unpriced</TableHead>
                   <TableHead>Currency</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(summary ?? []).map((r, i) => (
-                  <TableRow key={`${r.client_business_id ?? "none"}-${r.activity}-${r.uom}-${i}`}>
-                    <TableCell>{clientLabel(r.client_business_id)}</TableCell>
+                  <TableRow key={`${r.client_id ?? "none"}-${r.activity}-${r.uom}-${i}`}>
+                    <TableCell>{clientLabel(r.client_id)}</TableCell>
                     <TableCell className="font-mono text-xs">{r.activity}</TableCell>
                     <TableCell>{r.uom}</TableCell>
                     <TableCell className="text-right">{r.entry_count}</TableCell>
                     <TableCell className="text-right">{Number(r.total_quantity).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.total_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.unbilled_amount).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{r.unpriced_count}</TableCell>
                     <TableCell>{r.currency ?? "—"}</TableCell>
                   </TableRow>
                 ))}
@@ -410,7 +545,7 @@ export default function BillingBoard() {
               <TableBody>
                 {(tariffs ?? []).map((t) => (
                   <TableRow key={t.id}>
-                    <TableCell>{clientLabel(t.client_business_id)}</TableCell>
+                    <TableCell>{clientLabel(t.client_id)}</TableCell>
                     <TableCell className="font-mono text-xs">{t.activity}</TableCell>
                     <TableCell>{t.uom}</TableCell>
                     <TableCell className="text-right">{Number(t.rate).toFixed(4)}</TableCell>
@@ -437,6 +572,60 @@ export default function BillingBoard() {
         </Section>
       </PageBody>
 
+      {/* Billing client dialog */}
+      <Dialog open={clientOpen} onOpenChange={setClientOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>New billing client</DialogTitle></DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div>
+              <Label>Customer to invoice</Label>
+              <Select
+                value={clientForm.contact_id}
+                onValueChange={(v) => setClientForm((f) => ({ ...f, contact_id: v }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Pick a customer" /></SelectTrigger>
+                <SelectContent>
+                  {(contacts ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Client code</Label>
+                <Input
+                  value={clientForm.code}
+                  placeholder="ACME"
+                  onChange={(e) => setClientForm((f) => ({ ...f, code: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Billing currency (optional)</Label>
+                <Select
+                  value={clientForm.currency || "__default__"}
+                  onValueChange={(v) => setClientForm((f) => ({ ...f, currency: v === "__default__" ? "" : v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">Business default</SelectItem>
+                    {(currencies ?? []).map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClientOpen(false)}>Cancel</Button>
+            <Button onClick={() => createClient.mutate()} disabled={createClient.isPending}>
+              Save client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Tariff dialog */}
       <Dialog open={tariffOpen} onOpenChange={setTariffOpen}>
         <DialogContent>
@@ -445,14 +634,14 @@ export default function BillingBoard() {
             <div>
               <Label>Client (leave blank for default)</Label>
               <Select
-                value={tariffForm.client_business_id || "__none__"}
-                onValueChange={(v) => setTariffForm((f) => ({ ...f, client_business_id: v === "__none__" ? "" : v }))}
+                value={tariffForm.client_id || "__none__"}
+                onValueChange={(v) => setTariffForm((f) => ({ ...f, client_id: v === "__none__" ? "" : v }))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Default (no client)</SelectItem>
-                  {clientOptions.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  {activeClients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{clientLabel(c.id)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -535,13 +724,13 @@ export default function BillingBoard() {
             <div>
               <Label>Client</Label>
               <Select
-                value={invoiceForm.client_business_id}
-                onValueChange={(v) => setInvoiceForm((f) => ({ ...f, client_business_id: v }))}
+                value={invoiceForm.client_id}
+                onValueChange={(v) => setInvoiceForm((f) => ({ ...f, client_id: v }))}
               >
                 <SelectTrigger><SelectValue placeholder="Pick a client" /></SelectTrigger>
                 <SelectContent>
-                  {clientOptions.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  {activeClients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{clientLabel(c.id)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -569,7 +758,7 @@ export default function BillingBoard() {
             <Button variant="outline" onClick={() => setInvoiceOpen(false)}>Cancel</Button>
             <Button
               onClick={() => generateInvoice.mutate()}
-              disabled={generateInvoice.isPending || !invoiceForm.client_business_id}
+              disabled={generateInvoice.isPending || !invoiceForm.client_id}
             >
               Generate draft
             </Button>

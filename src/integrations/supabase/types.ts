@@ -65521,6 +65521,7 @@ export type Database = {
           amount: number | null
           business_id: string
           client_business_id: string | null
+          client_id: string | null
           created_at: string
           currency: string | null
           id: string
@@ -65540,6 +65541,7 @@ export type Database = {
           amount?: number | null
           business_id: string
           client_business_id?: string | null
+          client_id?: string | null
           created_at?: string
           currency?: string | null
           id?: string
@@ -65559,6 +65561,7 @@ export type Database = {
           amount?: number | null
           business_id?: string
           client_business_id?: string | null
+          client_id?: string | null
           created_at?: string
           currency?: string | null
           id?: string
@@ -65596,6 +65599,13 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "wms_billable_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "wms_billable_activities_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -65618,11 +65628,89 @@ export type Database = {
           },
         ]
       }
+      wms_billing_clients: {
+        Row: {
+          business_id: string
+          client_business_id: string | null
+          code: string
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          id: string
+          is_active: boolean
+          name: string | null
+          notes: string | null
+          organization_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          client_business_id?: string | null
+          code: string
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          client_business_id?: string | null
+          code?: string
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_billing_clients_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billing_clients_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billing_clients_client_business_id_fkey"
+            columns: ["client_business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billing_clients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_billing_tariffs: {
         Row: {
           activity: string
           business_id: string
           client_business_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           currency: string
@@ -65639,6 +65727,7 @@ export type Database = {
           activity: string
           business_id: string
           client_business_id?: string | null
+          client_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -65655,6 +65744,7 @@ export type Database = {
           activity?: string
           business_id?: string
           client_business_id?: string | null
+          client_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -65688,6 +65778,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billing_tariffs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -66799,6 +66896,7 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -66819,6 +66917,7 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           business_id: string
+          client_id?: string | null
           code: string
           correlation_id?: string | null
           created_at?: string
@@ -66839,6 +66938,7 @@ export type Database = {
         Update: {
           branch_id?: string | null
           business_id?: string
+          client_id?: string | null
           code?: string
           correlation_id?: string | null
           created_at?: string
@@ -66857,6 +66957,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_license_plates_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_license_plates_current_location_id_fkey"
             columns: ["current_location_id"]
@@ -66908,6 +67015,7 @@ export type Database = {
           business_id: string
           carrier_id: string | null
           carrier_service_id: string | null
+          client_id: string | null
           closed_at: string | null
           closed_by: string | null
           code: string
@@ -66935,6 +67043,7 @@ export type Database = {
           business_id: string
           carrier_id?: string | null
           carrier_service_id?: string | null
+          client_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           code: string
@@ -66962,6 +67071,7 @@ export type Database = {
           business_id?: string
           carrier_id?: string | null
           carrier_service_id?: string | null
+          client_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           code?: string
@@ -66996,6 +67106,13 @@ export type Database = {
             columns: ["carrier_service_id"]
             isOneToOne: false
             referencedRelation: "carrier_services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
             referencedColumns: ["id"]
           },
           {
@@ -68545,6 +68662,7 @@ export type Database = {
           appointment_id: string | null
           branch_id: string | null
           business_id: string
+          client_id: string | null
           closed_at: string | null
           code: string
           created_at: string
@@ -68566,6 +68684,7 @@ export type Database = {
           appointment_id?: string | null
           branch_id?: string | null
           business_id: string
+          client_id?: string | null
           closed_at?: string | null
           code: string
           created_at?: string
@@ -68587,6 +68706,7 @@ export type Database = {
           appointment_id?: string | null
           branch_id?: string | null
           business_id?: string
+          client_id?: string | null
           closed_at?: string | null
           code?: string
           created_at?: string
@@ -68605,6 +68725,13 @@ export type Database = {
           warehouse_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_receiving_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_receiving_sessions_dock_id_fkey"
             columns: ["dock_id"]
@@ -69991,6 +70118,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -70020,6 +70148,7 @@ export type Database = {
           branch_id?: string | null
           business_id: string
           carrier_id?: string | null
+          client_id?: string | null
           created_at?: string
           created_by?: string | null
           departed_at?: string | null
@@ -70049,6 +70178,7 @@ export type Database = {
           branch_id?: string | null
           business_id?: string
           carrier_id?: string | null
+          client_id?: string | null
           created_at?: string
           created_by?: string | null
           departed_at?: string | null
@@ -70085,6 +70215,13 @@ export type Database = {
             columns: ["carrier_id"]
             isOneToOne: false
             referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_trailer_visits_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
             referencedColumns: ["id"]
           },
           {
@@ -77549,13 +77686,14 @@ export type Database = {
           activity: string | null
           business_id: string | null
           client_business_id: string | null
+          client_id: string | null
           currency: string | null
           entry_count: number | null
-          first_occurred_at: string | null
           last_occurred_at: string | null
           total_amount: number | null
           total_quantity: number | null
           unbilled_amount: number | null
+          unpriced_count: number | null
           uom: string | null
         }
         Relationships: [
@@ -77579,6 +77717,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billing_clients"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -78626,6 +78771,10 @@ export type Database = {
         }
         Returns: number
       }
+      _wms_resolve_client_id: {
+        Args: { _aggregate_id: string; _business_id: string; _payload: Json }
+        Returns: string
+      }
       _wms_resolve_trailer: {
         Args: {
           p_business_id: string
@@ -79601,6 +79750,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -79912,6 +80062,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -80589,6 +80740,7 @@ export type Database = {
           amount: number | null
           business_id: string
           client_business_id: string | null
+          client_id: string | null
           created_at: string
           currency: string | null
           id: string
@@ -80714,6 +80866,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -81324,6 +81477,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -81849,6 +82003,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -83667,6 +83822,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -83705,6 +83861,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -83742,9 +83899,9 @@ export type Database = {
       }
       generate_3pl_invoice: {
         Args: {
+          p_branch_id?: string
           p_business_id: string
-          p_client_business_id: string
-          p_contact_id?: string
+          p_client_id: string
           p_currency?: string
           p_period_from: string
           p_period_to: string
@@ -85635,6 +85792,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -89241,6 +89399,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -89279,6 +89438,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          client_id: string | null
           created_at: string
           created_by: string | null
           departed_at: string | null
@@ -92131,6 +92291,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92166,6 +92327,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92195,6 +92357,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92229,6 +92392,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92258,6 +92422,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92292,6 +92457,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92321,6 +92487,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92350,6 +92517,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92383,6 +92551,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92416,6 +92585,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92456,6 +92626,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -92485,6 +92656,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
@@ -93112,6 +93284,7 @@ export type Database = {
         Returns: {
           branch_id: string | null
           business_id: string
+          client_id: string | null
           code: string
           correlation_id: string | null
           created_at: string
