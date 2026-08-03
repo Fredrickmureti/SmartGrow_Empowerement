@@ -280,8 +280,13 @@ export default function CountSession() {
                         >
                           <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
                           <td className="p-2">
-                            {l.product_name ?? l.product_id}
-                            <span className="text-muted-foreground text-xs"> · {l.product_sku ?? ""}</span>
+                            <span className={l.product_name ? undefined : "text-muted-foreground italic"}>
+                              {countLineProductLabel(l)}
+                            </span>
+                            {countLineProductSubLabel(l) && (
+                              <span className="text-muted-foreground text-xs"> · {countLineProductSubLabel(l)}</span>
+                            )}
+
                             {(l.recount_round ?? 0) > 0 && (
                               <span className="ml-2 text-xs text-muted-foreground">recount #{l.recount_round}</span>
                             )}
