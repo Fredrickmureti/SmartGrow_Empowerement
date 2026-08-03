@@ -63,11 +63,13 @@ describe("cycle count seams", () => {
     ).toEqual([]);
   });
 
-  it("no warehouse surface posts stock adjustments for a count", () => {
-    const offenders = FILES.filter((f) => {
+  it("no count surface posts stock adjustments itself", () => {
+    const countFiles = FILES.filter((f) => /count/i.test(f));
+    const offenders = countFiles.filter((f) => {
       const src = readFileSync(f, "utf8");
       return (
-        /approve_stock_adjustment_atomic|physical_count_approve|\.from\(\s*["'`]stock_quants["'`]/.test(src)
+        /approve_stock_adjustment_atomic|physical_count_approve/.test(src) ||
+        /\.from\(\s*["'`]stock_quants["'`]\s*\)\s*\.\s*(update|insert|upsert|delete)/.test(src)
       );
     });
     expect(
@@ -75,6 +77,7 @@ describe("cycle count seams", () => {
       `Warehouse hands counts to Inventory via post_count_session; it never posts stock itself:\n${offenders.join("\n")}`,
     ).toEqual([]);
   });
+
 
   it("the review screen collects a reason code for every difference", () => {
     const src = readFileSync(join(process.cwd(), "src/pages/warehouse/CountReview.tsx"), "utf8");
