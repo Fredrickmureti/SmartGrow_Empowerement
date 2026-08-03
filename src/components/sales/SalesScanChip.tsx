@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useSalesScanMode } from "@/contexts/SalesScanContext";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useToast } from "@/hooks/use-toast";
 
 const HINT_KEY = "sales.scan.rapid.hint.seen";
@@ -24,6 +25,7 @@ const HINT_KEY = "sales.scan.rapid.hint.seen";
 export function SalesScanChip() {
   const { mode, setMode, available } = useSalesScanMode();
   const scanner = useWorkspaceScanner();
+  const { handheld } = useLocalScan();
   const { toast } = useToast();
   const [pulse, setPulse] = useState(false);
   const lastModeRef = useRef(mode);
@@ -54,7 +56,11 @@ export function SalesScanChip() {
     }
   }, [mode, setMode, toast]);
 
-  if (!available) return null;
+  // Rapid/Browse only means something when an unattended stream (wedge gun or
+  // paired companion phone) can fire with no dialog open. On a handheld the
+  // operator opens the camera deliberately — the chip would only be an overlay
+  // colliding with the page's primary action.
+  if (!available || handheld) return null;
 
   const isRapid = mode === "rapid";
   const paired = scanner.isPaired;

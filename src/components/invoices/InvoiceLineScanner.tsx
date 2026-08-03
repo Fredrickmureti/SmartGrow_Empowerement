@@ -32,8 +32,10 @@ import {
   type BarcodeInputFieldHandle,
 } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useResolveBarcode, type ResolvedScan } from "@/hooks/scanner";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useSalesScanController } from "@/contexts/SalesScanContext";
 
 interface Props {
@@ -57,6 +59,7 @@ export function InvoiceLineScanner({
   disabled,
 }: Props) {
   const { resolveTagged } = useResolveBarcode(businessId, branchId);
+  const { handheld } = useLocalScan();
   const inputRef = useRef<BarcodeInputFieldHandle | null>(null);
   const [scanCode, setScanCode] = useState("");
   const [resolving, setResolving] = useState(false);
@@ -178,14 +181,29 @@ export function InvoiceLineScanner({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-medium text-muted-foreground">
-          Scan to add a line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · scanning works even when this input is not focused
+          {handheld
+            ? "Tap scan to use this phone's camera, or type a code below"
+            : <>Scan to add a line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · scanning works even when this input is not focused</>}
         </div>
-        <ScannerPairingButton
-          businessId={businessId}
-          branchId={branchId}
-          label="Invoice"
-        />
+        {!handheld && (
+          <ScannerPairingButton
+            businessId={businessId}
+            branchId={branchId}
+            label="Invoice"
+          />
+        )}
       </div>
+      {handheld && (
+        <div className="flex items-center gap-2">
+          <ScanCameraButton
+            withText
+            continuous
+            label="Scan product"
+            disabled={disabled}
+            className="flex-1 h-11"
+          />
+        </div>
+      )}
       <BarcodeInputField
         ref={inputRef}
         value={scanCode}
@@ -198,7 +216,11 @@ export function InvoiceLineScanner({
         allowRepeats
         workflow="quantity"
         fieldLabel="Invoice line"
-        placeholder="Scan a product barcode — same code repeats = qty +1"
+        placeholder={
+          handheld
+            ? "Or type a barcode / SKU"
+            : "Scan a product barcode — same code repeats = qty +1"
+        }
         disabled={disabled}
       />
       <div className="flex items-center gap-2 text-xs min-h-[1.25rem]">
