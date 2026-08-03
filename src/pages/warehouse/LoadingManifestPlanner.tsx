@@ -111,7 +111,9 @@ export default function LoadingManifestPlanner() {
         p_dock_id: dockId,
         p_carrier_id: carrierId || null,
         p_planned_departure_at: plannedAt ? new Date(plannedAt).toISOString() : null,
-        p_appointment_id: appointmentId || undefined,
+        // Always send the argument: the legacy 3-arg overload was removed in
+        // Phase A, so omitting it would leave no matching function signature.
+        p_appointment_id: appointmentId || null,
       });
       if (error) throw error;
       return data as string;
