@@ -151,6 +151,50 @@ export interface YardMoveTaskRow {
   } | null;
 }
 
+/**
+ * What is physically on a trailer, and whether the warehouse is done with
+ * it (ADR 0086 Phase 7). Sourced from the read-only
+ * `wms_trailer_visit_load_summary` view so the yard never has to guess a
+ * readiness signal from dwell time alone.
+ */
+export interface TrailerLoadSummaryRow {
+  trailer_visit_id: string;
+  warehouse_id: string | null;
+  manifest_count: number;
+  open_manifest_count: number;
+  carton_count: number;
+  earliest_planned_departure_at: string | null;
+  receiving_session_count: number;
+  open_receiving_count: number;
+  expected_qty: number;
+  received_qty: number;
+  damaged_qty: number;
+  readiness: "receiving" | "loading" | "ready" | "empty";
+}
+
+export const LOAD_READINESS_LABEL: Record<TrailerLoadSummaryRow["readiness"], string> = {
+  receiving: "Unloading in progress",
+  loading: "Loading in progress",
+  ready: "Work complete — clear to depart",
+  empty: "No warehouse work linked",
+};
+
+export const LOAD_READINESS_TONE: Record<
+  TrailerLoadSummaryRow["readiness"],
+  "info" | "warning" | "success" | "neutral"
+> = {
+  receiving: "info",
+  loading: "warning",
+  ready: "success",
+  empty: "neutral",
+};
+
+/** Receiving completion, 0–100, or null when nothing is expected. */
+export function receivingProgressPct(row: TrailerLoadSummaryRow): number | null {
+  if (!row.expected_qty || Number(row.expected_qty) <= 0) return null;
+  return Math.min(100, Math.round((Number(row.received_qty) / Number(row.expected_qty)) * 100));
+}
+
 export interface GateEventRow {
   id: string;
   event_type: string;

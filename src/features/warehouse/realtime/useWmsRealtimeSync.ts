@@ -57,6 +57,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   ],
   wms_receiving_sessions: [
     ["wms-receiving-sessions"],
+    // ADR 0086 Phase 7 — receiving progress drives yard load readiness.
+    ["wms-trailer-load-summary"],
   ],
   wms_return_orders: [
     ["wms-return-orders"],

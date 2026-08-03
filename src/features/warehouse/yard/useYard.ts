@@ -24,6 +24,7 @@ import type {
   VisitRow,
   YardMoveRow,
   YardMoveTaskRow,
+  TrailerLoadSummaryRow,
   YardSlotRow,
 } from "./yardModel";
 
@@ -673,5 +674,34 @@ export function useCancelYardMove() {
       toast.success("Yard move cancelled");
     },
     onError: (e) => toast.error("Could not cancel the move", { description: rpcError(e) }),
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Trailer contents & load readiness (ADR 0086 Phase 7)                */
+/*                                                                     */
+/* A yard is only useful if it knows what is inside the box. The       */
+/* `wms_trailer_visit_load_summary` view joins outbound manifests and  */
+/* inbound receiving progress onto the visit so the control tower can  */
+/* show a real readiness signal instead of inferring one from dwell.   */
+/* ------------------------------------------------------------------ */
+
+export function useTrailerLoadSummaries(warehouseId: string | null) {
+  const { currentBusiness } = useBusinesses();
+  return useQuery({
+    queryKey: ["wms-trailer-load-summary", currentBusiness?.id, warehouseId],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from("wms_trailer_visit_load_summary")
+        .select("*")
+        .eq("business_id", currentBusiness!.id)
+        .limit(500);
+      if (warehouseId) q = q.eq("warehouse_id", warehouseId);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as TrailerLoadSummaryRow[];
+      return new Map(rows.map((r) => [r.trailer_visit_id, r]));
+    },
   });
 }
