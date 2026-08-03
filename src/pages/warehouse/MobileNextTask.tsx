@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader, PageBody } from "@/design-system";
 import { Loader2, PackageCheck, Play } from "lucide-react";
 import { useWarehouses } from "@/hooks/useWarehouses";
+import { supabase } from "@/integrations/supabase/client";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import type { WmsTaskType } from "@/features/warehouse/events/topics";
 
@@ -31,14 +32,14 @@ const STORAGE_KEY = "wms.mobile.next.warehouseId";
 // Route each task_type to its capture surface. Keep in one map so a new
 // task type only needs one edit.
 const CAPTURE_ROUTES: Record<string, string> = {
-  pick: "/warehouse/tasks",
-  pack: "/warehouse/tasks",
-  putaway: "/warehouse/putaway",
-  replenish: "/warehouse/tasks",
-  count: "/warehouse/counts",
-  qc: "/warehouse/qc",
-  move: "/warehouse/tasks",
-  load: "/warehouse/dispatch",
+  pick: "/warehouse-app/tasks",
+  pack: "/warehouse-app/tasks",
+  putaway: "/warehouse-app/putaway",
+  replenish: "/warehouse-app/tasks",
+  count: "/warehouse-app/counts",
+  qc: "/warehouse-app/qc",
+  move: "/warehouse-app/tasks",
+  load: "/warehouse-app/dispatch",
 };
 
 function routeForTaskType(taskType: string | null | undefined): string {
@@ -70,14 +71,21 @@ export default function MobileNextTask() {
   async function handleClaim() {
     if (!warehouseId) return;
     const res = await claimNext.mutateAsync({ warehouseId });
-    if (res?.task_id) {
-      // Fetch the task_type minimally via a follow-up read on the queue
-      // view isn't necessary — the RPC returns the full row. But the
-      // hook currently returns only id+row_version. To keep this change
-      // small we route to the generic task screen with the task id and
-      // let it dispatch. Deep-linking with task_type is a follow-up.
-      navigate(`/warehouse/tasks?claimed=${encodeURIComponent(res.task_id)}`);
+    if (!res?.task_id) return;
+
+    // Count work deep-links to its session: the operator lands on the bin
+    // they claimed rather than a generic queue. The target is resolved by
+    // an RPC so blind counting is never defeated by a table read.
+    const { data } = await supabase.rpc("get_count_task_target" as never, {
+      p_task_id: res.task_id,
+    } as never);
+    const target = data as { session_id?: string | null } | null;
+    if (target?.session_id) {
+      navigate(`/warehouse-app/counts/${target.session_id}`);
+      return;
     }
+
+    navigate(`/warehouse-app/tasks?claimed=${encodeURIComponent(res.task_id)}`);
   }
 
   return (

@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 
 interface Session {
   id: string;
@@ -40,9 +40,14 @@ export default function CycleCounts() {
         title="Cycle counts"
         description="Scan-first inventory counts. Variances post through the inventory adjustment RPC — Warehouse never edits stock directly."
         actions={
-          <Button asChild>
-            <Link to="/warehouse-app/counts/new"><Plus className="h-4 w-4 mr-2" /> New session</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/warehouse-app/counts/automation"><Zap className="h-4 w-4 mr-2" /> Automation</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/warehouse-app/counts/new"><Plus className="h-4 w-4 mr-2" /> New session</Link>
+            </Button>
+          </div>
         }
       />
       <PageBody>

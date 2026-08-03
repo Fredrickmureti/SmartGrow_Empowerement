@@ -99,3 +99,16 @@ the Inventory module (`docs/audit/inventory-verdict.md`).
 - `src/test/architecture/cycle-count-integrity.test.ts` — pins the read
   seam, the no-direct-write rule, the reason-code gate and blind-mode
   handling on both the desktop and mobile counting screens.
+
+## Addendum (Phase 7) — count work closes on evidence
+
+Queued count tasks are closed by the database, not by the UI:
+`sync_count_task_for_line` advances a bin's task to `in_progress` on first
+capture and `done` once every line in that bin is counted, and
+`close_count_tasks_on_session_state` closes (or cancels) whatever remains
+when the session is posted or cancelled. Operators therefore cannot mark
+count work complete without counting it, and no session leaves orphaned
+work in the queue. `get_count_task_target` resolves a claimed task to its
+session and bin for deep-linking without exposing `wms_count_lines`, so
+the blind-count seam is preserved. Event-trigger rules
+(`wms_count_triggers`) are maintained at `/warehouse-app/counts/automation`.
