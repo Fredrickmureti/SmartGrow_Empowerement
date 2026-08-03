@@ -185,9 +185,9 @@ export default function WorkspaceSettings() {
   return (
     <PlatformAppLayout>
       <div className="space-y-6 sm:space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col @2xl/page:flex-row @2xl/page:items-end @2xl/page:justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="page-title">Workspace settings</h1>
               <ScopeChip scope="workspace" />
             </div>
@@ -200,17 +200,17 @@ export default function WorkspaceSettings() {
               admin surfaces from a settings page that legitimately lets them
               edit their own profile / notifications. */}
           {!isPortalUser && (
-            <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-2 w-full sm:w-auto sm:shrink-0">
-              <Button asChild variant="outline" size="sm" className="w-full xs:w-auto justify-center">
+            <div className="flex flex-wrap items-center gap-2 w-full @2xl/page:w-auto min-w-0">
+              <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
                 <Link to="/settings/apps">
-                  <AppWindow className="h-4 w-4 mr-1.5" />
+                  <AppWindow className="h-4 w-4 mr-1.5 shrink-0" />
                   <span className="truncate">Apps & Subscriptions</span>
                   <ArrowRight className="h-3 w-3 ml-1 shrink-0" />
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="w-full xs:w-auto justify-center">
+              <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
                 <Link to="/settings/company">
-                  <Building2 className="h-4 w-4 mr-1.5" />
+                  <Building2 className="h-4 w-4 mr-1.5 shrink-0" />
                   <span className="truncate">Company settings</span>
                   <ArrowRight className="h-3 w-3 ml-1 shrink-0" />
                 </Link>
@@ -218,6 +218,7 @@ export default function WorkspaceSettings() {
             </div>
           )}
         </div>
+
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 sm:space-y-6">
           <div className="-mx-3 sm:mx-0 px-3 sm:px-0 overflow-x-auto scrollbar-hide">
