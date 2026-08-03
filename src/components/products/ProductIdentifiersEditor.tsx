@@ -28,6 +28,7 @@ import { BarcodeInputField, type BarcodeInputFieldHandle } from "@/components/sc
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
 import { scanFeedbackBus } from "@/services/scanner";
+import { useCameraDecoder } from "@/services/scanner/camera/useCameraDecoder";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -395,27 +396,9 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     };
 
     // ---------- Camera scan-to-add ----------
-    const stopCamera = useCallback(() => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      if (zxingRef.current) {
-        try {
-          zxingRef.current.stop();
-        } catch {
-          /* ignore */
-        }
-        zxingRef.current = null;
-      }
-      if (streamRef.current) {
-        for (const t of streamRef.current.getTracks()) t.stop();
-        streamRef.current = null;
-      }
-    }, []);
-
-    useEffect(() => stopCamera, [stopCamera]);
-
+    // The engine ladder (BarcodeDetector → ZXing), stream lifecycle, torch and
+    // repeat-dedupe live once in `useCameraDecoder` — see
+    // src/test/architecture/scanner-single-camera-engine.test.ts.
     const handleDecoded = useCallback(
       (code: string) => {
         const norm = code.trim();
@@ -428,77 +411,16 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         addRow(norm, "gtin");
         toast({ title: "Barcode added", description: norm });
         setScanOpen(false);
-        stopCamera();
       },
-      [rows, stopCamera],
+      [rows],
     );
 
-    const startCamera = useCallback(async () => {
-      setScanError(null);
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
-          audio: false,
-        });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => undefined);
-        }
-
-        const BD = (window as any).BarcodeDetector;
-        if (BD) {
-          let detector: any;
-          try {
-            const formats = await BD.getSupportedFormats();
-            detector = new BD({
-              formats: formats.length
-                ? formats
-                : ["ean_13", "ean_8", "code_128", "code_39", "qr_code", "upc_a", "upc_e", "itf"],
-            });
-          } catch {
-            detector = new BD();
-          }
-          const tick = async () => {
-            if (!videoRef.current) return;
-            try {
-              const results = await detector.detect(videoRef.current);
-              if (results && results.length > 0 && results[0].rawValue) {
-                handleDecoded(results[0].rawValue);
-                return;
-              }
-            } catch {
-              /* frame may not be ready */
-            }
-            rafRef.current = requestAnimationFrame(tick);
-          };
-          rafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-
-        // ZXing fallback
-        const mod: any = await import("@zxing/browser" as any).catch(() => null);
-        if (!mod) {
-          setScanError("Barcode scanning is not supported in this browser.");
-          return;
-        }
-        const reader = new mod.BrowserMultiFormatReader();
-        const controls = await reader.decodeFromStream(stream, videoRef.current!, (result: any) => {
-          if (result) handleDecoded(result.getText());
-        });
-        zxingRef.current = controls as unknown as { stop: () => void };
-      } catch (err: any) {
-        setScanError(err?.message || "Camera permission denied.");
-      }
-    }, [handleDecoded]);
-
-    useEffect(() => {
-      if (scanOpen) {
-        void startCamera();
-      } else {
-        stopCamera();
-      }
-    }, [scanOpen, startCamera, stopCamera]);
+    const { error: scanError, torchAvailable, torchOn, toggleTorch } = useCameraDecoder({
+      enabled: scanOpen,
+      videoRef,
+      onDecode: handleDecoded,
+      stopOnFirst: true,
+    });
 
     return (
       <div className="space-y-2">
@@ -565,6 +487,13 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
               playsInline
               muted
             />
+            {torchAvailable && (
+              <div className="flex justify-end p-1">
+                <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[11px] text-white" onClick={toggleTorch}>
+                  {torchOn ? "Torch off" : "Torch on"}
+                </Button>
+              </div>
+            )}
             {scanError && (
               <Alert variant="destructive" className="rounded-none border-0">
                 <AlertTriangle className="h-4 w-4" />
