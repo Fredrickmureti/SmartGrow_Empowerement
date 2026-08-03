@@ -1,66 +1,51 @@
-# Cross-Dock — architecture audit verdict and enterprise redesign
+# Cross-Dock — verification verdict and remaining phases
 
-## 1. What cross-docking actually is
+## 1. Verification of the previous engineer's claims
 
-Cross-docking is a flow-through discipline, not a storage activity. Goods arriving at an inbound door are matched against demand that already exists (a sales order, a store replenishment, a branch transfer, a production order), and move directly from the receiving dock to an outbound staging lane and onto a departing trailer — never entering reserve storage.
+Checked directly against the database and the code, not the notes.
 
-It exists to remove the four most expensive touches in a DC: put-away travel, storage occupancy, replenishment, and pick travel. It pays off for high-velocity, pre-allocated, short-shelf-life or retail-distribution flows. It must NOT be used when goods need QC quarantine, when demand is speculative, when the outbound departure is far away (goods would sit in a staging lane, which is worse than a bin), when batch/serial or cold-chain constraints demand controlled handling, or when partial quantities would break a ship-complete commitment.
+**Genuinely done (Phases 1–3):**
+- FSM is real. `wms_crossdock_state` lifecycle columns all exist on `wms_crossdock_opportunities` (`state`, `demand_type`, `demand_doc_id`, `demand_line_id`, `score`, `rule_id`, `qualified_at`, `reject_reason`, `break_reason`, `expires_at`, `staging_location_id`, `outbound_dock_id`, `appointment_id`, `assigned_user_id`, `load_task_id`, `manifest_id`, `savings_estimate`, `row_version`).
+- `wms_crossdock_rules` and append-only `wms_crossdock_history` exist, with immutability and history triggers plus a legacy `status` mirror trigger, so old consumers still work.
+- Qualification engine `_wms_crossdock_detect` plus `_wms_crossdock_resolve_rule`, `_wms_crossdock_staging_location`, `_wms_crossdock_guard` exist.
+- Orchestration RPCs all exist: `wms_crossdock_approve/_reject/_start_staging/_confirm_staged/_mark_loaded/_complete/_break`, each taking `p_row_version`.
+- `wms_crossdock_sweep_expired` exists and is scheduled hourly on pg_cron.
+- Client wrapper `src/features/warehouse/crossdock/useCrossdock.ts` exists; `CrossdockBoard` is lane-based and calls no RPC directly; guards in `wms-phase12.test.ts` cover RPC-only writes and the wrapper's FSM coverage. ADR 0107 is written.
 
-The decision is time-boxed: an opportunity is only valid inside the window between receipt completion and the carrier cut-off. That single fact is what makes cross-dock an engine, not a list.
+**Claims that do not hold / work still open:**
+- **Phase 4 (exception handling) was never started.** No trigger, saga subscriber or subscription breaks an opportunity when the sales order is cancelled, the receipt is short, QC later fails, the appointment is cancelled or the dock is pulled. `wms_crossdock_break` exists but nothing calls it automatically.
+- **Requalification sweep missing.** Only expiry is swept. Scores are never recomputed and vanished demand is never detected.
+- **Phase 5 is half done.** The board still polls every 15 s (`refetchInterval: 15_000`) — no Realtime; `wms_crossdock_opportunities` is not in the `supabase_realtime` publication. The query selects raw IDs only, so the supervisor sees UUIDs instead of product, customer, order number, dock and operator. There is no rules editor and no bulk approve.
+- **Phase 6 not started.** No `wms_crossdock_metrics_view`, no KPI surface, no routing/stage label request through the document platform (zero cross-dock references in `src/services/printing`).
+- **Detection still narrower than planned.** Sales orders and transfers only — replenishment and production demand are not detected.
+- **Phase 7 partial.** `crossdock-orchestration.test.ts` does not exist; topic/state parity and "no direct update" checks beyond the existing two are missing.
 
-## 2. Verified current state
+Verdict: the engine core is real and correctly bounded (cross-dock writes no stock). What is missing is everything that makes it *react* and everything that makes it *readable*.
 
-Confirmed by reading the database and the code:
+## 2. Remaining work
 
-- One table, `wms_crossdock_opportunities`: grn/receiving line, product, quantity, one sales order + item, `status` (`open|staged|cancelled`), `stage_task_id`, timestamps, `cancel_reason`. No rules table, no scoring, no dock/carrier/appointment column, no cut-off time, no lifecycle beyond three states.
-- Two detectors: `evaluate_crossdock_on_grn` (trigger on GRN completion) and `evaluate_crossdock_on_receiving_line` (called from `BusinessSagaMount` off `warehouse.receiving.line_captured`). Both match the single oldest open sales order line for the product, FIFO, and stop. No transfer orders, no replenishment, no manufacturing demand, no split across orders, no capping of quantity to outstanding demand.
-- Qualification is hardcoded to exactly one rule: skip lines with an open QC inspection. Shelf life, batch, hazmat, cold chain, customer priority, dock availability and carrier departure are consulted nowhere.
-- `confirm_crossdock_stage` only flips `status='staged'` and emits an event. It moves no stock, reserves nothing against the sales order, allocates no staging location, reserves no outbound dock, creates no load task.
-- Task generation exists only in the receiving-line path (one `pack` task, priority 150, no source or destination location). The GRN path creates no task at all — the two detectors are not equivalent.
-- Three topics only: `warehouse.crossdock.matched|staged|cancelled`. No `qualified`, `rejected`, `expired`, `loaded`, `completed`, `broken`.
-- No reaction to downstream reality: if the sales order is cancelled, the quantity is short-received, QC later fails, the appointment is missed or the dock is pulled, the opportunity stays `open` forever. Nothing expires it.
-- UI is a filtered table with a 15-second poll and three count badges. It shows raw UUID prefixes for product and sales order; no urgency, countdown, dock, operator, savings or exception surface. It calls `supabase.rpc` directly from the page, violating `docs/architecture/WMS_MODULE_OWNERSHIP.md` §1 (pages never call RPCs; `aggregates/crossdock/*` owns them). That directory does not exist.
-- No realtime subscription, no printing, no hardware/RF surface, no KPIs.
+**Phase 4 — Exception handling (highest value).**
+Break or re-qualify opportunities automatically when reality changes:
+- DB triggers: sales order / transfer line cancelled or quantity reduced → `wms_crossdock_break` with a typed reason; QC inspection failing after detection → break; GRN line quantity revised below matched quantity → break or reduce.
+- Yard/dock side: appointment cancelled or dock deactivated while an opportunity holds it → break and clear `outbound_dock_id`.
+- Every automatic break raises a `wms_exceptions` row addressed to the warehouse supervisor and emits `warehouse.crossdock.broken`.
+- Add `wms_crossdock_requalify_sweep()` (pg_cron, every 15 min): re-score open rows, expire past cut-off, break rows whose demand no longer exists.
 
-**Verdict: a passive match log with two buttons.** Detection is real and correctly event-driven; the qualification engine, the orchestration half and the supervisor decision surface do not exist. Domain boundaries are not violated — it does not write stock — but only because it does almost nothing.
+**Phase 5b — Decision centre completion.**
+- Add the table to the `supabase_realtime` publication; subscribe in `useCrossdock` and drop the poll.
+- Enrich the opportunity read with product name/SKU, demand document number, customer name, dock code, staging location code and assignee name (a `wms_crossdock_board_view` keeps the client join-free).
+- Countdown chip driven by `expires_at`, urgency sort, blocked/rejected reason surfaced inline, bulk approve on the "Awaiting decision" lane.
+- Rules editor (list/create/edit/deactivate `wms_crossdock_rules`) behind the same aggregate wrapper.
 
-## 3. Target architecture
+**Phase 6 — Demand coverage, documents, KPIs.**
+- Extend `_wms_crossdock_detect` to replenishment demand (`wms_replen_rules` driven) and production demand where a work-order table exists.
+- Cross-dock routing/stage label requested from the document platform and dispatched through the existing print router bound to the dock's label printer — no local generation.
+- `wms_crossdock_metrics_view` + KPI strip: success rate, storage days avoided, touches avoided, average dwell, fulfilment acceleration, split by customer / supplier / warehouse / operator.
 
-Cross-dock is an **orchestrator**. It owns the opportunity, its qualification and its lifecycle. It owns no stock, no task execution semantics, no documents, no dock calendar — it consumes Receiving, Yard/Dock, Sales/Transfers, Inventory reservation, Task Management, Dispatch and the document platform.
+**Phase 7 — Guards and ADR update.**
+- New `crossdock-orchestration.test.ts`: every `wms_crossdock_state` value has a registered topic; the board contains no `supabase.rpc`; no direct `.update()` on the opportunities table anywhere; the exception subscribers stay wired.
+- Amend ADR 0107 with the exception matrix, the requalification sweep and the metrics view.
 
-```text
-detected -> qualified -> approved -> staging -> staged -> loaded -> completed
-               |            |          |
-            rejected     expired    broken (demand or supply changed)
-```
+## 3. Technical notes
 
-Detection stays event-driven off receiving; a scheduled sweep re-qualifies and expires. Qualification becomes a configurable rule set, not an IF inside a function.
-
-## 4. Phased implementation
-
-**Phase 1 — Domain model.** New `wms_crossdock_rules` (business/warehouse scoped: min remaining shelf life, allowed product classes, hazmat/cold-chain policy, customer priority floor, max hours to carrier cut-off, min/max quantity, auto-approve threshold, active flag, priority). Extend `wms_crossdock_opportunities` with lifecycle enum, `demand_type` (`sales_order|transfer|replenishment|production`), generic `demand_doc_id`/`demand_line_id`, `qualified_at`, `score`, `reject_reason`, `expires_at` (carrier cut-off), `staging_location_id`, `outbound_dock_id`, `appointment_id`, `assigned_user_id`, `load_task_id`, `savings_estimate`, `row_version`. Backfill existing rows. Grants, RLS, audit history.
-
-**Phase 2 — Detection & qualification engine.** One shared internal evaluator: caps quantity to outstanding demand, splits across multiple demand lines, scores candidates, evaluates the rule set, writes `qualified` or `rejected` with a reason. Extend detection to transfer orders and replenishment demand. Unify the GRN and receiving-line paths onto it. Add `wms_crossdock_requalify_sweep` on pg_cron to re-score, expire past cut-off, and break opportunities whose demand vanished.
-
-**Phase 3 — Orchestration.** `wms_crossdock_approve` / `_reject` / `_assign_staging` / `_confirm_staged` / `_complete`, all with `p_row_version`. Approval reserves the demand line, allocates a staging location, reserves the outbound dock, and fans out real `wms_tasks` (unload → optional inspect → move → stage → load) linked to the opportunity so labour and RF pick them up. Loading links the opportunity to the loading manifest so dispatch closes it. Emit `warehouse.crossdock.qualified|rejected|approved|staged|loaded|completed|expired|broken`, registered in `topics.ts`, `wms_events_catalog` and the ownership doc.
-
-**Phase 4 — Exception handling.** Saga subscribers that raise `wms_exceptions` and break the opportunity on: sales order cancelled, short/over receipt vs ASN, QC failure, damage, trailer no-show, appointment cancelled, dock pulled, priority change. Every break carries a typed reason and a supervisor resolution.
-
-**Phase 5 — Decision centre UI.** Replace the table with a supervisor console: urgency-sorted lanes (`Needs decision` / `In motion` / `Blocked`), carrier cut-off countdown per row, real product and order names, customer, dock, assigned operator, current stage, storage-and-travel savings, blocked/rejected reasons, bulk approve, and a rules editor. Supabase Realtime on the opportunities table plus the warehouse topic stream replaces the 15s poll. Move every RPC call into `src/features/warehouse/aggregates/crossdock/*` per the ownership rule.
-
-**Phase 6 — Documents, hardware, KPIs.** Cross-dock routing/stage label requested from the document platform (never generated locally) and printed through the existing print router to the label printer bound to the dock. RF/handheld screens reuse the existing task queue — cross-dock adds no hardware surface of its own. KPI strip plus `wms_crossdock_metrics_view`: success rate, storage days avoided, handling touches avoided, dwell time, dock utilisation, fulfilment acceleration, by customer / supplier / warehouse / operator.
-
-**Phase 7 — Guards and ADR.** Extend `wms-phase12.test.ts` and add `crossdock-orchestration.test.ts`: no direct `.update()` on the table, no `supabase.rpc` in the page, every lifecycle state has a topic, every topic registered. Supersede ADR 0083's cross-dock half with **ADR 0106 — Cross-dock orchestration engine**.
-
-## 5. Technical notes
-
-All state writes stay RPC-only and `SECURITY DEFINER` with optimistic concurrency (`row_version`), matching ADR 0101. Events go to `business_event_outbox` with `wms.crossdock:<id>:<transition>` idempotency keys — never straight to Realtime. Stock truth remains in Inventory: cross-dock reserves and tags, and the existing Receiving and Dispatch movement paths continue to write `stock_movements`.
-
-=================================================================
-Cross-dock is now an orchestration engine, not a match log:
-
-Phase 1 — domain: wms_crossdock_state FSM (detected → qualified → approved → staging → staged → loaded → completed, plus rejected/expired/broken/cancelled), wms_crossdock_rules, append-only wms_crossdock_history, row_version concurrency, and a legacy status mirror so nothing on screen broke.
-Phase 2 — qualification: rule-driven checks (shelf life, lot/serial, QC, quantity bounds, cut-off window, full-line), scoring with auto-approve, multi-order splitting, and transfer demand alongside sales orders — rejections are persisted with reasons.
-Phase 3 — orchestration: approve/reject/start-staging/confirm-staged/mark-loaded/complete/break RPCs that create and close real move and load tasks, resolve the staging lane, raise wms_exceptions on breaks, plus an hourly expiry sweep.
-Client: new useCrossdock aggregate wrapper (page calls zero RPCs directly) and a rebuilt decision-center board with KPI lanes, cut-off countdown, and stage-appropriate actions; guards in wms-phase12.test.ts updated and green, ADR 0107 written.
-One pre-existing guard failure remains (wms_billing_nightly_sweep missing an execute grant) — from the earlier billing work, unrelated to cross-dock.
+All state writes stay `SECURITY DEFINER` RPC-only with `p_row_version` optimistic concurrency (ADR 0101). Events keep going to `business_event_outbox` with `wms.crossdock:<id>:<transition>` idempotency keys — never direct to Realtime. Automatic breaks use `EXCEPTION WHEN OTHERS THEN RAISE WARNING` inside their triggers so a cross-dock failure never blocks a sales order, QC or GRN transaction. Stock truth stays in Inventory; cross-dock continues to decide and direct, never to post movements.
