@@ -78759,6 +78759,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_price_activity: {
+        Args: {
+          _quantity: number
+          _tariff: Database["public"]["Tables"]["wms_billing_tariffs"]["Row"]
+        }
+        Returns: number
+      }
       _wms_qc_post_move: {
         Args: {
           p_dest_location: string
@@ -78789,6 +78796,42 @@ export type Database = {
       _wms_resolve_client_id: {
         Args: { _aggregate_id: string; _business_id: string; _payload: Json }
         Returns: string
+      }
+      _wms_resolve_tariff: {
+        Args: {
+          _activity: string
+          _business_id: string
+          _client_id: string
+          _on_date: string
+          _quantity: number
+        }
+        Returns: {
+          activity: string
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          included_quantity: number
+          is_active: boolean
+          min_charge: number | null
+          notes: string | null
+          rate: number
+          tier_from: number
+          tier_to: number | null
+          uom: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billing_tariffs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_resolve_trailer: {
         Args: {
