@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { LedgerShowcase } from "./LedgerShowcase";
 interface AuthLayoutProps {
   children: ReactNode;
   title: string;
@@ -28,43 +29,18 @@ export function AuthLayout({
               </div>
               <Link to="/" className="text-2xl font-bold hover:opacity-80 transition-opacity">AccrualFlow</Link>
             </div>
-            <h1 className="text-4xl font-bold mb-4">
-              Enterprise Accounting
+            <h1 className="text-4xl font-bold mb-3 leading-tight">
+              Every transaction,
               <br />
-              Made Simple
+              posted and balanced.
             </h1>
-            <p className="text-lg text-primary-foreground/80 max-w-md">
-              Powerful multi-tenant accounting software for growing businesses.
-              Invoicing, expenses, reports, and more.
+            <p className="text-base text-primary-foreground/75 max-w-md">
+              Invoicing, inventory, payroll and point of sale — all landing in one
+              double-entry general ledger, in real time.
             </p>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Multi-organization support</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Role-based access control</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <span>Real-time financial insights</span>
-            </div>
-          </div>
+          <LedgerShowcase />
         </div>
 
         {/* Decorative elements */}
