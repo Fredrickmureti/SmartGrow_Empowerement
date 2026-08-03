@@ -33,6 +33,8 @@ import { useIsLikelyMobile } from "@/hooks/useIsLikelyMobile";
 import { InAppQrScanner } from "@/components/scanner/InAppQrScanner";
 import { useNavigate } from "react-router-dom";
 import { Camera } from "lucide-react";
+import { DeviceModeChoice } from "@/components/scanner/DeviceModeChoice";
+
 
 interface Props {
   open: boolean;
