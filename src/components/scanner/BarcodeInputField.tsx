@@ -211,6 +211,13 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {checking && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          {/* Handheld mode only — the ERP is running on the scanning device. */}
+          <ScanCameraButton
+            label={resolvedFieldLabel ?? "Scan barcode"}
+            continuous={workflow === "count" || workflow === "receive"}
+            onBeforeOpen={() => inputRef.current?.focus()}
+            disabled={rest.disabled}
+          />
           <Badge
             variant="outline"
             className={cn(
@@ -226,6 +233,7 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
             {scannerConnected ? "Phone ready" : focused ? "Scan ready" : "Scanner"}
           </Badge>
         </div>
+
       </div>
       {duplicate && (
         <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
