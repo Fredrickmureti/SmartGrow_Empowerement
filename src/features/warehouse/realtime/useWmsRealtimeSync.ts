@@ -115,6 +115,9 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-loading-manifests"],
     ["dock-live-visits"],
     ["wms-departure-blockers"],
+    // `wms_gate_events` is not published; gate custody is refetched
+    // whenever the visit it belongs to changes.
+    ["wms-gate-events"],
   ],
   wms_yard_slots: [
     ["wms-yard-slots"],
@@ -126,9 +129,6 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_yard_moves: [
     ["wms-yard-moves"],
     ["wms-trailer-visits"],
-  ],
-  wms_gate_events: [
-    ["wms-gate-events"],
   ],
 };
 
