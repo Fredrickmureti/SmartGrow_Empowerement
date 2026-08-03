@@ -154,78 +154,102 @@ export function useCrossdockHistory(opportunityId?: string) {
   });
 }
 
-type TransitionArgs = {
+export type CrossdockAction =
+  | "approve"
+  | "reject"
+  | "startStaging"
+  | "confirmStaged"
+  | "markLoaded"
+  | "complete"
+  | "break"
+  | "cancel";
+
+export interface CrossdockTransitionArgs {
+  action: CrossdockAction;
   id: string;
   rowVersion: number;
   reason?: string;
   outboundDockId?: string | null;
   stagingLocationId?: string | null;
-};
+}
 
-/** One mutation surface for every cross-dock lifecycle transition. */
-export function useCrossdockTransitions() {
-  const qc = useQueryClient();
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
-    qc.invalidateQueries({ queryKey: ["wms-crossdock-history"] });
-    qc.invalidateQueries({ queryKey: ["wms-tasks"] });
-  };
-
-  const run = (
-    fn: string,
-    label: string,
-    args: (a: TransitionArgs) => Record<string, unknown>,
-  ) =>
-    useMutation({
-      mutationFn: async (a: TransitionArgs) => {
-        const { error } = await (supabase.rpc as any)(fn, args(a));
-        if (error) throw error;
-      },
-      onSuccess: () => {
-        toast.success(label);
-        invalidate();
-      },
-      onError: (e: Error) => toast.error(e.message),
-    });
-
-  return {
-    approve: run("wms_crossdock_approve", "Cross-dock approved", (a) => ({
+const ACTION_MAP: Record<
+  CrossdockAction,
+  { fn: string; label: string; args: (a: CrossdockTransitionArgs) => Record<string, unknown> }
+> = {
+  approve: {
+    fn: "wms_crossdock_approve",
+    label: "Cross-dock approved",
+    args: (a) => ({
       p_opportunity_id: a.id,
       p_row_version: a.rowVersion,
       p_outbound_dock_id: a.outboundDockId ?? null,
       p_staging_location_id: a.stagingLocationId ?? null,
-    })),
-    reject: run("wms_crossdock_reject", "Cross-dock rejected", (a) => ({
+    }),
+  },
+  reject: {
+    fn: "wms_crossdock_reject",
+    label: "Cross-dock rejected",
+    args: (a) => ({
       p_opportunity_id: a.id,
       p_reason: a.reason ?? "Rejected by supervisor",
       p_row_version: a.rowVersion,
-    })),
-    startStaging: run("wms_crossdock_start_staging", "Move task issued", (a) => ({
-      p_opportunity_id: a.id,
-      p_row_version: a.rowVersion,
-    })),
-    confirmStaged: run("wms_crossdock_confirm_staged", "Staged — load task issued", (a) => ({
-      p_opportunity_id: a.id,
-      p_row_version: a.rowVersion,
-    })),
-    markLoaded: run("wms_crossdock_mark_loaded", "Marked loaded", (a) => ({
-      p_opportunity_id: a.id,
-      p_row_version: a.rowVersion,
-    })),
-    complete: run("wms_crossdock_complete", "Cross-dock completed", (a) => ({
-      p_opportunity_id: a.id,
-      p_row_version: a.rowVersion,
-    })),
-    breakFlow: run("wms_crossdock_break", "Cross-dock broken to put-away", (a) => ({
+    }),
+  },
+  startStaging: {
+    fn: "wms_crossdock_start_staging",
+    label: "Move-to-staging task issued",
+    args: (a) => ({ p_opportunity_id: a.id, p_row_version: a.rowVersion }),
+  },
+  confirmStaged: {
+    fn: "wms_crossdock_confirm_staged",
+    label: "Staged — load task issued",
+    args: (a) => ({ p_opportunity_id: a.id, p_row_version: a.rowVersion }),
+  },
+  markLoaded: {
+    fn: "wms_crossdock_mark_loaded",
+    label: "Marked loaded",
+    args: (a) => ({ p_opportunity_id: a.id, p_row_version: a.rowVersion }),
+  },
+  complete: {
+    fn: "wms_crossdock_complete",
+    label: "Cross-dock completed",
+    args: (a) => ({ p_opportunity_id: a.id, p_row_version: a.rowVersion }),
+  },
+  break: {
+    fn: "wms_crossdock_break",
+    label: "Cross-dock broken back to put-away",
+    args: (a) => ({
       p_opportunity_id: a.id,
       p_reason: a.reason ?? "Broken on the floor",
       p_row_version: a.rowVersion,
-    })),
-    cancel: run("cancel_crossdock_opportunity", "Opportunity cancelled", (a) => ({
-      p_opportunity_id: a.id,
-      p_reason: a.reason ?? "Cancelled from board",
-    })),
-  };
+    }),
+  },
+  cancel: {
+    fn: "cancel_crossdock_opportunity",
+    label: "Opportunity cancelled",
+    args: (a) => ({ p_opportunity_id: a.id, p_reason: a.reason ?? "Cancelled from board" }),
+  },
+};
+
+/** One mutation surface for every cross-dock lifecycle transition. */
+export function useCrossdockTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (a: CrossdockTransitionArgs) => {
+      const spec = ACTION_MAP[a.action];
+      const { error } = await (supabase.rpc as any)(spec.fn, spec.args(a));
+      if (error) throw error;
+      return spec.label;
+    },
+    onSuccess: (label) => {
+      toast.success(label);
+      qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
+      qc.invalidateQueries({ queryKey: ["wms-crossdock-history"] });
+      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 }
 
 /** Manual supervisor sweep for lapsed windows. */
