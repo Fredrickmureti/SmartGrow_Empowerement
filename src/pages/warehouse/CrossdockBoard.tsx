@@ -79,9 +79,10 @@ export default function CrossdockBoard() {
     businessId: currentBusiness?.id,
     warehouseId: warehouseFilter,
   });
-  const { data: rules } = useCrossdockRules(currentBusiness?.id);
+  const { data: metrics } = useCrossdockMetrics(currentBusiness?.id, warehouseFilter);
   const transition = useCrossdockTransition();
   const sweep = useCrossdockSweep();
+  const [selected, setSelected] = useState<string[]>([]);
 
   const kpis = useMemo(() => {
     const rows = allRows ?? [];
@@ -99,6 +100,27 @@ export default function CrossdockBoard() {
       expiring,
     };
   }, [allRows]);
+
+  /** 30-day flow-through performance, straight off the metrics view. */
+  const perf = useMemo(() => {
+    const rows = metrics ?? [];
+    const sum = (k: keyof (typeof rows)[number]) =>
+      rows.reduce((t, r) => t + (Number(r[k]) || 0), 0);
+    const opportunities = sum("opportunities");
+    const completed = sum("completed");
+    const dwell = rows.filter((r) => r.avg_dwell_hours !== null);
+    return {
+      successRate: opportunities ? (completed / opportunities) * 100 : null,
+      unitsFlowed: sum("units_flowed"),
+      touchesAvoided: sum("touches_avoided"),
+      storageDaysAvoided: sum("storage_days_avoided"),
+      savings: sum("savings_estimate"),
+      avgDwell: dwell.length
+        ? dwell.reduce((t, r) => t + Number(r.avg_dwell_hours), 0) / dwell.length
+        : null,
+    };
+  }, [metrics]);
+
 
   const act = (
     row: CrossdockOpportunity,
