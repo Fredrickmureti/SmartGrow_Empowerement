@@ -71,7 +71,7 @@ export function WorkspaceShellFrame({
         <main className="flex-1 overflow-auto">
           <div
             className={cn(
-              "mx-auto w-full",
+              "@container/page mx-auto w-full",
               !effectiveFullWidth && "max-w-6xl",
               !noPadding &&
                 (effectiveFullWidth

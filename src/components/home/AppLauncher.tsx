@@ -178,7 +178,7 @@ export function AppLauncher({
                   {group.apps.length}
                 </Badge>
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 @[22rem]/page:grid-cols-2 @[36rem]/page:grid-cols-3 @[48rem]/page:grid-cols-4 @[62rem]/page:grid-cols-5 gap-2 sm:gap-3">
                 {group.apps.map((app) => {
                   const access = canAccessApp(app);
                   return (

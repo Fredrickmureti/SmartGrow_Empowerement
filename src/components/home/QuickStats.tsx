@@ -195,7 +195,7 @@ export function QuickStats({ className, isLoading = false }: QuickStatsProps) {
   }
 
   return (
-    <div className={cn("grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4", className)}>
+    <div className={cn("grid gap-2 sm:gap-4 grid-cols-1 @[26rem]/page:grid-cols-2 @[52rem]/page:grid-cols-4", className)}>
       {statCards.map((stat, index) => (
         <StatCard key={index} {...stat} isLoading={isLoading || !currencyReady || statsLoading || countsLoading} />
       ))}
