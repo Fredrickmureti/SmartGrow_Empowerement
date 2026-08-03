@@ -331,18 +331,53 @@ export function useCrossdockTransition() {
   });
 }
 
-/** Manual supervisor sweep for lapsed windows. */
+/**
+ * Manual supervisor sweep: expires lapsed windows and re-qualifies live
+ * plans against current demand (the same pair pg_cron runs on a schedule).
+ */
 export function useCrossdockSweep() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("wms_crossdock_sweep_expired");
+      const { data: expired, error } = await (supabase.rpc as any)("wms_crossdock_sweep_expired");
       if (error) throw error;
-      return (data as number) ?? 0;
+      const { data: requalified, error: rqErr } = await (supabase.rpc as any)(
+        "wms_crossdock_requalify_sweep",
+      );
+      if (rqErr) throw rqErr;
+      return ((expired as number) ?? 0) + ((requalified as number) ?? 0);
     },
     onSuccess: (n) => {
-      toast.success(n ? `${n} opportunity(ies) expired` : "Nothing to expire");
+      toast.success(n ? `${n} plan(s) closed or re-qualified` : "Everything still valid");
       qc.invalidateQueries({ queryKey: ["wms-crossdock"] });
+      qc.invalidateQueries({ queryKey: ["wms-crossdock-metrics"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Rules editor writes — cross-dock qualification policy. */
+export function useSaveCrossdockRule(businessId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (rule: Partial<CrossdockRule> & { id?: string }) => {
+      if (rule.id) {
+        const { error } = await (supabase.from("wms_crossdock_rules") as any)
+          .update(rule)
+          .eq("id", rule.id);
+        if (error) throw error;
+        return "Rule updated";
+      }
+      const { error } = await (supabase.from("wms_crossdock_rules") as any).insert({
+        ...rule,
+        business_id: businessId,
+      });
+      if (error) throw error;
+      return "Rule created";
+    },
+    onSuccess: (label) => {
+      toast.success(label);
+      qc.invalidateQueries({ queryKey: ["wms-crossdock-rules"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
