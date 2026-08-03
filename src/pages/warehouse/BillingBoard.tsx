@@ -733,6 +733,9 @@ export default function BillingBoard() {
                   <TableHead>Activity</TableHead>
                   <TableHead>UoM</TableHead>
                   <TableHead className="text-right">Rate</TableHead>
+                  <TableHead>Band</TableHead>
+                  <TableHead className="text-right">Allowance</TableHead>
+                  <TableHead className="text-right">Min charge</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead>From</TableHead>
                   <TableHead>Active</TableHead>
@@ -746,6 +749,17 @@ export default function BillingBoard() {
                     <TableCell className="font-mono text-xs">{t.activity}</TableCell>
                     <TableCell>{t.uom}</TableCell>
                     <TableCell className="text-right">{Number(t.rate).toFixed(4)}</TableCell>
+                    <TableCell className="text-xs">
+                      {t.tier_from === null && t.tier_to === null
+                        ? "All volumes"
+                        : `${Number(t.tier_from ?? 0)} – ${t.tier_to === null ? "∞" : Number(t.tier_to)}`}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.included_quantity === null ? "—" : Number(t.included_quantity)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.min_charge === null ? "—" : Number(t.min_charge).toFixed(2)}
+                    </TableCell>
                     <TableCell>{t.currency}</TableCell>
                     <TableCell>{t.effective_from}</TableCell>
                     <TableCell>
