@@ -89,11 +89,25 @@ export function YardSlotDialog({
             />
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {slot ? (
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              disabled={printing}
+              onClick={() => void printLabel(slot)}
+            >
+              <Printer className="h-4 w-4" /> Print slot label
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
+
             disabled={!code.trim() || save.isPending}
             onClick={() =>
               save.mutate(
