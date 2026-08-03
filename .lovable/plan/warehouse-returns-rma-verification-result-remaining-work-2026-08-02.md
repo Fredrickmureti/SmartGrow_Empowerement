@@ -87,3 +87,19 @@ workstream, but it blocks a clean guard run — fix with a grants-only migration
 - Warehouse links finance documents; it never values them.
 - Migrations stay additive; `/warehouse-app/returns` remains functional at the
   end of every phase.
+
+---
+
+## Wave closed — 2026-08-03
+
+- Phase 6.3 credit-note backlink trigger, 6.4 template seeding, 6.5 vendor
+  return note: done.
+- Phase 7.1 console: split-pane workspace, dock–appointment–trailer strip
+  (`ReturnLogisticsStrip`), LPN rail (`ReturnLpnRail`), lane-board aging +
+  per-lane SLA breach counts (`RETURN_LANE_SLA_HOURS`, `laneStats`).
+- Phase 7.2 guards + ADR 0106: done.
+- Phase 7.3 functional contracts: `src/test/architecture/wms-returns-execution.test.ts`
+  covers posting (movement balance, quarantine hold, task spawning, blocked
+  exception path), finance handoff (idempotency, unposted rejection, kind
+  routing) and the close guard.
+- Phase 7b LPN/packaging grants: cleared by migration; guard suite green.

@@ -9,9 +9,12 @@
 import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { AlarmClock } from "lucide-react";
 import {
   RETURN_LANE_LABEL,
-  returnLane,
+  RETURN_LANE_SLA_HOURS,
+  laneStats,
+  type LaneStat,
   type ReturnLane,
   type ReturnLine,
   type ReturnOrder,
@@ -52,11 +55,17 @@ export function laneCounts(
   linesByOrder: Map<string, ReturnLine[]>,
 ): Map<ReturnLane, number> {
   const counts = new Map<ReturnLane, number>();
-  for (const order of orders) {
-    const lane = returnLane(order, linesByOrder.get(order.id) ?? []);
-    counts.set(lane, (counts.get(lane) ?? 0) + 1);
-  }
+  for (const [lane, stat] of laneStats(orders, linesByOrder)) counts.set(lane, stat.count);
   return counts;
+}
+
+const EMPTY: LaneStat = { count: 0, breached: 0, oldestHours: null };
+
+function ageLabel(hours: number | null): string {
+  if (hours == null) return "—";
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours < 48) return `${Math.round(hours)}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 export function ReturnsLaneBoard({
@@ -65,7 +74,11 @@ export function ReturnsLaneBoard({
   activeLane,
   onSelectLane,
 }: ReturnsLaneBoardProps) {
-  const counts = useMemo(() => laneCounts(orders, linesByOrder), [orders, linesByOrder]);
+  const stats = useMemo(() => laneStats(orders, linesByOrder), [orders, linesByOrder]);
+  const totalBreached = useMemo(
+    () => [...stats.values()].reduce((n, s) => n + s.breached, 0),
+    [stats],
+  );
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
@@ -82,28 +95,50 @@ export function ReturnsLaneBoard({
         <CardContent className="p-3">
           <div className="text-2xl font-semibold tabular-nums">{orders.length}</div>
           <div className="text-xs text-muted-foreground">All open</div>
+          <div
+            className={cn(
+              "mt-1 text-xs tabular-nums",
+              totalBreached > 0 ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {totalBreached > 0 ? `${totalBreached} past SLA` : "All within SLA"}
+          </div>
         </CardContent>
       </Card>
 
-      {LANE_ORDER.map((lane) => (
-        <Card
-          key={lane}
-          role="button"
-          tabIndex={0}
-          onClick={() => onSelectLane(lane)}
-          onKeyDown={(e) => e.key === "Enter" && onSelectLane(lane)}
-          className={cn(
-            "cursor-pointer border-l-4 transition-colors hover:bg-muted/40",
-            LANE_ACCENT[lane],
-            activeLane === lane && "bg-muted/60 ring-1 ring-ring",
-          )}
-        >
-          <CardContent className="p-3">
-            <div className="text-2xl font-semibold tabular-nums">{counts.get(lane) ?? 0}</div>
-            <div className="text-xs text-muted-foreground">{RETURN_LANE_LABEL[lane]}</div>
-          </CardContent>
-        </Card>
-      ))}
+      {LANE_ORDER.map((lane) => {
+        const stat = stats.get(lane) ?? EMPTY;
+        return (
+          <Card
+            key={lane}
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelectLane(lane)}
+            onKeyDown={(e) => e.key === "Enter" && onSelectLane(lane)}
+            title={`SLA ${RETURN_LANE_SLA_HOURS[lane]}h`}
+            className={cn(
+              "cursor-pointer border-l-4 transition-colors hover:bg-muted/40",
+              LANE_ACCENT[lane],
+              activeLane === lane && "bg-muted/60 ring-1 ring-ring",
+            )}
+          >
+            <CardContent className="p-3">
+              <div className="text-2xl font-semibold tabular-nums">{stat.count}</div>
+              <div className="text-xs text-muted-foreground">{RETURN_LANE_LABEL[lane]}</div>
+              <div className="mt-1 flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
+                <span>oldest {ageLabel(stat.oldestHours)}</span>
+                {stat.breached > 0 && (
+                  <span className="ml-auto flex items-center gap-0.5 font-medium text-destructive">
+                    <AlarmClock className="h-3 w-3" />
+                    {stat.breached}
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
+
