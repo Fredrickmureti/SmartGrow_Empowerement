@@ -45,6 +45,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_tasks: [
     ["wms_tasks"],
     ["wms-tasks-loc-options"],
+    // ADR 0086 Phase 5 — jockey work orders live on the yard surfaces.
+    ["wms-yard-move-tasks"],
   ],
   wms_license_plates: [
     ["wms-lpns"],
