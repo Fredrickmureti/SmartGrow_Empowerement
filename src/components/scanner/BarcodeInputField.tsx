@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 
 interface Props extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "value"> {
   value: string;
@@ -95,6 +96,9 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
 ) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [focused, setFocused] = useState(false);
+  // The local viewfinder steals DOM focus; keep this field registered with
+  // scanRouter for as long as it is open so the decode lands here.
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const [duplicate, setDuplicate] = useState<{ name: string } | null>(null);
   // Scanner Scope filter — in `scoped` mode this drops POS-register
@@ -165,7 +169,7 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
   })();
 
   useScanTarget({
-    active: focused,
+    active: focused || cameraOpen,
     label: "BarcodeInputField",
     workflow,
     allowRepeats,
@@ -204,13 +208,24 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
             runDuplicateCheck(value);
           }}
           placeholder={placeholder}
-          className={cn("pr-24", className)}
+          className={cn("pr-32", className)}
           autoComplete="off"
           spellCheck={false}
           {...rest}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {checking && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          {/* Handheld mode only — the ERP is running on the scanning device. */}
+          <ScanCameraButton
+            label={resolvedFieldLabel ?? "Scan barcode"}
+            continuous={workflow === "count" || workflow === "receive"}
+            onBeforeOpen={() => {
+              setCameraOpen(true);
+              inputRef.current?.focus();
+            }}
+            onClose={() => setCameraOpen(false)}
+            disabled={rest.disabled}
+          />
           <Badge
             variant="outline"
             className={cn(
@@ -226,6 +241,7 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
             {scannerConnected ? "Phone ready" : focused ? "Scan ready" : "Scanner"}
           </Badge>
         </div>
+
       </div>
       {duplicate && (
         <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">

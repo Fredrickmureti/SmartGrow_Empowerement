@@ -101,6 +101,7 @@ export default function MobilePick() {
     <MobileWarehouseLayout
       title="Pick"
       back="/wm"
+      scanLabel="Scan pick location or item"
       bottomBar={
         <Button className="w-full h-12" size="lg" disabled={busy || done || !binConfirmed} onClick={submit}>
           {done ? "Completed" : busy ? "Working…" : "Confirm pick"}

@@ -11,6 +11,8 @@ import { useInactivityMonitor } from '@/hooks/security/useInactivityMonitor';
 import { BodyPointerEventsGuard } from '@/components/common/BodyPointerEventsGuard';
 import { useScanCapture } from '@/hooks/pos/useScanCapture';
 import { ScannerWorkspaceProvider } from '@/contexts/ScannerWorkspaceContext';
+import { LocalScanOverlay } from '@/components/scanner/LocalScanOverlay';
+
 
 interface AuthenticatedShellProps {
   children: ReactNode;
@@ -32,7 +34,11 @@ export function AuthenticatedShell({ children }: AuthenticatedShellProps) {
           all share one paired phone. Pairing dialog is rendered inside. */}
       <ScannerWorkspaceProvider>
         {children}
+        {/* Handheld mode: this device's own camera feeds the focused scan
+            target in this same tab — no pairing, no second device. */}
+        <LocalScanOverlay />
       </ScannerWorkspaceProvider>
     </>
   );
 }
+

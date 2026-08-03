@@ -204,7 +204,7 @@ export function MobileReturnWorkspace() {
   };
 
   return (
-    <MobileWarehouseLayout title={order?.code ?? "Return"} back="/wm/returns">
+    <MobileWarehouseLayout title={order?.code ?? "Return"} back="/wm/returns" scanLabel="Scan returned item">
       <div className="space-y-4">
         <div className="flex items-center justify-between rounded border p-3">
           <div>

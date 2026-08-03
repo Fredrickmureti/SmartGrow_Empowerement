@@ -9,15 +9,24 @@ import { Button } from "@/components/ui/button";
 import { QueueIndicator } from "./QueueIndicator";
 import { startDrainLoop } from "./offlineQueue";
 import { useScanFeedbackBridge } from "@/features/warehouse/scanning/useScanFeedback";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 
 interface Props {
   title: string;
   back?: string;
   children: ReactNode;
   bottomBar?: ReactNode;
+  /**
+   * Handheld mode: label for the floating camera-scan button. Omit to hide
+   * it (screens with nothing to scan). The decode is delivered to whichever
+   * WMS scan intent this screen has registered — no field focus required.
+   */
+  scanLabel?: string;
+  /** Keep the viewfinder open between decodes (counting, receiving). */
+  scanContinuous?: boolean;
 }
 
-export function MobileWarehouseLayout({ title, back, children, bottomBar }: Props) {
+export function MobileWarehouseLayout({ title, back, children, bottomBar, scanLabel, scanContinuous }: Props) {
   const nav = useNavigate();
   // Subscribes once for the whole /wm/* surface: the offline queue emits a
   // scan outcome, this renders the tone + haptic + colour flash.
@@ -64,7 +73,17 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar }: Prop
           <QueueIndicator />
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto p-3">{children}</main>
+      <main className="relative flex-1 overflow-y-auto p-3">
+        {children}
+        {scanLabel && (
+          <ScanCameraButton
+            label={scanLabel}
+            continuous={scanContinuous}
+            withText
+            className="fixed bottom-24 right-4 z-40 h-12 rounded-full shadow-lg"
+          />
+        )}
+      </main>
       {bottomBar && (
         <div className="border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {bottomBar}

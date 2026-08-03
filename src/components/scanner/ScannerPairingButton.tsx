@@ -18,9 +18,10 @@
  * and `branchId` are now sourced from context and the props are ignored.
  */
 
-import { Smartphone, CheckCircle2 } from "lucide-react";
+import { Smartphone, CheckCircle2, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 
 interface Props {
   /** @deprecated sourced from BusinessContext */
@@ -47,9 +48,40 @@ export function ScannerPairingButton({
   className,
 }: Props) {
   const { isPaired, openPairing } = useWorkspaceScanner();
+  const { handheld, scan } = useLocalScan();
   // Stay invisible until the workspace has a business — pairing makes no
   // sense before then (matches previous behaviour of the button).
   if (!businessId) return null;
+
+  // Handheld: the ERP is running on the scanning device, so the primary
+  // action is "use my camera". Pairing a second phone stays available for
+  // operators who prefer a dedicated gun-style device.
+  if (handheld) {
+    return (
+      <div className={className}>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={variant === "ghost" ? "ghost" : "default"}
+            size={size}
+            onClick={() => scan({ label })}
+            title="Scan with this device's camera"
+          >
+            <Camera className="mr-2 h-4 w-4" />
+            Scan
+          </Button>
+          <Button
+            variant="ghost"
+            size={size}
+            onClick={() => openPairing(label)}
+            title="Pair a separate phone as the scanner"
+          >
+            <Smartphone className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Button
       variant={variant}
@@ -67,3 +99,4 @@ export function ScannerPairingButton({
     </Button>
   );
 }
+

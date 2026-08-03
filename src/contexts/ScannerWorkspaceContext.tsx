@@ -55,6 +55,11 @@ import {
 import { ScannerSessionDialog } from "@/components/scanner/ScannerSessionDialog";
 import { useScannerScopeMode, type ScannerScopeMode } from "@/hooks/scanner/useScannerScopePolicy";
 import type { ScanEvent } from "@/services/pos/scanBus";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import type {
+  ScannerDeviceMode,
+  ScannerDeviceModePreference,
+} from "@/services/scanner/camera/deviceMode";
 
 interface Ctx {
   /** Underlying session — null while inert (no pairing requested yet). */
@@ -80,6 +85,14 @@ interface Ctx {
    * are dropped at the field level.
    */
   acceptsTopic?: (sourceTopic: string | undefined, source: ScanEvent["source"]) => boolean;
+  /**
+   * Is THIS device the scanner (handheld: its own camera) or a workstation
+   * driven by a paired phone / USB gun? Decides whether scan surfaces offer
+   * the local-camera affordance. See `services/scanner/camera/deviceMode`.
+   */
+  deviceMode: ScannerDeviceMode;
+  deviceModePreference: ScannerDeviceModePreference;
+  setDeviceModePreference: (next: ScannerDeviceModePreference) => void;
 }
 
 const ScannerWorkspaceContext = createContext<Ctx | undefined>(undefined);
@@ -114,6 +127,8 @@ export function ScannerWorkspaceProvider({ children }: ProviderProps) {
   });
 
   const scopeMode = useScannerScopeMode(businessId || null);
+  const { mode: deviceMode, preference: deviceModePreference, setPreference: setDeviceModePreference } =
+    useLocalScan();
   const workspaceTopic = session.sessionId ? `scan:session:${session.sessionId}` : null;
 
   const acceptsTopic = useMemo(() => {
@@ -204,8 +219,23 @@ export function ScannerWorkspaceProvider({ children }: ProviderProps) {
       scopeMode,
       workspaceTopic,
       acceptsTopic,
+      deviceMode,
+      deviceModePreference,
+      setDeviceModePreference,
     }),
-    [armed, session, isPaired, connectedCount, openPairing, scopeMode, workspaceTopic, acceptsTopic],
+    [
+      armed,
+      session,
+      isPaired,
+      connectedCount,
+      openPairing,
+      scopeMode,
+      workspaceTopic,
+      acceptsTopic,
+      deviceMode,
+      deviceModePreference,
+      setDeviceModePreference,
+    ],
   );
 
   return (
@@ -245,6 +275,9 @@ export function useWorkspaceScanner(): Ctx {
       scopeMode: "ambient",
       workspaceTopic: null,
       acceptsTopic: undefined,
+      deviceMode: "workstation",
+      deviceModePreference: "auto",
+      setDeviceModePreference: () => {},
     };
   }
   return ctx;

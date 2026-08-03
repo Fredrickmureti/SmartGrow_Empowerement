@@ -79,6 +79,7 @@ export default function MobilePutaway() {
     <MobileWarehouseLayout
       title="Put-away"
       back="/wm"
+      scanLabel="Scan destination bin"
       bottomBar={
         <Button className="w-full h-12" size="lg" disabled={busy || done || !binConfirmed} onClick={submit}>
           {done ? "Completed" : busy ? "Working…" : "Confirm put-away"}
