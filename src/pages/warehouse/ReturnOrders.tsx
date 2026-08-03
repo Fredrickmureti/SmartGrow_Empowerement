@@ -241,7 +241,8 @@ export default function ReturnOrders() {
                         <TableBody>
                           {visible.map((o) => {
                             const rows = lineMap.get(o.id) ?? [];
-                            const age = ageHours(o.received_at ?? o.created_at);
+                            const age = ageHours(returnLaneClock(o));
+                            const late = isLaneBreached(o, rows);
                             return (
                               <TableRow
                                 key={o.id}
@@ -261,9 +262,16 @@ export default function ReturnOrders() {
                                   {RETURN_LANE_LABEL[returnLane(o, rows)]}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">{rows.length}</TableCell>
-                                <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
+                                <TableCell
+                                  className={`text-right text-sm tabular-nums ${
+                                    late ? "font-medium text-destructive" : "text-muted-foreground"
+                                  }`}
+                                  title={late ? "Past this lane's SLA" : undefined}
+                                >
                                   {age == null ? "—" : `${Math.round(age)}h`}
+                                  {late ? " ⚠" : ""}
                                 </TableCell>
+
                               </TableRow>
                             );
                           })}
