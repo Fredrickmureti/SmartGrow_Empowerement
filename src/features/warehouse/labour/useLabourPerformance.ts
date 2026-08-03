@@ -28,6 +28,7 @@ export interface LabourTarget {
   target_performance_pct: number;
   target_utilisation_pct: number;
   incentive_threshold_pct: number | null;
+  incentive_rate_per_earned_hour: number;
   notes: string | null;
   effective_from: string;
   effective_to: string | null;
@@ -42,6 +43,7 @@ export interface LabourTargetUpsert {
   target_performance_pct: number;
   target_utilisation_pct: number;
   incentive_threshold_pct: number | null;
+  incentive_rate_per_earned_hour: number;
   notes: string | null;
   effective_from: string;
   effective_to: string | null;
@@ -86,7 +88,7 @@ export function useLabourTargets(warehouseId?: string) {
       let q = supabase
         .from("wms_labour_targets")
         .select(
-          "id,business_id,warehouse_id,operator_id,task_type,target_performance_pct,target_utilisation_pct,incentive_threshold_pct,notes,effective_from,effective_to,is_active",
+          "id,business_id,warehouse_id,operator_id,task_type,target_performance_pct,target_utilisation_pct,incentive_threshold_pct,incentive_rate_per_earned_hour,notes,effective_from,effective_to,is_active",
         )
         .eq("business_id", currentBusiness!.id)
         .order("effective_from", { ascending: false });
