@@ -29,6 +29,9 @@ const PUBLISHED_WMS_TABLES = [
   "wms_count_lines",
   // Phase 4 §6 — Inbound control tower tiles appointment state live.
   "wms_dock_appointments",
+  // ADR 0108 — replenishment control centre (orders + rule hierarchy).
+  "wms_replen_orders",
+  "wms_replenishment_rules",
 ] as const;
 
 describe("WMS realtime subscription ↔ publication parity", () => {
