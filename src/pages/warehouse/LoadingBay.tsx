@@ -22,18 +22,25 @@ import {
   useDispatchManifest,
   useLoadCartonOntoManifest,
   useManifestProofStatus,
+  useAllocateTrackingNumber,
+  useCarrierServices,
 } from "@/features/warehouse/aggregates/useDomainOperations";
 import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
+import { DispatchDocumentsMenu } from "@/features/warehouse/dispatch/DispatchDocumentsMenu";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, CheckCircle2, PackageCheck, ShieldCheck, Truck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileText, PackageCheck, ShieldCheck, Tag, Truck } from "lucide-react";
 
 interface Manifest {
   id: string; code: string; state: string; warehouse_id: string;
   planned_departure_at: string | null; dispatched_at: string | null; closed_at: string | null;
+  carrier_id: string | null; carrier_service_id: string | null;
+  tracking_number: string | null; tracking_url: string | null;
+  delivery_note_id: string | null;
+  carrier: { name: string | null; carrier_kind: string | null } | null;
 }
 interface Loaded {
   id: string; sequence: number; loaded_at: string;
@@ -55,10 +62,14 @@ export default function LoadingBay() {
     enabled: !!manifestId,
     queryFn: async () => {
       const { data, error } = await supabase.from("wms_loading_manifests")
-        .select("id, code, state, warehouse_id, planned_departure_at, dispatched_at, closed_at")
+        .select(
+          "id, code, state, warehouse_id, planned_departure_at, dispatched_at, closed_at, " +
+          "carrier_id, carrier_service_id, tracking_number, tracking_url, delivery_note_id, " +
+          "carrier:carrier_id(name, carrier_kind)",
+        )
         .eq("id", manifestId!).maybeSingle();
       if (error) throw error;
-      return data as Manifest | null;
+      return (data ?? null) as unknown as Manifest | null;
     },
   });
 
@@ -105,7 +116,9 @@ export default function LoadingBay() {
       if (error) throw error;
       return (data ?? []) as string[];
     },
-    refetchInterval: 15_000,
+    // Phase F — no poll. `wms_manifest_cartons` / `wms_loading_manifests`
+    // are on the realtime publication and `useWmsRealtimeSync` invalidates
+    // the `wms-manifest-shortage` prefix on every change.
   });
   const shortCount = shortCartonIds?.length ?? 0;
   const loadedCount = (loaded ?? []).length;
@@ -143,6 +156,29 @@ export default function LoadingBay() {
   const proofStatus = proof.data ?? null;
   const proofSatisfied = proofStatus ? proofStatus.satisfied : true;
 
+  // Phase D — carrier abstraction. Tracking identity is allocated by an RPC,
+  // never typed into the manifest by the client.
+  const services = useCarrierServices(manifest?.carrier_id);
+  const allocate = useAllocateTrackingNumber(manifestId);
+  const [serviceId, setServiceId] = useState<string>("");
+  const isOwnFleet = (manifest?.carrier?.carrier_kind ?? "own_fleet") === "own_fleet";
+
+  // ADR 0109 — the manifest is the outbound spine; show the sales-side
+  // deliveries this load actually carries.
+  const { data: linkedNotes } = useQuery({
+    queryKey: ["wms-manifest-delivery-notes", manifestId],
+    enabled: !!manifestId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("delivery_notes")
+        .select("id, delivery_number, status")
+        .eq("manifest_id", manifestId!)
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; delivery_number: string; status: string }>;
+    },
+  });
+
   const submitScan = () => {
     if (!scanCode.trim()) return;
     const match = (available ?? []).find((c) => c.shipment_lpn?.code?.toLowerCase() === scanCode.trim().toLowerCase());
@@ -168,6 +204,7 @@ export default function LoadingBay() {
         actions={
           <div className="flex gap-2">
             <Button variant="outline" asChild><Link to="/warehouse-app/dispatch"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Link></Button>
+            <DispatchDocumentsMenu manifestId={manifest.id} hideLabel={isOwnFleet} />
             <Button variant="outline" disabled={!canClose || close.isPending} onClick={() => close.mutate()}>
               <PackageCheck className="h-4 w-4 mr-2" /> Close
             </Button>
@@ -178,6 +215,90 @@ export default function LoadingBay() {
         }
       />
       <PageBody>
+        <Section
+          title="Carrier & tracking"
+          description="Who is carrying this load, under which service, and the tracking identity the customer will quote."
+        >
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                <div>
+                  <div className="text-muted-foreground">Carrier</div>
+                  <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {(manifest.carrier?.carrier_kind ?? "own_fleet").replace("_", " ")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Tracking number</div>
+                  <div className="font-mono">{manifest.tracking_number ?? "—"}</div>
+                  {manifest.tracking_url && (
+                    <a
+                      className="text-xs underline text-primary"
+                      href={manifest.tracking_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Track shipment
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Delivery notes</div>
+                  {(linkedNotes ?? []).length === 0 ? (
+                    <div className="text-muted-foreground">
+                      {manifest.delivery_note_id ? "Linked" : "Consolidated / none linked"}
+                    </div>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {(linkedNotes ?? []).map((n) => (
+                        <li key={n.id} className="flex items-center gap-2">
+                          <FileText className="h-3 w-3 text-muted-foreground" />
+                          <Link className="underline font-mono" to={`/sales/delivery-notes/${n.id}`}>
+                            {n.delivery_number}
+                          </Link>
+                          <span className="text-xs text-muted-foreground">{n.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {manifest.state !== "dispatched" && manifest.carrier_id && (
+                <div className="flex flex-wrap items-end gap-2">
+                  {(services.data ?? []).length > 0 && (
+                    <div>
+                      <Label>Service</Label>
+                      <select
+                        className="h-9 rounded-md border bg-background px-2 text-sm"
+                        value={serviceId || manifest.carrier_service_id || ""}
+                        onChange={(e) => setServiceId(e.target.value)}
+                      >
+                        <option value="">Default</option>
+                        {(services.data ?? []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                            {s.transit_days ? ` · ${s.transit_days}d` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <Button
+                    variant="outline"
+                    disabled={allocate.isPending}
+                    onClick={() => allocate.mutate(serviceId || manifest.carrier_service_id || null)}
+                  >
+                    <Tag className="h-4 w-4 mr-2" />
+                    {manifest.tracking_number ? "Re-issue tracking" : "Allocate tracking"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </Section>
+
         {manifest.state !== "dispatched" && proofStatus?.required && (
           <Section
             title="Proof of dispatch"

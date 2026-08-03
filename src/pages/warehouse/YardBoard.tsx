@@ -110,7 +110,8 @@ export default function YardBoard() {
   const { data: visits, isLoading: visitsLoading } = useQuery({
     queryKey: ["wms-trailer-visits", currentBusiness?.id, warehouseFilter],
     enabled: !!currentBusiness?.id,
-    refetchInterval: 15_000,
+    // Phase F — no poll. `wms_trailer_visits` is on the realtime
+    // publication and `useWmsRealtimeSync` invalidates this prefix.
     queryFn: async () => {
       let q = supabase
         .from("wms_trailer_visits")
@@ -134,7 +135,7 @@ export default function YardBoard() {
   const { data: slots, isLoading: slotsLoading } = useQuery({
     queryKey: ["wms-yard-slots", currentBusiness?.id, warehouseFilter],
     enabled: !!currentBusiness?.id,
-    refetchInterval: 15_000,
+    // Phase F — driven by the realtime channel, not a timer.
     queryFn: async () => {
       let q = supabase
         .from("wms_yard_slots")

@@ -2391,6 +2391,273 @@ async function fetchCountAuditReport(
 
 
 
+// ── Dispatch documents (ADR 0110) ──────────────────────────────────────────
+// One bundle, four projections. Dispatch orchestrates and REQUESTS these
+// artifacts; the Document Platform owns rendering. None of these fetchers
+// write anything.
+
+interface ManifestBundle {
+  manifest: any;
+  cartons: any[];
+  lpns: Record<string, any>;
+  deliveryNotes: any[];
+  proof: any | null;
+}
+
+async function loadManifestBundle(
+  supabase: any,
+  manifestId: string,
+): Promise<ManifestBundle> {
+  const { data: manifest, error } = await supabase
+    .from("wms_loading_manifests")
+    .select(`
+      *,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      warehouse:warehouses(name, code),
+      carrier:carriers(name, carrier_kind, contact_phone, contact_email),
+      carrier_service:carrier_services(name, code, transit_days),
+      trailer_visit:wms_trailer_visits(trailer_ref, driver_name, driver_phone, seal_out)
+    `)
+    .eq("id", manifestId)
+    .single();
+
+  if (error || !manifest) {
+    throw new Error(`Loading manifest not found: ${error?.message}`);
+  }
+
+  const { data: links } = await supabase
+    .from("wms_manifest_cartons")
+    .select("id, sequence, loaded_at, carton_id")
+    .eq("manifest_id", manifestId)
+    .order("sequence", { ascending: true });
+
+  const cartonIds = (links || []).map((l: any) => l.carton_id).filter(Boolean);
+  const { data: cartonRows } = cartonIds.length
+    ? await supabase
+        .from("wms_pack_cartons")
+        .select(
+          "id, sales_order_id, wave_id, weight_kg, length_cm, width_cm, height_cm, " +
+            "sealed_at, shipment_lpn_id",
+        )
+        .in("id", cartonIds)
+    : { data: [] };
+
+  const cartonById: Record<string, any> = {};
+  for (const c of cartonRows || []) cartonById[c.id] = c;
+
+  const lpnIds = (cartonRows || [])
+    .map((c: any) => c.shipment_lpn_id)
+    .filter(Boolean);
+  const { data: lpnRows } = lpnIds.length
+    ? await supabase
+        .from("wms_license_plates")
+        .select("id, code, status")
+        .in("id", lpnIds)
+    : { data: [] };
+  const lpns: Record<string, any> = {};
+  for (const l of lpnRows || []) lpns[l.id] = l;
+
+  const cartons = (links || []).map((l: any) => ({
+    ...l,
+    carton: cartonById[l.carton_id] ?? null,
+  }));
+
+  // ADR 0109 — the manifest is the outbound spine, so the paperwork can
+  // name the customer deliveries this load physically carries.
+  const { data: notes } = await supabase
+    .from("delivery_notes")
+    .select("id, delivery_number, status, delivery_address, contact_id")
+    .eq("manifest_id", manifestId)
+    .limit(200);
+
+  const { data: proof } = await supabase
+    .from("wms_dispatch_proofs")
+    .select("seal_number, driver_name, driver_id_ref, captured_at, gps_lat, gps_lng")
+    .eq("manifest_id", manifestId)
+    .order("captured_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    manifest,
+    cartons,
+    lpns,
+    deliveryNotes: notes || [],
+    proof: proof ?? null,
+  };
+}
+
+function manifestDocumentBase(
+  bundle: ManifestBundle,
+  documentType: string,
+  label: string,
+) {
+  const { manifest, cartons, proof } = bundle;
+  const totalWeight = cartons.reduce(
+    (sum, c) => sum + Number(c.carton?.weight_kg ?? 0),
+    0,
+  );
+  return {
+    document_number: manifest.code,
+    document_type: documentType,
+    document_type_label: label,
+    status: manifest.state,
+    issue_date: manifest.dispatched_at || manifest.closed_at || manifest.created_at,
+    due_date: manifest.planned_departure_at ?? null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: manifest.business?.base_currency || "USD",
+    notes: manifest.notes || null,
+    terms: null,
+    contact: null,
+    business_id: manifest.business_id,
+    organization_id: manifest.organization_id,
+    hide_amounts: true,
+    warehouse_name: manifest.warehouse?.name ?? null,
+    carrier_name: manifest.carrier?.name ?? null,
+    carrier_kind: manifest.carrier?.carrier_kind ?? null,
+    carrier_service_name: manifest.carrier_service?.name ?? null,
+    tracking_number: manifest.tracking_number ?? null,
+    tracking_url: manifest.tracking_url ?? null,
+    trailer_ref: manifest.trailer_visit?.trailer_ref ?? null,
+    driver_name: proof?.driver_name ?? manifest.trailer_visit?.driver_name ?? null,
+    seal_number: proof?.seal_number ?? manifest.trailer_visit?.seal_out ?? null,
+    proof_captured_at: proof?.captured_at ?? null,
+    carton_count: cartons.length,
+    total_weight_kg: Number(totalWeight.toFixed(3)),
+    delivery_numbers: bundle.deliveryNotes
+      .map((n: any) => n.delivery_number)
+      .filter(Boolean),
+  };
+}
+
+function cartonLines(bundle: ManifestBundle) {
+  return bundle.cartons.map((l: any) => ({
+    description: `Carton ${l.sequence}`,
+    sku: bundle.lpns[l.carton?.shipment_lpn_id]?.code ?? null,
+    lpn_code: bundle.lpns[l.carton?.shipment_lpn_id]?.code ?? null,
+    quantity: 1,
+    weight_kg: l.carton?.weight_kg ?? null,
+    dimensions_cm:
+      l.carton?.length_cm && l.carton?.width_cm && l.carton?.height_cm
+        ? `${l.carton.length_cm}×${l.carton.width_cm}×${l.carton.height_cm}`
+        : null,
+    sealed_at: l.carton?.sealed_at ?? null,
+    loaded_at: l.loaded_at ?? null,
+    unit_price: 0,
+    tax_rate: 0,
+    tax_amount: 0,
+    line_total: 0,
+  }));
+}
+
+/** Bill of lading — the carrier's contract of carriage for this load. */
+async function fetchBillOfLading(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadManifestBundle(supabase, documentId);
+  const { manifest } = bundle;
+  return {
+    ...manifestDocumentBase(bundle, "bill_of_lading", "BILL OF LADING"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      manifest.business,
+      manifest.organization,
+      manifest.branch_id,
+    ),
+    items: cartonLines(bundle),
+  } as unknown as DocumentData;
+}
+
+/** Dispatch manifest — the internal load sheet, carton by carton. */
+async function fetchDispatchManifest(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadManifestBundle(supabase, documentId);
+  const { manifest } = bundle;
+  return {
+    ...manifestDocumentBase(bundle, "dispatch_manifest", "DISPATCH MANIFEST"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      manifest.business,
+      manifest.organization,
+      manifest.branch_id,
+    ),
+    items: cartonLines(bundle),
+  } as unknown as DocumentData;
+}
+
+/** Packing list — travels with the goods; per delivery, per carton. */
+async function fetchPackingList(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadManifestBundle(supabase, documentId);
+  const { manifest, cartons } = bundle;
+
+  const soIds = [
+    ...new Set(cartons.map((c: any) => c.carton?.sales_order_id).filter(Boolean)),
+  ];
+  const { data: orders } = soIds.length
+    ? await supabase
+        .from("sales_orders")
+        .select("id, order_number")
+        .in("id", soIds)
+    : { data: [] };
+  const orderById: Record<string, any> = {};
+  for (const o of orders || []) orderById[o.id] = o;
+
+  return {
+    ...manifestDocumentBase(bundle, "packing_list", "PACKING LIST"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      manifest.business,
+      manifest.organization,
+      manifest.branch_id,
+    ),
+    items: cartons.map((l: any) => ({
+      description: `Carton ${l.sequence}`,
+      sku: bundle.lpns[l.carton?.shipment_lpn_id]?.code ?? null,
+      order_number: orderById[l.carton?.sales_order_id]?.order_number ?? null,
+      quantity: 1,
+      weight_kg: l.carton?.weight_kg ?? null,
+      unit_price: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: 0,
+    })),
+  } as unknown as DocumentData;
+}
+
+/**
+ * Carrier label — one 4x6 artifact per load. The tracking number must
+ * already be allocated (`wms_allocate_tracking_number`); rendering never
+ * mints one, so a label can never disagree with the manifest.
+ */
+async function fetchCarrierLabel(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadManifestBundle(supabase, documentId);
+  const { manifest } = bundle;
+  return {
+    ...manifestDocumentBase(bundle, "carrier_label", "CARRIER LABEL"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      manifest.business,
+      manifest.organization,
+      manifest.branch_id,
+    ),
+    barcode_value: manifest.tracking_number ?? manifest.code,
+    items: cartonLines(bundle),
+  } as unknown as DocumentData;
+}
+
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
   estimate: "estimate",
@@ -2419,6 +2686,14 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   count_sheet_blind: "invoice",
   count_variance_report: "invoice",
   count_audit_report: "invoice",
+  // ADR 0110 — dispatch paperwork. The bill of lading and the dispatch
+  // manifest are the carrier-facing artifacts; the packing list travels
+  // with the goods; the carrier label is a 4x6 thermal artifact and is
+  // deliberately NOT an A4 invoice shape.
+  bill_of_lading: "invoice",
+  dispatch_manifest: "invoice",
+  packing_list: "invoice",
+  carrier_label: "invoice",
 
 };
 
@@ -2471,6 +2746,12 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   count_sheet_blind: fetchCountSheetBlind,
   count_variance_report: fetchCountVarianceReport,
   count_audit_report: fetchCountAuditReport,
+  // ADR 0110 — dispatch documents. Dispatch REQUESTS documents; it never
+  // renders them. Four artifacts, four fetchers over one manifest bundle.
+  bill_of_lading: fetchBillOfLading,
+  dispatch_manifest: fetchDispatchManifest,
+  packing_list: fetchPackingList,
+  carrier_label: fetchCarrierLabel,
 
 };
 
