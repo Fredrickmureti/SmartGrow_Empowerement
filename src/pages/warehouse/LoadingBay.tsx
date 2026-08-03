@@ -116,7 +116,9 @@ export default function LoadingBay() {
       if (error) throw error;
       return (data ?? []) as string[];
     },
-    refetchInterval: 15_000,
+    // Phase F — no poll. `wms_manifest_cartons` / `wms_loading_manifests`
+    // are on the realtime publication and `useWmsRealtimeSync` invalidates
+    // the `wms-manifest-shortage` prefix on every change.
   });
   const shortCount = shortCartonIds?.length ?? 0;
   const loadedCount = (loaded ?? []).length;
