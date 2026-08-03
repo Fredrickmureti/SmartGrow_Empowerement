@@ -140,6 +140,20 @@ export default function MobileHome() {
           <span className="text-xs text-muted-foreground">tap →</span>
         </Link>
 
+        <Link
+          to="/wm/gate"
+          className="flex items-center justify-between rounded border p-3 active:bg-muted"
+        >
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <div>
+              <div className="text-sm font-medium">Gatehouse</div>
+              <div className="text-xs text-muted-foreground">Scan gate passes, admit and release trailers</div>
+            </div>
+          </div>
+          <span className="text-xs text-muted-foreground">tap →</span>
+        </Link>
+
 
         <Link
           to="/wm/plate"

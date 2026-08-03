@@ -64915,42 +64915,51 @@ export type Database = {
       warehouse_docks: {
         Row: {
           business_id: string
+          capabilities: Json
           code: string
           created_at: string
           created_by: string | null
+          default_turn_minutes: number
           dock_type: Database["public"]["Enums"]["wms_dock_type"]
           id: string
           is_active: boolean
           name: string | null
           notes: string | null
+          operating_hours: Json
           organization_id: string
           updated_at: string
           warehouse_id: string
         }
         Insert: {
           business_id: string
+          capabilities?: Json
           code: string
           created_at?: string
           created_by?: string | null
+          default_turn_minutes?: number
           dock_type?: Database["public"]["Enums"]["wms_dock_type"]
           id?: string
           is_active?: boolean
           name?: string | null
           notes?: string | null
+          operating_hours?: Json
           organization_id: string
           updated_at?: string
           warehouse_id: string
         }
         Update: {
           business_id?: string
+          capabilities?: Json
           code?: string
           created_at?: string
           created_by?: string | null
+          default_turn_minutes?: number
           dock_type?: Database["public"]["Enums"]["wms_dock_type"]
           id?: string
           is_active?: boolean
           name?: string | null
           notes?: string | null
+          operating_hours?: Json
           organization_id?: string
           updated_at?: string
           warehouse_id?: string
@@ -65383,6 +65392,56 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_appointment_documents: {
+        Row: {
+          appointment_id: string
+          business_id: string
+          created_at: string
+          created_by: string | null
+          doc_id: string
+          doc_number: string | null
+          doc_type: string
+          id: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          doc_id: string
+          doc_number?: string | null
+          doc_type: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          doc_id?: string
+          doc_number?: string | null
+          doc_type?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_appointment_documents_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
             referencedColumns: ["id"]
           },
         ]
@@ -66030,6 +66089,7 @@ export type Database = {
       }
       wms_dock_appointments: {
         Row: {
+          appointment_no: string | null
           appointment_type: string
           arrived_at: string | null
           branch_id: string | null
@@ -66039,18 +66099,28 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string | null
+          departed_at: string | null
           dock_id: string
+          driver_name: string | null
+          driver_phone: string | null
           id: string
           is_sample_data: boolean
           organization_id: string
+          party_contact_id: string | null
+          priority: string
+          qr_token: string | null
           reference: string | null
+          scheduled_departure: string | null
           state: string
+          tractor_ref: string | null
+          trailer_ref: string | null
           updated_at: string
           warehouse_id: string
           window_end: string
           window_start: string
         }
         Insert: {
+          appointment_no?: string | null
           appointment_type: string
           arrived_at?: string | null
           branch_id?: string | null
@@ -66060,18 +66130,28 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          departed_at?: string | null
           dock_id: string
+          driver_name?: string | null
+          driver_phone?: string | null
           id?: string
           is_sample_data?: boolean
           organization_id: string
+          party_contact_id?: string | null
+          priority?: string
+          qr_token?: string | null
           reference?: string | null
+          scheduled_departure?: string | null
           state?: string
+          tractor_ref?: string | null
+          trailer_ref?: string | null
           updated_at?: string
           warehouse_id: string
           window_end: string
           window_start: string
         }
         Update: {
+          appointment_no?: string | null
           appointment_type?: string
           arrived_at?: string | null
           branch_id?: string | null
@@ -66081,12 +66161,21 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          departed_at?: string | null
           dock_id?: string
+          driver_name?: string | null
+          driver_phone?: string | null
           id?: string
           is_sample_data?: boolean
           organization_id?: string
+          party_contact_id?: string | null
+          priority?: string
+          qr_token?: string | null
           reference?: string | null
+          scheduled_departure?: string | null
           state?: string
+          tractor_ref?: string | null
+          trailer_ref?: string | null
           updated_at?: string
           warehouse_id?: string
           window_end?: string
@@ -66109,6 +66198,73 @@ export type Database = {
           },
           {
             foreignKeyName: "wms_dock_appointments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_dock_appt_party_fk"
+            columns: ["party_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_dock_downtime: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          dock_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          reason: string
+          updated_at: string
+          warehouse_id: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          dock_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          reason?: string
+          updated_at?: string
+          warehouse_id: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          dock_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          reason?: string
+          updated_at?: string
+          warehouse_id?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_dock_downtime_dock_id_fkey"
+            columns: ["dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_dock_downtime_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -66274,6 +66430,82 @@ export type Database = {
           },
           {
             foreignKeyName: "wms_exceptions_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_gate_events: {
+        Row: {
+          actor_user_id: string | null
+          appointment_id: string | null
+          approved: boolean | null
+          business_id: string
+          created_at: string
+          event_type: string
+          id: string
+          identity_kind: string | null
+          identity_ref: string | null
+          notes: string | null
+          occurred_at: string
+          organization_id: string
+          seal_ref: string | null
+          visit_id: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          appointment_id?: string | null
+          approved?: boolean | null
+          business_id: string
+          created_at?: string
+          event_type: string
+          id?: string
+          identity_kind?: string | null
+          identity_ref?: string | null
+          notes?: string | null
+          occurred_at?: string
+          organization_id: string
+          seal_ref?: string | null
+          visit_id?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          appointment_id?: string | null
+          approved?: boolean | null
+          business_id?: string
+          created_at?: string
+          event_type?: string
+          id?: string
+          identity_kind?: string | null
+          identity_ref?: string | null
+          notes?: string | null
+          occurred_at?: string
+          organization_id?: string
+          seal_ref?: string | null
+          visit_id?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_gate_events_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_gate_events_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "wms_trailer_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_gate_events_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -69167,42 +69399,51 @@ export type Database = {
       wms_yard_slots: {
         Row: {
           business_id: string
+          capacity: number
           code: string
           created_at: string
           created_by: string | null
           id: string
           notes: string | null
           organization_id: string
+          sequence: number
           slot_type: string
           status: string
           updated_at: string
           warehouse_id: string
+          zone_kind: string
         }
         Insert: {
           business_id: string
+          capacity?: number
           code: string
           created_at?: string
           created_by?: string | null
           id?: string
           notes?: string | null
           organization_id: string
+          sequence?: number
           slot_type?: string
           status?: string
           updated_at?: string
           warehouse_id: string
+          zone_kind?: string
         }
         Update: {
           business_id?: string
+          capacity?: number
           code?: string
           created_at?: string
           created_by?: string | null
           id?: string
           notes?: string | null
           organization_id?: string
+          sequence?: number
           slot_type?: string
           status?: string
           updated_at?: string
           warehouse_id?: string
+          zone_kind?: string
         }
         Relationships: [
           {
@@ -76940,6 +77181,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      _next_dock_appointment_no: { Args: { p_org: string }; Returns: string }
       _next_physical_count_number: { Args: { p_org: string }; Returns: string }
       _payroll_assert_je_line_account: {
         Args: { _account_id: string }
@@ -77248,6 +77490,18 @@ export type Database = {
           p_severity: number
         }
         Returns: number
+      }
+      _wms_log_gate_event: {
+        Args: {
+          p_approved?: boolean
+          p_event_type: string
+          p_identity_kind?: string
+          p_identity_ref?: string
+          p_notes?: string
+          p_seal_ref?: string
+          p_visit: Database["public"]["Tables"]["wms_trailer_visits"]["Row"]
+        }
+        Returns: string
       }
       _wms_lpn_branch: {
         Args: {
@@ -79276,6 +79530,16 @@ export type Database = {
       }
       check_contact_dependencies: {
         Args: { p_contact_id: string }
+        Returns: Json
+      }
+      check_dock_feasibility: {
+        Args: {
+          p_dock_id: string
+          p_exclude_appointment_id?: string
+          p_requirements?: Json
+          p_window_end: string
+          p_window_start: string
+        }
         Returns: Json
       }
       check_downgrade_impact: {
@@ -82186,6 +82450,89 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "legal_orders_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      gate_approve: {
+        Args: { p_approved?: boolean; p_notes?: string; p_visit_id: string }
+        Returns: undefined
+      }
+      gate_check_in: {
+        Args: {
+          p_appointment_id?: string
+          p_carrier_id?: string
+          p_driver_name?: string
+          p_driver_phone?: string
+          p_identity_kind?: string
+          p_identity_ref?: string
+          p_qr_token?: string
+          p_seal_in?: string
+          p_trailer_ref: string
+          p_warehouse_id: string
+        }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      gate_exit: {
+        Args: { p_notes?: string; p_seal_out?: string; p_visit_id: string }
+        Returns: {
+          appointment_id: string | null
+          arrived_at: string
+          branch_id: string | null
+          business_id: string
+          carrier_id: string | null
+          created_at: string
+          created_by: string | null
+          departed_at: string | null
+          dock_id: string | null
+          docked_at: string | null
+          driver_name: string | null
+          driver_phone: string | null
+          dwell_minutes: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          seal_in: string | null
+          seal_out: string | null
+          status: string
+          trailer_ref: string
+          updated_at: string
+          warehouse_id: string
+          yard_slot_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_trailer_visits"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -87924,6 +88271,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reschedule_dock_appointment: {
+        Args: {
+          p_appointment_id: string
+          p_dock_id: string
+          p_window_end: string
+          p_window_start: string
+        }
+        Returns: undefined
+      }
       reserve_pos_stock: {
         Args: {
           p_organization_id: string
@@ -88654,7 +89010,16 @@ export type Database = {
         Args: {
           p_carrier_id?: string
           p_dock_id: string
+          p_documents?: Json
+          p_driver_name?: string
+          p_driver_phone?: string
+          p_party_contact_id?: string
+          p_priority?: string
           p_reference?: string
+          p_requirements?: Json
+          p_scheduled_departure?: string
+          p_tractor_ref?: string
+          p_trailer_ref?: string
           p_type: string
           p_window_end: string
           p_window_start: string
