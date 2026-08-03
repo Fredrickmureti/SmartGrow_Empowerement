@@ -22,6 +22,7 @@ import {
   type OperatorBoardRow, type OperatorStatus,
 } from "./useLabourOperators";
 import { OperatorDialog } from "./OperatorDialog";
+import { LabourWorksheetButton } from "./LabourWorksheetButton";
 
 function statusVariant(s: OperatorStatus): "default" | "secondary" | "outline" | "destructive" {
   if (s === "executing") return "default";
