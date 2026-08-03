@@ -11,6 +11,8 @@ import { useInactivityMonitor } from '@/hooks/security/useInactivityMonitor';
 import { BodyPointerEventsGuard } from '@/components/common/BodyPointerEventsGuard';
 import { useScanCapture } from '@/hooks/pos/useScanCapture';
 import { ScannerWorkspaceProvider } from '@/contexts/ScannerWorkspaceContext';
+import { LocalScanOverlay } from '@/components/scanner/LocalScanOverlay';
+
 
 interface AuthenticatedShellProps {
   children: ReactNode;
