@@ -199,12 +199,6 @@ export function InvoiceLineScanner({
             disabled={disabled}
             className="flex-1 h-11"
           />
-          <ScannerPairingButton
-            businessId={businessId}
-            branchId={branchId}
-            label="Invoice"
-            variant="ghost"
-          />
         </div>
       )}
       <BarcodeInputField
