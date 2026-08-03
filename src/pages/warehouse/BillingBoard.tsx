@@ -40,7 +40,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, RefreshCw, FileText, CalendarClock, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus, Trash2, RefreshCw, FileText, CalendarClock, Users, Flag, Undo2,
+} from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrencies } from "@/hooks/useCurrencies";
 
@@ -77,6 +80,10 @@ interface Tariff {
   effective_to: string | null;
   is_active: boolean;
   notes: string | null;
+  min_charge: number | null;
+  included_quantity: number | null;
+  tier_from: number | null;
+  tier_to: number | null;
 }
 
 interface Summary {
@@ -89,7 +96,25 @@ interface Summary {
   total_amount: number;
   unbilled_amount: number;
   unpriced_count: number;
+  disputed_count: number;
   last_occurred_at: string;
+}
+
+/** One ledger row, shown in the corrections drill-down. */
+interface LedgerEntry {
+  id: string;
+  client_id: string | null;
+  activity: string;
+  uom: string;
+  quantity: number;
+  amount: number | null;
+  currency: string | null;
+  occurred_at: string;
+  invoice_id: string | null;
+  disputed_at: string | null;
+  dispute_reason: string | null;
+  dispute_resolved_at: string | null;
+  reverses_activity_id: string | null;
 }
 
 function todayIso(): string {
@@ -127,6 +152,10 @@ export default function BillingBoard() {
     currency: "USD",
     effective_from: todayIso(),
     notes: "",
+    min_charge: "",
+    included_quantity: "",
+    tier_from: "",
+    tier_to: "",
   });
 
   const [invoiceForm, setInvoiceForm] = useState({
@@ -209,7 +238,9 @@ export default function BillingBoard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_billing_tariffs")
-        .select("id,client_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes")
+        .select(
+          "id,client_id,activity,uom,rate,currency,effective_from,effective_to,is_active,notes,min_charge,included_quantity,tier_from,tier_to",
+        )
         .eq("business_id", currentBusiness!.id)
         .order("activity");
       if (error) throw error;
@@ -220,6 +251,12 @@ export default function BillingBoard() {
   const createTariff = useMutation({
     mutationFn: async () => {
       if (!currentBusiness?.id) throw new Error("No active business");
+      const num = (v: string) => (v.trim() === "" ? null : Number(v));
+      const from = num(tariffForm.tier_from);
+      const to = num(tariffForm.tier_to);
+      if (from !== null && to !== null && to <= from) {
+        throw new Error("Tier ceiling must be above the tier floor");
+      }
       const { error } = await supabase.from("wms_billing_tariffs").insert({
         business_id: currentBusiness.id,
         client_id: tariffForm.client_id || null,
@@ -229,6 +266,10 @@ export default function BillingBoard() {
         currency: tariffForm.currency.trim().toUpperCase() || "USD",
         effective_from: tariffForm.effective_from,
         notes: tariffForm.notes.trim() || null,
+        min_charge: num(tariffForm.min_charge),
+        included_quantity: num(tariffForm.included_quantity),
+        tier_from: from,
+        tier_to: to,
       });
       if (error) throw error;
     },
@@ -272,7 +313,9 @@ export default function BillingBoard() {
     queryFn: async () => {
       let q = supabase
         .from("wms_billable_activities_summary_view")
-        .select("client_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,unpriced_count,last_occurred_at")
+        .select(
+          "client_id,activity,uom,currency,entry_count,total_quantity,total_amount,unbilled_amount,unpriced_count,disputed_count,last_occurred_at",
+        )
         .eq("business_id", currentBusiness!.id)
         .order("last_occurred_at", { ascending: false });
       if (clientFilter !== "all") {
@@ -286,6 +329,79 @@ export default function BillingBoard() {
       if (error) throw error;
       return (data ?? []) as Summary[];
     },
+  });
+
+  // ---------- Ledger entries (corrections drill-down) ----------
+  const { data: entries, isLoading: entriesLoading } = useQuery({
+    queryKey: ["wms-billable-entries", currentBusiness?.id, clientFilter],
+    enabled: !!currentBusiness?.id,
+    queryFn: async () => {
+      let q = supabase
+        .from("wms_billable_activities")
+        .select(
+          "id,client_id,activity,uom,quantity,amount,currency,occurred_at,invoice_id,disputed_at,dispute_reason,dispute_resolved_at,reverses_activity_id",
+        )
+        .eq("business_id", currentBusiness!.id)
+        .order("occurred_at", { ascending: false })
+        .limit(50);
+      if (clientFilter !== "all") {
+        if (clientFilter === "__none__") q = q.is("client_id", null);
+        else q = q.eq("client_id", clientFilter);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as LedgerEntry[];
+    },
+  });
+
+  const invalidateLedger = () => {
+    qc.invalidateQueries({ queryKey: ["wms-billable-summary"] });
+    qc.invalidateQueries({ queryKey: ["wms-billable-entries"] });
+  };
+
+  /**
+   * Corrections never edit history: a dispute flags the row so the
+   * invoice generator holds it back, and a reversal appends a mirrored
+   * negative entry. Both are RPC-only (the ledger is immutable).
+   */
+  const disputeEntry = useMutation({
+    mutationFn: async (row: LedgerEntry) => {
+      const resolving = !!row.disputed_at && !row.dispute_resolved_at;
+      const reason = window.prompt(
+        resolving ? "Resolution note" : "Why is this entry disputed?",
+        "",
+      );
+      if (reason === null || !reason.trim()) throw new Error("A reason is required");
+      const { error } = await supabase.rpc("wms_dispute_billable_activity", {
+        p_activity_id: row.id,
+        p_reason: reason.trim(),
+        p_resolve: resolving,
+      });
+      if (error) throw error;
+      return resolving;
+    },
+    onSuccess: (resolving) => {
+      toast.success(resolving ? "Dispute resolved" : "Entry disputed and held back");
+      invalidateLedger();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reverseEntry = useMutation({
+    mutationFn: async (row: LedgerEntry) => {
+      const reason = window.prompt("Why is this entry being reversed?", "");
+      if (reason === null || !reason.trim()) throw new Error("A reason is required");
+      const { error } = await supabase.rpc("wms_reverse_billable_activity", {
+        p_activity_id: row.id,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Reversing entry posted");
+      invalidateLedger();
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const captureDrain = useMutation({
@@ -361,9 +477,10 @@ export default function BillingBoard() {
         acc.billed += Number(r.total_amount) || 0;
         acc.unbilled += Number(r.unbilled_amount) || 0;
         acc.unpriced += Number(r.unpriced_count) || 0;
+        acc.disputed += Number(r.disputed_count) || 0;
         return acc;
       },
-      { entries: 0, billed: 0, unbilled: 0, unpriced: 0 }
+      { entries: 0, billed: 0, unbilled: 0, unpriced: 0, disputed: 0 }
     );
   }, [summary]);
 
@@ -432,11 +549,12 @@ export default function BillingBoard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <KpiCard label="Activity entries" value={String(totals.entries)} />
           <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
           <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
           <KpiCard label="Unpriced entries" value={String(totals.unpriced)} tone={totals.unpriced > 0 ? "bad" : undefined} />
+          <KpiCard label="Disputed entries" value={String(totals.disputed)} tone={totals.disputed > 0 ? "warn" : undefined} />
         </div>
 
         <Section
@@ -497,6 +615,7 @@ export default function BillingBoard() {
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Unbilled</TableHead>
                   <TableHead className="text-right">Unpriced</TableHead>
+                  <TableHead className="text-right">Disputed</TableHead>
                   <TableHead>Currency</TableHead>
                 </TableRow>
               </TableHeader>
@@ -511,7 +630,85 @@ export default function BillingBoard() {
                     <TableCell className="text-right">{Number(r.total_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{Number(r.unbilled_amount).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{r.unpriced_count}</TableCell>
+                    <TableCell className="text-right">{r.disputed_count ?? 0}</TableCell>
                     <TableCell>{r.currency ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Section>
+
+        <Section
+          title="Recent entries & corrections"
+          description="The ledger is immutable. Dispute holds an entry back from invoicing; reverse posts a mirrored negative entry."
+        >
+          {entriesLoading ? (
+            <LoadingState />
+          ) : (entries ?? []).length === 0 ? (
+            <EmptyState
+              title="No ledger entries yet"
+              description="Capture events or accrue storage to populate the billing ledger."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Occurred</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Activity</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(entries ?? []).map((e) => (
+                  <TableRow key={e.id}>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {new Date(e.occurred_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>{clientLabel(e.client_id)}</TableCell>
+                    <TableCell className="font-mono text-xs">{e.activity}</TableCell>
+                    <TableCell className="text-right">{Number(e.quantity).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {e.amount === null ? "—" : `${Number(e.amount).toFixed(2)} ${e.currency ?? ""}`}
+                    </TableCell>
+                    <TableCell className="space-x-1">
+                      {e.reverses_activity_id && <Badge variant="outline">Reversal</Badge>}
+                      {e.invoice_id && <Badge variant="secondary">Invoiced</Badge>}
+                      {e.disputed_at && !e.dispute_resolved_at && (
+                        <Badge variant="destructive">Disputed</Badge>
+                      )}
+                      {e.dispute_resolved_at && <Badge variant="outline">Dispute resolved</Badge>}
+                      {e.amount === null && <Badge variant="destructive">Unpriced</Badge>}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={
+                          e.disputed_at && !e.dispute_resolved_at
+                            ? "Resolve dispute"
+                            : "Dispute entry"
+                        }
+                        title={e.dispute_reason ?? undefined}
+                        disabled={disputeEntry.isPending || !!e.reverses_activity_id}
+                        onClick={() => disputeEntry.mutate(e)}
+                      >
+                        <Flag className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Reverse entry"
+                        disabled={reverseEntry.isPending || !!e.reverses_activity_id}
+                        onClick={() => reverseEntry.mutate(e)}
+                      >
+                        <Undo2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -536,6 +733,9 @@ export default function BillingBoard() {
                   <TableHead>Activity</TableHead>
                   <TableHead>UoM</TableHead>
                   <TableHead className="text-right">Rate</TableHead>
+                  <TableHead>Band</TableHead>
+                  <TableHead className="text-right">Allowance</TableHead>
+                  <TableHead className="text-right">Min charge</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead>From</TableHead>
                   <TableHead>Active</TableHead>
@@ -549,6 +749,17 @@ export default function BillingBoard() {
                     <TableCell className="font-mono text-xs">{t.activity}</TableCell>
                     <TableCell>{t.uom}</TableCell>
                     <TableCell className="text-right">{Number(t.rate).toFixed(4)}</TableCell>
+                    <TableCell className="text-xs">
+                      {t.tier_from === null && t.tier_to === null
+                        ? "All volumes"
+                        : `${Number(t.tier_from ?? 0)} – ${t.tier_to === null ? "∞" : Number(t.tier_to)}`}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.included_quantity === null ? "—" : Number(t.included_quantity)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.min_charge === null ? "—" : Number(t.min_charge).toFixed(2)}
+                    </TableCell>
                     <TableCell>{t.currency}</TableCell>
                     <TableCell>{t.effective_from}</TableCell>
                     <TableCell>
@@ -682,10 +893,17 @@ export default function BillingBoard() {
               </div>
               <div>
                 <Label>Currency</Label>
-                <Input
+                <Select
                   value={tariffForm.currency}
-                  onChange={(e) => setTariffForm((f) => ({ ...f, currency: e.target.value }))}
-                />
+                  onValueChange={(v) => setTariffForm((f) => ({ ...f, currency: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
+                  <SelectContent>
+                    {(currencies ?? []).map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Effective from</Label>
@@ -693,6 +911,54 @@ export default function BillingBoard() {
                   type="date"
                   value={tariffForm.effective_from}
                   onChange={(e) => setTariffForm((f) => ({ ...f, effective_from: e.target.value }))}
+                />
+              </div>
+            </div>
+            {/* Pricing engine: allowance is consumed first, then the tier
+                band rate applies, then the minimum charge acts as a floor. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Included quantity (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Free allowance per entry"
+                  value={tariffForm.included_quantity}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, included_quantity: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Minimum charge (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Floor amount"
+                  value={tariffForm.min_charge}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, min_charge: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tier from (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="0"
+                  value={tariffForm.tier_from}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, tier_from: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Tier to (optional)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Unbounded"
+                  value={tariffForm.tier_to}
+                  onChange={(e) => setTariffForm((f) => ({ ...f, tier_to: e.target.value }))}
                 />
               </div>
             </div>

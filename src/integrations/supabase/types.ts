@@ -22995,6 +22995,7 @@ export type Database = {
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
           etims_verification_url: string | null
+          exchange_rate: number | null
           id: string
           invoice_number: string
           is_sample_data: boolean
@@ -23054,6 +23055,7 @@ export type Database = {
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
           etims_verification_url?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_number: string
           is_sample_data?: boolean
@@ -23113,6 +23115,7 @@ export type Database = {
           etims_transmission_status?: string | null
           etims_transmitted_at?: string | null
           etims_verification_url?: string | null
+          exchange_rate?: number | null
           id?: string
           invoice_number?: string
           is_sample_data?: boolean
@@ -65524,10 +65527,16 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           id: string
           invoice_id: string | null
           occurred_at: string
           quantity: number
+          reverses_activity_id: string | null
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -65544,10 +65553,16 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_resolved_at?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           id?: string
           invoice_id?: string | null
           occurred_at?: string
           quantity?: number
+          reverses_activity_id?: string | null
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -65564,10 +65579,16 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          dispute_reason?: string | null
+          dispute_resolution?: string | null
+          dispute_resolved_at?: string | null
+          disputed_at?: string | null
+          disputed_by?: string | null
           id?: string
           invoice_id?: string | null
           occurred_at?: string
           quantity?: number
+          reverses_activity_id?: string | null
           source_doc_id?: string | null
           source_doc_type?: string | null
           source_event_id?: string | null
@@ -65610,6 +65631,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_billable_activities_reverses_activity_id_fkey"
+            columns: ["reverses_activity_id"]
+            isOneToOne: false
+            referencedRelation: "wms_billable_activities"
             referencedColumns: ["id"]
           },
           {
@@ -65717,9 +65745,13 @@ export type Database = {
           effective_from: string
           effective_to: string | null
           id: string
+          included_quantity: number
           is_active: boolean
+          min_charge: number | null
           notes: string | null
           rate: number
+          tier_from: number
+          tier_to: number | null
           uom: string
           updated_at: string
         }
@@ -65734,9 +65766,13 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           is_active?: boolean
+          min_charge?: number | null
           notes?: string | null
           rate: number
+          tier_from?: number
+          tier_to?: number | null
           uom?: string
           updated_at?: string
         }
@@ -65751,9 +65787,13 @@ export type Database = {
           effective_from?: string
           effective_to?: string | null
           id?: string
+          included_quantity?: number
           is_active?: boolean
+          min_charge?: number | null
           notes?: string | null
           rate?: number
+          tier_from?: number
+          tier_to?: number | null
           uom?: string
           updated_at?: string
         }
@@ -77688,6 +77728,7 @@ export type Database = {
           client_business_id: string | null
           client_id: string | null
           currency: string | null
+          disputed_count: number | null
           entry_count: number | null
           last_occurred_at: string | null
           total_amount: number | null
@@ -78578,8 +78619,16 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
+      _wms_accrue_storage_days_internal: {
+        Args: { p_as_of: string; p_business_id: string }
+        Returns: number
+      }
       _wms_assert_business_access: {
         Args: { p_business_id: string }
+        Returns: undefined
+      }
+      _wms_assert_period_open: {
+        Args: { _business_id: string; _on_date: string }
         Returns: undefined
       }
       _wms_caller_business_branch: {
@@ -78589,6 +78638,41 @@ export type Database = {
           business_id: string
           organization_id: string
         }[]
+      }
+      _wms_capture_billable_activity_internal: {
+        Args: { p_event_id: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_client_scan_lookup: {
         Args: { p_client_scan_id: string; p_device_id: string }
@@ -78744,6 +78828,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_price_activity: {
+        Args: {
+          _quantity: number
+          _tariff: Database["public"]["Tables"]["wms_billing_tariffs"]["Row"]
+        }
+        Returns: number
+      }
       _wms_qc_post_move: {
         Args: {
           p_dest_location: string
@@ -78774,6 +78865,42 @@ export type Database = {
       _wms_resolve_client_id: {
         Args: { _aggregate_id: string; _business_id: string; _payload: Json }
         Returns: string
+      }
+      _wms_resolve_tariff: {
+        Args: {
+          _activity: string
+          _business_id: string
+          _client_id: string
+          _on_date: string
+          _quantity: number
+        }
+        Returns: {
+          activity: string
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          included_quantity: number
+          is_active: boolean
+          min_charge: number | null
+          notes: string | null
+          rate: number
+          tier_from: number
+          tier_to: number | null
+          uom: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billing_tariffs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       _wms_resolve_trailer: {
         Args: {
@@ -80743,10 +80870,16 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
           id: string
           invoice_id: string | null
           occurred_at: string
           quantity: number
+          reverses_activity_id: string | null
           source_doc_id: string | null
           source_doc_type: string | null
           source_event_id: string | null
@@ -83931,6 +84064,7 @@ export type Database = {
           etims_transmission_status: string | null
           etims_transmitted_at: string | null
           etims_verification_url: string | null
+          exchange_rate: number | null
           id: string
           invoice_number: string
           is_sample_data: boolean
@@ -91976,6 +92110,7 @@ export type Database = {
         }
         Returns: number
       }
+      wms_billing_nightly_sweep: { Args: never; Returns: number }
       wms_capture_dispatch_proof: {
         Args: {
           p_driver_id_ref?: string
@@ -92100,6 +92235,46 @@ export type Database = {
           p_scrap_qty?: number
         }
         Returns: Json
+      }
+      wms_dispute_billable_activity: {
+        Args: {
+          p_activity_id: string
+          p_reason: string
+          p_resolution?: string
+          p_resolve?: boolean
+        }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       wms_e2e_ensure_seed: { Args: never; Returns: Json }
       wms_effective_replen_rule: {
@@ -93131,6 +93306,41 @@ export type Database = {
         Args: { p_business_id: string; p_code: string }
         Returns: Json
       }
+      wms_reverse_billable_activity: {
+        Args: { p_activity_id: string; p_reason: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          dispute_reason: string | null
+          dispute_resolution: string | null
+          dispute_resolved_at: string | null
+          disputed_at: string | null
+          disputed_by: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          reverses_activity_id: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       wms_seed_base_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
@@ -94117,6 +94327,7 @@ export type Database = {
         | "capacity_exceeded"
         | "stale_task"
         | "other"
+        | "billing_unpriced"
       wms_exception_resolution_kind:
         | "short_scan"
         | "damaged"
@@ -95103,6 +95314,7 @@ export const Constants = {
         "capacity_exceeded",
         "stale_task",
         "other",
+        "billing_unpriced",
       ],
       wms_exception_resolution_kind: [
         "short_scan",
