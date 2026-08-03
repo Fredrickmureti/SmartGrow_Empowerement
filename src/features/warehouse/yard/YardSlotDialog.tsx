@@ -125,7 +125,9 @@ export function YardSlotDialog({
           >
             Save
           </Button>
+          </div>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
