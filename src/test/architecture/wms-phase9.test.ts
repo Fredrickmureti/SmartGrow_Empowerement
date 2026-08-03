@@ -143,6 +143,40 @@ describe("yard architecture (ADR 0086)", () => {
     expect(src).toContain("confirmedCode");
   });
 
+  it("load readiness is read-only and sourced from the summary view", () => {
+    const useYard = readFileSync(path.join(SRC, "features/warehouse/yard/useYard.ts"), "utf8");
+    expect(useYard).toContain("wms_trailer_visit_load_summary");
+    expect(useYard).toContain("useTrailerLoadSummaries");
+    // The yard reads manifests/receiving — it must never write them.
+    expect(/from\("wms_loading_manifests"\)[\s\S]{0,200}\.(insert|update|delete)\(/.test(useYard)).toBe(false);
+    expect(/from\("wms_receiving_sessions"\)[\s\S]{0,200}\.(insert|update|delete)\(/.test(useYard)).toBe(false);
+
+    const rt = readFileSync(path.join(SRC, "features/warehouse/realtime/useWmsRealtimeSync.ts"), "utf8");
+    expect(rt).toContain("wms-trailer-load-summary");
+
+    const drawer = readFileSync(
+      path.join(SRC, "features/warehouse/yard/TrailerVisitDrawer.tsx"),
+      "utf8",
+    );
+    expect(drawer).toContain("TrailerLoadPanel");
+  });
+
+  it("the yard ADR documents the execution, handheld and readiness layers", () => {
+    const adr = readFileSync(
+      path.join(ROOT, "docs/adr/0086-enterprise-yard-management.md"),
+      "utf8",
+    );
+    for (const token of [
+      "request_yard_move",
+      "complete_yard_move",
+      "cancel_yard_move",
+      "/warehouse-app/yard/marshal",
+      "wms_trailer_visit_load_summary",
+    ]) {
+      expect(adr).toContain(token);
+    }
+  });
+
   it("realtime refreshes yard work orders when wms_tasks changes", () => {
     const sync = readFileSync(path.join(SRC, "features/warehouse/realtime/useWmsRealtimeSync.ts"), "utf8");
     expect(sync).toContain('["wms-yard-move-tasks"]');
