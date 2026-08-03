@@ -77728,6 +77728,7 @@ export type Database = {
           client_business_id: string | null
           client_id: string | null
           currency: string | null
+          disputed_count: number | null
           entry_count: number | null
           last_occurred_at: string | null
           total_amount: number | null
