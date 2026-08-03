@@ -8227,9 +8227,63 @@ export type Database = {
         }
         Relationships: []
       }
+      carrier_services: {
+        Row: {
+          business_id: string
+          carrier_id: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_sample_data: boolean
+          name: string
+          organization_id: string
+          tracking_url_template: string | null
+          transit_days: number | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          carrier_id: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sample_data?: boolean
+          name: string
+          organization_id: string
+          tracking_url_template?: string | null
+          transit_days?: number | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          carrier_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sample_data?: boolean
+          name?: string
+          organization_id?: string
+          tracking_url_template?: string | null
+          transit_days?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carrier_services_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carriers: {
         Row: {
           business_id: string
+          carrier_kind: string
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -8243,6 +8297,7 @@ export type Database = {
         }
         Insert: {
           business_id: string
+          carrier_kind?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -8256,6 +8311,7 @@ export type Database = {
         }
         Update: {
           business_id?: string
+          carrier_kind?: string
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -66388,6 +66444,7 @@ export type Database = {
           branch_id: string | null
           business_id: string
           carrier_id: string | null
+          carrier_service_id: string | null
           closed_at: string | null
           closed_by: string | null
           code: string
@@ -66403,6 +66460,8 @@ export type Database = {
           planned_departure_at: string | null
           row_version: number
           state: Database["public"]["Enums"]["wms_manifest_state"]
+          tracking_number: string | null
+          tracking_url: string | null
           trailer_visit_id: string | null
           updated_at: string
           warehouse_id: string
@@ -66412,6 +66471,7 @@ export type Database = {
           branch_id?: string | null
           business_id: string
           carrier_id?: string | null
+          carrier_service_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           code: string
@@ -66427,6 +66487,8 @@ export type Database = {
           planned_departure_at?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
+          tracking_number?: string | null
+          tracking_url?: string | null
           trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id: string
@@ -66436,6 +66498,7 @@ export type Database = {
           branch_id?: string | null
           business_id?: string
           carrier_id?: string | null
+          carrier_service_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           code?: string
@@ -66451,6 +66514,8 @@ export type Database = {
           planned_departure_at?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_manifest_state"]
+          tracking_number?: string | null
+          tracking_url?: string | null
           trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id?: string
@@ -66461,6 +66526,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_carrier_service_id_fkey"
+            columns: ["carrier_service_id"]
+            isOneToOne: false
+            referencedRelation: "carrier_services"
             referencedColumns: ["id"]
           },
           {
@@ -90012,6 +90084,10 @@ export type Database = {
       wms_accrue_storage_days: {
         Args: { p_as_of?: string; p_business_id: string }
         Returns: number
+      }
+      wms_allocate_tracking_number: {
+        Args: { p_manifest_id: string; p_service_id?: string }
+        Returns: Json
       }
       wms_apply_gr_stock: {
         Args: { _actor: string; _gr_id: string }
