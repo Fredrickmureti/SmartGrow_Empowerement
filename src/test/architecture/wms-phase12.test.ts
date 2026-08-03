@@ -57,11 +57,34 @@ describe("wms phase 12 architecture", () => {
     ).toEqual([]);
   });
 
-  it("CrossdockBoard calls the required RPCs", () => {
+  it("CrossdockBoard delegates every write to the crossdock aggregate wrapper", () => {
     const src = readFileSync(path.join(SRC, "pages/warehouse/CrossdockBoard.tsx"), "utf8");
-    expect(src).toMatch(/rpc\(\s*["']confirm_crossdock_stage["']/);
-    expect(src).toMatch(/rpc\(\s*["']cancel_crossdock_opportunity["']/);
-    expect(src).toMatch(/from\(\s*["']wms_crossdock_opportunities["']/);
+    // no direct RPC / table access from the page
+    expect(src).not.toMatch(/supabase\.rpc\(/);
+    expect(src).not.toMatch(/from\(\s*["']wms_crossdock_opportunities["']/);
+    expect(src).toMatch(/useCrossdockTransition/);
+    expect(src).toMatch(/useCrossdockOpportunities/);
+  });
+
+  it("the crossdock aggregate wrapper owns the full lifecycle FSM", () => {
+    const src = readFileSync(
+      path.join(SRC, "features/warehouse/crossdock/useCrossdock.ts"),
+      "utf8",
+    );
+    for (const fn of [
+      "wms_crossdock_approve",
+      "wms_crossdock_reject",
+      "wms_crossdock_start_staging",
+      "wms_crossdock_confirm_staged",
+      "wms_crossdock_mark_loaded",
+      "wms_crossdock_complete",
+      "wms_crossdock_break",
+      "wms_crossdock_sweep_expired",
+    ]) {
+      expect(src, `${fn} must be reachable from the wrapper`).toContain(fn);
+    }
+    // optimistic concurrency is non-negotiable (ADR 0101 §1)
+    expect(src).toMatch(/p_row_version/);
   });
 
 
