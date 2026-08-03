@@ -40,7 +40,10 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, RefreshCw, FileText, CalendarClock, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Plus, Trash2, RefreshCw, FileText, CalendarClock, Users, Flag, Undo2,
+} from "lucide-react";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrencies } from "@/hooks/useCurrencies";
 
@@ -77,6 +80,10 @@ interface Tariff {
   effective_to: string | null;
   is_active: boolean;
   notes: string | null;
+  min_charge: number | null;
+  included_quantity: number | null;
+  tier_from: number | null;
+  tier_to: number | null;
 }
 
 interface Summary {
@@ -89,7 +96,25 @@ interface Summary {
   total_amount: number;
   unbilled_amount: number;
   unpriced_count: number;
+  disputed_count: number;
   last_occurred_at: string;
+}
+
+/** One ledger row, shown in the corrections drill-down. */
+interface LedgerEntry {
+  id: string;
+  client_id: string | null;
+  activity: string;
+  uom: string;
+  quantity: number;
+  amount: number | null;
+  currency: string | null;
+  occurred_at: string;
+  invoice_id: string | null;
+  disputed_at: string | null;
+  dispute_reason: string | null;
+  dispute_resolved_at: string | null;
+  reverses_activity_id: string | null;
 }
 
 function todayIso(): string {
@@ -127,6 +152,10 @@ export default function BillingBoard() {
     currency: "USD",
     effective_from: todayIso(),
     notes: "",
+    min_charge: "",
+    included_quantity: "",
+    tier_from: "",
+    tier_to: "",
   });
 
   const [invoiceForm, setInvoiceForm] = useState({
