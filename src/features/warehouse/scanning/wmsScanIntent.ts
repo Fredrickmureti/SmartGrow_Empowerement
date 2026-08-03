@@ -58,7 +58,9 @@ export type WmsScanIntent =
   | "replen.source_location"
   | "replen.lpn"
   | "replen.item"
-  | "replen.destination";
+  | "replen.destination"
+  /** Dock scheduling Phase F — gatehouse scans the appointment gate pass. */
+  | "gate.pass";
 
 /** Normalised payload delivered to the surface's onScan handler. */
 export interface WmsScanPayload {

@@ -1,142 +1,162 @@
 /**
- * DockSchedule — read-only per-warehouse day view of dock appointments.
+ * DockSchedule — Dock Scheduling Command Centre (ADR 0080 Phase E).
  *
- * Writes flow through the sanctioned RPCs (`mark_appointment_arrived`,
- * `start_appointment`, `complete_dock_appointment`,
- * `cancel_dock_appointment`). Creation lives in
- * `AppointmentPlanner.tsx`.
+ * A live resource-timeline board: one lane per dock, appointments placed on
+ * real time, drag-to-reschedule, downtime hatching, now-line, KPI strip and
+ * a yard/live-visit rail. Every write is an RPC; the page never inserts or
+ * updates `wms_dock_appointments` directly.
  */
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { CalendarClock, Plus } from "lucide-react";
+import {
+  CalendarClock,
+  Plus,
+  Truck,
+  Timer,
+  AlertTriangle,
+  Gauge,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import {
+  APPOINTMENT_STATE_LABEL,
+  hhmm,
+  localDay,
+  minutesBetween,
+  type AppointmentRow,
+} from "@/features/warehouse/dock/dockScheduling";
+import {
+  useDayAppointments,
+  useDayDowntime,
+  useDocks,
+  useLiveVisits,
+  useRescheduleAppointment,
+  useWarehouses,
+} from "@/features/warehouse/dock/useDockScheduling";
+import { DockTimeline } from "@/features/warehouse/dock/DockTimeline";
+import { AppointmentDrawer } from "@/features/warehouse/dock/AppointmentDrawer";
 
-interface Warehouse { id: string; name: string; business_id: string; }
-interface Dock { id: string; code: string; name: string | null; dock_type: string; warehouse_id: string; }
-interface Appointment {
-  id: string;
-  dock_id: string;
-  appointment_type: "inbound" | "outbound";
-  carrier_id: string | null;
-  reference: string | null;
-  window_start: string;
-  window_end: string;
-  state: "scheduled" | "arrived" | "in_progress" | "completed" | "cancelled" | "no_show";
-  cancelled_reason: string | null;
+type ViewMode = "timeline" | "list";
+
+function shiftDay(day: string, delta: number) {
+  const d = new Date(`${day}T12:00:00`);
+  d.setDate(d.getDate() + delta);
+  return localDay(d);
 }
 
-function todayISO() {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
+function Kpi({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Icon className="h-3.5 w-3.5" /> {label}
+        </div>
+        <div className={`text-2xl font-semibold mt-1 ${tone ?? ""}`}>{value}</div>
+        {hint && <div className="text-xs text-muted-foreground mt-0.5">{hint}</div>}
+      </CardContent>
+    </Card>
+  );
 }
-
-function fmt(t: string) {
-  return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-const STATE_TONE: Record<Appointment["state"], string> = {
-  scheduled: "bg-muted text-muted-foreground",
-  arrived: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-  in_progress: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  completed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  cancelled: "bg-destructive/15 text-destructive",
-  no_show: "bg-destructive/15 text-destructive",
-};
 
 export default function DockSchedule() {
-  const qc = useQueryClient();
   const [warehouseId, setWarehouseId] = useState("");
-  const [day, setDay] = useState(todayISO());
+  const [day, setDay] = useState(localDay());
+  const [view, setView] = useState<ViewMode>("timeline");
+  const [selected, setSelected] = useState<AppointmentRow | null>(null);
 
-  const { data: warehouses } = useQuery({
-    queryKey: ["dock-schedule-warehouses"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouses")
-        .select("id, name, business_id")
-        .order("name");
-      if (error) throw error;
-      return (data ?? []) as Warehouse[];
-    },
-  });
+  const { data: warehouses } = useWarehouses();
+  const { data: docks, isLoading: docksLoading } = useDocks(warehouseId);
+  const { data: appointments, isLoading } = useDayAppointments(warehouseId, day);
+  const { data: downtime } = useDayDowntime(warehouseId, day);
+  const { data: visits } = useLiveVisits(warehouseId);
+  const reschedule = useRescheduleAppointment();
 
-  const { data: docks } = useQuery({
-    queryKey: ["dock-schedule-docks", warehouseId],
-    enabled: !!warehouseId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_docks")
-        .select("id, code, name, dock_type, warehouse_id")
-        .eq("warehouse_id", warehouseId)
-        .eq("is_active", true)
-        .order("code");
-      if (error) throw error;
-      return (data ?? []) as Dock[];
-    },
-  });
+  const dockById = useMemo(
+    () => new Map((docks ?? []).map((d) => [d.id, d])),
+    [docks],
+  );
 
-  const dayStart = useMemo(() => new Date(`${day}T00:00:00`).toISOString(), [day]);
-  const dayEnd = useMemo(() => new Date(`${day}T23:59:59.999`).toISOString(), [day]);
+  const kpis = useMemo(() => {
+    const list = appointments ?? [];
+    const live = list.filter((a) => a.state !== "cancelled");
+    const completed = list.filter((a) => a.state === "completed");
+    const onTime = completed.filter(
+      (a) => a.arrived_at && new Date(a.arrived_at).getTime() <= new Date(a.window_end).getTime(),
+    ).length;
+    const late = live.filter(
+      (a) => a.state === "scheduled" && new Date(a.window_end).getTime() < Date.now(),
+    ).length;
+    const bookedMinutes = live.reduce((s, a) => s + minutesBetween(a.window_start, a.window_end), 0);
+    const capacityMinutes = (docks ?? []).length * 18 * 60; // 05:00–23:00 board window
+    const utilisation = capacityMinutes > 0 ? Math.round((bookedMinutes / capacityMinutes) * 100) : 0;
+    const dwell = (visits ?? [])
+      .filter((v) => v.arrived_at)
+      .map((v) => Math.round((Date.now() - new Date(v.arrived_at as string).getTime()) / 60000));
+    const avgDwell = dwell.length ? Math.round(dwell.reduce((a, b) => a + b, 0) / dwell.length) : 0;
+    return {
+      total: live.length,
+      onSite: (visits ?? []).length,
+      onTimePct: completed.length ? Math.round((onTime / completed.length) * 100) : null,
+      late,
+      utilisation,
+      avgDwell,
+    };
+  }, [appointments, docks, visits]);
 
-  const { data: appointments, isLoading } = useQuery({
-    queryKey: ["dock-schedule-appts", warehouseId, day],
-    enabled: !!warehouseId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_dock_appointments")
-        .select("id, dock_id, appointment_type, carrier_id, reference, window_start, window_end, state, cancelled_reason")
-        .eq("warehouse_id", warehouseId)
-        .gte("window_start", dayStart)
-        .lte("window_start", dayEnd)
-        .order("window_start");
-      if (error) throw error;
-      return (data ?? []) as Appointment[];
-    },
-  });
-
-  const transition = useMutation({
-    mutationFn: async ({ id, rpc, reason }: { id: string; rpc: string; reason?: string }) => {
-      const args: Record<string, unknown> = { p_appointment_id: id };
-      if (rpc === "cancel_dock_appointment") args.p_reason = reason ?? null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await supabase.rpc(rpc as any, args as any);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Updated");
-      qc.invalidateQueries({ queryKey: ["dock-schedule-appts"] });
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Failed"),
-  });
-
-  const byDock = useMemo(() => {
-    const map = new Map<string, Appointment[]>();
-    for (const a of appointments ?? []) {
-      const list = map.get(a.dock_id) ?? [];
-      list.push(a);
-      map.set(a.dock_id, list);
-    }
-    return map;
-  }, [appointments]);
+  function handleMove({
+    appointment,
+    dockId,
+    deltaMinutes,
+  }: {
+    appointment: AppointmentRow;
+    dockId: string;
+    deltaMinutes: number;
+  }) {
+    const ws = new Date(new Date(appointment.window_start).getTime() + deltaMinutes * 60000);
+    const we = new Date(new Date(appointment.window_end).getTime() + deltaMinutes * 60000);
+    reschedule.mutate({
+      appointmentId: appointment.id,
+      dockId,
+      windowStart: ws.toISOString(),
+      windowEnd: we.toISOString(),
+    });
+  }
 
   return (
     <>
       <PageHeader
-        title="Dock schedule"
-        description="Inbound & outbound appointments per dock. Prevents truck collisions on the same door."
+        title="Dock scheduling command centre"
+        description="Live dock capacity, appointment timeline and trailers on site. Moves are validated against dock capability, downtime and collisions."
         actions={
-          <Button asChild disabled={!warehouseId}>
-            <Link to={`/warehouse-app/schedule/new${warehouseId ? `?warehouse=${warehouseId}` : ""}`}>
-              <Plus className="h-4 w-4 mr-2" /> Schedule appointment
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/warehouse-app/yard">
+                <Truck className="h-4 w-4 mr-2" /> Yard board
+              </Link>
+            </Button>
+            <Button asChild disabled={!warehouseId}>
+              <Link to={`/warehouse-app/schedule/new${warehouseId ? `?warehouse=${warehouseId}` : ""}`}>
+                <Plus className="h-4 w-4 mr-2" /> Schedule appointment
+              </Link>
+            </Button>
+          </div>
         }
       />
       <PageBody>
@@ -158,7 +178,24 @@ export default function DockSchedule() {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Date</label>
-                <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-auto" />
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Previous day"
+                    onClick={() => setDay((d) => shiftDay(d, -1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-auto" />
+                  <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Next day"
+                    onClick={() => setDay((d) => shiftDay(d, 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDay(localDay())}>Today</Button>
+                </div>
+              </div>
+              <div className="ml-auto flex gap-1">
+                <Button size="sm" variant={view === "timeline" ? "default" : "outline"}
+                  onClick={() => setView("timeline")}>Timeline</Button>
+                <Button size="sm" variant={view === "list" ? "default" : "outline"}
+                  onClick={() => setView("list")}>List</Button>
               </div>
             </CardContent>
           </Card>
@@ -166,83 +203,129 @@ export default function DockSchedule() {
 
         {!warehouseId ? (
           <Section>
-            <Card><CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-              <CalendarClock className="h-4 w-4" /> Pick a warehouse to view its dock schedule.
-            </CardContent></Card>
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
+                <CalendarClock className="h-4 w-4" /> Pick a warehouse to open its dock board.
+              </CardContent>
+            </Card>
           </Section>
-        ) : isLoading ? (
+        ) : isLoading || docksLoading ? (
           <LoadingState />
         ) : (docks ?? []).length === 0 ? (
           <Section>
-            <Card><CardContent className="p-6 text-sm text-muted-foreground">
-              No docks configured for this warehouse yet. Add one from the dispatch flow.
-            </CardContent></Card>
+            <Card>
+              <CardContent className="p-6 text-sm text-muted-foreground">
+                No docks configured for this warehouse yet.
+              </CardContent>
+            </Card>
           </Section>
         ) : (
-          <Section title={`Docks — ${day}`}>
-            <div className="grid gap-3">
-              {(docks ?? []).map((d) => {
-                const list = byDock.get(d.id) ?? [];
-                return (
-                  <Card key={d.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="font-medium">{d.code} <span className="text-muted-foreground">— {d.name ?? d.dock_type}</span></div>
-                        <div className="text-xs text-muted-foreground">{list.length} appointment{list.length === 1 ? "" : "s"}</div>
+          <>
+            <Section>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Kpi icon={CalendarClock} label="Appointments today" value={String(kpis.total)} />
+                <Kpi icon={Truck} label="Trailers on site" value={String(kpis.onSite)} />
+                <Kpi
+                  icon={Gauge}
+                  label="Dock utilisation"
+                  value={`${kpis.utilisation}%`}
+                  hint={`${(docks ?? []).length} active docks`}
+                />
+                <Kpi
+                  icon={Timer}
+                  label="Avg dwell (on site)"
+                  value={kpis.avgDwell ? `${kpis.avgDwell}m` : "—"}
+                />
+                <Kpi
+                  icon={AlertTriangle}
+                  label="Overdue arrivals"
+                  value={String(kpis.late)}
+                  tone={kpis.late > 0 ? "text-destructive" : undefined}
+                  hint={kpis.onTimePct !== null ? `${kpis.onTimePct}% on time` : undefined}
+                />
+              </div>
+            </Section>
+
+            {view === "timeline" ? (
+              <Section title={`Dock board — ${day}`}>
+                <DockTimeline
+                  day={day}
+                  docks={docks ?? []}
+                  appointments={appointments ?? []}
+                  downtime={downtime ?? []}
+                  selectedId={selected?.id ?? null}
+                  onSelect={(a) => setSelected(a)}
+                  onMove={handleMove}
+                />
+              </Section>
+            ) : (
+              <Section title={`Appointments — ${day}`}>
+                <Card>
+                  <CardContent className="p-0 divide-y">
+                    {(appointments ?? []).length === 0 ? (
+                      <div className="p-6 text-sm text-muted-foreground">No appointments booked.</div>
+                    ) : (
+                      (appointments ?? []).map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => setSelected(a)}
+                          className="w-full text-left p-3 flex flex-wrap items-center gap-2 hover:bg-muted/40"
+                        >
+                          <span className="font-mono text-xs">{a.appointment_no ?? "—"}</span>
+                          <Badge variant="outline">{a.appointment_type}</Badge>
+                          <span className="text-sm">
+                            {dockById.get(a.dock_id)?.code ?? "—"} · {hhmm(a.window_start)}–{hhmm(a.window_end)}
+                          </span>
+                          {a.trailer_ref && (
+                            <span className="text-xs text-muted-foreground">{a.trailer_ref}</span>
+                          )}
+                          <Badge variant="secondary" className="ml-auto">
+                            {APPOINTMENT_STATE_LABEL[a.state]}
+                          </Badge>
+                        </button>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </Section>
+            )}
+
+            <Section title="On site now">
+              <Card>
+                <CardContent className="p-0 divide-y">
+                  {(visits ?? []).length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">No trailers on site.</div>
+                  ) : (
+                    (visits ?? []).map((v) => (
+                      <div key={v.id} className="p-3 flex flex-wrap items-center gap-2 text-sm">
+                        <Truck className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{v.trailer_ref}</span>
+                        <Badge variant="outline">{v.status.replace(/_/g, " ")}</Badge>
+                        {v.driver_name && <span className="text-muted-foreground">{v.driver_name}</span>}
+                        {v.dock_id && (
+                          <span className="text-xs text-muted-foreground">
+                            at {dockById.get(v.dock_id)?.code ?? "dock"}
+                          </span>
+                        )}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          in yard since {hhmm(v.arrived_at)}
+                        </span>
                       </div>
-                      {list.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No appointments.</div>
-                      ) : (
-                        <div className="space-y-2">
-                          {list.map((a) => (
-                            <div key={a.id} className="flex flex-wrap items-center gap-2 border rounded p-2">
-                              <Badge variant="outline">{a.appointment_type}</Badge>
-                              <div className="font-mono text-xs">
-                                {fmt(a.window_start)} – {fmt(a.window_end)}
-                              </div>
-                              {a.reference && <div className="text-xs text-muted-foreground">{a.reference}</div>}
-                              <span className={`text-xs px-2 py-0.5 rounded ${STATE_TONE[a.state]}`}>{a.state}</span>
-                              <div className="ml-auto flex gap-1">
-                                {a.state === "scheduled" && (
-                                  <Button size="sm" variant="outline"
-                                    onClick={() => transition.mutate({ id: a.id, rpc: "mark_appointment_arrived" })}>
-                                    Arrived
-                                  </Button>
-                                )}
-                                {(a.state === "arrived" || a.state === "scheduled") && (
-                                  <Button size="sm" variant="outline"
-                                    onClick={() => transition.mutate({ id: a.id, rpc: "start_appointment" })}>
-                                    Start
-                                  </Button>
-                                )}
-                                {(a.state === "arrived" || a.state === "in_progress") && (
-                                  <Button size="sm"
-                                    onClick={() => transition.mutate({ id: a.id, rpc: "complete_dock_appointment" })}>
-                                    Complete
-                                  </Button>
-                                )}
-                                {a.state !== "completed" && a.state !== "cancelled" && a.state !== "no_show" && (
-                                  <Button size="sm" variant="ghost"
-                                    onClick={() => {
-                                      const reason = window.prompt("Cancellation reason (optional)") ?? undefined;
-                                      transition.mutate({ id: a.id, rpc: "cancel_dock_appointment", reason });
-                                    }}>
-                                    Cancel
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </Section>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </Section>
+          </>
         )}
       </PageBody>
+
+      <AppointmentDrawer
+        appointment={selected}
+        dock={selected ? dockById.get(selected.dock_id) : undefined}
+        open={!!selected}
+        onOpenChange={(v) => !v && setSelected(null)}
+      />
     </>
   );
 }
