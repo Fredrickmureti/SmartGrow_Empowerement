@@ -60,7 +60,10 @@ export type WmsScanIntent =
   | "replen.item"
   | "replen.destination"
   /** Dock scheduling Phase F — gatehouse scans the appointment gate pass. */
-  | "gate.pass";
+  | "gate.pass"
+  /** Yard Phase 5/6 — the marshal scans the trailer, then the destination. */
+  | "yard.trailer"
+  | "yard.slot";
 
 /** Normalised payload delivered to the surface's onScan handler. */
 export interface WmsScanPayload {
