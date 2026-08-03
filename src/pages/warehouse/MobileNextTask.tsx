@@ -31,14 +31,14 @@ const STORAGE_KEY = "wms.mobile.next.warehouseId";
 // Route each task_type to its capture surface. Keep in one map so a new
 // task type only needs one edit.
 const CAPTURE_ROUTES: Record<string, string> = {
-  pick: "/warehouse/tasks",
-  pack: "/warehouse/tasks",
-  putaway: "/warehouse/putaway",
-  replenish: "/warehouse/tasks",
-  count: "/warehouse/counts",
-  qc: "/warehouse/qc",
-  move: "/warehouse/tasks",
-  load: "/warehouse/dispatch",
+  pick: "/warehouse-app/tasks",
+  pack: "/warehouse-app/tasks",
+  putaway: "/warehouse-app/putaway",
+  replenish: "/warehouse-app/tasks",
+  count: "/warehouse-app/counts",
+  qc: "/warehouse-app/qc",
+  move: "/warehouse-app/tasks",
+  load: "/warehouse-app/dispatch",
 };
 
 function routeForTaskType(taskType: string | null | undefined): string {
