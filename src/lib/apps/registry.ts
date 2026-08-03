@@ -980,17 +980,17 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   // Projects (using projects-app to avoid conflicts with legacy /projects)
   "/projects": "/projects-app/list",
   
-  // Reports
-  "/reports": "/reports",
-  "/reports/financial": "/reports/financial",
-  "/reports/trial-balance": "/reports/trial-balance",
-  "/reports/general-ledger": "/reports/general-ledger",
-  "/reports/aging": "/reports/aging",
-  "/reports/sales": "/reports/sales",
-  "/reports/management": "/reports/management",
-  "/reports/tax": "/reports/tax",
-  "/reports/stock": "/reports/stock",
-  "/business-intelligence": "/reports/intelligence",
+  // Reports (mounted under the Finance app router)
+  "/reports": "/finance/reports",
+  "/reports/financial": "/finance/reports/financial",
+  "/reports/trial-balance": "/finance/reports/trial-balance",
+  "/reports/general-ledger": "/finance/reports/general-ledger",
+  "/reports/aging": "/finance/reports/aging",
+  "/reports/sales": "/finance/reports/sales",
+  "/reports/management": "/finance/reports/management",
+  "/reports/tax": "/finance/reports/tax",
+  "/reports/stock": "/finance/reports/stock",
+  "/business-intelligence": "/finance/reports/intelligence",
   
   // Platform/Settings
   "/settings": "/settings",
