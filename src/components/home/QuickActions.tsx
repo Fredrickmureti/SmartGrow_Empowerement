@@ -112,7 +112,7 @@ export function QuickActions() {
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
         Quick Actions
       </h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 @[22rem]/page:grid-cols-2 @[36rem]/page:grid-cols-3 @[52rem]/page:grid-cols-4 gap-2 sm:gap-3">
         {actions.map((action) => (
           <Link
             key={action.label}

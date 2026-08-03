@@ -89,7 +89,7 @@ export function AppLauncher({
   return (
     <div className={cn("space-y-4 sm:space-y-6", className)}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <div className="flex flex-col @[44rem]/page:flex-row @[44rem]/page:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Your Apps</h1>
           <p className="text-sm text-muted-foreground">
@@ -97,9 +97,9 @@ export function AppLauncher({
           </p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+        <div className="flex flex-col @[30rem]/page:flex-row items-stretch @[30rem]/page:items-center gap-2 w-full @[44rem]/page:w-auto">
           {showSearch && (
-            <div className="relative w-full sm:w-64">
+            <div className="relative w-full @[44rem]/page:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
@@ -178,7 +178,7 @@ export function AppLauncher({
                   {group.apps.length}
                 </Badge>
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 @[22rem]/page:grid-cols-2 @[36rem]/page:grid-cols-3 @[48rem]/page:grid-cols-4 @[62rem]/page:grid-cols-5 gap-2 sm:gap-3">
                 {group.apps.map((app) => {
                   const access = canAccessApp(app);
                   return (
