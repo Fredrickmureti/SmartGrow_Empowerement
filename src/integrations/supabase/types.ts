@@ -78613,6 +78613,35 @@ export type Database = {
           organization_id: string
         }[]
       }
+      _wms_capture_billable_activity_internal: {
+        Args: { p_event_id: string }
+        Returns: {
+          activity: string
+          amount: number | null
+          business_id: string
+          client_business_id: string | null
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          id: string
+          invoice_id: string | null
+          occurred_at: string
+          quantity: number
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_event_id: string | null
+          tariff_id: string | null
+          unit_rate: number | null
+          uom: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_billable_activities"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_client_scan_lookup: {
         Args: { p_client_scan_id: string; p_device_id: string }
         Returns: Json
