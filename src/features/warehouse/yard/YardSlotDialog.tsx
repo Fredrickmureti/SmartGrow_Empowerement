@@ -10,6 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSaveYardSlot } from "./useYard";
 import { SLOT_TYPE_LABEL, YARD_ZONE_LABEL, YARD_ZONE_ORDER, type YardSlotRow } from "./yardModel";
+import { printYardSlotLabel } from "./yardLabels";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Printer } from "lucide-react";
+import { toast } from "sonner";
 
 export function YardSlotDialog({
   open,
@@ -27,6 +31,23 @@ export function YardSlotDialog({
   const [zoneKind, setZoneKind] = useState("parking_bay");
   const [sequence, setSequence] = useState("");
   const save = useSaveYardSlot();
+  const [printing, setPrinting] = useState(false);
+  const { currentOrg } = useOrganization();
+
+  async function printLabel(target: YardSlotRow) {
+    if (!currentOrg?.id) {
+      toast.error("No active organization");
+      return;
+    }
+    setPrinting(true);
+    try {
+      const res = await printYardSlotLabel({ orgId: currentOrg.id, slot: target });
+      if (res.success) toast.success("Slot label sent to the printer");
+      else toast.error(res.error ?? "Could not print the slot label");
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
