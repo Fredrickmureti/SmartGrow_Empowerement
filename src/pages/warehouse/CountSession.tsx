@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ClipboardCheck, EyeOff } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, EyeOff, RotateCcw } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
