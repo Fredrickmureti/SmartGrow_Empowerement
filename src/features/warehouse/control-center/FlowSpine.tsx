@@ -29,7 +29,7 @@ export function FlowSpine({ stages, activeStage, onSelect }: Props) {
 
   return (
     <div className="pb-1 @4xl/page:overflow-x-auto">
-      <ol className="grid grid-cols-1 gap-3 @md/page:grid-cols-2 @2xl/page:grid-cols-3 @4xl/page:flex @4xl/page:min-w-max @4xl/page:items-stretch @4xl/page:gap-1">
+      <ol className="min-w-0 grid grid-cols-1 gap-3 @md/page:grid-cols-2 @2xl/page:grid-cols-3 @4xl/page:flex @4xl/page:min-w-max @4xl/page:items-stretch @4xl/page:gap-1">
         {stages.map((s, i) => (
           <li key={s.stage} className="flex min-w-0 items-stretch gap-1">
 
@@ -89,7 +89,7 @@ function StageCard({
         />
       </div>
 
-      <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground @4xl/page:grid-cols-1">
+      <dl className="min-w-0 mt-auto grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground @4xl/page:grid-cols-1">
         <Cell label="Active" value={s.in_progress} />
         <Cell label="Oldest" value={shortAge(s.oldest_age_seconds)} />
         <Cell

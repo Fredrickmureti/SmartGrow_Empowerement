@@ -333,7 +333,7 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Received qty</Label>
                 <Input
@@ -353,7 +353,7 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Lot</Label>
                 <Input
@@ -497,7 +497,7 @@ export function ReturnLinesPanel({ order, readOnly = false }: ReturnLinesPanelPr
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="min-w-0 grid grid-cols-3 gap-3">
                   <div>
                     <Label>Restock</Label>
                     <Input

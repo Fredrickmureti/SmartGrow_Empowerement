@@ -180,7 +180,7 @@ export function PackagingSpecForm({ businessId, record, readOnly, onSaved, onCan
   return (
     <div className="space-y-6">
       <Section title="Identity">
-        <div className="grid gap-4 @xl/page:grid-cols-2">
+        <div className="min-w-0 grid gap-4 @xl/page:grid-cols-2">
           <Field label="Code">
             <Input value={form.code} disabled={readOnly} onChange={(e) => set("code", e.target.value)} placeholder="CTN-M" />
           </Field>
@@ -205,7 +205,7 @@ export function PackagingSpecForm({ businessId, record, readOnly, onSaved, onCan
       </Section>
 
       <Section title="Geometry" description="Inner dimensions drive the fit test; outer dimensions drive dimensional weight.">
-        <div className="grid gap-4 @xl/page:grid-cols-3">
+        <div className="min-w-0 grid gap-4 @xl/page:grid-cols-3">
           {(["inner_length_cm", "inner_width_cm", "inner_height_cm"] as const).map((k) => (
             <Field key={k} label={`Inner ${k.split("_")[1]} (cm)`}>
               <Input type="number" step="0.1" disabled={readOnly} value={form[k]} onChange={(e) => set(k, e.target.value)} />
@@ -236,7 +236,7 @@ export function PackagingSpecForm({ businessId, record, readOnly, onSaved, onCan
       </Section>
 
       <Section title="Weight & handling">
-        <div className="grid gap-4 @xl/page:grid-cols-3">
+        <div className="min-w-0 grid gap-4 @xl/page:grid-cols-3">
           <Field label="Max weight (kg)">
             <Input type="number" step="0.01" disabled={readOnly} value={form.max_weight_kg} onChange={(e) => set("max_weight_kg", e.target.value)} />
           </Field>
@@ -267,7 +267,7 @@ export function PackagingSpecForm({ businessId, record, readOnly, onSaved, onCan
       </Section>
 
       <Section title="Compliance" description="Hazmat and cold-chain constraints filter the cartonization candidates.">
-        <div className="grid gap-4 @xl/page:grid-cols-4">
+        <div className="min-w-0 grid gap-4 @xl/page:grid-cols-4">
           <Field label="Hazmat class">
             <Input disabled={readOnly} value={form.hazmat_class} onChange={(e) => set("hazmat_class", e.target.value)} placeholder="e.g. 3" />
           </Field>

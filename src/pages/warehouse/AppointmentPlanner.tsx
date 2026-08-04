@@ -105,7 +105,7 @@ export default function AppointmentPlanner() {
         <Section title="Slot">
           <Card>
             <CardContent className="p-4 space-y-4 max-w-2xl">
-              <div className="grid gap-3 @xl/page:grid-cols-2">
+              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2">
                 <div>
                   <Label>Warehouse</Label>
                   <select className="border rounded px-2 py-1 w-full bg-background" value={warehouseId}
@@ -168,7 +168,7 @@ export default function AppointmentPlanner() {
 
               <div>
                 <Label>Dock requirements</Label>
-                <div className="mt-1 grid gap-2 @xl/page:grid-cols-2">
+                <div className="min-w-0 mt-1 grid gap-2 @xl/page:grid-cols-2">
                   {REQUIREMENT_FLAGS.map((f) => (
                     <label key={f.key} className="flex items-center gap-2 text-sm">
                       <Checkbox checked={!!requirements[f.key]}
@@ -201,7 +201,7 @@ export default function AppointmentPlanner() {
 
         <Section title="Carrier & vehicle">
           <Card>
-            <CardContent className="p-4 grid gap-3 @xl/page:grid-cols-2 max-w-2xl">
+            <CardContent className="min-w-0 p-4 grid gap-3 @xl/page:grid-cols-2 max-w-2xl">
               <div>
                 <Label>Carrier (optional)</Label>
                 <select className="border rounded px-2 py-1 w-full bg-background" value={carrierId}

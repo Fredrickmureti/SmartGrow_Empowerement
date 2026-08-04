@@ -61,7 +61,7 @@ function TrailerDialog({
             <Label className="text-xs">Trailer code *</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="TRL-4471" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Type</Label>
               <Select value={type} onValueChange={(v) => setType(v as TrailerRow["trailer_type"])}>
@@ -97,7 +97,7 @@ function TrailerDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3 items-end">
+          <div className="min-w-0 grid grid-cols-2 gap-3 items-end">
             <div className="space-y-1.5">
               <Label className="text-xs">Length (ft)</Label>
               <Input type="number" value={lengthFt} onChange={(e) => setLengthFt(e.target.value)} />

@@ -34,7 +34,7 @@ export function EquipmentPanel({ equipment }: { equipment: EquipmentHealth | und
 
   return (
     <div className="space-y-3">
-      <dl className="grid grid-cols-3 gap-3 text-sm">
+      <dl className="min-w-0 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Online</dt>
           <dd className="text-lg font-semibold tabular-nums text-success">{equipment.online}</dd>

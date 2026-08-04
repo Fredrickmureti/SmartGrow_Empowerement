@@ -118,7 +118,7 @@ export function OperatorDialog({
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="min-w-0 grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Warehouse</Label>
               <Select value={warehouseId} onValueChange={setWarehouseId}>
@@ -150,7 +150,7 @@ export function OperatorDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="min-w-0 grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>Operator code</Label>
               <Input value={operatorCode} onChange={(e) => setOperatorCode(e.target.value)} placeholder="OP-014" />
@@ -211,7 +211,7 @@ export function OperatorDialog({
 
           <div className="space-y-2">
             <Label>Skills</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="min-w-0 grid grid-cols-2 gap-2">
               {WMS_TASK_TYPES.map((t) => {
                 const row = skillRows.find((r) => r.task_type === t);
                 return (

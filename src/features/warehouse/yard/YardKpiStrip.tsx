@@ -74,7 +74,7 @@ export function YardKpiStrip({ kpis }: { kpis: YardKpis }) {
     ? Math.round(((kpis.slotsTotal - kpis.slotsFree) / kpis.slotsTotal) * 100)
     : 0;
   return (
-    <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3 @5xl/page:grid-cols-6">
+    <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3 @5xl/page:grid-cols-6">
       <Kpi icon={Truck} label="On site" value={String(kpis.onSite)} hint={`${kpis.atGate} at gate`} />
       <Kpi icon={DoorOpen} label="At dock" value={String(kpis.atDock)} hint={`${kpis.inYard} waiting in yard`} />
       <Kpi

@@ -309,7 +309,7 @@ function CreateRuleDialog({ open, onOpenChange, defaultWarehouseId, onCreated }:
           <DialogTitle>New replenishment rule</DialogTitle>
         </DialogHeader>
         <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div>
               <Label>Warehouse</Label>
               <Select value={warehouseId} onValueChange={setWarehouseId}>
@@ -378,7 +378,7 @@ function CreateRuleDialog({ open, onOpenChange, defaultWarehouseId, onCreated }:
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div>
               <Label>Pick face{scope === "pick_face" ? "" : " (optional)"}</Label>
               <Select value={pickLocId} onValueChange={setPickLocId}>
@@ -399,7 +399,7 @@ function CreateRuleDialog({ open, onOpenChange, defaultWarehouseId, onCreated }:
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 @xl/page:grid-cols-3 @4xl/page:grid-cols-5">
+          <div className="min-w-0 grid grid-cols-2 gap-3 @xl/page:grid-cols-3 @4xl/page:grid-cols-5">
             <div><Label>Min</Label><Input type="number" value={minQty} onChange={(e) => setMinQty(e.target.value)} /></div>
             <div><Label>Target</Label><Input type="number" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="max" /></div>
             <div><Label>Max</Label><Input type="number" value={maxQty} onChange={(e) => setMaxQty(e.target.value)} /></div>

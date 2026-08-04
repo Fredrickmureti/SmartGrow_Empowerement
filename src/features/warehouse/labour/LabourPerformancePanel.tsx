@@ -164,7 +164,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
+      <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Performance</CardTitle>
@@ -490,7 +490,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="min-w-0 grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label>Performance %</Label>
                 <Input
@@ -549,7 +549,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
                 target earns no incentive pay.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Effective from</Label>
                 <Input

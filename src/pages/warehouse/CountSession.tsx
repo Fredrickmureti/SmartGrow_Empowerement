@@ -236,7 +236,7 @@ export default function CountSession() {
 
         <Section title="Scan">
           <Card>
-            <CardContent className="p-4 grid grid-cols-1 @2xl/page:grid-cols-2 gap-3">
+            <CardContent className="min-w-0 p-4 grid grid-cols-1 @2xl/page:grid-cols-2 gap-3">
               <div>
                 <Label>Bin</Label>
                 <Input placeholder="Scan or type bin code" value={scanBin} onChange={(e) => setScanBin(e.target.value)} />

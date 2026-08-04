@@ -29,6 +29,7 @@ export function Section({
   return (
     <section
       className={cn(
+        "min-w-0",
         !unstyled &&
           "rounded-[var(--ds-radius-lg)] border bg-card shadow-[var(--ds-elevation-1)]",
         className,

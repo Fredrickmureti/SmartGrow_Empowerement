@@ -148,7 +148,7 @@ export function RequestDockSlotDialog({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div>
               <Label>Window start</Label>
               <Input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} />
@@ -165,7 +165,7 @@ export function RequestDockSlotDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div>
               <Label>Priority</Label>
               <select
@@ -187,7 +187,7 @@ export function RequestDockSlotDialog({
 
           <div>
             <Label>Dock requirements</Label>
-            <div className="mt-1 grid grid-cols-2 gap-2">
+            <div className="min-w-0 mt-1 grid grid-cols-2 gap-2">
               {REQUIREMENT_FLAGS.map((f) => (
                 <label key={f.key} className="flex items-center gap-2 text-sm">
                   <Checkbox

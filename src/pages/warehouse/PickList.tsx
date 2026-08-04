@@ -218,7 +218,7 @@ export default function PickList() {
         <Section title="Directed pick" description="Scan the bin, then scan the product. The matching task highlights and pre-fills.">
           <Card className={cn(matched && "border-emerald-500/40")}>
             <CardContent className="p-4 space-y-3">
-              <div className="grid gap-3 @xl/page:grid-cols-2">
+              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-2">
                 <div>
                   <Label className="text-xs flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> Bin

@@ -125,7 +125,7 @@ export function PackagingCarriersPanel({ packagingTypeId, businessId, readOnly }
       )}
 
       {!readOnly && (
-        <div className="grid gap-3 rounded-lg border p-4 @xl/page:grid-cols-2">
+        <div className="min-w-0 grid gap-3 rounded-lg border p-4 @xl/page:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Carrier</Label>
             <Select value={carrierId} onValueChange={setCarrierId}>
@@ -155,7 +155,7 @@ export function PackagingCarriersPanel({ packagingTypeId, businessId, readOnly }
               <Label htmlFor="rule-oversize">Oversize</Label>
             </div>
           </div>
-          <div className="@xl/page:col-span-2">
+          <div className="min-w-0 @xl/page:col-span-2">
             <Button onClick={submit} disabled={!carrierId || setRule.isPending}>
               Save carrier rule
             </Button>
@@ -243,7 +243,7 @@ export function PackagingAvailabilityPanel({ packagingTypeId, readOnly }: PanelP
       )}
 
       {!readOnly && (
-        <div className="grid gap-3 rounded-lg border p-4 @xl/page:grid-cols-2">
+        <div className="min-w-0 grid gap-3 rounded-lg border p-4 @xl/page:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Warehouse</Label>
             <Select value={warehouseId} onValueChange={setWarehouseId}>
@@ -267,7 +267,7 @@ export function PackagingAvailabilityPanel({ packagingTypeId, readOnly }: PanelP
             <Label>Reorder point</Label>
             <Input type="number" value={reorder} onChange={(e) => setReorder(e.target.value)} placeholder="Leave blank to keep" />
           </div>
-          <div className="@xl/page:col-span-2">
+          <div className="min-w-0 @xl/page:col-span-2">
             <Button onClick={submit} disabled={!warehouseId || setAvailability.isPending}>
               Save stock position
             </Button>

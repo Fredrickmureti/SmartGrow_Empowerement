@@ -105,8 +105,8 @@ export default function InboundDashboard() {
               />
             </Section>
 
-            <div className="grid gap-6 @4xl/page:grid-cols-3">
-              <div className="space-y-6 @4xl/page:col-span-2">
+            <div className="min-w-0 grid gap-6 @4xl/page:grid-cols-3">
+              <div className="min-w-0 space-y-6 @4xl/page:col-span-2">
                 <Section
                   title="Blockers"
                   description="Ranked by severity. Each row links to the surface that clears it."

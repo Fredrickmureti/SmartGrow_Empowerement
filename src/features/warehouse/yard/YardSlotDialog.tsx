@@ -68,7 +68,7 @@ export function YardSlotDialog({
             <Label className="text-xs">Slot code *</Label>
             <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="P-12" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Zone</Label>
               <Select value={zoneKind} onValueChange={setZoneKind}>

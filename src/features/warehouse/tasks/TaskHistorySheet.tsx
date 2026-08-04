@@ -111,7 +111,7 @@ export function TaskHistorySheet({
                     </span>
                   </div>
 
-                  <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                  <dl className="min-w-0 mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
                     {e.actor_id && (
                       <Fact label="Actor" value={e.actor_id.slice(0, 8)} mono />
                     )}

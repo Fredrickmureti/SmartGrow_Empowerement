@@ -300,7 +300,7 @@ export default function ReturnOrders() {
         <DialogContent>
           <DialogHeader><DialogTitle>New return order</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Code</Label>
                 <Input
@@ -317,7 +317,7 @@ export default function ReturnOrders() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Return kind</Label>
                 <Select
@@ -348,7 +348,7 @@ export default function ReturnOrders() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Source doc type</Label>
                 <Input

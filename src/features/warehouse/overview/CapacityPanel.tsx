@@ -61,7 +61,7 @@ export function CapacityPanel({ capacity }: { capacity: WarehouseCapacity | unde
           </div>
         </div>
 
-        <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <dl className="min-w-0 grid flex-1 grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <Row label="Locations" value={capacity.total_locations} />
           <Row
             label="Blocked"
@@ -77,7 +77,7 @@ export function CapacityPanel({ capacity }: { capacity: WarehouseCapacity | unde
         </dl>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 border-t pt-3 text-sm">
+      <div className="min-w-0 grid grid-cols-3 gap-3 border-t pt-3 text-sm">
         <Row
           label="Staging"
           value={`${capacity.staging_occupied}/${capacity.staging_locations}`}

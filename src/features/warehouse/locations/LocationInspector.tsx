@@ -124,7 +124,7 @@ export function LocationInspector({ node, warehouseId, onPrintLabel, onAddInside
       <div className="flex-1 space-y-6 overflow-auto p-4">
         <section className="space-y-3">
           <h3 className="text-sm font-semibold">What's here now</h3>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="min-w-0 grid grid-cols-2 gap-3 text-sm">
             <Metric label="On hand" value={m.on_hand_units.toLocaleString()} />
             <Metric label="Reserved" value={m.reserved_units.toLocaleString()} />
             <Metric label="Products" value={m.sku_count.toLocaleString()} />

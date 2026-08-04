@@ -115,7 +115,7 @@ export function LpnLabelDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Copies</Label>
               <Input type="number" min="1" value={copies} onChange={(e) => setCopies(e.target.value)} />

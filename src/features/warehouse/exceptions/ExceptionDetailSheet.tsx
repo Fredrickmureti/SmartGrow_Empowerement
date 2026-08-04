@@ -233,7 +233,7 @@ export function ExceptionDetailSheet({
           <SheetDescription>{e.reason ?? "No reason recorded."}</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="min-w-0 mt-4 grid grid-cols-2 gap-3 text-sm">
           <Field label="Owner role" value={humanise(e.owner_role)} />
           <Field
             label="SLA"

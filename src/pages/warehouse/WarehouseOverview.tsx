@@ -117,8 +117,8 @@ export default function WarehouseOverview() {
           <div className="space-y-6">
             <HealthBanner health={health.data} />
 
-            <div className="grid gap-6 @4xl/page:grid-cols-3">
-              <div className="space-y-6 @4xl/page:col-span-2">
+            <div className="min-w-0 grid gap-6 @4xl/page:grid-cols-3">
+              <div className="min-w-0 space-y-6 @4xl/page:col-span-2">
                 <Section
                   title="Act now"
                   description="Every blocker across flow, inbound and outbound, ranked by severity and impact."
@@ -137,7 +137,7 @@ export default function WarehouseOverview() {
                   />
                 </Section>
 
-                <div className="grid gap-6 @2xl/page:grid-cols-2">
+                <div className="min-w-0 grid gap-6 @2xl/page:grid-cols-2">
                   <TowerSummaryCard
                     title="Inbound"
                     health={inboundHealth.data}

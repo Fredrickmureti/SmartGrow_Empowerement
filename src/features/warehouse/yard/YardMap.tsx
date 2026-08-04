@@ -144,7 +144,7 @@ export function YardMap({
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
+              <div className="min-w-0 grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
                 {rows.map((s) => (
                   <SlotCell
                     key={s.id}

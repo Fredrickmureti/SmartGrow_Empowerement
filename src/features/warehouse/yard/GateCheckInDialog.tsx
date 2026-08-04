@@ -101,7 +101,7 @@ export function GateCheckInDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Carrier</Label>
               <Select value={carrierId} onValueChange={setCarrierId}>

@@ -72,7 +72,7 @@ export function TowerSummaryCard({
           })}
         </div>
 
-        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <dl className="min-w-0 grid grid-cols-2 gap-2 text-sm @2xl/page:grid-cols-4">
           <Stat label="Open" value={backlog} />
           <Stat label="Blocked" value={blocked} tone={blocked > 0 ? "blocked" : undefined} />
           <Stat label="Overdue" value={breached} tone={breached > 0 ? "critical" : undefined} />

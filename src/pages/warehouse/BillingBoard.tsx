@@ -549,7 +549,7 @@ export default function BillingBoard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 @2xl/page:grid-cols-5 gap-4 mb-6">
+        <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-5 gap-4 mb-6">
           <KpiCard label="Activity entries" value={String(totals.entries)} />
           <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
           <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
@@ -802,7 +802,7 @@ export default function BillingBoard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Client code</Label>
                 <Input
@@ -857,7 +857,7 @@ export default function BillingBoard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Activity</Label>
                 <Select
@@ -880,7 +880,7 @@ export default function BillingBoard() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="min-w-0 grid grid-cols-3 gap-3">
               <div>
                 <Label>Rate</Label>
                 <Input
@@ -916,7 +916,7 @@ export default function BillingBoard() {
             </div>
             {/* Pricing engine: allowance is consumed first, then the tier
                 band rate applies, then the minimum charge acts as a floor. */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Included quantity (optional)</Label>
                 <Input
@@ -1001,7 +1001,7 @@ export default function BillingBoard() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Period from</Label>
                 <Input
