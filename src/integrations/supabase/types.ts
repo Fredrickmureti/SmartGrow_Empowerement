@@ -83000,7 +83000,16 @@ export type Database = {
         Args: { p_lpn_id?: string; p_picked_qty: number; p_task_id: string }
         Returns: Json
       }
-      complete_putaway_task: { Args: { p_task_id: string }; Returns: Json }
+      complete_putaway_task:
+        | { Args: { p_task_id: string }; Returns: Json }
+        | {
+            Args: {
+              p_location_id?: string
+              p_override_reason?: string
+              p_task_id: string
+            }
+            Returns: Json
+          }
       complete_replenish_task: {
         Args: {
           p_destination_scan?: string
