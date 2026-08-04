@@ -18,3 +18,4 @@ export { WaveStageStrip } from "./WaveStageStrip";
 export { WaveLifecycleBoard } from "./WaveLifecycleBoard";
 export { WaveReadinessPanel } from "./WaveReadinessPanel";
 export { WaveDemandTable } from "./WaveDemandTable";
+export { WaveDocumentsMenu, type WaveDocumentType } from "./WaveDocumentsMenu";
