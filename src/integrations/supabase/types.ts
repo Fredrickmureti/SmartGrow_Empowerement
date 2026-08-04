@@ -93561,6 +93561,10 @@ export type Database = {
         }
       }
       wms_crossdock_sweep_expired: { Args: never; Returns: number }
+      wms_detect_operational_exceptions: {
+        Args: { p_warehouse_id?: string }
+        Returns: number
+      }
       wms_disposition_return_line: {
         Args: {
           p_destination_location_id?: string
