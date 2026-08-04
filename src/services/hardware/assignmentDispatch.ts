@@ -194,7 +194,7 @@ export async function dispatchToAssignment(
     const usb = usbEndpoint(assignment);
     if (!usb) return fail(`${assignment.displayName ?? assignment.role} has no USB vendor/product configured.`);
     const transport = new WebUSBTransport({ vendorId: usb.vendorId, productId: usb.productId });
-    const res = await transport.write(new Uint8Array(encoded.bytes));
+    const res = await transport.send(encoded.bytes);
     return {
       success: Boolean(res.success),
       error: res.success ? undefined : (res.error ?? 'WebUSB write failed'),
