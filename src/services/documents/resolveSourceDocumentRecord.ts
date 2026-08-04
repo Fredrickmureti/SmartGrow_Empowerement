@@ -41,6 +41,10 @@ import {
   fetchFrozenPosReceipt,
 } from "@/features/pos/receipts/dispatchPosReceipt";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
+import {
+  fetchAndBuildHrLetterSnapshot,
+  HR_LETTER_KIND_CODES,
+} from "@/services/documents/snapshots/hrLetter";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
 export interface SourceDocumentContext {
