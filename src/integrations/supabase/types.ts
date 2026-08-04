@@ -95298,6 +95298,44 @@ export type Database = {
         | "broken"
         | "cancelled"
       wms_dock_type: "receiving" | "shipping" | "both"
+      wms_exception_class:
+        | "informational"
+        | "operational"
+        | "quality"
+        | "safety"
+        | "compliance"
+        | "financial"
+        | "customer_impact"
+      wms_exception_event_type:
+        | "created"
+        | "classified"
+        | "assigned"
+        | "reassigned"
+        | "acknowledged"
+        | "state_changed"
+        | "evidence_added"
+        | "link_added"
+        | "comment_added"
+        | "escalated"
+        | "sla_breached"
+        | "resolved"
+        | "closed"
+        | "reopened"
+      wms_exception_evidence_type:
+        | "barcode_scan"
+        | "rfid_read"
+        | "photo"
+        | "signature"
+        | "weight"
+        | "dimension"
+        | "temperature"
+        | "humidity"
+        | "sensor_reading"
+        | "inspection_report"
+        | "supplier_document"
+        | "system_snapshot"
+        | "external_reference"
+        | "note"
       wms_exception_kind:
         | "receiving_discrepancy"
         | "qc_fail"
@@ -95310,6 +95348,90 @@ export type Database = {
         | "stale_task"
         | "other"
         | "billing_unpriced"
+        | "over_receipt"
+        | "under_receipt"
+        | "missing_carton"
+        | "wrong_supplier"
+        | "wrong_asn"
+        | "damaged_goods"
+        | "failed_inspection"
+        | "asn_mismatch"
+        | "negative_inventory"
+        | "phantom_inventory"
+        | "duplicate_serial"
+        | "batch_mismatch"
+        | "expired_stock"
+        | "unexpected_movement"
+        | "wrong_location"
+        | "unsafe_storage"
+        | "quarantine_violation"
+        | "wrong_item_picked"
+        | "wrong_batch_picked"
+        | "pick_sla_breach"
+        | "weight_mismatch"
+        | "incorrect_package"
+        | "carton_missing"
+        | "wrong_carrier"
+        | "missed_dispatch"
+        | "shipment_blocked"
+        | "missed_appointment"
+        | "dock_congestion"
+        | "incorrect_trailer"
+        | "trailer_overstay"
+        | "seal_mismatch"
+        | "demand_disappeared"
+        | "routing_conflict"
+        | "repeated_discrepancy"
+        | "abandoned_task"
+        | "productivity_target_missed"
+        | "device_offline"
+        | "printer_offline"
+        | "scanner_offline"
+        | "rfid_failure"
+        | "conveyor_failure"
+        | "scale_failure"
+        | "sensor_failure"
+        | "return_discrepancy"
+        | "integration_failure"
+        | "data_sync_failure"
+      wms_exception_link_type:
+        | "goods_receipt"
+        | "purchase_order"
+        | "asn"
+        | "receiving_session"
+        | "count_session"
+        | "qc_inspection"
+        | "pick_wave"
+        | "manifest"
+        | "delivery_note"
+        | "invoice"
+        | "bill"
+        | "task"
+        | "license_plate"
+        | "return_order"
+        | "dock_appointment"
+        | "trailer_visit"
+        | "product"
+        | "supplier"
+        | "carrier"
+        | "operator"
+        | "warehouse_location"
+        | "other"
+      wms_exception_owner_role:
+        | "warehouse_supervisor"
+        | "receiving_lead"
+        | "inventory_controller"
+        | "quality_inspector"
+        | "pick_lead"
+        | "pack_lead"
+        | "shipping_lead"
+        | "dock_coordinator"
+        | "yard_marshal"
+        | "maintenance"
+        | "labour_planner"
+        | "finance"
+        | "procurement"
+        | "it_support"
       wms_exception_resolution_kind:
         | "short_scan"
         | "damaged"
@@ -95320,6 +95442,16 @@ export type Database = {
         | "process_error"
         | "system_error"
         | "other"
+        | "supplier_error"
+        | "carrier_error"
+        | "operator_error"
+        | "equipment_failure"
+        | "integration_error"
+        | "data_entry_error"
+        | "theft_or_loss"
+        | "expiry"
+        | "no_fault_found"
+        | "duplicate_exception"
       wms_exception_state:
         | "open"
         | "acknowledged"
@@ -96304,6 +96436,47 @@ export const Constants = {
         "cancelled",
       ],
       wms_dock_type: ["receiving", "shipping", "both"],
+      wms_exception_class: [
+        "informational",
+        "operational",
+        "quality",
+        "safety",
+        "compliance",
+        "financial",
+        "customer_impact",
+      ],
+      wms_exception_event_type: [
+        "created",
+        "classified",
+        "assigned",
+        "reassigned",
+        "acknowledged",
+        "state_changed",
+        "evidence_added",
+        "link_added",
+        "comment_added",
+        "escalated",
+        "sla_breached",
+        "resolved",
+        "closed",
+        "reopened",
+      ],
+      wms_exception_evidence_type: [
+        "barcode_scan",
+        "rfid_read",
+        "photo",
+        "signature",
+        "weight",
+        "dimension",
+        "temperature",
+        "humidity",
+        "sensor_reading",
+        "inspection_report",
+        "supplier_document",
+        "system_snapshot",
+        "external_reference",
+        "note",
+      ],
       wms_exception_kind: [
         "receiving_discrepancy",
         "qc_fail",
@@ -96316,6 +96489,92 @@ export const Constants = {
         "stale_task",
         "other",
         "billing_unpriced",
+        "over_receipt",
+        "under_receipt",
+        "missing_carton",
+        "wrong_supplier",
+        "wrong_asn",
+        "damaged_goods",
+        "failed_inspection",
+        "asn_mismatch",
+        "negative_inventory",
+        "phantom_inventory",
+        "duplicate_serial",
+        "batch_mismatch",
+        "expired_stock",
+        "unexpected_movement",
+        "wrong_location",
+        "unsafe_storage",
+        "quarantine_violation",
+        "wrong_item_picked",
+        "wrong_batch_picked",
+        "pick_sla_breach",
+        "weight_mismatch",
+        "incorrect_package",
+        "carton_missing",
+        "wrong_carrier",
+        "missed_dispatch",
+        "shipment_blocked",
+        "missed_appointment",
+        "dock_congestion",
+        "incorrect_trailer",
+        "trailer_overstay",
+        "seal_mismatch",
+        "demand_disappeared",
+        "routing_conflict",
+        "repeated_discrepancy",
+        "abandoned_task",
+        "productivity_target_missed",
+        "device_offline",
+        "printer_offline",
+        "scanner_offline",
+        "rfid_failure",
+        "conveyor_failure",
+        "scale_failure",
+        "sensor_failure",
+        "return_discrepancy",
+        "integration_failure",
+        "data_sync_failure",
+      ],
+      wms_exception_link_type: [
+        "goods_receipt",
+        "purchase_order",
+        "asn",
+        "receiving_session",
+        "count_session",
+        "qc_inspection",
+        "pick_wave",
+        "manifest",
+        "delivery_note",
+        "invoice",
+        "bill",
+        "task",
+        "license_plate",
+        "return_order",
+        "dock_appointment",
+        "trailer_visit",
+        "product",
+        "supplier",
+        "carrier",
+        "operator",
+        "warehouse_location",
+        "other",
+      ],
+      wms_exception_owner_role: [
+        "warehouse_supervisor",
+        "receiving_lead",
+        "inventory_controller",
+        "quality_inspector",
+        "pick_lead",
+        "pack_lead",
+        "shipping_lead",
+        "dock_coordinator",
+        "yard_marshal",
+        "maintenance",
+        "labour_planner",
+        "finance",
+        "procurement",
+        "it_support",
       ],
       wms_exception_resolution_kind: [
         "short_scan",
@@ -96327,6 +96586,16 @@ export const Constants = {
         "process_error",
         "system_error",
         "other",
+        "supplier_error",
+        "carrier_error",
+        "operator_error",
+        "equipment_failure",
+        "integration_error",
+        "data_entry_error",
+        "theft_or_loss",
+        "expiry",
+        "no_fault_found",
+        "duplicate_exception",
       ],
       wms_exception_state: [
         "open",
