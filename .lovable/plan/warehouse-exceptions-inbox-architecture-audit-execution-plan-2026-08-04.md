@@ -99,3 +99,18 @@ Views and a dashboard for MTTA/MTTR, recurrence by kind, supplier, carrier, oper
 ## Scope
 
 This is delivered in phases. Each phase is independently shippable; Phases 1–3 constitute the architectural correction, Phases 4–6 the operational surface.
+
+---
+
+## Closure record — 2026-08-04
+
+All six phases delivered. Status: CLOSED.
+
+- Phase 1 — Canonical domain: exception class/owner-role/event/evidence/link enums, 44 new kinds, extended `wms_exceptions`, satellites (`wms_exception_events`, `_evidence`, `_links`, `_policies`), policies seeded for all 57 kinds, idempotent policy-driven `wms_raise_exception`.
+- Phase 2 — Detection at source: triggers on receiving lines, QC inspections, count lines, tasks, license plates, return lines, stock quants and dock appointments, plus `wms_detect_operational_exceptions()` for yard overstay, SLA breach, expiry and device staleness.
+- Phase 3 — Lifecycle: `wms_assign_exception`, `wms_acknowledge_exception`, `wms_escalate_overdue_exceptions`; pg_cron detection every 10 min, escalation every 5 min.
+- Phase 4 — Notification bridge: `wms_exception_subscriptions`, `_wms_notify_exception` fan-out to owners and subscribers plus `warehouse.exception.*` on `business_event_outbox`. Verified end to end after fixing an integer `notifications.priority` cast and an invalid `event_source_domain` value ('wms' -> 'warehouse') that were silently suppressing delivery.
+- Phase 5 — Command centre UI: rebuilt `ExceptionsInbox` with health tiles, class/owner/severity/scope/overdue filters and search; new `ExceptionDetailSheet` exposing lifecycle history, evidence capture, linked records, the governing policy, assignment/acknowledgement and the evidence-gated close-out.
+- Phase 6 — Analytics: `ExceptionAnalytics` reports 90-day recurrence by kind, root-cause mix, class exposure, MTTR, SLA compliance, ageing and financial exposure.
+
+No open items.
