@@ -37,11 +37,11 @@ export function Section({
       {(title || actions) && (
         <header
           className={cn(
-            "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-5 pt-4",
+            "flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 pt-4 sm:px-5",
             !unstyled && "pb-3",
           )}
         >
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 basis-[14rem]">
             {title && (
               <h2 className="text-[length:var(--ds-text-title)] font-semibold leading-tight">
                 {title}
@@ -54,11 +54,11 @@ export function Section({
             )}
           </div>
           {actions && (
-            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
           )}
         </header>
       )}
-      <div className={cn(!unstyled && "px-5 pb-5", contentClassName)}>
+      <div className={cn(!unstyled && "px-4 pb-5 sm:px-5", contentClassName)}>
         {children}
       </div>
     </section>
