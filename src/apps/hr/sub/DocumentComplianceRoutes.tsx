@@ -12,13 +12,13 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { EMPLOYEES_APP } from "@/lib/apps/registry";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
-import { DOCUMENT_COMPLIANCE_NAV } from "../shared/navs";
+import { EMPLOYEES_NAV } from "../shared/navs";
 import { LazyRoute } from "../shared/guards";
 import { DocumentsListPage } from "@/pages/hr/documents/DocumentsListPage";
 
 export default function DocumentComplianceApp() {
   return (
-    <PlatformShell app={EMPLOYEES_APP} nav={DOCUMENT_COMPLIANCE_NAV}>
+    <PlatformShell app={EMPLOYEES_APP} nav={EMPLOYEES_NAV}>
       <Routes>
         <Route index element={<Navigate to="expiring" replace />} />
         <Route

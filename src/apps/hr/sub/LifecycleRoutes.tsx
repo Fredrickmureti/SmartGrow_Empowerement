@@ -15,7 +15,7 @@ import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import { EMPLOYEES_APP } from "@/lib/apps/registry";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
-import { LIFECYCLE_NAV } from "../shared/navs";
+import { EMPLOYEES_NAV } from "../shared/navs";
 import { LazyRoute } from "../shared/guards";
 import { LifecyclePipelinePage } from "@/pages/hr/lifecycle/LifecyclePipelinePage";
 
@@ -24,7 +24,7 @@ const LifecycleTimelinePage = lazy(() => import("@/pages/hr/lifecycle/LifecycleT
 
 export default function LifecycleApp() {
   return (
-    <PlatformShell app={EMPLOYEES_APP} nav={LIFECYCLE_NAV}>
+    <PlatformShell app={EMPLOYEES_APP} nav={EMPLOYEES_NAV}>
       <Routes>
         <Route
           index
