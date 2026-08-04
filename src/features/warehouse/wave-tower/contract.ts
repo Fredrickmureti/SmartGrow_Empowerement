@@ -64,9 +64,21 @@ export interface WaveHealth {
 /** Readiness — the server's verdict on whether a wave can be committed. */
 export type ReadinessState = "ready" | "at_risk" | "blocked" | "unknown";
 
+/** Every dimension the readiness engine scores. */
+export type ReadinessDimension =
+  | "stock" | "labour" | "departure" | "exceptions"
+  | "quality" | "freeze" | "congestion";
+
+/** How the wave policy treats a failing dimension. */
+export type ReadinessMode = "block" | "warn" | "ignore";
+
 export interface ReadinessCheck {
-  check: "stock" | "labour" | "departure" | "exceptions";
+  check: ReadinessDimension;
+  /** Policy-mapped verdict — the one the release RPC enforces. */
   state: ReadinessState;
+  /** Verdict before the policy mapping was applied. */
+  raw_state?: ReadinessState;
+  mode?: ReadinessMode;
   reason: string | null;
   detail: Record<string, unknown>;
 }
@@ -75,8 +87,12 @@ export interface WaveReadiness {
   wave_id: string;
   state: ReadinessState;
   checked_at: string;
+  policy_id?: string | null;
+  policy_name?: string | null;
+  allow_force?: boolean;
   checks: ReadinessCheck[];
 }
+
 
 export type WaveRisk = "late" | "exception" | "blocked" | "at_risk" | "on_track";
 
