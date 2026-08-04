@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { PutawayTaskActions } from "@/features/warehouse/putaway/PutawayTaskActions";
 import type { ResolvedLocation } from "@/features/warehouse/locations/useResolveLocationIdentity";
 
 interface Task {
@@ -185,6 +186,19 @@ export default function MobilePutaway() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {!done && (
+          <div className="flex flex-wrap gap-1 rounded border p-2">
+            <PutawayTaskActions
+              task={{
+                id: task.id,
+                warehouse_id: task.warehouse_id ?? "",
+                quantity: task.quantity,
+                destination_location_id: task.destination_location_id,
+              }}
+            />
           </div>
         )}
       </div>
