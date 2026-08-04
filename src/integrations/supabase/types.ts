@@ -58971,16 +58971,23 @@ export type Database = {
       }
       stock_locations: {
         Row: {
+          allow_mixed_lots: boolean
+          allow_mixed_products: boolean
           barcode: string | null
+          blocked_reason: string | null
           branch_id: string | null
           business_id: string
           capacity_max_units: number | null
+          capacity_max_volume: number | null
           capacity_max_weight: number | null
           code: string
           created_at: string
           created_by: string | null
+          ground_level: boolean
+          hazmat_classes: string[]
           id: string
           is_active: boolean
+          is_blocked: boolean
           is_default: boolean
           is_putaway_target: boolean
           is_receiving_staging: boolean
@@ -58990,22 +58997,31 @@ export type Database = {
           parent_location_id: string | null
           pick_sequence: number | null
           putaway_priority: number
+          storage_role: string | null
           structure_level: string | null
+          temp_regime: string | null
           updated_at: string
           usage: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id: string | null
         }
         Insert: {
+          allow_mixed_lots?: boolean
+          allow_mixed_products?: boolean
           barcode?: string | null
+          blocked_reason?: string | null
           branch_id?: string | null
           business_id: string
           capacity_max_units?: number | null
+          capacity_max_volume?: number | null
           capacity_max_weight?: number | null
           code: string
           created_at?: string
           created_by?: string | null
+          ground_level?: boolean
+          hazmat_classes?: string[]
           id?: string
           is_active?: boolean
+          is_blocked?: boolean
           is_default?: boolean
           is_putaway_target?: boolean
           is_receiving_staging?: boolean
@@ -59015,22 +59031,31 @@ export type Database = {
           parent_location_id?: string | null
           pick_sequence?: number | null
           putaway_priority?: number
+          storage_role?: string | null
           structure_level?: string | null
+          temp_regime?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id?: string | null
         }
         Update: {
+          allow_mixed_lots?: boolean
+          allow_mixed_products?: boolean
           barcode?: string | null
+          blocked_reason?: string | null
           branch_id?: string | null
           business_id?: string
           capacity_max_units?: number | null
+          capacity_max_volume?: number | null
           capacity_max_weight?: number | null
           code?: string
           created_at?: string
           created_by?: string | null
+          ground_level?: boolean
+          hazmat_classes?: string[]
           id?: string
           is_active?: boolean
+          is_blocked?: boolean
           is_default?: boolean
           is_putaway_target?: boolean
           is_receiving_staging?: boolean
@@ -59040,7 +59065,9 @@ export type Database = {
           parent_location_id?: string | null
           pick_sequence?: number | null
           putaway_priority?: number
+          storage_role?: string | null
           structure_level?: string | null
+          temp_regime?: string | null
           updated_at?: string
           usage?: Database["public"]["Enums"]["stock_location_usage"]
           warehouse_id?: string | null
@@ -68879,17 +68906,217 @@ export type Database = {
           },
         ]
       }
+      wms_product_fixed_bins: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          location_id: string
+          organization_id: string
+          priority: number
+          product_id: string
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          location_id: string
+          organization_id: string
+          priority?: number
+          product_id: string
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          location_id?: string
+          organization_id?: string
+          priority?: number
+          product_id?: string
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_product_fixed_bins_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "stock_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_product_fixed_bins_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "v_location_summary"
+            referencedColumns: ["location_id"]
+          },
+          {
+            foreignKeyName: "wms_product_fixed_bins_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_product_fixed_bins_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_product_fixed_bins_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_product_storage_profiles: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          hazmat_class: string | null
+          id: string
+          organization_id: string
+          product_id: string
+          requires_ground_level: boolean
+          storage_type: string | null
+          temp_regime: string | null
+          unit_volume: number | null
+          unit_weight: number | null
+          updated_at: string
+          velocity_class: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          hazmat_class?: string | null
+          id?: string
+          organization_id: string
+          product_id: string
+          requires_ground_level?: boolean
+          storage_type?: string | null
+          temp_regime?: string | null
+          unit_volume?: number | null
+          unit_weight?: number | null
+          updated_at?: string
+          velocity_class?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          hazmat_class?: string | null
+          id?: string
+          organization_id?: string
+          product_id?: string
+          requires_ground_level?: boolean
+          storage_type?: string | null
+          temp_regime?: string | null
+          unit_volume?: number | null
+          unit_weight?: number | null
+          updated_at?: string
+          velocity_class?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_product_storage_profiles_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "wms_product_storage_profiles_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_putaway_strategies: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          params: Json
+          sequence: number
+          strategy_type: Database["public"]["Enums"]["wms_putaway_strategy_type"]
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          params?: Json
+          sequence?: number
+          strategy_type: Database["public"]["Enums"]["wms_putaway_strategy_type"]
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          params?: Json
+          sequence?: number
+          strategy_type?: Database["public"]["Enums"]["wms_putaway_strategy_type"]
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_putaway_strategies_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_putaway_suggestions: {
         Row: {
           branch_id: string | null
           business_id: string
           chosen: boolean
           created_at: string
+          feasible_qty: number | null
           id: string
           location_id: string
           organization_id: string
           rank: number
           reason: string
+          score: number | null
+          strategy: string | null
           task_id: string
         }
         Insert: {
@@ -68897,11 +69124,14 @@ export type Database = {
           business_id: string
           chosen?: boolean
           created_at?: string
+          feasible_qty?: number | null
           id?: string
           location_id: string
           organization_id: string
           rank: number
           reason: string
+          score?: number | null
+          strategy?: string | null
           task_id: string
         }
         Update: {
@@ -68909,11 +69139,14 @@ export type Database = {
           business_id?: string
           chosen?: boolean
           created_at?: string
+          feasible_qty?: number | null
           id?: string
           location_id?: string
           organization_id?: string
           rank?: number
           reason?: string
+          score?: number | null
+          strategy?: string | null
           task_id?: string
         }
         Relationships: [
@@ -93963,6 +94196,10 @@ export type Database = {
         Args: { p_sales_order_id: string; p_warehouse_id?: string }
         Returns: Json
       }
+      wms_ensure_default_putaway_strategies: {
+        Args: { p_warehouse_id: string }
+        Returns: number
+      }
       wms_equipment_health: {
         Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
@@ -94103,6 +94340,25 @@ export type Database = {
           p_row_version: number
         }
         Returns: Json
+      }
+      wms_location_feasible: {
+        Args: {
+          p_location_id: string
+          p_lot_number?: string
+          p_product_id: string
+          p_quantity: number
+        }
+        Returns: Json
+      }
+      wms_location_occupancy: {
+        Args: { p_location_id: string }
+        Returns: {
+          distinct_lots: number
+          distinct_products: number
+          units: number
+          volume: number
+          weight: number
+        }[]
       }
       wms_location_overview: {
         Args: { p_warehouse_id: string }
@@ -96251,6 +96507,20 @@ export type Database = {
         | "drum"
         | "bag"
       wms_packaging_lifecycle: "draft" | "active" | "restricted" | "retired"
+      wms_putaway_strategy_type:
+        | "fixed_bin"
+        | "consolidate"
+        | "same_category"
+        | "fefo_zone"
+        | "hazmat_zone"
+        | "cold_chain"
+        | "heavy_zone"
+        | "velocity_slot"
+        | "empty_bin"
+        | "nearest"
+        | "overflow"
+        | "bulk"
+        | "general_priority"
       wms_qc_state:
         | "pending"
         | "in_progress"
@@ -97400,6 +97670,21 @@ export const Constants = {
         "bag",
       ],
       wms_packaging_lifecycle: ["draft", "active", "restricted", "retired"],
+      wms_putaway_strategy_type: [
+        "fixed_bin",
+        "consolidate",
+        "same_category",
+        "fefo_zone",
+        "hazmat_zone",
+        "cold_chain",
+        "heavy_zone",
+        "velocity_slot",
+        "empty_bin",
+        "nearest",
+        "overflow",
+        "bulk",
+        "general_priority",
+      ],
       wms_qc_state: [
         "pending",
         "in_progress",
