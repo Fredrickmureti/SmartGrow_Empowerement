@@ -153,3 +153,39 @@ no new charting dependency. The timeline and dock board follow the existing
 4. Page rebuild and deletion of the old implementation.
 5. Supervisor actions.
 6. ADR + architecture test.
+
+## Delivery status — closed 2026-08-04
+
+All six delivery steps are shipped and verified.
+
+1. **SQL contract** — `wms_inbound_health`, `wms_inbound_arrivals`,
+   `wms_inbound_bottlenecks`, `wms_inbound_dock_board` deployed and executed
+   against live data.
+2. **Module** — `src/features/warehouse/inbound-tower/` with `contract.ts`
+   (types, stage order, reason-code labels/actions, shared health vocabulary
+   re-exported from `control-center`) and `useInboundTower.ts` (five thin
+   hooks, `INBOUND_QUERY_PREFIXES`, no client aggregation).
+3. **Components** — `ArrivalLifecycleBoard`, `ArrivalActions`,
+   `InboundBottleneckRail`, `InboundDockStrip`, `ArrivalWindowTimeline`,
+   `InboundExceptionRail`, `InboundReadinessPanel` (inspection, cross-dock and
+   put-away tail). `HealthBanner`, `FlowSpine`, `LabourPanel` and
+   `LiveWorkPanel` are reused from `control-center`, not copied.
+4. **Page** — `InboundDashboard.tsx` rebuilt; the KPI tiles, `StateBreakdown`
+   cards and the client-side exception regex are deleted with no fallback.
+5. **Actions** — mark arrived, assign dock, start receiving and escalation act
+   through existing sanctioned RPCs.
+6. **Realtime + guards** — inbound prefixes registered on `wms_tasks`,
+   `wms_receiving_sessions`, `wms_qc_inspections`, `wms_dock_appointments`,
+   `wms_exceptions`, `wms_trailer_visits`, `wms_yard_slots`,
+   `wms_crossdock_opportunities`, `wms_license_plates`. Polling removed.
+   `docs/adr/0111-inbound-control-tower.md` and the eight-case architecture
+   guard in `src/test/architecture/inbound-control-tower.test.ts` pin the
+   invariants; typecheck and the guard suite pass.
+
+**Deviations from the plan, deliberate:** `wms_gate_events` and
+`wms_receiving_lines` are not in the realtime publication, so gate custody and
+line capture are invalidated through the parent visit and session rows.
+The `ReceivingLane` / `InspectionRail` / `PutawayReadinessPanel` trio collapsed
+into `InboundReadinessPanel` plus the arrival board's per-stage detail, which
+avoids three panels re-reading the same contract fields. The ADR is 0111, not
+0110, because 0110 was already taken by dispatch proof.

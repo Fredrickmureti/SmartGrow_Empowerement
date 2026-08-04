@@ -74,6 +74,14 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_license_plates: [
     ["wms-lpns"],
     ["wms-lpn"],
+    // ADR 0111 — receipt LPNs move inbound put-away readiness.
+    ...INBOUND_QUERY_PREFIXES,
+  ],
+  // ADR 0111 — cross-dock decisions sit on the inbound spine tail.
+  wms_crossdock_opportunities: [
+    ["wms-crossdock-opportunities"],
+    ["wms-crossdock"],
+    ...INBOUND_QUERY_PREFIXES,
   ],
   wms_exceptions: [
     ["wms_exceptions"],
