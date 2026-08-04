@@ -15,7 +15,7 @@
  *    states without one; the guard keeps the client honest.
  */
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const FEEDBACK_HOOK = "src/features/warehouse/scanning/useScanFeedback.tsx";
