@@ -10,7 +10,7 @@
  *   _mark_loaded / _complete / _break / _sweep_expired
  * Reads: wms_crossdock_opportunities, wms_crossdock_rules, wms_crossdock_history
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
