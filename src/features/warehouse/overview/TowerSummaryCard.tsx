@@ -72,7 +72,7 @@ export function TowerSummaryCard({
           })}
         </div>
 
-        <dl className="grid grid-cols-2 gap-2 text-sm @xs/card:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
           <Stat label="Open" value={backlog} />
           <Stat label="Blocked" value={blocked} tone={blocked > 0 ? "blocked" : undefined} />
           <Stat label="Overdue" value={breached} tone={breached > 0 ? "critical" : undefined} />
@@ -84,8 +84,8 @@ export function TowerSummaryCard({
 
         <Button asChild variant="ghost" size="sm" className="w-full justify-between">
           <Link to={route}>
-            {ctaLabel}
-            <ArrowRight className="h-4 w-4" />
+            <span className="truncate">{ctaLabel}</span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
           </Link>
         </Button>
       </CardContent>
