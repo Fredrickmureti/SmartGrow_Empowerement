@@ -1,19 +1,22 @@
 /**
- * usePrinterStatus — "is a printer reachable right now?", nothing else.
+ * usePrinterStatus — "can a printer actually service a job right now?".
  *
  * ## Scope
  *
- * This hook answers a *hardware* question. It reads
- * `hardwareClient.devices.getStatuses()` and projects the receipt /
- * kitchen / label printer rows onto the UI-facing `PrinterStatus` shape.
- * It never renders a document, never dispatches a job, and never imports
- * the print client.
+ * This hook answers a *readiness* question and delegates the answer to the
+ * single readiness service (`services/hardware/readiness.ts`), which asks
+ * the platform — registry (`resolve_device`) plus workstation heartbeat —
+ * rather than the local renderer transport.
  *
- * It previously lived at `hooks/pos/usePrinterStatus.ts` alongside
- * `usePrintWithFallback`, which conflated two concerns:
+ * It previously read `hardwareClient.devices.getStatuses()` directly. That
+ * is a *local runtime* probe: a printer owned by another machine's IoT
+ * agent and reached over the `edge_jobs` relay is never "connected"
+ * locally, so POS reported "No printer connected" while Invoice/Label
+ * printing (which never consulted the probe) worked. `getStatuses()` is now
+ * reserved for diagnostics.
  *
- *   - device reachability  → hardware layer (this file)
- *   - document dispatch    → printing layer (`hooks/printing/usePrintWithFallback`)
+ * It never renders a document and never dispatches a job — document
+ * dispatch lives in `hooks/printing/usePrintWithFallback`.
  *
  * Hardware is a platform concern consumed identically by POS, Inventory,
  * Warehouse, HR and Manufacturing, so it does not belong under `*/pos/`
@@ -21,13 +24,13 @@
  *
  * ## Polling
  *
- * Opt-in. Default is "on" inside Electron — where `DeviceManager` already
- * pings devices, so the poll reads a warm cache — and "off" in browser
- * preview, to avoid waking the WebUSB stack on every render.
+ * Opt-in via `enableMonitoring`; the readiness read is a cheap pair of
+ * indexed queries, so polling is safe in the browser too.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { hardwareClient } from "@/services/hardware/HardwareClient";
+import { resolveIntentReadiness } from "@/services/hardware/readiness";
+import type { IntentReadiness } from "@/services/hardware/readiness";
 import type { PrinterStatus } from "@/services/printing/types";
 
 export type {
@@ -36,46 +39,67 @@ export type {
   PrintResult,
 } from "@/services/printing/types";
 
-interface UsePrinterStatusOptions {
-  /** Enable automatic polling. Default: on in Electron, off in browser. */
+export interface PrinterStatusContext {
+  organizationId?: string | null;
+  businessId?: string | null;
+  /** Register scope, when the caller owns a POS register. */
+  registerId?: string | null;
+}
+
+interface UsePrinterStatusOptions extends PrinterStatusContext {
+  /** Enable automatic polling. Default: off. */
   enableMonitoring?: boolean;
-  /** Polling interval in ms (default: 10_000). */
+  /** Polling interval in ms (default: 15_000). */
   monitoringInterval?: number;
 }
 
-function isElectronRuntime(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    Boolean(
-      (window as unknown as { pos?: { isElectron?: boolean } }).pos?.isElectron,
-    )
-  );
-}
+const PRINTER_ROLES = [
+  "receipt_printer",
+  "kitchen_printer",
+  "label_printer",
+] as const;
 
 /**
- * One-shot printer reachability read.
+ * One-shot printer readiness read.
  *
  * Exported so non-React callers (and the printing layer's fallback flow)
- * can take a status reading without mounting a hook. A transport failure
- * is not an error here: an unreachable agent is indistinguishable from
- * "no printers", and both should surface as the same operator warning.
+ * can take a reading without mounting a hook. Pass tenant context so the
+ * registry can be consulted; without it the read degrades to the local
+ * runtime only.
  */
-export async function printerStatusSnapshot(): Promise<PrinterStatus> {
-  let receipt = false;
-  let kitchen = false;
-  let label = false;
-  try {
-    const statuses = await hardwareClient.devices.getStatuses();
-    for (const s of statuses) {
-      if (!s.connected) continue;
-      if (s.role === "receipt_printer") receipt = true;
-      else if (s.role === "kitchen_printer") kitchen = true;
-      else if (s.role === "label_printer") label = true;
-    }
-  } catch {
-    /* offline → leave all flags false; UI shows the warning */
-  }
+export async function printerStatusSnapshot(
+  ctx: PrinterStatusContext = {},
+): Promise<PrinterStatus> {
+  const scope = ctx.registerId
+    ? ({ kind: "register", id: ctx.registerId } as const)
+    : undefined;
+
+  const results = await Promise.all(
+    PRINTER_ROLES.map((role) =>
+      resolveIntentReadiness({
+        organizationId: ctx.organizationId ?? null,
+        intentOrRole: role,
+        businessId: ctx.businessId ?? null,
+        scope,
+      }).catch(
+        (): IntentReadiness => ({
+          state: "unknown",
+          ready: false,
+          role,
+          device: null,
+          message: "Could not check printer availability",
+          checkedAt: new Date(),
+        }),
+      ),
+    ),
+  );
+
+  const byRole = new Map(results.map((r) => [r.role, r]));
+  const receipt = byRole.get("receipt_printer")?.ready ?? false;
+  const kitchen = byRole.get("kitchen_printer")?.ready ?? false;
+  const label = byRole.get("label_printer")?.ready ?? false;
   const count = [receipt, kitchen, label].filter(Boolean).length;
+
   return {
     available: count > 0,
     printerCount: count,
@@ -89,19 +113,32 @@ export async function printerStatusSnapshot(): Promise<PrinterStatus> {
     lastChecked: new Date(),
     networkPrinterConnected: receipt,
     networkPrinter: null,
-  };
+    /** Richest per-role reason, used for operator-facing copy. */
+    readiness: results,
+  } as PrinterStatus;
 }
 
+/**
+ * Operator-facing status line. Prefers the specific readiness reason over
+ * the old flat "No printer connected".
+ */
 export function statusMessageFor(s: PrinterStatus | null): string {
   if (!s) return "Checking…";
-  if (!s.available) return "No printer connected";
+  const readiness = (s as PrinterStatus & { readiness?: IntentReadiness[] }).readiness;
+  if (!s.available) {
+    const receipt = readiness?.find((r) => r.role === "receipt_printer");
+    if (receipt && receipt.state !== "unknown") return receipt.message;
+    const anyReason = readiness?.find((r) => r.state !== "unknown");
+    return anyReason?.message ?? "No printer assigned";
+  }
   if (s.networkPrinterConnected) {
     return s.printerCount > 1
       ? `Receipt printer + ${s.printerCount - 1} other(s)`
-      : "Receipt printer connected";
+      : "Receipt printer ready";
   }
   return `${s.printerCount} printer(s) available`;
 }
+
 
 export function usePrinterStatus(options: UsePrinterStatusOptions = {}) {
   const {
