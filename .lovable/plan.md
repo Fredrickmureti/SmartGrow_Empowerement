@@ -1,119 +1,125 @@
-# Operator Task Execution Engine — CLOSED
+# Warehouse Supervisor Control Center — Audit Findings & Rebuild Plan
 
-**Domain:** Warehouse operator task execution (generation → assignment → claim → execute → complete → audit)
-**Closed:** 2026-08-04
-**Status:** All phases (1–7) complete and verified. No active work remains under this plan.
+## What a Supervisor Control Center is
 
----
+A supervisor does not own stock, tasks or people — they own **execution flow**. The
+module must continuously answer five questions: Is the warehouse healthy? Where is work
+backing up? Why? Who is affected? What do I do next? That is a live control surface over
+the receiving → inspection → put-away → storage → replenishment → pick → pack → load →
+dispatch chain, not a report of what happened.
 
-## Verdict
+## Audit findings (verified in code)
 
-The Operator Tasks module was never a CRUD list: it already had a guarded FSM
-(`wms_transition_task`), `SKIP LOCKED` claiming, optimistic locking via
-`row_version`, and lease heartbeats. What it lacked — durable lease recovery, a
-real execution ledger, one canonical state vocabulary, and automatic work
-generation — has now been built.
+Strengths — the substrate is genuinely enterprise-grade and must be reused, not rebuilt:
 
-Architectural rule for this domain, still binding: **extend the engine, never
-bypass it.** All task state change flows through `wms_transition_task`; no
-direct client `UPDATE` on state columns; no per-screen private task queues.
+- Execution ledger exists: `wms_task_events` (append-only) plus the `wms_task_telemetry`
+  RPC (`src/features/warehouse/telemetry/useTaskTelemetry.ts`) derives throughput, dwell,
+  exception rate and lease-loss with no client aggregation.
+- Live task/queue projections exist: `wms_labour_queue_view`, `wms_operator_board`,
+  utilisation view (`src/features/warehouse/labour/*`).
+- Real supervisor intents already exist as RPCs, not client UPDATEs: `wms_reassign_task`,
+  `wms_release_task`, `wms_set_task_priority` (`useLabourQueue.ts`).
+- A single realtime channel already invalidates every WMS surface, per table → query-key
+  prefix (`src/features/warehouse/realtime/useWmsRealtimeSync.ts`).
+- Domain surfaces exist and are deep: exceptions (full class/owner/resolution/evidence
+  vocabulary), dock scheduling, yard + trailer visits, replenishment, receiving sessions,
+  waves, pack, manifests, QC, counts, layout designer.
 
----
+Weaknesses — concentrated entirely in the control-center layer:
 
-## Phase 1 — Execution ledger — ✅ COMPLETE
-`wms_task_events` (append-only, scoped, RLS + GRANTs, immutability trigger),
-`trg_wms_tasks_log_event` capturing actor/device/barcode/quantity/from→to,
-realtime invalidation, `TaskHistorySheet` timeline in Operator Tasks.
+- `src/pages/warehouse/SupervisorDashboard.tsx` (185 lines) is a statistics page: 4 metric
+  tiles (open / SLA breached / unassigned / expired leases), two `StateBreakdown` bar lists,
+  and a productivity table keyed by a truncated raw UUID (`id.slice(0,8)`) — operators are
+  not even named. It answers "how many", never "where" or "why".
+- No flow model. Nothing in the UI represents the stage chain, so bottleneck location is
+  not derivable. `dashboard`, `dashboard/inbound`, `dashboard/outbound`,
+  `dashboard/supervisor` are four disconnected tile pages that each re-implement their own
+  queries — duplicated aggregation, no shared health contract.
+- No health state. There is no healthy/degraded/critical/blocked concept anywhere; tone is
+  computed ad hoc per tile as `count > 0 ? "bad" : "ok"`.
+- Aggregation happens in the browser: `SupervisorDashboard` pulls up to 1000 open tasks and
+  2000 completed tasks and reduces them in a `Map`. This will not scale and cannot be
+  reused by mobile or alerting.
+- No server-side health/flow RPC exists — confirmed: the only matching function in the
+  database is `wms_task_telemetry`. Nothing computes stage-level backlog, aging, or SLA risk.
+- Zero cross-domain consumption on the supervisor page: exceptions, docks, yard,
+  replenishment, receiving, dispatch and hardware are all absent, even though every one of
+  them already has a hook.
+- No supervisor action affordance on the page — the existing reassign/release/priority RPCs
+  are unreachable from the control center.
+- No hardware visibility, despite `hooks/hardware/usePrinterStatus`, `useHardwareProxy`,
+  `useDeviceAssignments` and scanner-session infrastructure existing.
+- Passive: it never surfaces "act now" work — no aging buckets, no blocked-on-event
+  reason, no escalation path.
 
-## Phase 2 — Lease recovery — ✅ COMPLETE
-`wms_task_reap_expired` recovers `claimed`, `in_progress`, `paused`, `resumed`;
-`idx_wms_tasks_claim_lookup` widened so reaped work is immediately re-claimable.
+Verdict: the substrate is sound; the control center is a reporting dashboard mistakenly
+placed where an operational command surface belongs. Rebuild the control layer, keep the
+domain layer.
 
-## Phase 3 — Canonical state vocabulary — ✅ COMPLETE
-`assigned`→`claimed`, `done`→`completed` retired across DB and frontend; write
-guard rejects legacy literals; state-column `UPDATE` revoked from
-`authenticated`. Closing sweep removed the last legacy edges
-(`assigned>claimed`, `assigned>in_progress`, `in_progress>done`) from
-`wms_transition_task` itself.
+## What we will build
 
-## Phase 4 — Automatic work generation — ✅ COMPLETE
-- **4.1 QC** — triggers on `wms_qc_inspections` open and finalize `qc` tasks.
-- **4.2 Auto-wave** — `wms_wave_policies` + `wms_enqueue_order_for_wave` place
-  sales-order allocations into **draft** waves. Allocation never auto-dispatches
-  operator work; release stays manual by design.
-- **4.3 Reservation-consistent release/cancel** — audit found four real defects
-  and all were fixed:
-  - double reservation on release → `_wms_consume_order_reservation` transfers
-    ownership from the order to the wave atomically;
-  - release race → `FOR UPDATE` locking plus idempotent no-op on re-release;
-  - FSM bypass on cancel → all cancellation now routes through
-    `wms_transition_task`;
-  - stranded reservations → `_wms_unwind_cancelled_wave` releases wave
-    reservations and restores unpicked demand to the sales order.
-  Critically, the supervisor cancel button calls `wms_transition_wave`, which
-  did none of this; that path now delegates to the same unwind, and
-  `wms_transition_wave` refuses `→ released` so release can only happen through
-  `release_pick_wave`.
+One command center at `/warehouse-app/dashboard/supervisor`, structured top-down by
+decision urgency:
 
-## Phase 5 — Supervisor release console — ✅ COMPLETE
-`DraftWaveConsole` (mounted in the Wave Planner) lists draft waves with order /
-line / unit coverage, expandable line detail, Release (`useReleaseWave` →
-`release_pick_wave`, reporting tasks created and short picks) and Cancel through
-the aggregate FSM.
+1. **Health banner** — a single computed warehouse state (healthy / degraded / critical /
+   blocked) with the one-line reason that produced it and the worst-offending stage.
+2. **Flow spine** — the stage chain (Receive → Inspect → Put-away → Store → Replenish →
+   Pick → Pack → Load → Dispatch) rendered as connected stages, each showing backlog,
+   oldest item age, SLA-at-risk count, and stage health. Clicking a stage drills into it.
+3. **Bottleneck & risk rail** — ranked list of where work is accumulating and why
+   (starved, blocked on QC, no operator, dock delayed, stock unavailable), each row linking
+   to the owning surface and offering the corrective action.
+4. **Live work panel** — the queue ordered by risk, not by time: overdue, aging,
+   unassigned, blocked-on-event, with inline reassign / release / re-prioritise / escalate
+   using the existing RPCs.
+5. **Labour panel** — named operators (joined through the operator board, no raw UUIDs),
+   active/idle/overloaded, workload distribution and utilisation.
+6. **Constraint panel** — docks, yard trailers, replenishment starvation, exceptions and
+   hardware health, each consumed from its existing hook (no duplicated logic, no new
+   sources of truth).
+7. **Geography** — stage/zone heat over the existing `stock_locations` layout so
+   bottlenecks have a physical location.
 
-## Phase 6 — Generation coverage for all task types — ✅ COMPLETE
-Every `wms_task_type` now has an automatic generator, or is human-initiated by
-explicit design:
+Everything is realtime through the existing channel; no polling and no manual refresh.
 
-| Type | Generator |
-| --- | --- |
-| `putaway` | `receive_goods_to_wms`, `wms_post_return_dispositions` |
-| `pick` | `release_pick_wave` |
-| `pack` | **new** `trg_wms_pack_tasks_on_wave_state` — one pack task per sales order when a wave reaches `picked`; auto-completed on `packed` |
-| `load` | **new** `trg_wms_load_tasks_on_manifest_state` — on manifest `loading`; auto-completed on `closed`/`dispatched`, cancelled on `cancelled`; also `wms_crossdock_confirm_staged` |
-| `count` | `generate_due_cycle_counts` (scheduled), `create_count_session_as` |
-| `replenish` | `plan_replenishment`, `_wms_maybe_enqueue_replen`, `wms_transition_replen_order` |
-| `move` | `wms_crossdock_start_staging` |
-| `qc` | `_wms_qc_task_on_open` |
-| `yard_move` | `request_yard_move` — human-initiated by design (a marshal requests the move); duplicate open moves per visit are rejected |
+## Technical approach
 
-Supporting primitives: `_wms_drive_task_to` walks a task to `completed` or
-`cancelled` through legal FSM edges only, and `_wms_finalize_source_tasks`
-closes every task attached to a source document. Wave cancellation now unwinds
-**all** task types on the wave, not just picks.
+- **New server-side contract.** One migration adds a `wms_flow_health` RPC (security
+  definer, business/warehouse scoped) returning per-stage backlog, oldest age, SLA-at-risk
+  and breached counts plus a derived stage health, computed from `wms_tasks` /
+  `wms_task_events` / `wms_exceptions` / `wms_dock_appointments` / `wms_replen_orders`. A
+  second RPC returns ranked bottleneck reasons. Health rules live in SQL so mobile,
+  alerting and the desktop board cannot drift. No client-side row reduction.
+- **New feature module** `src/features/warehouse/control-center/` owning the health
+  contract, hooks (`useFlowHealth`, `useBottlenecks`, `useControlCenterConstraints`), and
+  the presentation components. Domain data is consumed via existing hooks
+  (`useLabourQueue`, `useSupervisorActions`, `useOperatorBoard`, `useDockScheduling`,
+  `useYard`, exception hooks, hardware hooks) — no new queries against domains that already
+  have one.
+- **Realtime.** Register the new query-key prefixes in the existing
+  `TABLE_INVALIDATIONS` map; no second channel.
+- **Visualization.** Use the libraries already installed — `recharts` for trend/heat,
+  `@tanstack/react-table` + `react-virtual` for the risk-ordered work grid,
+  `framer-motion` for state transitions. The flow spine is a small purpose-built component
+  driven by the health contract (a generic graph library would add weight without
+  improving a fixed 9-stage chain). No new dependencies unless the heat map proves it needs
+  one.
+- **Removal.** `SupervisorDashboard.tsx` is deleted and replaced. The overlapping
+  `dashboard/inbound` and `dashboard/outbound` tile pages are refactored to consume the
+  same flow-health contract (inbound = receiving→put-away slice, outbound =
+  pick→dispatch slice) so the aggregation exists once; their duplicated inline queries and
+  `StateBreakdown` blocks go away. No legacy layout is kept as a fallback.
+- **Guards.** An architecture test pins that the control center performs no client-side
+  task aggregation and that every stage in the flow contract has a drill-down route that
+  exists.
 
-## Phase 7 — Execution telemetry — ✅ COMPLETE
-`wms_task_telemetry(warehouse, from, to)` derives everything from
-`wms_task_events` — no counters, no denormalised columns: totals (events, tasks
-touched, completed, cancelled, exceptions, active operators), per task type
-(throughput, average wait to claim, average execution time, exception rate,
-lease-loss/reap rate) and a per-operator leaderboard. Surfaced at
-`/warehouse-app/telemetry` ("Execution telemetry" in the Warehouse nav) via
-`useTaskTelemetry`.
+## Delivery phases
 
----
-
-## Verification performed
-
-- Phases 1–3 checked against the live database (table, trigger, reaper body,
-  grants, absence of legacy literals) rather than against this document.
-- Wave release/cancel logic reviewed function-by-function in `pg_proc`; both
-  cancel entry points confirmed to hit the shared unwind.
-- Telemetry aggregation SQL executed standalone against the ledger.
-- `tsgo --noEmit` clean; WMS architecture tests green
-  (`wms-phase3`, `wms-phase5`, `wms-phase14`, `wms-no-direct-domain-rpc`,
-  `wms-no-direct-state-writes`).
-
-## Known, out of scope for this plan
-
-Two pre-existing architecture test failures are unrelated to task execution and
-belong to other domains: `wms-topic-catalog-sync` (two seeded
-`warehouse.labour.*` topics not declared in `WMS_TOPIC`) and
-`payroll-reports-no-legacy-columns`.
-
-## If this domain is picked up again
-
-Do not add a parallel task table, a per-screen task queue, or any direct
-`UPDATE` on `wms_tasks.state`. New work types get a generator plus a terminal
-finalizer, both routed through `wms_transition_task`, and their telemetry comes
-free from the ledger.
+1. Health contract + `wms_flow_health` / bottleneck RPCs + migration + hooks.
+2. Health banner + flow spine, replacing `SupervisorDashboard`.
+3. Bottleneck rail + risk-ordered live work panel with supervisor actions.
+4. Labour panel with named operators; delete the UUID productivity table.
+5. Constraint panel (docks, yard, replenishment, exceptions, hardware).
+6. Geography heat over the existing layout.
+7. Refactor inbound/outbound towers onto the shared contract; delete duplicated
+   aggregation; add architecture guard tests.
