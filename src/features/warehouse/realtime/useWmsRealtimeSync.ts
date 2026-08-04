@@ -52,6 +52,11 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-labour-queue-view"],
     ["wms-operator-board"],
     ["wms-operator-utilisation"],
+    // Supervisor control centre — health, bottlenecks and zone load are all
+    // server-side projections of wms_tasks.
+    ["wms-flow-health"],
+    ["wms-flow-bottlenecks"],
+    ["wms-zone-load"],
     // Execution ledger (wms_task_events) is written by a trigger on
     // wms_tasks, so a task transition must refresh any open history view.
     ["wms-task-events"],
