@@ -41,8 +41,10 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
+import { TaskHistorySheet } from "@/features/warehouse/tasks/TaskHistorySheet";
 import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
-import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
+import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw, History } from "lucide-react";
+
 
 interface TaskRow {
   id: string;
@@ -133,6 +135,8 @@ export default function OperatorTasks() {
     engine.transition.mutate({ taskId: t.id, toState: to, rowVersion: t.row_version, reason });
 
   const claim = (t: TaskRow) => transition(t, "claimed");
+  const [historyTask, setHistoryTask] = useState<TaskRow | null>(null);
+
   const isCountTask = (t: TaskRow) =>
     t.task_type === "count" && t.source_doc_type === "wms_count_session" && !!t.source_doc_id;
   const openCount = (t: TaskRow) => {
