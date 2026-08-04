@@ -1,119 +1,84 @@
 /**
- * WavePlanner — Phase 3 supervisor screen.
+ * Wave Control Tower (`/warehouse-app/waves`).
  *
- * Groups open sales orders into a pick wave and releases them via
- * `create_pick_wave` + `release_pick_wave`. Release is the only
- * sanctioned path — it reserves stock (warehouse-scoped), generates
- * `pick` tasks by source bin, and emits `warehouse.wave.released`.
+ * Outbound waving is an orchestration problem, not a batching screen. The
+ * page reads one server-side contract — `wms_wave_health`, `wms_wave_board`
+ * and `wms_wave_demand` — and performs no aggregation, ranking or
+ * classification of its own: stage counts, progress, risk and the release
+ * verdict are all computed in SQL so the tower, the RF shell and alerting
+ * cannot disagree.
+ *
+ * Actions go through guarded routines only: `wms_plan_waves` to propose,
+ * `wms_evaluate_wave` to score, `release_pick_wave` to commit (which
+ * re-checks readiness server-side), and `wms_transition_wave` to suspend or
+ * resume. Manual batching stays available through `useCreateAndReleaseWave`
+ * for the ad-hoc order the strategies did not claim.
  */
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useCreateAndReleaseWave } from "@/features/warehouse/aggregates/useDomainOperations";
+import { Layers, RefreshCw, Rocket, Wand2 } from "lucide-react";
 import {
-  PageHeader,
-  PageBody,
-  Section,
-  LoadingState,
-  EmptyState,
-  StatusBadge,
+  PageHeader, PageBody, Section, LoadingState, EmptyState,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ListChecks, Rocket } from "lucide-react";
-import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
-import { DraftWaveConsole } from "@/features/warehouse/aggregates/DraftWaveConsole";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
-
-interface OpenSO {
-  id: string;
-  so_number: string;
-  order_date: string | null;
-  status: string;
-  total: number | null;
-  contact: { name: string | null } | null;
-}
-
-interface WaveRow {
-  id: string;
-  wave_number: string;
-  state: string;
-  row_version: number;
-  strategy: string;
-  released_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  warehouse_id: string;
-}
-
-const WAVE_TONE: Record<string, "neutral" | "info" | "warning" | "success" | "danger"> = {
-  draft: "neutral",
-  released: "info",
-  picking: "warning",
-  picked: "info",
-  packing: "warning",
-  packed: "success",
-  cancelled: "danger",
-};
+import {
+  useCreateAndReleaseWave, useEvaluateWave, usePlanWaves, useReleaseWave,
+} from "@/features/warehouse/aggregates/useDomainOperations";
+import { useWaveTransition } from "@/features/warehouse/aggregates/useAggregateTransitions";
+import {
+  WaveDemandTable, WaveLifecycleBoard, WaveStageStrip,
+  useWaveBoard, useWaveDemand, useWaveHealth, useWaveStrategies,
+  type WaveBoardRow,
+} from "@/features/warehouse/wave-tower";
 
 export default function WavePlanner() {
   const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
-  const warehouseNames = useMemo(
-    () => Object.fromEntries((warehouses ?? []).map((w) => [w.id, w.name])),
-    [warehouses],
-  );
   const [warehouseId, setWarehouseId] = useState<string>("");
+  const [strategyId, setStrategyId] = useState<string>("auto");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const { data: openSOs, isLoading: sosLoading } = useQuery({
-    queryKey: ["wms-open-sos", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales_orders")
-        .select("id, so_number, order_date, status, total, contact:contact_id(name)")
-        .eq("business_id", currentBusiness!.id)
-        .in("status", ["confirmed", "approved", "processing", "open"])
-        .order("order_date", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as unknown as OpenSO[];
-    },
-  });
+  const scope = { warehouseId: warehouseId || undefined };
+  const health = useWaveHealth(scope);
+  const board = useWaveBoard(scope);
+  const demand = useWaveDemand(scope);
+  const strategies = useWaveStrategies(scope);
 
-  const queryClient = useQueryClient();
-
-  const { data: waves, isLoading: wavesLoading } = useQuery({
-    queryKey: ["wms-pick-waves", currentBusiness?.id],
-    enabled: !!currentBusiness?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_pick_waves")
-        .select("id, wave_number, state, row_version, strategy, released_at, completed_at, created_at, warehouse_id")
-        .eq("business_id", currentBusiness!.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data ?? []) as WaveRow[];
-    },
-  });
-
-  const toggle = (id: string) => setSelected((prev) => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-
+  const planWaves = usePlanWaves();
+  const evaluateWave = useEvaluateWave();
+  const releaseWave = useReleaseWave();
+  const transition = useWaveTransition();
   const createAndRelease = useCreateAndReleaseWave();
-  const handleRelease = () => {
+
+  const warehouseName = useMemo(
+    () => warehouses.find((w) => w.id === warehouseId)?.name ?? "",
+    [warehouses, warehouseId],
+  );
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handlePlan = () => {
+    if (!warehouseId) return toast.error("Pick a warehouse");
+    planWaves.mutate({
+      warehouseId,
+      strategyId: strategyId === "auto" ? null : strategyId,
+    });
+  };
+
+  const handleManualRelease = () => {
     if (!warehouseId) return toast.error("Pick a warehouse");
     if (selected.size === 0) return toast.error("Select at least one sales order");
     createAndRelease.mutate(
@@ -127,124 +92,160 @@ export default function WavePlanner() {
     );
   };
 
-  const canRelease = warehouseId && selected.size > 0;
-  const warehouseName = useMemo(
-    () => warehouses.find((w) => w.id === warehouseId)?.name ?? "",
-    [warehouses, warehouseId],
-  );
+  const handleRelease = (wave: WaveBoardRow) => {
+    setBusyId(wave.wave_id);
+    releaseWave.mutate(
+      { waveId: wave.wave_id },
+      { onSettled: () => setBusyId(null) },
+    );
+  };
+
+  const handleSuspend = (wave: WaveBoardRow) => {
+    setBusyId(wave.wave_id);
+    transition.mutate(
+      { id: wave.wave_id, toState: "suspended", rowVersion: wave.row_version, reason: "Suspended from the wave tower" },
+      { onSettled: () => setBusyId(null) },
+    );
+  };
+
+  const handleResume = (wave: WaveBoardRow) => {
+    setBusyId(wave.wave_id);
+    transition.mutate(
+      { id: wave.wave_id, toState: "released", rowVersion: wave.row_version, reason: "Resumed from the wave tower" },
+      { onSettled: () => setBusyId(null) },
+    );
+  };
+
+  const refreshAll = () => {
+    void health.refetch();
+    void board.refetch();
+    void demand.refetch();
+  };
+
+  const totals = health.data?.totals;
 
   return (
     <>
       <PageHeader
-        title="Wave planner"
-        description="Batch open sales orders into a pick wave. Release reserves stock and generates pick tasks per bin."
+        title="Wave control tower"
+        description="Plan, score and release outbound waves. Readiness, progress and risk are computed server-side."
+        actions={
+          <Button variant="outline" size="sm" onClick={refreshAll}>
+            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+          </Button>
+        }
       />
       <PageBody>
-        <Section
-          title="Draft wave"
-          description={warehouseName ? `Fulfilling from ${warehouseName}` : "Choose a warehouse and pick sales orders."}
-        >
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger className="w-full @xl/page:w-[220px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <div className="text-sm text-muted-foreground">{selected.size} selected</div>
-                <div className="flex-1" />
-                <Button disabled={!canRelease || createAndRelease.isPending} onClick={handleRelease}>
-                  <Rocket className="h-4 w-4 mr-2" /> Create &amp; release
-                </Button>
-              </div>
+        <Section title="Warehouse" description="The tower is scoped to one warehouse at a time.">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <SelectTrigger className="w-full @xl/page:w-[240px]">
+                <SelectValue placeholder="Choose a warehouse" />
+              </SelectTrigger>
+              <SelectContent>
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              {sosLoading ? (
-                <LoadingState />
-              ) : (openSOs ?? []).length === 0 ? (
-                <EmptyState
-                  icon={ListChecks}
-                  title="No open sales orders"
-                  description="Confirmed sales orders will show up here."
-                />
-              ) : (
-                <div className="max-h-[45vh] overflow-auto border rounded">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-muted/50">
-                      <tr className="text-left">
-                        <th className="p-2 w-8" />
-                        <th className="p-2">SO#</th>
-                        <th className="p-2">Customer</th>
-                        <th className="p-2">Date</th>
-                        <th className="p-2">Status</th>
-                        <th className="p-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {openSOs!.map((so) => (
-                        <tr key={so.id} className="border-t hover:bg-muted/20">
-                          <td className="p-2">
-                            <Checkbox checked={selected.has(so.id)} onCheckedChange={() => toggle(so.id)} />
-                          </td>
-                          <td className="p-2 font-mono">{so.so_number}</td>
-                          <td className="p-2">{so.contact?.name ?? "—"}</td>
-                          <td className="p-2">{so.order_date ?? "—"}</td>
-                          <td className="p-2 capitalize">{so.status}</td>
-                          <td className="p-2 text-right font-mono">{Number(so.total ?? 0).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            <Select value={strategyId} onValueChange={setStrategyId}>
+              <SelectTrigger className="w-full @xl/page:w-[220px]">
+                <SelectValue placeholder="All active strategies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">All active strategies</SelectItem>
+                {(strategies.data ?? []).map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button onClick={handlePlan} disabled={!warehouseId || planWaves.isPending}>
+              <Wand2 className="mr-2 h-4 w-4" /> Plan waves
+            </Button>
+
+            {totals ? (
+              <span className="text-xs text-muted-foreground">
+                {totals.open_waves} open · {totals.late} late · {totals.blocked} blocked ·{" "}
+                {totals.planned_hours}h planned work
+              </span>
+            ) : null}
+          </div>
         </Section>
 
-        <DraftWaveConsole
-          businessId={currentBusiness?.id}
-          warehouseNames={warehouseNames}
-        />
-
-
-
-        <Section title="Recent waves" description="Live state of the last 50 waves. Click a wave to work its pick list.">
-          <Card>
-            <CardHeader className="pb-1"><CardTitle className="text-sm">Waves</CardTitle></CardHeader>
-            <CardContent className="p-0">
-              {wavesLoading ? (
+        {!warehouseId ? (
+          <EmptyState
+            icon={Layers}
+            title="Choose a warehouse"
+            description="Wave planning, readiness and release are all warehouse-scoped."
+          />
+        ) : (
+          <>
+            <Section title="Outbound flow" description={warehouseName}>
+              {health.isLoading ? (
                 <LoadingState />
-              ) : (waves ?? []).length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">No waves yet.</div>
-              ) : (
-                <ul className="divide-y">
-                  {waves!.map((w) => (
-                    <li key={w.id} className="flex items-center gap-3 p-3">
-                      <StatusBadge tone={WAVE_TONE[w.state] ?? "neutral"}>{w.state}</StatusBadge>
-                      <Link to={`/warehouse-app/picks/${w.id}`} className="font-mono hover:underline">{w.wave_number}</Link>
-                      <span className="text-xs text-muted-foreground">{w.strategy}</span>
-                      <div className="flex-1" />
-                      <span className="text-xs text-muted-foreground">
-                        {w.released_at ? `released ${new Date(w.released_at).toLocaleString()}` : "drafted"}
-                      </span>
-                      {w.state === "picked" ? (
-                        <Button asChild size="sm" variant="outline"><Link to={`/warehouse-app/pack/${w.id}`}>Pack</Link></Button>
-                      ) : null}
-                      <CancelAggregateButton
-                        aggregate="wave"
-                        id={w.id}
-                        rowVersion={w.row_version}
-                        state={w.state}
-                        onCancelled={() => queryClient.invalidateQueries({ queryKey: ["wms-pick-waves"] })}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </Section>
+              ) : health.data ? (
+                <WaveStageStrip health={health.data} />
+              ) : null}
+            </Section>
+
+            <Section
+              title="Live waves"
+              description="Each wave as a lifecycle: readiness, progress, tasks and the cut-off it serves."
+            >
+              <Card>
+                <CardContent className="p-0">
+                  {board.isLoading ? (
+                    <LoadingState />
+                  ) : (
+                    <WaveLifecycleBoard
+                      waves={board.data ?? []}
+                      busyId={busyId}
+                      onEvaluate={(id) => evaluateWave.mutate(id)}
+                      onRelease={handleRelease}
+                      onSuspend={handleSuspend}
+                      onResume={handleResume}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </Section>
+
+            <Section
+              title="Unwaved demand"
+              description="Open orders the strategies have not claimed. Batch them manually when the floor needs it."
+            >
+              <Card>
+                <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
+                  <CardTitle className="text-sm">Demand</CardTitle>
+                  <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+                  <div className="flex-1" />
+                  <Button
+                    size="sm"
+                    disabled={selected.size === 0 || createAndRelease.isPending}
+                    onClick={handleManualRelease}
+                  >
+                    <Rocket className="mr-2 h-4 w-4" /> Create &amp; release
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {demand.isLoading ? (
+                    <LoadingState />
+                  ) : (
+                    <WaveDemandTable
+                      rows={demand.data ?? []}
+                      selected={selected}
+                      onToggle={toggle}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </Section>
+          </>
+        )}
+
+        {!currentBusiness?.id ? null : null}
       </PageBody>
     </>
   );
