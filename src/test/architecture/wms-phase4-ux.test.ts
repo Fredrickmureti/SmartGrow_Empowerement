@@ -183,10 +183,12 @@ describe("Phase 4 §1 · every WMS aggregate exposes its event trail", () => {
 });
 
 describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
+  // ADR 0102 — the supervisor tower merged into the Warehouse Overview.
+  // The Overview composes feature hooks rather than querying directly, so it
+  // is asserted separately below.
   const DASHBOARDS = [
     "src/pages/warehouse/InboundDashboard.tsx",
     "src/pages/warehouse/OutboundDashboard.tsx",
-    "src/pages/warehouse/SupervisorDashboard.tsx",
   ];
   const routes = readFileSync("src/apps/warehouse/routes.tsx", "utf8");
   const nav = readFileSync("src/apps/warehouse/nav.ts", "utf8");
@@ -195,7 +197,7 @@ describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
     for (const f of DASHBOARDS) {
       expect(readFileSync(f, "utf8").length, `${f} missing`).toBeGreaterThan(0);
     }
-    for (const path of ["dashboard/inbound", "dashboard/outbound", "dashboard/supervisor"]) {
+    for (const path of ["dashboard/inbound", "dashboard/outbound"]) {
       expect(routes, `route ${path} not wired`).toContain(`path="${path}"`);
       expect(nav, `nav entry for ${path} missing`).toContain(`/warehouse-app/${path}`);
     }
@@ -228,4 +230,27 @@ describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
       expect(src, `${f} must filter by business_id`).toMatch(/eq\("business_id"/);
     }
   });
+
+  it("ADR 0102 · there is exactly one warehouse command centre", () => {
+    expect(existsSync("src/pages/warehouse/SupervisorDashboard.tsx"), "supervisor tower must be removed").toBe(false);
+    expect(existsSync("src/pages/warehouse/WarehouseDashboard.tsx"), "legacy setup dashboard must be removed").toBe(false);
+
+    const overview = readFileSync("src/pages/warehouse/WarehouseOverview.tsx", "utf8");
+    expect(routes).toContain("<WarehouseOverview />");
+    expect(nav, "overview must be the nav home").toContain('/warehouse-app/dashboard", label: "Overview"');
+    expect(nav, "supervisor tower nav entry must be gone").not.toContain("dashboard/supervisor");
+    expect(routes, "supervisor deep link must redirect").toContain(
+      'path="dashboard/supervisor" element={<Navigate to="/warehouse-app/dashboard" replace />}',
+    );
+
+    // The Overview aggregates owning modules; it must not fetch or poll itself.
+    expect(overview, "overview must not query Supabase directly").not.toMatch(/supabase\s*\n?\s*\./);
+    expect(overview, "overview must not poll").not.toMatch(/refetchInterval/);
+  });
+
+  it("ADR 0102 · overview lenses are realtime-invalidated", () => {
+    const sync = readFileSync("src/features/warehouse/realtime/useWmsRealtimeSync.ts", "utf8");
+    expect(sync).toContain("OVERVIEW_QUERY_PREFIXES");
+  });
 });
+
