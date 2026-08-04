@@ -41,7 +41,7 @@ export function ExceptionRail({
         return (
           <li key={e.id}>
             <Link
-              to="/warehouse/exceptions"
+              to="/warehouse-app/exceptions"
               className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/50"
             >
               <span
