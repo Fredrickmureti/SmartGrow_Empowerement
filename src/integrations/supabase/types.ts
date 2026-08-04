@@ -94014,6 +94014,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      wms_inbound_arrivals: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      wms_inbound_bottlenecks: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_inbound_dock_board: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_inbound_health: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
       wms_inspect_return_line: {
         Args: {
           p_checks?: Json
