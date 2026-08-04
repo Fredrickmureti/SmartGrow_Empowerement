@@ -1,0 +1,104 @@
+/**
+ * Inbound dock and yard strip — the physical half of the inbound picture.
+ *
+ * Inbound docks with what is standing in them, plus the trailers waiting in
+ * the yard and how long they have been waiting. Projection of
+ * `wms_inbound_dock_board`.
+ */
+import { Link } from "react-router-dom";
+import { Container, DoorOpen, Timer } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { EmptyState } from "@/design-system";
+import type { InboundDockBoard } from "./contract";
+
+export function InboundDockStrip({ board }: { board: InboundDockBoard | undefined }) {
+  const docks = board?.docks ?? [];
+  const waiting = board?.waiting_trailers ?? [];
+
+  if (docks.length === 0 && waiting.length === 0) {
+    return (
+      <EmptyState
+        title="No dock activity"
+        description="No inbound dock is configured or occupied for this warehouse."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
+        {docks.map((d) => (
+          <div
+            key={d.dock_id}
+            className={cn(
+              "rounded-lg border p-3",
+              d.occupied ? "border-primary/40 bg-primary/5" : "bg-card",
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <DoorOpen className="h-3.5 w-3.5" /> {d.code}
+              </span>
+              <span className="text-[11px] uppercase text-muted-foreground">
+                {d.occupied ? "Occupied" : "Free"}
+              </span>
+            </div>
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {d.trailer_ref ?? d.name ?? "—"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {d.open_sessions} open receipt{d.open_sessions === 1 ? "" : "s"}
+            </p>
+            {!d.occupied && d.next_window_at && (
+              <p className="text-[11px] text-muted-foreground">
+                Next {new Date(d.next_window_at).toLocaleTimeString([], {
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+          Waiting in yard ({waiting.length})
+          {board?.yard_slots
+            ? ` · ${board.yard_slots.free}/${board.yard_slots.total} slots free`
+            : ""}
+        </p>
+        {waiting.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No trailer is waiting.</p>
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {waiting.slice(0, 8).map((t) => (
+              <li key={t.visit_id} className="flex items-center gap-3 p-2.5 text-sm">
+                <Container className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">
+                  {t.trailer_ref ?? "Unidentified trailer"}
+                </span>
+                <span
+                  className={cn(
+                    "flex items-center gap-1 text-xs tabular-nums",
+                    (t.waiting_minutes ?? 0) > 120
+                      ? "font-medium text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  <Timer className="h-3 w-3" />
+                  {t.waiting_minutes ?? 0}m
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link
+          to="/warehouse-app/yard"
+          className="mt-2 inline-block text-xs text-muted-foreground hover:text-foreground"
+        >
+          Open yard control tower →
+        </Link>
+      </div>
+    </div>
+  );
+}
