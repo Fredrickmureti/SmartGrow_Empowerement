@@ -111,11 +111,16 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceModule: "hr",
     sourceDocType: "employee_contract",
     partyKind: "employee",
-    build: (id: string) =>
+    build: async (id: string) =>
       normalise(
-        (await_hrLetter("contract_letter", id) as unknown) as Record<string, unknown>,
-      ) as unknown as BuiltSnapshot,
+        (await fetchAndBuildHrLetterSnapshot(
+          supabase,
+          "contract_letter",
+          id,
+        )) as unknown as Record<string, unknown>,
+      ),
   },
+
 
   invoice: {
     kindCode: "sales.invoice",
