@@ -22,9 +22,12 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader, PageBody, Section, LoadingState, ErrorState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { HealthBanner, FlowSpine } from "@/features/warehouse/control-center";
 import {
-  DepartureTimeline, DockYardStrip, OutboundBottleneckRail, ShipmentLifecycleBoard,
+  HealthBanner, FlowSpine, LabourPanel, LiveWorkPanel,
+} from "@/features/warehouse/control-center";
+import {
+  DepartureTimeline, DockYardStrip, ExceptionRail, LoadingLane,
+  OutboundBottleneckRail, ShipmentLifecycleBoard,
   useOutboundBottlenecks, useOutboundDockBoard, useOutboundHealth, useOutboundShipments,
 } from "@/features/warehouse/outbound-tower";
 
@@ -37,6 +40,12 @@ const STAGE_TO_LIFECYCLE: Record<string, string> = {
   load: "loading",
   dispatch: "sealed",
 };
+
+/** The task types the shipping supervisor owns on the live work list. */
+const OUTBOUND_TASK_TYPES = [
+  "replenish", "pick", "pack", "stage", "load", "dispatch",
+] as const;
+
 
 export default function OutboundDashboard() {
   const health = useOutboundHealth();
@@ -124,6 +133,20 @@ export default function OutboundDashboard() {
                     />
                   )}
                 </Section>
+
+                <Section
+                  title="Carton flow"
+                  description="Where cartons are stalling between pack, seal, manifest and trailer."
+                >
+                  <LoadingLane shipments={shipments.data ?? []} />
+                </Section>
+
+                <Section
+                  title="Live outbound work"
+                  description="Overdue and blocked work first. Reassign, release or re-prioritise in place."
+                >
+                  <LiveWorkPanel taskTypes={OUTBOUND_TASK_TYPES} />
+                </Section>
               </div>
 
               <div className="space-y-6">
@@ -133,8 +156,15 @@ export default function OutboundDashboard() {
                 <Section title="Departure clock" description="Open loads by departure window.">
                   <DepartureTimeline shipments={shipments.data ?? []} />
                 </Section>
+                <Section title="Exceptions" description="Open escalations owned by shipping.">
+                  <ExceptionRail />
+                </Section>
+                <Section title="Labour" description="Who is on the floor and how loaded they are.">
+                  <LabourPanel />
+                </Section>
               </div>
             </div>
+
           </div>
         )}
       </PageBody>

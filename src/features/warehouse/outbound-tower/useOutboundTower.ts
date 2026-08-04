@@ -13,6 +13,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { OPEN_STATES, type ExceptionRow } from "@/features/warehouse/exceptions/constants";
 import type {
   DockBoard, OutboundBottleneck, OutboundHealth, OutboundShipment,
 } from "./contract";
@@ -22,6 +23,7 @@ export const OUTBOUND_KEYS = {
   shipments: ["wms-outbound-shipments"] as const,
   bottlenecks: ["wms-outbound-bottlenecks"] as const,
   dockBoard: ["wms-outbound-dock-board"] as const,
+  exceptions: ["wms-outbound-exceptions"] as const,
 };
 
 /** Every prefix the realtime channel must invalidate for the tower. */
@@ -30,6 +32,7 @@ export const OUTBOUND_QUERY_PREFIXES = [
   OUTBOUND_KEYS.shipments,
   OUTBOUND_KEYS.bottlenecks,
   OUTBOUND_KEYS.dockBoard,
+  OUTBOUND_KEYS.exceptions,
 ] as const;
 
 type Scope = { warehouseId?: string };
@@ -107,6 +110,38 @@ export function useOutboundDockBoard({ warehouseId }: Scope = {}) {
       });
       if (error) throw error;
       return data as unknown as DockBoard;
+    },
+  });
+}
+
+/**
+ * Open outbound exceptions for the rail.
+ *
+ * Reads the platform exception ledger directly — the tower never forks the
+ * exception model — scoped to the active company and, when chosen, the
+ * warehouse. Triage still belongs to the exceptions inbox.
+ */
+export function useOutboundExceptions({ warehouseId }: Scope = {}) {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+  return useQuery({
+    queryKey: [...OUTBOUND_KEYS.exceptions, businessId, warehouseId ?? "all"],
+    enabled: !!businessId,
+    staleTime: 15_000,
+    queryFn: async (): Promise<ExceptionRow[]> => {
+      let q = supabase
+        .from("wms_exceptions")
+        .select("*")
+        .eq("business_id", businessId!)
+        .in("state", OPEN_STATES)
+        .order("severity", { ascending: false })
+        .order("created_at", { ascending: true })
+        .limit(25);
+      const wh = scopeArg(warehouseId);
+      if (wh) q = q.eq("warehouse_id", wh);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as ExceptionRow[];
     },
   });
 }

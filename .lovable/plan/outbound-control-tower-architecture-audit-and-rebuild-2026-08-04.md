@@ -135,3 +135,25 @@ dependencies.
 6. Guard tests: architecture test asserting the page performs no client-side
    aggregation and imports no `supabase` client, plus a no-poll test
    (`refetchInterval` absent) and a realtime key-coverage test.
+
+---
+
+## Status: CLOSED — all phases delivered (2026-08-04)
+
+1. Migration — `wms_outbound_health`, `wms_outbound_shipments`,
+   `wms_outbound_bottlenecks`, `wms_outbound_dock_board` shipped as
+   security-definer, business-scoped, read-only RPCs.
+2. `outbound-tower` module — `contract.ts` (types + pure helpers, reusing the
+   control-centre health vocabulary), `useOutboundTower.ts` (five hooks,
+   keys registered for realtime).
+3. `HealthBanner` + `FlowSpine` reused; `ShipmentLifecycleBoard` and
+   `ShipmentActions` (guarded RPC transitions with `row_version`) shipped.
+4. `LoadingLane`, `DockYardStrip`, `OutboundBottleneckRail`, `ExceptionRail`,
+   `DepartureTimeline`, plus `LiveWorkPanel` / `LabourPanel` reused with the
+   outbound task-type filter.
+5. `OutboundDashboard.tsx` rewritten as pure composition — no supabase import,
+   no client aggregation; the tile-grid implementation deleted.
+6. Guards — `src/test/architecture/outbound-control-tower.test.ts` (6 tests):
+   page composes only, no aggregation, no polling, every tower key prefix
+   realtime-registered on every outbound-moving table, legacy path gone.
+   `tsgo --noEmit` clean.
