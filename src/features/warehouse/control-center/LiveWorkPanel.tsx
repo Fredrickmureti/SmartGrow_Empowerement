@@ -99,7 +99,63 @@ export function LiveWorkPanel({ warehouseId, taskTypes, limit = 25 }: Props) {
       {visible.length === 0 ? (
         <EmptyState title="No open work" description="Nothing is queued for this scope." />
       ) : (
-        <div className="rounded-lg border">
+        <>
+        {/* Mobile: card rows — a table cannot fit a phone without scrolling. */}
+        <ul className="divide-y rounded-lg border @2xl/page:hidden">
+          {visible.map(({ row, bucket }) => (
+            <li key={row.task_id} className="flex items-start gap-2 p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold uppercase",
+                      HEALTH_TEXT[RISK_TONE[bucket]],
+                    )}
+                  >
+                    {RISK_LABEL[bucket]}
+                  </span>
+                  <span className="truncate text-sm font-medium capitalize">
+                    {humanise(row.task_type)}
+                  </span>
+                </div>
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                  {humanise(row.state)}
+                  {row.source_doc_type ? ` · ${humanise(row.source_doc_type)}` : ""}
+                </p>
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="truncate">
+                    {row.assignee_user_id
+                      ? operatorName.get(row.assignee_user_id) ?? "Assigned"
+                      : "Unassigned"}
+                  </span>
+                  <span className="tabular-nums">
+                    {shortAge(
+                      row.created_at
+                        ? (Date.now() - new Date(row.created_at).getTime()) / 1000
+                        : null,
+                    )}
+                  </span>
+                  <span className="tabular-nums">P{row.priority}</span>
+                </p>
+              </div>
+              <RowActions
+                row={row}
+                assignable={assignable}
+                onEscalate={() =>
+                  setPriority.mutate({
+                    taskId: row.task_id,
+                    priority: Math.min(100, row.priority + 20),
+                  })
+                }
+                onRelease={() => release.mutate({ taskId: row.task_id, reason: "supervisor" })}
+                onAssign={(userId) =>
+                  reassign.mutate({ taskId: row.task_id, userId, reason: "supervisor" })
+                }
+              />
+            </li>
+          ))}
+        </ul>
+        <div className="hidden rounded-lg border @2xl/page:block">
           <Table>
             <TableHeader>
               <TableRow>
