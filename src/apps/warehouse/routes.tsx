@@ -50,6 +50,7 @@ const GateConsole = lazy(() => import("@/pages/warehouse/GateConsole"));
 const TrailerRegister = lazy(() => import("@/pages/warehouse/TrailerRegister"));
 const YardMarshal = lazy(() => import("@/pages/warehouse/YardMarshal"));
 const LabourBoard = lazy(() => import("@/pages/warehouse/LabourBoard"));
+const ExecutionTelemetry = lazy(() => import("@/pages/warehouse/ExecutionTelemetry"));
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
 const PackagingCatalogue = lazy(() => import("@/pages/warehouse/PackagingCatalogue"));
