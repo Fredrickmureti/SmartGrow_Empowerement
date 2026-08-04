@@ -12,6 +12,7 @@
 |---|---|---|
 | **Electron (desktop POS)** | Packaged desktop client. `window.pos.hardware.exec` present. | Main process — `electron/hardware/DeviceManager` + per-role drivers in `electron/hardware/drivers/`. |
 | **IoT agent** | Browser tab with `localhost:8043` reachable. | The local agent process (separate repo under `/agent`). Renderer is a pure HTTP client. |
+| **Remote IoT agent (relay)** | Browser tab that cannot reach loopback (e.g. https site, phone). Dispatch is queued to a workstation over Supabase `edge_jobs` and executed by that machine's agent. | The remote agent process. The browser owns nothing. |
 | **Browser-only** | PWA / mobile-web POS, no agent, no Electron. | The renderer itself via WebUSB / WebSerial / WebHID. Last-resort fallback. |
 | **Unsupported** | Browser without WebUSB/WebSerial/WebHID. | None. Hardware ops return `{ success: false, error: 'transport unavailable' }`. |
 
@@ -37,8 +38,54 @@ hardwareClient.exec({ role, op, payload, idempotencyKey })
         └── otherwise          → browserHardwareAdapter.exec
                                        │
                                        ├── local agent reachable → AgentClient (HTTP to localhost:8043)
+                                       ├── relay enabled          → RelayTransport → edge_jobs → remote agent poll
                                        └── pure browser           → renderer driver (WebUSB / WebSerial / WebHID)
 ```
+
+Documents take one of two dispatch paths, both landing on the same seam:
+
+```text
+foreground   PrintService.printDocument → policy → print_jobs (ledger)
+                                        → render → dispatch.toDevice
+                                        → execForIntent → resolve_device
+                                        → hardwareClient.execAssignment
+
+recovery     print_jobs (queued) → dispatch-print-jobs (edge fn, SKIP LOCKED,
+                                   back-off, DLQ) → workstation relay
+```
+
+## Readiness (registry + heartbeat, never the local probe)
+
+"Can this intent print?" is answered by **one** service:
+`src/services/hardware/readiness.ts` (`resolveIntentReadiness`, and the
+`useIntentReadiness` hook).
+
+It asks the platform, not the local transport:
+
+1. Is a `device_assignments` row bound for the intent? (`resolve_device`)
+2. Does a workstation own it, and did that workstation poll within
+   `WORKSTATION_LIVENESS_WINDOW_MS` (20 s, matching `RelayTransport`)?
+3. Otherwise, can this runtime (Electron / loopback agent) serve it?
+
+States: `ready`, `no_device_bound`, `workstation_offline`, `degraded`,
+`local_only_unavailable`, `unknown` — each carrying operator-facing copy, so
+the UI never shows a flat "No printer connected" again.
+
+`hardwareClient.devices.getStatuses()` is a **local runtime diagnostics
+probe only**. Using it to gate printing is what made POS report "No printer
+connected" while invoice/label printing worked over the relay.
+
+## Connection ownership
+
+`EdgeRelayMount` is the **single owner** of the renderer adapter registry:
+the only caller of `devices.loadAssignments()` and `devices.connectAll()`.
+`useHardwareProxy` is a read-only status/action façade. Two writers
+previously raced over the same singleton, so the later mount wiped the
+other's device list and hardware settings on one machine disturbed another
+session. Workstation selection applies the liveness window; assignments are
+never cleared merely because a query is still in flight.
+
+Guard: `src/test/architecture/hardware-readiness-single-source.test.ts`.
 
 Guards that pin this contract:
 
@@ -171,5 +218,7 @@ Event return path: device events → EventBroker → ipcRenderer.send('pos:event
 - Wave 9d.2 (open) — collapse renderer driver duplication; invert
   `hardware-driver-duplication.test.ts` to forbid renderer execution
   code outside `BrowserPrintDriver` + `KeyboardScannerDriver`.
+- Wave 10 — one readiness service (`readiness.ts`), one connection owner
+  (`EdgeRelayMount`), relay + queue drain documented as first-class.
 - Wave 9f (open) — first live cross-module consumer
   (`useInventoryLabelPrinter` on Products page).
