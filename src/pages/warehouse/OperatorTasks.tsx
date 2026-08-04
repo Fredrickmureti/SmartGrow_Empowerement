@@ -420,6 +420,13 @@ export default function OperatorTasks() {
         onOpenChange={(o) => !o && setReplenTask(null)}
       />
 
+      <TaskHistorySheet
+        taskId={historyTask?.id ?? null}
+        taskLabel={historyTask ? `${historyTask.task_type} task` : undefined}
+        onOpenChange={(o) => !o && setHistoryTask(null)}
+      />
+
+
       <Dialog open={!!cancelOpen} onOpenChange={(o) => !o && setCancelOpen(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Cancel task</DialogTitle></DialogHeader>
