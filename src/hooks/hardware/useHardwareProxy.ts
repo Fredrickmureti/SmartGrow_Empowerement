@@ -12,20 +12,17 @@
  * guard test enforces that boundary repo-wide.
  *
  * Responsibilities:
- *   1. Load device configs from the canonical `device_assignments` table
- *      and hand them to `hardwareClient.devices.loadAssignments(...)` so the
- *      browser-mode runtime knows what's wired (no-op in Electron — the main
- *      process owns its own registry).
- *   2. Auto-connect on session start (browser only — DeviceManager does this
- *      automatically in Electron).
- *   3. Expose abstract action methods (printReceipt, openDrawer, etc.) that
+ *   1. Read device configs from the canonical `device_assignments` table
+ *      for status projection. It does NOT write the renderer adapter
+ *      registry and does NOT connect devices — `EdgeRelayMount` is the
+ *      single connection owner (see `services/hardware/readiness.ts`).
+ *   2. Expose abstract action methods (printReceipt, openDrawer, etc.) that
  *      forward to `hardwareClient.*` so callers stay platform-blind.
- *   4. Surface honest per-role status from `hardwareClient.devices.getStatuses()`
+ *   3. Surface honest per-role status from `hardwareClient.devices.getStatuses()`
  *      and refresh on push events from the hardware event bus.
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import type { DeviceAssignment } from '@/services/hardware';
 import { hardwareClient, type DeviceStatusDetail } from '@/services/hardware/HardwareClient';
 import {
   useDeviceAssignments,
@@ -85,30 +82,6 @@ function toCompatRow(r: CanonicalAssignment): CompatDeviceRow {
     connection_params: r.config ?? {},
     display_name: r.display_name,
     is_active: r.enabled,
-  };
-}
-
-/**
- * Convert a compat device row into the runtime DeviceAssignment shape the
- * browser-mode hardware adapter expects.
- *
- * CRITICAL: drivers read `connection_type` from `params.connection_type`
- * inside `connect()`. We inject the column value into the connectionParams
- * blob so drivers always have it.
- */
-function toDeviceAssignment(config: CompatDeviceRow): DeviceAssignment {
-  const connectionParams: Record<string, unknown> = {
-    ...(config.connection_params ?? {}),
-    connection_type: config.connection_type,
-    id: config.id,
-  };
-  return {
-    id: config.id,
-    deviceRole: (config.device_role || config.hardware_type) as DeviceRole,
-    driverType: (config.driver_type || 'browser_print') as DeviceAssignment['driverType'],
-    connectionParams,
-    displayName: config.display_name,
-    isActive: config.is_active,
   };
 }
 
@@ -184,20 +157,16 @@ export function useHardwareProxy(
     if (deviceIds === prevDeviceIdsRef.current && state.isLoaded) return;
     prevDeviceIdsRef.current = deviceIds;
 
-    const assignments = devices.filter((d) => d.is_active).map(toDeviceAssignment);
-    hardwareClient.devices.loadAssignments(assignments);
-    setState((prev) => ({ ...prev, isLoaded: true }));
-
-    if (!passive && assignments.length > 0 && !hardwareClient.devices.isElectron()) {
-      setState((prev) => ({ ...prev, isConnecting: true }));
-      hardwareClient.devices.connectAll().finally(() => {
-        setState((prev) => ({ ...prev, isConnecting: false }));
-        void refreshStatuses();
-      });
-    } else {
-      void refreshStatuses();
-    }
-  }, [devices, disabled, isLoadingDevices, passive, refreshStatuses, state.isLoaded]);
+    // NOTE (single connection owner): this hook no longer writes the
+    // renderer adapter registry and never calls `connectAll()`. Both
+    // previously ran here AND in `EdgeRelayMount`, so whichever mounted
+    // last overwrote the other's device list — POS could end up with an
+    // empty adapter and report "no printer". `EdgeRelayMount` is now the
+    // sole owner of `loadAssignments` / `connectAll`; this hook is a
+    // read-only status + action façade.
+    setState((prev) => ({ ...prev, isLoaded: true, isConnecting: false }));
+    void refreshStatuses();
+  }, [devices, disabled, isLoadingDevices, refreshStatuses, state.isLoaded]);
 
   // ── Status polling + event-driven refresh (10 s tick + push refresh) ──
   useEffect(() => {
@@ -206,9 +175,6 @@ export function useHardwareProxy(
 
     statusTimerRef.current = setInterval(() => {
       void refreshStatuses();
-      if (!passive && !hardwareClient.devices.isElectron()) {
-        void hardwareClient.devices.healthCheck();
-      }
     }, STATUS_POLL_INTERVAL_MS);
 
     const offConn = hardwareClient.on('device:connected', () => void refreshStatuses());
@@ -221,7 +187,7 @@ export function useHardwareProxy(
       offDisc();
       offErr();
     };
-  }, [disabled, passive, refreshStatuses, state.isLoaded]);
+  }, [disabled, refreshStatuses, state.isLoaded]);
 
   // ── Agent lifecycle (browser path only — Electron bypasses the agent). ──
   //
@@ -253,13 +219,9 @@ export function useHardwareProxy(
     const unsubscribe = hardwareClient.agent.onChange((available) => {
       if (!mounted) return;
       setState((prev) => ({ ...prev, agentAvailable: available }));
-      if (available) {
-        void hardwareClient.devices
-          .connectAll()
-          .then(() => {
-            if (mounted) void refreshStatuses();
-          });
-      }
+      // Connection ownership belongs to `EdgeRelayMount`; here we only
+      // resync the status view when agent availability flips.
+      if (available && mounted) void refreshStatuses();
     });
 
     return () => {

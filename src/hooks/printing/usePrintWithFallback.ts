@@ -23,9 +23,11 @@
  * rather than the job vanishing.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { printDocument } from "@/services/printing/PrintService";
 import { printerStatusSnapshot } from "@/hooks/hardware/usePrinterStatus";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 import type {
   PrintIntent,
@@ -34,7 +36,18 @@ import type {
   PrintResult,
 } from "@/services/printing/types";
 
-export function usePrintWithFallback() {
+export function usePrintWithFallback(options: { registerId?: string | null } = {}) {
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  // Readiness is a tenant question (registry + workstation heartbeat), so
+  // the snapshot must carry org/business/register context.
+  const orgId = currentOrg?.id ?? null;
+  const bizId = currentBusiness?.id ?? null;
+  const registerId = options.registerId ?? null;
+  const statusCtx = useMemo(
+    () => ({ organizationId: orgId, businessId: bizId, registerId }),
+    [orgId, bizId, registerId],
+  );
   const [showFallbackDialog, setShowFallbackDialog] = useState(false);
   const [currentPrinterStatus, setCurrentPrinterStatus] =
     useState<PrinterStatus | null>(null);
@@ -53,7 +66,7 @@ export function usePrintWithFallback() {
     }): Promise<PrintResult> => {
       const filename = req.filename ?? `${req.documentType}-${Date.now()}`;
       setPending({ ...req, filename });
-      const status = await printerStatusSnapshot();
+      const status = await printerStatusSnapshot(statusCtx);
       setCurrentPrinterStatus(status);
       const result = await printDocument({
         documentType: req.documentType,
@@ -69,7 +82,7 @@ export function usePrintWithFallback() {
         fallbackUsed: result.transport === "thermal" ? "none" : "browser",
       };
     },
-    [],
+    [statusCtx],
   );
 
   const handleFallbackAction = useCallback(
@@ -92,7 +105,7 @@ export function usePrintWithFallback() {
           });
           setShowFallbackDialog(false);
         } else if (action === "retry") {
-          const s = await printerStatusSnapshot();
+          const s = await printerStatusSnapshot(statusCtx);
           setCurrentPrinterStatus(s);
           if (s.available) {
             setShowFallbackDialog(false);
@@ -110,7 +123,7 @@ export function usePrintWithFallback() {
         setIsProcessing(false);
       }
     },
-    [pending],
+    [pending, statusCtx],
   );
 
   const closeFallbackDialog = useCallback(() => {

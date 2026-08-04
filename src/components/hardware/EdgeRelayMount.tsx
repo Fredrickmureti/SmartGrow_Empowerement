@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import type { DeviceAssignment } from '@/services/hardware/BrowserHardwareAdapter';
 import type { DeviceRole, DriverType } from '@/services/hardware/drivers/DriverInterface';
+import { WORKSTATION_LIVENESS_WINDOW_MS } from '@/services/hardware/readiness';
 
 interface WorkstationRow {
   id: string;
@@ -104,10 +105,24 @@ export function EdgeRelayMount() {
     },
   });
 
-  const workstation = useMemo(
-    () => (workstations.data ?? []).find((row) => Boolean(row.last_seen_at)) ?? workstations.data?.[0] ?? null,
-    [workstations.data],
-  );
+  /**
+   * Pick the workstation this browser should route through.
+   *
+   * Previously this took the freshest row org-wide with no liveness window,
+   * so a workstation that stopped polling days ago could still capture
+   * routing for everyone and every dispatch would burn its full deadline.
+   * Only workstations actually polling inside
+   * `WORKSTATION_LIVENESS_WINDOW_MS` are eligible; the freshest wins.
+   */
+  const workstation = useMemo(() => {
+    const rows = workstations.data ?? [];
+    const live = rows.filter(
+      (row) =>
+        row.last_seen_at &&
+        Date.now() - new Date(row.last_seen_at).getTime() <= WORKSTATION_LIVENESS_WINDOW_MS,
+    );
+    return live[0] ?? null;
+  }, [workstations.data]);
 
   const devices = useQuery({
     queryKey: ['edge-workstation-devices', orgId, workstation?.id ?? null],
@@ -130,8 +145,18 @@ export function EdgeRelayMount() {
     },
   });
 
+  // This component is the SINGLE owner of the renderer adapter registry:
+  // the only caller of `loadAssignments` and `connectAll` in the app. Two
+  // writers previously raced here (see `useHardwareProxy`), so whichever
+  // mounted last wiped the other's device list.
   useEffect(() => {
-    if (!orgId || !workstation?.id || hardwareClient.devices.isElectron()) {
+    if (hardwareClient.devices.isElectron()) return;
+
+    // Never tear down relay/assignments while a query is merely in flight —
+    // that used to blank the device list on every refetch tick.
+    if (workstations.isLoading || (workstation?.id && devices.isLoading)) return;
+
+    if (!orgId || !workstation?.id) {
       hardwareClient.agent.disableRelay();
       hardwareClient.devices.loadAssignments([]);
       return;
@@ -151,7 +176,7 @@ export function EdgeRelayMount() {
     if (assignments.length > 0) {
       void hardwareClient.devices.connectAll();
     }
-  }, [businessId, devices.data, orgId, workstation?.id]);
+  }, [businessId, devices.data, devices.isLoading, orgId, workstation?.id, workstations.isLoading]);
 
   return null;
 }

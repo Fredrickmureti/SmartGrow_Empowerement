@@ -45,6 +45,18 @@ export interface PrinterStatus {
   networkPrinterConnected?: boolean;
   /** Receipt printer endpoint (host:port) when known. Null in browser. */
   networkPrinter?: { ip: string; port: number } | null;
+  /**
+   * Per-role readiness reasons from `services/hardware/readiness.ts`.
+   * Present whenever the snapshot was produced with tenant context; used to
+   * render a specific operator message instead of a flat "no printer".
+   */
+  readiness?: Array<{
+    role: string;
+    state: string;
+    ready: boolean;
+    message: string;
+    detail?: string;
+  }>;
 }
 
 export type PrintFallbackAction =

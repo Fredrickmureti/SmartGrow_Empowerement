@@ -40,8 +40,9 @@ describe("printer status / print dispatch separation", () => {
     ).not.toMatch(/from\s+["']@\/services\/printing\/PrintClient["']/);
     expect(body).not.toMatch(/printClient\./);
     expect(body).not.toMatch(/generateDocumentPdf|printPdfInPage/);
-    // Type-only imports from the shared printing vocabulary are fine.
-    expect(body).toMatch(/from\s+["']@\/services\/hardware\/HardwareClient["']/);
+    // Readiness comes from the single readiness service (registry +
+    // workstation heartbeat), not from the local runtime probe.
+    expect(body).toMatch(/from\s+["']@\/services\/hardware\/readiness["']/);
   });
 
   it("the dispatch hook reads reachability through the hardware hook", () => {
