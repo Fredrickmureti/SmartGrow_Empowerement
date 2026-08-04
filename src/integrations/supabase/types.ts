@@ -80065,6 +80065,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_unwind_cancelled_wave: {
+        Args: { p_reason?: string; p_wave_id: string }
+        Returns: Json
+      }
       accept_organization_invitation_atomic: {
         Args: {
           p_invitation_id: string
