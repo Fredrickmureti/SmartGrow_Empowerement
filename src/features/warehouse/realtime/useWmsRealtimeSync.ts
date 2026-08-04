@@ -52,7 +52,11 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-labour-queue-view"],
     ["wms-operator-board"],
     ["wms-operator-utilisation"],
+    // Execution ledger (wms_task_events) is written by a trigger on
+    // wms_tasks, so a task transition must refresh any open history view.
+    ["wms-task-events"],
   ],
+
   wms_license_plates: [
     ["wms-lpns"],
     ["wms-lpn"],
