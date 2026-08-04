@@ -84,6 +84,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PurchaseOrderPeekSheet } from "@/features/purchases/orders/PurchaseOrderPeekSheet";
 import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Workflow pipeline for Purchase Orders
 function POWorkflowPipeline({ status }: { status: string }) {
@@ -318,10 +319,7 @@ export default function PurchaseOrders() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `PO ${po.po_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `PO ${po.po_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

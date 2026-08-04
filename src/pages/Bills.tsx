@@ -102,6 +102,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 
 // Workflow pipeline for Bills
@@ -272,10 +273,7 @@ export default function Bills() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Bill ${bill.bill_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Bill ${bill.bill_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

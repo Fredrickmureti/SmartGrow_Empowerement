@@ -102,6 +102,7 @@ import { EstimatePeekSheet } from "@/features/sales/estimates/EstimatePeekSheet"
 import { usePeekParam } from "@/features/sales/record";
 import { EstimateListTable } from "@/components/estimates/EstimateListTable";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function Estimates() {
   // View mode state
@@ -425,10 +426,7 @@ export default function Estimates() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Estimate ${estimate.estimate_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Estimate ${estimate.estimate_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

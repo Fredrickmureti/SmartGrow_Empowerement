@@ -78,6 +78,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Compact workflow pipeline for table rows
 function WorkflowPipeline({ status }: { status: string }) {
@@ -180,10 +181,7 @@ export default function PurchaseReturns() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Return ${pr.return_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Return ${pr.return_number}`));
     } catch (err) {
       toast({ title: "Print failed", description: normalizeError(err).message, variant: "destructive" });
     } finally {

@@ -59,6 +59,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ProformaPeekSheet } from "@/features/sales/proforma/ProformaPeekSheet";
 import { usePeekParam } from "@/features/sales/record";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function ProformaInvoices() {
   const navigate = useNavigate();
@@ -157,10 +158,7 @@ export default function ProformaInvoices() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Proforma ${inv.proforma_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Proforma ${inv.proforma_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

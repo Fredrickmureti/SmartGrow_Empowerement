@@ -69,6 +69,7 @@ import { type ResolvedScan } from "@/hooks/scanner";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useSalesOpenDraftHandler, useSalesHasActiveDraft } from "@/contexts/SalesScanContext";
 import { dialogReadyBus } from "@/services/scanner/dialogReadyBus";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 function describeInvoicePrintError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err ?? "");
@@ -360,10 +361,7 @@ export default function Invoices() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Invoice ${invoice.invoice_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Invoice ${invoice.invoice_number}`));
     } catch (err) {
       toast({
         title: "Print failed",
