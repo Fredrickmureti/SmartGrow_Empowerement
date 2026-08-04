@@ -28,7 +28,7 @@ import { HealthBanner, FlowSpine, LabourPanel, LiveWorkPanel } from "@/features/
 import type { FlowHealth } from "@/features/warehouse/control-center/contract";
 import {
   ArrivalLifecycleBoard, ArrivalWindowTimeline, InboundBottleneckRail,
-  InboundDockStrip, InboundExceptionRail,
+  InboundDockStrip, InboundExceptionRail, InboundReadinessPanel,
   useInboundArrivals, useInboundBottlenecks, useInboundDockBoard, useInboundHealth,
 } from "@/features/warehouse/inbound-tower";
 
@@ -41,6 +41,7 @@ const STAGE_TO_LIFECYCLE: Record<string, string> = {
   unload: "unload",
   capture: "capture",
   inspect: "inspect",
+  crossdock: "inspect",
   putaway: "putaway",
 };
 
@@ -148,6 +149,12 @@ export default function InboundDashboard() {
                 </Section>
                 <Section title="Arrival clock" description="Open arrivals by booked window.">
                   <ArrivalWindowTimeline arrivals={arrivals.data ?? []} />
+                </Section>
+                <Section
+                  title="Downstream readiness"
+                  description="Inspection, cross-dock and put-away — what stands between receipt and sellable stock."
+                >
+                  <InboundReadinessPanel stages={stages} />
                 </Section>
                 <Section title="Exceptions" description="Open escalations owned by receiving.">
                   <InboundExceptionRail />
