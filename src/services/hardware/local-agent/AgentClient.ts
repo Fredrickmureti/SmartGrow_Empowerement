@@ -658,6 +658,7 @@ class AgentClientImpl {
     ipAddress: string,
     port: number,
     data: number[],
+    opts?: { workstationId?: string | null },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
       if (this._isLoopbackTarget(ipAddress) && this._loopbackUsable()) {
@@ -666,9 +667,10 @@ class AgentClientImpl {
       // Phase 2: prefer relay when configured. On any relay failure (timeout,
       // insert error, agent not consuming) fall through to the loopback path
       // so LAN / dev workflows keep working.
-      if (this._relay) {
+      const relay = this._relayFor(opts?.workstationId);
+      if (relay) {
         const idem = `print:${this._netKey(ipAddress, port)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-        const r = await this._relay.dispatch<AgentPrintResponse>({
+        const r = await relay.dispatch<AgentPrintResponse>({
           role: 'print',
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
@@ -728,11 +730,13 @@ class AgentClientImpl {
     vendorId: number,
     productId: number,
     data: number[],
+    opts?: { workstationId?: string | null },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._usbKey(vendorId, productId), async () => {
-      if (this._relay) {
+      const relay = this._relayFor(opts?.workstationId);
+      if (relay) {
         const idem = `usb_print:${this._usbKey(vendorId, productId)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-        const r = await this._relay.dispatch<AgentPrintResponse>({
+        const r = await relay.dispatch<AgentPrintResponse>({
           role: 'usb_print',
           payload: { vendorId, productId, data },
           idempotencyKey: idem,
