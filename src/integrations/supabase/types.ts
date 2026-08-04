@@ -93963,6 +93963,14 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: Json
       }
+      wms_flow_bottlenecks: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_flow_health: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
       wms_generate_locations: {
         Args: {
           p_barcode_auto?: boolean
