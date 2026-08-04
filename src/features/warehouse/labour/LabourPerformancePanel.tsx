@@ -137,7 +137,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         <div className="space-y-1">
           <Label className="text-xs text-muted-foreground">Measurement window</Label>
           <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full @xl/page:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

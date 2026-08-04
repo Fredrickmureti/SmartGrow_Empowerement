@@ -162,7 +162,7 @@ export default function YardControlTower() {
       <PageBody>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={effectiveWarehouse} onValueChange={setWarehouseId}>
-            <SelectTrigger className="w-[240px] h-9">
+            <SelectTrigger className="w-full @xl/page:w-[240px] h-9">
               <SelectValue placeholder="Select warehouse" />
             </SelectTrigger>
             <SelectContent>

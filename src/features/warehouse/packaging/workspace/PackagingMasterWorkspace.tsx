@@ -182,7 +182,7 @@ export default function PackagingMasterWorkspace() {
       <PageBody>
         <FilterBar search={search} onSearchChange={setSearch} placeholder="Search code, name or material">
           <Select value={classFilter} onValueChange={setClassFilter}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Class" /></SelectTrigger>
+            <SelectTrigger className="w-full @xl/page:w-[160px]"><SelectValue placeholder="Class" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All classes</SelectItem>
               {PACKAGING_CLASSES.map((c) => (
@@ -191,7 +191,7 @@ export default function PackagingMasterWorkspace() {
             </SelectContent>
           </Select>
           <Select value={lifecycleFilter} onValueChange={setLifecycleFilter}>
-            <SelectTrigger className="w-[170px]"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
+            <SelectTrigger className="w-full @xl/page:w-[170px]"><SelectValue placeholder="Lifecycle" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="active_only">Excluding retired</SelectItem>
               <SelectItem value={ALL}>All lifecycles</SelectItem>
@@ -289,7 +289,7 @@ export default function PackagingMasterWorkspace() {
                       value={selected.lifecycle_status}
                       onValueChange={(v) => changeLifecycle(v as PackagingLifecycle)}
                     >
-                      <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {PACKAGING_LIFECYCLES.map((l) => (
                           <SelectItem key={l} value={l} className="capitalize">{l}</SelectItem>

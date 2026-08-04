@@ -200,7 +200,7 @@ export default function PutawayQueue() {
         actions={
           <div className="flex gap-2">
             <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-              <SelectTrigger className="w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+              <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All warehouses</SelectItem>
                 {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
