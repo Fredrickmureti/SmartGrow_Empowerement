@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { ListChecks, Rocket } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";
+import { DraftWaveConsole } from "@/features/warehouse/aggregates/DraftWaveConsole";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
@@ -65,6 +66,10 @@ const WAVE_TONE: Record<string, "neutral" | "info" | "warning" | "success" | "da
 export default function WavePlanner() {
   const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
+  const warehouseNames = useMemo(
+    () => Object.fromEntries((warehouses ?? []).map((w) => [w.id, w.name])),
+    [warehouses],
+  );
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -196,6 +201,13 @@ export default function WavePlanner() {
             </CardContent>
           </Card>
         </Section>
+
+        <DraftWaveConsole
+          businessId={currentBusiness?.id}
+          warehouseNames={warehouseNames}
+        />
+
+
 
         <Section title="Recent waves" description="Live state of the last 50 waves. Click a wave to work its pick list.">
           <Card>
