@@ -9,7 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -61,6 +61,10 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   // Payroll — number is synthesized from payroll_runs.payroll_number; recipient is the employee's work_email/email.
   payslip: { table: "payslips", numberField: "payslip_number", statusField: "status", itemsTable: undefined, contactField: "employee_id" },
   // POS receipt — A4 invoice-style receipt, generated via the unified generate-document engine (already supports pos_receipt).
+  // HR letters — employment contract. Recipient is the employee (work_email
+  // first). `statusField` is deliberately omitted: contract status is a
+  // lifecycle value (new/running/expired/cancelled), never "sent".
+  contract_letter: { table: "employee_contracts", numberField: "contract_reference", statusField: undefined, itemsTable: undefined, contactField: "employee_id" },
   pos_receipt: { table: "pos_transactions", numberField: "transaction_number", statusField: undefined, itemsTable: undefined, contactField: "customer_id" },
 };
 
@@ -79,6 +83,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   report: "Report",
   payslip: "Payslip",
   pos_receipt: "Sales Receipt",
+  contract_letter: "Employment Contract",
 };
 
 async function getPlatformSettings(supabaseClient: any): Promise<Map<string, string | null>> {
@@ -544,6 +549,9 @@ const handler = async (req: Request): Promise<Response> => {
     // alias the employee join as `contact` so the rest of the pipeline
     // (recipient resolution, branding, etc.) works unchanged.
     selectQuery = `*, contact:employees!payslips_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), payroll_run:payroll_runs(id, payroll_number, pay_period_start, pay_period_end), organization:organizations(id, name), ${businessJoin}`;
+  } else if (documentType === "contract_letter") {
+    // Same shape as payslips: the recipient is an employee, not a contact.
+    selectQuery = `*, contact:employees!employee_contracts_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "pos_receipt") {
     selectQuery = `*, contact:contacts!pos_transactions_customer_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
     } else {
@@ -639,7 +647,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!recipientEmail) {
       const contact = document.contact;
       const resolved =
-        documentType === "payslip"
+        documentType === "payslip" || documentType === "contract_letter"
           ? (contact?.work_email || contact?.email)
           : (contact?.email);
       if (!resolved) {
@@ -698,6 +706,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const docNumber = documentType === "customer_statement"
       ? `${document.contact?.name || "Customer"} (${new Date(document.period_start).toLocaleDateString()} – ${new Date(document.period_end).toLocaleDateString()})`
+      : documentType === "contract_letter"
+        ? (document.contract_reference || `CONTRACT-${String(resolvedDocumentId).slice(0, 8).toUpperCase()}`)
       : documentType === "payslip"
         // Prefer the human-readable payslip_number; fall back to run + employee for legacy rows.
         ? (document.payslip_number
