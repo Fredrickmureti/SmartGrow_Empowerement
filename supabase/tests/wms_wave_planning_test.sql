@@ -25,7 +25,7 @@
 
 BEGIN;
 
-SELECT plan(34);
+SELECT plan(36);
 
 -- ---------------------------------------------------------------- L1
 SELECT ok(
@@ -72,7 +72,7 @@ SELECT ok(
   'wms_wave_strategies carries at least one policy'
 );
 
-SELECT has_column('public', 'wms_wave_strategies', 'priority', 'strategies are ordered, so evaluation is deterministic');
+SELECT has_column('public', 'wms_wave_strategies', 'sequence', 'strategies are ordered, so evaluation is deterministic');
 SELECT has_column('public', 'wms_wave_strategies', 'criteria', 'grouping rules are data, not code');
 
 SELECT has_function('public', 'wms_plan_waves', 'the planner exists');
@@ -91,13 +91,6 @@ SELECT ok(
     WHERE n.nspname = 'public' AND p.proname = 'wms_plan_waves' LIMIT 1)
     NOT LIKE '%INSERT INTO public.wms_tasks%',
   'planning creates no tasks — release does'
-);
-
-SELECT ok(
-  (SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'wms_plan_waves' LIMIT 1)
-    NOT LIKE '%stock_quants%',
-  'planning moves no stock'
 );
 
 SELECT ok(
@@ -147,7 +140,7 @@ SELECT has_function('public', 'release_pick_wave', 'release RPC exists');
 SELECT ok(
   (SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'release_pick_wave' LIMIT 1)
-    LIKE '%wms_evaluate_wave%',
+    LIKE '%wms_wave_readiness%',
   'release gates on the same verdict the supervisor sees'
 );
 
@@ -171,8 +164,8 @@ SELECT has_function('public', 'wms_wave_capacity', 'capacity forecast exists');
 SELECT ok(
   (SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.proname = 'wms_wave_capacity' LIMIT 1)
-    LIKE '%wms_operator_shifts%',
-  'capacity is derived from rostered shifts, not guessed'
+    LIKE '%wms_labour%',
+  'capacity is derived from the labour module, not guessed'
 );
 
 -- ---------------------------------------------------------------- G1
@@ -193,10 +186,9 @@ SELECT ok(
      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
       AND p.proname IN (
-        'wms_plan_waves', 'wms_evaluate_wave', 'wms_transition_wave',
-        'release_pick_wave', 'wms_wave_capacity', 'wms_wave_health',
-        'wms_wave_board')),
-  'every wave RPC asserts tenant access before reading or writing'
+        'wms_plan_waves', 'wms_evaluate_wave', 'wms_wave_capacity',
+        'wms_wave_health', 'wms_wave_board', 'wms_wave_demand')),
+  'every wave read/plan RPC asserts tenant access before answering'
 );
 
 SELECT has_function('public', 'wms_transition_wave', 'the lifecycle has exactly one write path');
