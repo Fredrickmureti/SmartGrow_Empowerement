@@ -46,11 +46,25 @@ describe("HR suite consistency", () => {
     expect(att).toMatch(/<PlatformShell\b[^>]*nav=\{ATTENDANCE_NAV\}/);
     expect(att).not.toMatch(/<AttendanceSubNav\b/);
 
-    const emp = r("src/apps/hr/sub/EmployeesRoutes.tsx");
-    expect(emp).toMatch(/from\s+"@\/components\/layout\/shell\/PlatformShell"/);
-    expect(emp).toMatch(/<PlatformShell\b[^>]*nav=\{EMPLOYEES_NAV\}/);
-    expect(emp).not.toMatch(/<EmployeesSubNav\b/);
+    // ADR 0101 — the Employees-family surfaces (contracts, lifecycle,
+    // recruitment, reports, document compliance) all mount EMPLOYEES_APP,
+    // so they must mount EMPLOYEES_NAV too. Navigation expands via
+    // WorkspaceNavItem.children; it is never replaced inside one app.
+    for (const file of [
+      "src/apps/hr/sub/EmployeesRoutes.tsx",
+      "src/apps/hr/sub/ContractsRoutes.tsx",
+      "src/apps/hr/sub/LifecycleRoutes.tsx",
+      "src/apps/hr/sub/RecruitmentRoutes.tsx",
+      "src/apps/hr/sub/HrReportsRoutes.tsx",
+      "src/apps/hr/sub/DocumentComplianceRoutes.tsx",
+    ]) {
+      const src = r(file);
+      expect(src, file).toMatch(/from\s+"@\/components\/layout\/shell\/PlatformShell"/);
+      expect(src, file).toMatch(/<PlatformShell\b[^>]*nav=\{EMPLOYEES_NAV\}/);
+    }
+    expect(r("src/apps/hr/sub/EmployeesRoutes.tsx")).not.toMatch(/<EmployeesSubNav\b/);
   });
+
 
   it("Time-off admin routes own dedicated Approvals + Calendar pages", () => {
     expect(existsSync(resolve(ROOT, "src/pages/leave/LeaveApprovals.tsx"))).toBe(true);
