@@ -1,5 +1,4 @@
 /** TEMPORARY responsive lab — delete after audit. */
-import { createFileRoute } from "@tanstack/react-router";
 import { Section } from "@/design-system";
 import {
   ArrivalLifecycleBoard, ArrivalWindowTimeline, InboundBottleneckRail,
@@ -9,7 +8,7 @@ import { HealthBanner, FlowSpine } from "@/features/warehouse/control-center";
 import type { InboundArrival, InboundBottleneck, InboundDockBoard } from "@/features/warehouse/inbound-tower/contract";
 import type { FlowStageHealth, FlowHealth } from "@/features/warehouse/control-center/contract";
 
-export const Route = createFileRoute("/devlab")({ component: DevLab });
+
 
 const stages: FlowStageHealth[] = [
   "receive", "inspect", "putaway", "store", "replenish", "pick", "pack", "load", "dispatch",
@@ -62,7 +61,7 @@ const dockBoard = {
   yard_slots: { total: 20, free: 6 },
 } as unknown as InboundDockBoard;
 
-function DevLab() {
+export default function DevLab() {
   return (
     <div className="@container/page mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
       <div className="space-y-6">
