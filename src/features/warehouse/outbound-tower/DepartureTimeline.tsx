@@ -41,7 +41,7 @@ export function DepartureTimeline({ shipments }: { shipments: OutboundShipment[]
     .map(([, b]) => b);
 
   return (
-    <div className="h-48 w-full">
+    <div className="h-48 w-full min-w-0 max-w-full overflow-hidden">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
           <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />

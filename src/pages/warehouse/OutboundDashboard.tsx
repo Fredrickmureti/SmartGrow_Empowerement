@@ -104,8 +104,8 @@ export default function OutboundDashboard() {
               />
             </Section>
 
-            <div className="min-w-0 grid gap-6 @4xl/page:grid-cols-3">
-              <div className="min-w-0 space-y-6 @4xl/page:col-span-2">
+            <div className="grid min-w-0 max-w-full grid-cols-1 gap-6 @4xl/page:grid-cols-3">
+              <div className="min-w-0 max-w-full space-y-6 @4xl/page:col-span-2">
                 <Section
                   title="Blockers"
                   description="Ranked by severity. Each row links to the surface that clears it."
@@ -149,7 +149,7 @@ export default function OutboundDashboard() {
                 </Section>
               </div>
 
-              <div className="space-y-6">
+              <div className="min-w-0 max-w-full space-y-6">
                 <Section title="Docks and yard" description="Where the trucks are.">
                   <DockYardStrip board={dockBoard.data} />
                 </Section>

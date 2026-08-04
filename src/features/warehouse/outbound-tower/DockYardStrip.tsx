@@ -26,20 +26,21 @@ export function DockYardStrip({ board }: { board: DockBoard | undefined }) {
 
   return (
     <div className="space-y-4">
-      <div className="min-w-0 grid grid-cols-2 gap-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-2 @[26rem]/page:grid-cols-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
         {docks.map((d) => (
           <div
             key={d.dock_id}
             className={cn(
-              "rounded-lg border p-3",
+              "min-w-0 rounded-lg border p-3",
               d.occupied ? "border-primary/40 bg-primary/5" : "bg-card",
             )}
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-sm font-medium">
-                <DoorOpen className="h-3.5 w-3.5" /> {d.code}
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                <DoorOpen className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{d.code}</span>
               </span>
-              <span className="text-[11px] uppercase text-muted-foreground">
+              <span className="shrink-0 text-[11px] uppercase text-muted-foreground">
                 {d.occupied ? "Occupied" : "Free"}
               </span>
             </div>
