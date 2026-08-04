@@ -17,6 +17,11 @@ import {
   Search,
   ArrowUpDown,
   Printer,
+  Download,
+  Mail,
+  MoreHorizontal,
+  Eye,
+  FileSignature,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +39,17 @@ import { RenewContractDialog } from "./RenewContractDialog";
 import { toast } from "sonner";
 import { dispatchHrLetter } from "@/features/hr/letters/dispatchHrLetter";
 import { DocumentHistorySheet } from "@/components/documents/DocumentHistorySheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
+import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
+import { printDocument } from "@/services/printing/PrintService";
 
 export interface ContractsListPageProps {
   eyebrow: string;
@@ -79,6 +95,45 @@ export function ContractsListPage(props: ContractsListPageProps) {
   const [renewTarget, setRenewTarget] = useState<Contract | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
   const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<Contract | null>(null);
+  const [emailTarget, setEmailTarget] = useState<Contract | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  function contractLabel(c: Contract) {
+    return `Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim();
+  }
+
+  /**
+   * Download the contract as a PDF. Same front door as print: the pair is
+   * frozen into a document record and rendered by the one renderer, so the
+   * downloaded file is byte-identical to what a printer would receive.
+   */
+  async function downloadContractPdf(c: Contract) {
+    setDownloadingId(c.id);
+    try {
+      const result = await printDocument({
+        documentType: "contract_letter",
+        documentId: c.id,
+        medium: "pdf",
+        intent: "a4_document",
+        disposition: "download",
+        filename: `contract-${(c.contract_reference ?? c.employee_name ?? c.id)
+          .toString()
+          .replace(/[^a-zA-Z0-9_-]/g, "-")}`,
+        organizationId: c.organization_id,
+        businessId: c.business_id,
+        branchId: c.branch_id,
+      });
+      if (!result.success) throw new Error(result.error ?? "Render failed");
+      toast.success("Contract PDF downloaded");
+    } catch (e) {
+      toast.error("Could not export contract PDF", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  }
 
   /**
    * Freeze the contract into a document record and route it. The signed
@@ -225,37 +280,63 @@ export function ContractsListPage(props: ContractsListPageProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={issuingId === c.id}
-                        onClick={() =>
-                          issueContractLetter(
-                            c.id,
-                            `Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim(),
-                          )
-                        }
-                        title="Issue contract letter"
+                        onClick={() => setPreviewTarget(c)}
+                        title="Preview and print the contract"
                       >
-                        {issuingId === c.id ? (
-                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Printer className="mr-1 h-3.5 w-3.5" />
-                        )}
+                        <Printer className="mr-1 h-3.5 w-3.5" />
                         Print
                       </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" title="More actions">
+                            {issuingId === c.id || downloadingId === c.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <MoreHorizontal className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Document</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => setPreviewTarget(c)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={downloadingId === c.id}
+                            onClick={() => downloadContractPdf(c)}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Export as PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEmailTarget(c)}>
+                            <Mail className="mr-2 h-4 w-4" />
+                            Email to employee
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={issuingId === c.id}
+                            onClick={() => issueContractLetter(c.id, contractLabel(c))}
+                          >
+                            <FileSignature className="mr-2 h-4 w-4" />
+                            Issue &amp; route to printer
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() =>
+                              navigate(`/hr/employees/${c.employee_id}?section=contracts`)
+                            }
+                          >
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open employee
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <DocumentHistorySheet
                         documentType="contract_letter"
                         documentId={c.id}
-                        title={`Contract ${c.contract_reference ?? c.employee_name ?? ""}`.trim()}
+                        title={contractLabel(c)}
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          navigate(`/hr/employees/${c.employee_id}?section=contracts`)
-                        }
-                        title="Open employee"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
                     </div>
                   </li>
                 ))}
@@ -264,6 +345,32 @@ export function ContractsListPage(props: ContractsListPageProps) {
           </Card>
         )}
       </PageBody>
+
+      <PrintPreviewDialog
+        open={!!previewTarget}
+        onOpenChange={(o) => !o && setPreviewTarget(null)}
+        title={previewTarget ? contractLabel(previewTarget) : "Contract"}
+        filename={`contract-${previewTarget?.contract_reference ?? previewTarget?.id ?? "document"}`}
+        documentType="contract_letter"
+        documentId={previewTarget?.id}
+      />
+
+      <SendDocumentDialog
+        open={!!emailTarget}
+        onOpenChange={(o) => !o && setEmailTarget(null)}
+        document={
+          emailTarget
+            ? {
+                documentType: "contract_letter",
+                documentId: emailTarget.id,
+                documentNumber:
+                  emailTarget.contract_reference ?? emailTarget.name ?? "contract",
+                recipientEmail: emailTarget.employee_email ?? undefined,
+                recipientName: emailTarget.employee_name ?? undefined,
+              }
+            : null
+        }
+      />
 
       <RenewContractDialog
         contract={renewTarget}

@@ -41,6 +41,10 @@ import {
   fetchFrozenPosReceipt,
 } from "@/features/pos/receipts/dispatchPosReceipt";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
+import {
+  fetchAndBuildHrLetterSnapshot,
+  HR_LETTER_KIND_CODES,
+} from "@/services/documents/snapshots/hrLetter";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
 export interface SourceDocumentContext {
@@ -98,6 +102,26 @@ const wrap =
  * strings the pre-document-model surfaces pass around.
  */
 const REGISTRY: Record<string, RegistryEntry> = {
+  // HR letters. Registered here so preview / download / email surfaces can
+  // speak the legacy `(documentType, documentId)` pair and still land on the
+  // ONE renderer with a frozen snapshot — exactly like `dispatchHrLetter`
+  // does for the print path.
+  contract_letter: {
+    kindCode: HR_LETTER_KIND_CODES.contract_letter,
+    sourceModule: "hr",
+    sourceDocType: "employee_contract",
+    partyKind: "employee",
+    build: async (id: string) =>
+      normalise(
+        (await fetchAndBuildHrLetterSnapshot(
+          supabase,
+          "contract_letter",
+          id,
+        )) as unknown as Record<string, unknown>,
+      ),
+  },
+
+
   invoice: {
     kindCode: "sales.invoice",
     sourceModule: "sales",

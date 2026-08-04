@@ -46,6 +46,8 @@ export interface Contract {
   // Denormalised
   employee_name: string | null;
   employee_number: string | null;
+  /** Work email (falls back to personal) — the default letter recipient. */
+  employee_email: string | null;
   amendments_count: number;
   /** Days until end_date; null if no end_date. Negative once expired. */
   days_to_expiry: number | null;
@@ -126,16 +128,20 @@ export function useContracts(opts: UseContractsOptions = {}) {
 
       // Employee names
       const empIds = Array.from(new Set(rows.map((r) => r.employee_id).filter(Boolean)));
-      const nameMap = new Map<string, { name: string; number: string | null }>();
+      const nameMap = new Map<
+        string,
+        { name: string; number: string | null; email: string | null }
+      >();
       if (empIds.length) {
         const { data: emps } = await supabase
           .from("v_employees_canonical")
-          .select("id, first_name, last_name, employee_number")
+          .select("id, first_name, last_name, employee_number, work_email, email")
           .in("id", empIds);
         (emps ?? []).forEach((e: any) => {
           nameMap.set(e.id, {
             name: [e.first_name, e.last_name].filter(Boolean).join(" ") || "—",
             number: e.employee_number ?? null,
+            email: e.work_email ?? e.email ?? null,
           });
         });
       }
@@ -163,6 +169,7 @@ export function useContracts(opts: UseContractsOptions = {}) {
           ...r,
           employee_name: nm?.name ?? null,
           employee_number: nm?.number ?? null,
+          employee_email: nm?.email ?? null,
           amendments_count: amendMap.get(r.id) ?? 0,
           days_to_expiry: days,
           expiry_bucket: bucketFor(days),
