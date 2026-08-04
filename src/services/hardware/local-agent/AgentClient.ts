@@ -118,6 +118,14 @@ class AgentClientImpl {
    */
   private _relay: RelayTransport | null = null;
   private _relayConfig: RelayConfig | null = null;
+  /**
+   * Kept so a job can be relayed to a workstation *other* than the one the
+   * mount enabled. Devices are owned by a workstation
+   * (`device_assignments.workstation_id`); routing every job to whichever
+   * workstation happened to be selected is how prints reached the wrong
+   * machine — or no machine at all.
+   */
+  private _relaySupabase: SupabaseClient | null = null;
 
   /** Normalize a network endpoint key. Lowercases host, strips default ports. */
   private _netKey(ipAddress: string, port: number): string {
@@ -321,6 +329,7 @@ class AgentClientImpl {
   enableRelay(supabase: SupabaseClient, config: RelayConfig): void {
     this._relay = new RelayTransport(supabase, config);
     this._relayConfig = config;
+    this._relaySupabase = supabase;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify(config));
@@ -331,6 +340,7 @@ class AgentClientImpl {
   disableRelay(): void {
     this._relay = null;
     this._relayConfig = null;
+    this._relaySupabase = null;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(RELAY_STORAGE_KEY);
@@ -340,6 +350,23 @@ class AgentClientImpl {
 
   isRelayEnabled(): boolean {
     return this._relay !== null;
+  }
+
+  /**
+   * The relay to use for a job. When the target device is owned by a
+   * different workstation than the enabled relay, build a transport for
+   * that workstation instead of silently using the wrong one.
+   */
+  private _relayFor(workstationId?: string | null): RelayTransport | null {
+    if (
+      workstationId &&
+      this._relaySupabase &&
+      this._relayConfig &&
+      workstationId !== this._relayConfig.workstationId
+    ) {
+      return new RelayTransport(this._relaySupabase, { ...this._relayConfig, workstationId });
+    }
+    return this._relay;
   }
 
   getRelayConfig(): RelayConfig | null {
