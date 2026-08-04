@@ -28,6 +28,8 @@ import { toast } from "@/hooks/use-toast";
 // Outbound Control Tower query prefixes are owned by the tower module, so
 // the realtime map can never drift from the hooks that register them.
 import { OUTBOUND_QUERY_PREFIXES } from "@/features/warehouse/outbound-tower/useOutboundTower";
+// Inbound Control Tower query prefixes are owned by the tower module too.
+import { INBOUND_QUERY_PREFIXES } from "@/features/warehouse/inbound-tower/useInboundTower";
 
 type PostgresPayload = {
   new: Record<string, unknown> | null;
@@ -65,6 +67,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-task-events"],
     // Outbound Control Tower — labour and blockers move the tower.
     ...OUTBOUND_QUERY_PREFIXES,
+    // Inbound Control Tower — put-away work moves the tower.
+    ...INBOUND_QUERY_PREFIXES,
   ],
 
   wms_license_plates: [
@@ -74,11 +78,13 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_exceptions: [
     ["wms_exceptions"],
     ...OUTBOUND_QUERY_PREFIXES,
+    ...INBOUND_QUERY_PREFIXES,
   ],
   wms_receiving_sessions: [
     ["wms-receiving-sessions"],
     // ADR 0086 Phase 7 — receiving progress drives yard load readiness.
     ["wms-trailer-load-summary"],
+    ...INBOUND_QUERY_PREFIXES,
   ],
   wms_return_orders: [
     ["wms-return-orders"],
@@ -117,6 +123,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_qc_inspections: [
     ["wms-qc-inspections"],
     ["wms-qc-inspection"],
+    ...INBOUND_QUERY_PREFIXES,
   ],
   wms_count_sessions: [
     ["wms-count-sessions"],
@@ -130,6 +137,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_dock_appointments: [
     ["wms-dock-appointments"],
     ["wms-dock-appointment"],
+    ...INBOUND_QUERY_PREFIXES,
   ],
   // ADR 0108 — replenishment control centre replaces its 15s poll.
   wms_replen_orders: [
@@ -149,10 +157,12 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     // whenever the visit it belongs to changes.
     ["wms-gate-events"],
     ...OUTBOUND_QUERY_PREFIXES,
+    ...INBOUND_QUERY_PREFIXES,
   ],
   wms_yard_slots: [
     ["wms-yard-slots"],
     ...OUTBOUND_QUERY_PREFIXES,
+    ...INBOUND_QUERY_PREFIXES,
   ],
   // Yard control tower (ADR 0086) — trailer master + physical move ledger.
   wms_trailers: [

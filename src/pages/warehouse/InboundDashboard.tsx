@@ -1,173 +1,163 @@
 /**
- * Inbound Control Tower — Phase 4 §6.
+ * Inbound Control Tower.
  *
- * Role dashboard for the receiving supervisor. Every tile is derived from
- * live WMS tables and every query key is prefixed with the key the WMS
- * realtime channel invalidates (`wms-dock-appointments`,
- * `wms-receiving-sessions`, `wms_exceptions`), so the board follows the
- * floor without polling.
+ * Not a dashboard: a control surface for the receiving supervisor. The
+ * question it answers, top to bottom, is "will everything that must be
+ * received today become sellable stock on time, and if not, what do I do
+ * right now?".
  *
- * No tile links anywhere that does not exist, and no tile shows a metric
- * whose backing domain has not shipped.
+ *   1. Health banner   — inbound state and the reason for it.
+ *   2. Flow spine      — appointment → gate → yard → dock → unload →
+ *                        capture → inspect → cross-dock → put-away.
+ *   3. Bottleneck rail — ranked causes, each linked to its fixing surface.
+ *   4. Arrival board   — every open arrival as a lifecycle, risk-ordered,
+ *                        with supervisor actions in place.
+ *   5. Dock + yard     — the physical side: docks, trailers, waiting time.
+ *   6. Window clock    — the shape of the day's booked windows.
+ *
+ * Every number comes from the server-side inbound contract
+ * (`wms_inbound_*`), so the board cannot drift from mobile or alerting and
+ * does not degrade as the site grows. Refresh is realtime-driven; there is
+ * no polling and no client-side aggregation or classification.
  */
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { PageHeader, PageBody, Section, LoadingState, ErrorState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Truck, PackageOpen, AlertTriangle, Shuffle } from "lucide-react";
-import { StateBreakdown, MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+import { HealthBanner, FlowSpine, LabourPanel, LiveWorkPanel } from "@/features/warehouse/control-center";
+import type { FlowHealth } from "@/features/warehouse/control-center/contract";
+import {
+  ArrivalLifecycleBoard, ArrivalWindowTimeline, InboundBottleneckRail,
+  InboundDockStrip, InboundExceptionRail,
+  useInboundArrivals, useInboundBottlenecks, useInboundDockBoard, useInboundHealth,
+} from "@/features/warehouse/inbound-tower";
+
+/** Flow stage → the arrival lifecycle stage a load sits in at that stage. */
+const STAGE_TO_LIFECYCLE: Record<string, string> = {
+  appointment: "appointment",
+  gate: "gate",
+  yard: "yard",
+  dock: "dock",
+  unload: "unload",
+  capture: "capture",
+  inspect: "inspect",
+  putaway: "putaway",
+};
+
+/** The task types the receiving supervisor owns on the live work list. */
+const INBOUND_TASK_TYPES = ["receive", "inspect", "putaway", "count"] as const;
 
 export default function InboundDashboard() {
-  const { currentBusiness } = useBusinesses();
-  const businessId = currentBusiness?.id;
+  const health = useInboundHealth();
+  const arrivals = useInboundArrivals();
+  const bottlenecks = useInboundBottlenecks();
+  const dockBoard = useInboundDockBoard();
+  const [stage, setStage] = useState<string | null>(null);
 
-  const appointments = useQuery({
-    queryKey: ["wms-dock-appointments", "inbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const since = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
-      const { data, error } = await supabase
-        .from("wms_dock_appointments")
-        .select("id, state, appointment_type, window_start")
-        .eq("business_id", businessId!)
-        .eq("appointment_type", "inbound")
-        .gte("window_start", since)
-        .order("window_start", { ascending: true })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const refreshing =
+    health.isFetching || arrivals.isFetching ||
+    bottlenecks.isFetching || dockBoard.isFetching;
 
-  const sessions = useQuery({
-    queryKey: ["wms-receiving-sessions", "inbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_receiving_sessions")
-        .select("id, state, code")
-        .eq("business_id", businessId!)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const refresh = () => {
+    health.refetch();
+    arrivals.refetch();
+    bottlenecks.refetch();
+    dockBoard.refetch();
+  };
 
-  const exceptions = useQuery({
-    queryKey: ["wms_exceptions", "inbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_exceptions")
-        .select("id, kind, state, severity, due_by")
-        .eq("business_id", businessId!)
-        .in("state", ["open", "acknowledged", "investigating", "escalated"])
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const loading =
-    appointments.isLoading || sessions.isLoading || exceptions.isLoading;
-
-  const appts = appointments.data ?? [];
-  const sess = sessions.data ?? [];
-  const exc = exceptions.data ?? [];
-  const inboundExceptions = exc.filter((e) =>
-    /receiv|putaway|asn|dock|qc/.test(String(e.kind ?? "")),
-  );
-  const breached = exc.filter(
-    (e) => e.due_by && new Date(e.due_by as string).getTime() < Date.now(),
-  );
+  const stages = health.data?.stages ?? [];
+  const activeLifecycle = stage ? STAGE_TO_LIFECYCLE[stage] ?? null : null;
+  const activeStageLabel = stages.find((s) => s.stage === stage)?.label;
 
   return (
     <>
       <PageHeader
         title="Inbound control tower"
-        description="Appointments, unload sessions and receiving blockers for the current business."
+        description="Live arrival lifecycle, blockers, docks and receiving risk."
         actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/receiving">Receiving sessions</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/crossdock">
-                <Shuffle className="mr-2 h-4 w-4" /> Cross-dock
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+            Refresh
+          </Button>
         }
       />
       <PageBody>
-        {loading ? (
+        {health.isError ? (
+          <ErrorState
+            title="Unable to read inbound health"
+            description={(health.error as Error)?.message}
+          />
+        ) : health.isLoading ? (
           <LoadingState />
         ) : (
-          <>
-            <Section>
-              <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
-                <MetricTile
-                  label="Appointments (last 12h + upcoming)"
-                  value={appts.length}
-                  sub={`${appts.filter((a) => a.state === "arrived").length} arrived`}
-                  icon={Truck}
-                  to="/warehouse-app/schedule"
-                />
-                <MetricTile
-                  label="Open unload sessions"
-                  value={sess.filter((s) => ["open", "unloading", "captured"].includes(String(s.state))).length}
-                  sub={`${sess.filter((s) => s.state === "discrepant").length} discrepant`}
-                  icon={PackageOpen}
-                  to="/warehouse-app/receiving"
-                />
-                <MetricTile
-                  label="Inbound exceptions"
-                  value={inboundExceptions.length}
-                  sub={`${exc.length} open in total`}
-                  icon={AlertTriangle}
-                  to="/warehouse-app/exceptions"
-                />
-                <MetricTile
-                  label="SLA breached"
-                  value={breached.length}
-                  sub="past due_by"
-                  icon={AlertTriangle}
-                  tone={breached.length > 0 ? "bad" : "ok"}
-                  to="/warehouse-app/exceptions"
-                />
+          <div className="space-y-6">
+            <HealthBanner health={health.data as unknown as FlowHealth} />
+
+            <Section
+              title="Inbound flow"
+              description="Backlog, ageing and SLA risk at every stage. Select a stage to filter the arrival board."
+            >
+              <FlowSpine
+                stages={stages}
+                activeStage={stage}
+                onSelect={(s) => setStage((cur) => (cur === s.stage ? null : s.stage))}
+              />
+            </Section>
+
+            <div className="grid gap-6 @4xl/page:grid-cols-3">
+              <div className="space-y-6 @4xl/page:col-span-2">
+                <Section
+                  title="Blockers"
+                  description="Ranked by severity. Each row links to the surface that clears it."
+                >
+                  <InboundBottleneckRail bottlenecks={bottlenecks.data ?? []} />
+                </Section>
+
+                <Section
+                  title={activeStageLabel ? `Arrivals — ${activeStageLabel}` : "Arrivals"}
+                  description="Every open arrival as a lifecycle, ordered by receiving risk."
+                  actions={
+                    stage && (
+                      <Button variant="ghost" size="sm" onClick={() => setStage(null)}>
+                        Clear stage filter
+                      </Button>
+                    )
+                  }
+                >
+                  {arrivals.isLoading ? (
+                    <LoadingState />
+                  ) : (
+                    <ArrivalLifecycleBoard
+                      arrivals={arrivals.data ?? []}
+                      stage={activeLifecycle}
+                    />
+                  )}
+                </Section>
+
+                <Section
+                  title="Live inbound work"
+                  description="Overdue and blocked work first. Reassign, release or re-prioritise in place."
+                >
+                  <LiveWorkPanel taskTypes={INBOUND_TASK_TYPES} />
+                </Section>
               </div>
-            </Section>
 
-            <Section title="Appointments by state">
-              <Card>
-                <CardContent className="p-4">
-                  <StateBreakdown rows={appts} />
-                </CardContent>
-              </Card>
-            </Section>
-
-            <Section title="Receiving sessions by state">
-              <Card>
-                <CardContent className="p-4">
-                  <StateBreakdown rows={sess} />
-                </CardContent>
-              </Card>
-            </Section>
-
-            <Section title="Inbound blockers">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Open receiving / putaway / QC exceptions</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <StateBreakdown rows={inboundExceptions} field="kind" />
-                </CardContent>
-              </Card>
-            </Section>
-          </>
+              <div className="space-y-6">
+                <Section title="Docks and yard" description="Where the trucks are.">
+                  <InboundDockStrip board={dockBoard.data} />
+                </Section>
+                <Section title="Arrival clock" description="Open arrivals by booked window.">
+                  <ArrivalWindowTimeline arrivals={arrivals.data ?? []} />
+                </Section>
+                <Section title="Exceptions" description="Open escalations owned by receiving.">
+                  <InboundExceptionRail />
+                </Section>
+                <Section title="Labour" description="Who is on the floor and how loaded they are.">
+                  <LabourPanel />
+                </Section>
+              </div>
+            </div>
+          </div>
         )}
       </PageBody>
     </>
