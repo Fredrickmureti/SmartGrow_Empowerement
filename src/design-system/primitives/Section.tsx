@@ -29,7 +29,7 @@ export function Section({
   return (
     <section
       className={cn(
-        "min-w-0",
+        "w-full min-w-0 max-w-full",
         !unstyled &&
           "rounded-[var(--ds-radius-lg)] border bg-card shadow-[var(--ds-elevation-1)]",
         className,
@@ -59,7 +59,7 @@ export function Section({
           )}
         </header>
       )}
-      <div className={cn(!unstyled && "px-4 pb-5 sm:px-5", contentClassName)}>
+      <div className={cn("min-w-0 max-w-full", !unstyled && "px-4 pb-5 sm:px-5", contentClassName)}>
         {children}
       </div>
     </section>
