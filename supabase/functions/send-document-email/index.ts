@@ -820,7 +820,9 @@ const handler = async (req: Request): Promise<Response> => {
           const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
 
           const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
-          const autoFilename = `payslip-${safeDocNumber}.pdf`;
+          // Filename follows the document type — a contract emailed as
+          // "payslip-*.pdf" (the old hardcoded stem) is a support ticket.
+          const autoFilename = `${documentType.replace(/_/g, "-")}-${safeDocNumber}.pdf`;
           attachments.push({ filename: autoFilename, content: pdfBase64Content });
           pdfFileSize = pdfBytes.length;
 
