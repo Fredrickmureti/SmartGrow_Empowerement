@@ -92426,14 +92426,18 @@ export type Database = {
       }
       suggest_putaway_locations: {
         Args: {
+          p_lot_number?: string
           p_product_id: string
           p_quantity: number
           p_warehouse_id: string
         }
         Returns: {
+          feasible_qty: number
           location_id: string
           rank: number
           reason: string
+          score: number
+          strategy: string
         }[]
       }
       suspend_supplier: {
