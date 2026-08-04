@@ -80,4 +80,22 @@ describe("outbound control tower architecture", () => {
     expect(src).not.toMatch(/StateBreakdown/);
     expect(src).not.toMatch(/DashboardPrimitives/);
   });
+
+  it("every in-app link points at a real warehouse route", () => {
+    const routes = read("src/apps/warehouse/routes.tsx");
+    for (const f of readdirSync(MODULE_DIR)) {
+      const src = read(join(MODULE_DIR, f));
+      for (const m of src.matchAll(/to="(\/[^"]+)"/g)) {
+        const href = m[1];
+        expect(href, `${f} links outside the warehouse app`).toMatch(
+          /^\/warehouse-app\//,
+        );
+        const seg = href.replace("/warehouse-app/", "").split("/")[0];
+        expect(
+          routes.includes(`path="${seg}"`),
+          `${f} links to /warehouse-app/${seg} which has no route`,
+        ).toBe(true);
+      }
+    }
+  });
 });
