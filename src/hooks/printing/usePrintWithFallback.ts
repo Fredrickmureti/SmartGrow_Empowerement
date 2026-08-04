@@ -23,7 +23,7 @@
  * rather than the job vanishing.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { printDocument } from "@/services/printing/PrintService";
 import { printerStatusSnapshot } from "@/hooks/hardware/usePrinterStatus";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -41,11 +41,13 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
   const { currentBusiness } = useBusinesses();
   // Readiness is a tenant question (registry + workstation heartbeat), so
   // the snapshot must carry org/business/register context.
-  const statusCtx = {
-    organizationId: currentOrg?.id ?? null,
-    businessId: currentBusiness?.id ?? null,
-    registerId: options.registerId ?? null,
-  };
+  const orgId = currentOrg?.id ?? null;
+  const bizId = currentBusiness?.id ?? null;
+  const registerId = options.registerId ?? null;
+  const statusCtx = useMemo(
+    () => ({ organizationId: orgId, businessId: bizId, registerId }),
+    [orgId, bizId, registerId],
+  );
   const [showFallbackDialog, setShowFallbackDialog] = useState(false);
   const [currentPrinterStatus, setCurrentPrinterStatus] =
     useState<PrinterStatus | null>(null);
@@ -80,7 +82,7 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
         fallbackUsed: result.transport === "thermal" ? "none" : "browser",
       };
     },
-    [statusCtx.organizationId, statusCtx.businessId, statusCtx.registerId],
+    [statusCtx],
   );
 
   const handleFallbackAction = useCallback(
@@ -121,7 +123,7 @@ export function usePrintWithFallback(options: { registerId?: string | null } = {
         setIsProcessing(false);
       }
     },
-    [pending, statusCtx.organizationId, statusCtx.businessId, statusCtx.registerId],
+    [pending, statusCtx],
   );
 
   const closeFallbackDialog = useCallback(() => {
