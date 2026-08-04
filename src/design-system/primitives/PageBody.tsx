@@ -16,7 +16,7 @@ export function PageBody({ children, fullWidth, className }: PageBodyProps) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-6 px-0 py-6 sm:px-6",
+        "flex min-w-0 max-w-full flex-col gap-6 px-0 py-6 sm:px-6",
         !fullWidth && "mx-auto w-full max-w-[var(--ds-page-max-width)]",
         className,
       )}
