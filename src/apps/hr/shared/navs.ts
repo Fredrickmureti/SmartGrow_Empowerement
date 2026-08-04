@@ -49,67 +49,7 @@ import {
 } from "lucide-react";
 import { GitBranch, History, FileSignature, Users2, Network as NetIcon, FilePlus, Repeat, AlertCircle, Library, Settings2 } from "lucide-react";
 
-import type { WorkspaceNav } from "@/components/layout/shell/types";
-
-/**
- * EMPLOYEES_NAV — left rail for the Employees foundation workspace.
- *
- * Wave-1 IA: Departments, Job positions, Work locations, and the Org chart
- * now live in the Org workspace (`/hr/org/*`). Performance lives in Talent
- * (`/hr/talent/*`). HR Reports is its own workspace (`/hr/reports`).
- * Cross-workspace items used to be duplicated here under Setup; they have
- * been removed so each workspace owns its own surface. The dispatcher
- * redirects legacy bookmarks to the new owners.
- */
-export const EMPLOYEES_NAV: WorkspaceNav = {
-  groups: [
-    {
-      label: "Operations",
-      items: [
-        { to: "/hr/dashboard", label: "Overview", icon: LayoutGrid, end: true },
-        { to: "/hr/employees", label: "Directory", icon: Users, end: true },
-        { to: "/hr/employees/departments", label: "Departments", icon: Building2 },
-        { to: "/hr/employees/positions", label: "Job positions", icon: Briefcase },
-        { to: "/hr/employees/locations", label: "Work locations", icon: MapPin },
-        { to: "/hr/employees/org-chart", label: "Org chart", icon: NetIcon },
-      ],
-    },
-    {
-      /**
-       * Wave 7.2 — entry points to the HR workspaces that issue letters.
-       * Contracts, Lifecycle and Recruitment are `internalOnly` apps, so they
-       * never appear in the launcher; without these links their document
-       * surfaces (contract letters, promotion/warning letters, offer letters)
-       * were routable but unreachable. Employees is the HR foundation
-       * workspace, so it owns the hand-off.
-       */
-      label: "People operations",
-      items: [
-        { to: "/hr/contracts/all", label: "Contracts & letters", icon: FileSignature },
-        { to: "/hr/lifecycle/timeline", label: "Lifecycle events", icon: History },
-        { to: "/hr/recruitment", label: "Recruitment & offers", icon: Briefcase },
-      ],
-    },
-    {
-      label: "Setup",
-      items: [
-        {
-          to: "/hr/configuration",
-          label: "Configuration",
-          icon: Settings,
-          children: [
-            { to: "/hr/configuration/onboarding-templates", label: "Onboarding templates", icon: ClipboardList },
-            { to: "/hr/configuration/statutory-fields", label: "Statutory fields", icon: ShieldCheck },
-            { to: "/hr/configuration/document-categories", label: "Document categories", icon: FileBox },
-            { to: "/hr/configuration/policies", label: "HR policies", icon: ScrollText },
-            { to: "/hr/configuration/maintenance", label: "Maintenance", icon: Wrench },
-          ],
-        },
-      ],
-    },
-  ],
-};
-
+import type { WorkspaceNav, WorkspaceNavItem } from "@/components/layout/shell/types";
 
 export const TIME_OFF_NAV: WorkspaceNav = {
   groups: [
@@ -284,31 +224,13 @@ export const RECRUITMENT_NAV: WorkspaceNav = {
 };
 
 /**
- * Wave-1 sub-app navs (Org, Contracts, Lifecycle, Reports).
+ * Wave-1 sub-app surfaces (Contracts, Lifecycle, Reports, Document
+ * compliance). These are NOT separate apps — they all mount the
+ * `EMPLOYEES_APP` AppDefinition, so their link lists are folded into
+ * `EMPLOYEES_NAV` below as collapsible children (ADR 0101). They stay
+ * exported so each surface has exactly one source of truth for its links.
  * Scaffolds the new HR domain workspaces from the architecture plan.
  */
-
-export const ORG_NAV: WorkspaceNav = {
-  groups: [
-    {
-      label: "Operations",
-      items: [
-        { to: "/hr/org", label: "Overview", icon: LayoutDashboard, end: true },
-        { to: "/hr/org/departments", label: "Departments", icon: Building2 },
-        { to: "/hr/org/positions", label: "Positions", icon: Briefcase },
-        { to: "/hr/org/locations", label: "Locations", icon: MapPin },
-        { to: "/hr/org/chart", label: "Org chart", icon: NetIcon },
-      ],
-    },
-    {
-      label: "Insights",
-      items: [
-        { to: "/hr/org/analytics", label: "Analytics", icon: BarChart3 },
-        { to: "/hr/org/history", label: "Change history", icon: History },
-      ],
-    },
-  ],
-};
 
 export const CONTRACTS_NAV: WorkspaceNav = {
   groups: [
@@ -397,6 +319,102 @@ export const DOCUMENT_COMPLIANCE_NAV: WorkspaceNav = {
       label: "Records",
       items: [
         { to: "/hr/document-compliance/all", label: "All documents", icon: FileBox },
+      ],
+    },
+  ],
+};
+
+/**
+ * `flattenNavItems` — collapse a WorkspaceNav's groups into a single flat
+ * item list, for reuse as the `children` of a parent item inside another
+ * workspace's nav. Group labels are dropped: a nested sub-tree in the
+ * sidebar is already visually grouped by its parent.
+ */
+function flattenNavItems(nav: WorkspaceNav): WorkspaceNavItem[] {
+  return nav.groups.flatMap((g) => g.items);
+}
+
+/**
+ * EMPLOYEES_NAV — the single left rail for the Employees workspace.
+ *
+ * ADR 0101 (navigation replacement vs. expansion): navigation may only be
+ * replaced when crossing an `AppDefinition`. Contracts, Lifecycle,
+ * Recruitment, HR Reports and Document compliance all run under
+ * `EMPLOYEES_APP` (same install gate, same entitlement, same breadcrumb
+ * root), so they expand *inside* this nav as collapsible children instead
+ * of swapping the sidebar out from under the user.
+ *
+ * Their link lists are not duplicated here — each surface's nav remains
+ * the single source of truth and is folded in via `flattenNavItems`.
+ */
+export const EMPLOYEES_NAV: WorkspaceNav = {
+  groups: [
+    {
+      label: "Organization",
+      items: [
+        { to: "/hr/dashboard", label: "Overview", icon: LayoutGrid, end: true },
+        { to: "/hr/employees", label: "Directory", icon: Users, end: true },
+        { to: "/hr/employees/departments", label: "Departments", icon: Building2 },
+        { to: "/hr/employees/positions", label: "Job positions", icon: Briefcase },
+        { to: "/hr/employees/locations", label: "Work locations", icon: MapPin },
+        { to: "/hr/employees/org-chart", label: "Org chart", icon: NetIcon },
+      ],
+    },
+    {
+      label: "People operations",
+      items: [
+        {
+          to: "/hr/contracts",
+          label: "Contracts & letters",
+          icon: FileSignature,
+          children: flattenNavItems(CONTRACTS_NAV),
+        },
+        {
+          to: "/hr/lifecycle",
+          label: "Lifecycle events",
+          icon: History,
+          children: flattenNavItems(LIFECYCLE_NAV),
+        },
+        { to: "/hr/recruitment", label: "Recruitment & offers", icon: Briefcase },
+      ],
+    },
+    {
+      label: "Insights",
+      items: [
+        {
+          to: "/hr/reports",
+          label: "HR reports",
+          icon: Library,
+          children: flattenNavItems(HR_REPORTS_NAV),
+        },
+      ],
+    },
+    {
+      label: "Compliance",
+      items: [
+        {
+          to: "/hr/document-compliance",
+          label: "Document compliance",
+          icon: ShieldCheck,
+          children: flattenNavItems(DOCUMENT_COMPLIANCE_NAV),
+        },
+      ],
+    },
+    {
+      label: "Setup",
+      items: [
+        {
+          to: "/hr/configuration",
+          label: "Configuration",
+          icon: Settings,
+          children: [
+            { to: "/hr/configuration/onboarding-templates", label: "Onboarding templates", icon: ClipboardList },
+            { to: "/hr/configuration/statutory-fields", label: "Statutory fields", icon: ShieldCheck },
+            { to: "/hr/configuration/document-categories", label: "Document categories", icon: FileBox },
+            { to: "/hr/configuration/policies", label: "HR policies", icon: ScrollText },
+            { to: "/hr/configuration/maintenance", label: "Maintenance", icon: Wrench },
+          ],
+        },
       ],
     },
   ],

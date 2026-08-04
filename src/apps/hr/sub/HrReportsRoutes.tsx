@@ -11,7 +11,7 @@ import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
 import { EMPLOYEES_APP } from "@/lib/apps/registry";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
-import { HR_REPORTS_NAV } from "../shared/navs";
+import { EMPLOYEES_NAV } from "../shared/navs";
 import { LazyRoute } from "../shared/guards";
 
 const WorkspaceComingSoon = lazy(() => import("@/pages/hr/WorkspaceComingSoon"));
@@ -26,7 +26,7 @@ function ReportStub({ surface, description }: { surface: string; description: st
 
 export default function HrReportsApp() {
   return (
-    <PlatformShell app={EMPLOYEES_APP} nav={HR_REPORTS_NAV}>
+    <PlatformShell app={EMPLOYEES_APP} nav={EMPLOYEES_NAV}>
       <Routes>
         <Route index element={<ReportStub surface="All questions" description="Library grid grouped by domain." />} />
         <Route path="workforce" element={<ReportStub surface="Workforce" description="Growth, headcount, turnover, attendance compliance." />} />

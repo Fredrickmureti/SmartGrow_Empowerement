@@ -41,6 +41,10 @@ const EXEMPT_WORKSPACES = new Map<string, string>([
   // RF/mobile operator shell — full-screen touch-first chrome via
   // MobileWarehouseLayout (see ADR referenced in wms-phase13 guard).
   ["warehouse-mobile", "RF/mobile operator app uses MobileWarehouseLayout"],
+  // `hr` is a URL-space dispatcher only: it owns no chrome and mounts each
+  // installable sub-app (`sub/*Routes.tsx`), which are checked separately
+  // below and each render their own PlatformShell.
+  ["hr", "HR routes.tsx is a dispatcher; sub/*Routes.tsx own the shells"],
 ]);
 
 function listDirs(root: string): string[] {

@@ -21,8 +21,12 @@ Product identity: ONE resolver. Client → `useResolveProductIdentity` (or `useW
 
 Scanning has two device modes: handheld (own camera → scanBus in-process) and companion (paired phone). Never make a phone pair to itself. ADR 0107.
 
+A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside one app, navigation expands via `WorkspaceNavItem.children`. ADR 0101.
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
 - [Product identification](mem://features/product-identification) — canonical resolver contract, level-aware labels, Phase D removals
 - [Scanner device modes](mem://features/scanner-device-modes) — handheld vs companion, single camera engine, LocalScanOverlay, /wm scan button contract
+- [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
+
