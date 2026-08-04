@@ -151,7 +151,6 @@ export function ReceiptPreviewBody({
   });
 
   const isNetworkPrinterConnected = receiptReadiness.isReady;
-  const networkConfig = null;
 
   // First-paint guard: while the frozen snapshot is still loading and we
   // haven't tried fetching it yet, render a lightweight skeleton instead of

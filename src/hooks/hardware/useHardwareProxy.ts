@@ -184,20 +184,16 @@ export function useHardwareProxy(
     if (deviceIds === prevDeviceIdsRef.current && state.isLoaded) return;
     prevDeviceIdsRef.current = deviceIds;
 
-    const assignments = devices.filter((d) => d.is_active).map(toDeviceAssignment);
-    hardwareClient.devices.loadAssignments(assignments);
-    setState((prev) => ({ ...prev, isLoaded: true }));
-
-    if (!passive && assignments.length > 0 && !hardwareClient.devices.isElectron()) {
-      setState((prev) => ({ ...prev, isConnecting: true }));
-      hardwareClient.devices.connectAll().finally(() => {
-        setState((prev) => ({ ...prev, isConnecting: false }));
-        void refreshStatuses();
-      });
-    } else {
-      void refreshStatuses();
-    }
-  }, [devices, disabled, isLoadingDevices, passive, refreshStatuses, state.isLoaded]);
+    // NOTE (single connection owner): this hook no longer writes the
+    // renderer adapter registry and never calls `connectAll()`. Both
+    // previously ran here AND in `EdgeRelayMount`, so whichever mounted
+    // last overwrote the other's device list — POS could end up with an
+    // empty adapter and report "no printer". `EdgeRelayMount` is now the
+    // sole owner of `loadAssignments` / `connectAll`; this hook is a
+    // read-only status + action façade.
+    setState((prev) => ({ ...prev, isLoaded: true, isConnecting: false }));
+    void refreshStatuses();
+  }, [devices, disabled, isLoadingDevices, refreshStatuses, state.isLoaded]);
 
   // ── Status polling + event-driven refresh (10 s tick + push refresh) ──
   useEffect(() => {
@@ -206,9 +202,6 @@ export function useHardwareProxy(
 
     statusTimerRef.current = setInterval(() => {
       void refreshStatuses();
-      if (!passive && !hardwareClient.devices.isElectron()) {
-        void hardwareClient.devices.healthCheck();
-      }
     }, STATUS_POLL_INTERVAL_MS);
 
     const offConn = hardwareClient.on('device:connected', () => void refreshStatuses());
@@ -221,7 +214,7 @@ export function useHardwareProxy(
       offDisc();
       offErr();
     };
-  }, [disabled, passive, refreshStatuses, state.isLoaded]);
+  }, [disabled, refreshStatuses, state.isLoaded]);
 
   // ── Agent lifecycle (browser path only — Electron bypasses the agent). ──
   //
@@ -253,13 +246,9 @@ export function useHardwareProxy(
     const unsubscribe = hardwareClient.agent.onChange((available) => {
       if (!mounted) return;
       setState((prev) => ({ ...prev, agentAvailable: available }));
-      if (available) {
-        void hardwareClient.devices
-          .connectAll()
-          .then(() => {
-            if (mounted) void refreshStatuses();
-          });
-      }
+      // Connection ownership belongs to `EdgeRelayMount`; here we only
+      // resync the status view when agent availability flips.
+      if (available && mounted) void refreshStatuses();
     });
 
     return () => {
