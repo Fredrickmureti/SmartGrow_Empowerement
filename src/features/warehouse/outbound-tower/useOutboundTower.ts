@@ -22,6 +22,7 @@ export const OUTBOUND_KEYS = {
   shipments: ["wms-outbound-shipments"] as const,
   bottlenecks: ["wms-outbound-bottlenecks"] as const,
   dockBoard: ["wms-outbound-dock-board"] as const,
+  exceptions: ["wms-outbound-exceptions"] as const,
 };
 
 /** Every prefix the realtime channel must invalidate for the tower. */
@@ -30,6 +31,7 @@ export const OUTBOUND_QUERY_PREFIXES = [
   OUTBOUND_KEYS.shipments,
   OUTBOUND_KEYS.bottlenecks,
   OUTBOUND_KEYS.dockBoard,
+  OUTBOUND_KEYS.exceptions,
 ] as const;
 
 type Scope = { warehouseId?: string };
