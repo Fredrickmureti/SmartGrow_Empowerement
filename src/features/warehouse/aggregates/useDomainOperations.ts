@@ -75,7 +75,7 @@ export function useCreateAndReleaseWave() {
       });
       const waveId = data?.wave_id;
       if (!waveId) throw new Error("Wave not created");
-      await replayGuardedCall("release_pick_wave", { p_wave_id: waveId });
+      await callReleaseWave(waveId);
       return waveId;
     },
     onSuccess: () => {
