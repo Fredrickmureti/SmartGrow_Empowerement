@@ -41,8 +41,10 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
+import { TaskHistorySheet } from "@/features/warehouse/tasks/TaskHistorySheet";
 import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
-import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw } from "lucide-react";
+import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw, History } from "lucide-react";
+
 
 interface TaskRow {
   id: string;
@@ -133,6 +135,8 @@ export default function OperatorTasks() {
     engine.transition.mutate({ taskId: t.id, toState: to, rowVersion: t.row_version, reason });
 
   const claim = (t: TaskRow) => transition(t, "claimed");
+  const [historyTask, setHistoryTask] = useState<TaskRow | null>(null);
+
   const isCountTask = (t: TaskRow) =>
     t.task_type === "count" && t.source_doc_type === "wms_count_session" && !!t.source_doc_id;
   const openCount = (t: TaskRow) => {
@@ -391,7 +395,16 @@ export default function OperatorTasks() {
                           {t.state !== "done" && t.state !== "completed" && t.state !== "cancelled" && (
                             <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Execution history"
+                            onClick={() => setHistoryTask(t)}
+                          >
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
                         </TableCell>
+
                       </TableRow>
                     ))}
                   </TableBody>
@@ -406,6 +419,13 @@ export default function OperatorTasks() {
         task={replenTask}
         onOpenChange={(o) => !o && setReplenTask(null)}
       />
+
+      <TaskHistorySheet
+        taskId={historyTask?.id ?? null}
+        taskLabel={historyTask ? `${historyTask.task_type} task` : undefined}
+        onOpenChange={(o) => !o && setHistoryTask(null)}
+      />
+
 
       <Dialog open={!!cancelOpen} onOpenChange={(o) => !o && setCancelOpen(null)}>
         <DialogContent>
