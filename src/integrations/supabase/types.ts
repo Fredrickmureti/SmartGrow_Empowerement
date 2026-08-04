@@ -66761,20 +66761,302 @@ export type Database = {
         }
         Relationships: []
       }
+      wms_exception_events: {
+        Row: {
+          actor_id: string | null
+          actor_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          business_id: string
+          created_at: string
+          event_type: Database["public"]["Enums"]["wms_exception_event_type"]
+          exception_id: string
+          from_state: Database["public"]["Enums"]["wms_exception_state"] | null
+          id: string
+          occurred_at: string
+          organization_id: string
+          payload: Json
+          reason: string | null
+          to_state: Database["public"]["Enums"]["wms_exception_state"] | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          business_id: string
+          created_at?: string
+          event_type: Database["public"]["Enums"]["wms_exception_event_type"]
+          exception_id: string
+          from_state?: Database["public"]["Enums"]["wms_exception_state"] | null
+          id?: string
+          occurred_at?: string
+          organization_id: string
+          payload?: Json
+          reason?: string | null
+          to_state?: Database["public"]["Enums"]["wms_exception_state"] | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          business_id?: string
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["wms_exception_event_type"]
+          exception_id?: string
+          from_state?: Database["public"]["Enums"]["wms_exception_state"] | null
+          id?: string
+          occurred_at?: string
+          organization_id?: string
+          payload?: Json
+          reason?: string | null
+          to_state?: Database["public"]["Enums"]["wms_exception_state"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_exception_events_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "wms_exceptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_exception_evidence: {
+        Row: {
+          business_id: string
+          captured_at: string
+          captured_by: string | null
+          created_at: string
+          device_id: string | null
+          evidence_type: Database["public"]["Enums"]["wms_exception_evidence_type"]
+          exception_id: string
+          external_url: string | null
+          id: string
+          label: string | null
+          metadata: Json
+          numeric_value: number | null
+          organization_id: string
+          storage_bucket: string | null
+          storage_path: string | null
+          text_value: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          device_id?: string | null
+          evidence_type: Database["public"]["Enums"]["wms_exception_evidence_type"]
+          exception_id: string
+          external_url?: string | null
+          id?: string
+          label?: string | null
+          metadata?: Json
+          numeric_value?: number | null
+          organization_id: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          text_value?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          device_id?: string | null
+          evidence_type?: Database["public"]["Enums"]["wms_exception_evidence_type"]
+          exception_id?: string
+          external_url?: string | null
+          id?: string
+          label?: string | null
+          metadata?: Json
+          numeric_value?: number | null
+          organization_id?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          text_value?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_exception_evidence_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "wms_exceptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_exception_links: {
+        Row: {
+          business_id: string
+          created_at: string
+          created_by: string | null
+          exception_id: string
+          id: string
+          link_type: Database["public"]["Enums"]["wms_exception_link_type"]
+          metadata: Json
+          organization_id: string
+          record_id: string | null
+          record_label: string | null
+          route_path: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          exception_id: string
+          id?: string
+          link_type: Database["public"]["Enums"]["wms_exception_link_type"]
+          metadata?: Json
+          organization_id: string
+          record_id?: string | null
+          record_label?: string | null
+          route_path?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          exception_id?: string
+          id?: string
+          link_type?: Database["public"]["Enums"]["wms_exception_link_type"]
+          metadata?: Json
+          organization_id?: string
+          record_id?: string | null
+          record_label?: string | null
+          route_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_exception_links_exception_id_fkey"
+            columns: ["exception_id"]
+            isOneToOne: false
+            referencedRelation: "wms_exceptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_exception_policies: {
+        Row: {
+          auto_close_minutes: number | null
+          business_id: string | null
+          class: Database["public"]["Enums"]["wms_exception_class"]
+          created_at: string
+          default_severity: number
+          escalation_after_mins: number | null
+          escalation_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["wms_exception_kind"]
+          max_escalation_level: number
+          notify_channels: string[]
+          organization_id: string | null
+          owner_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          required_evidence_types: Database["public"]["Enums"]["wms_exception_evidence_type"][]
+          requires_evidence: boolean
+          sla_minutes: number
+          updated_at: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          auto_close_minutes?: number | null
+          business_id?: string | null
+          class?: Database["public"]["Enums"]["wms_exception_class"]
+          created_at?: string
+          default_severity?: number
+          escalation_after_mins?: number | null
+          escalation_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          id?: string
+          is_active?: boolean
+          kind: Database["public"]["Enums"]["wms_exception_kind"]
+          max_escalation_level?: number
+          notify_channels?: string[]
+          organization_id?: string | null
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          required_evidence_types?: Database["public"]["Enums"]["wms_exception_evidence_type"][]
+          requires_evidence?: boolean
+          sla_minutes?: number
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          auto_close_minutes?: number | null
+          business_id?: string | null
+          class?: Database["public"]["Enums"]["wms_exception_class"]
+          created_at?: string
+          default_severity?: number
+          escalation_after_mins?: number | null
+          escalation_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          id?: string
+          is_active?: boolean
+          kind?: Database["public"]["Enums"]["wms_exception_kind"]
+          max_escalation_level?: number
+          notify_channels?: string[]
+          organization_id?: string | null
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          required_evidence_types?: Database["public"]["Enums"]["wms_exception_evidence_type"][]
+          requires_evidence?: boolean
+          sla_minutes?: number
+          updated_at?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_exception_policies_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_exceptions: {
         Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
           aggregate_id: string | null
           aggregate_type: string | null
+          assigned_at: string | null
+          assigned_by: string | null
           assigned_to: string | null
           branch_id: string | null
           business_id: string
+          class: Database["public"]["Enums"]["wms_exception_class"]
           created_at: string
           details: Json
           due_by: string | null
+          escalated_at: string | null
+          escalation_level: number
+          financial_impact: number | null
           id: string
+          idempotency_key: string | null
+          impact_currency: string | null
           kind: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id: string | null
           organization_id: string
+          owner_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
           raised_by: string | null
           reason: string
           resolution: string | null
@@ -66785,24 +67067,39 @@ export type Database = {
           resolved_by: string | null
           row_version: number
           severity: number
+          sla_breached_at: string | null
+          source_system: string
           state: Database["public"]["Enums"]["wms_exception_state"]
           task_id: string | null
           updated_at: string
           warehouse_id: string
         }
         Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           aggregate_id?: string | null
           aggregate_type?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           business_id: string
+          class?: Database["public"]["Enums"]["wms_exception_class"]
           created_at?: string
           details?: Json
           due_by?: string | null
+          escalated_at?: string | null
+          escalation_level?: number
+          financial_impact?: number | null
           id?: string
+          idempotency_key?: string | null
+          impact_currency?: string | null
           kind: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id?: string | null
           organization_id: string
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
           raised_by?: string | null
           reason: string
           resolution?: string | null
@@ -66813,24 +67110,39 @@ export type Database = {
           resolved_by?: string | null
           row_version?: number
           severity?: number
+          sla_breached_at?: string | null
+          source_system?: string
           state?: Database["public"]["Enums"]["wms_exception_state"]
           task_id?: string | null
           updated_at?: string
           warehouse_id: string
         }
         Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
           aggregate_id?: string | null
           aggregate_type?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
           assigned_to?: string | null
           branch_id?: string | null
           business_id?: string
+          class?: Database["public"]["Enums"]["wms_exception_class"]
           created_at?: string
           details?: Json
           due_by?: string | null
+          escalated_at?: string | null
+          escalation_level?: number
+          financial_impact?: number | null
           id?: string
+          idempotency_key?: string | null
+          impact_currency?: string | null
           kind?: Database["public"]["Enums"]["wms_exception_kind"]
           lpn_id?: string | null
           organization_id?: string
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
           raised_by?: string | null
           reason?: string
           resolution?: string | null
@@ -66841,6 +67153,8 @@ export type Database = {
           resolved_by?: string | null
           row_version?: number
           severity?: number
+          sla_breached_at?: string | null
+          source_system?: string
           state?: Database["public"]["Enums"]["wms_exception_state"]
           task_id?: string | null
           updated_at?: string
