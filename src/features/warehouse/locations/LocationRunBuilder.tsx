@@ -121,7 +121,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
             i === 0 ? parent?.structure_level ?? null : tiers[i - 1].level,
           );
           return (
-            <div key={i} className="grid grid-cols-12 items-end gap-2 rounded-md border p-3">
+            <div key={i} className="grid grid-cols-2 items-end gap-2 @xl/page:grid-cols-6 @4xl/page:grid-cols-12 rounded-md border p-3">
               <div className="col-span-5 space-y-1">
                 <Label>{i === 0 ? "Inside this location, add" : "And inside each, add"}</Label>
                 <Select

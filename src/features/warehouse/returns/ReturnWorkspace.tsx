@@ -163,7 +163,7 @@ export function ReturnWorkspace({ order, onClose }: ReturnWorkspaceProps) {
         <div className="space-y-4">
           <ReturnLogisticsStrip order={order} />
 
-          <div className="grid grid-cols-4 gap-2 text-sm">
+          <div className="grid grid-cols-2 gap-2 text-sm @xl/page:grid-cols-4">
             {[
               ["Received", totals.received],
               ["Restock", totals.restock],

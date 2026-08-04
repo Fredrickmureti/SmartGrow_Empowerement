@@ -399,7 +399,7 @@ function CreateRuleDialog({ open, onOpenChange, defaultWarehouseId, onCreated }:
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 gap-3 @xl/page:grid-cols-3 @4xl/page:grid-cols-5">
             <div><Label>Min</Label><Input type="number" value={minQty} onChange={(e) => setMinQty(e.target.value)} /></div>
             <div><Label>Target</Label><Input type="number" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder="max" /></div>
             <div><Label>Max</Label><Input type="number" value={maxQty} onChange={(e) => setMaxQty(e.target.value)} /></div>
