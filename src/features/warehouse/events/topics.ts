@@ -210,18 +210,39 @@ export const TASK_TYPES = [
 ] as const;
 export type WmsTaskType = (typeof TASK_TYPES)[number];
 
-/** Task states (post Phase 1 migration). */
+/**
+ * Canonical task states. `assigned` and `done` were retired in favour of
+ * `claimed` / `completed`; the database rejects them on write
+ * (`trg_wms_tasks_canonical_state`), so they are absent from the type too.
+ */
 export const TASK_STATES = [
   "pending",
   "available",
-  "assigned",
   "claimed",
   "in_progress",
   "paused",
   "resumed",
-  "done",
   "completed",
   "cancelled",
   "exception",
 ] as const;
 export type WmsTaskState = (typeof TASK_STATES)[number];
+
+/** States in which a task represents work that is still owed. */
+export const TASK_OPEN_STATES = [
+  "pending",
+  "available",
+  "claimed",
+  "in_progress",
+  "paused",
+  "resumed",
+] as const satisfies readonly WmsTaskState[];
+
+/** States in which an operator currently holds the task. */
+export const TASK_HELD_STATES = [
+  "claimed",
+  "in_progress",
+  "paused",
+  "resumed",
+] as const satisfies readonly WmsTaskState[];
+
