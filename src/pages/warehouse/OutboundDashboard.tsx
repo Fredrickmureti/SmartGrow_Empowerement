@@ -133,6 +133,20 @@ export default function OutboundDashboard() {
                     />
                   )}
                 </Section>
+
+                <Section
+                  title="Carton flow"
+                  description="Where cartons are stalling between pack, seal, manifest and trailer."
+                >
+                  <LoadingLane shipments={shipments.data ?? []} />
+                </Section>
+
+                <Section
+                  title="Live outbound work"
+                  description="Overdue and blocked work first. Reassign, release or re-prioritise in place."
+                >
+                  <LiveWorkPanel taskTypes={OUTBOUND_TASK_TYPES} />
+                </Section>
               </div>
 
               <div className="space-y-6">
@@ -142,8 +156,15 @@ export default function OutboundDashboard() {
                 <Section title="Departure clock" description="Open loads by departure window.">
                   <DepartureTimeline shipments={shipments.data ?? []} />
                 </Section>
+                <Section title="Exceptions" description="Open escalations owned by shipping.">
+                  <ExceptionRail />
+                </Section>
+                <Section title="Labour" description="Who is on the floor and how loaded they are.">
+                  <LabourPanel />
+                </Section>
               </div>
             </div>
+
           </div>
         )}
       </PageBody>
