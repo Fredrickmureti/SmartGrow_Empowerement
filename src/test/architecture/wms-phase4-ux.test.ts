@@ -121,14 +121,17 @@ describe("Phase 4 · outbox emission is real and loud", () => {
 });
 
 describe("Phase 4 · exception triage is typed", () => {
+  // Phase 5 moved the drill-down out of the inbox page into the single
+  // ExceptionDetailSheet; the inbox is now list + filters only.
+  const sheet = readFileSync("src/features/warehouse/exceptions/ExceptionDetailSheet.tsx", "utf8");
   const page = readFileSync("src/pages/warehouse/ExceptionsInbox.tsx", "utf8");
 
   it("sends p_resolution_kind to wms_resolve_exception", () => {
-    expect(page).toMatch(/p_resolution_kind/);
+    expect(sheet).toMatch(/p_resolution_kind/);
   });
 
   it("blocks terminal transitions until a cause is chosen", () => {
-    const terminalButtons = page.match(/to: "(resolved|wont_fix)"[\s\S]{0,240}?disabled=\{[^}]*\}/g) ?? [];
+    const terminalButtons = sheet.match(/disabled=\{[^}]*\}[\s\S]{0,240}?transition\("(resolved|wont_fix)"\)/g) ?? [];
     expect(terminalButtons.length).toBe(2);
     for (const btn of terminalButtons) {
       expect(btn, `terminal transition must require a resolution kind:\n${btn}`).toMatch(
@@ -139,9 +142,11 @@ describe("Phase 4 · exception triage is typed", () => {
 
   it("surfaces the SLA due date and the event trail", () => {
     expect(page).toMatch(/due_by/);
-    expect(page).toMatch(/OutboxTimeline/);
+    expect(sheet).toMatch(/due_by/);
+    expect(sheet).toMatch(/wms_exception_events/);
   });
 });
+
 
 // Keep the unused-import linter honest about the helper above.
 void readMigrations;
