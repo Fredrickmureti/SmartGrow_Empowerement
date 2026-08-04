@@ -29,6 +29,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/hooks/useBusinesses";
 import { resolveIntentReadiness } from "@/services/hardware/readiness";
 import type { IntentReadiness } from "@/services/hardware/readiness";
 import type { PrinterStatus } from "@/services/printing/types";
