@@ -33,6 +33,10 @@ import { INBOUND_QUERY_PREFIXES } from "@/features/warehouse/inbound-tower/useIn
 // ADR 0102 — the Overview is the operational home page; its own lenses
 // (capacity, equipment, activity, exceptions) follow the floor live.
 import { OVERVIEW_QUERY_PREFIXES } from "@/features/warehouse/overview/useWarehouseOverview";
+// Wave Control Tower — planning, readiness and release live on the same
+// realtime fabric as the work they commit.
+import { WAVE_QUERY_PREFIXES } from "@/features/warehouse/wave-tower/useWaveTower";
+
 
 type PostgresPayload = {
   new: Record<string, unknown> | null;
