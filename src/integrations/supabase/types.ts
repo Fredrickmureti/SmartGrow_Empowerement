@@ -67030,6 +67030,77 @@ export type Database = {
           },
         ]
       }
+      wms_exception_subscriptions: {
+        Row: {
+          active: boolean
+          business_id: string
+          created_at: string
+          exception_class:
+            | Database["public"]["Enums"]["wms_exception_class"]
+            | null
+          id: string
+          min_severity: number
+          notify_on_escalate: boolean
+          notify_on_raise: boolean
+          notify_on_resolve: boolean
+          organization_id: string
+          owner_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          updated_at: string
+          user_id: string
+          warehouse_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          business_id: string
+          created_at?: string
+          exception_class?:
+            | Database["public"]["Enums"]["wms_exception_class"]
+            | null
+          id?: string
+          min_severity?: number
+          notify_on_escalate?: boolean
+          notify_on_raise?: boolean
+          notify_on_resolve?: boolean
+          organization_id: string
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          updated_at?: string
+          user_id: string
+          warehouse_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          business_id?: string
+          created_at?: string
+          exception_class?:
+            | Database["public"]["Enums"]["wms_exception_class"]
+            | null
+          id?: string
+          min_severity?: number
+          notify_on_escalate?: boolean
+          notify_on_raise?: boolean
+          notify_on_resolve?: boolean
+          organization_id?: string
+          owner_role?:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          updated_at?: string
+          user_id?: string
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_exception_subscriptions_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_exceptions: {
         Row: {
           acknowledged_at: string | null
@@ -79692,6 +79763,13 @@ export type Database = {
       _wms_maybe_enqueue_replen: {
         Args: { p_location_id: string; p_product_id: string }
         Returns: number
+      }
+      _wms_notify_exception: {
+        Args: {
+          p_event: string
+          p_exception: Database["public"]["Tables"]["wms_exceptions"]["Row"]
+        }
+        Returns: undefined
       }
       _wms_packaging_assert_write: {
         Args: { p_business_id: string }
