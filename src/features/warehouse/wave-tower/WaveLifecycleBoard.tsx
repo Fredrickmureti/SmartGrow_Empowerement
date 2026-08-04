@@ -18,6 +18,7 @@ import {
   cutoffLabel, RISK_LABEL, RISK_TONE, WAVE_STAGE_LABEL, type WaveBoardRow,
 } from "./contract";
 import { WaveReadinessPanel } from "./WaveReadinessPanel";
+import { WaveDocumentsMenu } from "./WaveDocumentsMenu";
 
 interface Props {
   waves: WaveBoardRow[];
@@ -94,6 +95,8 @@ export function WaveLifecycleBoard({
               <span className={cn("text-xs", w.risk === "late" ? "text-destructive" : "text-muted-foreground")}>
                 {cutoffLabel(w.cutoff_at)}
               </span>
+
+              <WaveDocumentsMenu waveId={w.wave_id} />
 
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => onEvaluate(w.wave_id)}>
                 <Gauge className="mr-1.5 h-3.5 w-3.5" /> Check

@@ -63,6 +63,13 @@ Regression guard: `src/test/architecture/wave-control-tower.test.ts`.
 
 - Mobile, alerting and the desktop tower consume the same verdict.
 - New waving rules are strategy rows or SQL, not UI changes.
-- Outstanding: wave documents (`wave_pick_list`, `wave_summary`, pallet
-  and carton labels) via `generate-document`, `wms_wave_capacity`, and
-  the pgTAP suite `supabase/tests/wms_wave_planning_test.sql`.
+- Wave paperwork (`wave_pick_list`, `wave_summary`) is rendered by
+  `generate-document` and requested through `printDocument` from
+  `WaveDocumentsMenu`; the fetchers are read models and never plan,
+  release or transition a wave.
+- Capacity is forecast by `wms_wave_capacity`; strategies are provisioned
+  by `wms_seed_default_wave_strategies` so the planner is never inert.
+- Regression suites: `src/test/architecture/wave-control-tower.test.ts`,
+  `src/test/printing/wave-documents-wiring.test.ts`, and
+  `supabase/tests/wms_wave_planning_test.sql`.
+

@@ -87,6 +87,8 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Dispatch manifest (load sheet) | `dispatch_manifest` | PdfBuilder | WIRED (ADR 0110 — `fetchDispatchManifest`; carton-by-carton internal load sheet) |
 | Packing list | `packing_list` | PdfBuilder | WIRED (ADR 0110 — `fetchPackingList`; per sales order, travels with the goods) |
 | Carrier label | `carrier_label` | Line[] AST / label | WIRED (ADR 0110 — `fetchCarrierLabel`; requested with `intent: 'label'`, barcode is the allocated tracking number — rendering never mints one) |
+| Wave pick list | `wave_pick_list` | PdfBuilder | WIRED (ADR 0112 — `fetchWavePickList`; dispatched from the wave tower via `WaveDocumentsMenu` → `printDocument({ intent: 'a4_document' })`; walk order from released pick tasks, wave lines before release) |
+| Wave summary | `wave_summary` | PdfBuilder | WIRED (ADR 0112 — `fetchWaveSummary`; supervisor release sheet: demand per order, task progress, readiness verdict) |
 
 
 ## Cross-cutting invariants
