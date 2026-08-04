@@ -51,6 +51,12 @@ export type IntentReadinessState =
   | 'degraded'
   /** Device is local-only (no workstation) and this runtime cannot reach it. */
   | 'local_only_unavailable'
+  /**
+   * A device is bound and its transport needs an executor (agent /
+   * workstation), but no workstation owns the row — nothing can carry the
+   * bytes, so dispatch would fail even though the registry looks healthy.
+   */
+  | 'unroutable'
   /** Readiness could not be determined (no org context, resolver failed). */
   | 'unknown';
 
@@ -178,7 +184,29 @@ export async function resolveIntentReadiness(
   };
 
   if (!workstationId) {
-    // Local-only assignment (WebUSB / loopback agent / Electron transport).
+    // No owning workstation. Electron and WebUSB can still serve the device
+    // from this machine; a network/agent transport cannot — those bytes need
+    // an agent to carry them.
+    const transport = String(
+      (device as unknown as { transport?: string | null }).transport ?? '',
+    ).toLowerCase();
+    const needsWorkstation =
+      transport === 'network' || transport === 'local_agent' ||
+      transport === 'serial' || transport === 'usb' || transport === 'tcp';
+
+    if (needsWorkstation && !isElectronRuntime()) {
+      const connected = await localRoleConnected(role);
+      if (!connected) {
+        return result({
+          state: 'unroutable',
+          role,
+          device: identity,
+          message: `${device.display_name} is not assigned to a computer, so nothing can send it print jobs`,
+          detail: 'Pick the workstation that this printer is connected to in Hardware settings.',
+        });
+      }
+    }
+
     const connected = isElectronRuntime() || (await localRoleConnected(role));
     return result({
       state: connected ? 'ready' : 'local_only_unavailable',
