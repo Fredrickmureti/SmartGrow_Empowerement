@@ -64,9 +64,21 @@ export interface WaveHealth {
 /** Readiness — the server's verdict on whether a wave can be committed. */
 export type ReadinessState = "ready" | "at_risk" | "blocked" | "unknown";
 
+/** Every dimension the readiness engine scores. */
+export type ReadinessDimension =
+  | "stock" | "labour" | "departure" | "exceptions"
+  | "quality" | "freeze" | "congestion";
+
+/** How the wave policy treats a failing dimension. */
+export type ReadinessMode = "block" | "warn" | "ignore";
+
 export interface ReadinessCheck {
-  check: "stock" | "labour" | "departure" | "exceptions";
+  check: ReadinessDimension;
+  /** Policy-mapped verdict — the one the release RPC enforces. */
   state: ReadinessState;
+  /** Verdict before the policy mapping was applied. */
+  raw_state?: ReadinessState;
+  mode?: ReadinessMode;
   reason: string | null;
   detail: Record<string, unknown>;
 }
@@ -75,8 +87,12 @@ export interface WaveReadiness {
   wave_id: string;
   state: ReadinessState;
   checked_at: string;
+  policy_id?: string | null;
+  policy_name?: string | null;
+  allow_force?: boolean;
   checks: ReadinessCheck[];
 }
+
 
 export type WaveRisk = "late" | "exception" | "blocked" | "at_risk" | "on_track";
 
@@ -142,11 +158,42 @@ export interface WaveStrategy {
   criteria: Record<string, unknown>;
   max_orders_per_wave: number;
   max_lines_per_wave: number;
+  max_units_per_wave: number | null;
   cutoff_offset_minutes: number | null;
+  active_from: string | null;
+  active_to: string | null;
   auto_plan: boolean;
   auto_release: boolean;
   wave_priority: number;
+  task_priority: number;
+  minutes_per_line: number;
+  minutes_per_unit: number;
+  units_per_carton: number;
+  notes: string | null;
 }
+
+/** Kinds `wms_wave_strategies.kind` accepts (DB check constraint). */
+export const STRATEGY_KINDS = [
+  "carrier", "route", "zone", "customer", "priority", "express",
+  "temperature", "replenishment", "truck", "dock", "batch", "consolidation",
+] as const;
+
+/** Grouping keys `wms_plan_waves` understands. */
+export const STRATEGY_GROUP_KEYS = ["carrier", "zone", "customer", "cutoff"] as const;
+
+/** Shift capacity for one warehouse — `wms_wave_capacity`. */
+export interface WaveCapacity {
+  warehouse_id: string;
+  date: string;
+  operators_planned: number;
+  capacity_minutes: number;
+  committed_minutes: number;
+  planned_wave_minutes: number;
+  released_wave_minutes: number;
+  open_waves: number;
+  utilisation_pct: number | null;
+}
+
 
 // ---------------------------------------------------------------------
 // Presentation helpers — pure, no data access.
@@ -175,12 +222,22 @@ export const READINESS_LABEL: Record<ReadinessState, string> = {
   unknown: "Not evaluated",
 };
 
-export const CHECK_LABEL: Record<ReadinessCheck["check"], string> = {
+export const CHECK_LABEL: Record<ReadinessDimension, string> = {
   stock: "Stock coverage",
   labour: "Labour capacity",
   departure: "Departure",
   exceptions: "Exceptions",
+  quality: "Quality holds",
+  freeze: "Inventory freeze",
+  congestion: "Floor congestion",
 };
+
+export const MODE_LABEL: Record<ReadinessMode, string> = {
+  block: "Blocks release",
+  warn: "Warns only",
+  ignore: "Ignored",
+};
+
 
 export const STAGE_HEALTH_SURFACE: Record<WaveStageHealth, string> = {
   ok: "border-border bg-card",

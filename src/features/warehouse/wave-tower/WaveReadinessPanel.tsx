@@ -7,7 +7,7 @@
 import { AlertTriangle, CheckCircle2, CircleSlash, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  CHECK_LABEL, READINESS_LABEL, type ReadinessState, type WaveReadiness,
+  CHECK_LABEL, MODE_LABEL, READINESS_LABEL, type ReadinessState, type WaveReadiness,
 } from "./contract";
 
 const ICON: Record<ReadinessState, typeof CheckCircle2> = {
@@ -34,6 +34,12 @@ export function WaveReadinessPanel({ readiness }: { readiness: WaveReadiness | n
   }
 
   return (
+    <>
+      {readiness.policy_name ? (
+        <p className="mb-1 text-[11px] text-muted-foreground">
+          Policy: {readiness.policy_name}
+        </p>
+      ) : null}
     <ul className="space-y-1.5">
       {readiness.checks.map((c) => {
         const Icon = ICON[c.state] ?? HelpCircle;
@@ -43,6 +49,9 @@ export function WaveReadinessPanel({ readiness }: { readiness: WaveReadiness | n
             <span className="min-w-0">
               <span className="font-medium">{CHECK_LABEL[c.check] ?? c.check}</span>
               <span className={cn("ml-2", TONE[c.state])}>{READINESS_LABEL[c.state]}</span>
+              {c.mode && c.mode !== "block" ? (
+                <span className="ml-2 text-muted-foreground">({MODE_LABEL[c.mode]})</span>
+              ) : null}
               {c.reason ? (
                 <span className="block text-muted-foreground">{c.reason}</span>
               ) : null}
@@ -51,5 +60,6 @@ export function WaveReadinessPanel({ readiness }: { readiness: WaveReadiness | n
         );
       })}
     </ul>
+    </>
   );
 }

@@ -71437,6 +71437,7 @@ export type Database = {
       }
       wms_wave_policies: {
         Row: {
+          allow_force: boolean
           auto_build: boolean
           auto_release: boolean
           branch_id: string | null
@@ -71449,11 +71450,13 @@ export type Database = {
           name: string
           notes: string | null
           organization_id: string
+          readiness_rules: Json
           task_priority: number
           updated_at: string
           warehouse_id: string
         }
         Insert: {
+          allow_force?: boolean
           auto_build?: boolean
           auto_release?: boolean
           branch_id?: string | null
@@ -71466,11 +71469,13 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id: string
+          readiness_rules?: Json
           task_priority?: number
           updated_at?: string
           warehouse_id: string
         }
         Update: {
+          allow_force?: boolean
           auto_build?: boolean
           auto_release?: boolean
           branch_id?: string | null
@@ -71483,6 +71488,7 @@ export type Database = {
           name?: string
           notes?: string | null
           organization_id?: string
+          readiness_rules?: Json
           task_priority?: number
           updated_at?: string
           warehouse_id?: string
@@ -95563,6 +95569,10 @@ export type Database = {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
       }
+      wms_seed_default_wave_strategies: {
+        Args: { p_warehouse_id: string }
+        Returns: number
+      }
       wms_seed_receiving_label_templates: {
         Args: { _actor?: string; _org_id: string }
         Returns: undefined
@@ -95930,6 +95940,10 @@ export type Database = {
           wave_id: string
           wave_number: string
         }[]
+      }
+      wms_wave_capacity: {
+        Args: { p_date?: string; p_warehouse_id: string }
+        Returns: Json
       }
       wms_wave_demand: {
         Args: { p_business_id: string; p_warehouse_id?: string }
