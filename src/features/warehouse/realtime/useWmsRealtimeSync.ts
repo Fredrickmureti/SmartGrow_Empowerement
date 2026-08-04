@@ -63,6 +63,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     // Execution ledger (wms_task_events) is written by a trigger on
     // wms_tasks, so a task transition must refresh any open history view.
     ["wms-task-events"],
+    // Outbound Control Tower — labour and blockers move the tower.
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
 
   wms_license_plates: [
@@ -71,6 +73,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   ],
   wms_exceptions: [
     ["wms_exceptions"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_receiving_sessions: [
     ["wms-receiving-sessions"],
@@ -83,16 +86,19 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
   wms_pick_waves: [
     ["wms-pick-waves"],
     ["wms-pick-wave"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_pack_cartons: [
     ["wms-pack-cartons"],
     ["wms-pack-wave"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_manifest_cartons: [
     ["wms-loading-manifest"],
     ["wms-loading-manifests"],
     ["wms-manifest-cartons"],
     ["wms-manifest-shortage"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_loading_manifests: [
     ["wms-loading-manifests"],
@@ -106,6 +112,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-manifest-cartons"],
     ["wms-manifest-shortage"],
     ["wms-manifest-proof"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_qc_inspections: [
     ["wms-qc-inspections"],
@@ -141,9 +148,11 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     // `wms_gate_events` is not published; gate custody is refetched
     // whenever the visit it belongs to changes.
     ["wms-gate-events"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   wms_yard_slots: [
     ["wms-yard-slots"],
+    ...OUTBOUND_QUERY_PREFIXES,
   ],
   // Yard control tower (ADR 0086) — trailer master + physical move ledger.
   wms_trailers: [
