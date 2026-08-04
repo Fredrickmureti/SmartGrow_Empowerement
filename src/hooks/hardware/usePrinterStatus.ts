@@ -142,9 +142,17 @@ export function statusMessageFor(s: PrinterStatus | null): string {
 
 export function usePrinterStatus(options: UsePrinterStatusOptions = {}) {
   const {
-    enableMonitoring = isElectronRuntime(),
-    monitoringInterval = 10_000,
+    enableMonitoring = false,
+    monitoringInterval = 15_000,
+    organizationId = null,
+    businessId = null,
+    registerId = null,
   } = options;
+
+  const { currentOrg } = useOrganization();
+  const { currentBusiness } = useBusinesses();
+  const orgId = organizationId ?? currentOrg?.id ?? null;
+  const bizId = businessId ?? currentBusiness?.id ?? null;
 
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -153,26 +161,32 @@ export function usePrinterStatus(options: UsePrinterStatusOptions = {}) {
   const checkStatus = useCallback(async (): Promise<PrinterStatus> => {
     setIsChecking(true);
     try {
-      const next = await printerStatusSnapshot();
+      const next = await printerStatusSnapshot({
+        organizationId: orgId,
+        businessId: bizId,
+        registerId,
+      });
       setPrinterStatus(next);
       return next;
     } finally {
       setIsChecking(false);
     }
-  }, []);
+  }, [orgId, bizId, registerId]);
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      const s = await printerStatusSnapshot();
+    const read = async () => {
+      const s = await printerStatusSnapshot({
+        organizationId: orgId,
+        businessId: bizId,
+        registerId,
+      });
       if (!cancelled) setPrinterStatus(s);
-    })();
+    };
+    void read();
 
     if (enableMonitoring && typeof window !== "undefined") {
-      timerRef.current = window.setInterval(async () => {
-        const s = await printerStatusSnapshot();
-        if (!cancelled) setPrinterStatus(s);
-      }, monitoringInterval);
+      timerRef.current = window.setInterval(() => void read(), monitoringInterval);
     }
 
     return () => {
@@ -182,7 +196,8 @@ export function usePrinterStatus(options: UsePrinterStatusOptions = {}) {
         timerRef.current = null;
       }
     };
-  }, [enableMonitoring, monitoringInterval]);
+  }, [enableMonitoring, monitoringInterval, orgId, bizId, registerId]);
+
 
   return {
     printerStatus,
