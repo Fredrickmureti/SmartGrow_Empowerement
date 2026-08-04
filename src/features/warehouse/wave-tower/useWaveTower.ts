@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import type {
-  WaveBoardRow, WaveDemandRow, WaveHealth, WaveStrategy,
+  WaveBoardRow, WaveCapacity, WaveDemandRow, WaveHealth, WaveStrategy,
 } from "./contract";
 
 export const WAVE_KEYS = {
@@ -21,6 +21,7 @@ export const WAVE_KEYS = {
   board: ["wms-wave-board"] as const,
   demand: ["wms-wave-demand"] as const,
   strategies: ["wms-wave-strategies"] as const,
+  capacity: ["wms-wave-capacity"] as const,
 };
 
 /** Every prefix the realtime channel must invalidate for the tower. */
@@ -29,6 +30,7 @@ export const WAVE_QUERY_PREFIXES = [
   WAVE_KEYS.board,
   WAVE_KEYS.demand,
   WAVE_KEYS.strategies,
+  WAVE_KEYS.capacity,
 ] as const;
 
 type Scope = { warehouseId?: string };
@@ -106,6 +108,27 @@ export function useWaveStrategies({ warehouseId }: Scope = {}) {
         .order("sequence", { ascending: true });
       if (error) throw error;
       return (data as unknown as WaveStrategy[]) ?? [];
+    },
+  });
+}
+
+/**
+ * Shift capacity for the selected warehouse — operators on shift, minutes
+ * available, minutes already committed, minutes the wave plan will consume.
+ * Computed by `wms_wave_capacity`; the page never divides anything.
+ */
+export function useWaveCapacity({ warehouseId }: Scope = {}) {
+  const wh = scopeArg(warehouseId);
+  return useQuery({
+    queryKey: [...WAVE_KEYS.capacity, wh ?? "none"],
+    enabled: !!wh,
+    staleTime: 30_000,
+    queryFn: async (): Promise<WaveCapacity> => {
+      const { data, error } = await supabase.rpc("wms_wave_capacity" as never, {
+        p_warehouse_id: wh!,
+      } as never);
+      if (error) throw error;
+      return data as unknown as WaveCapacity;
     },
   });
 }
