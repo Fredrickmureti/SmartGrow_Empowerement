@@ -19,7 +19,7 @@ import { Loader2, Mail, Paperclip, X, FileText, Plus } from "lucide-react";
 import { AIEmailAssistant } from "@/components/email/AIEmailAssistant";
 import { normalizeError } from "@/services/resilience";
 
-export type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "vendor_statement" | "receipt" | "sales_return" | "sales_order" | "payslip" | "pos_receipt";
+export type DocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "vendor_statement" | "receipt" | "sales_return" | "sales_order" | "payslip" | "pos_receipt" | "contract_letter";
 
 export interface DocumentEmailData {
   documentType: DocumentType;
@@ -68,6 +68,7 @@ const getDocumentLabel = (type: DocumentType): string => {
     sales_order: "Sales Order",
     payslip: "Payslip",
     pos_receipt: "Sales Receipt",
+    contract_letter: "Employment Contract",
   };
   return labels[type];
 };
@@ -123,7 +124,9 @@ export function SendDocumentDialog({
         ccEmails: "",
         bccEmails: "",
         subject: `${docLabel} ${document.documentNumber} from ${orgName}`,
-        message: document.documentType === "purchase_order"
+        message: document.documentType === "contract_letter"
+          ? `Dear ${document.recipientName || "Colleague"},\n\nPlease find attached your employment contract ${document.documentNumber}.\n\nKindly review, sign, and return a copy. Reach out to HR if anything needs clarifying.\n\nBest regards,\n${orgName}`
+          : document.documentType === "purchase_order"
           ? `Dear ${document.recipientName || "Supplier"},\n\nPlease find attached ${docLabel.toLowerCase()} ${document.documentNumber}${document.total && document.currency ? ` for ${document.currency} ${document.total.toFixed(2)}` : ""}.\n\nPlease confirm receipt and expected delivery date at your earliest convenience.\n\nBest regards,\n${orgName}`
           : `Dear ${document.recipientName || "Customer"},\n\nPlease find attached ${docLabel.toLowerCase()} ${document.documentNumber}${document.total && document.currency ? ` for ${document.currency} ${document.total.toFixed(2)}` : ""}.\n\nIf you have any questions, please don't hesitate to contact us.\n\nBest regards,\n${orgName}`,
       });
