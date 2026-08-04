@@ -95319,6 +95319,10 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_zone_load: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
