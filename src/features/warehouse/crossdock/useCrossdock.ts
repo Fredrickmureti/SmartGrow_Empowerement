@@ -10,7 +10,7 @@
  *   _mark_loaded / _complete / _break / _sweep_expired
  * Reads: wms_crossdock_opportunities, wms_crossdock_rules, wms_crossdock_history
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -137,10 +137,21 @@ export function useCrossdockOpportunities(params: {
   const { businessId, warehouseId, states } = params;
   const qc = useQueryClient();
 
+  // One Realtime channel per hook instance. The board mounts this hook more
+  // than once (filtered board + unfiltered counts), and `supabase.channel()`
+  // returns the EXISTING channel for a repeated topic — binding another
+  // `postgres_changes` callback to an already-subscribed channel throws
+  // "cannot add postgres_changes callbacks ... after subscribe()". A per-mount
+  // topic suffix keeps each subscriber isolated.
+  const channelIdRef = useRef<string>();
+  if (!channelIdRef.current) {
+    channelIdRef.current = Math.random().toString(36).slice(2, 10);
+  }
+
   useEffect(() => {
     if (!businessId) return;
     const channel = supabase
-      .channel(`wms-crossdock-${businessId}`)
+      .channel(`wms-crossdock-${businessId}-${channelIdRef.current}`)
       .on(
         "postgres_changes",
         {
@@ -159,6 +170,7 @@ export function useCrossdockOpportunities(params: {
       supabase.removeChannel(channel);
     };
   }, [businessId, qc]);
+
 
   return useQuery({
     queryKey: ["wms-crossdock", businessId, warehouseId, states?.join(",")],
