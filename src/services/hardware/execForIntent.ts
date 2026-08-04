@@ -95,6 +95,14 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
       role: resolved.role as DeviceRole,
       transport: resolved.transport,
       enabled: resolved.enabled,
+      driver: (resolved as unknown as { driver?: string | null }).driver ?? null,
+      displayName: resolved.display_name,
+      // The winning row carries its own endpoint and its own owning
+      // workstation. Execution uses both — nothing downstream re-picks a
+      // device by role.
+      config: (resolved as unknown as { config?: Record<string, unknown> | null }).config ?? null,
+      workstationId:
+        (resolved as unknown as { workstation_id?: string | null }).workstation_id ?? null,
     },
     op: input.op,
     payload: input.payload,
