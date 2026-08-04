@@ -89,7 +89,7 @@ function StageCard({
         />
       </div>
 
-      <dl className="mt-auto grid grid-cols-1 gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground @sm/page:grid-cols-2">
+      <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground @4xl/page:grid-cols-1">
         <Cell label="Active" value={s.in_progress} />
         <Cell label="Oldest" value={shortAge(s.oldest_age_seconds)} />
         <Cell
