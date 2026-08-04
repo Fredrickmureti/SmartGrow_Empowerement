@@ -77,6 +77,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     // Inbound Control Tower — put-away work moves the tower.
     ...INBOUND_QUERY_PREFIXES,
     ...OVERVIEW_QUERY_PREFIXES,
+    // Wave tower — pick/pack task movement is wave progress.
+    ...WAVE_QUERY_PREFIXES,
   ],
 
   wms_license_plates: [
@@ -96,6 +98,8 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ...OUTBOUND_QUERY_PREFIXES,
     ...INBOUND_QUERY_PREFIXES,
     ...OVERVIEW_QUERY_PREFIXES,
+    // A shortage raised at release changes the wave's readiness verdict.
+    ...WAVE_QUERY_PREFIXES,
   ],
   wms_receiving_sessions: [
     ["wms-receiving-sessions"],
@@ -110,7 +114,13 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms-pick-waves"],
     ["wms-pick-wave"],
     ...OUTBOUND_QUERY_PREFIXES,
+    ...WAVE_QUERY_PREFIXES,
   ],
+  wms_pick_wave_lines: [
+    ["wms-pick-wave"],
+    ...WAVE_QUERY_PREFIXES,
+  ],
+
   wms_pack_cartons: [
     ["wms-pack-cartons"],
     ["wms-pack-wave"],
