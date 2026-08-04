@@ -27,7 +27,9 @@ export function isHrLetterType(t: string): t is HrLetterType {
   return HR_LETTER_TYPES.has(t as HrLetterType);
 }
 
-const ORG_JOIN = "id, name, logo_url, address, city, state, postal_code, country, phone, email, tax_id";
+// `organizations` is the tenant row only — branding/identity columns live on
+// `businesses`. Selecting logo_url/address/etc here 400s (column not found).
+const ORG_JOIN = "id, name";
 const BIZ_JOIN = "id, name, legal_name, logo_url, address, city, state, postal_code, country, phone, email, tax_id";
 
 // deno-lint-ignore no-explicit-any
