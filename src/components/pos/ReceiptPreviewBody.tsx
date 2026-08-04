@@ -40,6 +40,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 import { buildReceiptDocument } from "@/lib/pos/receipt/ReceiptDocumentModel";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
+import { useIntentReadiness } from "@/hooks/hardware/useIntentReadiness";
 import { printDocument } from "@/services/printing/PrintService";
 import type { ReceiptCompanyData } from "@/types/receipt";
 import type { PrintFallbackAction } from "@/services/printing/types";
@@ -139,12 +140,17 @@ export function ReceiptPreviewBody({
   // (line items, totals, eTIMS, branding) stays frozen.
   const [useCurrentSettings, setUseCurrentSettings] = useState(false);
 
-  // Unified hardware proxy (System A) — single source of truth.
-  const { printerStatus: getProxyPrinterStatus, isRoleAvailable } = useHardwareProxy(transaction.register_id);
-  const proxyPrinterStatus = getProxyPrinterStatus();
-  const isPrinterConnectedViaProxy = proxyPrinterStatus === "connected";
+  // Hardware actions still come from the proxy, but READINESS comes from the
+  // single readiness service — a relay-routed printer owned by another
+  // machine's agent is reachable even though it is not "connected" locally.
+  useHardwareProxy(transaction.register_id, { passive: true });
+  const receiptReadiness = useIntentReadiness("receipt", {
+    scope: transaction.register_id
+      ? { kind: "register", id: transaction.register_id }
+      : undefined,
+  });
 
-  const isNetworkPrinterConnected = isPrinterConnectedViaProxy;
+  const isNetworkPrinterConnected = receiptReadiness.isReady;
   const networkConfig = null;
 
   // First-paint guard: while the frozen snapshot is still loading and we
@@ -296,7 +302,7 @@ export function ReceiptPreviewBody({
   };
 
 
-  const hasAnyPrinter = isNetworkPrinterConnected || isRoleAvailable("receipt_printer");
+  const hasAnyPrinter = receiptReadiness.isReady;
 
   return (
     <div className="flex flex-col gap-3">
@@ -420,10 +426,10 @@ export function ReceiptPreviewBody({
       </Tabs>
 
       {/* Printer Status Indicator */}
-      {isNetworkPrinterConnected && networkConfig && (
+      {receiptReadiness.isReady && (
         <div className="flex items-center gap-2 p-2 rounded-md bg-green-500/10 text-green-600 text-xs">
           <Wifi className="h-4 w-4 shrink-0" />
-          <span>Receipt printer ready</span>
+          <span>{receiptReadiness.message}</span>
         </div>
       )}
 
@@ -431,7 +437,9 @@ export function ReceiptPreviewBody({
       {!hasAnyPrinter && (
         <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 text-amber-600 text-xs">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span>No printer connected. You can save as PDF or email instead.</span>
+          <span>
+            {receiptReadiness.message}. You can save as PDF or email instead.
+          </span>
         </div>
       )}
 
