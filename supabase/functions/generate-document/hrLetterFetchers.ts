@@ -61,7 +61,7 @@ export async function fetchOfferLetter(supabase: SB, id: string): Promise<HrLett
       application:candidate_applications(
         id,
         candidate:candidates(first_name, last_name, email, phone),
-        job:job_positions(title)
+        job:job_positions(name)
       )
     `)
     .eq("id", id)
@@ -70,7 +70,7 @@ export async function fetchOfferLetter(supabase: SB, id: string): Promise<HrLett
   if (!data) throw new Error(`offer_letter not found: ${id}`);
 
   const cand = data.application?.candidate ?? {};
-  const jobTitle = data.application?.job?.title ?? null;
+  const jobTitle = data.application?.job?.name ?? null;
   const currency = data.currency ?? null;
   const facts = [
     jobTitle ? { label: "Position", value: String(jobTitle) } : null,
@@ -119,8 +119,8 @@ export async function fetchContractLetter(supabase: SB, id: string): Promise<HrL
       business:businesses(${BIZ_JOIN}),
       employee:employees(
         first_name, last_name, employee_number, email, work_email,
-        address_line1, city, state, postal_code, country,
-        job_position:job_positions(title),
+        address_line1, city, county, postal_code, country,
+        job_position:job_positions(name),
         department:departments!employees_department_id_fkey(name)
       )
     `)
@@ -155,12 +155,12 @@ export async function fetchContractLetter(supabase: SB, id: string): Promise<HrL
     recipient: {
       name: fullName(emp.first_name, emp.last_name),
       employee_number: emp.employee_number ?? null,
-      job_title: emp.job_position?.title ?? null,
+      job_title: emp.job_position?.name ?? null,
       department: emp.department?.name ?? null,
       email: emp.work_email ?? emp.email ?? null,
       address_line1: emp.address_line1 ?? null,
       city: emp.city ?? null,
-      state: emp.state ?? null,
+      state: emp.county ?? null,
       postal_code: emp.postal_code ?? null,
       country: emp.country ?? null,
     },
@@ -185,8 +185,8 @@ async function fetchLifecycleEvent(supabase: SB, id: string) {
       business:businesses(${BIZ_JOIN}),
       employee:employees(
         first_name, last_name, employee_number, email, work_email,
-        address_line1, city, state, postal_code, country,
-        job_position:job_positions(title),
+        address_line1, city, county, postal_code, country,
+        job_position:job_positions(name),
         department:departments!employees_department_id_fkey(name)
       )
     `)
@@ -226,7 +226,7 @@ export async function fetchPromotionLetter(supabase: SB, id: string): Promise<Hr
     recipient: {
       name: fullName(emp.first_name, emp.last_name),
       employee_number: emp.employee_number ?? null,
-      job_title: emp.job_position?.title ?? null,
+      job_title: emp.job_position?.name ?? null,
       department: emp.department?.name ?? null,
       email: emp.work_email ?? emp.email ?? null,
     },
@@ -268,7 +268,7 @@ export async function fetchWarningLetter(supabase: SB, id: string): Promise<HrLe
     recipient: {
       name: fullName(emp.first_name, emp.last_name),
       employee_number: emp.employee_number ?? null,
-      job_title: emp.job_position?.title ?? null,
+      job_title: emp.job_position?.name ?? null,
       department: emp.department?.name ?? null,
       email: emp.work_email ?? emp.email ?? null,
     },

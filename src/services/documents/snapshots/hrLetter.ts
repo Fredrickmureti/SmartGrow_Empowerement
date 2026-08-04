@@ -95,12 +95,12 @@ function recipientFromEmployee(emp: Row) {
   return {
     name: fullName(emp.first_name, emp.last_name),
     employee_number: emp.employee_number ?? null,
-    job_title: emp.job_position?.title ?? null,
+    job_title: emp.job_position?.name ?? emp.job_position?.title ?? null,
     department: emp.department?.name ?? null,
     email: emp.work_email ?? emp.email ?? null,
     address_line1: emp.address_line1 ?? null,
     city: emp.city ?? null,
-    state: emp.state ?? null,
+    state: emp.county ?? emp.state ?? null,
     postal_code: emp.postal_code ?? null,
     country: emp.country ?? null,
   };
@@ -125,7 +125,7 @@ function envelope(
 
 export function buildHrOfferLetterSnapshot(row: Row): BuildHrLetterResult {
   const cand = row.application?.candidate ?? {};
-  const jobTitle = row.application?.job?.title ?? null;
+  const jobTitle = row.application?.job?.name ?? row.application?.job?.title ?? null;
   const currency = row.currency ?? null;
   const org = pickOrg(row);
   const name = fullName(cand.first_name, cand.last_name);
@@ -372,8 +372,8 @@ const BIZ_JOIN =
   "id, name, legal_name, logo_url, address, city, state, postal_code, country, phone, email, tax_id";
 const EMPLOYEE_JOIN = `employee:employees(
   id, first_name, last_name, employee_number, email, work_email,
-  address_line1, city, state, postal_code, country,
-  job_position:job_positions(title),
+  address_line1, city, county, postal_code, country,
+  job_position:job_positions(name),
   department:departments!employees_department_id_fkey(name)
 )`;
 
@@ -413,7 +413,7 @@ export async function fetchAndBuildHrLetterSnapshot(
            application:candidate_applications(
              id,
              candidate:candidates(first_name, last_name, email, phone),
-             job:job_positions(title)
+             job:job_positions(name)
            )`,
           id,
           "offer_letter",
