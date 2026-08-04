@@ -68,7 +68,7 @@ export default function DevLab() {
         <HealthBanner health={{ overall: "critical", reason: "Two docks blocked", stages } as unknown as FlowHealth} />
         <Section title="Inbound flow"><FlowSpine stages={stages} /></Section>
         <div className="grid gap-6 @4xl/page:grid-cols-3">
-          <div className="space-y-6 @4xl/page:col-span-2">
+          <div className="min-w-0 space-y-6 @4xl/page:col-span-2">
             <Section title="Blockers" description="Ranked by severity.">
               <InboundBottleneckRail bottlenecks={bottlenecks} />
             </Section>
@@ -76,7 +76,7 @@ export default function DevLab() {
               <ArrivalLifecycleBoard arrivals={[arrival, { ...arrival, appointment_id: "a2", risk: "at_risk" }]} />
             </Section>
           </div>
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             <Section title="Docks and yard"><InboundDockStrip board={dockBoard} /></Section>
             <Section title="Arrival clock"><ArrivalWindowTimeline arrivals={[arrival]} /></Section>
             <Section title="Downstream readiness"><InboundReadinessPanel stages={stages} /></Section>
