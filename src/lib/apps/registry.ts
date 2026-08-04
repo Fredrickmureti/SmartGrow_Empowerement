@@ -519,14 +519,20 @@ export const ORG_APP: AppDefinition = {
 };
 
 /**
- * Contracts App — employment agreement lifecycle.
+ * Contracts — employment agreement lifecycle (drafts → pending → active →
+ * expiring → renewed / amended / terminated).
  *
- * Drafts → pending approval → active → expiring → renewed / amended /
- * terminated. Owns the renewal action (Lifecycle observes); owns the
- * compensation source of truth that Payroll consumes. Shares `/hr` URL
- * space; the dispatcher hands off to this shell.
+ * NOT an independently installable app. Contracts is a workspace *inside*
+ * the Employees app (like Lifecycle, Document Compliance and HR Reports):
+ * it shares the `employees` entitlement, install state and app rail entry,
+ * and is never listed in APP_REGISTRY or the marketplace.
+ *
+ * @deprecated Do not pass this to `<PlatformShell app=...>` or any install /
+ * entitlement check — use `EMPLOYEES_APP`. Kept only as a module manifest
+ * for nav/command-palette metadata.
  */
 export const CONTRACTS_APP: AppDefinition = {
+
   id: "contracts",
   name: "Contracts",
   description: "Employment contracts, renewals, amendments, and templates",
