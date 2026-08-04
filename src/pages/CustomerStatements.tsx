@@ -334,9 +334,9 @@ export default function CustomerStatements() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast.success(
-        `Statement dispatched to ${result.target_count} target(s).`,
-      );
+      const outcome = printOutcomeToast(result, `Statement ${built.documentNumber ?? ""}`.trim());
+      if (outcome.variant === "destructive") toast.error(outcome.description);
+      else toast.success(outcome.description);
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
