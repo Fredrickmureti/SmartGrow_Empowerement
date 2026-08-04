@@ -2920,6 +2920,255 @@ async function fetchLabourRoster(
   } as unknown as DocumentData;
 }
 
+/**
+ * ADR-0112 Phase 5 — wave paperwork.
+ *
+ * One bundle, two artifacts: the pick list (line-by-line walk order for the
+ * floor) and the wave summary (supervisor's release sheet). Both are read
+ * models over `wms_pick_waves`; rendering never plans, never releases and
+ * never touches a reservation.
+ */
+async function loadWaveBundle(supabase: any, waveId: string) {
+  const { data: wave, error } = await supabase
+    .from("wms_pick_waves")
+    .select(`
+      *,
+      organization:organizations(${ORG_FALLBACK_COLS}),
+      business:businesses(${BUSINESS_BRANDING_COLS}),
+      warehouse:warehouses(name, code, branch_id),
+      strategy_row:wms_wave_strategies(code, name, kind),
+      carrier:carriers(name)
+    `)
+    .eq("id", waveId)
+    .single();
+
+  if (error || !wave) throw new Error(`Wave not found: ${error?.message}`);
+
+  const { data: lines } = await supabase
+    .from("wms_pick_wave_lines")
+    .select(
+      "id, sales_order_id, product_id, lot_number, quantity_ordered, quantity_picked",
+    )
+    .eq("wave_id", waveId)
+    .limit(2000);
+
+  const { data: tasks } = await supabase
+    .from("wms_tasks")
+    .select(
+      "id, task_type, state, product_id, quantity, uom, source_location_id, destination_location_id, priority, assignee_user_id",
+    )
+    .eq("wave_id", waveId)
+    .limit(2000);
+
+  const rows: any[] = lines || [];
+  const taskRows: any[] = tasks || [];
+
+  const productIds = [
+    ...new Set(
+      [...rows, ...taskRows].map((r: any) => r.product_id).filter(Boolean),
+    ),
+  ];
+  const { data: productRows } = productIds.length
+    ? await supabase
+        .from("products")
+        .select("id, name, sku")
+        .in("id", productIds)
+    : { data: [] };
+  const products: Record<string, any> = {};
+  for (const p of productRows || []) products[p.id] = p;
+
+  const locationIds = [
+    ...new Set(
+      taskRows.flatMap((t: any) => [t.source_location_id, t.destination_location_id])
+        .filter(Boolean),
+    ),
+  ];
+  const { data: locationRows } = locationIds.length
+    ? await supabase
+        .from("stock_locations")
+        .select("id, name, code, barcode")
+        .in("id", locationIds)
+    : { data: [] };
+  const locations: Record<string, any> = {};
+  for (const l of locationRows || []) locations[l.id] = l;
+
+  const soIds = [...new Set(rows.map((r: any) => r.sales_order_id).filter(Boolean))];
+  const { data: orderRows } = soIds.length
+    ? await supabase
+        .from("sales_orders")
+        .select("id, order_number")
+        .in("id", soIds)
+    : { data: [] };
+  const orders: Record<string, any> = {};
+  for (const o of orderRows || []) orders[o.id] = o;
+
+  return { wave, lines: rows, tasks: taskRows, products, locations, orders };
+}
+
+function waveDocumentBase(
+  bundle: Awaited<ReturnType<typeof loadWaveBundle>>,
+  documentType: string,
+  label: string,
+) {
+  const { wave } = bundle;
+  return {
+    document_number: wave.wave_number,
+    document_type: documentType,
+    document_type_label: label,
+    status: wave.state,
+    issue_date: wave.released_at || wave.created_at,
+    due_date: wave.cutoff_at ?? null,
+    subtotal: 0,
+    tax_amount: 0,
+    discount_amount: 0,
+    total: 0,
+    currency: wave.business?.base_currency || "USD",
+    notes: wave.notes ?? null,
+    terms: null,
+    contact: null,
+    business_id: wave.business_id,
+    organization_id: wave.organization_id,
+    hide_amounts: true,
+    warehouse_name: wave.warehouse?.name ?? null,
+    wave_number: wave.wave_number,
+    wave_state: wave.state,
+    wave_strategy: wave.strategy_row?.name || wave.strategy || null,
+    wave_priority: wave.priority ?? null,
+    carrier_name: wave.carrier?.name ?? null,
+    cutoff_at: wave.cutoff_at ?? null,
+    planned_start_at: wave.planned_start_at ?? null,
+    released_at: wave.released_at ?? null,
+  };
+}
+
+/** Wave pick list — the paper walk order for the floor. */
+async function fetchWavePickList(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadWaveBundle(supabase, documentId);
+  const { wave, tasks, lines, products, locations, orders } = bundle;
+
+  // Prefer generated pick tasks (they carry walk order + bin); fall back to
+  // wave lines when the wave has not been released yet.
+  const picks = tasks.filter((t: any) => t.task_type === "pick");
+  const source = picks.length ? picks : lines;
+
+  const items = picks.length
+    ? picks
+        .sort((a: any, b: any) => {
+          const la = locations[a.source_location_id]?.code || "";
+          const lb = locations[b.source_location_id]?.code || "";
+          return la.localeCompare(lb);
+        })
+        .map((t: any) => ({
+          description: products[t.product_id]?.name || "Unknown product",
+          sku: products[t.product_id]?.sku ?? null,
+          location_name:
+            locations[t.source_location_id]?.code
+            || locations[t.source_location_id]?.name
+            || null,
+          location_barcode: locations[t.source_location_id]?.barcode ?? null,
+          destination_name:
+            locations[t.destination_location_id]?.code
+            || locations[t.destination_location_id]?.name
+            || null,
+          quantity: Number(t.quantity ?? 0),
+          picked_quantity: null,
+          uom: t.uom ?? null,
+          task_state: t.state,
+          unit_price: 0,
+          tax_rate: 0,
+          tax_amount: 0,
+          line_total: 0,
+        }))
+    : lines.map((l: any) => ({
+        description: products[l.product_id]?.name || "Unknown product",
+        sku: products[l.product_id]?.sku ?? null,
+        order_number: orders[l.sales_order_id]?.order_number ?? null,
+        lot_number: l.lot_number ?? null,
+        quantity: Number(l.quantity_ordered ?? 0),
+        picked_quantity: null,
+        unit_price: 0,
+        tax_rate: 0,
+        tax_amount: 0,
+        line_total: 0,
+      }));
+
+  return {
+    ...waveDocumentBase(bundle, "wave_pick_list", "WAVE PICK LIST"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      wave.business,
+      wave.organization,
+      wave.warehouse?.branch_id ?? wave.branch_id ?? null,
+    ),
+    total_lines: source.length,
+    items,
+  } as unknown as DocumentData;
+}
+
+/** Wave summary — supervisor release sheet: demand, progress, readiness. */
+async function fetchWaveSummary(
+  supabase: any,
+  documentId: string,
+): Promise<DocumentData> {
+  const bundle = await loadWaveBundle(supabase, documentId);
+  const { wave, tasks, lines, products, orders } = bundle;
+
+  const byOrder: Record<string, { lines: number; ordered: number; picked: number }> = {};
+  for (const l of lines) {
+    const key = l.sales_order_id || "unassigned";
+    const agg = (byOrder[key] ||= { lines: 0, ordered: 0, picked: 0 });
+    agg.lines += 1;
+    agg.ordered += Number(l.quantity_ordered ?? 0);
+    agg.picked += Number(l.quantity_picked ?? 0);
+  }
+
+  const completed = tasks.filter((t: any) => t.state === "completed").length;
+
+  return {
+    ...waveDocumentBase(bundle, "wave_summary", "WAVE SUMMARY"),
+    organization: await mapBusinessToOrg(
+      supabase,
+      wave.business,
+      wave.organization,
+      wave.warehouse?.branch_id ?? wave.branch_id ?? null,
+    ),
+    total_orders: Object.keys(byOrder).length,
+    total_lines: lines.length,
+    total_tasks: tasks.length,
+    completed_tasks: completed,
+    estimated_pick_minutes: wave.estimated_pick_minutes ?? null,
+    estimated_units: wave.estimated_units ?? null,
+    estimated_cartons: wave.estimated_cartons ?? null,
+    readiness_state:
+      (wave.readiness && (wave.readiness as any).state) ?? null,
+    readiness_checked_at: wave.readiness_checked_at ?? null,
+    items: Object.entries(byOrder).map(([soId, agg]) => ({
+      description:
+        orders[soId]?.order_number
+        || (soId === "unassigned" ? "Unassigned demand" : soId),
+      sku: null,
+      order_number: orders[soId]?.order_number ?? null,
+      line_count: agg.lines,
+      quantity: agg.ordered,
+      picked_quantity: agg.picked,
+      unit_price: 0,
+      tax_rate: 0,
+      tax_amount: 0,
+      line_total: 0,
+    })),
+    // Products touched, for the supervisor's at-a-glance mix.
+    product_count: new Set(lines.map((l: any) => l.product_id).filter(Boolean)).size,
+    product_names: [
+      ...new Set(
+        lines.map((l: any) => products[l.product_id]?.name).filter(Boolean),
+      ),
+    ].slice(0, 20),
+  } as unknown as DocumentData;
+}
+
 const TEMPLATE_TYPE_MAP: Record<string, string> = {
   invoice: "invoice",
   estimate: "estimate",
