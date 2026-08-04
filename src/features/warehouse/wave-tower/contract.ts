@@ -222,12 +222,22 @@ export const READINESS_LABEL: Record<ReadinessState, string> = {
   unknown: "Not evaluated",
 };
 
-export const CHECK_LABEL: Record<ReadinessCheck["check"], string> = {
+export const CHECK_LABEL: Record<ReadinessDimension, string> = {
   stock: "Stock coverage",
   labour: "Labour capacity",
   departure: "Departure",
   exceptions: "Exceptions",
+  quality: "Quality holds",
+  freeze: "Inventory freeze",
+  congestion: "Floor congestion",
 };
+
+export const MODE_LABEL: Record<ReadinessMode, string> = {
+  block: "Blocks release",
+  warn: "Warns only",
+  ignore: "Ignored",
+};
+
 
 export const STAGE_HEALTH_SURFACE: Record<WaveStageHealth, string> = {
   ok: "border-border bg-card",
