@@ -66,6 +66,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarkDeliveryReady, useCompleteDelivery } from "@/hooks/useDeliveryLifecycle";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -161,10 +162,7 @@ export default function DeliveryNotes() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Delivery note ${note.delivery_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Delivery note ${note.delivery_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

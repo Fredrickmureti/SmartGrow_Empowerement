@@ -69,6 +69,7 @@ import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord"
 import { printDocumentIntent } from "@/services/printing/PrintService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -143,10 +144,7 @@ export default function SalesOrders() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      shadcnToast({
-        title: "Print dispatched",
-        description: `Sales order ${order.so_number} queued to ${result.target_count} target(s).`,
-      });
+      shadcnToast(printOutcomeToast(result, `Sales order ${order.so_number}`));
     } catch (err) {
       shadcnToast({
         title: "Print failed",

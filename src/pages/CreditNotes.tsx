@@ -85,6 +85,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { CreditNoteListTable } from "@/components/credit-notes/CreditNoteListTable";
 import { normalizeError } from "@/services/resilience";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function CreditNotes() {
   const navigate = useNavigate();
@@ -243,10 +244,7 @@ export default function CreditNotes() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Print dispatched",
-        description: `Credit note ${cn.credit_note_number} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Credit note ${cn.credit_note_number}`));
     } catch (err) {
       toast({
         title: "Print failed",

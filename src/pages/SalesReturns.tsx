@@ -62,6 +62,7 @@ import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { PageHeader, PageBody } from "@/design-system";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Workflow step indicator component
 function WorkflowPipeline({ status, hasCreditNote, creditNoteStatus }: { status: string; hasCreditNote: boolean; creditNoteStatus?: string }) {
@@ -162,10 +163,7 @@ export default function SalesReturns() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      shadcnToast({
-        title: "Print dispatched",
-        description: `Sales return ${ret.return_number} queued to ${result.target_count} target(s).`,
-      });
+      shadcnToast(printOutcomeToast(result, `Sales return ${ret.return_number}`));
     } catch (err) {
       shadcnToast({
         title: "Print failed",

@@ -118,6 +118,14 @@ class AgentClientImpl {
    */
   private _relay: RelayTransport | null = null;
   private _relayConfig: RelayConfig | null = null;
+  /**
+   * Kept so a job can be relayed to a workstation *other* than the one the
+   * mount enabled. Devices are owned by a workstation
+   * (`device_assignments.workstation_id`); routing every job to whichever
+   * workstation happened to be selected is how prints reached the wrong
+   * machine — or no machine at all.
+   */
+  private _relaySupabase: SupabaseClient | null = null;
 
   /** Normalize a network endpoint key. Lowercases host, strips default ports. */
   private _netKey(ipAddress: string, port: number): string {
@@ -321,6 +329,7 @@ class AgentClientImpl {
   enableRelay(supabase: SupabaseClient, config: RelayConfig): void {
     this._relay = new RelayTransport(supabase, config);
     this._relayConfig = config;
+    this._relaySupabase = supabase;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(RELAY_STORAGE_KEY, JSON.stringify(config));
@@ -331,6 +340,7 @@ class AgentClientImpl {
   disableRelay(): void {
     this._relay = null;
     this._relayConfig = null;
+    this._relaySupabase = null;
     try {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem(RELAY_STORAGE_KEY);
@@ -340,6 +350,23 @@ class AgentClientImpl {
 
   isRelayEnabled(): boolean {
     return this._relay !== null;
+  }
+
+  /**
+   * The relay to use for a job. When the target device is owned by a
+   * different workstation than the enabled relay, build a transport for
+   * that workstation instead of silently using the wrong one.
+   */
+  private _relayFor(workstationId?: string | null): RelayTransport | null {
+    if (
+      workstationId &&
+      this._relaySupabase &&
+      this._relayConfig &&
+      workstationId !== this._relayConfig.workstationId
+    ) {
+      return new RelayTransport(this._relaySupabase, { ...this._relayConfig, workstationId });
+    }
+    return this._relay;
   }
 
   getRelayConfig(): RelayConfig | null {
@@ -631,6 +658,7 @@ class AgentClientImpl {
     ipAddress: string,
     port: number,
     data: number[],
+    opts?: { workstationId?: string | null },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
       if (this._isLoopbackTarget(ipAddress) && this._loopbackUsable()) {
@@ -639,9 +667,10 @@ class AgentClientImpl {
       // Phase 2: prefer relay when configured. On any relay failure (timeout,
       // insert error, agent not consuming) fall through to the loopback path
       // so LAN / dev workflows keep working.
-      if (this._relay) {
+      const relay = this._relayFor(opts?.workstationId);
+      if (relay) {
         const idem = `print:${this._netKey(ipAddress, port)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-        const r = await this._relay.dispatch<AgentPrintResponse>({
+        const r = await relay.dispatch<AgentPrintResponse>({
           role: 'print',
           payload: { ipAddress, port, data },
           idempotencyKey: idem,
@@ -701,11 +730,13 @@ class AgentClientImpl {
     vendorId: number,
     productId: number,
     data: number[],
+    opts?: { workstationId?: string | null },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._usbKey(vendorId, productId), async () => {
-      if (this._relay) {
+      const relay = this._relayFor(opts?.workstationId);
+      if (relay) {
         const idem = `usb_print:${this._usbKey(vendorId, productId)}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-        const r = await this._relay.dispatch<AgentPrintResponse>({
+        const r = await relay.dispatch<AgentPrintResponse>({
           role: 'usb_print',
           payload: { vendorId, productId, data },
           idempotencyKey: idem,

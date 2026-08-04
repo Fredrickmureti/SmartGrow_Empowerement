@@ -13,6 +13,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { StatementPreview } from "@/components/sales/StatementPreview";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { Button } from "@/components/ui/button";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -334,9 +335,9 @@ export default function CustomerStatements() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast.success(
-        `Statement dispatched to ${result.target_count} target(s).`,
-      );
+      const outcome = printOutcomeToast(result, `Statement ${built.documentNumber ?? ""}`.trim());
+      if (outcome.variant === "destructive") toast.error(outcome.description);
+      else toast.success(outcome.description);
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));

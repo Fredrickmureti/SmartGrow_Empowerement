@@ -87,6 +87,7 @@ import { CustomerPaymentPeekSheet } from "@/features/sales/payments/CustomerPaym
 import { usePeekParam } from "@/features/sales/record";
 import { PaymentListTable } from "@/components/payments/PaymentListTable";
 import { Eye } from "lucide-react";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Extended payment type with status
 interface PaymentWithStatus extends Payment {
@@ -367,10 +368,7 @@ export default function CustomerPayments() {
         documentRecordId,
         triggeredSource: "manual",
       });
-      toast({
-        title: "Receipt dispatched",
-        description: `Receipt ${receiptNum} queued to ${result.target_count} target(s).`,
-      });
+      toast(printOutcomeToast(result, `Receipt ${receiptNum}`));
     } catch (err) {
       toast({
         title: "Receipt dispatch failed",

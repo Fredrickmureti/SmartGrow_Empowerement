@@ -35,6 +35,7 @@ import { recordHardwareExec, getHardwareExecContext, getRecentExecLog } from "./
 import { supabase } from "@/integrations/supabase/client";
 import { hostRouter, hostBridge, ipcAvailable, isElectronHost } from "./transport/HostRouter";
 import { route as routeTransport, sniffHost, type RoutableAssignment, type RouteDecision } from "./transport/TransportRouter";
+import { dispatchToAssignment, type ExecutableAssignment } from "./assignmentDispatch";
 
 export { getRecentExecLog, setHardwareExecContext } from "./HardwareExecLog";
 export type { HardwareExecLogEntry } from "./HardwareExecLog";
@@ -665,8 +666,8 @@ export const hardwareClient = {
    * Step C will migrate all `useHardwareProxy` call sites to this
    * method and mark `exec({role,op,...})` as deprecated.
    */
-  execAssignment(cmd: {
-    assignment: RoutableAssignment & { role: DeviceRole; id?: string | null };
+  async execAssignment(cmd: {
+    assignment: ExecutableAssignment;
     op: string;
     payload?: unknown;
     idempotencyKey?: string;
@@ -676,34 +677,65 @@ export const hardwareClient = {
     businessEventId?: string | null;
     isReprint?: boolean;
   }): Promise<DriverResult> {
-    const decision: RouteDecision = routeTransport(cmd.assignment, sniffHost());
-    // Structured audit line — mirrors the [hardware.route.decision] tag
-    // the resolver emits, so a single grep traces intent → assignment →
-    // transport across resolver + client.
-    console.info("[hardware.route.decision]", {
-      stage: "client",
-      assignmentId: cmd.assignment.id ?? null,
-      role: cmd.assignment.role,
-      op: cmd.op,
-      requestedTransport: decision.requestedTransport,
-      resolvedKind: decision.kind,
-      reason: decision.reason,
-    });
-    if (decision.kind === "unavailable") {
-      return Promise.resolve({
-        success: false,
-        error: `Transport unavailable: ${decision.reason ?? decision.requestedTransport}`,
+    const startedAt = Date.now();
+    let result: DriverResult & { decision?: RouteDecision } = {
+      success: false,
+      error: "dispatch did not run",
+    };
+    try {
+      result = await dispatchToAssignment({
+        assignment: cmd.assignment,
+        op: cmd.op,
+        payload: cmd.payload,
+        idempotencyKey: cmd.idempotencyKey,
+        ipcAvailable: ipcAvailable(),
+        execElectron: (role, op, payload) =>
+          execElectron(role, op, payload, cmd.idempotencyKey, cmd.maxAttempts),
       });
+      // Structured audit line — mirrors the [hardware.route.decision] tag
+      // the resolver emits, so a single grep traces intent → assignment →
+      // transport → outcome.
+      console.info("[hardware.route.decision]", {
+        stage: "client",
+        assignmentId: cmd.assignment.id ?? null,
+        role: cmd.assignment.role,
+        op: cmd.op,
+        workstationId: cmd.assignment.workstationId ?? null,
+        requestedTransport: result.decision?.requestedTransport,
+        resolvedKind: result.decision?.kind,
+        reason: result.decision?.reason,
+        ok: result.success,
+        error: result.error,
+      });
+      return { success: result.success, error: result.error, data: result.data };
+    } finally {
+      try {
+        const ctx = getHardwareExecContext();
+        const a = peelAuditFromPayload(cmd.payload, {
+          sourceDocType: cmd.sourceDocType,
+          sourceDocId: cmd.sourceDocId,
+          businessEventId: cmd.businessEventId,
+          isReprint: cmd.isReprint,
+        });
+        recordHardwareExec({
+          at: startedAt,
+          role: cmd.assignment.role,
+          op: cmd.op,
+          ok: result.success,
+          durationMs: Date.now() - startedAt,
+          errorMessage: result.success ? undefined : result.error,
+          idempotencyKey: cmd.idempotencyKey,
+          runtimeReason: ipcAvailable() ? "electron-bypass" : "browser-direct",
+          orgId: ctx.orgId,
+          businessId: ctx.businessId,
+          actorUserId: null,
+          sourceDocType: a.sourceDocType ?? null,
+          sourceDocId: a.sourceDocId ?? null,
+          businessEventId: a.businessEventId ?? null,
+          isReprint: a.isReprint ?? false,
+        });
+      } catch { /* log writes never throw */ }
     }
-    // The concrete IO path is still selected inside execAny by host
-    // capability (IPC vs. browser adapter). Step C will collapse the
-    // dispatch matrix below into a switch on `decision.kind`.
-    return execAny(cmd.assignment.role, cmd.op, cmd.payload, cmd.idempotencyKey, cmd.maxAttempts, {
-      sourceDocType: cmd.sourceDocType,
-      sourceDocId: cmd.sourceDocId,
-      businessEventId: cmd.businessEventId,
-      isReprint: cmd.isReprint,
-    });
   },
 
   // === Namespaces (Track H4) ===
