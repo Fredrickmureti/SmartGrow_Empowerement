@@ -3210,6 +3210,10 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   // instructions and finance watermarks have no business on a work sheet.
   labour_worksheet: "labour_worksheet",
   labour_roster: "labour_roster",
+  // ADR-0112 Phase 5 — wave paperwork reuses the tabular invoice shape;
+  // money columns are stripped by the overrides below.
+  wave_pick_list: "invoice",
+  wave_summary: "invoice",
 };
 
 /**
@@ -3250,6 +3254,37 @@ const LABOUR_TEMPLATE_OVERRIDES: Record<string, Record<string, unknown>> = {
     show_signature_line: true,
     signature_label: "Supervisor signature",
     show_status_badge: false,
+  },
+  // ADR-0112 Phase 5 — wave documents are floor paperwork, never finance.
+  wave_pick_list: {
+    show_unit_price: false,
+    show_tax_column: false,
+    show_discount_column: false,
+    show_subtotal: false,
+    show_discount_total: false,
+    show_tax_breakdown: false,
+    show_total_in_words: false,
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_signature_line: true,
+    signature_label: "Picker signature",
+    show_status_badge: true,
+  },
+  wave_summary: {
+    show_unit_price: false,
+    show_tax_column: false,
+    show_discount_column: false,
+    show_subtotal: false,
+    show_discount_total: false,
+    show_tax_breakdown: false,
+    show_total_in_words: false,
+    show_payment_instructions: false,
+    show_bank_details: false,
+    show_payment_methods: false,
+    show_signature_line: true,
+    signature_label: "Supervisor signature",
+    show_status_badge: true,
   },
 };
 
@@ -3313,6 +3348,9 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   labour_worksheet: fetchLabourWorksheet,
   // WLM Phase I — shift roster sheet keyed by warehouse id.
   labour_roster: fetchLabourRoster,
+  // ADR-0112 Phase 5 — wave paperwork, keyed by wave id.
+  wave_pick_list: fetchWavePickList,
+  wave_summary: fetchWaveSummary,
 
 
 };
@@ -4757,6 +4795,9 @@ const TABLE_MAP: Record<string, string> = {
   // WLM — the worksheet is keyed by operator, the roster by warehouse.
   labour_worksheet: "wms_operators",
   labour_roster: "warehouses",
+  // ADR-0112 Phase 5 — both wave artifacts hang off one wave.
+  wave_pick_list: "wms_pick_waves",
+  wave_summary: "wms_pick_waves",
 };
 
 async function getOrganizationId(supabase: any, docType: string, docId: string): Promise<string> {
