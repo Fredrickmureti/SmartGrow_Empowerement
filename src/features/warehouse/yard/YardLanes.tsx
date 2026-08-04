@@ -94,7 +94,7 @@ export function YardLanes({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 @2xl/page:grid-cols-3">
+      <div className="min-w-0 grid gap-3 @2xl/page:grid-cols-3">
         <Lane
           title={VISIT_STATUS_LABEL.arrived}
           hint="Checked in, awaiting a yard position"
@@ -124,7 +124,7 @@ export function YardLanes({
           {docks.length === 0 ? (
             <p className="text-xs text-muted-foreground py-4 text-center">No active docks for this warehouse.</p>
           ) : (
-            <div className="grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
+            <div className="min-w-0 grid gap-2 grid-cols-2 @xl/page:grid-cols-3 @4xl/page:grid-cols-4 @5xl/page:grid-cols-6">
               {docks.map((d) => (
                 <DockCell key={d.id} dock={d} visit={byDock.get(d.id)} onOpenVisit={onOpenVisit} />
               ))}

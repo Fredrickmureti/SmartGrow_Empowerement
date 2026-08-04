@@ -72,7 +72,7 @@ export function LabelVerifyDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="min-w-0 grid grid-cols-3 gap-2">
           <Tile label="Scanned" value={stats.total} />
           <Tile label="Confirmed" value={stats.verified} />
           <Tile label="Failed" value={stats.failed} tone={stats.failed ? "danger" : undefined} />

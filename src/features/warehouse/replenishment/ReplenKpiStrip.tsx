@@ -30,7 +30,7 @@ export function ReplenKpiStrip({ orders, slaMinutes = 60 }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 @2xl/page:grid-cols-5">
+    <div className="min-w-0 grid grid-cols-2 gap-3 @2xl/page:grid-cols-5">
       {tiles.map((t) => (
         <Card key={t.label}>
           <CardContent className="p-4">

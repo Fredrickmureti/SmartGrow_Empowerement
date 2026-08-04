@@ -149,8 +149,8 @@ export function StrategyWorkbench({ warehouseId, strategies, isLoading }: Props)
             <DialogTitle>{draft?.id ? "Edit strategy" : "New strategy"}</DialogTitle>
           </DialogHeader>
           {draft ? (
-            <div className="grid gap-3 @md:grid-cols-2">
-              <div className="@md:col-span-2">
+            <div className="min-w-0 grid gap-3 @md:grid-cols-2">
+              <div className="min-w-0 @md:col-span-2">
                 <Label>Name</Label>
                 <Input value={draft.name} onChange={(e) => set("name", e.target.value)} />
               </div>
@@ -176,7 +176,7 @@ export function StrategyWorkbench({ warehouseId, strategies, isLoading }: Props)
                 />
               </div>
 
-              <div className="@md:col-span-2">
+              <div className="min-w-0 @md:col-span-2">
                 <Label>Group demand by</Label>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {STRATEGY_GROUP_KEYS.map((g) => {
@@ -278,7 +278,7 @@ export function StrategyWorkbench({ warehouseId, strategies, isLoading }: Props)
                 <Label htmlFor="auto-release">Auto-release when ready</Label>
               </div>
 
-              <div className="@md:col-span-2">
+              <div className="min-w-0 @md:col-span-2">
                 <Label>Notes</Label>
                 <Textarea
                   rows={2}

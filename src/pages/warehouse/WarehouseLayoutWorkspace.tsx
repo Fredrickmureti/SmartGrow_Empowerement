@@ -266,7 +266,7 @@ export default function WarehouseLayoutWorkspace() {
           </div>
         )}
 
-        <div className="mb-3 grid grid-cols-2 gap-2 @xl/page:grid-cols-6">
+        <div className="min-w-0 mb-3 grid grid-cols-2 gap-2 @xl/page:grid-cols-6">
           <Stat label="Locations" value={stats.total} />
           <Stat label="Bins" value={stats.bins} />
           <Stat label="Bins holding stock" value={stats.stocked} />

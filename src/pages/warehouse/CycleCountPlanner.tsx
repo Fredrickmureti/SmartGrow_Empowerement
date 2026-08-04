@@ -142,7 +142,7 @@ export default function CycleCountPlanner() {
               {warehouseId && (
                 <div>
                   <Label>Locations {selected.size > 0 && <span className="text-muted-foreground text-xs">({selected.size} selected — leave empty for whole warehouse)</span>}</Label>
-                  <div className="max-h-56 overflow-auto border rounded p-2 grid grid-cols-2 gap-1 text-sm">
+                  <div className="min-w-0 max-h-56 overflow-auto border rounded p-2 grid grid-cols-2 gap-1 text-sm">
                     {(locations ?? []).map((l) => (
                       <label key={l.id} className="flex items-center gap-2">
                         <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggle(l.id)} />

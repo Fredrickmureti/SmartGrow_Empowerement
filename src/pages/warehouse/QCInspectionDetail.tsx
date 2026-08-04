@@ -185,7 +185,7 @@ export default function QCInspectionDetail() {
         }
       />
       <PageBody>
-        <div className="grid gap-4 @4xl/page:grid-cols-2">
+        <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-2">
           <Section>
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-base">Checks</CardTitle></CardHeader>
@@ -205,7 +205,7 @@ export default function QCInspectionDetail() {
                 </div>
                 {!isTerminal && (
                   <div className="grid gap-2 border-t pt-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="min-w-0 grid grid-cols-2 gap-2">
                       <div><Label className="text-xs">Code</Label><Input value={checkCode} onChange={(e) => setCheckCode(e.target.value)} placeholder="visual-01" /></div>
                       <div><Label className="text-xs">Label</Label><Input value={checkLabel} onChange={(e) => setCheckLabel(e.target.value)} placeholder="Visual inspection" /></div>
                       <div><Label className="text-xs">Expected</Label><Input value={expected} onChange={(e) => setExpected(e.target.value)} /></div>
@@ -230,7 +230,7 @@ export default function QCInspectionDetail() {
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-base">Disposition</CardTitle></CardHeader>
               <CardContent className="space-y-3">
-                <div className="grid grid-cols-3 gap-2 text-sm">
+                <div className="min-w-0 grid grid-cols-3 gap-2 text-sm">
                   <div><p className="text-muted-foreground">Total</p><p className="font-medium">{row.quantity}</p></div>
                   <div><p className="text-muted-foreground">Accepted</p><p className="font-medium">{row.accepted_qty}</p></div>
                   <div><p className="text-muted-foreground">Rejected</p><p className="font-medium">{row.rejected_qty}</p></div>

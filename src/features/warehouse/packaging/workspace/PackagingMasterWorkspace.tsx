@@ -202,7 +202,7 @@ export default function PackagingMasterWorkspace() {
           </Select>
         </FilterBar>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="min-w-0 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
           <Section
             title="Catalogue"
             description={`${filtered.length} of ${rows?.length ?? 0} packaging types`}

@@ -240,7 +240,7 @@ export default function Warehouses() {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid grid-cols-1 @xl/page:grid-cols-4">
+        <div className="min-w-0 stats-grid grid-cols-1 @xl/page:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Warehouses</CardTitle>

@@ -102,7 +102,7 @@ export default function Slotting() {
         }
       />
       <PageBody>
-        <div className="grid grid-cols-1 @2xl/page:grid-cols-3 gap-4">
+        <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-3 gap-4">
           {(["A", "B", "C"] as const).map((k) => (
             <Card key={k}>
               <CardContent className="p-4 flex items-center justify-between">

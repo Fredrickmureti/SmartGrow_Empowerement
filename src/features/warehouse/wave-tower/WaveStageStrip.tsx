@@ -11,7 +11,7 @@ import {
 
 export function WaveStageStrip({ health }: { health: WaveHealth }) {
   return (
-    <div className="grid grid-cols-2 gap-2 @3xl/page:grid-cols-5">
+    <div className="min-w-0 grid grid-cols-2 gap-2 @3xl/page:grid-cols-5">
       {health.stages.map((s) => (
         <div
           key={s.stage}

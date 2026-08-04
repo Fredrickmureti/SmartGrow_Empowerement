@@ -231,7 +231,7 @@ export function StandardsPanel({ warehouses }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="min-w-0 grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Task type</Label>
               <Select

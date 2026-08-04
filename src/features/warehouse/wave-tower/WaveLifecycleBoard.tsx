@@ -117,7 +117,7 @@ export function WaveLifecycleBoard({
               ) : null}
             </div>
 
-            <div className="mt-2 grid gap-3 pl-6 @2xl/page:grid-cols-2">
+            <div className="min-w-0 mt-2 grid gap-3 pl-6 @2xl/page:grid-cols-2">
               <div>
                 <div className="flex justify-between text-[11px] text-muted-foreground">
                   <span>Picked</span><span>{w.pick_progress_pct}%</span>

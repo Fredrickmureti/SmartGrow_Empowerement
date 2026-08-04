@@ -35,7 +35,7 @@ export function LabourPanel({ warehouseId, limit = 10 }: { warehouseId?: string;
 
   return (
     <div className="space-y-3">
-      <dl className="grid grid-cols-3 gap-3 text-sm">
+      <dl className="min-w-0 grid grid-cols-3 gap-3 text-sm">
         <div>
           <dt className="text-xs text-muted-foreground">On shift</dt>
           <dd className="text-lg font-semibold tabular-nums">{onShift.length}</dd>

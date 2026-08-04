@@ -242,7 +242,7 @@ export default function PutawayQueue() {
               action={<Button asChild><Link to="/warehouse-app/receiving"><Truck className="h-4 w-4 mr-2" /> Receiving sessions</Link></Button>}
             />
           ) : (
-            <div className="grid gap-4 @2xl/page:grid-cols-3">
+            <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Pending ({cols.pending.length})</CardTitle></CardHeader>
                 <CardContent className="p-2 max-h-[70vh] overflow-auto">

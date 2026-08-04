@@ -38,7 +38,7 @@ export function WaveCapacityPanel({ capacity }: { capacity: WaveCapacity | null 
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 @xl/page:grid-cols-4">
+      <div className="min-w-0 grid gap-3 @xl/page:grid-cols-4">
         <Tile
           icon={Users}
           label="Operators on shift"

@@ -81,7 +81,7 @@ export function ReturnsLaneBoard({
   );
 
   return (
-    <div className="grid grid-cols-2 gap-3 @2xl/page:grid-cols-4 @5xl/page:grid-cols-8">
+    <div className="min-w-0 grid grid-cols-2 gap-3 @2xl/page:grid-cols-4 @5xl/page:grid-cols-8">
       <Card
         role="button"
         tabIndex={0}

@@ -66,7 +66,7 @@ export function HealthBanner({ health }: Props) {
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 @xl/page:grid-cols-5 sm:gap-x-8">
+        <dl className="min-w-0 grid grid-cols-2 gap-x-6 gap-y-2 @xl/page:grid-cols-5 sm:gap-x-8">
           <Counter label="Overdue" value={breached} tone={breached > 0 ? "critical" : "healthy"} />
           <Counter label="At risk" value={atRisk} tone={atRisk > 0 ? "degraded" : "healthy"} />
           <Counter label="Blocked" value={blocked} tone={blocked > 0 ? "critical" : "healthy"} />

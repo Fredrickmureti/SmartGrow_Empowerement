@@ -61,7 +61,7 @@ export function AppointmentDrawer({ appointment, dock, open, onOpenChange }: Pro
           </SheetTitle>
         </SheetHeader>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="min-w-0 mt-4 grid grid-cols-2 gap-3">
           <Field label="Dock" value={dock ? `${dock.code} — ${dock.name ?? dock.dock_type}` : "—"} />
           <Field
             label="Priority"

@@ -221,7 +221,7 @@ export default function LoadingBay() {
         >
           <Card>
             <CardContent className="p-4 space-y-3">
-              <div className="grid gap-3 @xl/page:grid-cols-3 text-sm">
+              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-3 text-sm">
                 <div>
                   <div className="text-muted-foreground">Carrier</div>
                   <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>

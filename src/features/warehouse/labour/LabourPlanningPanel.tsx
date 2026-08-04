@@ -186,7 +186,7 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-4 @2xl/page:grid-cols-4">
+      <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Required</div>
@@ -375,7 +375,7 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Code</Label>
                 <Input
@@ -393,7 +393,7 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="min-w-0 grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
                 <Label>Start</Label>
                 <Input

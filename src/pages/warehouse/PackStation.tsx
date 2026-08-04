@@ -433,7 +433,7 @@ export default function PackStation() {
                 </div>
               }
             >
-              <div className="grid gap-3 @4xl/page:grid-cols-2">
+              <div className="min-w-0 grid gap-3 @4xl/page:grid-cols-2">
                 <Card>
                   <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Picked lines</CardTitle></CardHeader>
                   <CardContent className="p-0">
@@ -596,8 +596,8 @@ export default function PackStation() {
       <Dialog open={!!sealDialog} onOpenChange={(v) => !v && setSealDialog(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Seal carton</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <div className="min-w-0 grid grid-cols-2 gap-3">
+            <div className="min-w-0 col-span-2">
               <Label htmlFor="wt">Weight (kg)</Label>
               <div className="flex items-center gap-2">
                 <Input id="wt" type="number" step="0.01" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} />

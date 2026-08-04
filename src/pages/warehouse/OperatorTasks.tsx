@@ -444,7 +444,7 @@ export default function OperatorTasks() {
         <DialogContent>
           <DialogHeader><DialogTitle>New operator task</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>Type</Label>
                 <Select value={form.task_type} onValueChange={(v) => setForm({ ...form, task_type: v as WmsTaskType })}>
@@ -468,7 +468,7 @@ export default function OperatorTasks() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0 grid grid-cols-2 gap-3">
               <div>
                 <Label>From (source)</Label>
                 <Select value={form.source_location_id || "none"} onValueChange={(v) => setForm({ ...form, source_location_id: v === "none" ? "" : v })}>

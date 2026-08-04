@@ -101,7 +101,7 @@ function TrailerLoadPanel({ summary }: { summary: TrailerLoadSummaryRow | null |
           {LOAD_READINESS_LABEL[summary.readiness]}
         </Badge>
       </div>
-      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+      <div className="min-w-0 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
         <div>
           Outbound: {summary.manifest_count} manifest(s), {summary.carton_count} carton(s)
           {summary.open_manifest_count > 0 ? ` — ${summary.open_manifest_count} still open` : ""}
@@ -204,7 +204,7 @@ export function TrailerVisitDrawer({
 
         <div className="mt-4 space-y-4">
           {/* Vitals ---------------------------------------------------- */}
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="min-w-0 grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground">Arrived</p>
               <p>{ts(visit.arrived_at)}</p>
@@ -465,7 +465,7 @@ export function TrailerVisitDrawer({
 
           {/* Audit ------------------------------------------------------ */}
           <Tabs defaultValue="moves">
-            <TabsList className="grid grid-cols-2 w-full">
+            <TabsList className="min-w-0 grid grid-cols-2 w-full">
               <TabsTrigger value="moves">Movement ledger</TabsTrigger>
               <TabsTrigger value="gate">Gate custody</TabsTrigger>
             </TabsList>
