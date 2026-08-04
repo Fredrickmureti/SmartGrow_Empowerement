@@ -100,7 +100,7 @@ function recipientFromEmployee(emp: Row) {
     email: emp.work_email ?? emp.email ?? null,
     address_line1: emp.address_line1 ?? null,
     city: emp.city ?? null,
-    state: emp.state ?? null,
+    state: emp.county ?? emp.state ?? null,
     postal_code: emp.postal_code ?? null,
     country: emp.country ?? null,
   };
@@ -372,7 +372,7 @@ const BIZ_JOIN =
   "id, name, legal_name, logo_url, address, city, state, postal_code, country, phone, email, tax_id";
 const EMPLOYEE_JOIN = `employee:employees(
   id, first_name, last_name, employee_number, email, work_email,
-  address_line1, city, state, postal_code, country,
+  address_line1, city, county, postal_code, country,
   job_position:job_positions(name),
   department:departments!employees_department_id_fkey(name)
 )`;

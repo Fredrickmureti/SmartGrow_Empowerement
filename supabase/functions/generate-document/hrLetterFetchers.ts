@@ -119,7 +119,7 @@ export async function fetchContractLetter(supabase: SB, id: string): Promise<HrL
       business:businesses(${BIZ_JOIN}),
       employee:employees(
         first_name, last_name, employee_number, email, work_email,
-        address_line1, city, state, postal_code, country,
+        address_line1, city, county, postal_code, country,
         job_position:job_positions(name),
         department:departments!employees_department_id_fkey(name)
       )
@@ -160,7 +160,7 @@ export async function fetchContractLetter(supabase: SB, id: string): Promise<HrL
       email: emp.work_email ?? emp.email ?? null,
       address_line1: emp.address_line1 ?? null,
       city: emp.city ?? null,
-      state: emp.state ?? null,
+      state: emp.county ?? null,
       postal_code: emp.postal_code ?? null,
       country: emp.country ?? null,
     },
@@ -185,7 +185,7 @@ async function fetchLifecycleEvent(supabase: SB, id: string) {
       business:businesses(${BIZ_JOIN}),
       employee:employees(
         first_name, last_name, employee_number, email, work_email,
-        address_line1, city, state, postal_code, country,
+        address_line1, city, county, postal_code, country,
         job_position:job_positions(name),
         department:departments!employees_department_id_fkey(name)
       )
