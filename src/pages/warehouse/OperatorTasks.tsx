@@ -391,7 +391,16 @@ export default function OperatorTasks() {
                           {t.state !== "done" && t.state !== "completed" && t.state !== "cancelled" && (
                             <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
                           )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Execution history"
+                            onClick={() => setHistoryTask(t)}
+                          >
+                            <History className="h-3.5 w-3.5" />
+                          </Button>
                         </TableCell>
+
                       </TableRow>
                     ))}
                   </TableBody>
