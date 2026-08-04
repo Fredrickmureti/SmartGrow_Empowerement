@@ -48,7 +48,7 @@ export function HealthBanner({ health }: Props) {
         HEALTH_SURFACE[state],
       )}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 @xl/page:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Icon className={cn("mt-0.5 h-7 w-7 shrink-0", HEALTH_TEXT[state])} />
           <div>
@@ -66,7 +66,7 @@ export function HealthBanner({ health }: Props) {
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-5 sm:gap-x-8">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 @xl/page:grid-cols-5 sm:gap-x-8">
           <Counter label="Overdue" value={breached} tone={breached > 0 ? "critical" : "healthy"} />
           <Counter label="At risk" value={atRisk} tone={atRisk > 0 ? "degraded" : "healthy"} />
           <Counter label="Blocked" value={blocked} tone={blocked > 0 ? "critical" : "healthy"} />

@@ -94,7 +94,7 @@ export default function GateConsole() {
         {visits.isLoading ? (
           <LoadingState />
         ) : (
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 @4xl/page:grid-cols-3">
             {/* Expected ------------------------------------------------ */}
             <Card>
               <CardHeader className="py-3">

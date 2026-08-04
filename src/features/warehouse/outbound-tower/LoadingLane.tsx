@@ -86,7 +86,7 @@ export function LoadingLane({ shipments }: { shipments: OutboundShipment[] }) {
           />
         ))}
       </div>
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 @xl/page:grid-cols-4">
         {stages.map((s) => (
           <div key={s.key} className="rounded-lg border p-3">
             <dt className="text-xs text-muted-foreground">{s.label}</dt>

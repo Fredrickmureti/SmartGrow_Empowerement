@@ -193,7 +193,7 @@ export default function CountTriggers() {
 
         <Section title="Add a rule">
           <Card>
-            <CardContent className="pt-6 grid gap-4 md:grid-cols-4">
+            <CardContent className="pt-6 grid gap-4 @2xl/page:grid-cols-4">
               <div>
                 <Label>Warehouse</Label>
                 <Select value={warehouseId} onValueChange={setWarehouseId}>

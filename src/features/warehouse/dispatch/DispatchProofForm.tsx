@@ -49,7 +49,7 @@ export function DispatchProofForm({ status, submitting, compact, onSubmit }: Pro
 
   return (
     <div className={compact ? "space-y-3" : "space-y-4"}>
-      <div className={compact ? "space-y-3" : "grid gap-3 sm:grid-cols-2"}>
+      <div className={compact ? "space-y-3" : "grid gap-3 @xl/page:grid-cols-2"}>
         <div>
           <Label>Seal number</Label>
           <Input

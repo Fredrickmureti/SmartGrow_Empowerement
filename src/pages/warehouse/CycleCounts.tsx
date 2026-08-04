@@ -155,7 +155,7 @@ export default function CycleCounts() {
         ) : (
           <>
             <Section>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3 @5xl/page:grid-cols-6">
                 <MetricTile label="Counting now" value={c?.in_progress ?? 0} icon={Activity} />
                 <MetricTile
                   label="Open recounts"
@@ -194,11 +194,11 @@ export default function CycleCounts() {
               </div>
             </Section>
 
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="grid gap-4 @4xl/page:grid-cols-3">
               <Section
                 title="Recount queue"
                 description="Lines outside tolerance with no newer attempt. These sessions cannot be submitted."
-                className="lg:col-span-1"
+                className="@4xl/page:col-span-1"
               >
                 <Card>
                   <CardContent className="space-y-2 p-4">
@@ -225,7 +225,7 @@ export default function CycleCounts() {
               <Section
                 title="Approval queue"
                 description="Sessions in review that need a supervisor other than the counter."
-                className="lg:col-span-1"
+                className="@4xl/page:col-span-1"
               >
                 <Card>
                   <CardContent className="space-y-2 p-4">
@@ -249,7 +249,7 @@ export default function CycleCounts() {
                 </Card>
               </Section>
 
-              <Section title="Counting accuracy" description="Posted lines, last 30 days." className="lg:col-span-1">
+              <Section title="Counting accuracy" description="Posted lines, last 30 days." className="@4xl/page:col-span-1">
                 <Card>
                   <CardContent className="p-4">
                     <AccuracySparkline points={c?.accuracy_trend ?? []} />
@@ -334,7 +334,7 @@ export default function CycleCounts() {
               </Card>
             </Section>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 @4xl/page:grid-cols-2">
               <Section title="Counter productivity today" description="Lines counted since midnight.">
                 <Card>
                   <CardContent className="p-0">

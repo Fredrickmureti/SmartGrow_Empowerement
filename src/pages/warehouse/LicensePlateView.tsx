@@ -234,7 +234,7 @@ export default function LicensePlateView() {
       />
 
       <PageBody>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
           <Metric label="SKUs" value={totals.skus} />
           <Metric label="Units" value={totals.units} hint={`${totals.reserved} reserved`} />
           <Metric label="Nested plates" value={Number(lpn.child_count ?? 0)} />

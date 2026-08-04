@@ -127,7 +127,7 @@ export default function ExecutionTelemetry() {
           />
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
               {cards.map((c) => (
                 <Card key={c.label}>
                   <CardContent className="flex items-center gap-3 p-4">

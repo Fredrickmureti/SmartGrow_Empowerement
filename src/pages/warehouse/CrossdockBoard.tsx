@@ -234,7 +234,7 @@ export default function CrossdockBoard() {
         description="Inbound freight that can skip storage entirely — qualify, approve to a dock, direct the move, and ship straight out."
       />
       <PageBody>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-4">
+        <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5 mb-4">
           {[
             { label: "Awaiting decision", value: kpis.awaiting },
             { label: "In execution", value: kpis.executing },
@@ -252,7 +252,7 @@ export default function CrossdockBoard() {
         </div>
 
         <Card className="mb-4">
-          <CardContent className="grid gap-4 pt-6 sm:grid-cols-3 lg:grid-cols-6">
+          <CardContent className="grid gap-4 pt-6 @xl/page:grid-cols-3 @4xl/page:grid-cols-6">
             {[
               {
                 label: "Flow-through rate (30d)",

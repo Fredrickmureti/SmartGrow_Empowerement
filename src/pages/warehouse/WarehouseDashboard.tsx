@@ -76,7 +76,7 @@ export default function WarehouseDashboard() {
           {isLoading ? (
             <LoadingState />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-3">
               <KpiCard label="Warehouses" value={warehouses.length} sub={`${activeWarehouses} active`} icon={WarehouseIcon} />
               <KpiCard label="Locations (all)" value={locationCount ?? 0} sub="Default + authored + virtual" icon={Network} />
               <KpiCard label="Authored bins / zones" value={authoredLayoutCount ?? 0} sub="Rows with structure_level set" icon={Network} />

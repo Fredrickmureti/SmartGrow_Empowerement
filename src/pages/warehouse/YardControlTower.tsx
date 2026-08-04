@@ -206,7 +206,7 @@ export default function YardControlTower() {
             title="Jockey work orders"
             description="Moves requested but not yet executed on the ground."
           >
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 @xl/page:grid-cols-2 @5xl/page:grid-cols-3">
               {openMoveTasks.map((t) => {
                 const visit = allVisits.find((v) => v.id === t.payload?.visit_id) ?? null;
                 return (

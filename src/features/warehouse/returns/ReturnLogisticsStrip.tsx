@@ -122,7 +122,7 @@ export function ReturnLogisticsStrip({ order }: { order: ReturnOrder }) {
   ];
 
   return (
-    <div className="grid gap-2 sm:grid-cols-3">
+    <div className="grid gap-2 @xl/page:grid-cols-3">
       {cells.map((c) => (
         <div key={c.title} className="rounded-md border p-2">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">

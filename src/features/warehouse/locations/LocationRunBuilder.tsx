@@ -198,7 +198,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 @xl/page:grid-cols-2">
         <div className="flex items-center justify-between rounded-md border p-3">
           <div>
             <Label htmlFor="run-serp" className="font-normal">

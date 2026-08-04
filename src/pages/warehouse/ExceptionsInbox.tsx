@@ -183,7 +183,7 @@ export default function ExceptionsInbox() {
         description="Every abnormal warehouse event — receiving variances, QC fails, count discrepancies, stalled tasks, negative stock, yard and device faults — is detected at source, routed by policy, and closed here against an SLA."
       />
       <PageBody>
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-6">
+        <div className="mb-4 grid grid-cols-2 gap-3 @2xl/page:grid-cols-6">
           <Tile label="In view" value={summary.total} />
           <Tile label="Overdue" value={summary.overdue} tone={summary.overdue ? "danger" : undefined} />
           <Tile label="Escalated" value={summary.escalated} tone={summary.escalated ? "danger" : undefined} />

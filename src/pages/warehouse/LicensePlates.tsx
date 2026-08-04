@@ -200,7 +200,7 @@ export default function LicensePlates() {
         }
       />
       <PageBody>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
           <Metric label="Plates" value={metrics.total} />
           <Metric label="Carrying stock" value={metrics.stocked} hint={`${metrics.units.toLocaleString()} units`} />
           <Metric label="Empty" value={metrics.empty} hint="Available to build" />

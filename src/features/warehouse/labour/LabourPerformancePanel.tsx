@@ -164,7 +164,7 @@ export function LabourPerformancePanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Performance</CardTitle>

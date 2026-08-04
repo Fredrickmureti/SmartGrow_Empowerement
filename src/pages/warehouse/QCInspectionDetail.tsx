@@ -185,7 +185,7 @@ export default function QCInspectionDetail() {
         }
       />
       <PageBody>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 @4xl/page:grid-cols-2">
           <Section>
             <Card>
               <CardHeader className="pb-3"><CardTitle className="text-base">Checks</CardTitle></CardHeader>

@@ -549,7 +549,7 @@ export default function BillingBoard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 @2xl/page:grid-cols-5 gap-4 mb-6">
           <KpiCard label="Activity entries" value={String(totals.entries)} />
           <KpiCard label="Billed amount" value={totals.billed.toFixed(2)} />
           <KpiCard label="Unbilled amount" value={totals.unbilled.toFixed(2)} tone={totals.unbilled > 0 ? "warn" : undefined} />
