@@ -79565,6 +79565,55 @@ export type Database = {
             Returns: undefined
           }
       _wms_ensure_qc_hold: { Args: { p_warehouse_id: string }; Returns: string }
+      _wms_exception_log: {
+        Args: {
+          p_event_type: Database["public"]["Enums"]["wms_exception_event_type"]
+          p_exception_id: string
+          p_from?: Database["public"]["Enums"]["wms_exception_state"]
+          p_payload?: Json
+          p_reason?: string
+          p_to?: Database["public"]["Enums"]["wms_exception_state"]
+        }
+        Returns: undefined
+      }
+      _wms_exception_policy: {
+        Args: {
+          p_business_id: string
+          p_kind: Database["public"]["Enums"]["wms_exception_kind"]
+          p_warehouse_id: string
+        }
+        Returns: {
+          auto_close_minutes: number | null
+          business_id: string | null
+          class: Database["public"]["Enums"]["wms_exception_class"]
+          created_at: string
+          default_severity: number
+          escalation_after_mins: number | null
+          escalation_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          id: string
+          is_active: boolean
+          kind: Database["public"]["Enums"]["wms_exception_kind"]
+          max_escalation_level: number
+          notify_channels: string[]
+          organization_id: string | null
+          owner_role:
+            | Database["public"]["Enums"]["wms_exception_owner_role"]
+            | null
+          required_evidence_types: Database["public"]["Enums"]["wms_exception_evidence_type"][]
+          requires_evidence: boolean
+          sla_minutes: number
+          updated_at: string
+          warehouse_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wms_exception_policies"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _wms_exception_sla_minutes: {
         Args: {
           p_kind: Database["public"]["Enums"]["wms_exception_kind"]
@@ -92970,6 +93019,10 @@ export type Database = {
         Args: { p_as_of?: string; p_business_id: string }
         Returns: number
       }
+      wms_acknowledge_exception: {
+        Args: { p_exception_id: string; p_note?: string; p_row_version: number }
+        Returns: Json
+      }
       wms_allocate_tracking_number: {
         Args: { p_manifest_id: string; p_service_id?: string }
         Returns: Json
@@ -92986,6 +93039,16 @@ export type Database = {
           _to: string
         }
         Returns: number
+      }
+      wms_assign_exception: {
+        Args: {
+          p_assignee?: string
+          p_exception_id: string
+          p_owner_role?: Database["public"]["Enums"]["wms_exception_owner_role"]
+          p_reason?: string
+          p_row_version: number
+        }
+        Returns: Json
       }
       wms_billing_nightly_sweep: { Args: never; Returns: number }
       wms_capture_dispatch_proof: {
@@ -93594,6 +93657,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_escalate_overdue_exceptions: {
+        Args: { p_limit?: number; p_warehouse_id?: string }
+        Returns: number
       }
       wms_evaluate_count_trigger: {
         Args: {
@@ -94463,11 +94530,18 @@ export type Database = {
         Args: {
           p_aggregate_id?: string
           p_aggregate_type?: string
+          p_class?: Database["public"]["Enums"]["wms_exception_class"]
           p_details?: Json
+          p_evidence?: Json
+          p_financial_impact?: number
+          p_idempotency_key?: string
           p_kind: Database["public"]["Enums"]["wms_exception_kind"]
+          p_links?: Json
           p_lpn_id?: string
+          p_owner_role?: Database["public"]["Enums"]["wms_exception_owner_role"]
           p_reason: string
           p_severity?: number
+          p_source_system?: string
           p_task_id?: string
           p_warehouse_id: string
         }
