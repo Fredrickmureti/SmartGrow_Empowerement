@@ -28,6 +28,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/design-system";
+import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { usePutawayBins, usePutawaySuggestions } from "./usePutawayData";
 
 type ExceptionKind =
@@ -102,13 +103,14 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
 
   const split = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("wms_split_putaway_task", {
+      // Routed through the replay-guarded dispatcher so a handheld can do
+      // this offline without double-storing the portion on reconnect.
+      await enqueue("wms_split_putaway_task", {
         p_task_id: task.id,
         p_quantity: Number(qty),
-        p_location_id: bin || undefined,
-        p_reason: reason.trim() || undefined,
+        p_location_id: bin || null,
+        p_reason: reason.trim() || null,
       });
-      if (error) throw error;
     },
     onSuccess: () => { toast.success("Partial putaway stored"); refresh(); close(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Partial putaway failed"),
@@ -116,12 +118,11 @@ export function PutawayTaskActions({ task, disabled, compact }: Props) {
 
   const raise = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("wms_report_putaway_exception", {
+      await enqueue("wms_report_putaway_exception", {
         p_task_id: task.id,
         p_kind: kind,
         p_reason: reason.trim(),
       });
-      if (error) throw error;
     },
     onSuccess: () => { toast.success("Exception raised"); refresh(); close(); },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not raise exception"),
