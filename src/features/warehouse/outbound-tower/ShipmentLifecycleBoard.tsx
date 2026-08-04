@@ -70,8 +70,8 @@ function ShipmentRow({ shipment: s }: { shipment: OutboundShipment }) {
         urgent ? "border-destructive/40 bg-destructive/5" : "bg-card",
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-full @xl/page:basis-0">
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to={s.drill_route}
@@ -121,7 +121,7 @@ function ShipmentRow({ shipment: s }: { shipment: OutboundShipment }) {
           <StageTrack shipment={s} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 @xl/page:w-auto">
           <ShipmentActions shipment={s} />
           <Link
             to={s.drill_route}
