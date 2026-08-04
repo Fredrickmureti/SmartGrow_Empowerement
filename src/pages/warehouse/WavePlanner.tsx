@@ -31,8 +31,9 @@ import {
 } from "@/features/warehouse/aggregates/useDomainOperations";
 import { useWaveTransition } from "@/features/warehouse/aggregates/useAggregateTransitions";
 import {
-  WaveDemandTable, WaveLifecycleBoard, WaveStageStrip,
-  useWaveBoard, useWaveDemand, useWaveHealth, useWaveStrategies,
+  WaveCapacityPanel, WaveDemandTable, WaveLifecycleBoard, WaveStageStrip,
+  StrategyWorkbench,
+  useWaveBoard, useWaveCapacity, useWaveDemand, useWaveHealth, useWaveStrategies,
   type WaveBoardRow,
 } from "@/features/warehouse/wave-tower";
 
@@ -48,6 +49,7 @@ export default function WavePlanner() {
   const board = useWaveBoard(scope);
   const demand = useWaveDemand(scope);
   const strategies = useWaveStrategies(scope);
+  const capacity = useWaveCapacity(scope);
 
   const planWaves = usePlanWaves();
   const evaluateWave = useEvaluateWave();
@@ -118,6 +120,7 @@ export default function WavePlanner() {
     void health.refetch();
     void board.refetch();
     void demand.refetch();
+    void capacity.refetch();
   };
 
   const totals = health.data?.totals;
@@ -189,6 +192,13 @@ export default function WavePlanner() {
             </Section>
 
             <Section
+              title="Shift capacity"
+              description="Whether today's roster can absorb the work the plan proposes."
+            >
+              <WaveCapacityPanel capacity={capacity.data} />
+            </Section>
+
+            <Section
               title="Live waves"
               description="Each wave as a lifecycle: readiness, progress, tasks and the cut-off it serves."
             >
@@ -239,6 +249,16 @@ export default function WavePlanner() {
                   )}
                 </CardContent>
               </Card>
+            </Section>
+            <Section
+              title="Planning strategies"
+              description="The rules the planner groups demand by, in sequence. First match wins for each order line."
+            >
+              <StrategyWorkbench
+                warehouseId={warehouseId}
+                strategies={strategies.data ?? []}
+                isLoading={strategies.isLoading}
+              />
             </Section>
           </>
         )}
