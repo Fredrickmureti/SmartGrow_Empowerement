@@ -79778,6 +79778,14 @@ export type Database = {
         Args: { p_warehouse_id: string }
         Returns: string
       }
+      _wms_drive_task_to: {
+        Args: {
+          p_reason?: string
+          p_target: Database["public"]["Enums"]["wms_task_state"]
+          p_task_id: string
+        }
+        Returns: Database["public"]["Enums"]["wms_task_state"]
+      }
       _wms_emit_event: {
         Args: {
           _actor: string
@@ -79869,6 +79877,16 @@ export type Database = {
         Args: {
           p_kind: Database["public"]["Enums"]["wms_exception_kind"]
           p_severity: number
+        }
+        Returns: number
+      }
+      _wms_finalize_source_tasks: {
+        Args: {
+          p_reason?: string
+          p_source_id: string
+          p_source_type: string
+          p_target: Database["public"]["Enums"]["wms_task_state"]
+          p_task_type: Database["public"]["Enums"]["wms_task_type"]
         }
         Returns: number
       }
@@ -80064,6 +80082,10 @@ export type Database = {
           p_row: Database["public"]["Tables"]["wms_sscc_registry"]["Row"]
         }
         Returns: undefined
+      }
+      _wms_unwind_cancelled_wave: {
+        Args: { p_reason?: string; p_wave_id: string }
+        Returns: Json
       }
       accept_organization_invitation_atomic: {
         Args: {
@@ -95091,6 +95113,10 @@ export type Database = {
         Returns: boolean
       }
       wms_task_reap_expired: { Args: never; Returns: number }
+      wms_task_telemetry: {
+        Args: { p_from?: string; p_to?: string; p_warehouse_id: string }
+        Returns: Json
+      }
       wms_transition_count_session: {
         Args: {
           p_payload?: Json

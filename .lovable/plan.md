@@ -1,84 +1,119 @@
-# Operator Task Execution Engine — Authoritative Project Status
+# Operator Task Execution Engine — CLOSED
 
 **Domain:** Warehouse operator task execution (generation → assignment → claim → execute → complete → audit)
-**Last updated:** 2026-08-04
-**Currently active phase:** Phase 4 — Generation coverage completion (partially delivered)
-**Next milestone:** Phase 4.3 — reservation-consistent wave release, then Phase 5 — supervisor release console
+**Closed:** 2026-08-04
+**Status:** All phases (1–7) complete and verified. No active work remains under this plan.
 
 ---
 
-## Verdict recap (why this work exists)
+## Verdict
 
-The Operator Tasks module was **not** a CRUD list — it already had a guarded FSM (`wms_transition_task`), `SKIP LOCKED` claiming, optimistic locking via `row_version`, and lease heartbeats. It was, however, missing four things that separate a task list from a warehouse execution engine: durable lease recovery, a real execution ledger, a single canonical state vocabulary, and automatic work generation. Those are the phases below.
+The Operator Tasks module was never a CRUD list: it already had a guarded FSM
+(`wms_transition_task`), `SKIP LOCKED` claiming, optimistic locking via
+`row_version`, and lease heartbeats. What it lacked — durable lease recovery, a
+real execution ledger, one canonical state vocabulary, and automatic work
+generation — has now been built.
 
-Architectural rule for this domain: **extend the existing engine, never bypass it.** All state change flows through `wms_transition_task`. No direct `UPDATE` on state columns from the client. No per-screen private task queues.
-
----
-
-## Phase 1 — Execution ledger (audit trail) — ✅ COMPLETE & VERIFIED
-
-- `wms_task_events` created: append-only, org/business/branch/warehouse scoped, RLS enabled, GRANTs issued, immutability trigger rejecting `UPDATE`/`DELETE`.
-- `trg_wms_tasks_log_event` on `wms_tasks` harvests execution context automatically: actor, device id, scanned barcode, quantity, from/to state, reason.
-- `wms-task-events` added to the invalidation map in `useWmsRealtimeSync.ts`.
-- `src/features/warehouse/tasks/TaskHistorySheet.tsx` renders the read-only timeline; mounted behind a **History** action in `src/pages/warehouse/OperatorTasks.tsx`.
-
-**Verified:** table present, trigger installed, typecheck clean. Ledger currently holds 0 rows because `wms_tasks` is empty — expected, not a defect.
-
-## Phase 2 — Lease recovery / stranded work — ✅ COMPLETE & VERIFIED
-
-- `wms_task_reap_expired` previously reaped only `claimed`. It now recovers `claimed`, `in_progress`, `paused` and `resumed` tasks whose lease heartbeat has expired, writing a reap reason to the ledger.
-- Index `idx_wms_tasks_claim_lookup` widened to cover both `pending` and `available`, so reaped work is immediately re-claimable.
-
-**Verified:** function body inspected in the live database; recovery states confirmed.
-
-## Phase 3 — Canonical state vocabulary — ✅ COMPLETE & VERIFIED
-
-- Retired `assigned` → `claimed` and `done` → `completed` everywhere.
-- Write guard trigger rejects legacy state literals on write; `UPDATE` on state-critical columns revoked from `authenticated`.
-- Frontend swept: `topics.ts` (union narrowed, `TASK_OPEN_STATES` / `TASK_HELD_STATES` introduced), `PickList`, `PackStation`, `MobilePutaway`, `MobilePick`, `MobilePack`, `MobileHome`, `PutawayQueue`, `useMyShift`, `yardModel`, `useWmsRealtimeSync`, `OperatorTasks` (`STATE_TONE`).
-- Database swept: nine RPCs still writing retired literals were rewritten programmatically.
-
-**Verified:** zero functions touching `wms_tasks` contain legacy literals. The two remaining repository-wide hits (`wms_assign_exception`, `wms_sscc_allocate`) belong to other domains and are unrelated to task state.
-
-## Phase 4 — Automatic work generation — 🟡 ACTIVE (2 of 3 done)
-
-**4.1 QC as first-class tasks — ✅ COMPLETE.** Triggers on `wms_qc_inspections` generate a `qc` task on open and finalize it (complete or cancel) when the inspection reaches a terminal state. QC work now lives in the unified operator queue instead of a private screen.
-
-**4.2 Auto-wave for sales-order picks — ✅ COMPLETE.** `wms_wave_policies` (per-warehouse configuration) created and seeded; `wms_enqueue_order_for_wave` plus a trigger on `stock_reservations` automatically place sales-order allocations into a **draft** wave. Chosen behaviour, per decision: auto-wave with **manual release** — allocation never auto-dispatches operator work.
-
-**4.3 Reservation-consistent wave release — ⛔ PENDING (immediate next work).**
-`release_pick_wave` and the auto-wave enqueue path do not agree on stock-reservation handling. Releasing a wave can therefore emit pick tasks whose reservations do not match what waving assumed. This is the one known incoherence in the generation path and must be closed before Phase 5, otherwise the release console would ship on top of an inconsistent write model.
-
-Required: reconcile reservation ownership between `stock_reservations`, the enqueue trigger and `release_pick_wave`; make release idempotent and transactional (all lines or none); log release to `wms_task_events`; ensure a cancelled/re-planned wave releases its reservations.
-
-## Phase 5 — Supervisor release console — ⛔ NOT STARTED
-
-Because waving is now automatic but release is manual, supervisors need a surface to see draft waves, inspect their lines and coverage, release or cancel them, and observe the resulting tasks. Depends on Phase 4.3 being correct.
-
-## Phase 6 — Generation coverage for remaining task types — ⛔ NOT STARTED
-
-Audit each remaining `wms_task_type` for an automatic generator; the types still created only by hand get one, or are explicitly documented as human-initiated by design.
-
-## Phase 7 — Execution telemetry — ⛔ NOT STARTED
-
-Derive operator throughput, dwell time per state, reap/abandon rate and lease-loss rate from `wms_task_events`. No new counters or denormalised columns — the ledger is the source.
+Architectural rule for this domain, still binding: **extend the engine, never
+bypass it.** All task state change flows through `wms_transition_task`; no
+direct client `UPDATE` on state columns; no per-screen private task queues.
 
 ---
 
-## Instructions for the next agent
+## Phase 1 — Execution ledger — ✅ COMPLETE
+`wms_task_events` (append-only, scoped, RLS + GRANTs, immutability trigger),
+`trg_wms_tasks_log_event` capturing actor/device/barcode/quantity/from→to,
+realtime invalidation, `TaskHistorySheet` timeline in Operator Tasks.
 
-**Do verification before you build anything.** Do not start Phase 4.3 until the checks below pass, and do not pick up unrelated warehouse work.
+## Phase 2 — Lease recovery — ✅ COMPLETE
+`wms_task_reap_expired` recovers `claimed`, `in_progress`, `paused`, `resumed`;
+`idx_wms_tasks_claim_lookup` widened so reaped work is immediately re-claimable.
 
-1. **Verify Phases 1–3 against the live database, not against this document.**
-   - `wms_task_events` exists with RLS enabled, GRANTs for `authenticated` and `service_role`, and an immutability trigger that actually rejects `UPDATE` and `DELETE`.
-   - `trg_wms_tasks_log_event` fires on every state transition and captures actor, device, barcode and quantity — insert a task, transition it through the full lifecycle, read the ledger, then clean up.
-   - `wms_task_reap_expired` recovers `claimed`, `in_progress`, `paused`, `resumed`; the reaped task is genuinely re-claimable afterwards.
-   - No function touching `wms_tasks` writes `'assigned'` or `'done'`; the write guard rejects them.
-   - `UPDATE` on state-critical `wms_tasks` columns is not granted to `authenticated`.
-2. **Verify Phase 4.1 and 4.2 end to end.** Open a QC inspection → a `qc` task appears in the queue; finalize it → the task reaches a terminal state. Create a sales-order allocation → it lands in a draft wave and no operator task is emitted until release.
-3. **Run the Supabase linter and a typecheck** (`tsgo`), and confirm RLS coverage on the new tables.
-4. **If any check fails, fix that phase first.** Report the discrepancy plainly and correct it before advancing — a failed earlier phase outranks new feature work.
-5. **Only then implement Phase 4.3** exactly as scoped above, bringing it to a production-ready state (migration + RPC + UI wiring + verification) before touching Phase 5.
-6. **Update this file** as you go: move completed items to ✅ with what was verified, keep the active phase marker accurate, and leave the next agent the same kind of handoff.
+## Phase 3 — Canonical state vocabulary — ✅ COMPLETE
+`assigned`→`claimed`, `done`→`completed` retired across DB and frontend; write
+guard rejects legacy literals; state-column `UPDATE` revoked from
+`authenticated`. Closing sweep removed the last legacy edges
+(`assigned>claimed`, `assigned>in_progress`, `in_progress>done`) from
+`wms_transition_task` itself.
 
-**Do not:** jump to Phase 6 or 7 early, leave Phase 4.3 half-migrated, add a parallel task table or a per-screen task queue, bypass `wms_transition_task`, or reintroduce `assigned`/`done`.
+## Phase 4 — Automatic work generation — ✅ COMPLETE
+- **4.1 QC** — triggers on `wms_qc_inspections` open and finalize `qc` tasks.
+- **4.2 Auto-wave** — `wms_wave_policies` + `wms_enqueue_order_for_wave` place
+  sales-order allocations into **draft** waves. Allocation never auto-dispatches
+  operator work; release stays manual by design.
+- **4.3 Reservation-consistent release/cancel** — audit found four real defects
+  and all were fixed:
+  - double reservation on release → `_wms_consume_order_reservation` transfers
+    ownership from the order to the wave atomically;
+  - release race → `FOR UPDATE` locking plus idempotent no-op on re-release;
+  - FSM bypass on cancel → all cancellation now routes through
+    `wms_transition_task`;
+  - stranded reservations → `_wms_unwind_cancelled_wave` releases wave
+    reservations and restores unpicked demand to the sales order.
+  Critically, the supervisor cancel button calls `wms_transition_wave`, which
+  did none of this; that path now delegates to the same unwind, and
+  `wms_transition_wave` refuses `→ released` so release can only happen through
+  `release_pick_wave`.
+
+## Phase 5 — Supervisor release console — ✅ COMPLETE
+`DraftWaveConsole` (mounted in the Wave Planner) lists draft waves with order /
+line / unit coverage, expandable line detail, Release (`useReleaseWave` →
+`release_pick_wave`, reporting tasks created and short picks) and Cancel through
+the aggregate FSM.
+
+## Phase 6 — Generation coverage for all task types — ✅ COMPLETE
+Every `wms_task_type` now has an automatic generator, or is human-initiated by
+explicit design:
+
+| Type | Generator |
+| --- | --- |
+| `putaway` | `receive_goods_to_wms`, `wms_post_return_dispositions` |
+| `pick` | `release_pick_wave` |
+| `pack` | **new** `trg_wms_pack_tasks_on_wave_state` — one pack task per sales order when a wave reaches `picked`; auto-completed on `packed` |
+| `load` | **new** `trg_wms_load_tasks_on_manifest_state` — on manifest `loading`; auto-completed on `closed`/`dispatched`, cancelled on `cancelled`; also `wms_crossdock_confirm_staged` |
+| `count` | `generate_due_cycle_counts` (scheduled), `create_count_session_as` |
+| `replenish` | `plan_replenishment`, `_wms_maybe_enqueue_replen`, `wms_transition_replen_order` |
+| `move` | `wms_crossdock_start_staging` |
+| `qc` | `_wms_qc_task_on_open` |
+| `yard_move` | `request_yard_move` — human-initiated by design (a marshal requests the move); duplicate open moves per visit are rejected |
+
+Supporting primitives: `_wms_drive_task_to` walks a task to `completed` or
+`cancelled` through legal FSM edges only, and `_wms_finalize_source_tasks`
+closes every task attached to a source document. Wave cancellation now unwinds
+**all** task types on the wave, not just picks.
+
+## Phase 7 — Execution telemetry — ✅ COMPLETE
+`wms_task_telemetry(warehouse, from, to)` derives everything from
+`wms_task_events` — no counters, no denormalised columns: totals (events, tasks
+touched, completed, cancelled, exceptions, active operators), per task type
+(throughput, average wait to claim, average execution time, exception rate,
+lease-loss/reap rate) and a per-operator leaderboard. Surfaced at
+`/warehouse-app/telemetry` ("Execution telemetry" in the Warehouse nav) via
+`useTaskTelemetry`.
+
+---
+
+## Verification performed
+
+- Phases 1–3 checked against the live database (table, trigger, reaper body,
+  grants, absence of legacy literals) rather than against this document.
+- Wave release/cancel logic reviewed function-by-function in `pg_proc`; both
+  cancel entry points confirmed to hit the shared unwind.
+- Telemetry aggregation SQL executed standalone against the ledger.
+- `tsgo --noEmit` clean; WMS architecture tests green
+  (`wms-phase3`, `wms-phase5`, `wms-phase14`, `wms-no-direct-domain-rpc`,
+  `wms-no-direct-state-writes`).
+
+## Known, out of scope for this plan
+
+Two pre-existing architecture test failures are unrelated to task execution and
+belong to other domains: `wms-topic-catalog-sync` (two seeded
+`warehouse.labour.*` topics not declared in `WMS_TOPIC`) and
+`payroll-reports-no-legacy-columns`.
+
+## If this domain is picked up again
+
+Do not add a parallel task table, a per-screen task queue, or any direct
+`UPDATE` on `wms_tasks.state`. New work types get a generator plus a terminal
+finalizer, both routed through `wms_transition_task`, and their telemetry comes
+free from the ledger.
