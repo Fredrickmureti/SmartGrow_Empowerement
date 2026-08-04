@@ -74,10 +74,8 @@ interface TaskRow {
 const STATE_TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"> = {
   pending: "neutral",
   available: "neutral",
-  assigned: "info",
   claimed: "info",
   in_progress: "warning",
-  done: "success",
   completed: "success",
   cancelled: "danger",
   exception: "danger",
