@@ -100,14 +100,8 @@ export function useReleaseWave() {
     mutationFn: async (input: string | { waveId: string; force?: boolean }) => {
       const waveId = typeof input === "string" ? input : input.waveId;
       const force = typeof input === "string" ? false : !!input.force;
-      const { data } = await replayGuardedCall<{
-        tasks_created?: number;
-        short_pick_tasks?: number;
-        replenishment_tasks?: number;
-        readiness?: string;
-        noop?: boolean;
-      } | null>("release_pick_wave", { p_wave_id: waveId, p_force: force });
-      return data ?? null;
+      return await callReleaseWave(waveId, force);
+
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
