@@ -65,10 +65,13 @@ describe("outbound control tower architecture", () => {
     ]) {
       const idx = realtime.indexOf(`${table}:`);
       expect(idx, `${table} missing from realtime map`).toBeGreaterThan(-1);
-      const block = realtime.slice(idx, idx + 700);
+      const rest = realtime.slice(idx);
+      const end = rest.indexOf("\n  ],");
+      const block = end > 0 ? rest.slice(0, end) : rest;
       expect(block, `${table} does not invalidate the tower`).toMatch(
         /OUTBOUND_QUERY_PREFIXES/,
       );
+
     }
   });
 
