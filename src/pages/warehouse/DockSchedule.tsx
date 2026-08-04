@@ -222,7 +222,7 @@ export default function DockSchedule() {
         ) : (
           <>
             <Section>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
                 <Kpi icon={CalendarClock} label="Appointments today" value={String(kpis.total)} />
                 <Kpi icon={Truck} label="Trailers on site" value={String(kpis.onSite)} />
                 <Kpi

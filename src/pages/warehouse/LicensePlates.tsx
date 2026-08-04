@@ -200,7 +200,7 @@ export default function LicensePlates() {
         }
       />
       <PageBody>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-5">
           <Metric label="Plates" value={metrics.total} />
           <Metric label="Carrying stock" value={metrics.stocked} hint={`${metrics.units.toLocaleString()} units`} />
           <Metric label="Empty" value={metrics.empty} hint="Available to build" />
@@ -225,7 +225,7 @@ export default function LicensePlates() {
                   />
                 </div>
                 <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All warehouses</SelectItem>
                     {warehouses.map((w) => (
@@ -234,7 +234,7 @@ export default function LicensePlates() {
                   </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
                     <SelectItem value="pallet">Pallet</SelectItem>
@@ -244,7 +244,7 @@ export default function LicensePlates() {
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
                     {(statuses ?? []).map((s) => (

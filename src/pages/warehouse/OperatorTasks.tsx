@@ -310,7 +310,7 @@ export default function OperatorTasks() {
             <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[160px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="open">Open (default)</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
@@ -324,14 +324,14 @@ export default function OperatorTasks() {
                   </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
                     {TASK_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All warehouses</SelectItem>
                     {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}

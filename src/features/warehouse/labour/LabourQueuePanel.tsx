@@ -126,7 +126,7 @@ export function LabourQueuePanel({ warehouseId }: Props) {
                       value=""
                       onValueChange={(userId) => reassign.mutate({ taskId: t.task_id, userId, reason: "supervisor" })}
                     >
-                      <SelectTrigger className="h-8 w-[130px]">
+                      <SelectTrigger className="h-8 w-full @xl/page:w-[130px]">
                         <SelectValue placeholder="Assign to…" />
                       </SelectTrigger>
                       <SelectContent>

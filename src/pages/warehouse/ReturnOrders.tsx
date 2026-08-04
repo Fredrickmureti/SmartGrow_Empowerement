@@ -186,7 +186,7 @@ export default function ReturnOrders() {
                   <CardContent className="space-y-4 p-4">
                     <div className="flex flex-wrap items-center gap-2">
                       <Select value={stateFilter} onValueChange={setStateFilter}>
-                        <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="open_all">Open (default)</SelectItem>
                           <SelectItem value="draft">Draft</SelectItem>
@@ -201,7 +201,7 @@ export default function ReturnOrders() {
                         </SelectContent>
                       </Select>
                       <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full @xl/page:w-[180px]">
                           <SelectValue placeholder="Warehouse" />
                         </SelectTrigger>
                         <SelectContent>

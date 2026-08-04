@@ -107,7 +107,7 @@ export function ExceptionAnalytics({ warehouseId }: { warehouseId: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 @2xl/page:grid-cols-5">
         <Kpi label="Raised (90d)" value={String(stats.total)} />
         <Kpi label="Still open" value={String(stats.openCount)} />
         <Kpi label="Mean time to resolve" value={stats.mttr ? shortDuration(stats.mttr) : "—"} />
@@ -122,7 +122,7 @@ export function ExceptionAnalytics({ warehouseId }: { warehouseId: string }) {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 @4xl/page:grid-cols-2">
         <Panel title="Recurring exception kinds" subtitle="Highest-frequency failures — fix the process, not the row.">
           <Bars data={stats.byKind} />
         </Panel>

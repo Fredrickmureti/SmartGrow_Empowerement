@@ -213,7 +213,7 @@ export default function Warehouses() {
               Manage warehouse locations and stock movements
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center">
+          <div className="flex flex-col @xl/page:flex-row gap-2 w-full sm:w-auto items-stretch sm:items-center">
             <RefreshButton
               queryKeyPrefixes={[
                 ["warehouses"] as const,
@@ -240,7 +240,7 @@ export default function Warehouses() {
         </div>
 
         {/* Stats */}
-        <div className="stats-grid grid-cols-1 sm:grid-cols-4">
+        <div className="stats-grid grid-cols-1 @xl/page:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Warehouses</CardTitle>

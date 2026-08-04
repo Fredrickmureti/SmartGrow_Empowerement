@@ -108,7 +108,7 @@ export default function InboundDashboard() {
         ) : (
           <>
             <Section>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 @xl/page:grid-cols-2 @4xl/page:grid-cols-4">
                 <MetricTile
                   label="Appointments (last 12h + upcoming)"
                   value={appts.length}

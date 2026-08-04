@@ -28,8 +28,8 @@ export function FlowSpine({ stages, activeStage, onSelect }: Props) {
   const peak = Math.max(1, ...stages.map((s) => s.backlog));
 
   return (
-    <div className="overflow-x-auto pb-1">
-      <ol className="flex min-w-max items-stretch gap-1">
+    <div className="pb-1 @4xl/page:overflow-x-auto">
+      <ol className="grid grid-cols-2 gap-2 @xl/page:grid-cols-3 @4xl/page:flex @4xl/page:min-w-max @4xl/page:items-stretch @4xl/page:gap-1">
         {stages.map((s, i) => (
           <li key={s.stage} className="flex items-stretch gap-1">
             <StageCard
@@ -39,7 +39,7 @@ export function FlowSpine({ stages, activeStage, onSelect }: Props) {
               onSelect={onSelect}
             />
             {i < stages.length - 1 && (
-              <div className="flex w-6 items-center justify-center">
+              <div className="hidden w-6 items-center justify-center @4xl/page:flex">
                 <ChevronRight
                   className={cn("h-4 w-4", HEALTH_TEXT[stages[i + 1].health])}
                   aria-hidden
@@ -66,7 +66,7 @@ function StageCard({
     <motion.div
       layout
       className={cn(
-        "flex h-full w-[168px] flex-col gap-2 rounded-lg border p-3 text-left transition-colors",
+        "flex h-full w-full flex-col gap-2 @4xl/page:w-[168px] rounded-lg border p-3 text-left transition-colors",
         HEALTH_SURFACE[s.health],
         active && "ring-2 ring-primary",
       )}

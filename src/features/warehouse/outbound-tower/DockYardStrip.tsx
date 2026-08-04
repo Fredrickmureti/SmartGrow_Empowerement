@@ -26,7 +26,7 @@ export function DockYardStrip({ board }: { board: DockBoard | undefined }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
         {docks.map((d) => (
           <div
             key={d.dock_id}

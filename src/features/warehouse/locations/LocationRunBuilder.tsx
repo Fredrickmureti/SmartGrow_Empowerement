@@ -121,8 +121,8 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
             i === 0 ? parent?.structure_level ?? null : tiers[i - 1].level,
           );
           return (
-            <div key={i} className="grid grid-cols-12 items-end gap-2 rounded-md border p-3">
-              <div className="col-span-5 space-y-1">
+            <div key={i} className="grid grid-cols-2 items-end gap-2 @xl/page:grid-cols-6 @4xl/page:grid-cols-12 rounded-md border p-3">
+              <div className="col-span-2 space-y-1 @4xl/page:col-span-5">
                 <Label>{i === 0 ? "Inside this location, add" : "And inside each, add"}</Label>
                 <Select
                   value={tier.level}
@@ -142,7 +142,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-1 space-y-1 @xl/page:col-span-2">
                 <Label htmlFor={`tier-count-${i}`}>How many</Label>
                 <Input
                   id={`tier-count-${i}`}
@@ -153,7 +153,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
                   onChange={(e) => setTier(i, { count: Math.max(1, Number(e.target.value) || 1) })}
                 />
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-1 space-y-1 @xl/page:col-span-2">
                 <Label htmlFor={`tier-prefix-${i}`}>Prefix</Label>
                 <Input
                   id={`tier-prefix-${i}`}
@@ -161,7 +161,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
                   onChange={(e) => setTier(i, { prefix: e.target.value.toUpperCase() })}
                 />
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="col-span-1 space-y-1 @xl/page:col-span-2">
                 <Label htmlFor={`tier-pad-${i}`}>Digits</Label>
                 <Input
                   id={`tier-pad-${i}`}
@@ -174,7 +174,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
                   }
                 />
               </div>
-              <div className="col-span-1 flex justify-end">
+              <div className="col-span-2 flex justify-end @xl/page:col-span-1">
                 {i === tiers.length - 1 && tiers.length > 1 && (
                   <Button
                     variant="ghost"
@@ -186,7 +186,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
                   </Button>
                 )}
               </div>
-              <p className="col-span-12 text-xs text-muted-foreground">{LEVEL[tier.level].hint}</p>
+              <p className="col-span-2 text-xs text-muted-foreground @xl/page:col-span-6 @4xl/page:col-span-12">{LEVEL[tier.level].hint}</p>
             </div>
           );
         })}
@@ -198,7 +198,7 @@ export function LocationRunBuilder({ warehouseId, parent, onDone, compact }: Pro
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 @xl/page:grid-cols-2">
         <div className="flex items-center justify-between rounded-md border p-3">
           <div>
             <Label htmlFor="run-serp" className="font-normal">

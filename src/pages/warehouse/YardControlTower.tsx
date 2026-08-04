@@ -162,7 +162,7 @@ export default function YardControlTower() {
       <PageBody>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={effectiveWarehouse} onValueChange={setWarehouseId}>
-            <SelectTrigger className="w-[240px] h-9">
+            <SelectTrigger className="w-full @xl/page:w-[240px] h-9">
               <SelectValue placeholder="Select warehouse" />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +176,7 @@ export default function YardControlTower() {
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              className="h-9 pl-7 w-[260px]"
+              className="h-9 pl-7 w-full @xl/page:w-[260px]"
               placeholder="Trailer, driver, carrier, appointment"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -206,7 +206,7 @@ export default function YardControlTower() {
             title="Jockey work orders"
             description="Moves requested but not yet executed on the ground."
           >
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 @xl/page:grid-cols-2 @5xl/page:grid-cols-3">
               {openMoveTasks.map((t) => {
                 const visit = allVisits.find((v) => v.id === t.payload?.visit_id) ?? null;
                 return (
@@ -289,7 +289,7 @@ export default function YardControlTower() {
                         {liveVisits
                           .filter((v) => v.status === "arrived" && !v.yard_slot_id)
                           .map((v) => (
-                            <div key={v.id} className="w-[200px]">
+                            <div key={v.id} className=" w-full @xl/page:w-[200px]">
                               <TrailerChip visit={v} onOpen={setSelected} compact />
                             </div>
                           ))}
@@ -350,7 +350,7 @@ export default function YardControlTower() {
 
             <DragOverlay>
               {dragging ? (
-                <div className="w-[200px]">
+                <div className=" w-full @xl/page:w-[200px]">
                   <TrailerChip visit={dragging} onOpen={() => {}} compact draggable={false} />
                 </div>
               ) : null}

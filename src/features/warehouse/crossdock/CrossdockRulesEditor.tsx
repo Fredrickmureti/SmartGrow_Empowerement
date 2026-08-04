@@ -92,8 +92,8 @@ export function CrossdockRulesEditor({ businessId }: { businessId?: string }) {
             <DialogHeader>
               <DialogTitle>{draft.id ? "Edit rule" : "New cross-dock rule"}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
+            <div className="grid gap-4 @xl/page:grid-cols-2">
+              <div className="@xl/page:col-span-2">
                 <Label>Name</Label>
                 <Input
                   value={draft.name ?? ""}
@@ -107,7 +107,7 @@ export function CrossdockRulesEditor({ businessId }: { businessId?: string }) {
               {num("min_hours_to_cutoff", "Min hours to carrier cut-off")}
               {num("max_hours_to_cutoff", "Max hours to carrier cut-off")}
               {num("auto_approve_score", "Auto-approve at score (blank = off)")}
-              <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
+              <div className="@xl/page:col-span-2 grid gap-2 @xl/page:grid-cols-2">
                 {toggle("is_active", "Active")}
                 {toggle("require_qc_pass", "Require QC pass")}
                 {toggle("allow_lot_tracked", "Allow lot-tracked stock")}

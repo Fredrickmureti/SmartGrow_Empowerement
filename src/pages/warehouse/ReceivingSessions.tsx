@@ -549,7 +549,7 @@ export default function ReceivingSessions() {
             <CardContent className="p-4 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="open_all">Open (default)</SelectItem>
                     <SelectItem value="open">Open</SelectItem>
@@ -563,7 +563,7 @@ export default function ReceivingSessions() {
                   </SelectContent>
                 </Select>
                 <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All warehouses</SelectItem>
                     {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}

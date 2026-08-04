@@ -186,7 +186,7 @@ export function LabourPlanningPanel({ warehouseId, warehouses }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 @2xl/page:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Required</div>

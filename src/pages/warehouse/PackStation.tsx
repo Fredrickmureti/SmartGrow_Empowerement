@@ -433,7 +433,7 @@ export default function PackStation() {
                 </div>
               }
             >
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 @4xl/page:grid-cols-2">
                 <Card>
                   <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Picked lines</CardTitle></CardHeader>
                   <CardContent className="p-0">

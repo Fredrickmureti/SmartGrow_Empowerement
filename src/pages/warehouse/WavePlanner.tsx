@@ -148,7 +148,7 @@ export default function WavePlanner() {
             <CardContent className="p-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger className="w-[220px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                  <SelectTrigger className="w-full @xl/page:w-[220px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
                   <SelectContent>
                     {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>
