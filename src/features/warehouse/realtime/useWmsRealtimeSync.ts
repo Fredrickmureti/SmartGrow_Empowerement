@@ -392,9 +392,9 @@ export function useWmsRealtimeSync(): void {
           | null;
         if (!row?.id) return;
         invalidateForTable(queryClientRef.current, "wms_tasks");
-        // Only surface a notification on the leading edge of `assigned`.
+        // Only surface a notification on the leading edge of `claimed`.
         const key = `${row.id}:${row.state ?? ""}`;
-        if (row.state !== "assigned") return;
+        if (row.state !== "claimed") return;
         if (row.assignee_user_id !== userIdRef.current) return;
         if (seenAssignRef.current.has(key)) return;
         seenAssignRef.current.add(key);

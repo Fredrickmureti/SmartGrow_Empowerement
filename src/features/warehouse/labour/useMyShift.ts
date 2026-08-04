@@ -105,7 +105,7 @@ export function useMyOpenTasks(warehouseId: string | undefined) {
         .from("wms_tasks")
         .select("id, task_type, state, priority, quantity, sla_at, warehouse_id")
         .eq("assignee_user_id", uid)
-        .in("state", ["assigned", "claimed", "in_progress", "paused", "resumed"])
+        .in("state", ["claimed", "in_progress", "paused", "resumed"])
         .order("priority", { ascending: false })
         .limit(50);
       if (warehouseId) q = q.eq("warehouse_id", warehouseId);

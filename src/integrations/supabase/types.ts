@@ -71096,6 +71096,68 @@ export type Database = {
           },
         ]
       }
+      wms_wave_policies: {
+        Row: {
+          auto_build: boolean
+          auto_release: boolean
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_default: boolean
+          max_orders_per_wave: number
+          name: string
+          notes: string | null
+          organization_id: string
+          task_priority: number
+          updated_at: string
+          warehouse_id: string
+        }
+        Insert: {
+          auto_build?: boolean
+          auto_release?: boolean
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          max_orders_per_wave?: number
+          name?: string
+          notes?: string | null
+          organization_id: string
+          task_priority?: number
+          updated_at?: string
+          warehouse_id: string
+        }
+        Update: {
+          auto_build?: boolean
+          auto_release?: boolean
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_default?: boolean
+          max_orders_per_wave?: number
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          task_priority?: number
+          updated_at?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_wave_policies_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_yard_moves: {
         Row: {
           actor_user_id: string | null
@@ -93853,6 +93915,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_enqueue_order_for_wave: {
+        Args: { p_sales_order_id: string; p_warehouse_id?: string }
+        Returns: Json
       }
       wms_escalate_overdue_exceptions: {
         Args: { p_limit?: number; p_warehouse_id?: string }

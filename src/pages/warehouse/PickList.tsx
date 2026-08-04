@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 
 interface PickTask {
   id: string;
-  state: "pending" | "assigned" | "in_progress" | "done" | "cancelled";
+  state: "pending" | "available" | "claimed" | "in_progress" | "paused" | "resumed" | "completed" | "cancelled" | "exception";
   quantity: number | null;
   product_id: string | null;
   lot_number: string | null;
@@ -122,10 +122,10 @@ export default function PickList() {
   };
 
   const open = useMemo(
-    () => (tasks ?? []).filter((t) => t.state !== "done" && t.state !== "cancelled"),
+    () => (tasks ?? []).filter((t) => t.state !== "completed" && t.state !== "cancelled"),
     [tasks],
   );
-  const done = useMemo(() => (tasks ?? []).filter((t) => t.state === "done"), [tasks]);
+  const done = useMemo(() => (tasks ?? []).filter((t) => t.state === "completed"), [tasks]);
 
   // Resolve the currently scanned bin+product to the single matching task.
   // A match requires: bin code equals task.source_loc.code (case-insensitive)

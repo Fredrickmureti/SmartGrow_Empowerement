@@ -36,7 +36,7 @@ import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 
 interface PutawayRow {
   id: string;
-  state: "pending" | "available" | "assigned" | "claimed" | "in_progress" | "done" | "completed" | "cancelled" | "exception";
+  state: "pending" | "available" | "claimed" | "in_progress" | "paused" | "resumed" | "completed" | "cancelled" | "exception";
   priority: number;
   quantity: number | null;
   lpn_id: string | null;
@@ -128,9 +128,9 @@ export default function PutawayQueue() {
   };
 
   const cols = useMemo(() => {
-    const pending = (rows ?? []).filter((r) => r.state === "pending" || r.state === "available" || r.state === "assigned" || r.state === "claimed");
+    const pending = (rows ?? []).filter((r) => r.state === "pending" || r.state === "available" || r.state === "claimed");
     const inProgress = (rows ?? []).filter((r) => r.state === "in_progress");
-    const doneToday = (rows ?? []).filter((r) => (r.state === "done" || r.state === "completed") && isToday(r.completed_at));
+    const doneToday = (rows ?? []).filter((r) => r.state === "completed" && isToday(r.completed_at));
     return { pending, inProgress, doneToday };
   }, [rows]);
 
@@ -177,12 +177,12 @@ export default function PutawayQueue() {
               extraVars={{ bin_code: t.dest_loc.code }}
             />
           )}
-          {(t.state === "pending" || t.state === "available" || t.state === "assigned" || t.state === "claimed") && (
+          {(t.state === "pending" || t.state === "available" || t.state === "claimed") && (
             <Button size="sm" variant="outline" onClick={() => startAndClaim(t)} disabled={engine.transition.isPending}>
               <Play className="h-3.5 w-3.5 mr-1" /> Start
             </Button>
           )}
-          {(t.state === "assigned" || t.state === "in_progress" || t.state === "pending") && t.destination_location_id && (
+          {(t.state === "claimed" || t.state === "in_progress" || t.state === "pending") && t.destination_location_id && (
             <Button size="sm" onClick={() => complete.mutate(t.id)}>
               <Check className="h-3.5 w-3.5 mr-1" /> Complete
             </Button>

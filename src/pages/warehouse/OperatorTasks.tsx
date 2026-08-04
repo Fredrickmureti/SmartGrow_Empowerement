@@ -42,7 +42,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
 import { ReplenishCompleteDialog } from "@/features/warehouse/replenishment/ReplenishCompleteDialog";
 import { TaskHistorySheet } from "@/features/warehouse/tasks/TaskHistorySheet";
-import { TASK_TYPES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
+import { TASK_TYPES, TASK_OPEN_STATES, TASK_HELD_STATES, type WmsTaskType, type WmsTaskState } from "@/features/warehouse/events/topics";
 import { ClipboardList, ListChecks, Plus, Play, Check, X, UserPlus, Zap, RefreshCw, History } from "lucide-react";
 
 
@@ -74,10 +74,8 @@ interface TaskRow {
 const STATE_TONE: Record<string, "info" | "warning" | "success" | "neutral" | "danger"> = {
   pending: "neutral",
   available: "neutral",
-  assigned: "info",
   claimed: "info",
   in_progress: "warning",
-  done: "success",
   completed: "success",
   cancelled: "danger",
   exception: "danger",
@@ -109,7 +107,7 @@ export default function OperatorTasks() {
         .order("sla_at", { ascending: true, nullsFirst: false })
         .limit(500);
       if (typeFilter !== "all") q = q.eq("task_type", typeFilter as any);
-      if (stateFilter === "open") q = q.in("state", ["pending", "available", "assigned", "claimed", "in_progress"] as any);
+      if (stateFilter === "open") q = q.in("state", [...TASK_OPEN_STATES] as any);
       else if (stateFilter !== "all") q = q.eq("state", stateFilter as any);
       if (warehouseFilter !== "all") q = q.eq("warehouse_id", warehouseFilter);
       if (mineOnly && user?.id) q = q.eq("assignee_user_id", user.id);
@@ -317,7 +315,6 @@ export default function OperatorTasks() {
                     <SelectItem value="open">Open (default)</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="assigned">Assigned</SelectItem>
                     <SelectItem value="claimed">Claimed</SelectItem>
                     <SelectItem value="in_progress">In progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
@@ -386,13 +383,13 @@ export default function OperatorTasks() {
                           {(t.state === "pending" || t.state === "available") && (
                             <Button size="sm" variant="outline" onClick={() => claim(t)}><UserPlus className="h-3.5 w-3.5" /></Button>
                           )}
-                          {(t.state === "assigned" || t.state === "claimed") && (
+                          {t.state === "claimed" && (
                             <Button size="sm" variant="outline" onClick={() => start(t)}><Play className="h-3.5 w-3.5" /></Button>
                           )}
-                          {(t.state === "claimed" || t.state === "in_progress" || t.state === "assigned") && (
+                          {TASK_HELD_STATES.includes(t.state as (typeof TASK_HELD_STATES)[number]) && (
                             <Button size="sm" onClick={() => complete(t)}><Check className="h-3.5 w-3.5" /></Button>
                           )}
-                          {t.state !== "done" && t.state !== "completed" && t.state !== "cancelled" && (
+                          {t.state !== "completed" && t.state !== "cancelled" && (
                             <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
                           )}
                           <Button
