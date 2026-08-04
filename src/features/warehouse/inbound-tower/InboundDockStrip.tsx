@@ -26,7 +26,7 @@ export function InboundDockStrip({ board }: { board: InboundDockBoard | undefine
 
   return (
     <div className="space-y-4">
-      <div className="grid min-w-0 grid-cols-1 gap-2 @[22rem]/page:grid-cols-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 gap-2 @[26rem]/page:grid-cols-2 @xl/page:grid-cols-3 @5xl/page:grid-cols-4">
         {docks.map((d) => (
           <div
             key={d.dock_id}
