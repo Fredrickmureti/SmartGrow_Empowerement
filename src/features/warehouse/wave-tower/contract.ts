@@ -158,11 +158,42 @@ export interface WaveStrategy {
   criteria: Record<string, unknown>;
   max_orders_per_wave: number;
   max_lines_per_wave: number;
+  max_units_per_wave: number | null;
   cutoff_offset_minutes: number | null;
+  active_from: string | null;
+  active_to: string | null;
   auto_plan: boolean;
   auto_release: boolean;
   wave_priority: number;
+  task_priority: number;
+  minutes_per_line: number;
+  minutes_per_unit: number;
+  units_per_carton: number;
+  notes: string | null;
 }
+
+/** Kinds `wms_wave_strategies.kind` accepts (DB check constraint). */
+export const STRATEGY_KINDS = [
+  "carrier", "route", "zone", "customer", "priority", "express",
+  "temperature", "replenishment", "truck", "dock", "batch", "consolidation",
+] as const;
+
+/** Grouping keys `wms_plan_waves` understands. */
+export const STRATEGY_GROUP_KEYS = ["carrier", "zone", "customer", "cutoff"] as const;
+
+/** Shift capacity for one warehouse — `wms_wave_capacity`. */
+export interface WaveCapacity {
+  warehouse_id: string;
+  date: string;
+  operators_planned: number;
+  capacity_minutes: number;
+  committed_minutes: number;
+  planned_wave_minutes: number;
+  released_wave_minutes: number;
+  open_waves: number;
+  utilisation_pct: number | null;
+}
+
 
 // ---------------------------------------------------------------------
 // Presentation helpers — pure, no data access.
