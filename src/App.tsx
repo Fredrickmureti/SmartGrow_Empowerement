@@ -420,6 +420,15 @@ const App = () => (
                                 </SubscriptionProtectedRoute>
                               }
                             />
+                            {/* App setup overview — installed apps + status */}
+                            <Route
+                              path="/apps/setup"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <PortalUserRoute><LazyRoute module="App Setup"><AppSetupIndex /></LazyRoute></PortalUserRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
                             {/* Per-app setup checklist — driven by app_setup_status.blocking_reasons */}
                             <Route
                               path="/apps/:appId/setup"
