@@ -1,183 +1,133 @@
 /**
- * Supervisor Control Tower — Phase 4 §6.
+ * Supervisor Control Center.
  *
- * Labour view: the open task queue with SLA breach, unassigned work, and
- * per-assignee productivity for tasks completed today (earned vs actual
- * seconds, stamped server-side by `_wms_stamp_labour_metrics`).
+ * Replaces the former static "supervisor dashboard" (counters reduced from a
+ * 1000-row client fetch) with an operational command centre built on the
+ * server-side health contract in `@/features/warehouse/control-center`:
  *
- * Reads `wms_tasks` under the `wms_tasks` query-key prefix so the WMS
- * realtime channel refreshes the board as operators claim and complete.
+ *   1. Health banner   — is the warehouse healthy, and why not?
+ *   2. Flow spine      — receive → dispatch, where is flow breaking?
+ *   3. Bottleneck rail — ranked causes, each linked to the fixing surface.
+ *   4. Live work       — risk-ordered queue with inline supervisor actions.
+ *   5. Labour + zones  — do I have the capacity, and where is the pile?
+ *
+ * All aggregation happens in SQL (`wms_flow_health`, `wms_flow_bottlenecks`,
+ * `wms_zone_load`) so the board scales with the warehouse and cannot drift
+ * from the mobile/alerting view of the same numbers. Refresh is driven by the
+ * WMS realtime channel — no polling.
  */
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
-import { Card, CardContent } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { PageHeader, PageBody, Section, LoadingState, ErrorState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { ClipboardList, UserX, AlarmClock, Gauge } from "lucide-react";
-import { StateBreakdown, MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+  BottleneckRail, FlowSpine, HealthBanner, LabourPanel, LiveWorkPanel, ZoneLoadPanel,
+  useFlowBottlenecks, useFlowHealth, useZoneLoad,
+} from "@/features/warehouse/control-center";
 
-const OPEN_STATES = ["pending", "available", "claimed", "in_progress"] as const;
+/** Which task types belong to a stage, for the flow-spine → work-list drill. */
+const STAGE_TASK_TYPES: Record<string, readonly string[]> = {
+  receive: ["putaway"],
+  inspect: ["qc"],
+  putaway: ["putaway"],
+  replenish: ["replenish"],
+  pick: ["pick"],
+  pack: ["pack"],
+  load: ["load"],
+  dispatch: ["load"],
+  store: ["count", "move"],
+};
 
 export default function SupervisorDashboard() {
-  const { currentBusiness } = useBusinesses();
-  const businessId = currentBusiness?.id;
+  const health = useFlowHealth();
+  const bottlenecks = useFlowBottlenecks();
+  const zones = useZoneLoad();
+  const [stage, setStage] = useState<string | null>(null);
 
-  const openTasks = useQuery({
-    queryKey: ["wms_tasks", "supervisor-dashboard-open", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_tasks")
-        .select("id, task_type, state, priority, sla_at, assignee_user_id, expires_at")
-        .eq("business_id", businessId!)
-        .in("state", OPEN_STATES)
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const refreshing = health.isFetching || bottlenecks.isFetching || zones.isFetching;
+  const refresh = () => {
+    health.refetch();
+    bottlenecks.refetch();
+    zones.refetch();
+  };
 
-  const doneToday = useQuery({
-    queryKey: ["wms_tasks", "supervisor-dashboard-done", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const midnight = new Date();
-      midnight.setHours(0, 0, 0, 0);
-      const { data, error } = await supabase
-        .from("wms_tasks")
-        .select("id, task_type, assignee_user_id, earned_seconds, actual_seconds, completed_at")
-        .eq("business_id", businessId!)
-        .gte("completed_at", midnight.toISOString())
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const loading = openTasks.isLoading || doneToday.isLoading;
-  const open = openTasks.data ?? [];
-  const done = doneToday.data ?? [];
-  const now = Date.now();
-  const breached = open.filter((t) => t.sla_at && new Date(t.sla_at as string).getTime() < now);
-  const unassigned = open.filter((t) => !t.assignee_user_id);
-  const staleLease = open.filter(
-    (t) => t.expires_at && new Date(t.expires_at as string).getTime() < now,
+  const stageTaskTypes = useMemo(
+    () => (stage ? STAGE_TASK_TYPES[stage] ?? null : null),
+    [stage],
   );
 
-  const byOperator = new Map<
-    string,
-    { tasks: number; earned: number; actual: number }
-  >();
-  for (const t of done) {
-    const key = String(t.assignee_user_id ?? "unassigned");
-    const row = byOperator.get(key) ?? { tasks: 0, earned: 0, actual: 0 };
-    row.tasks += 1;
-    row.earned += Number(t.earned_seconds ?? 0);
-    row.actual += Number(t.actual_seconds ?? 0);
-    byOperator.set(key, row);
-  }
-  const operators = [...byOperator.entries()].sort((a, b) => b[1].tasks - a[1].tasks);
+  const stages = health.data?.stages ?? [];
+  const activeStageLabel = stages.find((s) => s.stage === stage)?.label;
 
   return (
     <>
       <PageHeader
-        title="Supervisor control tower"
-        description="Open labour queue, SLA breach and today's operator productivity."
+        title="Supervisor control centre"
+        description="Live warehouse health, flow, bottlenecks and labour."
         actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/tasks">Task queue</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/labour">
-                <Gauge className="mr-2 h-4 w-4" /> Labour standards
-              </Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+            Refresh
+          </Button>
         }
       />
       <PageBody>
-        {loading ? (
+        {health.isError ? (
+          <ErrorState
+            title="Unable to read warehouse health"
+            description={(health.error as Error)?.message}
+          />
+        ) : health.isLoading ? (
           <LoadingState />
         ) : (
-          <>
-            <Section>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricTile label="Open tasks" value={open.length} icon={ClipboardList} to="/warehouse-app/tasks" />
-                <MetricTile
-                  label="SLA breached"
-                  value={breached.length}
-                  tone={breached.length > 0 ? "bad" : "ok"}
-                  sub="past sla_at"
-                  icon={AlarmClock}
-                />
-                <MetricTile
-                  label="Unassigned"
-                  value={unassigned.length}
-                  tone={unassigned.length > 0 ? "warn" : "ok"}
-                  icon={UserX}
-                />
-                <MetricTile
-                  label="Expired leases"
-                  value={staleLease.length}
-                  tone={staleLease.length > 0 ? "warn" : "ok"}
-                  sub="eligible for reap"
-                  icon={AlarmClock}
-                />
-              </div>
-            </Section>
-
-            <Section title="Open queue by task type">
-              <Card><CardContent className="p-4"><StateBreakdown rows={open} field="task_type" /></CardContent></Card>
-            </Section>
-
-            <Section title="Open queue by state">
-              <Card><CardContent className="p-4"><StateBreakdown rows={open} /></CardContent></Card>
-            </Section>
+          <div className="space-y-6">
+            <HealthBanner health={health.data} />
 
             <Section
-              title="Productivity today"
-              description="Earned vs actual seconds on tasks completed since midnight."
+              title="Flow"
+              description="Backlog, ageing and SLA risk at every stage. Select a stage to filter the work list."
             >
-              <Card>
-                <CardContent className="p-0">
-                  {operators.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">No tasks completed yet today.</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Operator</TableHead>
-                          <TableHead className="text-right">Tasks</TableHead>
-                          <TableHead className="text-right">Earned (s)</TableHead>
-                          <TableHead className="text-right">Actual (s)</TableHead>
-                          <TableHead className="text-right">Utilisation</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {operators.map(([id, r]) => (
-                          <TableRow key={id}>
-                            <TableCell className="font-mono text-xs">{id.slice(0, 8)}</TableCell>
-                            <TableCell className="text-right font-mono">{r.tasks}</TableCell>
-                            <TableCell className="text-right font-mono">{Math.round(r.earned)}</TableCell>
-                            <TableCell className="text-right font-mono">{Math.round(r.actual)}</TableCell>
-                            <TableCell className="text-right font-mono">
-                              {r.actual > 0 ? `${Math.round((r.earned / r.actual) * 100)}%` : "—"}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+              <FlowSpine
+                stages={stages}
+                activeStage={stage}
+                onSelect={(s) => setStage((cur) => (cur === s.stage ? null : s.stage))}
+              />
             </Section>
-          </>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="space-y-6 lg:col-span-2">
+                <Section
+                  title="Bottlenecks"
+                  description="Ranked by severity. Each row links to the surface that clears it."
+                >
+                  <BottleneckRail bottlenecks={bottlenecks.data ?? []} />
+                </Section>
+
+                <Section
+                  title={activeStageLabel ? `Live work — ${activeStageLabel}` : "Live work"}
+                  description="Risk-ordered open work. Assign, return to pool or escalate in place."
+                  actions={
+                    stage && (
+                      <Button variant="ghost" size="sm" onClick={() => setStage(null)}>
+                        Clear stage filter
+                      </Button>
+                    )
+                  }
+                >
+                  <LiveWorkPanel taskTypes={stageTaskTypes} />
+                </Section>
+              </div>
+
+              <div className="space-y-6">
+                <Section title="Labour" description="On-shift capacity and load.">
+                  <LabourPanel />
+                </Section>
+                <Section title="Zone load" description="Where the open work physically sits.">
+                  <ZoneLoadPanel zones={zones.data ?? []} />
+                </Section>
+              </div>
+            </div>
+          </div>
         )}
       </PageBody>
     </>

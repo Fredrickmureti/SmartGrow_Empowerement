@@ -93963,6 +93963,14 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: Json
       }
+      wms_flow_bottlenecks: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_flow_health: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
       wms_generate_locations: {
         Args: {
           p_barcode_auto?: boolean
@@ -95309,6 +95317,10 @@ export type Database = {
           p_to_state: Database["public"]["Enums"]["wms_wave_state"]
           p_wave_id: string
         }
+        Returns: Json
+      }
+      wms_zone_load: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
       }
     }
