@@ -99,7 +99,63 @@ export function LiveWorkPanel({ warehouseId, taskTypes, limit = 25 }: Props) {
       {visible.length === 0 ? (
         <EmptyState title="No open work" description="Nothing is queued for this scope." />
       ) : (
-        <div className="rounded-lg border">
+        <>
+        {/* Mobile: card rows — a table cannot fit a phone without scrolling. */}
+        <ul className="divide-y rounded-lg border @2xl/page:hidden">
+          {visible.map(({ row, bucket }) => (
+            <li key={row.task_id} className="flex items-start gap-2 p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold uppercase",
+                      HEALTH_TEXT[RISK_TONE[bucket]],
+                    )}
+                  >
+                    {RISK_LABEL[bucket]}
+                  </span>
+                  <span className="truncate text-sm font-medium capitalize">
+                    {humanise(row.task_type)}
+                  </span>
+                </div>
+                <p className="mt-0.5 break-words text-xs text-muted-foreground">
+                  {humanise(row.state)}
+                  {row.source_doc_type ? ` · ${humanise(row.source_doc_type)}` : ""}
+                </p>
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span className="truncate">
+                    {row.assignee_user_id
+                      ? operatorName.get(row.assignee_user_id) ?? "Assigned"
+                      : "Unassigned"}
+                  </span>
+                  <span className="tabular-nums">
+                    {shortAge(
+                      row.created_at
+                        ? (Date.now() - new Date(row.created_at).getTime()) / 1000
+                        : null,
+                    )}
+                  </span>
+                  <span className="tabular-nums">P{row.priority}</span>
+                </p>
+              </div>
+              <RowActions
+                row={row}
+                assignable={assignable}
+                onEscalate={() =>
+                  setPriority.mutate({
+                    taskId: row.task_id,
+                    priority: Math.min(100, row.priority + 20),
+                  })
+                }
+                onRelease={() => release.mutate({ taskId: row.task_id, reason: "supervisor" })}
+                onAssign={(userId) =>
+                  reassign.mutate({ taskId: row.task_id, userId, reason: "supervisor" })
+                }
+              />
+            </li>
+          ))}
+        </ul>
+        <div className="hidden rounded-lg border @2xl/page:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -151,67 +207,76 @@ export function LiveWorkPanel({ warehouseId, taskTypes, limit = 25 }: Props) {
                     {row.priority}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" aria-label="Task actions">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem
-                          onClick={() =>
-                            setPriority.mutate({
-                              taskId: row.task_id,
-                              priority: Math.min(100, row.priority + 20),
-                            })
-                          }
-                        >
-                          <ArrowUp className="mr-2 h-4 w-4" /> Escalate priority
-                        </DropdownMenuItem>
-                        {row.assignee_user_id && (
-                          <DropdownMenuItem
-                            onClick={() =>
-                              release.mutate({ taskId: row.task_id, reason: "supervisor" })
-                            }
-                          >
-                            <Undo2 className="mr-2 h-4 w-4" /> Return to pool
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel className="text-xs">Assign to</DropdownMenuLabel>
-                        {assignable.length === 0 && (
-                          <DropdownMenuItem disabled>No operator on shift</DropdownMenuItem>
-                        )}
-                        {assignable.slice(0, 8).map((o) => (
-                          <DropdownMenuItem
-                            key={o.operator_id}
-                            onClick={() =>
-                              reassign.mutate({
-                                taskId: row.task_id,
-                                userId: o.user_id!,
-                                reason: "supervisor",
-                              })
-                            }
-                          >
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            <span className="truncate">
-                              {o.operator_name ?? o.operator_code ?? "Operator"}
-                            </span>
-                            <span className="ml-auto text-xs text-muted-foreground">
-                              {o.open_tasks}
-                            </span>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <RowActions
+                      row={row}
+                      assignable={assignable}
+                      onEscalate={() =>
+                        setPriority.mutate({
+                          taskId: row.task_id,
+                          priority: Math.min(100, row.priority + 20),
+                        })
+                      }
+                      onRelease={() =>
+                        release.mutate({ taskId: row.task_id, reason: "supervisor" })
+                      }
+                      onAssign={(userId) =>
+                        reassign.mutate({ taskId: row.task_id, userId, reason: "supervisor" })
+                      }
+                    />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </div>
+  );
+}
+
+/** Supervisor actions for one queued task — shared by the mobile list and the table. */
+function RowActions({
+  row, assignable, onEscalate, onRelease, onAssign,
+}: {
+  row: { task_id: string; assignee_user_id?: string | null };
+  assignable: { operator_id: string; user_id: string | null; operator_name: string | null; operator_code: string | null; open_tasks: number }[];
+  onEscalate: () => void;
+  onRelease: () => void;
+  onAssign: (userId: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Task actions" className="shrink-0">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onClick={onEscalate}>
+          <ArrowUp className="mr-2 h-4 w-4" /> Escalate priority
+        </DropdownMenuItem>
+        {row.assignee_user_id && (
+          <DropdownMenuItem onClick={onRelease}>
+            <Undo2 className="mr-2 h-4 w-4" /> Return to pool
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs">Assign to</DropdownMenuLabel>
+        {assignable.length === 0 && (
+          <DropdownMenuItem disabled>No operator on shift</DropdownMenuItem>
+        )}
+        {assignable.slice(0, 8).map((o) => (
+          <DropdownMenuItem key={o.operator_id} onClick={() => onAssign(o.user_id!)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            <span className="truncate">
+              {o.operator_name ?? o.operator_code ?? "Operator"}
+            </span>
+            <span className="ml-auto text-xs text-muted-foreground">{o.open_tasks}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

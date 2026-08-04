@@ -120,7 +120,7 @@ function ArrivalRow({ arrival: a }: { arrival: InboundArrival }) {
           <StageTrack arrival={a} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 @xl/page:w-auto">
           <ArrivalActions arrival={a} />
           <Link
             to={a.drill_route}
