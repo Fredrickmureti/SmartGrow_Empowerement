@@ -227,7 +227,7 @@ export default function MobilePack() {
     return <MobileWarehouseLayout title="Pack" back="/wm">Task not found.</MobileWarehouseLayout>;
   }
 
-  const done = task.state === "done";
+  const done = task.state === "completed";
   const canComplete = !done && remaining.length === 0 && openCartons.length === 0;
 
   return (

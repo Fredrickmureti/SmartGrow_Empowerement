@@ -74,7 +74,7 @@ export default function MobilePutaway() {
   if (isLoading) return <MobileWarehouseLayout title="Put-away" back="/wm">Loading…</MobileWarehouseLayout>;
   if (!task) return <MobileWarehouseLayout title="Put-away" back="/wm">Task not found.</MobileWarehouseLayout>;
 
-  const done = task.state === "done";
+  const done = task.state === "completed";
   return (
     <MobileWarehouseLayout
       title="Put-away"

@@ -96,7 +96,7 @@ export default function MobilePick() {
   if (isLoading) return <MobileWarehouseLayout title="Pick" back="/wm">Loading…</MobileWarehouseLayout>;
   if (!task) return <MobileWarehouseLayout title="Pick" back="/wm">Task not found.</MobileWarehouseLayout>;
 
-  const done = task.state === "done";
+  const done = task.state === "completed";
   return (
     <MobileWarehouseLayout
       title="Pick"

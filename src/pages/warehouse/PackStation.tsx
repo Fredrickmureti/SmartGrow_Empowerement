@@ -409,7 +409,7 @@ export default function PackStation() {
           const task = (packTasks ?? []).find((t) => t.metadata?.sales_order_id === soId);
           const allPacked = soLines.every((l) => (l.quantity_picked ?? 0) === 0 || l.packed_carton_id);
           const allSealed = soCartons.length > 0 && soCartons.every((c) => c.sealed_at);
-          const canComplete = task && task.state !== "done" && allPacked && allSealed;
+          const canComplete = task && task.state !== "completed" && allPacked && allSealed;
 
           return (
             <Section
@@ -417,7 +417,7 @@ export default function PackStation() {
               title={`Sales order ${soId.slice(0, 8)}`}
               actions={
                 <div className="flex items-center gap-2">
-                  <StatusBadge tone={task?.state === "done" ? "success" : "info"}>
+                  <StatusBadge tone={task?.state === "completed" ? "success" : "info"}>
                     {task?.state ?? "no task"}
                   </StatusBadge>
                   <Button size="sm" variant="outline" onClick={() => openCarton.mutate(soId)} disabled={openCarton.isPending}>
