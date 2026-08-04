@@ -118,12 +118,13 @@ function StageCard({
 
   if (onSelect) {
     return (
-      <button type="button" onClick={() => onSelect(s)} className="text-left">
+      <button type="button" onClick={() => onSelect(s)} className="w-full min-w-0 text-left">
         {body}
       </button>
     );
   }
-  return <Link to={s.drill_route}>{body}</Link>;
+  return <Link to={s.drill_route} className="w-full min-w-0">{body}</Link>;
+
 }
 
 function Cell({
