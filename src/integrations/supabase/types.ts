@@ -67729,6 +67729,7 @@ export type Database = {
           trailer_visit_id: string | null
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
         }
         Insert: {
           appointment_id?: string | null
@@ -67757,6 +67758,7 @@ export type Database = {
           trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id: string
+          wave_id?: string | null
         }
         Update: {
           appointment_id?: string | null
@@ -67785,6 +67787,7 @@ export type Database = {
           trailer_visit_id?: string | null
           updated_at?: string
           warehouse_id?: string
+          wave_id?: string | null
         }
         Relationships: [
           {
@@ -67834,6 +67837,13 @@ export type Database = {
             columns: ["trailer_visit_id"]
             isOneToOne: false
             referencedRelation: "wms_trailer_visits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_loading_manifests_wave_id_fkey"
+            columns: ["wave_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pick_waves"
             referencedColumns: ["id"]
           },
         ]
@@ -68846,57 +68856,143 @@ export type Database = {
       }
       wms_pick_waves: {
         Row: {
+          appointment_id: string | null
           branch_id: string | null
           business_id: string
+          carrier_id: string | null
+          carrier_service_id: string | null
           completed_at: string | null
           created_at: string
           created_by: string | null
+          cutoff_at: string | null
+          dock_id: string | null
+          estimated_cartons: number | null
+          estimated_lines: number | null
+          estimated_pick_minutes: number | null
+          estimated_units: number | null
           id: string
           notes: string | null
           organization_id: string
+          planned_release_at: string | null
+          planned_start_at: string | null
+          priority: number
+          readiness: Json
+          readiness_checked_at: string | null
           released_at: string | null
+          released_by: string | null
           row_version: number
           state: Database["public"]["Enums"]["wms_wave_state"]
           strategy: string
+          strategy_id: string | null
+          suspended_reason: string | null
           updated_at: string
           warehouse_id: string
           wave_number: string
         }
         Insert: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id: string
+          carrier_id?: string | null
+          carrier_service_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          cutoff_at?: string | null
+          dock_id?: string | null
+          estimated_cartons?: number | null
+          estimated_lines?: number | null
+          estimated_pick_minutes?: number | null
+          estimated_units?: number | null
           id?: string
           notes?: string | null
           organization_id: string
+          planned_release_at?: string | null
+          planned_start_at?: string | null
+          priority?: number
+          readiness?: Json
+          readiness_checked_at?: string | null
           released_at?: string | null
+          released_by?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_wave_state"]
           strategy?: string
+          strategy_id?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           warehouse_id: string
           wave_number: string
         }
         Update: {
+          appointment_id?: string | null
           branch_id?: string | null
           business_id?: string
+          carrier_id?: string | null
+          carrier_service_id?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
+          cutoff_at?: string | null
+          dock_id?: string | null
+          estimated_cartons?: number | null
+          estimated_lines?: number | null
+          estimated_pick_minutes?: number | null
+          estimated_units?: number | null
           id?: string
           notes?: string | null
           organization_id?: string
+          planned_release_at?: string | null
+          planned_start_at?: string | null
+          priority?: number
+          readiness?: Json
+          readiness_checked_at?: string | null
           released_at?: string | null
+          released_by?: string | null
           row_version?: number
           state?: Database["public"]["Enums"]["wms_wave_state"]
           strategy?: string
+          strategy_id?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           warehouse_id?: string
           wave_number?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "wms_pick_waves_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "wms_dock_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_waves_carrier_id_fkey"
+            columns: ["carrier_id"]
+            isOneToOne: false
+            referencedRelation: "carriers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_waves_carrier_service_id_fkey"
+            columns: ["carrier_service_id"]
+            isOneToOne: false
+            referencedRelation: "carrier_services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_waves_dock_id_fkey"
+            columns: ["dock_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_docks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_waves_strategy_id_fkey"
+            columns: ["strategy_id"]
+            isOneToOne: false
+            referencedRelation: "wms_wave_strategies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wms_pick_waves_warehouse_id_fkey"
             columns: ["warehouse_id"]
@@ -70964,6 +71060,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
           zone_id: string | null
         }
         Insert: {
@@ -71003,6 +71100,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at?: string
           warehouse_id: string
+          wave_id?: string | null
           zone_id?: string | null
         }
         Update: {
@@ -71042,6 +71140,7 @@ export type Database = {
           task_type?: Database["public"]["Enums"]["wms_task_type"]
           updated_at?: string
           warehouse_id?: string
+          wave_id?: string | null
           zone_id?: string | null
         }
         Relationships: [
@@ -71106,6 +71205,13 @@ export type Database = {
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_tasks_wave_id_fkey"
+            columns: ["wave_id"]
+            isOneToOne: false
+            referencedRelation: "wms_pick_waves"
             referencedColumns: ["id"]
           },
           {
@@ -71384,6 +71490,107 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "wms_wave_policies_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wms_wave_strategies: {
+        Row: {
+          active_from: string | null
+          active_to: string | null
+          auto_plan: boolean
+          auto_release: boolean
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          criteria: Json
+          cutoff_offset_minutes: number | null
+          group_by: string[]
+          id: string
+          is_active: boolean
+          kind: string
+          max_lines_per_wave: number
+          max_orders_per_wave: number
+          max_units_per_wave: number | null
+          minutes_per_line: number
+          minutes_per_unit: number
+          name: string
+          notes: string | null
+          organization_id: string
+          sequence: number
+          task_priority: number
+          units_per_carton: number
+          updated_at: string
+          warehouse_id: string
+          wave_priority: number
+        }
+        Insert: {
+          active_from?: string | null
+          active_to?: string | null
+          auto_plan?: boolean
+          auto_release?: boolean
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          cutoff_offset_minutes?: number | null
+          group_by?: string[]
+          id?: string
+          is_active?: boolean
+          kind?: string
+          max_lines_per_wave?: number
+          max_orders_per_wave?: number
+          max_units_per_wave?: number | null
+          minutes_per_line?: number
+          minutes_per_unit?: number
+          name: string
+          notes?: string | null
+          organization_id: string
+          sequence?: number
+          task_priority?: number
+          units_per_carton?: number
+          updated_at?: string
+          warehouse_id: string
+          wave_priority?: number
+        }
+        Update: {
+          active_from?: string | null
+          active_to?: string | null
+          auto_plan?: boolean
+          auto_release?: boolean
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          cutoff_offset_minutes?: number | null
+          group_by?: string[]
+          id?: string
+          is_active?: boolean
+          kind?: string
+          max_lines_per_wave?: number
+          max_orders_per_wave?: number
+          max_units_per_wave?: number | null
+          minutes_per_line?: number
+          minutes_per_unit?: number
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          sequence?: number
+          task_priority?: number
+          units_per_carton?: number
+          updated_at?: string
+          warehouse_id?: string
+          wave_priority?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_wave_strategies_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
             referencedRelation: "warehouses"
@@ -82263,6 +82470,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
           zone_id: string | null
         }
         SetofOptions: {
@@ -90943,7 +91151,10 @@ export type Database = {
         Args: { _reason: string; _submission_id: string }
         Returns: undefined
       }
-      release_pick_wave: { Args: { p_wave_id: string }; Returns: Json }
+      release_pick_wave: {
+        Args: { p_force?: boolean; p_wave_id: string }
+        Returns: Json
+      }
       release_pos_stock_reservation: {
         Args: { p_product_id?: string; p_register_id: string }
         Returns: undefined
@@ -91299,6 +91510,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
           zone_id: string | null
         }
         SetofOptions: {
@@ -93689,6 +93901,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
           zone_id: string | null
         }
         SetofOptions: {
@@ -94230,6 +94443,7 @@ export type Database = {
         }
         Returns: string
       }
+      wms_evaluate_wave: { Args: { p_wave_id: string }; Returns: Json }
       wms_flag_receiving_variances: {
         Args: { p_session_id: string }
         Returns: Json
@@ -95122,6 +95336,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      wms_plan_waves: {
+        Args: { p_strategy_id?: string; p_warehouse_id: string }
+        Returns: Json
+      }
       wms_post_incentive_inputs: {
         Args: {
           _business_id: string
@@ -95656,6 +95874,7 @@ export type Database = {
           task_type: Database["public"]["Enums"]["wms_task_type"]
           updated_at: string
           warehouse_id: string
+          wave_id: string | null
           zone_id: string | null
         }
         SetofOptions: {
@@ -95675,6 +95894,62 @@ export type Database = {
         }
         Returns: Json
       }
+      wms_wave_board: {
+        Args: { p_include_closed?: boolean; p_warehouse_id: string }
+        Returns: {
+          appointment_id: string
+          carrier_id: string
+          carrier_name: string
+          completed_at: string
+          cutoff_at: string
+          dock_code: string
+          dock_id: string
+          drill_route: string
+          estimated_pick_minutes: number
+          lifecycle_stage: string
+          line_count: number
+          open_exceptions: number
+          order_count: number
+          ordered_units: number
+          pack_progress_pct: number
+          packed_units: number
+          pick_progress_pct: number
+          picked_units: number
+          priority: number
+          readiness: Json
+          readiness_state: string
+          released_at: string
+          risk: string
+          row_version: number
+          state: string
+          strategy: string
+          strategy_name: string
+          tasks_in_progress: number
+          tasks_open: number
+          tasks_total: number
+          wave_id: string
+          wave_number: string
+        }[]
+      }
+      wms_wave_demand: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: {
+          block_reason: string
+          carrier_id: string
+          contact_id: string
+          covered_units: number
+          customer_name: string
+          eligible: boolean
+          expected_date: string
+          open_lines: number
+          open_units: number
+          order_status: string
+          sales_order_id: string
+          so_number: string
+        }[]
+      }
+      wms_wave_health: { Args: { p_warehouse_id: string }; Returns: Json }
+      wms_wave_readiness: { Args: { p_wave_id: string }; Returns: Json }
       wms_zone_load: {
         Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
@@ -96647,11 +96922,16 @@ export type Database = {
         | "yard_move"
       wms_wave_state:
         | "draft"
+        | "planned"
+        | "ready"
         | "released"
         | "picking"
         | "picked"
         | "packing"
+        | "suspended"
         | "packed"
+        | "completed"
+        | "archived"
         | "cancelled"
       work_location_type: "office" | "remote" | "other"
     }
@@ -97821,11 +98101,16 @@ export const Constants = {
       ],
       wms_wave_state: [
         "draft",
+        "planned",
+        "ready",
         "released",
         "picking",
         "picked",
         "packing",
+        "suspended",
         "packed",
+        "completed",
+        "archived",
         "cancelled",
       ],
       work_location_type: ["office", "remote", "other"],

@@ -73,31 +73,104 @@ export function useCreateAndReleaseWave() {
 export function useReleaseWave() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (waveId: string) => {
+    mutationFn: async (input: string | { waveId: string; force?: boolean }) => {
+      const waveId = typeof input === "string" ? input : input.waveId;
+      const force = typeof input === "string" ? false : !!input.force;
       const { data } = await replayGuardedCall<{
         tasks_created?: number;
         short_pick_tasks?: number;
+        replenishment_tasks?: number;
+        readiness?: string;
         noop?: boolean;
-      } | null>("release_pick_wave", { p_wave_id: waveId });
+      } | null>("release_pick_wave", { p_wave_id: waveId, p_force: force });
       return data ?? null;
     },
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
       qc.invalidateQueries({ queryKey: ["wms-draft-waves"] });
       qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-board"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-health"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-demand"] });
       if (res?.noop) {
         toast.info("Wave was already released");
       } else {
         const short = res?.short_pick_tasks ?? 0;
+        const replen = res?.replenishment_tasks ?? 0;
         toast.success(
-          `Released — ${res?.tasks_created ?? 0} pick task(s) generated` +
-            (short > 0 ? `, ${short} short-pick` : ""),
+          `Released — ${res?.tasks_created ?? 0} task(s) generated` +
+            (short > 0 ? `, ${short} short-pick` : "") +
+            (replen > 0 ? `, ${replen} replenishment` : ""),
         );
       }
     },
     onError: (e) => toast.error(normalizeError(e, "Release failed")),
   });
 }
+
+// -------------------------------------------------------------------
+// Wave — plan from strategy, and evaluate readiness
+// -------------------------------------------------------------------
+
+/**
+ * Build planned waves from the warehouse's active wave strategies.
+ *
+ * Planning is a proposal: it groups demand and estimates work, but it
+ * touches neither stock nor tasks. Commitment happens at release.
+ */
+export function usePlanWaves() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { warehouseId: string; strategyId?: string | null }) => {
+      if (!input.warehouseId) throw new Error("Pick a warehouse");
+      const { data, error } = await supabase.rpc("wms_plan_waves" as never, {
+        p_warehouse_id: input.warehouseId,
+        p_strategy_id: input.strategyId ?? null,
+      } as never);
+      if (error) throw error;
+      return data as unknown as { waves_created?: number } | null;
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["wms-wave-board"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-health"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-demand"] });
+      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
+      const n = res?.waves_created ?? 0;
+      if (n === 0) toast.info("No new waves — nothing matched an active strategy");
+      else toast.success(`${n} wave(s) planned`);
+    },
+    onError: (e) => toast.error(normalizeError(e, "Planning failed")),
+  });
+}
+
+/**
+ * Re-run the readiness engine for one wave and persist the verdict.
+ *
+ * The same rule gates release server-side, so what the supervisor sees here
+ * is exactly what the release RPC will enforce.
+ */
+export function useEvaluateWave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (waveId: string) => {
+      const { data, error } = await supabase.rpc("wms_evaluate_wave" as never, {
+        p_wave_id: waveId,
+      } as never);
+      if (error) throw error;
+      return data as unknown as { state?: string } | null;
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["wms-wave-board"] });
+      qc.invalidateQueries({ queryKey: ["wms-wave-health"] });
+      const s = res?.state ?? "unknown";
+      if (s === "ready") toast.success("Wave is ready to release");
+      else if (s === "at_risk") toast.warning("Wave is at risk — see the readiness panel");
+      else toast.error("Wave is blocked — see the readiness panel");
+    },
+    onError: (e) => toast.error(normalizeError(e, "Readiness check failed")),
+  });
+}
+
 
 // -------------------------------------------------------------------
 // Pick — complete task

@@ -18,12 +18,18 @@ import { toast } from "sonner";
 
 export type WaveState =
   | "draft"
+  | "planned"
+  | "ready"
   | "released"
   | "picking"
   | "picked"
   | "packing"
   | "packed"
+  | "suspended"
+  | "completed"
+  | "archived"
   | "cancelled";
+
 
 export type ManifestState =
   | "draft"
