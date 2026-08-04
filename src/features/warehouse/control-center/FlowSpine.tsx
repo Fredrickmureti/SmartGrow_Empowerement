@@ -29,9 +29,10 @@ export function FlowSpine({ stages, activeStage, onSelect }: Props) {
 
   return (
     <div className="pb-1 @4xl/page:overflow-x-auto">
-      <ol className="grid grid-cols-2 gap-2 @xl/page:grid-cols-3 @4xl/page:flex @4xl/page:min-w-max @4xl/page:items-stretch @4xl/page:gap-1">
+      <ol className="grid grid-cols-1 gap-3 @md/page:grid-cols-2 @2xl/page:grid-cols-3 @4xl/page:flex @4xl/page:min-w-max @4xl/page:items-stretch @4xl/page:gap-1">
         {stages.map((s, i) => (
-          <li key={s.stage} className="flex items-stretch gap-1">
+          <li key={s.stage} className="flex min-w-0 items-stretch gap-1">
+
             <StageCard
               stage={s}
               peak={peak}
