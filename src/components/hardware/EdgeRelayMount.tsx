@@ -11,7 +11,6 @@ import { WORKSTATION_LIVENESS_WINDOW_MS } from '@/services/hardware/readiness';
 interface WorkstationRow {
   id: string;
   organization_id: string;
-  branch_id: string | null;
   name: string;
   version: string | null;
   last_seen_at: string | null;
@@ -97,7 +96,7 @@ export function EdgeRelayMount() {
       if (!orgId) return [];
       const { data, error } = await supabase
         .from('workstations')
-        .select('id,organization_id,branch_id,name,version,last_seen_at')
+        .select('id,organization_id,name,version,last_seen_at')
         .eq('organization_id', orgId)
         .order('last_seen_at', { ascending: false, nullsFirst: false })
         .limit(5);
@@ -110,10 +109,10 @@ export function EdgeRelayMount() {
    * Pick the workstation this browser should route through.
    *
    * Previously this took the freshest row org-wide with no liveness window,
-   * so a stale or unrelated workstation could capture routing for everyone.
-   * Now: only workstations that are actually polling (inside
-   * `WORKSTATION_LIVENESS_WINDOW_MS`) are eligible, and a same-branch
-   * workstation always wins over an out-of-branch one.
+   * so a workstation that stopped polling days ago could still capture
+   * routing for everyone and every dispatch would burn its full deadline.
+   * Only workstations actually polling inside
+   * `WORKSTATION_LIVENESS_WINDOW_MS` are eligible; the freshest wins.
    */
   const workstation = useMemo(() => {
     const rows = workstations.data ?? [];
@@ -122,11 +121,8 @@ export function EdgeRelayMount() {
         row.last_seen_at &&
         Date.now() - new Date(row.last_seen_at).getTime() <= WORKSTATION_LIVENESS_WINDOW_MS,
     );
-    if (live.length === 0) return null;
-    return (
-      live.find((row) => branchId && row.branch_id === branchId) ?? live[0]
-    );
-  }, [workstations.data, branchId]);
+    return live[0] ?? null;
+  }, [workstations.data]);
 
   const devices = useQuery({
     queryKey: ['edge-workstation-devices', orgId, workstation?.id ?? null],
