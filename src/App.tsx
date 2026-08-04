@@ -218,6 +218,7 @@ import { VendorPortalLayout } from "@/components/vendor-portal/VendorPortalLayou
 const Apps = lazy(() => import("@/pages/Apps"));
 const AppActivate = lazy(() => import("@/pages/apps/AppActivate"));
 const AppSetup = lazy(() => import("@/pages/apps/AppSetup"));
+const AppSetupIndex = lazy(() => import("@/pages/apps/AppSetupIndex"));
 
 // Create QueryClient outside of the component to prevent recreation on re-renders
 const queryClient = new QueryClient({
@@ -416,6 +417,15 @@ const App = () => (
                               element={
                                 <SubscriptionProtectedRoute>
                                   <PortalUserRoute><LazyRoute module="App Activation"><AppActivate /></LazyRoute></PortalUserRoute>
+                                </SubscriptionProtectedRoute>
+                              }
+                            />
+                            {/* App setup overview — installed apps + status */}
+                            <Route
+                              path="/apps/setup"
+                              element={
+                                <SubscriptionProtectedRoute allowReadOnly>
+                                  <PortalUserRoute><LazyRoute module="App Setup"><AppSetupIndex /></LazyRoute></PortalUserRoute>
                                 </SubscriptionProtectedRoute>
                               }
                             />
