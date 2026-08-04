@@ -95177,6 +95177,10 @@ export type Database = {
         }
         Returns: string
       }
+      wms_reassign_putaway_task: {
+        Args: { p_location_id: string; p_reason?: string; p_task_id: string }
+        Returns: Json
+      }
       wms_reassign_task: {
         Args: {
           p_assignee_user_id: string
@@ -95195,6 +95199,15 @@ export type Database = {
           p_client_scan_id?: string
           p_device_id?: string
           p_rpc: string
+        }
+        Returns: Json
+      }
+      wms_report_putaway_exception: {
+        Args: {
+          p_details?: Json
+          p_kind: Database["public"]["Enums"]["wms_exception_kind"]
+          p_reason: string
+          p_task_id: string
         }
         Returns: Json
       }
@@ -95354,6 +95367,15 @@ export type Database = {
       }
       wms_set_task_priority: {
         Args: { p_priority: number; p_task_id: string }
+        Returns: Json
+      }
+      wms_split_putaway_task: {
+        Args: {
+          p_location_id?: string
+          p_quantity: number
+          p_reason?: string
+          p_task_id: string
+        }
         Returns: Json
       }
       wms_sscc_allocate: {

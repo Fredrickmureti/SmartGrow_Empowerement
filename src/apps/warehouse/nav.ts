@@ -28,6 +28,7 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
         { to: "/warehouse-app/returns", label: "Returns", icon: Undo2 },
 
         { to: "/warehouse-app/putaway", label: "Putaway", icon: Truck },
+        { to: "/warehouse-app/putaway/strategies", label: "Putaway strategies", icon: Gauge },
         { to: "/warehouse-app/waves", label: "Wave planner", icon: Waves },
         { to: "/warehouse-app/replenishment", label: "Replenishment", icon: Repeat },
         { to: "/warehouse-app/counts", label: "Cycle counts", icon: ClipboardCheck },

@@ -33,6 +33,8 @@ import { useWarehouses } from "@/hooks/useWarehouses";
 import { useAuth } from "@/contexts/AuthContext";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { useTaskEngine } from "@/features/warehouse/tasks/useTaskEngine";
+import { PutawayTaskActions } from "@/features/warehouse/putaway/PutawayTaskActions";
+import { PutawaySuggestionChips } from "@/features/warehouse/putaway/PutawaySuggestionChips";
 
 interface PutawayRow {
   id: string;
@@ -152,6 +154,9 @@ export default function PutawayQueue() {
           {t.quantity != null ? <span className="ml-2">· qty {Number(t.quantity).toFixed(2)}</span> : null}
           {t.lot_number ? <span className="ml-2">· lot {t.lot_number}</span> : null}
         </div>
+        {t.state !== "completed" && t.state !== "cancelled" && (
+          <PutawaySuggestionChips taskId={t.id} />
+        )}
         <div className="flex gap-1 justify-end pt-1">
           {t.lpn_id && (
             <Button asChild size="sm" variant="ghost">
@@ -181,6 +186,17 @@ export default function PutawayQueue() {
             <Button size="sm" variant="outline" onClick={() => startAndClaim(t)} disabled={engine.transition.isPending}>
               <Play className="h-3.5 w-3.5 mr-1" /> Start
             </Button>
+          )}
+          {t.state !== "completed" && t.state !== "cancelled" && (
+            <PutawayTaskActions
+              compact
+              task={{
+                id: t.id,
+                warehouse_id: t.warehouse_id,
+                quantity: t.quantity,
+                destination_location_id: t.destination_location_id,
+              }}
+            />
           )}
           {(t.state === "claimed" || t.state === "in_progress" || t.state === "pending") && t.destination_location_id && (
             <Button size="sm" onClick={() => complete.mutate(t.id)}>
