@@ -45,3 +45,36 @@ _Status snapshot after Wave 13 (Employees app streamlining)._
   invite, manager, transfer, compensation, termination, bulk-assign) are
   workflow/confirm utilities operating on ≤6 fields or on collections —
   they are outside the record-form ban.
+
+## Navigation IA (Wave 14 — ADR 0101)
+
+The Employees workspace now renders **one** sidebar for its entire route
+space. Contracts, Lifecycle, Recruitment, HR Reports and Document
+compliance no longer replace `EMPLOYEES_NAV`; they expand inside it as
+collapsible children, so the sidebar and the breadcrumb finally agree.
+
+```text
+Employees (EMPLOYEES_APP / EMPLOYEES_NAV)
+  Organization
+    Overview · Directory · Departments · Job positions · Work locations · Org chart
+  People operations
+    Contracts & letters   -> /hr/contracts/*         (CONTRACTS_NAV children)
+    Lifecycle events      -> /hr/lifecycle/*         (LIFECYCLE_NAV children)
+    Recruitment & offers  -> /hr/recruitment
+  Insights
+    HR reports            -> /hr/reports/*           (HR_REPORTS_NAV children)
+  Compliance
+    Document compliance   -> /hr/document-compliance/* (was a nav orphan)
+  Setup
+    Configuration         -> /hr/configuration/*
+```
+
+Rules now enforced by `src/test/architecture/nav-app-coherence.test.ts`:
+
+- one `AppDefinition` is paired with exactly one `WorkspaceNav`;
+- every `EMPLOYEES_APP` route subtree is reachable from `EMPLOYEES_NAV`;
+- the retired `ORG_NAV` stays deleted.
+
+Genuine app boundaries (Payroll, Time Off, Attendance, Talent, Timesheets)
+keep their own navs — that switch is a real app switch and is made explicit
+by the app rail.
