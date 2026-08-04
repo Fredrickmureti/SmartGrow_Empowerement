@@ -34,6 +34,14 @@ interface Props {
   disabled?: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
   /**
+   * Put-away deviation: the operator is allowed to store the goods in a
+   * different valid position than the suggested one. The scan still has to
+   * resolve to a real position; it is reported through `onResolvedLocation`
+   * and flagged via `onDeviationChange` so the caller can demand a reason.
+   */
+  allowDeviation?: boolean;
+  onDeviationChange?: (deviated: boolean) => void;
+  /**
    * Emits the resolved position (or null when the scan fails). Surfaces with
    * no pre-assigned bin — a cycle count, say — use this instead of the
    * expected-id compare.
@@ -49,6 +57,8 @@ export function BinScanField({
   warehouseId,
   disabled,
   onConfirmedChange,
+  allowDeviation,
+  onDeviationChange,
   onResolvedLocation,
 }: Props) {
   const [value, setValue] = useState("");
@@ -74,14 +84,27 @@ export function BinScanField({
         setMessage(result.message ?? "That label is not a known position.");
         feedback.error();
         onConfirmedChange(false);
+        onDeviationChange?.(false);
         onResolvedLocation?.(null);
         return;
       }
       if (expectedLocationId && result.location.location_id !== expectedLocationId) {
+        if (allowDeviation) {
+          setState("confirmed");
+          setMessage(
+            `${result.location.code} confirmed — differs from ${expectedCode ?? "the suggested bin"}. A reason is required.`,
+          );
+          feedback.success();
+          onConfirmedChange(true);
+          onDeviationChange?.(true);
+          onResolvedLocation?.(result.location);
+          return;
+        }
         setState("mismatch");
         setMessage(`Wrong position — this job needs ${expectedCode ?? "the assigned bin"}.`);
         feedback.error();
         onConfirmedChange(false);
+        onDeviationChange?.(false);
         onResolvedLocation?.(null);
         return;
       }
@@ -89,9 +112,19 @@ export function BinScanField({
       setMessage(`${result.location.code} confirmed`);
       feedback.success();
       onConfirmedChange(true);
+      onDeviationChange?.(false);
       onResolvedLocation?.(result.location);
     },
-    [resolve, expectedLocationId, expectedCode, feedback, onConfirmedChange, onResolvedLocation],
+    [
+      resolve,
+      expectedLocationId,
+      expectedCode,
+      feedback,
+      allowDeviation,
+      onConfirmedChange,
+      onDeviationChange,
+      onResolvedLocation,
+    ],
   );
 
   useWmsScanIntent({
