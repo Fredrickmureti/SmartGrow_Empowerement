@@ -203,33 +203,35 @@ describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
     }
   });
 
-  it("dashboard queries use realtime-invalidated key prefixes (no polling)", () => {
-    const ALLOWED_PREFIXES = [
-      "wms_tasks",
-      "wms_exceptions",
-      "wms-pick-waves",
-      "wms-pack-cartons",
-      "wms-loading-manifests",
-      "wms-receiving-sessions",
-      "wms-dock-appointments",
-    ];
+  // The tower pages no longer fetch: each composes its feature barrel, where
+  // business scoping and realtime-invalidated query keys live. Assert that
+  // boundary instead of re-asserting the query shape in page code.
+  it("dashboards fetch through their feature module, never inline", () => {
     for (const f of DASHBOARDS) {
       const src = readFileSync(f, "utf8");
       expect(src, `${f} must not poll`).not.toMatch(/refetchInterval/);
-      const keys = [...src.matchAll(/queryKey:\s*\[\s*"([a-z_0-9-]+)"/g)].map((m) => m[1]);
-      expect(keys.length, `${f} has no queries`).toBeGreaterThan(0);
-      for (const k of keys) {
-        expect(ALLOWED_PREFIXES, `${f} uses un-invalidated key prefix "${k}"`).toContain(k);
-      }
+      expect(src, `${f} must not query Supabase directly`).not.toMatch(
+        /from\(\s*["'][a-z_]+["']\s*\)/,
+      );
+      expect(src, `${f} must compose a warehouse feature module`).toMatch(
+        /@\/features\/warehouse\/(inbound-tower|outbound-tower|control-center)/,
+      );
     }
   });
 
-  it("dashboards are business-scoped", () => {
-    for (const f of DASHBOARDS) {
-      const src = readFileSync(f, "utf8");
-      expect(src, `${f} must filter by business_id`).toMatch(/eq\("business_id"/);
+  it("tower feature modules are business-scoped and realtime-invalidated", () => {
+    const sync = readFileSync("src/features/warehouse/realtime/useWmsRealtimeSync.ts", "utf8");
+    for (const [hook, prefixes] of [
+      ["src/features/warehouse/inbound-tower/useInboundTower.ts", "INBOUND_QUERY_PREFIXES"],
+      ["src/features/warehouse/outbound-tower/useOutboundTower.ts", "OUTBOUND_QUERY_PREFIXES"],
+    ] as const) {
+      const src = readFileSync(hook, "utf8");
+      expect(src, `${hook} must scope by business`).toMatch(/p_business_id|eq\("business_id"/);
+      expect(src, `${hook} must not poll`).not.toMatch(/refetchInterval/);
+      expect(sync, `${prefixes} must be invalidated by realtime`).toContain(prefixes);
     }
   });
+
 
   it("ADR 0102 · there is exactly one warehouse command centre", () => {
     expect(existsSync("src/pages/warehouse/SupervisorDashboard.tsx"), "supervisor tower must be removed").toBe(false);
