@@ -8,6 +8,7 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/design-system";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { humanise } from "@/features/warehouse/control-center/contract";
 import type { ActivityEvent } from "./contract";
 
