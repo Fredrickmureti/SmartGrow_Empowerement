@@ -119,7 +119,7 @@ export async function fetchContractLetter(supabase: SB, id: string): Promise<HrL
         first_name, last_name, employee_number, email, work_email,
         address_line1, city, state, postal_code, country,
         job_position:job_positions(title),
-        department:departments(name)
+        department:departments!employees_department_id_fkey(name)
       )
     `)
     .eq("id", id)
@@ -185,7 +185,7 @@ async function fetchLifecycleEvent(supabase: SB, id: string) {
         first_name, last_name, employee_number, email, work_email,
         address_line1, city, state, postal_code, country,
         job_position:job_positions(title),
-        department:departments(name)
+        department:departments!employees_department_id_fkey(name)
       )
     `)
     .eq("id", id)
