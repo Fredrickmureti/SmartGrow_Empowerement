@@ -70446,6 +70446,120 @@ export type Database = {
           },
         ]
       }
+      wms_task_events: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          branch_id: string | null
+          business_id: string | null
+          client_scan_id: string | null
+          correlation_id: string | null
+          created_at: string
+          destination_location_id: string | null
+          device_id: string | null
+          event_type: string
+          from_state: Database["public"]["Enums"]["wms_task_state"] | null
+          id: string
+          lot_number: string | null
+          lpn_id: string | null
+          occurred_at: string
+          organization_id: string | null
+          payload: Json
+          product_id: string | null
+          quantity: number | null
+          quantity_delta: number | null
+          reason: string | null
+          scanned_barcode: string | null
+          serial_number: string | null
+          source_doc_id: string | null
+          source_doc_type: string | null
+          source_location_id: string | null
+          task_id: string
+          task_type: Database["public"]["Enums"]["wms_task_type"] | null
+          to_state: Database["public"]["Enums"]["wms_task_state"] | null
+          warehouse_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          client_scan_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          destination_location_id?: string | null
+          device_id?: string | null
+          event_type: string
+          from_state?: Database["public"]["Enums"]["wms_task_state"] | null
+          id?: string
+          lot_number?: string | null
+          lpn_id?: string | null
+          occurred_at?: string
+          organization_id?: string | null
+          payload?: Json
+          product_id?: string | null
+          quantity?: number | null
+          quantity_delta?: number | null
+          reason?: string | null
+          scanned_barcode?: string | null
+          serial_number?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_location_id?: string | null
+          task_id: string
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          to_state?: Database["public"]["Enums"]["wms_task_state"] | null
+          warehouse_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          branch_id?: string | null
+          business_id?: string | null
+          client_scan_id?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          destination_location_id?: string | null
+          device_id?: string | null
+          event_type?: string
+          from_state?: Database["public"]["Enums"]["wms_task_state"] | null
+          id?: string
+          lot_number?: string | null
+          lpn_id?: string | null
+          occurred_at?: string
+          organization_id?: string | null
+          payload?: Json
+          product_id?: string | null
+          quantity?: number | null
+          quantity_delta?: number | null
+          reason?: string | null
+          scanned_barcode?: string | null
+          serial_number?: string | null
+          source_doc_id?: string | null
+          source_doc_type?: string | null
+          source_location_id?: string | null
+          task_id?: string
+          task_type?: Database["public"]["Enums"]["wms_task_type"] | null
+          to_state?: Database["public"]["Enums"]["wms_task_state"] | null
+          warehouse_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wms_task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_labour_queue_view"
+            referencedColumns: ["task_id"]
+          },
+          {
+            foreignKeyName: "wms_task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "wms_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_task_requirements: {
         Row: {
           business_id: string
