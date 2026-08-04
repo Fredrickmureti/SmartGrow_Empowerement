@@ -22,9 +22,12 @@ import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { PageHeader, PageBody, Section, LoadingState, ErrorState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { HealthBanner, FlowSpine } from "@/features/warehouse/control-center";
 import {
-  DepartureTimeline, DockYardStrip, OutboundBottleneckRail, ShipmentLifecycleBoard,
+  HealthBanner, FlowSpine, LabourPanel, LiveWorkPanel,
+} from "@/features/warehouse/control-center";
+import {
+  DepartureTimeline, DockYardStrip, ExceptionRail, LoadingLane,
+  OutboundBottleneckRail, ShipmentLifecycleBoard,
   useOutboundBottlenecks, useOutboundDockBoard, useOutboundHealth, useOutboundShipments,
 } from "@/features/warehouse/outbound-tower";
 
@@ -37,6 +40,12 @@ const STAGE_TO_LIFECYCLE: Record<string, string> = {
   load: "loading",
   dispatch: "sealed",
 };
+
+/** The task types the shipping supervisor owns on the live work list. */
+const OUTBOUND_TASK_TYPES = [
+  "replenish", "pick", "pack", "stage", "load", "dispatch",
+] as const;
+
 
 export default function OutboundDashboard() {
   const health = useOutboundHealth();
