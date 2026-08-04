@@ -94599,6 +94599,26 @@ export type Database = {
           warehouse_id: string
         }[]
       }
+      wms_outbound_bottlenecks: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_outbound_dock_board: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_outbound_health: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_outbound_shipments: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
       wms_packaging_archive: {
         Args: { p_id: string; p_reason?: string }
         Returns: Json
