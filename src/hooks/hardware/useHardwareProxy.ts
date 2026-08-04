@@ -23,7 +23,6 @@
  */
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import type { DeviceAssignment } from '@/services/hardware';
 import { hardwareClient, type DeviceStatusDetail } from '@/services/hardware/HardwareClient';
 import {
   useDeviceAssignments,
