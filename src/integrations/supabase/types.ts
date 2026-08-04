@@ -79647,6 +79647,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _wms_consume_order_reservation: {
+        Args: { p_product_id: string; p_qty: number; p_sales_order_id: string }
+        Returns: number
+      }
       _wms_crossdock_auto_break: {
         Args: {
           p_opportunity_id: string

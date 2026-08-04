@@ -62,6 +62,43 @@ export function useCreateAndReleaseWave() {
   });
 }
 
+/**
+ * Release an existing draft wave (Phase 5 — supervisor release console).
+ *
+ * Auto-waving (`wms_enqueue_order_for_wave`) builds draft waves from
+ * sales-order allocations; nothing becomes operator work until a
+ * supervisor releases it here. Release is reservation-consistent and
+ * idempotent server-side.
+ */
+export function useReleaseWave() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (waveId: string) => {
+      const { data } = await replayGuardedCall<{
+        tasks_created?: number;
+        short_pick_tasks?: number;
+        noop?: boolean;
+      } | null>("release_pick_wave", { p_wave_id: waveId });
+      return data ?? null;
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["wms-pick-waves"] });
+      qc.invalidateQueries({ queryKey: ["wms-draft-waves"] });
+      qc.invalidateQueries({ queryKey: ["wms-tasks"] });
+      if (res?.noop) {
+        toast.info("Wave was already released");
+      } else {
+        const short = res?.short_pick_tasks ?? 0;
+        toast.success(
+          `Released — ${res?.tasks_created ?? 0} pick task(s) generated` +
+            (short > 0 ? `, ${short} short-pick` : ""),
+        );
+      }
+    },
+    onError: (e) => toast.error(normalizeError(e, "Release failed")),
+  });
+}
+
 // -------------------------------------------------------------------
 // Pick — complete task
 // -------------------------------------------------------------------
