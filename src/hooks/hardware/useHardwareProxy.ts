@@ -12,15 +12,13 @@
  * guard test enforces that boundary repo-wide.
  *
  * Responsibilities:
- *   1. Load device configs from the canonical `device_assignments` table
- *      and hand them to `hardwareClient.devices.loadAssignments(...)` so the
- *      browser-mode runtime knows what's wired (no-op in Electron — the main
- *      process owns its own registry).
- *   2. Auto-connect on session start (browser only — DeviceManager does this
- *      automatically in Electron).
- *   3. Expose abstract action methods (printReceipt, openDrawer, etc.) that
+ *   1. Read device configs from the canonical `device_assignments` table
+ *      for status projection. It does NOT write the renderer adapter
+ *      registry and does NOT connect devices — `EdgeRelayMount` is the
+ *      single connection owner (see `services/hardware/readiness.ts`).
+ *   2. Expose abstract action methods (printReceipt, openDrawer, etc.) that
  *      forward to `hardwareClient.*` so callers stay platform-blind.
- *   4. Surface honest per-role status from `hardwareClient.devices.getStatuses()`
+ *   3. Surface honest per-role status from `hardwareClient.devices.getStatuses()`
  *      and refresh on push events from the hardware event bus.
  */
 
@@ -85,30 +83,6 @@ function toCompatRow(r: CanonicalAssignment): CompatDeviceRow {
     connection_params: r.config ?? {},
     display_name: r.display_name,
     is_active: r.enabled,
-  };
-}
-
-/**
- * Convert a compat device row into the runtime DeviceAssignment shape the
- * browser-mode hardware adapter expects.
- *
- * CRITICAL: drivers read `connection_type` from `params.connection_type`
- * inside `connect()`. We inject the column value into the connectionParams
- * blob so drivers always have it.
- */
-function toDeviceAssignment(config: CompatDeviceRow): DeviceAssignment {
-  const connectionParams: Record<string, unknown> = {
-    ...(config.connection_params ?? {}),
-    connection_type: config.connection_type,
-    id: config.id,
-  };
-  return {
-    id: config.id,
-    deviceRole: (config.device_role || config.hardware_type) as DeviceRole,
-    driverType: (config.driver_type || 'browser_print') as DeviceAssignment['driverType'],
-    connectionParams,
-    displayName: config.display_name,
-    isActive: config.is_active,
   };
 }
 
