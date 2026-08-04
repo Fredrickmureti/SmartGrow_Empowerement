@@ -13,6 +13,7 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { StatementPreview } from "@/components/sales/StatementPreview";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { Button } from "@/components/ui/button";
+import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
