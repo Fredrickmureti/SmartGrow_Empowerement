@@ -15,3 +15,4 @@ export { InboundBottleneckRail } from "./InboundBottleneckRail";
 export { InboundDockStrip } from "./InboundDockStrip";
 export { ArrivalWindowTimeline } from "./ArrivalWindowTimeline";
 export { InboundExceptionRail } from "./InboundExceptionRail";
+export { InboundReadinessPanel } from "./InboundReadinessPanel";
