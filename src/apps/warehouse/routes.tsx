@@ -10,10 +10,9 @@ import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { WarehouseLayout } from "./WarehouseLayout";
 
-const WarehouseDashboard = lazy(() => import("@/pages/warehouse/WarehouseDashboard"));
+const WarehouseOverview = lazy(() => import("@/pages/warehouse/WarehouseOverview"));
 const InboundDashboard = lazy(() => import("@/pages/warehouse/InboundDashboard"));
 const OutboundDashboard = lazy(() => import("@/pages/warehouse/OutboundDashboard"));
-const SupervisorDashboard = lazy(() => import("@/pages/warehouse/SupervisorDashboard"));
 const WarehouseLayoutWorkspace = lazy(() => import("@/pages/warehouse/WarehouseLayoutWorkspace"));
 const LayoutDesigner = lazy(() => import("@/pages/warehouse/LayoutDesigner"));
 
@@ -73,8 +72,8 @@ export function WarehouseApp() {
           path="dashboard"
           element={
             <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Warehouse Dashboard">
-                <WarehouseDashboard />
+              <LazyRoute module="Warehouse Overview">
+                <WarehouseOverview />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
@@ -96,14 +95,10 @@ export function WarehouseApp() {
             </SubscriptionProtectedRoute>
           }
         />
-        <Route
-          path="dashboard/supervisor"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Supervisor Control Tower"><SupervisorDashboard /></LazyRoute>
-            </SubscriptionProtectedRoute>
-          }
-        />
+        {/* ADR 0102 — the supervisor tower merged into the Overview. Deep
+            links preserved; there is exactly one command centre. */}
+        <Route path="dashboard/supervisor" element={<Navigate to="/warehouse-app/dashboard" replace />} />
+
 
         <Route
           path="warehouses"

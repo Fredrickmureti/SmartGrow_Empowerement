@@ -15,7 +15,7 @@
  *    states without one; the guard keeps the client honest.
  */
 import { describe, it, expect } from "vitest";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const FEEDBACK_HOOK = "src/features/warehouse/scanning/useScanFeedback.tsx";
@@ -183,10 +183,12 @@ describe("Phase 4 §1 · every WMS aggregate exposes its event trail", () => {
 });
 
 describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
+  // ADR 0102 — the supervisor tower merged into the Warehouse Overview.
+  // The Overview composes feature hooks rather than querying directly, so it
+  // is asserted separately below.
   const DASHBOARDS = [
     "src/pages/warehouse/InboundDashboard.tsx",
     "src/pages/warehouse/OutboundDashboard.tsx",
-    "src/pages/warehouse/SupervisorDashboard.tsx",
   ];
   const routes = readFileSync("src/apps/warehouse/routes.tsx", "utf8");
   const nav = readFileSync("src/apps/warehouse/nav.ts", "utf8");
@@ -195,37 +197,62 @@ describe("Phase 4 §6 · role dashboards are wired and event-driven", () => {
     for (const f of DASHBOARDS) {
       expect(readFileSync(f, "utf8").length, `${f} missing`).toBeGreaterThan(0);
     }
-    for (const path of ["dashboard/inbound", "dashboard/outbound", "dashboard/supervisor"]) {
+    for (const path of ["dashboard/inbound", "dashboard/outbound"]) {
       expect(routes, `route ${path} not wired`).toContain(`path="${path}"`);
       expect(nav, `nav entry for ${path} missing`).toContain(`/warehouse-app/${path}`);
     }
   });
 
-  it("dashboard queries use realtime-invalidated key prefixes (no polling)", () => {
-    const ALLOWED_PREFIXES = [
-      "wms_tasks",
-      "wms_exceptions",
-      "wms-pick-waves",
-      "wms-pack-cartons",
-      "wms-loading-manifests",
-      "wms-receiving-sessions",
-      "wms-dock-appointments",
-    ];
+  // The tower pages no longer fetch: each composes its feature barrel, where
+  // business scoping and realtime-invalidated query keys live. Assert that
+  // boundary instead of re-asserting the query shape in page code.
+  it("dashboards fetch through their feature module, never inline", () => {
     for (const f of DASHBOARDS) {
       const src = readFileSync(f, "utf8");
       expect(src, `${f} must not poll`).not.toMatch(/refetchInterval/);
-      const keys = [...src.matchAll(/queryKey:\s*\[\s*"([a-z_0-9-]+)"/g)].map((m) => m[1]);
-      expect(keys.length, `${f} has no queries`).toBeGreaterThan(0);
-      for (const k of keys) {
-        expect(ALLOWED_PREFIXES, `${f} uses un-invalidated key prefix "${k}"`).toContain(k);
-      }
+      expect(src, `${f} must not query Supabase directly`).not.toMatch(
+        /from\(\s*["'][a-z_]+["']\s*\)/,
+      );
+      expect(src, `${f} must compose a warehouse feature module`).toMatch(
+        /@\/features\/warehouse\/(inbound-tower|outbound-tower|control-center)/,
+      );
     }
   });
 
-  it("dashboards are business-scoped", () => {
-    for (const f of DASHBOARDS) {
-      const src = readFileSync(f, "utf8");
-      expect(src, `${f} must filter by business_id`).toMatch(/eq\("business_id"/);
+  it("tower feature modules are business-scoped and realtime-invalidated", () => {
+    const sync = readFileSync("src/features/warehouse/realtime/useWmsRealtimeSync.ts", "utf8");
+    for (const [hook, prefixes] of [
+      ["src/features/warehouse/inbound-tower/useInboundTower.ts", "INBOUND_QUERY_PREFIXES"],
+      ["src/features/warehouse/outbound-tower/useOutboundTower.ts", "OUTBOUND_QUERY_PREFIXES"],
+    ] as const) {
+      const src = readFileSync(hook, "utf8");
+      expect(src, `${hook} must scope by business`).toMatch(/p_business_id|eq\("business_id"/);
+      expect(src, `${hook} must not poll`).not.toMatch(/refetchInterval/);
+      expect(sync, `${prefixes} must be invalidated by realtime`).toContain(prefixes);
     }
   });
+
+
+  it("ADR 0102 · there is exactly one warehouse command centre", () => {
+    expect(existsSync("src/pages/warehouse/SupervisorDashboard.tsx"), "supervisor tower must be removed").toBe(false);
+    expect(existsSync("src/pages/warehouse/WarehouseDashboard.tsx"), "legacy setup dashboard must be removed").toBe(false);
+
+    const overview = readFileSync("src/pages/warehouse/WarehouseOverview.tsx", "utf8");
+    expect(routes).toContain("<WarehouseOverview />");
+    expect(nav, "overview must be the nav home").toContain('/warehouse-app/dashboard", label: "Overview"');
+    expect(nav, "supervisor tower nav entry must be gone").not.toContain("dashboard/supervisor");
+    expect(routes, "supervisor deep link must redirect").toContain(
+      'path="dashboard/supervisor" element={<Navigate to="/warehouse-app/dashboard" replace />}',
+    );
+
+    // The Overview aggregates owning modules; it must not fetch or poll itself.
+    expect(overview, "overview must not query Supabase directly").not.toMatch(/supabase\s*\n?\s*\./);
+    expect(overview, "overview must not poll").not.toMatch(/refetchInterval/);
+  });
+
+  it("ADR 0102 · overview lenses are realtime-invalidated", () => {
+    const sync = readFileSync("src/features/warehouse/realtime/useWmsRealtimeSync.ts", "utf8");
+    expect(sync).toContain("OVERVIEW_QUERY_PREFIXES");
+  });
 });
+

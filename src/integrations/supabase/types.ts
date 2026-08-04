@@ -93303,6 +93303,23 @@ export type Database = {
         Args: { p_exception_id: string; p_note?: string; p_row_version: number }
         Returns: Json
       }
+      wms_activity_feed: {
+        Args: {
+          p_business_id: string
+          p_limit?: number
+          p_warehouse_id?: string
+        }
+        Returns: {
+          actor_user_id: string
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json
+          source_doc_id: string
+          source_doc_type: string
+          warehouse_id: string
+        }[]
+      }
       wms_allocate_tracking_number: {
         Args: { p_manifest_id: string; p_service_id?: string }
         Returns: Json
@@ -93944,6 +93961,10 @@ export type Database = {
       }
       wms_enqueue_order_for_wave: {
         Args: { p_sales_order_id: string; p_warehouse_id?: string }
+        Returns: Json
+      }
+      wms_equipment_health: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
       }
       wms_escalate_overdue_exceptions: {
@@ -94637,6 +94658,10 @@ export type Database = {
           p_limit?: number
           p_warehouse_id?: string
         }
+        Returns: Json
+      }
+      wms_overview_capacity: {
+        Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
       }
       wms_packaging_archive: {

@@ -30,6 +30,9 @@ import { toast } from "@/hooks/use-toast";
 import { OUTBOUND_QUERY_PREFIXES } from "@/features/warehouse/outbound-tower/useOutboundTower";
 // Inbound Control Tower query prefixes are owned by the tower module too.
 import { INBOUND_QUERY_PREFIXES } from "@/features/warehouse/inbound-tower/useInboundTower";
+// ADR 0102 — the Overview is the operational home page; its own lenses
+// (capacity, equipment, activity, exceptions) follow the floor live.
+import { OVERVIEW_QUERY_PREFIXES } from "@/features/warehouse/overview/useWarehouseOverview";
 
 type PostgresPayload = {
   new: Record<string, unknown> | null;
@@ -69,6 +72,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ...OUTBOUND_QUERY_PREFIXES,
     // Inbound Control Tower — put-away work moves the tower.
     ...INBOUND_QUERY_PREFIXES,
+    ...OVERVIEW_QUERY_PREFIXES,
   ],
 
   wms_license_plates: [
@@ -87,6 +91,7 @@ const TABLE_INVALIDATIONS: Record<string, ReadonlyArray<readonly unknown[]>> = {
     ["wms_exceptions"],
     ...OUTBOUND_QUERY_PREFIXES,
     ...INBOUND_QUERY_PREFIXES,
+    ...OVERVIEW_QUERY_PREFIXES,
   ],
   wms_receiving_sessions: [
     ["wms-receiving-sessions"],
