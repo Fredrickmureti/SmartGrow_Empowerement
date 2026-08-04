@@ -176,7 +176,7 @@ export default function YardControlTower() {
           <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              className="h-9 pl-7 w-[260px]"
+              className="h-9 pl-7 w-full @xl/page:w-[260px]"
               placeholder="Trailer, driver, carrier, appointment"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -289,7 +289,7 @@ export default function YardControlTower() {
                         {liveVisits
                           .filter((v) => v.status === "arrived" && !v.yard_slot_id)
                           .map((v) => (
-                            <div key={v.id} className="w-[200px]">
+                            <div key={v.id} className=" w-full @xl/page:w-[200px]">
                               <TrailerChip visit={v} onOpen={setSelected} compact />
                             </div>
                           ))}
@@ -350,7 +350,7 @@ export default function YardControlTower() {
 
             <DragOverlay>
               {dragging ? (
-                <div className="w-[200px]">
+                <div className=" w-full @xl/page:w-[200px]">
                   <TrailerChip visit={dragging} onOpen={() => {}} compact draggable={false} />
                 </div>
               ) : null}
