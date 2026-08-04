@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DevlabRouteImport } from './routes/devlab'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ScanTokenRouteImport } from './routes/scan.$token'
@@ -16,6 +17,11 @@ import { Route as PosScanTokenRouteImport } from './routes/pos.scan.$token'
 import { Route as LocalizationPreviewKindTemplateCodeRouteImport } from './routes/localization.preview.$kind.$templateCode'
 import { Route as ApiPublicAttendanceIngestRouteImport } from './routes/api/public/attendance.ingest'
 
+const DevlabRoute = DevlabRouteImport.update({
+  id: '/devlab',
+  path: '/devlab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -52,6 +58,7 @@ const ApiPublicAttendanceIngestRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/devlab': typeof DevlabRoute
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
@@ -60,6 +67,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/devlab': typeof DevlabRoute
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/devlab': typeof DevlabRoute
   '/scan/$token': typeof ScanTokenRoute
   '/pos/scan/$token': typeof PosScanTokenRoute
   '/api/public/attendance/ingest': typeof ApiPublicAttendanceIngestRoute
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/devlab'
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/devlab'
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$'
+    | '/devlab'
     | '/scan/$token'
     | '/pos/scan/$token'
     | '/api/public/attendance/ingest'
@@ -104,6 +116,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  DevlabRoute: typeof DevlabRoute
   ScanTokenRoute: typeof ScanTokenRoute
   PosScanTokenRoute: typeof PosScanTokenRoute
   ApiPublicAttendanceIngestRoute: typeof ApiPublicAttendanceIngestRoute
@@ -112,6 +125,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/devlab': {
+      id: '/devlab'
+      path: '/devlab'
+      fullPath: '/devlab'
+      preLoaderRoute: typeof DevlabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$': {
       id: '/$'
       path: '/$'
@@ -160,6 +180,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  DevlabRoute: DevlabRoute,
   ScanTokenRoute: ScanTokenRoute,
   PosScanTokenRoute: PosScanTokenRoute,
   ApiPublicAttendanceIngestRoute: ApiPublicAttendanceIngestRoute,
