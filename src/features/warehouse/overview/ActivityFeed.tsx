@@ -8,6 +8,7 @@
 import { formatDistanceToNowStrict } from "date-fns";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/design-system";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { humanise } from "@/features/warehouse/control-center/contract";
 import type { ActivityEvent } from "./contract";
 
@@ -37,29 +38,32 @@ export function ActivityFeed({ events }: { events: ActivityEvent[] }) {
   }
 
   return (
-    <ol className="relative space-y-3 pl-4">
-      <span className="absolute left-[3px] top-1 h-[calc(100%-0.5rem)] w-px bg-border" />
-      {events.map((event) => (
-        <li key={event.id} className="relative">
-          <span
-            className={cn(
-              "absolute -left-4 top-1.5 h-[7px] w-[7px] rounded-full",
-              topicTone(event.event_type),
-            )}
-          />
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-sm font-medium">{label(event)}</span>
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-              {formatDistanceToNowStrict(new Date(event.created_at), { addSuffix: true })}
-            </span>
-          </div>
-          <div className="truncate text-xs text-muted-foreground">
-            {event.source_doc_type ? humanise(event.source_doc_type) : event.event_type}
-          </div>
-        </li>
-      ))}
-    </ol>
+    <ScrollArea className="h-[22rem] pr-3">
+      <ol className="relative space-y-3 pl-4">
+        <span className="absolute left-[3px] top-1 h-[calc(100%-0.5rem)] w-px bg-border" />
+        {events.map((event) => (
+          <li key={event.id} className="relative min-w-0">
+            <span
+              className={cn(
+                "absolute -left-4 top-1.5 h-[7px] w-[7px] rounded-full",
+                topicTone(event.event_type),
+              )}
+            />
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="truncate text-sm font-medium">{label(event)}</span>
+              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                {formatDistanceToNowStrict(new Date(event.created_at), { addSuffix: true })}
+              </span>
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {event.source_doc_type ? humanise(event.source_doc_type) : event.event_type}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </ScrollArea>
   );
 }
+
 
 export default ActivityFeed;
