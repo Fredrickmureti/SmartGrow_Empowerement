@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, relative } from "node:path";
+import { EMPLOYEES_NAV } from "@/apps/hr/shared/navs";
 
 const ROOT = resolve(__dirname, "../../..");
 const APPS_ROOT = join(ROOT, "src/apps");
@@ -113,6 +114,18 @@ describe("ADR 0101 — nav/app coherence", () => {
       .map(([prefix]) => prefix);
 
     expect(orphans, `Unreachable Employees surfaces: ${orphans.join(", ")}`).toEqual([]);
+  });
+
+  it("EMPLOYEES_NAV folds the surfaces in as children at runtime", () => {
+    const flat = EMPLOYEES_NAV.groups.flatMap((g) => g.items);
+    const parents = ["Contracts & letters", "Lifecycle events", "HR reports", "Document compliance"];
+    for (const label of parents) {
+      const item = flat.find((i) => i.label === label);
+      expect(item, label).toBeDefined();
+      expect(item!.children?.length ?? 0, label).toBeGreaterThan(0);
+    }
+    expect(flat.map((i) => i.label)).toContain("Directory");
+    expect(flat.map((i) => i.label)).toContain("Recruitment & offers");
   });
 
   it("the retired ORG_NAV is gone", () => {
