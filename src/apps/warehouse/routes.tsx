@@ -284,6 +284,8 @@ export function WarehouseApp() {
         <Route path="yard/marshal" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard Marshal"><YardMarshal /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/trailers" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer Register"><TrailerRegister /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="labour" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Labour"><LabourBoard /></LazyRoute></SubscriptionProtectedRoute>} />
+        <Route path="telemetry" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Execution Telemetry"><ExecutionTelemetry /></LazyRoute></SubscriptionProtectedRoute>} />
+
         <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="crossdock" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Cross-dock"><CrossdockBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="packaging" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging catalogue"><PackagingCatalogue /></LazyRoute></SubscriptionProtectedRoute>} />
