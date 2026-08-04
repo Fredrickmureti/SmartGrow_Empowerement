@@ -54,7 +54,11 @@ export function useInventoryLabelPrinter(): InventoryLabelPrinterApi {
         .eq('role', 'label_printer')
         .eq('enabled', true)
         .not('workstation_id', 'is', null)
-        .in('status', ['ok', 'unknown'])
+        // Status vocabulary is `online | offline | error | unknown`. The old
+        // filter looked for `ok`, which nothing ever writes, so every
+        // relay-attached label printer read as absent and Sales reported
+        // "No printer assigned" while the registry showed the device online.
+        .not('status', 'in', '("offline","error")')
         .limit(1);
       if (error) throw error;
       return (data ?? []).length > 0;
