@@ -143,7 +143,7 @@ export function useCrossdockOpportunities(params: {
   // `postgres_changes` callback to an already-subscribed channel throws
   // "cannot add postgres_changes callbacks ... after subscribe()". A per-mount
   // topic suffix keeps each subscriber isolated.
-  const channelIdRef = useRef<string>();
+  const channelIdRef = useRef<string | undefined>(undefined);
   if (!channelIdRef.current) {
     channelIdRef.current = Math.random().toString(36).slice(2, 10);
   }
