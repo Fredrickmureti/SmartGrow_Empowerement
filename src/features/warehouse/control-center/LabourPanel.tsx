@@ -67,19 +67,19 @@ export function LabourPanel({ warehouseId, limit = 10 }: { warehouseId?: string;
               ? Math.round((o.earned_seconds_today / o.actual_seconds_today) * 100)
               : null;
           return (
-            <li key={o.operator_id} className="flex items-center gap-3 p-2.5 text-sm">
-              <span className="min-w-0 flex-1 truncate font-medium">
+            <li key={o.operator_id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-2.5 text-sm">
+              <span className="min-w-0 flex-1 basis-[8rem] truncate font-medium">
                 {o.operator_name ?? o.operator_code ?? "Operator"}
               </span>
               <Badge variant="outline" className="shrink-0">
                 {OPERATOR_STATUS_LABELS[o.status]}
               </Badge>
-              <span className="w-14 shrink-0 text-right tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-right tabular-nums text-muted-foreground">
                 {o.open_tasks} open
               </span>
               <span
                 className={cn(
-                  "w-14 shrink-0 text-right tabular-nums",
+                  "w-10 shrink-0 text-right tabular-nums",
                   perf !== null && perf < 80 ? "text-warning" : "text-muted-foreground",
                 )}
               >
