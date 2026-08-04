@@ -6,8 +6,14 @@
 export * from "./contract";
 export {
   useWaveHealth, useWaveBoard, useWaveDemand, useWaveStrategies,
-  WAVE_KEYS, WAVE_QUERY_PREFIXES,
+  useWaveCapacity, WAVE_KEYS, WAVE_QUERY_PREFIXES,
 } from "./useWaveTower";
+export {
+  useSaveWaveStrategy, useToggleWaveStrategy, useDeleteWaveStrategy,
+  useSeedWaveStrategies, type WaveStrategyDraft,
+} from "./useWaveStrategyAdmin";
+export { StrategyWorkbench } from "./StrategyWorkbench";
+export { WaveCapacityPanel } from "./WaveCapacityPanel";
 export { WaveStageStrip } from "./WaveStageStrip";
 export { WaveLifecycleBoard } from "./WaveLifecycleBoard";
 export { WaveReadinessPanel } from "./WaveReadinessPanel";
