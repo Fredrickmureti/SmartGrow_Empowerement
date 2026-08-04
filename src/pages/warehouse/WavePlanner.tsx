@@ -25,7 +25,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import {
   useCreateAndReleaseWave, useEvaluateWave, usePlanWaves, useReleaseWave,
@@ -38,7 +37,6 @@ import {
 } from "@/features/warehouse/wave-tower";
 
 export default function WavePlanner() {
-  const { currentBusiness } = useBusinesses();
   const { warehouses } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [strategyId, setStrategyId] = useState<string>("auto");
@@ -82,7 +80,7 @@ export default function WavePlanner() {
     if (!warehouseId) return toast.error("Pick a warehouse");
     if (selected.size === 0) return toast.error("Select at least one sales order");
     createAndRelease.mutate(
-      { warehouseId, salesOrderIds: Array.from(selected) },
+      { warehouseId, salesOrderIds: [...selected] },
       {
         onSuccess: () => {
           toast.success("Wave released — pick tasks generated");
@@ -245,7 +243,6 @@ export default function WavePlanner() {
           </>
         )}
 
-        {!currentBusiness?.id ? null : null}
       </PageBody>
     </>
   );
