@@ -391,7 +391,7 @@ export function yardTaskStateLabel(s: string): string {
 }
 
 export function isOpenYardMoveTask(t: YardMoveTaskRow): boolean {
-  return t.state !== "done" && t.state !== "completed" && t.state !== "cancelled";
+  return t.state !== "completed" && t.state !== "cancelled";
 }
 
 /** Human destination for a work order, resolved against loaded master data. */

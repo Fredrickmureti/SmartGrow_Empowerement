@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils";
 
 interface PickTask {
   id: string;
-  state: "pending" | "assigned" | "in_progress" | "done" | "cancelled";
+  state: "pending" | "available" | "claimed" | "in_progress" | "paused" | "resumed" | "completed" | "cancelled" | "exception";
   quantity: number | null;
   product_id: string | null;
   lot_number: string | null;
