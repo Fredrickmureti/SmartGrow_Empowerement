@@ -11,7 +11,7 @@
 
 import { lazy } from "react";
 import { Routes, Route } from "react-router-dom";
-import { CONTRACTS_APP } from "@/lib/apps/registry";
+import { EMPLOYEES_APP } from "@/lib/apps/registry";
 import { PlatformShell } from "@/components/layout/shell/PlatformShell";
 import { CONTRACTS_NAV } from "../shared/navs";
 import { LazyRoute } from "../shared/guards";
@@ -23,7 +23,7 @@ const ContractsTemplatesPage = lazy(() => import("@/pages/hr/contracts/Contracts
 
 export default function ContractsApp() {
   return (
-    <PlatformShell app={CONTRACTS_APP} nav={CONTRACTS_NAV}>
+    <PlatformShell app={EMPLOYEES_APP} nav={CONTRACTS_NAV}>
       <Routes>
         <Route
           index
