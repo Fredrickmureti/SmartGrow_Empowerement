@@ -1,251 +1,141 @@
 /**
- * Outbound Control Tower — Phase 4 §6.
+ * Outbound Control Tower.
  *
- * Role dashboard for the shipping supervisor: waves by state, pack-station
- * load, manifests awaiting dispatch, and short-scan exceptions. Query keys
- * reuse the prefixes the WMS realtime channel invalidates, so the board is
- * event-driven, not polled.
+ * Not a dashboard: a control surface for the shipping supervisor. The
+ * question it answers, top to bottom, is "can everything that must leave
+ * today leave on time, and if not, what do I do right now?".
+ *
+ *   1. Health banner   — outbound state and the reason for it.
+ *   2. Flow spine      — release → pick → pack → stage → load → dispatch.
+ *   3. Bottleneck rail — ranked causes, each linked to its fixing surface.
+ *   4. Shipment board  — every open load as a lifecycle, risk-ordered, with
+ *                        supervisor actions in place.
+ *   5. Dock + yard     — the physical side: docks, trailers, waiting time.
+ *   6. Departure clock — the shape of the day's departure windows.
+ *
+ * Every number comes from the server-side outbound contract
+ * (`wms_outbound_*`), so the board cannot drift from mobile or alerting and
+ * does not degrade as the warehouse grows. Refresh is realtime-driven; there
+ * is no polling and no client-side aggregation.
  */
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useBusinesses } from "@/hooks/useBusinesses";
-import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from "react";
+import { RefreshCw } from "lucide-react";
+import { PageHeader, PageBody, Section, LoadingState, ErrorState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Waves, Boxes, Truck, AlertTriangle, ShieldCheck, Clock, ParkingSquare } from "lucide-react";
-import { StateBreakdown, MetricTile } from "@/features/warehouse/dashboards/DashboardPrimitives";
+import { HealthBanner, FlowSpine } from "@/features/warehouse/control-center";
+import {
+  DepartureTimeline, DockYardStrip, OutboundBottleneckRail, ShipmentLifecycleBoard,
+  useOutboundBottlenecks, useOutboundDockBoard, useOutboundHealth, useOutboundShipments,
+} from "@/features/warehouse/outbound-tower";
+
+/** Flow stage → the lifecycle stages a load sits in while at that stage. */
+const STAGE_TO_LIFECYCLE: Record<string, string> = {
+  release: "planned",
+  pick: "picking",
+  pack: "packing",
+  stage: "staged",
+  load: "loading",
+  dispatch: "sealed",
+};
 
 export default function OutboundDashboard() {
-  const { currentBusiness } = useBusinesses();
-  const businessId = currentBusiness?.id;
+  const health = useOutboundHealth();
+  const shipments = useOutboundShipments();
+  const bottlenecks = useOutboundBottlenecks();
+  const dockBoard = useOutboundDockBoard();
+  const [stage, setStage] = useState<string | null>(null);
 
-  const waves = useQuery({
-    queryKey: ["wms-pick-waves", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_pick_waves")
-        .select("id, wave_number, state")
-        .eq("business_id", businessId!)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const refreshing =
+    health.isFetching || shipments.isFetching ||
+    bottlenecks.isFetching || dockBoard.isFetching;
 
-  const cartons = useQuery({
-    queryKey: ["wms-pack-cartons", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_pack_cartons")
-        .select("id, sealed_at, manifest_id, wave_id")
-        .eq("business_id", businessId!)
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const refresh = () => {
+    health.refetch();
+    shipments.refetch();
+    bottlenecks.refetch();
+    dockBoard.refetch();
+  };
 
-  const manifests = useQuery({
-    queryKey: ["wms-loading-manifests", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_loading_manifests")
-        .select("id, code, state, planned_departure_at")
-        .eq("business_id", businessId!)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const exceptions = useQuery({
-    queryKey: ["wms_exceptions", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_exceptions")
-        .select("id, kind, state, due_by")
-        .eq("business_id", businessId!)
-        .in("state", ["open", "acknowledged", "investigating", "escalated"])
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  // Phase F — the control tower also answers "what is stuck at the kerb?".
-  // All three prefixes are invalidated by the WMS realtime channel; nothing
-  // here polls.
-  const proofs = useQuery({
-    queryKey: ["wms-manifest-proof", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_dispatch_proofs")
-        .select("manifest_id")
-        .eq("business_id", businessId!)
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const visits = useQuery({
-    queryKey: ["wms-trailer-visits", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_trailer_visits")
-        .select("id, status, dock_id, arrived_at, departed_at")
-        .eq("business_id", businessId!)
-        .is("departed_at", null)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const slots = useQuery({
-    queryKey: ["wms-yard-slots", "outbound-dashboard", businessId],
-    enabled: !!businessId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("wms_yard_slots")
-        .select("id, status")
-        .eq("business_id", businessId!)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const loading =
-    waves.isLoading || cartons.isLoading || manifests.isLoading || exceptions.isLoading;
-
-  const w = waves.data ?? [];
-  const c = cartons.data ?? [];
-  const m = manifests.data ?? [];
-  const exc = exceptions.data ?? [];
-  const openCartons = c.filter((x) => !x.sealed_at);
-  const sealedUnloaded = c.filter((x) => x.sealed_at && !x.manifest_id);
-  const awaitingDispatch = m.filter((x) => ["loading", "closed"].includes(String(x.state)));
-  const shortScan = exc.filter((e) => /short|scan|dispatch/.test(String(e.kind ?? "")));
-
-  const now = Date.now();
-  const lateDepartures = awaitingDispatch.filter(
-    (x) => x.planned_departure_at && new Date(x.planned_departure_at).getTime() < now,
-  );
-  const provenManifestIds = new Set((proofs.data ?? []).map((p) => String(p.manifest_id)));
-  const awaitingSeal = awaitingDispatch.filter((x) => !provenManifestIds.has(String(x.id)));
-  const openVisits = visits.data ?? [];
-  const waitingTrucks = openVisits.filter((v) => !v.dock_id);
-  const freeSlots = (slots.data ?? []).filter((s) => String(s.status) === "free" || String(s.status) === "available");
+  const stages = health.data?.stages ?? [];
+  const activeLifecycle = stage ? STAGE_TO_LIFECYCLE[stage] ?? null : null;
+  const activeStageLabel = stages.find((s) => s.stage === stage)?.label;
 
   return (
     <>
       <PageHeader
         title="Outbound control tower"
-        description="Wave, pack and dispatch load for the current business."
+        description="Live shipment lifecycle, blockers, docks and departure risk."
         actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/waves">Waves</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/warehouse-app/dispatch">Manifests</Link>
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={refreshing ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />
+            Refresh
+          </Button>
         }
       />
       <PageBody>
-        {loading ? (
+        {health.isError ? (
+          <ErrorState
+            title="Unable to read outbound health"
+            description={(health.error as Error)?.message}
+          />
+        ) : health.isLoading ? (
           <LoadingState />
         ) : (
-          <>
-            <Section>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricTile
-                  label="Waves in flight"
-                  value={w.filter((x) => ["released", "picking", "picked", "packing"].includes(String(x.state))).length}
-                  sub={`${w.length} total`}
-                  icon={Waves}
-                  to="/warehouse-app/waves"
-                />
-                <MetricTile
-                  label="Cartons open at pack"
-                  value={openCartons.length}
-                  sub={`${sealedUnloaded.length} sealed, not loaded`}
-                  icon={Boxes}
-                />
-                <MetricTile
-                  label="Manifests awaiting dispatch"
-                  value={awaitingDispatch.length}
-                  sub={`${m.filter((x) => x.state === "dispatched").length} dispatched`}
-                  icon={Truck}
-                  to="/warehouse-app/dispatch"
-                />
-                <MetricTile
-                  label="Short-scan exceptions"
-                  value={shortScan.length}
-                  tone={shortScan.length > 0 ? "bad" : "ok"}
-                  sub={`${exc.length} open in total`}
-                  icon={AlertTriangle}
-                  to="/warehouse-app/exceptions"
-                />
+          <div className="space-y-6">
+            <HealthBanner health={health.data} />
+
+            <Section
+              title="Outbound flow"
+              description="Backlog, ageing and departure risk at every stage. Select a stage to filter the shipment board."
+            >
+              <FlowSpine
+                stages={stages}
+                activeStage={stage}
+                onSelect={(s) => setStage((cur) => (cur === s.stage ? null : s.stage))}
+              />
+            </Section>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="space-y-6 lg:col-span-2">
+                <Section
+                  title="Blockers"
+                  description="Ranked by severity. Each row links to the surface that clears it."
+                >
+                  <OutboundBottleneckRail bottlenecks={bottlenecks.data ?? []} />
+                </Section>
+
+                <Section
+                  title={activeStageLabel ? `Shipments — ${activeStageLabel}` : "Shipments"}
+                  description="Every open load as a lifecycle, ordered by departure risk."
+                  actions={
+                    stage && (
+                      <Button variant="ghost" size="sm" onClick={() => setStage(null)}>
+                        Clear stage filter
+                      </Button>
+                    )
+                  }
+                >
+                  {shipments.isLoading ? (
+                    <LoadingState />
+                  ) : (
+                    <ShipmentLifecycleBoard
+                      shipments={shipments.data ?? []}
+                      stage={activeLifecycle}
+                    />
+                  )}
+                </Section>
               </div>
-            </Section>
 
-            <Section title="At the kerb">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricTile
-                  label="Late departures"
-                  value={lateDepartures.length}
-                  tone={lateDepartures.length > 0 ? "bad" : "ok"}
-                  sub="Past planned departure, still not dispatched"
-                  icon={Clock}
-                  to="/warehouse-app/dispatch"
-                />
-                <MetricTile
-                  label="Awaiting seal & signature"
-                  value={awaitingSeal.length}
-                  tone={awaitingSeal.length > 0 ? "warn" : "ok"}
-                  sub="No proof of dispatch captured yet"
-                  icon={ShieldCheck}
-                  to="/warehouse-app/dispatch"
-                />
-                <MetricTile
-                  label="Trucks waiting for a dock"
-                  value={waitingTrucks.length}
-                  sub={`${openVisits.length} on site`}
-                  icon={Truck}
-                  to="/warehouse-app/yard"
-                />
-                <MetricTile
-                  label="Free yard slots"
-                  value={freeSlots.length}
-                  sub={`${(slots.data ?? []).length} total`}
-                  icon={ParkingSquare}
-                  to="/warehouse-app/yard"
-                />
+              <div className="space-y-6">
+                <Section title="Docks and yard" description="Where the trucks are.">
+                  <DockYardStrip board={dockBoard.data} />
+                </Section>
+                <Section title="Departure clock" description="Open loads by departure window.">
+                  <DepartureTimeline shipments={shipments.data ?? []} />
+                </Section>
               </div>
-            </Section>
-
-            <Section title="Waves by state">
-              <Card><CardContent className="p-4"><StateBreakdown rows={w} /></CardContent></Card>
-            </Section>
-
-            <Section title="Manifests by state">
-              <Card><CardContent className="p-4"><StateBreakdown rows={m} /></CardContent></Card>
-            </Section>
-
-            <Section title="Outbound blockers by kind">
-              <Card><CardContent className="p-4"><StateBreakdown rows={shortScan} field="kind" /></CardContent></Card>
-            </Section>
-          </>
+            </div>
+          </div>
         )}
       </PageBody>
     </>
