@@ -32,6 +32,30 @@ function normalizeError(e: unknown, fallback: string) {
 // -------------------------------------------------------------------
 // Wave — create + release
 // -------------------------------------------------------------------
+
+/** Release result as returned by the guarded release routine. */
+interface ReleaseWaveResult {
+  tasks_created?: number;
+  short_pick_tasks?: number;
+  replenishment_tasks?: number;
+  readiness?: string;
+  noop?: boolean;
+}
+
+/**
+ * The single call site of the release routine. Both the manual batching
+ * path and the tower's release button funnel through here so release
+ * semantics can never fork.
+ */
+async function callReleaseWave(waveId: string, force = false) {
+  const { data } = await replayGuardedCall<ReleaseWaveResult | null>("release_pick_wave", {
+    p_wave_id: waveId,
+    p_force: force,
+  });
+  return data ?? null;
+}
+
+
 export interface CreateAndReleaseWaveInput {
   warehouseId: string;
   salesOrderIds: string[];
