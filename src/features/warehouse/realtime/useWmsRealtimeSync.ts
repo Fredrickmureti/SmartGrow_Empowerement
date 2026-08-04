@@ -25,6 +25,9 @@ import { BusinessContext } from "@/contexts/BusinessContext";
 import { connectivityManager } from "@/services/resilience/ConnectivityManager";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+// Outbound Control Tower query prefixes are owned by the tower module, so
+// the realtime map can never drift from the hooks that register them.
+import { OUTBOUND_QUERY_PREFIXES } from "@/features/warehouse/outbound-tower/useOutboundTower";
 
 type PostgresPayload = {
   new: Record<string, unknown> | null;
