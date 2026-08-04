@@ -19,6 +19,7 @@ import { Printer, Plus, ScanLine, RefreshCw, Search, PencilRuler, Barcode } from
 
 import { PageHeader, PageBody, LoadingState, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -137,6 +138,14 @@ export default function WarehouseLayoutWorkspace() {
     return { total: ordered.length, bins: bins.length, stocked, blocked, work, unlabelled };
   }, [ordered]);
 
+  // Bin-level tooling (labels, verification) only has meaning once bins exist.
+  const binActionReason =
+    isLoading
+      ? "Loading locations…"
+      : stats.bins === 0
+        ? "No bin-level locations in this warehouse yet — build the structure first."
+        : null;
+
   // Rows for the table pane: the search box narrows, the view select shapes.
   const tableRows = useMemo(
     () => ordered.filter((n) => filter(n) && matchesTableFilter(n, tableFilter)),
@@ -208,20 +217,18 @@ export default function WarehouseLayoutWorkspace() {
             <Button variant="outline" size="icon" onClick={refetch} aria-label="Refresh">
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button
-              variant="outline"
+            <BinActionButton
+              disabledReason={binActionReason}
               onClick={() => setLabelTargets(ordered.filter((n) => n.structure_level === "bin"))}
-              disabled={stats.bins === 0}
             >
               <Printer className="mr-2 h-4 w-4" /> Print all bin labels
-            </Button>
-            <Button
-              variant="outline"
+            </BinActionButton>
+            <BinActionButton
+              disabledReason={binActionReason}
               onClick={() => setVerifyOpen(true)}
-              disabled={stats.bins === 0}
             >
               <ScanLine className="mr-2 h-4 w-4" /> Verify labels
-            </Button>
+            </BinActionButton>
             <Button variant="outline" asChild>
               <Link to={buildHref(activeWarehouseId, null)}>
                 <PencilRuler className="mr-2 h-4 w-4" /> Layout designer
@@ -241,6 +248,24 @@ export default function WarehouseLayoutWorkspace() {
       />
 
       <PageBody>
+        {!isLoading && stats.bins === 0 && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">This warehouse has no bins yet</p>
+              <p className="text-xs text-muted-foreground">
+                Bins are the addressable slots stock is put away into. Build zones, aisles, racks
+                and shelves in the layout designer — label printing and verification unlock as soon
+                as the first bin exists.
+              </p>
+            </div>
+            <Button asChild size="sm" className="shrink-0">
+              <Link to={buildHref(activeWarehouseId, selected?.id ?? null)}>
+                <PencilRuler className="mr-2 h-4 w-4" /> Build structure
+              </Link>
+            </Button>
+          </div>
+        )}
+
         <div className="mb-3 grid grid-cols-2 gap-2 @xl/page:grid-cols-6">
           <Stat label="Locations" value={stats.total} />
           <Stat label="Bins" value={stats.bins} />
@@ -416,6 +441,31 @@ export default function WarehouseLayoutWorkspace() {
         onReprint={setLabelTargets}
       />
     </>
+  );
+}
+
+function BinActionButton({
+  disabledReason,
+  onClick,
+  children,
+}: {
+  disabledReason: string | null;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const button = (
+    <Button variant="outline" onClick={onClick} disabled={!!disabledReason}>
+      {children}
+    </Button>
+  );
+  if (!disabledReason) return button;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-not-allowed">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>{disabledReason}</TooltipContent>
+    </Tooltip>
   );
 }
 
