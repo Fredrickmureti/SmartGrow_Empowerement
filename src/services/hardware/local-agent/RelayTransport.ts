@@ -78,6 +78,14 @@ const MAX_QUEUE_ALLOWANCE_MS = 40_000;
  * listening and queueing a job would just burn the caller's deadline.
  */
 const LIVENESS_WINDOW_MS = 20_000;
+/**
+ * How long a successful liveness read stays usable without re-reading.
+ * The agent stamps `last_seen_at` continuously, so a presence check that was
+ * true a moment ago is still true — and paying a cloud round trip for it in
+ * front of every print is pure dead time. A *negative* result is never
+ * cached: an agent that just came back online must be usable immediately.
+ */
+const LIVENESS_CACHE_MS = 5_000;
 
 export class RelayTransport {
   constructor(
@@ -90,7 +98,16 @@ export class RelayTransport {
    * UI spins for the whole deadline on an offline/unauthorized agent and the
    * job sits in `edge_jobs` forever.
    */
+  /** Last positive presence read, reused inside `LIVENESS_CACHE_MS`. */
+  private _presence: { at: number; lastSeenAt: string | null } | null = null;
+  /** Jobs this transport has enqueued and not yet settled. */
+  private _inFlight = 0;
+
   private async _liveness(): Promise<{ alive: boolean; lastSeenAt: string | null }> {
+    const cached = this._presence;
+    if (cached && Date.now() - cached.at < LIVENESS_CACHE_MS) {
+      return { alive: true, lastSeenAt: cached.lastSeenAt };
+    }
     const { data, error } = await this.supabase
       .from('workstations')
       .select('last_seen_at')
@@ -100,7 +117,9 @@ export class RelayTransport {
     const lastSeenAt = (data as { last_seen_at: string | null }).last_seen_at;
     if (!lastSeenAt) return { alive: false, lastSeenAt: null };
     const age = Date.now() - new Date(lastSeenAt).getTime();
-    return { alive: age <= LIVENESS_WINDOW_MS, lastSeenAt };
+    const alive = age <= LIVENESS_WINDOW_MS;
+    this._presence = alive ? { at: Date.now(), lastSeenAt } : null;
+    return { alive, lastSeenAt };
   }
 
   /** Enqueue a job and wait for the agent to complete it. */
@@ -108,14 +127,11 @@ export class RelayTransport {
     // Liveness and queue depth are two independent reads. Running them in
     // series put a full extra cloud round trip in front of every single
     // relay print for information that does not depend on the other.
-    const [liveness, allowance] = await withSpan(
+    const allowance = args.queueAware ? this._queueAllowanceMs() : 0;
+    const liveness = await withSpan(
       'relay.preflight',
-      () =>
-        Promise.all([
-          this._liveness(),
-          args.queueAware ? this._queueAllowanceMs() : Promise.resolve(0),
-        ]),
-      undefined,
+      () => this._liveness(),
+      { queue_allowance_ms: allowance, in_flight: this._inFlight },
       args.correlationId,
     );
 
@@ -197,12 +213,18 @@ export class RelayTransport {
 
     // The single biggest unknown in the waterfall: how long the workstation
     // takes to claim the row and finish the physical write.
-    const awaited = await withSpan(
-      'relay.agent_roundtrip',
-      () => this._await<T>(jobId, deadlineMs),
-      undefined,
-      args.correlationId,
-    );
+    this._inFlight += 1;
+    let awaited: DispatchResult<T>;
+    try {
+      awaited = await withSpan(
+        'relay.agent_roundtrip',
+        () => this._await<T>(jobId, deadlineMs),
+        undefined,
+        args.correlationId,
+      );
+    } finally {
+      this._inFlight = Math.max(0, this._inFlight - 1);
+    }
 
     // The agent reports its own stage timings (relay queue wait, handler,
     // printer queue wait, socket write) inside the result. Replay them into
@@ -250,15 +272,17 @@ export class RelayTransport {
    * How much extra time this job needs because of work already ahead of it.
    * Counts live (queued / in-progress) rows for this workstation.
    */
-  private async _queueAllowanceMs(): Promise<number> {
-    const { count, error } = await this.supabase
-      .from('edge_jobs')
-      .select('id', { count: 'exact', head: true })
-      .eq('workstation_id', this.config.workstationId)
-      .in('status', ['queued', 'in_progress'])
-      .gt('deadline_at', new Date().toISOString());
-    if (error || !count) return 0;
-    return Math.min(count * QUEUE_ALLOWANCE_MS, MAX_QUEUE_ALLOWANCE_MS);
+  /**
+   * Deadline extension for jobs already queued ahead of this one.
+   *
+   * This used to be a `count(*)` over `edge_jobs` on every dispatch — a cloud
+   * round trip in front of every print to learn something this client already
+   * knows. A burst comes from one browser tab, so the outstanding jobs it has
+   * itself enqueued are the queue that matters. No round trip, same guarantee
+   * that job 4 of a burst is not judged against job 1's clock.
+   */
+  private _queueAllowanceMs(): number {
+    return Math.min(this._inFlight * QUEUE_ALLOWANCE_MS, MAX_QUEUE_ALLOWANCE_MS);
   }
 
   private async _await<T>(jobId: string, deadlineMs: number): Promise<DispatchResult<T>> {

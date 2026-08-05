@@ -58,9 +58,7 @@ export function handlePrint(body: PrintRequest): Promise<PrintResponse> {
       const socketStart = Date.now();
       const result = await sendToPrinter(ipAddress, port, data, timeout);
       const socketMs = Date.now() - socketStart;
-      return {
-        ...result,
-        spans: [
+      const spans: AgentSpan[] = [
           {
             name: 'agent.printer_queue_wait',
             durationMs: queueWaitMs,
@@ -73,8 +71,8 @@ export function handlePrint(body: PrintRequest): Promise<PrintResponse> {
             ok: result.success,
             attributes: { bytes: data.length },
           },
-        ],
-      } satisfies PrintResponse;
+      ];
+      return { ...result, spans } satisfies PrintResponse;
     });
   endpointQueues.set(key, run);
   void run.finally(() => {

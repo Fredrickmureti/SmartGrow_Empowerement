@@ -53,6 +53,15 @@ interface RelayJob {
 }
 
 const POLL_INTERVAL_MS = 1_500;
+/**
+ * Long-poll window. The server holds the request open until a job appears or
+ * this elapses, so claim latency stops being a function of POLL_INTERVAL_MS.
+ * POLL_INTERVAL_MS survives as the idle pause between held-open polls and as
+ * the fallback pause for servers that ignore `wait_ms`.
+ */
+const LONG_POLL_WAIT_MS = 20_000;
+/** Client-side ceiling so a wedged connection can't hang the loop forever. */
+const POLL_TIMEOUT_MS = LONG_POLL_WAIT_MS + 10_000;
 const POLL_ERROR_BACKOFF_MS = 15_000;
 /**
  * A 401 means the workstation secret on disk no longer matches the server
@@ -61,6 +70,8 @@ const POLL_ERROR_BACKOFF_MS = 15_000;
  * gets a short backoff instead of the generic network backoff.
  */
 const AUTH_ERROR_BACKOFF_MS = 3_000;
+/** Breather between held-open polls; keeps the heartbeat frequent enough. */
+const IDLE_PAUSE_MS = 200;
 
 export type RelayHandler = (job: RelayJob) => Promise<{ success: boolean; result?: unknown; error?: string }>;
 
@@ -105,7 +116,8 @@ async function pollOnce(cfg: RelayConfig): Promise<RelayJob[]> {
       Authorization: `Bearer ${cfg.workstation_secret}`,
       'X-Workstation-Id': cfg.workstation_id,
     },
-    body: JSON.stringify({ version: AGENT_VERSION }),
+    body: JSON.stringify({ version: AGENT_VERSION, wait_ms: LONG_POLL_WAIT_MS }),
+    signal: AbortSignal.timeout(POLL_TIMEOUT_MS),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -234,7 +246,10 @@ export function startRelay(handler: RelayHandler): () => void {
           consecutiveErrors: 0,
         });
         if (batch.length === 0) {
-          await sleep(POLL_INTERVAL_MS);
+          // The poll was held open server-side for its full window, so there
+          // is nothing to wait for beyond a short breather that keeps the
+          // heartbeat (and `workstations.last_seen_at`) ticking.
+          await sleep(IDLE_PAUSE_MS);
           continue;
         }
         // Drain the whole claimed batch sequentially — no extra poll round-trip
