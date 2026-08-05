@@ -35,6 +35,7 @@ export type WmsEntityKind =
   | "manifest"
   | "trailer"
   | "gate_pass"
+  | "yard_slot"
   | "asn";
 
 interface EntityRule {
@@ -58,6 +59,7 @@ const RULES: Record<WmsEntityKind, EntityRule> = {
   manifest:  { noun: "a loading manifest",     accepts: ["opaque"],         placeholder: "Scan the manifest" },
   trailer:   { noun: "a trailer plate",        accepts: ["opaque"],         placeholder: "Scan the trailer plate" },
   gate_pass: { noun: "a gate pass",            accepts: ["opaque"],         placeholder: "Scan the gate pass" },
+  yard_slot: { noun: "a yard slot or dock label", accepts: ["opaque"],      placeholder: "Scan the slot or dock label" },
   asn:       { noun: "an inbound ASN",         accepts: ["opaque"],         placeholder: "Scan the ASN document" },
 };
 
