@@ -22,6 +22,7 @@ import type { ScanEvent } from "@/services/pos/scanBus";
 import { scanBus } from "@/services/pos/scanBus";
 import { cn } from "@/lib/utils";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { useActiveScanTarget } from "./useActiveScanTarget";
 import { useScanHistory, type ScanHistoryEntry } from "./useScanHistory";
 import {
@@ -46,6 +47,10 @@ interface Props {
   variant?: "block" | "bar";
   /** Show the last-five strip. Default: on for the block, off for the bar. */
   showHistory?: boolean;
+  /** Hide the camera action (the surface already has its own button). */
+  hideCamera?: boolean;
+  /** Keep the viewfinder open between decodes. */
+  continuous?: boolean;
   className?: string;
 }
 
@@ -63,7 +68,7 @@ const VERDICT_TONE: Record<ScanVerdict, string> = {
   unknown: "text-muted-foreground",
 };
 
-export function ScanGuidance({ expectedLabel, hint, variant = "block", showHistory, className }: Props) {
+export function ScanGuidance({ expectedLabel, hint, variant = "block", showHistory, hideCamera, continuous, className }: Props) {
   const target = useActiveScanTarget();
   const history = useScanHistory();
   const { handheld } = useLocalScan();
@@ -116,12 +121,17 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
         aria-live="polite"
       >
         <div className="min-w-0 truncate font-medium">{statusLine}</div>
-        {last && Icon && (
-          <span className={cn("inline-flex shrink-0 items-center gap-1", VERDICT_TONE[last.verdict])}>
-            <Icon className="h-3.5 w-3.5" />
-            <span className="font-mono max-w-[8rem] truncate">{last.raw || "—"}</span>
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {last && Icon && (
+            <span className={cn("inline-flex shrink-0 items-center gap-1", VERDICT_TONE[last.verdict])}>
+              <Icon className="h-3.5 w-3.5" />
+              <span className="font-mono max-w-[8rem] truncate">{last.raw || "—"}</span>
+            </span>
+          )}
+          {!hideCamera && (
+            <ScanCameraButton label={instruction} continuous={continuous} className="h-7 w-7" />
+          )}
+        </div>
       </div>
     );
   }
@@ -130,7 +140,12 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
     <div className={cn("rounded-md border bg-muted/30 p-2 text-xs", className)} role="status" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-medium">{statusLine}</div>
-        <span className="text-muted-foreground">{sourceText}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">{sourceText}</span>
+          {!hideCamera && (
+            <ScanCameraButton label={instruction} continuous={continuous} withText className="h-8 px-2 text-xs" />
+          )}
+        </div>
       </div>
       {armed && prompt && !otherOwner && (
         <div className="mt-0.5 text-muted-foreground">{prompt.then}</div>
