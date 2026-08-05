@@ -203,6 +203,12 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     try {
       if (editing) {
         await updateProduct(editing.id, formData);
+        // Flush any identifier edits typed but not yet blurred.
+        try {
+          await identifiersRef.current?.commit(editing.id);
+        } catch (idErr) {
+          console.error("[Products] identifier commit failed", idErr);
+        }
         toast({ title: "Product updated successfully" });
         goBackToList(editing.id);
         return;

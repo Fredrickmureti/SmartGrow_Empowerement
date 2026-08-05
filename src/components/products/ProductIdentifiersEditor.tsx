@@ -79,7 +79,7 @@ interface IdentifierRow {
 
 export interface ProductIdentifiersEditorHandle {
   /** Persist pending rows after the parent creates the product. */
-  commit: (productId: string) => Promise<void>;
+  commit: (productId?: string) => Promise<void>;
   /** True if at least one row was added in create mode. */
   hasPending: () => boolean;
 }
@@ -102,6 +102,14 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     const seededRef = useRef(false);
     const fieldRefs = useRef<Array<BarcodeInputFieldHandle | null>>([]);
     const wasConnectedRef = useRef(false);
+    // Live mirror of `rows` — saves read from here, never from a stale
+    // render-time closure.
+    const rowsRef = useRef<IdentifierRow[]>([]);
+    rowsRef.current = rows;
+    // Per-row write sequence: only the newest issued save may settle.
+    const writeSeqRef = useRef<Map<string, number>>(new Map());
+    // Last code successfully persisted per identifier id.
+    const lastSavedRef = useRef<Map<string, string>>(new Map());
 
     // Workspace-scoped scanner session — owned by ScannerWorkspaceProvider
     // in AuthenticatedShell, NOT by this editor. Means the phone paired on
@@ -243,6 +251,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         const code = e.code.trim();
         if (!code) return;
         let filledRow = false;
+        let filledIdx = -1;
         setRows((prev) => {
           if (prev.some((r) => r.code.trim().toLowerCase() === code.toLowerCase())) {
             toast({ title: "Already in the list", description: code });
@@ -259,6 +268,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             return prev;
           }
           filledRow = true;
+          filledIdx = emptyIdx;
           return prev.map((r, i) =>
             i === emptyIdx ? { ...r, code, kind: "gtin", _dirty: true } : r,
           );
@@ -294,6 +304,8 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
               return;
             }
             scanFeedbackBus.emit({ kind: "ok", raw: code, source: "field" });
+            // A confirmed scan carries a complete code — persist it now.
+            if (filledIdx >= 0) await persistRow(filledIdx, { code });
           } catch {
             // Network/RPC failure — leave the row filled; submit-time
             // upsert is still backed by the DB unique constraint.
@@ -306,13 +318,26 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
 
     useImperativeHandle(ref, () => ({
       hasPending: () => rows.some((r) => !r.id && r.code.trim().length > 0),
-      commit: async (newProductId: string) => {
-        const pending = rows
+      commit: async (newProductId?: string) => {
+        const targetProductId = newProductId ?? productId;
+        if (!targetProductId) return;
+        const live = rowsRef.current;
+
+        // Flush edits to already-persisted rows first (form Save on an
+        // existing product): typing no longer writes per keystroke.
+        for (let i = 0; i < live.length; i += 1) {
+          const r = live[i];
+          if (r.id && r._dirty && r.code.trim()) {
+            await persistRow(i);
+          }
+        }
+
+        const pending = live
           .filter((r) => !r.id && r.code.trim().length > 0)
           .map((r) => ({
             organization_id: organizationId,
             business_id: businessId,
-            product_id: newProductId,
+            product_id: targetProductId,
             code: r.code.trim(),
             kind: r.kind,
             is_primary: r.is_primary,
@@ -340,6 +365,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       },
     }));
 
+
     const addRow = (initialCode = "", kind: IdentifierKind = "gtin") => {
       setRows((prev) => {
         const hasPrimary = prev.some((r) => r.is_primary);
@@ -356,53 +382,89 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       });
     };
 
-    const updateRow = async (idx: number, patch: Partial<IdentifierRow>) => {
-      const target = rows[idx];
+    /**
+     * Persist a single row.
+     *
+     * Two invariants (see plan "Barcode edit on phone saves only one
+     * character"):
+     *  1. Reads the LIVE row from `rowsRef`, never a render-time snapshot,
+     *     so a save can't resurrect an older code.
+     *  2. Sequence-guarded per row: only the newest issued save for a row is
+     *     allowed to report/settle, so a stale in-flight write (e.g. an
+     *     intermediate one-character value) can never win the race and
+     *     overwrite the full code.
+     */
+    const persistRow = async (idx: number, override?: Partial<IdentifierRow>) => {
+      const live = rowsRef.current[idx];
+      if (!live) return;
+      const merged = { ...live, ...override };
+      const code = merged.code.trim();
+      if (!merged.id || !productId || !code) return;
+
+      const key = merged.id;
+      const structuralOverride =
+        !!override &&
+        (override.kind !== undefined ||
+          override.packaging_id !== undefined ||
+          override.is_primary !== undefined);
+      if (!structuralOverride && lastSavedRef.current.get(key) === code) return;
+
+      const seq = (writeSeqRef.current.get(key) ?? 0) + 1;
+      writeSeqRef.current.set(key, seq);
+
+      const failure = await writeIdentifier({
+        businessId,
+        productId,
+        code,
+        kind: merged.kind,
+        packagingId: merged.packaging_id,
+        isPrimary: merged.is_primary,
+        identifierId: merged.id,
+      });
+
+      // A newer save for this row was issued while we were in flight —
+      // discard this outcome entirely.
+      if (writeSeqRef.current.get(key) !== seq) return;
+
+      if (failure) {
+        toast({ title: "Save failed", description: failure, variant: "destructive" });
+        return;
+      }
+      lastSavedRef.current.set(key, code);
+      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _dirty: false } : r)));
+    };
+
+    /**
+     * Local-only state update. Typing NEVER writes to the server — the code
+     * is persisted on blur, on a confirmed scan, or on form save. Structural
+     * changes (kind / packaging / primary) are discrete and persist at once.
+     */
+    const updateRow = (idx: number, patch: Partial<IdentifierRow>) => {
+      const target = rowsRef.current[idx];
       if (!target) return;
-      // optimistic local update
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch, _dirty: true } : r)));
-      // if it's a persisted row and we have productId, save immediately
-      if (target.id && productId) {
-        const merged = { ...target, ...patch };
-        const failure = await writeIdentifier({
-          businessId,
-          productId,
-          code: merged.code,
-          kind: merged.kind,
-          packagingId: merged.packaging_id,
-          isPrimary: merged.is_primary,
-          identifierId: target.id,
-        });
-        if (failure) {
-          toast({ title: "Save failed", description: failure, variant: "destructive" });
-        }
+      const structural = patch.code === undefined;
+      if (structural && target.id && productId) {
+        void persistRow(idx, patch);
       }
     };
 
+
     const setPrimary = async (idx: number) => {
-      const target = rows[idx];
+      const target = rowsRef.current[idx];
       if (!target) return;
       setRows((prev) => prev.map((r, i) => ({ ...r, is_primary: i === idx })));
       if (productId && target.id) {
         // The primary flip is atomic inside the service — no demote/promote
-        // window where a product has zero (or two) primary codes.
-        const failure = await writeIdentifier({
-          businessId,
-          productId,
-          code: target.code,
-          kind: target.kind,
-          packagingId: target.packaging_id,
-          isPrimary: true,
-          identifierId: target.id,
-        });
-        if (failure) {
-          toast({ title: "Could not set primary", description: failure, variant: "destructive" });
-        }
+        // window where a product has zero (or two) primary codes. Routed
+        // through `persistRow` so it shares the live-state read and the
+        // per-row write-ordering guard.
+        await persistRow(idx, { is_primary: true });
       }
     };
 
     const deleteRow = async (idx: number) => {
-      const target = rows[idx];
+      const target = rowsRef.current[idx];
       if (!target) return;
       setRows((prev) => prev.filter((_, i) => i !== idx));
       if (target.id) {
@@ -550,6 +612,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
                     ref={(h) => { fieldRefs.current[idx] = h; }}
                     value={row.code}
                     onChange={(next) => updateRow(idx, { code: next })}
+                    onBlur={() => { void persistRow(idx); }}
                     businessId={businessId}
                     scannerConnected={isPhonePaired}
                     checkUniqueness={row.kind === "gtin" || row.kind === "sku"}
