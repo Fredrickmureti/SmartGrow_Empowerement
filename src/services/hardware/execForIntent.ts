@@ -18,6 +18,7 @@
  */
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { resolveDeviceForIntent } from '@/hooks/useDeviceForIntent';
+import { withSpan } from '@/services/observability/trace';
 import type { DeviceRole } from '@/services/hardware/drivers/DriverInterface';
 
 export interface ExecForIntentInput {
@@ -58,12 +59,17 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
 
   let resolved: Awaited<ReturnType<typeof resolveDeviceForIntent>> = null;
   try {
-    resolved = await resolveDeviceForIntent({
-      organizationId: input.organizationId,
-      intentOrRole: input.intentOrRole,
-      businessId: input.businessId ?? null,
-      scope: input.scope as never,
-    });
+    resolved = await withSpan(
+      'device.resolve',
+      () =>
+        resolveDeviceForIntent({
+          organizationId: input.organizationId!,
+          intentOrRole: input.intentOrRole,
+          businessId: input.businessId ?? null,
+          scope: input.scope as never,
+        }),
+      { intent: input.intentOrRole },
+    );
   } catch (err) {
     return {
       success: false,
@@ -89,30 +95,36 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
     businessId: input.businessId ?? null,
   });
 
-  const res = await hardwareClient.execAssignment({
-    assignment: {
-      id: resolved.id,
-      role: resolved.role as DeviceRole,
-      transport: resolved.transport,
-      enabled: resolved.enabled,
-      driver: (resolved as unknown as { driver?: string | null }).driver ?? null,
-      displayName: resolved.display_name,
-      // The winning row carries its own endpoint and its own owning
-      // workstation. Execution uses both — nothing downstream re-picks a
-      // device by role.
-      config: (resolved as unknown as { config?: Record<string, unknown> | null }).config ?? null,
-      workstationId:
-        (resolved as unknown as { workstation_id?: string | null }).workstation_id ?? null,
-    },
-    op: input.op,
-    payload: input.payload,
-    idempotencyKey: input.idempotencyKey,
-    maxAttempts: input.maxAttempts,
-    sourceDocType: input.sourceDocType ?? null,
-    sourceDocId: input.sourceDocId ?? null,
-    businessEventId: input.businessEventId ?? null,
-    isReprint: input.isReprint,
-  });
+  const res = await withSpan(
+    'hardware.exec',
+    () =>
+      hardwareClient.execAssignment({
+        assignment: {
+          id: resolved!.id,
+          role: resolved!.role as DeviceRole,
+          transport: resolved!.transport,
+          enabled: resolved!.enabled,
+          driver: (resolved as unknown as { driver?: string | null }).driver ?? null,
+          displayName: resolved!.display_name,
+          // The winning row carries its own endpoint and its own owning
+          // workstation. Execution uses both — nothing downstream re-picks a
+          // device by role.
+          config: (resolved as unknown as { config?: Record<string, unknown> | null }).config ?? null,
+          workstationId:
+            (resolved as unknown as { workstation_id?: string | null }).workstation_id ?? null,
+        },
+        op: input.op,
+        payload: input.payload,
+        idempotencyKey: input.idempotencyKey,
+        maxAttempts: input.maxAttempts,
+        sourceDocType: input.sourceDocType ?? null,
+        sourceDocId: input.sourceDocId ?? null,
+        businessEventId: input.businessEventId ?? null,
+        isReprint: input.isReprint,
+      }),
+    { transport: resolved.transport, op: input.op },
+  );
+
 
   return { ...res, assignmentId: resolved.id };
 }

@@ -22,6 +22,7 @@
  */
 
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import { withSpan } from '@/services/observability/trace';
 
 export type EdgeRole =
   | 'print'
@@ -99,7 +100,16 @@ export class RelayTransport {
 
   /** Enqueue a job and wait for the agent to complete it. */
   async dispatch<T = unknown>(args: DispatchArgs): Promise<DispatchResult<T>> {
-    const liveness = await this._liveness();
+    // Liveness and queue depth are two independent reads. Running them in
+    // series put a full extra cloud round trip in front of every single
+    // relay print for information that does not depend on the other.
+    const [liveness, allowance] = await withSpan('relay.preflight', () =>
+      Promise.all([
+        this._liveness(),
+        args.queueAware ? this._queueAllowanceMs() : Promise.resolve(0),
+      ]),
+    );
+
     if (!liveness.alive) {
       const seen = liveness.lastSeenAt
         ? `last polled ${Math.round((Date.now() - new Date(liveness.lastSeenAt).getTime()) / 1000)}s ago`
@@ -113,9 +123,9 @@ export class RelayTransport {
     }
 
     const baseDeadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
-    const allowance = args.queueAware ? await this._queueAllowanceMs() : 0;
     const deadlineMs = baseDeadlineMs + allowance;
     const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
+
 
     const insertRow = {
       organization_id: this.config.organizationId,
@@ -130,11 +140,17 @@ export class RelayTransport {
     // Idempotency: if a job with the same (org, ws, key) already exists we
     // reuse it. The unique index lets the insert fail with 23505 which we
     // translate into a lookup rather than a hard error.
-    const { data: inserted, error: insertErr } = await this.supabase
-      .from('edge_jobs')
-      .insert(insertRow)
-      .select('id, status, result, error')
-      .single();
+    const { data: inserted, error: insertErr } = await withSpan(
+      'relay.enqueue',
+      () =>
+        this.supabase
+          .from('edge_jobs')
+          .insert(insertRow)
+          .select('id, status, result, error')
+          .single(),
+      { role: args.role, op: args.op ?? 'exec' },
+    );
+
 
     let jobId: string | null = null;
     if (insertErr) {
@@ -169,7 +185,10 @@ export class RelayTransport {
       }
     }
 
-    return await this._await<T>(jobId, deadlineMs);
+    // The single biggest unknown in the waterfall: how long the workstation
+    // takes to claim the row and finish the physical write.
+    return await withSpan('relay.agent_roundtrip', () => this._await<T>(jobId, deadlineMs));
+
   }
 
   private _finalize<T>(jobId: string, status: DispatchResult['status'], result: T | null, error: string | null): DispatchResult<T> {
