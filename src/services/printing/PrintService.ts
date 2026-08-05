@@ -576,7 +576,7 @@ export async function printDocumentIntent(input: {
       },
     },
     async (ctx) => {
-      const cid = ctx.correlationId;
+      const cid = ctx?.correlationId;
       const submitted = await withSpan(
         'intent.submit',
         () =>
@@ -685,7 +685,7 @@ export async function printSourceDocumentIntent(
       },
     },
     async (ctx) => {
-      const cid = ctx.correlationId;
+      const cid = ctx?.correlationId;
       const submitted = await withSpan(
         'intent.materialize_submit',
         () =>
