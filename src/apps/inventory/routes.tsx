@@ -42,6 +42,7 @@ const InboundShipments = lazy(() => import("@/pages/inventory/InboundShipments")
 const InboundShipmentDetail = lazy(() => import("@/pages/inventory/InboundShipmentDetail"));
 const Lots = lazy(() => import("@/pages/inventory/Lots"));
 const LotDetail = lazy(() => import("@/pages/inventory/LotDetail"));
+const LabelOperations = lazy(() => import("@/pages/inventory/LabelOperations"));
 
 // Wrapper for lazy routes
 const LazyRoute = ({ children, module }: { children: React.ReactNode; module?: string }) => (
@@ -303,6 +304,18 @@ export function InventoryApp() {
           }
         />
         
+        {/* Label Operations Engine — demand queue + server-owned print runs */}
+        <Route
+          path="labels"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Label Operations">
+                <LabelOperations />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Physical Count */}
         <Route
           path="count"
