@@ -190,7 +190,11 @@ class DatabaseManager {
         id TEXT PRIMARY KEY,
         product_id TEXT NOT NULL,
         code TEXT NOT NULL,
+        code_norm TEXT,
         kind TEXT,
+        status TEXT DEFAULT 'active',
+        valid_from TEXT,
+        valid_to TEXT,
         is_primary INTEGER DEFAULT 0,
         packaging_id TEXT,
         qty_in_base_uom REAL DEFAULT 1,
@@ -198,6 +202,7 @@ class DatabaseManager {
         updated_at TEXT
       );
       CREATE INDEX IF NOT EXISTS product_identifiers_code_idx ON product_identifiers(code);
+      CREATE INDEX IF NOT EXISTS product_identifiers_code_norm_idx ON product_identifiers(code_norm);
       CREATE INDEX IF NOT EXISTS product_identifiers_product_idx ON product_identifiers(product_id);
 
 
