@@ -140,11 +140,17 @@ export class RelayTransport {
     // Idempotency: if a job with the same (org, ws, key) already exists we
     // reuse it. The unique index lets the insert fail with 23505 which we
     // translate into a lookup rather than a hard error.
-    const { data: inserted, error: insertErr } = await this.supabase
-      .from('edge_jobs')
-      .insert(insertRow)
-      .select('id, status, result, error')
-      .single();
+    const { data: inserted, error: insertErr } = await withSpan(
+      'relay.enqueue',
+      () =>
+        this.supabase
+          .from('edge_jobs')
+          .insert(insertRow)
+          .select('id, status, result, error')
+          .single(),
+      { role: args.role, op: args.op ?? 'exec' },
+    );
+
 
     let jobId: string | null = null;
     if (insertErr) {
