@@ -13,7 +13,10 @@ I re-checked every claim the previous engineer marked complete, against the code
 - **Coverage gaps closed.** `MobileDispatch`, `MobilePack`, `MobileQC`, `MobilePlate`, `LoadingBay`, `YardMarshal`, `GateConsole`, `PackStation`, `LicensePlateView`, `ReceivingSessions` all now go through a sanctioned scan field / intent. `wms-scan-prompt-coverage.test.ts` passes (2 tests).
 - Full guard set for this roadmap: 12 tests, all green.
 
-**Verdict:** Phases 0–3 are genuinely complete. No rework needed. Phase 4 is genuinely not started.
+**Verdict:** Phases 0–3 are structurally complete, with one real defect (below). Phase 4 is genuinely not started.
+
+**Build-breaking defect in Phase 3 work — must be fixed first.** `MobilePlate.tsx:91` passes `bin.id` as `_to_location_id`, but `ResolvedLocation` has no `id` — the field is `location_id`. This fails typecheck and, at runtime, would send `undefined` as the destination of every RF plate move. Phase 3 was reported as "verified, tsgo clean", which it was not. Fix is one line: `_to_location_id: bin.location_id`. This becomes Phase 4.0.
+
 
 **Additional defects found during verification, not in the previous plan:**
 
