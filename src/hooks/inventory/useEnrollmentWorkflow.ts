@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { writeIdentifierResult } from "@/features/products/identity/writeIdentifier";
+import { supabase } from "@/integrations/supabase/client";
 import { scanFeedbackBus } from "@/services/scanner";
 import { playPOSSound } from "@/lib/pos/sounds";
 import type { IdentificationTarget } from "@/hooks/inventory/useIdentificationQueue";
