@@ -382,7 +382,7 @@ export default function PrintPoliciesEditor() {
                   >
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {PAPER_OPTIONS.map((p) => (
+                      {paperOptions.map((p) => (
                         <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>
                       ))}
                     </SelectContent>
