@@ -73,7 +73,8 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId }: P
           <DialogTitle>Print bin labels</DialogTitle>
           <DialogDescription>
             {printable.length} label{printable.length === 1 ? "" : "s"} will be sent to the
-            warehouse label printer. Every label carries the location code operators scan.
+            warehouse label printer as one label run. Every label carries the location code
+            operators scan; progress is tracked in Inventory → Label operations.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,20 +117,9 @@ export function BinLabelDialog({ open, onOpenChange, locations, warehouseId }: P
             />
           </div>
           {busy && (
-            <p className="pb-2 text-sm text-muted-foreground">
-              Printing {done}/{printable.length}…
-            </p>
+            <p className="pb-2 text-sm text-muted-foreground">Submitting run…</p>
           )}
         </div>
-
-        {missingDeviceCta && (
-          <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-            {missingDeviceCta.message}{" "}
-            <a className="underline" href={missingDeviceCta.href}>
-              Assign a printer
-            </a>
-          </p>
-        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
@@ -157,24 +147,4 @@ function barPattern(code: string): number[] {
     out.push(((c + i) % 3) + 1);
   }
   return out;
-}
-
-/**
- * How many times each position has already been labelled. One query for the
- * whole run — `print_jobs` is the platform's print audit surface.
- */
-async function priorPrintCounts(ids: string[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (ids.length === 0) return counts;
-  const { data, error } = await supabase
-    .from("print_jobs")
-    .select("doc_id")
-    .eq("doc_type", "stock_location")
-    .in("doc_id", ids);
-  if (error) return counts;
-  (data ?? []).forEach((row) => {
-    const id = (row as { doc_id: string | null }).doc_id;
-    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
-  });
-  return counts;
 }
