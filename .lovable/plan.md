@@ -29,8 +29,15 @@ as the previous engineer stated.
 No regressions or duplicate print paths found: single-item printing still flows through
 `useLabelPrint`, batch paths through `useLabelRunActions`, and the guard test enforces it.
 
+**Second finding (new):** the Phase 5 UI does not typecheck. `PrintFilteredLabelsButton`
+declares its template table with an untyped `workflow` string, so it fails against
+`PrinterWorkflow`. The previous engineer's "typecheck clean" claim does not hold.
+
 ## Phase 6 — Hardening and proof (execution order)
 
+0. **Fix the broken build.** Type the template table in `PrintFilteredLabelsButton` against
+   `PrinterWorkflow` so the workflow is checked at compile time, and confirm the whole label
+   surface typechecks clean before any new work lands.
 1. **End-to-end proof.** Seed a synthetic run of ≥1,000 product lines in a test business;
    drive `expand_label_run` through repeated passes; assert: bounded passes, lines created
    once under repeat calls, `print_jobs` rows written with `intent='label'` and deterministic
