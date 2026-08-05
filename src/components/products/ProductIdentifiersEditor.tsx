@@ -356,28 +356,68 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       });
     };
 
-    const updateRow = async (idx: number, patch: Partial<IdentifierRow>) => {
-      const target = rows[idx];
+    /**
+     * Persist a single row.
+     *
+     * Two invariants (see plan "Barcode edit on phone saves only one
+     * character"):
+     *  1. Reads the LIVE row from `rowsRef`, never a render-time snapshot,
+     *     so a save can't resurrect an older code.
+     *  2. Sequence-guarded per row: only the newest issued save for a row is
+     *     allowed to report/settle, so a stale in-flight write (e.g. an
+     *     intermediate one-character value) can never win the race and
+     *     overwrite the full code.
+     */
+    const persistRow = async (idx: number, override?: Partial<IdentifierRow>) => {
+      const live = rowsRef.current[idx];
+      if (!live) return;
+      const merged = { ...live, ...override };
+      const code = merged.code.trim();
+      if (!merged.id || !productId || !code) return;
+
+      const key = merged.id;
+      if (lastSavedRef.current.get(key) === code && !override?.kind && !override) return;
+
+      const seq = (writeSeqRef.current.get(key) ?? 0) + 1;
+      writeSeqRef.current.set(key, seq);
+
+      const failure = await writeIdentifier({
+        businessId,
+        productId,
+        code,
+        kind: merged.kind,
+        packagingId: merged.packaging_id,
+        isPrimary: merged.is_primary,
+        identifierId: merged.id,
+      });
+
+      // A newer save for this row was issued while we were in flight —
+      // discard this outcome entirely.
+      if (writeSeqRef.current.get(key) !== seq) return;
+
+      if (failure) {
+        toast({ title: "Save failed", description: failure, variant: "destructive" });
+        return;
+      }
+      lastSavedRef.current.set(key, code);
+      setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, _dirty: false } : r)));
+    };
+
+    /**
+     * Local-only state update. Typing NEVER writes to the server — the code
+     * is persisted on blur, on a confirmed scan, or on form save. Structural
+     * changes (kind / packaging / primary) are discrete and persist at once.
+     */
+    const updateRow = (idx: number, patch: Partial<IdentifierRow>) => {
+      const target = rowsRef.current[idx];
       if (!target) return;
-      // optimistic local update
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch, _dirty: true } : r)));
-      // if it's a persisted row and we have productId, save immediately
-      if (target.id && productId) {
-        const merged = { ...target, ...patch };
-        const failure = await writeIdentifier({
-          businessId,
-          productId,
-          code: merged.code,
-          kind: merged.kind,
-          packagingId: merged.packaging_id,
-          isPrimary: merged.is_primary,
-          identifierId: target.id,
-        });
-        if (failure) {
-          toast({ title: "Save failed", description: failure, variant: "destructive" });
-        }
+      const structural = patch.code === undefined;
+      if (structural && target.id && productId) {
+        void persistRow(idx, patch);
       }
     };
+
 
     const setPrimary = async (idx: number) => {
       const target = rows[idx];
