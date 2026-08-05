@@ -102,6 +102,14 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     const seededRef = useRef(false);
     const fieldRefs = useRef<Array<BarcodeInputFieldHandle | null>>([]);
     const wasConnectedRef = useRef(false);
+    // Live mirror of `rows` — saves read from here, never from a stale
+    // render-time closure.
+    const rowsRef = useRef<IdentifierRow[]>([]);
+    rowsRef.current = rows;
+    // Per-row write sequence: only the newest issued save may settle.
+    const writeSeqRef = useRef<Map<string, number>>(new Map());
+    // Last code successfully persisted per identifier id.
+    const lastSavedRef = useRef<Map<string, string>>(new Map());
 
     // Workspace-scoped scanner session — owned by ScannerWorkspaceProvider
     // in AuthenticatedShell, NOT by this editor. Means the phone paired on
@@ -376,7 +384,12 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       if (!merged.id || !productId || !code) return;
 
       const key = merged.id;
-      if (lastSavedRef.current.get(key) === code && !override?.kind && !override) return;
+      const structuralOverride =
+        !!override &&
+        (override.kind !== undefined ||
+          override.packaging_id !== undefined ||
+          override.is_primary !== undefined);
+      if (!structuralOverride && lastSavedRef.current.get(key) === code) return;
 
       const seq = (writeSeqRef.current.get(key) ?? 0) + 1;
       writeSeqRef.current.set(key, seq);
