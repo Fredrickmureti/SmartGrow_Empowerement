@@ -85,4 +85,33 @@ describe("WMS scan prompt coverage", () => {
       `These screens mirror physical work and must register a scan path:\n${missing.join("\n")}`,
     ).toEqual([]);
   });
+
+  /**
+   * Phase 4.5 — a handheld operator has no wedge gun. An RF screen that
+   * registers a scan intent but never passes `scanLabel` renders no camera
+   * affordance, so on a phone the prompt is unreachable.
+   */
+  it("every RF screen with a scan intent offers the camera affordance", () => {
+    const offenders: string[] = [];
+    for (const file of files(join(process.cwd(), "src/pages/warehouse-mobile"))) {
+      const src = readFileSync(file, "utf8");
+      const hasIntent = src.includes("useWmsScanIntent") || SANCTIONED.some((c) => src.includes(`<${c}`));
+      if (!hasIntent) continue;
+      if (!src.includes("MobileWarehouseLayout")) continue;
+      if (!/scanLabel[=:]/.test(src)) offenders.push(file.slice(file.indexOf("src")));
+    }
+    expect(
+      offenders,
+      `RF screens with a scan prompt must pass scanLabel so handheld operators can scan:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  /** The guidance surface is layout-owned; screens must not re-implement it. */
+  it("the RF layout renders the single guidance surface", () => {
+    const layout = readFileSync(
+      join(process.cwd(), "src/apps/warehouse-mobile/MobileWarehouseLayout.tsx"),
+      "utf8",
+    );
+    expect(layout).toContain("<ScanGuidance");
+  });
 });
