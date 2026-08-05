@@ -97,7 +97,12 @@ export interface ScanFeedback {
   /** Convenience wrappers. */
   success: () => void;
   warn: () => void;
+  /** The operator already scanned this one. */
+  duplicate: () => void;
+  /** Positively the wrong kind of label for the active prompt. */
+  reject: () => void;
   error: () => void;
+
   /** Render this inside the screen to get the colour flash. */
   Flash: () => ReactElement | null;
   muted: boolean;
