@@ -86,7 +86,11 @@ export type LabelSelection =
     }
 
   | { kind: "location_ids"; ids: string[] }
+  | { kind: "carton_ids"; ids: string[] }
+  /** Every carton on a packing wave — sealed only unless told otherwise. */
+  | { kind: "pack_wave"; wave_id: string; sealed_only?: boolean }
   | { kind: "demand"; reason?: LabelDemandReason | null };
+
 
 export interface CreateLabelRunArgs {
   templateKey: string;
