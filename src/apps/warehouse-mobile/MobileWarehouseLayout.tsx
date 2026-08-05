@@ -99,7 +99,7 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar, scanLa
       </header>
       {/* One guidance bar for the whole RF app: it reads the mounted scan
           intent from the router, so screens never restate their prompt. */}
-      <ScanGuidance variant="bar" className="mx-3 mt-2" />
+      <ScanGuidance variant="bar" className="mx-3 mt-2" hideCamera={!!scanLabel} continuous={continuous} />
       <main className="relative flex-1 overflow-y-auto p-3">
         {children}
         {scanLabel && (
