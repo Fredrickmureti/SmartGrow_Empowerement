@@ -17,11 +17,12 @@
  */
 import { useMemo, useState } from "react";
 import {
-  Play, Pause, RotateCcw, X, Loader2, Tags, Printer, AlertTriangle, Ban,
+  Play, Pause, RotateCcw, X, Loader2, Tags, Printer, AlertTriangle, Ban, Trash2, Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { LabelRunHealthStrip } from "@/components/labels/LabelRunHealthStrip";
+import { LabelProductPicker } from "@/components/labels/LabelProductPicker";
 
 import {
   useLabelRuns, useLabelRunLines, useLabelDemand, useLabelRunActions,
@@ -79,7 +80,9 @@ export default function LabelOperations() {
   const { data: runs = [], isLoading: runsLoading } = useLabelRuns(businessId);
   const [reasonFilter, setReasonFilter] = useState<LabelDemandReason | "all">("all");
   const { data: demand = [], isLoading: demandLoading } = useLabelDemand(businessId, reasonFilter);
-  const { createRun, setStatus, retryFailures, dismissDemand } = useLabelRunActions(businessId);
+  const { createRun, setStatus, retryFailures, dismissDemand, purgeRuns } =
+    useLabelRunActions(businessId);
+  const [purgeAge, setPurgeAge] = useState<string>("30");
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [template, setTemplate] = useState<string>("shelf_label");
@@ -168,8 +171,17 @@ export default function LabelOperations() {
       <Tabs defaultValue="demand">
         <TabsList>
           <TabsTrigger value="demand">Demand ({demand.length})</TabsTrigger>
+          <TabsTrigger value="products">
+            <Package className="mr-1.5 h-3.5 w-3.5" />
+            Products
+          </TabsTrigger>
           <TabsTrigger value="runs">Runs ({runs.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="products" className="mt-4">
+          <LabelProductPicker businessId={businessId} />
+        </TabsContent>
+
 
         <TabsContent value="demand" className="mt-4 space-y-4">
           <Card>
@@ -326,7 +338,42 @@ export default function LabelOperations() {
 
         <TabsContent value="runs" className="mt-4">
           <Card>
+            <CardHeader className="flex flex-row flex-wrap items-end justify-between gap-3 pb-3">
+              <div>
+                <CardTitle className="text-base">Run history</CardTitle>
+                <CardDescription>
+                  Finished runs are kept as the audit record of what reached paper. Clear
+                  them once you no longer need the trail — in-flight runs are never removed.
+                </CardDescription>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Clear finished runs</Label>
+                  <Select value={purgeAge} onValueChange={setPurgeAge}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">Older than 7 days</SelectItem>
+                      <SelectItem value="30">Older than 30 days</SelectItem>
+                      <SelectItem value="90">Older than 90 days</SelectItem>
+                      <SelectItem value="365">Older than 1 year</SelectItem>
+                      <SelectItem value="0">All finished runs</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={purgeRuns.isPending || !runs.length}
+                  onClick={() => purgeRuns.mutate({ olderThanDays: Number(purgeAge) })}
+                >
+                  {purgeRuns.isPending
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Trash2 className="mr-2 h-4 w-4" />}
+                  Clear
+                </Button>
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -415,6 +462,14 @@ export default function LabelOperations() {
                                 onClick={() => setStatus.mutate({ runId: r.id, status: "cancelled" })}
                               >
                                 <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {(r.status === "completed" || r.status === "cancelled" || r.status === "failed") && (
+                              <Button
+                                size="icon" variant="ghost" aria-label="Delete run"
+                                onClick={() => purgeRuns.mutate({ runIds: [r.id] })}
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             )}
                           </div>

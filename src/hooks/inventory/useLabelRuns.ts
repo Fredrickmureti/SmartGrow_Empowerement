@@ -271,7 +271,33 @@ export function useLabelRunActions(businessId?: string | null) {
       toast.error(e instanceof Error ? e.message : "Could not dismiss the demand"),
   });
 
-  return { createRun, setStatus, retryFailures, dismissDemand };
+  /**
+   * Clear finished run history. Runs are an audit object, not a log to keep
+   * forever: a year of daily labelling accumulates thousands of headers and
+   * millions of lines, so the operator needs a bounded, explicit purge.
+   * Only completed / cancelled / failed runs are eligible — the server
+   * refuses anything still in flight — and lines cascade with the header.
+   */
+  const purgeRuns = useMutation({
+    mutationFn: async (args: { olderThanDays?: number; runIds?: string[] }) => {
+      if (!businessId) throw new Error("No business selected");
+      const { data, error } = await supabase.rpc("purge_label_runs", {
+        p_business_id: businessId,
+        p_older_than_days: args.olderThanDays ?? 0,
+        p_run_ids: args.runIds ?? null,
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: (n) => {
+      toast.success(n > 0 ? `Cleared ${n} run${n === 1 ? "" : "s"}` : "Nothing to clear");
+      invalidate();
+    },
+    onError: (e: unknown) =>
+      toast.error(e instanceof Error ? e.message : "Could not clear the run history"),
+  });
+
+  return { createRun, setStatus, retryFailures, dismissDemand, purgeRuns };
 }
 
 /* ------------------------------------------------------------------ *

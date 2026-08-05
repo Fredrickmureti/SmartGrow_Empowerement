@@ -90898,6 +90898,14 @@ export type Database = {
         Args: { p_max_rows?: number; p_retention_days?: number }
         Returns: Json
       }
+      purge_label_runs: {
+        Args: {
+          p_business_id: string
+          p_older_than_days?: number
+          p_run_ids?: string[]
+        }
+        Returns: number
+      }
       purge_scan_events: { Args: never; Returns: undefined }
       raise_label_demand: {
         Args: {
