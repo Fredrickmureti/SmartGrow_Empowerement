@@ -12,6 +12,7 @@ import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import { hasCamera } from "@/services/scanner/camera/deviceMode";
 import { feedbackTones } from "@/services/scanner/feedbackTones";
 
 interface Props {
