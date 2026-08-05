@@ -20,6 +20,7 @@ export type IdentityStatus =
   | "expired"
   | "foreign_tenant"
   | "unauthorized"
+  | "supplier_scoped"
   | "error";
 
 export const IDENTITY_STATUSES: readonly IdentityStatus[] = [
@@ -31,6 +32,7 @@ export const IDENTITY_STATUSES: readonly IdentityStatus[] = [
   "expired",
   "foreign_tenant",
   "unauthorized",
+  "supplier_scoped",
   "error",
 ] as const;
 
@@ -41,6 +43,7 @@ export type IdentityRemediation =
   | { action: "review_duplicate"; label: string; href: string }
   | { action: "reactivate"; label: string; href: string }
   | { action: "retry"; label: string }
+  | { action: "link_supplier_code"; label: string }
   | { action: "contact_admin"; label: string };
 
 export interface IdentityOutcomeCopy {
@@ -119,6 +122,14 @@ export function describeIdentityOutcome(input: IdentityOutcomeInput): IdentityOu
         detail:
           "This identifier is registered outside this business, so it cannot be used here. Enrol your own code for this item.",
         remediation: { action: "enrol", label: "Enrol this code", href: ENROL_HREF },
+        blocking: true,
+      };
+    case "supplier_scoped":
+      return {
+        title: `${code} is a supplier's own code`,
+        detail:
+          "This code lives in a supplier catalogue, so it only identifies goods while you are receiving against that supplier's order. Open the inbound document for that supplier, or link the code to the item here.",
+        remediation: { action: "link_supplier_code", label: "Link this supplier code" },
         blocking: true,
       };
     case "unauthorized":

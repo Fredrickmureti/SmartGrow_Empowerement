@@ -71,6 +71,7 @@ export type IdentityResolution =
   | { kind: "archived"; code: string; identity: ProductIdentity | null }
   | { kind: "expired"; code: string; identity: ProductIdentity | null }
   | { kind: "foreign_tenant"; code: string }
+  | { kind: "supplier_scoped"; code: string }
   | { kind: "unauthorized"; code: string }
   | { kind: "error"; err: Error };
 
@@ -145,12 +146,14 @@ async function rpcOnce(
   code: string,
   gs1: Gs1ScanInterpretation,
   allowSkuFallback: boolean,
+  supplierId: string | null,
 ): Promise<IdentityResolution> {
   const { data, error } = await supabase.rpc("resolve_product_identity" as never, {
     p_business_id: businessId,
     p_code: code,
     p_branch_id: branchId ?? undefined,
     p_allow_sku_fallback: allowSkuFallback,
+    p_supplier_id: supplierId ?? undefined,
   } as never);
   if (error) return { kind: "error", err: new Error(error.message || "RPC error") };
   const rows = (data as unknown) as Array<Record<string, unknown>> | null;
@@ -174,6 +177,8 @@ async function rpcOnce(
       return { kind: status as "inactive" | "archived" | "expired", code, identity };
     case "foreign_tenant":
       return { kind: "foreign_tenant", code };
+    case "supplier_scoped":
+      return { kind: "supplier_scoped", code };
     case "unauthorized":
       return { kind: "unauthorized", code };
     default:
@@ -187,13 +192,14 @@ async function rpcWithRetry(
   code: string,
   gs1: Gs1ScanInterpretation,
   allowSkuFallback: boolean,
+  supplierId: string | null,
 ): Promise<IdentityResolution> {
-  const first = await rpcOnce(businessId, branchId, code, gs1, allowSkuFallback);
+  const first = await rpcOnce(businessId, branchId, code, gs1, allowSkuFallback, supplierId);
   if (first.kind !== "error") return first;
   // The resolver is a pure read — one jittered retry absorbs a packet drop
   // without ever surfacing it as "unknown barcode".
   await new Promise((r) => setTimeout(r, 200 + Math.floor(Math.random() * 300)));
-  return rpcOnce(businessId, branchId, code, gs1, allowSkuFallback);
+  return rpcOnce(businessId, branchId, code, gs1, allowSkuFallback, supplierId);
 }
 
 /**
@@ -212,6 +218,13 @@ export interface ResolveIdentityOptions {
    * scanner emits an identifier, never a SKU.
    */
   allowSkuFallback?: boolean;
+  /**
+   * Supplier context (Phase 8). Supplier-scoped identifiers — a vendor's own
+   * part number — resolve ONLY when the surface knows which supplier the
+   * goods came from (receiving against that vendor's PO / ASN). Without it
+   * the resolver returns `supplier_scoped` rather than guessing.
+   */
+  supplierId?: string | null;
 }
 
 export function useResolveProductIdentity(
@@ -220,6 +233,7 @@ export function useResolveProductIdentity(
   options: ResolveIdentityOptions = {},
 ) {
   const allowSkuFallback = options.allowSkuFallback ?? false;
+  const supplierId = options.supplierId ?? null;
   const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
   const inflightRef = useRef<Map<string, Promise<IdentityResolution>>>(new Map());
   const queryClient = useQueryClient();
@@ -243,7 +257,7 @@ export function useResolveProductIdentity(
         return { kind: "error", err: new Error("No business context for identity resolution") };
       }
 
-      const cacheKey = `${businessId}|${branchId ?? ""}|${allowSkuFallback ? "sku" : "strict"}|${code.toUpperCase()}`;
+      const cacheKey = `${businessId}|${branchId ?? ""}|${allowSkuFallback ? "sku" : "strict"}|${supplierId ?? "-"}|${code.toUpperCase()}`;
       const cached = lruGet(cacheRef.current, cacheKey, Date.now());
       if (cached) {
         // Re-attach the GS1 envelope of THIS scan — lot/serial differ per
@@ -264,7 +278,7 @@ export function useResolveProductIdentity(
         return shared;
       }
 
-      const promise = rpcWithRetry(businessId, branchId, code, gs1, allowSkuFallback)
+      const promise = rpcWithRetry(businessId, branchId, code, gs1, allowSkuFallback, supplierId)
         .then((result) => {
           if (result.kind !== "error") {
             lruSet(cacheRef.current, cacheKey, { result, cachedAt: Date.now() });
@@ -277,7 +291,7 @@ export function useResolveProductIdentity(
       inflightRef.current.set(cacheKey, promise);
       return promise;
     },
-    [businessId, branchId, allowSkuFallback],
+    [businessId, branchId, allowSkuFallback, supplierId],
   );
 
   const invalidate = useCallback(() => cacheRef.current.clear(), []);
