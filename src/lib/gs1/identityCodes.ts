@@ -56,9 +56,10 @@ export function identityCodeCandidates(raw: string): string[] {
   const gtin = gs1GtinOf(raw);
   if (gtin) push(gtin);
 
-  // (3) GTIN padding family.
-  const digits = /^[0-9]+$/.test(norm) ? norm : (gtin ?? "");
-  if (/^[0-9]{8,14}$/.test(digits)) {
+  // (3) GTIN padding family — for the raw code when it is all digits AND
+  // for the GS1 GTIN, so `0105012345678900` still reaches `5012345678900`.
+  for (const digits of [norm, gtin ?? ""]) {
+    if (!/^[0-9]{8,14}$/.test(digits)) continue;
     const stripped = digits.replace(/^0+/, "") || "0";
     push(stripped);
     for (const w of GTIN_WIDTHS) {
