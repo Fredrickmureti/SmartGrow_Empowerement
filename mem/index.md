@@ -25,6 +25,8 @@ Scanning has two device modes: handheld (own camera → scanBus in-process) and 
 
 A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside one app, navigation expands via `WorkspaceNavItem.children`. ADR 0101.
 
+Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/Workforce/Analysis/Configuration-last); new surfaces attach inside a domain, depth<=2, group<=8. ADR 0121.
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
@@ -32,4 +34,6 @@ A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside o
 - [Product identity decisions](mem://features/product-identity-decisions) — decision envelope statuses, lifecycle columns, outcome copy taxonomy, write-through RPCs
 - [Scanner device modes](mem://features/scanner-device-modes) — handheld vs companion, single camera engine, LocalScanOverlay, /wm scan button contract
 - [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
+- [Warehouse nav IA](mem://features/warehouse-nav-ia) — ADR 0121 domain groups, execution vs configuration split, depth/size caps, WMS terminology
+
 
