@@ -403,16 +403,15 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       if (target.id) {
         // Retire, never hard-delete: a printed label stays explainable
         // ("this code was retired") instead of resolving as unknown.
-        const { data, error } = await supabase.rpc("retire_product_identifier" as never, {
-          p_business_id: businessId,
-          p_identifier_id: target.id,
-          p_status: "archived",
-        } as never);
-        const envelope = (data ?? null) as { status?: string; reason?: string } | null;
-        if (error || (envelope && envelope.status && envelope.status !== "ok")) {
+        const failure = await retireIdentifier({
+          businessId,
+          identifierId: target.id,
+          status: "archived",
+        });
+        if (failure) {
           toast({
             title: "Could not remove barcode",
-            description: error ? normalizeError(error).message : identifierWriteMessage(envelope?.reason),
+            description: failure,
             variant: "destructive",
           });
         }
