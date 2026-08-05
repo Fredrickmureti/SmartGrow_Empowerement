@@ -128,18 +128,20 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
     const seq = ++checkSeqRef.current;
     debounceRef.current = setTimeout(async () => {
       try {
-        // ADR-0110: single authoritative resolver seam.
-        const { data } = await supabase.rpc("resolve_product_identity" as any, {
-          p_business_id: businessId,
-          p_branch_id: branchId,
-          p_code: code.trim(),
-        } as any);
+        // ADR-0110: single authoritative resolver seam. Typing path, so a
+        // literal SKU counts as "already used" too.
+        const res = await resolveProductIdentityOnce({
+          businessId,
+          branchId,
+          code: code.trim(),
+          allowSkuFallback: true,
+        });
         // Drop the result if a newer check has started since we fired.
         if (seq !== checkSeqRef.current) return;
-        const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
-        const taken = row && (row.status === "resolved" || row.status === "ambiguous");
-        if (taken && row.product_id !== excludeProductId) {
-          setDuplicate({ name: (row.product_name ?? "another product") as string });
+        const identity =
+          res.kind === "resolved" || res.kind === "ambiguous" ? res.identity : null;
+        if (identity && identity.productId !== excludeProductId) {
+          setDuplicate({ name: identity.productName || "another product" });
         } else {
           setDuplicate(null);
         }
