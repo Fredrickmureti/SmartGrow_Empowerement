@@ -1,30 +1,44 @@
-# Product Identity & Resolution — authoritative status
+# Product Identity & Resolution — verification verdict, then Phases 6–8
 
-Roadmap: `.lovable/plan/product-identity-architecture-audit-and-remediation-2026-08-05.md` (Phases 0–8).
+Roadmap: `.lovable/plan/product-identity-architecture-audit-and-remediation-2026-08-05.md`.
 
-## Currently active
-Phase 5 complete → **next active phase is Phase 6 (one grammar, one matcher)**.
+## Phase 1 — verification verdict (done, evidence-based)
 
-## Done and verified
-- **Phase 0–1** — reproduced the barcode RPC failure (PGRST203 overload ambiguity); dropped the duplicate `enroll_product_barcode`, revoked PUBLIC/anon EXECUTE on all identity RPCs (anon calls now 401).
-- **Phase 2** — `product_identifiers` lifecycle: `status`, `valid_from/to`, `source`, `supplier_id`, `replaced_by_id`; invariant trigger; partial unique index on active codes.
-- **Phase 3** — `resolve_product_identity(business, code, branch, allow_sku_fallback)` returns a decision: `resolved | ambiguous | not_found | inactive | archived | expired | foreign_tenant | unauthorized`.
-- **Phase 4** — one client seam, one taxonomy:
-  - `src/features/products/identity/identityOutcome.ts` is the only source of operator copy.
-  - `useResolveProductIdentity` (+ `describeResolution`), `useWmsIdentityGate`, PhysicalCount, TransferNew, CountSession, PickList all consume it; SKU fallback is intent-driven (typing yes, scanning no).
-  - POS parallel envelope removed: new `pos_resolve_scan(business, branch, code)` RPC returns the identity decision **plus** price/tax/packaging in one round trip; `useResolveBarcode` now returns `{kind:'miss', status, matchCount, productName}` and POSTerminal, SalesScanContext and InvoiceLineScanner render shared taxonomy copy instead of "Unknown barcode".
-- **Phase 5** — writes through the service: `writeIdentifier` / `retireIdentifier` (`upsert_product_identifier` / `retire_product_identifier`) are the only mutation path. Cut over: ProductIdentifiersEditor, ProductPackagingEditor (level binding), POSBarcodeSettings (save + retire, no hard delete), the barcode importer, and Products.tsx import enrolment.
-- Guards green: `src/test/architecture/identity-write-seam.test.ts` (no `product_identifiers` mutation outside the seam), `identity-resolver-single-seam.test.ts`, `identity-outcome-taxonomy.test.ts`, `resolve-product-identity.test.tsx`, `resolve-barcode-contract.test.ts`, `sales-scan-context.test.tsx`. Typecheck clean.
-- Memory: `mem/features/product-identity-decisions.md`.
+Confirmed genuinely landed:
+- **Identity RPCs exist with a single signature each** — `resolve_product_identity(business, code, branch, allow_sku_fallback)`, `pos_resolve_scan`, `upsert_product_identifier`, `retire_product_identifier`. No overload duplicates remain, so the PGRST203 ambiguity that produced the original "internal server error" is genuinely gone.
+- **Grants** — every identity RPC is `authenticated` + `service_role` only; no PUBLIC/anon EXECUTE.
+- **Client seam** — `src/features/products/identity/{identityOutcome,writeIdentifier}.ts` exist; a repo-wide search finds **no** direct insert/update/upsert/delete against `product_identifiers` outside the seam. Consumers (`useResolveProductIdentity`, `useWmsIdentityGate`, WMS mobile pick/count, receiving, barcode import config) route through it.
+- Lifecycle columns/decision statuses are in place and reflected in project memory.
 
-## Pending
-- **Phase 6 (next)** — one GS1 grammar, one matcher. Collapse `src/lib/gs1/parseGs1.ts` and the SQL AI parsing into a single implementation with one AI table; regenerate `SQLiteBridge`'s offline matcher from the same normalisation rules (upper/btrim, GTIN padding, packaging conversion); shared test-vector table proving online and offline agree. Delete the surviving shims (`resolve_barcode_v2`, legacy `pos_resolve_barcode` row wrapper) only once no caller remains — current remaining callers are duplicate checks in `BarcodeInputField`, `ProductIdentifiersEditor`, `Products.tsx`.
-- **Phase 7** — `resolve_scanned_token(business, code, context)` SQL dispatcher over product / location / license plate / lot / serial, returning a tagged union; product and location hooks become thin callers. Verify the existing locations resolver first to keep scope contained.
-- **Phase 8** — supplier item codes as real identifiers (`kind='supplier'` + `supplier_id`) for ASN/EDI matching; importer moves from rigid templates to identifier discovery.
-- ADR-0110 write-up (lifecycle + decision envelope + write-through rule) still to be added alongside ADR-0102.
+Verdict: Phases 0–5 are real, not cosmetic. But three claims are **overstated**, and they are exactly the residue that keeps producing the reported symptoms:
 
-## Instructions for the next agent
-1. **Verify before building.** Confirm Phase 4/5 landed to enterprise standard: run the identity/POS test files listed above plus a typecheck; grep that no source outside `src/features/products/identity/writeIdentifier.ts` mutates `product_identifiers`; confirm `pos_resolve_scan` is `authenticated`-only and that every non-resolved POS scan renders taxonomy copy (no hand-written "Unknown barcode" strings remain in scan consumers).
-2. Only then start **Phase 6**, and finish it end to end (single grammar + offline matcher parity + shared vectors + shim deletion) before touching Phase 7.
-3. Keep execution chronological — no jumping to Phase 8 or unrelated domains, no partially cut-over surfaces.
-4. Update this file at the end of each phase.
+1. **Legacy resolver still live and still called.** `pos_resolve_barcode` and `resolve_barcode_v2` both still exist in the database, and three UI surfaces still call `pos_resolve_barcode` directly for duplicate/lookup checks: `src/components/scanner/BarcodeInputField.tsx:131`, `src/components/products/ProductIdentifiersEditor.tsx:267`, `src/pages/Products.tsx:413`. These bypass the decision envelope, so "SKU edits appear inconsistent" and "duplicate already used by X" behave differently from a real scan.
+2. **A legacy write RPC survives.** `enroll_product_barcode` is still present and executable by `authenticated`. It writes identifiers without the lifecycle invariants that `upsert_product_identifier` enforces — the write seam is guarded in the client only, not in the database.
+3. **Two grammars, and a third offline.** SQL resolution understands only GS1 AI `(01)` plus digit padding; the client `src/lib/gs1/{parseGs1,aiTable}.ts` implements the full AI table; and the offline POS matcher `SQLiteBridge.getProductByBarcode` matches `pi.code = ?` raw — no `code_norm`, no GTIN padding, no `status`/`valid_from`/`valid_to` filter. Offline POS will therefore resolve retired or wrongly-cased codes that online resolution blocks.
+
+Phase 7 (token dispatcher) and Phase 8 (supplier identifiers, importer discovery) are untouched; `resolve_scanned_token` does not exist. A separate location resolver seam (`useResolveLocationIdentity`) does exist and is guarded, so Phase 7 is a unification, not a build-from-zero. ADR-0110 was never written.
+
+## Phase 6 — one grammar, one matcher (next, execute fully)
+
+1. **Single GS1 grammar.** Promote the client AI table to the canonical definition and mirror it into one SQL function (`parse_gs1_element_string`) generated from the same vector list: AI parsing, `code_norm = upper(btrim(code))`, GTIN-8/12/13/14 padding variants, packaging-level conversion. `resolve_product_identity` calls it; no inline `(01)` handling anywhere.
+2. **Offline parity.** Rewrite `SQLiteBridge.getProductByBarcode` to normalise and pad exactly as SQL does, filter `status='active'` and `valid_from/valid_to`, and return the same decision statuses as online (including `ambiguous` on multi-match) instead of `null`-means-unknown. Sync must materialise `code_norm` and lifecycle columns into the local table.
+3. **Shared test vectors.** One vector table exercised by three suites — client parser, SQL resolver, offline matcher — asserting identical decisions.
+4. **Delete the shims.** Cut `BarcodeInputField`, `ProductIdentifiersEditor` and `Products.tsx` duplicate/lookup checks over to `useResolveProductIdentity` (`allowSkuFallback` true only on typing paths), then drop `resolve_barcode_v2`, the `pos_resolve_barcode` row wrapper, and `enroll_product_barcode` in one migration. Add an architecture guard forbidding those names outside `supabase/migrations` and generated types.
+
+## Phase 7 — one scanned-token dispatcher
+
+`resolve_scanned_token(business, code, branch, context)` returns a tagged union over product identifier / warehouse location / license plate / lot / serial. Product and location hooks become thin callers of it; `useWmsIdentityGate` and `BinScanField` keep their current operator copy, extended from `identityOutcome.ts` with the new token kinds. No surface may guess a token's type from its shape.
+
+## Phase 8 — supplier identity and identifier-discovery import
+
+- Supplier item codes become first-class identifiers (`kind='supplier'` + `supplier_id`), resolvable and used for ASN/EDI/PO line matching, with supplier-scoped uniqueness.
+- The product importer moves from a rigid column template to identifier discovery: any recognised identifier column (barcode/EAN/UPC/GTIN, supplier SKU, manufacturer code, legacy code, pack-level codes) maps to `product_identifiers` rows through `upsert_product_identifier`, with a per-row decision report instead of a hard failure.
+
+## Phase 9 — documentation and guardrails
+
+ADR-0110 (identifier lifecycle + decision envelope + database-enforced write seam), memory update, and a guard test asserting no client surface authors identity failure copy.
+
+## Technical notes
+
+- Write-seam enforcement moves into the database: revoke direct DML on `product_identifiers` from `authenticated` so the RPCs are the only mutation path — the current guard is a lint-style test, which a future surface can bypass.
+- Symptoms expected to disappear as a consequence, not as individual fixes: barcode 500s (already gone), inconsistent SKU/barcode edits (item 1), duplicate-detection mismatches (item 1), offline/online scan divergence (item 3).
