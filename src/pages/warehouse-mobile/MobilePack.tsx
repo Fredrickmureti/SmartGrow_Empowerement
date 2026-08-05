@@ -16,7 +16,7 @@
  * We never touch `wms_pack_cartons` directly; state transitions are
  * strictly RPC-driven, exactly like the desktop station.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import {
   packagingFailureMessage,
   type PackagingSuggestion,
@@ -56,6 +58,7 @@ interface Carton {
   sealed_at: string | null;
   weight_kg: number | null;
   sales_order_id: string | null;
+  shipment_lpn: { code: string | null } | null;
   packaging_type: { code: string | null; name: string | null } | null;
 }
 
@@ -106,7 +109,7 @@ export default function MobilePack() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
-        .select("id, sealed_at, weight_kg, sales_order_id, packaging_type:packaging_type_id(code, name)")
+        .select("id, sealed_at, weight_kg, sales_order_id, shipment_lpn:shipment_lpn_id(code), packaging_type:packaging_type_id(code, name)")
         .eq("wave_id", waveId!)
         .eq("sales_order_id", salesOrderId!)
         .order("created_at", { ascending: true });
@@ -206,6 +209,27 @@ export default function MobilePack() {
     }
   };
 
+  /**
+   * Seal by scanning the carton's own label. Tapping "Seal" on a list row
+   * works for a single-carton task, but a packer working a wall of open
+   * cartons must be able to scan the one in their hands — the same intent
+   * engine that drives every other RF prompt.
+   */
+  const sealByScan = useCallback(
+    async (code: string) => {
+      const match = (cartons ?? []).find(
+        (c) => entityCodeEquals(c.shipment_lpn?.code, code) || entityCodeEquals(c.id, code),
+      );
+      if (!match) return { ok: false, message: `${code} is not a carton on this pack task.` };
+      if (match.sealed_at) return { ok: false, message: `${code} is already sealed.` };
+      await sealCarton(match.id);
+      return { ok: true, message: `${code} sealed` };
+    },
+    // sealCarton is recreated per render but closes only over stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cartons],
+  );
+
   const completePack = async () => {
     if (!task || busy) return;
     setBusy(true);
@@ -273,6 +297,17 @@ export default function MobilePack() {
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
             Cartons · {(cartons ?? []).length}
           </h2>
+          {openCartons.length > 0 && !done && (
+            <div className="mb-3">
+              <EntityScanField
+                label="Scan carton to seal"
+                intent="pack.carton"
+                entity="carton"
+                disabled={busy}
+                onResolve={sealByScan}
+              />
+            </div>
+          )}
           {(cartons ?? []).length === 0 ? (
             <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
               No cartons opened yet.

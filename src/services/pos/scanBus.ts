@@ -18,8 +18,15 @@ export interface ScanEvent {
   quantity: number;
   /** Wall-clock when the burst completed. */
   at: number;
-  /** Source — keyboard wedge today; camera/serial later. */
-  source: "keyboard" | "camera" | "serial" | "manual";
+  /**
+   * Input source that produced this scan.
+   *
+   * `hardware` covers dedicated scan engines that decode OUTSIDE the DOM
+   * keyboard path (WebHID guns, Electron-bridged devices). They are a
+   * source, never a second pipeline: dedupe, router precedence and
+   * telemetry apply identically.
+   */
+  source: "keyboard" | "camera" | "serial" | "manual" | "hardware";
   /**
    * Realtime topic that produced this scan, when the source is a paired
    * phone. Stamped by the channel hooks (`usePOSScannerChannel`,
@@ -54,7 +61,7 @@ export interface ScanProgress {
   buffer: string;
   /** Wall-clock when this keystroke landed. */
   at: number;
-  source: "keyboard" | "camera" | "serial" | "manual";
+  source: "keyboard" | "camera" | "serial" | "manual" | "hardware";
   /** True once the kernel has decided this burst is definitely a scan. */
   committed: boolean;
 }

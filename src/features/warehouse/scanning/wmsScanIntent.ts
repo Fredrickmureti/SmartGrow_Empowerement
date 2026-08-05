@@ -51,6 +51,8 @@ export type WmsScanIntent =
   | "count.location"
   | "count.item"
   | "qc.lpn"
+  /** QC Phase 3 — the inspector scans the item before recording a verdict. */
+  | "qc.item"
   /** Returns audit Phase 5 — RMA dock capture scans the returned item. */
   | "returns.item"
   | "returns.lpn"

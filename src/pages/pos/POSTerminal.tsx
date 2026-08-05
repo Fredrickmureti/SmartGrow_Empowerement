@@ -82,7 +82,7 @@ import { interpretScan } from "@/lib/gs1/useGs1Scanner";
 // useScanCapture is mounted globally in AuthenticatedShell
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
-import { scanBus } from "@/services/pos/scanBus";
+import { scanBus, type ScanEvent } from "@/services/pos/scanBus";
 import { scanRouter } from "@/services/pos/scanRouter";
 import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
 import { ScanGhostTicker } from "@/components/pos/ScanGhostTicker";
@@ -715,7 +715,7 @@ function POSTerminalInner() {
   const [unknownScan, setUnknownScan] = useState<{ code: string; reason: string } | null>(null);
 
   const handleScan = useCallback(
-    async (code: string, qtyMultiplier: number, source: "keyboard" | "manual" | "camera" | "serial") => {
+    async (code: string, qtyMultiplier: number, source: ScanEvent["source"]) => {
       const norm = code.trim();
       if (!norm) return;
       // Sub-100ms perceptual feedback: tell the cashier we accepted the

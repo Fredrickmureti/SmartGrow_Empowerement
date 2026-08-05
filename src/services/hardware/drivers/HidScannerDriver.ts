@@ -8,6 +8,13 @@
  * - Access to raw scan data including symbology info
  * 
  * Requires WebHID support (Chrome 89+, Edge 89+).
+ *
+ * WebHID is a genuine transport (it decodes outside the DOM keyboard
+ * path), so unlike `KeyboardScannerDriver` it keeps its report decoder.
+ * It is NOT a parallel pipeline: every decode is published onto the
+ * canonical `scanBus` with `source: "hardware"`, so router precedence,
+ * cross-source dedupe, identity gating and telemetry apply exactly as
+ * they do for a wedge gun or a camera decode.
  */
 
 import type {
@@ -16,6 +23,8 @@ import type {
 } from './DriverInterface';
 import { hardwareEventBus } from '../HardwareEventBus';
 import { KNOWN_SCANNER_VENDORS } from '../escpos-commands';
+import { scanBus } from '@/services/pos/scanBus';
+import { parseScanPayload } from '@/services/pos/parseBarcode';
 
 type BarcodeCallback = (barcode: string) => void;
 
@@ -181,7 +190,6 @@ export class HidScannerDriver implements IDriver {
   }
 
   private emitBarcode(barcode: string): void {
-    console.log('[HidScanner] Barcode scanned:', barcode);
     for (const listener of this.listeners) {
       try {
         listener(barcode);
@@ -189,6 +197,19 @@ export class HidScannerDriver implements IDriver {
         console.error('[HidScanner] Listener error:', err);
       }
     }
+
+    // Canonical delivery path — one engine for every input source.
+    const parsed = parseScanPayload(barcode);
+    const at = Date.now();
+    scanBus.emit({
+      raw: barcode,
+      code: parsed.code,
+      quantity: parsed.quantity,
+      at,
+      decodedAt: at,
+      source: 'hardware',
+    });
+
     // Emit via centralized event bus (also bridges to DOM for backward compat)
     hardwareEventBus.emit('scanner:barcode_scanned', { barcode }, undefined, 'barcode_scanner');
   }
