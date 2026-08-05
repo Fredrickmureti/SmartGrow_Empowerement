@@ -7,6 +7,7 @@
  * update both sides together.
  */
 import {
+  Tags,
   LayoutGrid,
   Package,
   Boxes,
@@ -35,6 +36,7 @@ export const INVENTORY_NAV: WorkspaceNav = {
         { to: "/inventory-app/stock", label: "Stock", icon: Boxes },
         { to: "/inventory-app/inbound-shipments", label: "Inbound (ASN)", icon: Truck },
         { to: "/inventory-app/lots", label: "Lots & Traceability", icon: Boxes },
+        { to: "/inventory-app/labels", label: "Label operations", icon: Tags },
         { to: "/inventory-app/transfers", label: "Transfers", icon: ArrowLeftRight },
         { to: "/inventory-app/replenishment", label: "Replenishment", icon: RefreshCw },
         { to: "/inventory-app/forecast", label: "Forecast", icon: TrendingUp },

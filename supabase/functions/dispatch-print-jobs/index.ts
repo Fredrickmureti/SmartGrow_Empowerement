@@ -25,6 +25,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { requireCronAuth } from "../_shared/requireCronAuth.ts";
 import { renderDocument } from "../_shared/rendering/engine.ts";
+import { renderLabelBytes } from "../_shared/labels/renderLabelBytes.ts";
 import type { RenderMedium } from "../_shared/rendering/types.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -47,6 +48,8 @@ type PrintJob = {
   medium: string | null;
   hardware_role: string | null;
   copies: number;
+  intent: string | null;
+  media_profile_id: string | null;
   scenario: string;
   render_params: Record<string, unknown>;
   correlation_id: string;
@@ -116,6 +119,7 @@ async function processJob(job: PrintJob): Promise<string> {
   const needsArtifact =
     !artifactId &&
     job.document_record_id &&
+    job.intent !== "label" &&
     job.disposition !== "webhook"; // webhook payload is metadata only
 
   if (needsArtifact) {
@@ -125,7 +129,11 @@ async function processJob(job: PrintJob): Promise<string> {
   // 2. Dispatch by disposition.
   switch (job.disposition) {
     case "print":
+      // Label runs carry their payload in `render_params` (no
+      // document_record / artifact) — render bytes here and relay them.
+      if (job.intent === "label") return dispatchLabelPrint(job);
       return dispatchPrint(job, artifactId);
+
     case "email":
       return dispatchEmail(job, artifactId);
     case "fiscal":
@@ -249,17 +257,32 @@ async function buildRelayJob(
   payload: Record<string, unknown>;
   deadlineMs: number;
 }> {
+  if (!artifactId) {
+    throw new Error("print_missing_artifact");
+  }
+  const bytes = await loadArtifactBytes(artifactId);
+  return buildRelayJobFromBytes(device, job, bytes);
+}
+
+function buildRelayJobFromBytes(
+  device: Record<string, unknown>,
+  job: PrintJob,
+  bytes: Uint8Array,
+): {
+  workstationId: string;
+  role: "print" | "usb_print";
+  op: string;
+  payload: Record<string, unknown>;
+  deadlineMs: number;
+} {
   const workstationId = typeof device.workstation_id === "string" ? device.workstation_id : null;
   if (!workstationId) {
     throw new Error(`device_missing_workstation:${String(device.id ?? "unknown")}`);
   }
-  if (!artifactId) {
-    throw new Error("print_missing_artifact");
-  }
 
-  const bytes = await loadArtifactBytes(artifactId);
   const data = Array.from(bytes);
   const config = (device.config && typeof device.config === "object")
+
     ? device.config as Record<string, unknown>
     : {};
   const transport = String(device.transport ?? "network").toLowerCase();
@@ -292,6 +315,68 @@ async function buildRelayJob(
     payload: { ipAddress, port, data, timeout: 15000, copies: job.copies },
     deadlineMs: deadlineFor(bytes.byteLength, job.copies),
   };
+}
+
+/**
+ * Label-run print path (Label Operations Engine).
+ *
+ * Bulk label jobs are expanded server-side by `expand_label_run`, so they
+ * have no `document_record_id` and no artifact. Bytes are rendered here
+ * from the same `label_templates` registry the client seam uses, then
+ * relayed to the workstation-bound label printer.
+ */
+async function dispatchLabelPrint(job: PrintJob): Promise<string> {
+  const params = (job.render_params ?? {}) as Record<string, unknown>;
+  const templateKey = typeof params.template_key === "string" ? params.template_key : job.doc_type;
+  const vars = (params.vars && typeof params.vars === "object")
+    ? params.vars as Record<string, unknown>
+    : {};
+
+  const { data: biz } = await admin
+    .from("businesses")
+    .select("organization_id")
+    .eq("id", job.business_id)
+    .maybeSingle();
+  const orgId = (biz as { organization_id?: string } | null)?.organization_id;
+  if (!orgId) throw new Error("cannot_resolve_org_for_label");
+
+  const rendered = await renderLabelBytes(admin, {
+    orgId,
+    templateKey,
+    branchId: job.branch_id,
+    mediaProfileId: job.media_profile_id,
+    vars,
+  });
+  if (!rendered.ok) throw new Error(rendered.error);
+
+  const { data: candidates, error: resolveErr } = await admin.rpc("resolve_device", {
+    _organization_id: orgId,
+    _role: job.hardware_role ?? "label_printer",
+    _business_id: job.business_id,
+    _scope_kind: null,
+    _scope_id: null,
+  });
+  if (resolveErr) throw new Error(`resolve_device_failed:${resolveErr.message}`);
+
+  const chosen = (candidates ?? [])[0];
+  if (!chosen) throw new Error(`no_device_bound_for_role:${job.hardware_role ?? "label_printer"}`);
+
+  const relayJob = buildRelayJobFromBytes(chosen, job, rendered.bytes);
+  const { error: enqErr } = await admin
+    .from("edge_jobs")
+    .insert({
+      organization_id: orgId,
+      workstation_id: relayJob.workstationId,
+      role: relayJob.role,
+      op: relayJob.op,
+      payload: relayJob.payload,
+      idempotency_key: `print_job:${job.id}`,
+      deadline_at: new Date(Date.now() + relayJob.deadlineMs).toISOString(),
+    });
+  if (enqErr) throw new Error(`edge_relay_enqueue_failed:${enqErr.message}`);
+
+  await markDispatched(job.id, null, null);
+  return "dispatched_label_to_edge_agent";
 }
 
 async function loadArtifactBytes(artifactId: string): Promise<Uint8Array> {
