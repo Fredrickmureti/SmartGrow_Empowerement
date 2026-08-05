@@ -240,11 +240,11 @@ export default function CreditNotes() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Credit note ${cn.credit_note_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Credit note ${cn.credit_note_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
