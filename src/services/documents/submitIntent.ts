@@ -21,6 +21,7 @@
  * paths scheduled for Wave 9 deletion. Nothing new should use them.
  */
 import { supabase } from "@/integrations/supabase/client";
+import type { EnsureDocumentRecordInput } from "./ensureDocumentRecord";
 
 export interface SubmitDocumentIntentInput {
   documentRecordId: string;
