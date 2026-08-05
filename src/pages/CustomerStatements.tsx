@@ -331,13 +331,15 @@ export default function CustomerStatements() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      const outcome = printOutcomeToast(result, `Statement ${built.documentNumber ?? ""}`.trim());
-      if (outcome.variant === "destructive") toast.error(outcome.description);
-      else toast.success(outcome.description);
+      // Sonner surface: adapt the shared outcome copy to success/error calls.
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        (t) => {
+          if (t.variant === "destructive") toast.error(t.description);
+          else toast.success(t.description);
+        },
+        { label: `Statement ${built.documentNumber ?? ""}`.trim() },
+      );
     } catch (error: any) {
       console.error("Statement print error:", error);
       toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
