@@ -46,7 +46,7 @@ import { useReceivingTrailerVisits } from "@/features/warehouse/receiving/useRec
 import { tryResolvePlateScan } from "@/features/warehouse/receiving/useReceivingLpn";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
-import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
+import { ScanGuidance } from "@/features/warehouse/scanning/ScanGuidance";
 import {
   useReceivingProgress,
   useCaptureReceivingLine,
