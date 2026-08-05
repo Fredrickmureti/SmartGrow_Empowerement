@@ -112,12 +112,38 @@ function defaultIntentFor(documentType: string, medium: 'pdf' | 'escpos'): strin
 /**
  * Print a business document. This is the entry point for every surface
  * in the app that has a "Print" affordance.
+ *
+ * Every stage is wrapped in a span (`@/services/observability/trace`) so
+ * "where did the 18 seconds go?" is answered by reading `print_traces`,
+ * not by guessing. The stage names here are the contract the diagnostics
+ * waterfall renders.
  */
 export async function printDocument(req: PrintDocumentRequest): Promise<PrintResult> {
   const correlationId = req.correlationId ?? newCorrelationId();
+  return withTrace(
+    {
+      label: req.documentType,
+      correlationId,
+      attributes: {
+        entry: 'printDocument',
+        document_type: req.documentType,
+        document_id: req.documentId,
+        reprint: req.isReprint ?? false,
+      },
+    },
+    () => printDocumentTraced(req, correlationId),
+  );
+}
+
+async function printDocumentTraced(
+  req: PrintDocumentRequest,
+  correlationId: string,
+): Promise<PrintResult> {
   let policy: ResolvedPrintPolicy | null = null;
   try {
-    policy = await resolvePrintPolicy(req.businessId, req.branchId, req.documentType);
+    policy = await withSpan('policy.resolve', () =>
+      resolvePrintPolicy(req.businessId, req.branchId, req.documentType),
+    );
   } catch {
     policy = null;
   }
@@ -135,45 +161,55 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
   const transport: PrintTransport =
     disposition === 'download' ? 'download' : medium === 'escpos' ? 'thermal' : pdfTransport();
 
-  const jobIds: string[] = [];
-  const handles: JobHandle[] = [];
-  for (let i = 0; i < copies; i++) {
-    const handle = await openJob({
-      businessId: req.businessId,
-      branchId: req.branchId ?? null,
-      documentType: req.documentType,
-      documentId: req.documentId,
-      intent,
-      format: medium as PrintFormat,
-      transport,
-      correlationId,
-    });
-    handles.push(handle);
-    if (handle.id) jobIds.push(handle.id);
-  }
+  annotateTrace({ medium, copies, disposition, intent, transport });
+
+  // Ledger rows are independent of one another — one round trip per copy
+  // in series was pure dead time on the cashier's clock.
+  const handles: JobHandle[] = await withSpan(
+    'ledger.open',
+    () =>
+      Promise.all(
+        Array.from({ length: copies }, () =>
+          openJob({
+            businessId: req.businessId,
+            branchId: req.branchId ?? null,
+            documentType: req.documentType,
+            documentId: req.documentId,
+            intent,
+            format: medium as PrintFormat,
+            transport,
+            correlationId,
+          }),
+        ),
+      ),
+    { copies },
+  );
+  const jobIds = handles.map((h) => h.id).filter((id): id is string => Boolean(id));
 
   // ---- render once, dispatch N times -------------------------------
   let artifact: RenderedArtifact;
   try {
-    artifact = await renderSourcePair({
-      documentType: req.documentType,
-      documentId: req.documentId,
-      medium,
-      paperFormat,
-      context: {
-        organizationId: req.organizationId ?? null,
-        businessId: req.businessId ?? null,
-        branchId: req.branchId ?? null,
-      },
-      options: {
-        ...(req.extraBody ?? {}),
-        ...(req.station ? { station: req.station } : {}),
-        ...(req.course ? { course: req.course } : {}),
-        ...(req.table ? { table: req.table } : {}),
-        ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
-      },
-    });
-
+    artifact = await withSpan('render.source_pair', () =>
+      renderSourcePair({
+        documentType: req.documentType,
+        documentId: req.documentId,
+        medium,
+        paperFormat,
+        context: {
+          organizationId: req.organizationId ?? null,
+          businessId: req.businessId ?? null,
+          branchId: req.branchId ?? null,
+        },
+        options: {
+          ...(req.extraBody ?? {}),
+          ...(req.station ? { station: req.station } : {}),
+          ...(req.course ? { course: req.course } : {}),
+          ...(req.table ? { table: req.table } : {}),
+          ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+        },
+      }),
+    );
+    annotateTrace({ artifact_bytes: artifact.bytes.length, artifact_medium: artifact.medium });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     await Promise.all(handles.map((h) => h.markFailed(error)));
@@ -181,13 +217,13 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
   }
 
   // Sequential on purpose — copy 2 must never overtake copy 1.
-  for (const handle of handles) {
-    const outcome = await emit(artifact, {
-      intent,
-      disposition,
-      req,
-      correlationId,
-    });
+  for (let i = 0; i < handles.length; i++) {
+    const handle = handles[i];
+    const outcome = await withSpan(
+      'dispatch.copy',
+      () => emit(artifact, { intent, disposition, req, correlationId }),
+      { copy: i + 1 },
+    );
     if (!outcome.success) {
       await handle.markFailed(outcome.error ?? 'dispatch failed');
       return {
@@ -200,12 +236,15 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
         artifact,
       };
     }
-    await handle.markSent(null);
-    await handle.markAcked();
+    // The ledger close is an audit fact, not a precondition for the next
+    // copy. Awaiting it put two cloud round trips per copy on the
+    // operator's clock for no operational benefit.
+    void handle.markSent(null).then(() => handle.markAcked());
   }
 
   return { success: true, jobIds, transport, copies, artifact };
 }
+
 
 async function emit(
   artifact: RenderedArtifact,
