@@ -59,12 +59,17 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
 
   let resolved: Awaited<ReturnType<typeof resolveDeviceForIntent>> = null;
   try {
-    resolved = await resolveDeviceForIntent({
-      organizationId: input.organizationId,
-      intentOrRole: input.intentOrRole,
-      businessId: input.businessId ?? null,
-      scope: input.scope as never,
-    });
+    resolved = await withSpan(
+      'device.resolve',
+      () =>
+        resolveDeviceForIntent({
+          organizationId: input.organizationId!,
+          intentOrRole: input.intentOrRole,
+          businessId: input.businessId ?? null,
+          scope: input.scope as never,
+        }),
+      { intent: input.intentOrRole },
+    );
   } catch (err) {
     return {
       success: false,
