@@ -18,6 +18,7 @@
  */
 import { hardwareClient } from '@/services/hardware/HardwareClient';
 import { resolveDeviceForIntent } from '@/hooks/useDeviceForIntent';
+import { withSpan } from '@/services/observability/trace';
 import type { DeviceRole } from '@/services/hardware/drivers/DriverInterface';
 
 export interface ExecForIntentInput {
