@@ -227,10 +227,15 @@ export const scanRouter = {
       }
     }
     stack.push(entry);
+    notifyStackChanged();
     return () => {
       const i = stack.indexOf(entry);
-      if (i >= 0) stack.splice(i, 1);
+      if (i >= 0) {
+        stack.splice(i, 1);
+        notifyStackChanged();
+      }
     };
+
   },
   /** Was the given scan event already consumed by a registered target? */
   wasConsumed(event: ScanEvent): boolean {
