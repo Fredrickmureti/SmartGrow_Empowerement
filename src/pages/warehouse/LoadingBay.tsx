@@ -418,7 +418,7 @@ export default function LoadingBay() {
               )}
             </tbody>
           </table>
-          </Section> )}
+          </Section>
         )}
         <ActivitySection aggregateId={manifestId} title="Manifest activity" description="Lifecycle events emitted for this loading manifest." />
       </PageBody>
