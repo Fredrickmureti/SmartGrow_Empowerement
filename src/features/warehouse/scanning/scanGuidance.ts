@@ -56,8 +56,12 @@ export function promptForIntent(intent: WmsScanIntent | null): ScanPrompt | null
   return intent ? PROMPTS[intent] : null;
 }
 
-/** Operator-facing name for the input that is actually live. */
-export function describeScanSource(source: ScanEvent["source"] | null | undefined): string {
+/**
+ * Operator-facing name for the input that is actually live. Takes a plain
+ * string because the paired-phone transport tags its events on the realtime
+ * channel rather than in the bus source union.
+ */
+export function describeScanSource(source: string | null | undefined): string {
   switch (source) {
     case "camera":   return "This device's camera";
     case "phone":    return "Paired phone";
@@ -68,6 +72,7 @@ export function describeScanSource(source: ScanEvent["source"] | null | undefine
     default:         return "Waiting for a scanner";
   }
 }
+
 
 /**
  * Outcome taxonomy (Phase 4.3). `scanFeedbackBus` speaks in bus kinds; the
