@@ -293,14 +293,14 @@ export default function OperatorTasks() {
         title="Operator tasks"
         description="Universal queue of physical work — putaway, pick, pack, load, count, replenish, move, QC, receive, return."
         actions={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={reapExpired} disabled={engine.reapExpired.isPending}>
-              <RefreshCw className="mr-2 h-4 w-4" /> Reap expired
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            <Button variant="outline" className="min-w-0 flex-1 sm:flex-none" onClick={reapExpired} disabled={engine.reapExpired.isPending}>
+              <RefreshCw className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Reap expired</span>
             </Button>
-            <Button variant="outline" onClick={claimNext} disabled={engine.claimNext.isPending}>
-              <Zap className="mr-2 h-4 w-4" /> Claim next
+            <Button variant="outline" className="min-w-0 flex-1 sm:flex-none" onClick={claimNext} disabled={engine.claimNext.isPending}>
+              <Zap className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">Claim next</span>
             </Button>
-            <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" /> New task</Button>
+            <Button className="min-w-0 flex-1 sm:flex-none" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4 shrink-0" /> <span className="truncate">New task</span></Button>
           </div>
         }
       />
