@@ -410,13 +410,14 @@ export default function Products() {
         description: code,
       });
       try {
-        const { data, error } = await supabase.rpc("pos_resolve_barcode" as any, {
+        const { data, error } = await supabase.rpc("resolve_product_identity" as any, {
           p_business_id: currentBusiness.id,
           p_branch_id: currentBranch?.id ?? null,
           p_code: code,
         } as any);
         if (error) throw error;
-        const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
+        const decision = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
+        const row = decision && decision.status === "resolved" ? decision : null;
         if (row) {
           playPOSSound("barcode_scan");
           const local = products.find((p) => p.id === row.product_id);
