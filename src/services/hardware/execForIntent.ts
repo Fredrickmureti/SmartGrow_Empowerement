@@ -35,6 +35,13 @@ export interface ExecForIntentInput {
   sourceDocId?: string | null;
   businessEventId?: string | null;
   isReprint?: boolean;
+  /**
+   * Trace key of the originating print. Threaded explicitly so device
+   * resolution and hardware execution land on the caller's waterfall even
+   * when several prints are in flight at once.
+   */
+  correlationId?: string;
+
 }
 
 export interface ExecForIntentResult {
@@ -69,6 +76,7 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
           scope: input.scope as never,
         }),
       { intent: input.intentOrRole },
+      input.correlationId,
     );
   } catch (err) {
     return {
@@ -121,8 +129,10 @@ export async function execForIntent(input: ExecForIntentInput): Promise<ExecForI
         sourceDocId: input.sourceDocId ?? null,
         businessEventId: input.businessEventId ?? null,
         isReprint: input.isReprint,
+        correlationId: input.correlationId,
       }),
     { transport: resolved.transport, op: input.op },
+    input.correlationId,
   );
 
 

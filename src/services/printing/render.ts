@@ -128,6 +128,12 @@ export async function renderDocumentRecord(input: {
   documentRecordId: string;
   medium: RenderMedium;
   options?: Record<string, unknown>;
+  /**
+   * Trace key of the print that asked for this render. Passed explicitly so
+   * concurrent prints (multi-copy receipts, label + invoice at once) each
+   * keep their own waterfall instead of racing on an ambient trace.
+   */
+  correlationId?: string;
 }): Promise<RenderedArtifact> {
   // Split the edge round trip from the decode so the waterfall separates
   // "the renderer is slow" from "the payload is huge".
@@ -144,10 +150,17 @@ export async function renderDocumentRecord(input: {
         headers: { Accept: 'application/json' },
       }),
     { medium: input.medium, persist: true },
+    input.correlationId,
   );
   if (error) throw new Error(`render_failed: ${error.message}`);
-  return withSpan('render.decode', () => decodeEnvelope(data, input.medium));
+  return withSpan(
+    'render.decode',
+    () => decodeEnvelope(data, input.medium),
+    undefined,
+    input.correlationId,
+  );
 }
+
 
 
 /**

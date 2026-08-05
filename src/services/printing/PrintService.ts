@@ -172,9 +172,13 @@ async function planPrint(
 ): Promise<PrintPlan> {
   let policy: ResolvedPrintPolicy | null = null;
   try {
-    policy = await withSpan('policy.resolve', () =>
-      resolvePrintPolicy(req.businessId, req.branchId, req.documentType),
+    policy = await withSpan(
+      'policy.resolve',
+      () => resolvePrintPolicy(req.businessId, req.branchId, req.documentType),
+      undefined,
+      correlationId,
     );
+
   } catch {
     policy = null;
   }
@@ -192,7 +196,7 @@ async function planPrint(
   const transport: PrintTransport =
     disposition === 'download' ? 'download' : medium === 'escpos' ? 'thermal' : pdfTransport();
 
-  annotateTrace({ medium, copies, disposition, intent, transport });
+  annotateTrace({ medium, copies, disposition, intent, transport }, correlationId);
 
   // Ledger rows are independent of one another — one round trip per copy
   // in series was pure dead time on the cashier's clock.
@@ -214,7 +218,9 @@ async function planPrint(
         ),
       ),
     { copies },
+    correlationId,
   );
+
   const jobIds = handles.map((h) => h.id).filter((id): id is string => Boolean(id));
 
   return { handles, jobIds, medium, copies, disposition, intent, paperFormat, transport };
@@ -230,27 +236,35 @@ async function executePrint(
   // ---- render once, dispatch N times -------------------------------
   let artifact: RenderedArtifact;
   try {
-    artifact = await withSpan('render.source_pair', () =>
-      renderSourcePair({
-        documentType: req.documentType,
-        documentId: req.documentId,
-        medium,
-        paperFormat,
-        context: {
-          organizationId: req.organizationId ?? null,
-          businessId: req.businessId ?? null,
-          branchId: req.branchId ?? null,
-        },
-        options: {
-          ...(req.extraBody ?? {}),
-          ...(req.station ? { station: req.station } : {}),
-          ...(req.course ? { course: req.course } : {}),
-          ...(req.table ? { table: req.table } : {}),
-          ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
-        },
-      }),
+    artifact = await withSpan(
+      'render.source_pair',
+      () =>
+        renderSourcePair({
+          documentType: req.documentType,
+          documentId: req.documentId,
+          medium,
+          paperFormat,
+          correlationId,
+          context: {
+            organizationId: req.organizationId ?? null,
+            businessId: req.businessId ?? null,
+            branchId: req.branchId ?? null,
+          },
+          options: {
+            ...(req.extraBody ?? {}),
+            ...(req.station ? { station: req.station } : {}),
+            ...(req.course ? { course: req.course } : {}),
+            ...(req.table ? { table: req.table } : {}),
+            ...(req.forceRefreshSettings ? { force_refresh_settings: true } : {}),
+          },
+        }),
+      undefined,
+      correlationId,
     );
-    annotateTrace({ artifact_bytes: artifact.bytes.length, artifact_medium: artifact.medium });
+    annotateTrace(
+      { artifact_bytes: artifact.bytes.length, artifact_medium: artifact.medium },
+      correlationId,
+    );
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     await Promise.all(handles.map((h) => h.markFailed(error)));
@@ -265,7 +279,9 @@ async function executePrint(
       'dispatch.copy',
       () => emit(artifact, { intent, disposition, req, correlationId }),
       { copy: i + 1 },
+      correlationId,
     );
+
     if (!outcome.success) {
       await handle.markFailed(outcome.error ?? 'dispatch failed');
       return {
@@ -559,31 +575,43 @@ export async function printDocumentIntent(input: {
         triggered_source: input.triggeredSource ?? 'manual',
       },
     },
-    async () => {
-      const submitted = await withSpan('intent.submit', () =>
-        enqueueDocumentIntent({
-          documentRecordId: input.documentRecordId,
-          scenario: input.scenario,
-          triggeredSource: input.triggeredSource ?? 'manual',
-        }),
+    async (ctx) => {
+      const cid = ctx.correlationId;
+      const submitted = await withSpan(
+        'intent.submit',
+        () =>
+          enqueueDocumentIntent({
+            documentRecordId: input.documentRecordId,
+            scenario: input.scenario,
+            triggeredSource: input.triggeredSource ?? 'manual',
+          }),
+        undefined,
+        cid,
       );
 
       // The job rows and the tenant lookup do not depend on each other.
-      const [jobs, orgFromInput] = await withSpan('intent.load_jobs', () =>
-        Promise.all([
-          loadJobs(submitted.job_ids),
-          Promise.resolve(input.organizationId ?? null),
-        ]),
+      const [jobs, orgFromInput] = await withSpan(
+        'intent.load_jobs',
+        () =>
+          Promise.all([
+            loadJobs(submitted.job_ids),
+            Promise.resolve(input.organizationId ?? null),
+          ]),
+        undefined,
+        cid,
       );
       // Device resolution needs org context. Call sites pass a document, not a
       // tenant, so resolve it from the job's business when omitted.
       const organizationId =
         orgFromInput ??
-        (await withSpan('intent.resolve_org', () =>
-          resolveOrganizationId(jobs[0]?.business_id ?? null),
+        (await withSpan(
+          'intent.resolve_org',
+          () => resolveOrganizationId(jobs[0]?.business_id ?? null),
+          undefined,
+          cid,
         ));
 
-      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId, cid)) };
     },
   );
 }
@@ -598,17 +626,21 @@ export async function printDocumentIntent(input: {
 async function drainIntentJobs(
   jobs: QueuedJob[],
   organizationId: string | null,
+  correlationId?: string,
 ): Promise<PrintResult> {
   let transport: PrintTransport = 'none';
   let printed = 0;
   let lastError: string | undefined;
 
-  annotateTrace({ job_count: jobs.length });
+  annotateTrace({ job_count: jobs.length }, correlationId);
 
   for (const job of jobs) {
     if ((job.disposition ?? 'print') !== 'print') continue;
-    const outcome = await withSpan('intent.dispatch_job', () =>
-      dispatchQueuedJob(job, organizationId),
+    const outcome = await withSpan(
+      'intent.dispatch_job',
+      () => dispatchQueuedJob(job, organizationId, correlationId),
+      undefined,
+      correlationId,
     );
     if (outcome === null) continue; // sweeper owns it
     transport = outcome.transport;
@@ -652,16 +684,21 @@ export async function printSourceDocumentIntent(
         triggered_source: input.triggeredSource ?? 'manual',
       },
     },
-    async () => {
-      const submitted = await withSpan('intent.materialize_submit', () =>
-        materializeAndSubmitIntent({
-          ...input,
-          triggeredSource: input.triggeredSource ?? 'manual',
-        }),
+    async (ctx) => {
+      const cid = ctx.correlationId;
+      const submitted = await withSpan(
+        'intent.materialize_submit',
+        () =>
+          materializeAndSubmitIntent({
+            ...input,
+            triggeredSource: input.triggeredSource ?? 'manual',
+          }),
+        undefined,
+        cid,
       );
       const jobs = submitted.jobs as unknown as QueuedJob[];
       const organizationId = submitted.organization_id ?? input.organizationId ?? null;
-      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId, cid)) };
     },
   );
 }
@@ -679,8 +716,14 @@ export async function printSourceDocumentIntent(
 export async function dispatchQueuedJob(
   job: QueuedJob,
   organizationId: string | null,
+  correlationId?: string,
 ): Promise<{ transport: PrintTransport; error?: string } | null> {
-  const handle = await withSpan('job.claim', () => claimForForeground(job));
+  const handle = await withSpan(
+    'job.claim',
+    () => claimForForeground(job),
+    undefined,
+    correlationId,
+  );
   if (!handle) return null;
 
   let transport: PrintTransport = 'none';
@@ -694,6 +737,7 @@ export async function dispatchQueuedJob(
           ? renderDocumentRecord({
               documentRecordId: job.document_record_id,
               medium,
+              correlationId,
               options: renderOptions,
             })
           : renderSourcePair({
@@ -706,8 +750,10 @@ export async function dispatchQueuedJob(
               paperFormat: paperFormatFromRenderOptions(renderOptions),
               context: { businessId: job.business_id ?? null },
               options: renderOptions,
+              correlationId,
             }),
       { medium, from_record: Boolean(job.document_record_id) },
+      correlationId,
     );
 
     const copies = Math.max(1, job.copies ?? 1);
@@ -726,8 +772,10 @@ export async function dispatchQueuedJob(
                 idempotencyKey: `${job.id}:${i + 1}`,
                 sourceDocType: job.doc_type ?? null,
                 sourceDocId: job.doc_id ?? null,
+                correlationId,
               }),
         { copy: i + 1, bytes: artifact.bytes.length },
+        correlationId,
       );
       transport = outcome.transport;
       if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
@@ -873,6 +921,8 @@ async function renderSourcePair(input: {
   paperFormat?: PaperFormatOption | null;
   context?: SourceDocumentContext;
   options?: Record<string, unknown>;
+  /** Trace key so render spans attach to the caller's trace, not the ambient one. */
+  correlationId?: string;
 }): Promise<RenderedArtifact> {
   const documentRecordId = await resolveSourceDocumentRecordId(
     input.documentType,
@@ -882,12 +932,14 @@ async function renderSourcePair(input: {
   return renderDocumentRecord({
     documentRecordId,
     medium: input.medium,
+    correlationId: input.correlationId,
     options: {
       ...(input.options ?? {}),
       ...(input.paperFormat ? { paper_format: input.paperFormat } : {}),
     },
   });
 }
+
 
 /**
  * Produce the artifact a preview surface displays, together with the paper

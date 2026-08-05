@@ -37,6 +37,8 @@ export interface DeviceDispatchInput {
   sourceDocId?: string | null;
   businessEventId?: string | null;
   isReprint?: boolean;
+  /** Trace key of the originating print, for the diagnostics waterfall. */
+  correlationId?: string;
 }
 
 export interface DispatchOutcome {
@@ -59,6 +61,7 @@ export async function toDevice(input: DeviceDispatchInput): Promise<DispatchOutc
     sourceDocId: input.sourceDocId ?? null,
     businessEventId: input.businessEventId ?? null,
     isReprint: input.isReprint,
+    correlationId: input.correlationId,
   });
   return {
     success: res.success,

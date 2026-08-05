@@ -122,6 +122,8 @@ export interface DispatchToAssignmentInput {
   op: string;
   payload?: unknown;
   idempotencyKey?: string;
+  /** Trace key of the originating print, forwarded to the relay transport. */
+  correlationId?: string;
   /** Electron IPC executor, injected by `HardwareClient` to avoid a cycle. */
   execElectron: (role: DeviceRole, op: string, payload: unknown) => Promise<DriverResult>;
   /** True when the main-process bridge is actually reachable. */
@@ -167,6 +169,7 @@ export async function dispatchToAssignment(
     if (net) {
       const res = await agentClient.printNetwork(net.ipAddress, net.port, encoded.bytes, {
         workstationId: assignment.workstationId ?? null,
+        correlationId: input.correlationId,
       });
       return {
         success: Boolean(res.success),
@@ -178,6 +181,7 @@ export async function dispatchToAssignment(
     if (usb) {
       const res = await agentClient.printUsb(usb.vendorId, usb.productId, encoded.bytes, {
         workstationId: assignment.workstationId ?? null,
+        correlationId: input.correlationId,
       });
       return {
         success: Boolean(res.success),
