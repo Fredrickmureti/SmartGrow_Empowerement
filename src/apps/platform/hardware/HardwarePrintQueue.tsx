@@ -257,7 +257,7 @@ export default function HardwarePrintQueue() {
 
   if (!businessId) {
     return (
-      <div className="p-6">
+      <div className="">
         <Card>
           <CardHeader>
             <CardTitle>Print activity</CardTitle>
@@ -271,7 +271,7 @@ export default function HardwarePrintQueue() {
   const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
