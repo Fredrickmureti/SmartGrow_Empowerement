@@ -269,11 +269,11 @@ export default function Bills() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Bill ${bill.bill_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Bill ${bill.bill_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
