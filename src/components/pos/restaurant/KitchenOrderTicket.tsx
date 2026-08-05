@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { startPrintDocumentIntent } from "@/services/printing/PrintService";
 import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
