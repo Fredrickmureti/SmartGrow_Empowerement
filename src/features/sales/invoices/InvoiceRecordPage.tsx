@@ -80,6 +80,7 @@ export default function InvoiceRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { print, printing } = useRecordPrint("invoice");
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

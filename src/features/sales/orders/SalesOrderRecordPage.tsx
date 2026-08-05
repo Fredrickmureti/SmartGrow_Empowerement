@@ -67,6 +67,7 @@ export default function SalesOrderRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { print, printing } = useRecordPrint("sales_order");
   const [order, setOrder] = useState<SalesOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,8 +211,13 @@ export default function SalesOrderRecordPage() {
               <Button variant="outline" size="sm" onClick={() => navigate("/sales/orders")}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button variant="outline" size="sm" disabled>
-                <Printer className="mr-2 h-4 w-4" /> Print
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={printing}
+                onClick={() => void print(order.id, `Sales order ${order.so_number}`)}
+              >
+                <Printer className="mr-2 h-4 w-4" /> {printing ? "Printing…" : "Print"}
               </Button>
               <Button size="sm" disabled title="Editing still uses the list dialog while migration is in progress">
                 <Pencil className="mr-2 h-4 w-4" /> Edit
