@@ -125,6 +125,93 @@ serve(async (req) => {
       }
     }
 
+    // ---------------------------------------------------------------
+    // 4. Label-run arm — the engine above the ledger.
+    //
+    // A run can be healthy at the job level and still be broken as a
+    // unit of work: expansion wedged, most lines refused because the
+    // catalogue has no printable identity, or demand piling up that no
+    // operator ever turned into a run.
+    // ---------------------------------------------------------------
+    const runStallCutoff = new Date(now - RUN_STALL_MIN * 60_000).toISOString();
+
+    const { data: stuckRuns } = await supabase
+      .from("label_print_runs")
+      .select("id, business_id, name, status, total_lines, printed_lines, updated_at")
+      .in("status", ["expanding", "running"])
+      .lt("updated_at", runStallCutoff)
+      .limit(500);
+
+    const stuckByBiz: Record<string, number> = {};
+    for (const r of (stuckRuns ?? []) as { business_id: string }[]) {
+      stuckByBiz[r.business_id] = (stuckByBiz[r.business_id] ?? 0) + 1;
+    }
+    for (const [businessId, count] of Object.entries(stuckByBiz)) {
+      alertRows.push({
+        organization_id: businessId,
+        severity: "high",
+        alert_type: "label_run_stalled",
+        title: `${count} label run(s) have not advanced in ${RUN_STALL_MIN}m`,
+        details: { count, threshold_minutes: RUN_STALL_MIN, kind: "label_run_stalled" },
+      });
+    }
+
+    // Refusal ratio on runs finished in the last 24h. A refused line means
+    // the item had no printable identity — a catalogue problem, not a
+    // printer problem, and it needs a different person to fix it.
+    const { data: recentRuns } = await supabase
+      .from("label_print_runs")
+      .select("business_id, total_lines, refused_lines")
+      .gte("created_at", failureWindow)
+      .limit(2000);
+
+    const refusedByBiz: Record<string, { lines: number; refused: number }> = {};
+    for (const r of (recentRuns ?? []) as {
+      business_id: string; total_lines: number | null; refused_lines: number | null;
+    }[]) {
+      const b = (refusedByBiz[r.business_id] ??= { lines: 0, refused: 0 });
+      b.lines += r.total_lines ?? 0;
+      b.refused += r.refused_lines ?? 0;
+    }
+    for (const [businessId, { lines, refused }] of Object.entries(refusedByBiz)) {
+      if (lines < MIN_SAMPLE_SIZE) continue;
+      const ratio = refused / lines;
+      if (ratio >= REFUSED_RATIO_THRESHOLD) {
+        alertRows.push({
+          organization_id: businessId,
+          severity: "medium",
+          alert_type: "label_run_high_refusal_rate",
+          title:
+            `${(ratio * 100).toFixed(1)}% of label lines refused over 24h (${refused}/${lines}) — items lack a printable barcode`,
+          details: { lines, refused, ratio, window_hours: 24, kind: "label_run_high_refusal_rate" },
+        });
+      }
+    }
+
+    // Demand aging: raised, never printed, nobody looking at it.
+    const demandCutoff = new Date(now - DEMAND_AGE_HOURS * 3_600_000).toISOString();
+    const { data: agingDemand } = await supabase
+      .from("label_demand")
+      .select("business_id")
+      .eq("status", "open")
+      .lt("created_at", demandCutoff)
+      .limit(5000);
+
+    const agingByBiz: Record<string, number> = {};
+    for (const r of (agingDemand ?? []) as { business_id: string }[]) {
+      agingByBiz[r.business_id] = (agingByBiz[r.business_id] ?? 0) + 1;
+    }
+    for (const [businessId, count] of Object.entries(agingByBiz)) {
+      if (count < DEMAND_MIN_COUNT) continue;
+      alertRows.push({
+        organization_id: businessId,
+        severity: "medium",
+        alert_type: "label_demand_aging",
+        title: `${count} item(s) have needed a label for over ${DEMAND_AGE_HOURS}h`,
+        details: { count, threshold_hours: DEMAND_AGE_HOURS, kind: "label_demand_aging" },
+      });
+    }
+
     if (alertRows.length > 0) {
       const { error } = await supabase.from("platform_admin_alerts").insert(alertRows);
       if (error) console.error("[check-print-queue-slo] insert alerts failed:", error.message);
@@ -136,10 +223,13 @@ serve(async (req) => {
         alerts_created: alertRows.length,
         stalled_sent_businesses: Object.keys(stalledSentByBiz).length,
         stalled_queued_businesses: Object.keys(stalledQueuedByBiz).length,
+        stalled_label_run_businesses: Object.keys(stuckByBiz).length,
+        aging_demand_businesses: Object.keys(agingByBiz).length,
         checked_at: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[check-print-queue-slo] fatal:", msg);
