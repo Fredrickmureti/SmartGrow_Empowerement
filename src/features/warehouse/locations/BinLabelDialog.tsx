@@ -1,15 +1,19 @@
 /**
- * BinLabelDialog — bin label lifecycle: preview, then print.
+ * BinLabelDialog — bin label lifecycle: preview, then submit a label run.
  *
  * The preview is a *geometry* preview built from the stored `LabelDoc`
  * (position, text, barcode placement). It is deliberately NOT a second
- * barcode rasteriser — ADR-0085 keeps rendering server-side; printing goes
- * through `useLabelPrint` → `PrintService.printLabel` so the workflow-bound
- * label printer resolves per branch/warehouse.
+ * barcode rasteriser — ADR-0085 keeps rendering server-side.
+ *
+ * Printing is NOT a client loop. Labelling an aisle can mean thousands of
+ * positions, so the dialog submits one `label_print_run` with a location
+ * selection and the server expands it into `print_jobs` (ADR label engine).
+ * The dialog can be closed the moment the run is accepted — progress lives
+ * in Inventory → Label operations.
  */
 import { useMemo, useState } from "react";
 import { Printer, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useLabelPrint } from "@/hooks/inventory/useLabelPrint";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useLabelRunActions } from "@/hooks/inventory/useLabelRuns";
 import { WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import type { LocationNode } from "./types";
 
@@ -35,49 +40,30 @@ interface Props {
   branchId?: string | null;
 }
 
-export function BinLabelDialog({ open, onOpenChange, locations, warehouseId, branchId }: Props) {
+export function BinLabelDialog({ open, onOpenChange, locations, warehouseId }: Props) {
   const [copies, setCopies] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(0);
-  const { print, missingDeviceCta } = useLabelPrint({ branchId, warehouseId });
+  const navigate = useNavigate();
+  const { currentBusiness } = useBusinesses();
+  const { createRun } = useLabelRunActions(currentBusiness?.id ?? null);
+  const busy = createRun.isPending;
 
   const printable = useMemo(() => locations.filter((l) => !!(l.barcode || l.code)), [locations]);
 
   const runPrint = async () => {
-    setBusy(true);
-    setDone(0);
-    try {
-      // Reprint provenance: the idempotency key is derived from how many
-      // times this exact position has been labelled before, so the audit
-      // trail can answer "how many times was A-01-02 relabelled" — a
-      // timestamp key would make every reprint look like a first print.
-      const revisions = await priorPrintCounts(printable.map((l) => l.id));
-      for (const loc of printable) {
-        const code = loc.barcode || loc.code;
-        const revision = (revisions.get(loc.id) ?? 0) + 1;
-        await print({
-          templateKey: WMS_LABEL_KEY.BIN,
-          workflow: "receiving",
-          product: { id: loc.id, name: loc.name || loc.code, sku: loc.code, barcode: code },
-          extraVars: {
-            location_code: loc.code,
-            location_name: loc.name,
-            level: loc.structure_level ?? "",
-            path: loc.path.join(" / "),
-            pick_sequence: loc.pick_sequence ?? "",
-            copies,
-            label_revision: revision,
-          },
-          sourceDocType: "stock_location",
-          sourceDocId: loc.id,
-          idempotencyKey: `wms.bin-label:${loc.id}:r${revision}`,
-        });
-        setDone((d) => d + 1);
-      }
-    } finally {
-      setBusy(false);
-    }
+    if (printable.length === 0) return;
+    await createRun.mutateAsync({
+      templateKey: WMS_LABEL_KEY.BIN,
+      workflow: "receiving",
+      entityType: "location",
+      selection: { kind: "location_ids", ids: printable.map((l) => l.id) },
+      copies,
+      warehouseId,
+      name: `Bin labels · ${printable.length} position${printable.length === 1 ? "" : "s"}`,
+    });
+    onOpenChange(false);
+    navigate("/inventory-app/labels");
   };
+
 
 
   return (
