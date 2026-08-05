@@ -29,6 +29,11 @@ const SENT_STALL_MIN = 10;           // thermal ack SLO
 const QUEUED_STALL_MIN = 5;          // worker liveness SLO
 const FAILURE_RATE_THRESHOLD = 0.15; // 15% failed over 24h
 const MIN_SAMPLE_SIZE = 20;          // don't cry over 3 jobs
+const RUN_STALL_MIN = 15;            // label run must advance within this
+const REFUSED_RATIO_THRESHOLD = 0.2; // 20% of lines refused = catalogue problem
+const DEMAND_AGE_HOURS = 24;         // demand nobody turned into a run
+const DEMAND_MIN_COUNT = 25;         // ignore a handful of stragglers
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
