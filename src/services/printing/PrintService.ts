@@ -275,9 +275,23 @@ async function executePrint(
   const settled: string[] = [];
   for (let i = 0; i < handles.length; i++) {
     const handle = handles[i];
+    // Phase 5.4 — a PDF job is terminal at host handoff. Settle it there so
+    // the row does not linger in `sent` while the OS dialog is open (and so
+    // the recovery sweeper never replays a print the operator already has).
+    let handedOff = false;
     const outcome = await withSpan(
       'dispatch.copy',
-      () => emit(artifact, { intent, disposition, req, correlationId }),
+      () =>
+        emit(artifact, {
+          intent,
+          disposition,
+          req,
+          correlationId,
+          onHandedToHost: () => {
+            handedOff = true;
+            if (handle.id) void settleJobs([handle.id]);
+          },
+        }),
       { copy: i + 1 },
       correlationId,
     );
@@ -294,7 +308,7 @@ async function executePrint(
         artifact,
       };
     }
-    if (handle.id) settled.push(handle.id);
+    if (handle.id && !handedOff) settled.push(handle.id);
   }
 
   // Phase 3: one batched ledger close for every copy instead of two RPCs
@@ -408,6 +422,8 @@ async function emit(
     disposition: PrintDisposition;
     req: PrintDocumentRequest;
     correlationId: string;
+    /** Phase 5.4 — fired when paper output reaches the host print dialog. */
+    onHandedToHost?: () => void;
   },
 ) {
   const { req } = ctx;
@@ -420,7 +436,7 @@ async function emit(
   if (artifact.medium === 'pdf') {
     // A4/office output goes through the host print dialog; the operator's
     // OS printer selection is the device binding for paper documents.
-    return toPage(artifact.blob!);
+    return toPage(artifact.blob!, { onHandedToHost: ctx.onHandedToHost });
   }
   return toDevice({
     intentOrRole: ctx.intent,
@@ -915,6 +931,7 @@ export async function dispatchQueuedJob(
   if (!handle) return null;
 
   let transport: PrintTransport = 'none';
+  let handedOff = false;
   try {
     const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
     const renderOptions = renderOptionsForJob(job);
@@ -950,7 +967,12 @@ export async function dispatchQueuedJob(
         'dispatch.job_copy',
         () =>
           artifact.medium === 'pdf' && artifact.blob
-            ? toPage(artifact.blob)
+            ? toPage(artifact.blob, {
+                onHandedToHost: () => {
+                  handedOff = true;
+                  void handle.markAcked();
+                },
+              })
             : toDevice({
                 intentOrRole: job.hardware_role ?? 'receipt',
                 op: 'print_raw',
@@ -969,7 +991,8 @@ export async function dispatchQueuedJob(
       if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
     }
     // Settling the ledger is an audit fact; the paper is already out.
-    void handle.markAcked();
+    // PDF jobs already settled at host handoff (Phase 5.4).
+    if (!handedOff) void handle.markAcked();
     return { transport };
 
   } catch (err) {
