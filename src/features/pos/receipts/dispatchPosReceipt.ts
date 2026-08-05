@@ -16,8 +16,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
-import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { printSourceDocumentIntent } from "@/services/printing/PrintService";
 import { withTrace, withSpan } from "@/services/observability/trace";
 
 export interface DispatchPosReceiptArgs {
@@ -31,6 +30,11 @@ export interface DispatchPosReceiptArgs {
   branchId?: string | null;
   /** Back-office re-issues are reprints; the terminal fires business events. */
   triggeredSource?: "manual" | "business_event" | "reprint" | "api";
+  /**
+   * Already-loaded frozen snapshot. Callers holding it (the terminal) pass
+   * it to skip the `pos_receipt_snapshots` round trip.
+   */
+  frozen?: POSReceiptSnapshot;
 }
 
 export interface DispatchPosReceiptResult {
