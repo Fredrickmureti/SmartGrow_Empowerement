@@ -75,7 +75,7 @@ export default function ExecutionTelemetry() {
   return (
     <>
       <PageHeader
-        title="Execution telemetry"
+        title="Operations performance"
         description="Throughput, dwell time, exception and lease-loss rates derived from the append-only task execution ledger."
       />
       <PageBody>
