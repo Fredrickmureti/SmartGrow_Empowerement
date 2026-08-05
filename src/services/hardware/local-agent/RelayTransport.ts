@@ -99,7 +99,16 @@ export class RelayTransport {
 
   /** Enqueue a job and wait for the agent to complete it. */
   async dispatch<T = unknown>(args: DispatchArgs): Promise<DispatchResult<T>> {
-    const liveness = await this._liveness();
+    // Liveness and queue depth are two independent reads. Running them in
+    // series put a full extra cloud round trip in front of every single
+    // relay print for information that does not depend on the other.
+    const [liveness, allowance] = await withSpan('relay.preflight', () =>
+      Promise.all([
+        this._liveness(),
+        args.queueAware ? this._queueAllowanceMs() : Promise.resolve(0),
+      ]),
+    );
+
     if (!liveness.alive) {
       const seen = liveness.lastSeenAt
         ? `last polled ${Math.round((Date.now() - new Date(liveness.lastSeenAt).getTime()) / 1000)}s ago`
@@ -113,9 +122,9 @@ export class RelayTransport {
     }
 
     const baseDeadlineMs = Math.max(1_000, args.deadlineMs ?? this.config.defaultDeadlineMs ?? DEFAULT_DEADLINE_MS);
-    const allowance = args.queueAware ? await this._queueAllowanceMs() : 0;
     const deadlineMs = baseDeadlineMs + allowance;
     const deadlineAt = new Date(Date.now() + deadlineMs).toISOString();
+
 
     const insertRow = {
       organization_id: this.config.organizationId,
