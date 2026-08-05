@@ -185,7 +185,10 @@ export class RelayTransport {
       }
     }
 
-    return await this._await<T>(jobId, deadlineMs);
+    // The single biggest unknown in the waterfall: how long the workstation
+    // takes to claim the row and finish the physical write.
+    return await withSpan('relay.agent_roundtrip', () => this._await<T>(jobId, deadlineMs));
+
   }
 
   private _finalize<T>(jobId: string, status: DispatchResult['status'], result: T | null, error: string | null): DispatchResult<T> {
