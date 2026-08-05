@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ScanLine, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { resolveProductIdentityOnce } from "@/hooks/inventory/useResolveProductIdentity";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useWorkspaceScanner } from "@/contexts/ScannerWorkspaceContext";
