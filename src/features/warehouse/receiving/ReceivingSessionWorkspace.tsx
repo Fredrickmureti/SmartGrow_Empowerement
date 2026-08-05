@@ -447,11 +447,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
 
 
 
-        <ScanStatusChip
+        <ScanGuidance
           expectedLabel="receiving-workspace.item"
           hint="Scan an item to capture against its expected line"
           className="mt-3"
         />
+
 
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
