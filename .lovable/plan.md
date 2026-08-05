@@ -1,6 +1,21 @@
 # Warehouse Information Architecture Refactor
 
+## Step 0 — unblock the build (must happen first)
+
+Three warehouse pages currently fail to compile with stray duplicated JSX
+closers left by an earlier edit. Confirmed by reading the files:
+
+- `src/pages/warehouse/CountReview.tsx:198` — `</Section> )}` followed by a
+  second orphan `)}` on line 199.
+- `src/pages/warehouse/LoadingBay.tsx:359`, `:371`, `:421` — same
+  `</Section> )}` + orphan `)}` pattern, three times.
+- `src/pages/warehouse/LoadingManifestPlanner.tsx:202` — `</Section> </PageBody>`
+  followed by a duplicate `</PageBody>` on line 203.
+
+Fix: delete the duplicated closing token in each case. No behaviour change.
+
 ## What's wrong today
+
 
 `src/apps/warehouse/nav.ts` exposes **29 links in 2 groups** — 24 of them in a single
 flat "Operations" list, plus a "Master" bucket. Verified from the file:
