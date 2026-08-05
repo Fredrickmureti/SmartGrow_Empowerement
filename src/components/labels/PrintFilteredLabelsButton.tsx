@@ -31,6 +31,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useLabelRunActions } from "@/hooks/inventory/useLabelRuns";
+import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 
 interface Props {
   /** Free-text filter currently applied to the grid. */
