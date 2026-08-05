@@ -451,29 +451,20 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
 
 
     const setPrimary = async (idx: number) => {
-      const target = rows[idx];
+      const target = rowsRef.current[idx];
       if (!target) return;
       setRows((prev) => prev.map((r, i) => ({ ...r, is_primary: i === idx })));
       if (productId && target.id) {
         // The primary flip is atomic inside the service — no demote/promote
-        // window where a product has zero (or two) primary codes.
-        const failure = await writeIdentifier({
-          businessId,
-          productId,
-          code: target.code,
-          kind: target.kind,
-          packagingId: target.packaging_id,
-          isPrimary: true,
-          identifierId: target.id,
-        });
-        if (failure) {
-          toast({ title: "Could not set primary", description: failure, variant: "destructive" });
-        }
+        // window where a product has zero (or two) primary codes. Routed
+        // through `persistRow` so it shares the live-state read and the
+        // per-row write-ordering guard.
+        await persistRow(idx, { is_primary: true });
       }
     };
 
     const deleteRow = async (idx: number) => {
-      const target = rows[idx];
+      const target = rowsRef.current[idx];
       if (!target) return;
       setRows((prev) => prev.filter((_, i) => i !== idx));
       if (target.id) {
