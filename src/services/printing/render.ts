@@ -128,18 +128,26 @@ export async function renderDocumentRecord(input: {
   medium: RenderMedium;
   options?: Record<string, unknown>;
 }): Promise<RenderedArtifact> {
-  const { data, error } = await supabase.functions.invoke('render-document', {
-    body: {
-      medium: input.medium,
-      document_id: input.documentRecordId,
-      options: input.options ?? {},
-      persist: true,
-    },
-    headers: { Accept: 'application/json' },
-  });
+  // Split the edge round trip from the decode so the waterfall separates
+  // "the renderer is slow" from "the payload is huge".
+  const { data, error } = await withSpan(
+    'render.edge_invoke',
+    () =>
+      supabase.functions.invoke('render-document', {
+        body: {
+          medium: input.medium,
+          document_id: input.documentRecordId,
+          options: input.options ?? {},
+          persist: true,
+        },
+        headers: { Accept: 'application/json' },
+      }),
+    { medium: input.medium, persist: true },
+  );
   if (error) throw new Error(`render_failed: ${error.message}`);
-  return decodeEnvelope(data, input.medium);
+  return withSpan('render.decode', () => decodeEnvelope(data, input.medium));
 }
+
 
 /**
  * Render an *unsaved* snapshot — the preview seam.
