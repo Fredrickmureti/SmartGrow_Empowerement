@@ -80,7 +80,9 @@ export default function LabelOperations() {
   const { data: runs = [], isLoading: runsLoading } = useLabelRuns(businessId);
   const [reasonFilter, setReasonFilter] = useState<LabelDemandReason | "all">("all");
   const { data: demand = [], isLoading: demandLoading } = useLabelDemand(businessId, reasonFilter);
-  const { createRun, setStatus, retryFailures, dismissDemand } = useLabelRunActions(businessId);
+  const { createRun, setStatus, retryFailures, dismissDemand, purgeRuns } =
+    useLabelRunActions(businessId);
+  const [purgeAge, setPurgeAge] = useState<string>("30");
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [template, setTemplate] = useState<string>("shelf_label");
