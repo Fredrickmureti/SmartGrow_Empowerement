@@ -703,6 +703,194 @@ export async function printSourceDocumentIntent(
   );
 }
 
+// ---------------------------------------------------------------------
+// Phase 5.1 — non-blocking intent entries
+// ---------------------------------------------------------------------
+
+/**
+ * What an intent caller gets back the moment the routing plan is durable.
+ *
+ * Same two-moment contract as `startPrintDocument`:
+ *
+ *   1. ACKNOWLEDGEMENT — the document record exists, the routing plan is
+ *      resolved and one `print_jobs` row per target is committed. The
+ *      request is now recoverable by the sweeper even if the tab closes.
+ *      This is all any operator should ever wait for.
+ *   2. COMPLETION — claim + render + device resolve + dispatch + settle.
+ *      Nobody waits for it; surfaces follow the ledger rows instead.
+ */
+export interface IntentAcknowledgement {
+  /** False only when the request could not even be queued. */
+  queued: boolean;
+  error?: string;
+  jobIds: string[];
+  targetCount: number;
+  correlationId: string;
+  documentRecordId: string | null;
+  /** Resolves when the jobs have actually been drained. Never rejects. */
+  completion: Promise<PrintResult>;
+}
+
+function failedAck(
+  error: string,
+  correlationId: string,
+  documentRecordId: string | null,
+): Omit<IntentAcknowledgement, 'completion'> {
+  return { queued: false, error, jobIds: [], targetCount: 0, correlationId, documentRecordId };
+}
+
+/**
+ * Shared engine for both non-blocking intent entries. There is exactly one
+ * drainer (`drainIntentJobs`) and exactly one place that decides when the
+ * caller is released, so the blocking and non-blocking entries can never
+ * drift apart.
+ */
+async function startIntent(
+  meta: { label: string; attributes: Record<string, unknown> },
+  submit: (
+    correlationId: string,
+  ) => Promise<{
+    submitted: SubmitDocumentIntentResult;
+    jobs: QueuedJob[];
+    organizationId: string | null;
+  }>,
+): Promise<IntentAcknowledgement> {
+  const correlationId = newCorrelationId();
+  let ack!: (value: Omit<IntentAcknowledgement, 'completion'>) => void;
+  const acked = new Promise<Omit<IntentAcknowledgement, 'completion'>>((resolve) => {
+    ack = resolve;
+  });
+
+  const completion = withTrace(
+    {
+      label: meta.label,
+      correlationId,
+      attributes: { ...meta.attributes, non_blocking: true },
+    },
+    async (): Promise<PrintResult> => {
+      let plan: { submitted: SubmitDocumentIntentResult; jobs: QueuedJob[]; organizationId: string | null };
+      try {
+        plan = await submit(correlationId);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        ack(failedAck(error, correlationId, null));
+        return { success: false, error, jobIds: [], transport: 'none', copies: 0 };
+      }
+      ack({
+        queued: true,
+        jobIds: plan.submitted.job_ids ?? plan.jobs.map((j) => j.id),
+        targetCount: plan.submitted.target_count ?? plan.jobs.length,
+        correlationId,
+        documentRecordId: plan.submitted.document_record_id ?? null,
+      });
+      return drainIntentJobs(plan.jobs, plan.organizationId, correlationId);
+    },
+  );
+
+  // A rejection here would surface as an unhandled rejection in a task
+  // nobody awaits — normalise it into a failed result instead.
+  const safeCompletion = completion.catch((err): PrintResult => {
+    const error = err instanceof Error ? err.message : String(err);
+    ack(failedAck(error, correlationId, null));
+    return { success: false, error, jobIds: [], transport: 'none', copies: 0 };
+  });
+
+  return { ...(await acked), completion: safeCompletion };
+}
+
+/**
+ * Non-blocking twin of `printDocumentIntent`: returns once the routing
+ * plan and its ledger rows are committed, and drains in the background.
+ */
+export async function startPrintDocumentIntent(input: {
+  documentRecordId: string;
+  scenario?: string;
+  triggeredSource?: 'business_event' | 'manual' | 'reprint' | 'api';
+  organizationId?: string | null;
+}): Promise<IntentAcknowledgement> {
+  return startIntent(
+    {
+      label: 'document_intent',
+      attributes: {
+        entry: 'startPrintDocumentIntent',
+        document_record_id: input.documentRecordId,
+        triggered_source: input.triggeredSource ?? 'manual',
+      },
+    },
+    async (correlationId) => {
+      const submitted = await withSpan(
+        'intent.submit',
+        () =>
+          enqueueDocumentIntent({
+            documentRecordId: input.documentRecordId,
+            scenario: input.scenario,
+            triggeredSource: input.triggeredSource ?? 'manual',
+          }),
+        undefined,
+        correlationId,
+      );
+      const jobs = await withSpan(
+        'intent.load_jobs',
+        () => loadJobs(submitted.job_ids),
+        undefined,
+        correlationId,
+      );
+      const organizationId =
+        input.organizationId ??
+        (await withSpan(
+          'intent.resolve_org',
+          () => resolveOrganizationId(jobs[0]?.business_id ?? null),
+          undefined,
+          correlationId,
+        ));
+      return { submitted, jobs, organizationId };
+    },
+  );
+}
+
+/**
+ * Non-blocking twin of `printSourceDocumentIntent` — the entry every
+ * document surface should use. One RPC materializes the record, submits
+ * the intent and returns the enqueued rows; the caller is released there.
+ */
+export async function startPrintSourceDocumentIntent(
+  input: EnsureDocumentRecordInput & {
+    scenario?: string;
+    triggeredSource?: 'business_event' | 'manual' | 'reprint' | 'api';
+  },
+): Promise<IntentAcknowledgement> {
+  return startIntent(
+    {
+      label: 'document_intent',
+      attributes: {
+        entry: 'startPrintSourceDocumentIntent',
+        kind_code: input.kindCode,
+        source_doc_id: input.sourceDocId,
+        triggered_source: input.triggeredSource ?? 'manual',
+      },
+    },
+    async (correlationId) => {
+      const submitted = await withSpan(
+        'intent.materialize_submit',
+        () =>
+          materializeAndSubmitIntent({
+            ...input,
+            triggeredSource: input.triggeredSource ?? 'manual',
+          }),
+        undefined,
+        correlationId,
+      );
+      return {
+        submitted,
+        jobs: submitted.jobs as unknown as QueuedJob[],
+        organizationId: submitted.organization_id ?? input.organizationId ?? null,
+      };
+    },
+  );
+}
+
+
+
 
 /**
  * Dispatch ONE ledger row through the canonical path: claim → render →
