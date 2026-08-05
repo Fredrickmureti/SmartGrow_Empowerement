@@ -17,8 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { BinScanField } from "@/features/warehouse/locations/BinScanField";
+import type { ResolvedLocation } from "@/features/warehouse/locations/useResolveLocationIdentity";
 import {
   useLpn, useLpnContents, resolveLpnByCode,
 } from "@/features/warehouse/lpn/useLpnOps";
@@ -80,27 +80,10 @@ export function MobilePlateDetail() {
   const { data: plate, isLoading } = useLpn(id);
   const { data: contents } = useLpnContents(id);
   const [busy, setBusy] = useState(false);
-  const [destCode, setDestCode] = useState("");
+  const [dest, setDest] = useState<ResolvedLocation | null>(null);
 
-  const { data: bins } = useQuery({
-    queryKey: ["wm-plate-bins", plate?.warehouse_id],
-    enabled: !!plate?.warehouse_id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stock_locations")
-        .select("id, code, name")
-        .eq("warehouse_id", plate!.warehouse_id)
-        .eq("is_active", true)
-        .order("code");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const move = async (binCode: string) => {
-    if (!plate) return;
-    const bin = (bins ?? []).find((b) => b.code.toLowerCase() === binCode.trim().toLowerCase());
-    if (!bin) return toast.error(`No bin ${binCode} in this warehouse`);
+  const move = async (bin: ResolvedLocation | null) => {
+    if (!plate || !bin) return;
     setBusy(true);
     try {
       const r = await enqueue("wms_lpn_move", {
@@ -110,7 +93,7 @@ export function MobilePlateDetail() {
         _reason: "RF plate move",
       });
       toast.success(r.queued ? "Queued (offline)" : `Moved to ${bin.code}`);
-      setDestCode("");
+      setDest(null);
       qc.invalidateQueries({ queryKey: ["wms-lpn", plate.id] });
       qc.invalidateQueries({ queryKey: ["wms-lpn-contents", plate.id] });
     } catch (e: unknown) {
@@ -119,14 +102,10 @@ export function MobilePlateDetail() {
       setBusy(false);
     }
   };
-
-  useWmsScanIntent({
-    intent: "putaway.bin",
-    label: "wm-plate-move-bin",
-    priority: 30,
-    enabled: !!plate,
-    onScan: (p) => { void move(p.resolveCode); },
-  });
+  /* The destination prompt is `BinScanField`: it owns the `putaway.bin`
+     intent, resolves the label through `resolve_location_identity` (so a
+     printed barcode that differs from the code still works), and refuses
+     product barcodes outright. */
 
   if (isLoading) return <MobileWarehouseLayout title="Plate" back="/wm/plate">Loading…</MobileWarehouseLayout>;
   if (!plate) return <MobileWarehouseLayout title="Plate" back="/wm/plate">Plate not found.</MobileWarehouseLayout>;
@@ -141,8 +120,8 @@ export function MobilePlateDetail() {
         <Button
           className="h-12 w-full"
           size="lg"
-          disabled={busy || !destCode.trim()}
-          onClick={() => void move(destCode)}
+          disabled={busy || !dest}
+          onClick={() => void move(dest)}
         >
           {busy ? "Working…" : "Move plate"}
         </Button>
@@ -190,16 +169,15 @@ export function MobilePlateDetail() {
           )}
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Scan or type destination bin</label>
-          <Input
-            className="h-12 font-mono text-lg"
-            placeholder="BIN-…"
-            value={destCode}
-            onChange={(e) => setDestCode(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void move(destCode); }}
-          />
-        </div>
+        <BinScanField
+          label="Destination bin"
+          intent="putaway.bin"
+          expectedLocationId={null}
+          warehouseId={plate.warehouse_id}
+          disabled={busy}
+          onConfirmedChange={() => {}}
+          onResolvedLocation={setDest}
+        />
       </div>
     </MobileWarehouseLayout>
   );

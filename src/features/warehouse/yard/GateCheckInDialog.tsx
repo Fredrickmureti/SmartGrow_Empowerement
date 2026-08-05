@@ -21,11 +21,14 @@ export function GateCheckInDialog({
   onOpenChange,
   warehouseId,
   onCheckedIn,
+  initialAppointmentId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   warehouseId: string;
   onCheckedIn?: (v: VisitRow) => void;
+  /** Pre-selected appointment, e.g. matched from a scanned gate pass. */
+  initialAppointmentId?: string | null;
 }) {
   const [trailerRef, setTrailerRef] = useState("");
   const [carrierId, setCarrierId] = useState(NONE);
@@ -53,6 +56,20 @@ export function GateCheckInDialog({
       setSealIn("");
     }
   }, [open]);
+
+  // A scanned gate pass arrives as an appointment id; adopt it (and the
+  // planner's known details) as soon as the dialog opens.
+  useEffect(() => {
+    if (!open || !initialAppointmentId) return;
+    const appt = (appointments.data ?? []).find((a) => a.id === initialAppointmentId);
+    setAppointmentId(initialAppointmentId);
+    if (!appt) return;
+    if (appt.trailer_ref) setTrailerRef(appt.trailer_ref);
+    if (appt.driver_name) setDriverName(appt.driver_name);
+    if (appt.driver_phone) setDriverPhone(appt.driver_phone);
+    if (appt.carrier_id) setCarrierId(appt.carrier_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialAppointmentId, appointments.data]);
 
   // Selecting an appointment pre-fills what the planner already knows.
   function pickAppointment(id: string) {

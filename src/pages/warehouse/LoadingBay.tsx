@@ -10,7 +10,7 @@
  * The client never writes `wms_loading_manifests`, `wms_manifest_cartons`,
  * or `wms_pack_cartons.manifest_id` directly.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, ShieldCheck, Tag, Truck } from "lucide-react";
 
 interface Manifest {
@@ -55,7 +57,6 @@ interface AvailableCarton {
 export default function LoadingBay() {
   const { manifestId } = useParams<{ manifestId: string }>();
   const qc = useQueryClient();
-  const [scanCode, setScanCode] = useState("");
 
   const { data: manifest, isLoading } = useQuery({
     queryKey: ["wms-manifest", manifestId],
@@ -179,12 +180,27 @@ export default function LoadingBay() {
     },
   });
 
-  const submitScan = () => {
-    if (!scanCode.trim()) return;
-    const match = (available ?? []).find((c) => c.shipment_lpn?.code?.toLowerCase() === scanCode.trim().toLowerCase());
-    if (!match) { toast.error("No available carton matches that code"); return; }
-    load.mutate(match.id, { onSuccess: () => setScanCode("") });
-  };
+  /**
+   * Phase 3 — the loading bay is a scan surface, not a text box. Admission
+   * is gated by `gateEntityToken` (a product barcode is refused before any
+   * lookup runs); resolution stays here because only this screen knows
+   * which sealed cartons belong to this manifest's waves.
+   */
+  const resolveCartonScan = useCallback(
+    async (code: string) => {
+      const pool = available ?? [];
+      const match = pool.find((c) => entityCodeEquals(c.shipment_lpn?.code, code));
+      if (!match) {
+        return { ok: false, message: "No sealed carton awaiting this manifest carries that LPN." };
+      }
+      if (loadedIds.has(match.id)) {
+        return { ok: false, message: `${match.shipment_lpn?.code ?? code} is already loaded.` };
+      }
+      await load.mutateAsync(match.id);
+      return { ok: true, message: `Loaded ${match.shipment_lpn?.code ?? code}.` };
+    },
+    [available, loadedIds, load],
+  );
 
   if (isLoading) return <LoadingState />;
   if (!manifest) return <EmptyState icon={Truck} title="Manifest not found" action={<Button asChild><Link to="/warehouse-app/dispatch">Back</Link></Button>} />;
@@ -352,13 +368,14 @@ export default function LoadingBay() {
 
         {canLoad && (
           <Section title="Scan carton LPN">
-            <Card><CardContent className="p-4 flex gap-2 items-end">
-              <div className="flex-1">
-                <Label>Carton LPN code</Label>
-                <Input autoFocus value={scanCode} onChange={(e) => setScanCode(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") submitScan(); }} placeholder="Scan or type…" />
-              </div>
-              <Button onClick={submitScan} disabled={load.isPending}>Load</Button>
+            <Card><CardContent className="p-4">
+              <EntityScanField
+                label="Carton LPN"
+                intent="load.lpn"
+                entity="carton"
+                disabled={load.isPending}
+                onResolve={resolveCartonScan}
+              />
             </CardContent></Card>
           </Section>
         )}

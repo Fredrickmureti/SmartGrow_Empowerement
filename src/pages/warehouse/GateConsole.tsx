@@ -5,7 +5,7 @@
  * or reject arrivals, and release trailers that are cleared to leave.
  * Same RPC layer as the control tower — no shortcut writes.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageHeader, PageBody, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,13 @@ import {
 } from "@/features/warehouse/yard/yardModel";
 import { GateCheckInDialog } from "@/features/warehouse/yard/GateCheckInDialog";
 import { TrailerVisitDrawer } from "@/features/warehouse/yard/TrailerVisitDrawer";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 
 export default function GateConsole() {
   const [warehouseId, setWarehouseId] = useState("");
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [scannedApptId, setScannedApptId] = useState<string | null>(null);
   const [selected, setSelected] = useState<VisitRow | null>(null);
   const [sealOut, setSealOut] = useState<Record<string, string>>({});
 
@@ -59,6 +62,31 @@ export default function GateConsole() {
   const arrivedApptIds = new Set(all.filter(isOnSite).map((v) => v.appointment_id).filter(Boolean));
   const stillExpected = (expected.data ?? []).filter((a) => !arrivedApptIds.has(a.id));
   const selectedLive = selected ? (all.find((v) => v.id === selected.id) ?? selected) : null;
+
+  /**
+   * A scanned pass is matched against today's expected appointments by
+   * appointment number or trailer reference. A trailer already on site is
+   * refused with the reason rather than opening a second check-in.
+   */
+  const resolveGatePass = useCallback(
+    (code: string) => {
+      const onSite = live.find((v) => entityCodeEquals(v.trailer_ref, code));
+      if (onSite) {
+        setSelected(onSite);
+        return { ok: false, message: `${onSite.trailer_ref} is already on site — opened its visit.` };
+      }
+      const appt = (expected.data ?? []).find(
+        (a) => entityCodeEquals(a.appointment_no, code) || entityCodeEquals(a.trailer_ref, code),
+      );
+      if (!appt) {
+        return { ok: false, message: `No expected arrival matches ${code}. Use Check in for a walk-in.` };
+      }
+      setScannedApptId(appt.id);
+      setCheckInOpen(true);
+      return { ok: true, message: `${appt.appointment_no ?? appt.appointment_type} — check-in opened.` };
+    },
+    [live, expected.data],
+  );
 
   return (
     <>
@@ -90,6 +118,24 @@ export default function GateConsole() {
             ))}
           </SelectContent>
         </Select>
+
+        {/*
+          Phase 3 — the gatehouse is a scan surface. The driver presents a
+          gate pass or a trailer placard; the guard scans it instead of
+          hunting the expected list, and check-in opens pre-filled from the
+          appointment the planner already booked.
+        */}
+        <Card>
+          <CardContent className="p-4">
+            <EntityScanField
+              label="Gate pass or trailer placard"
+              intent="gate.pass"
+              entity="gate_pass"
+              disabled={!effectiveWarehouse}
+              onResolve={resolveGatePass}
+            />
+          </CardContent>
+        </Card>
 
         {visits.isLoading ? (
           <LoadingState />
@@ -234,8 +280,12 @@ export default function GateConsole() {
 
       <GateCheckInDialog
         open={checkInOpen}
-        onOpenChange={setCheckInOpen}
+        onOpenChange={(v) => {
+          setCheckInOpen(v);
+          if (!v) setScannedApptId(null);
+        }}
         warehouseId={effectiveWarehouse}
+        initialAppointmentId={scannedApptId}
         onCheckedIn={setSelected}
       />
       <TrailerVisitDrawer
