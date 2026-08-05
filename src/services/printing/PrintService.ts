@@ -397,40 +397,68 @@ export async function printDocumentIntent(input: {
   triggeredSource?: 'business_event' | 'manual' | 'reprint' | 'api';
   organizationId?: string | null;
 }): Promise<PrintResult & SubmitDocumentIntentResult> {
-  const submitted = await enqueueDocumentIntent({
-    documentRecordId: input.documentRecordId,
-    scenario: input.scenario,
-    triggeredSource: input.triggeredSource ?? 'manual',
-  });
+  return withTrace(
+    {
+      label: 'document_intent',
+      attributes: {
+        entry: 'printDocumentIntent',
+        document_record_id: input.documentRecordId,
+        triggered_source: input.triggeredSource ?? 'manual',
+      },
+    },
+    async () => {
+      const submitted = await withSpan('intent.submit', () =>
+        enqueueDocumentIntent({
+          documentRecordId: input.documentRecordId,
+          scenario: input.scenario,
+          triggeredSource: input.triggeredSource ?? 'manual',
+        }),
+      );
 
-  const jobs = await loadJobs(submitted.job_ids);
-  // Device resolution needs org context. Call sites pass a document, not a
-  // tenant, so resolve it from the job's business when omitted.
-  const organizationId =
-    input.organizationId ?? (await resolveOrganizationId(jobs[0]?.business_id ?? null));
-  let transport: PrintTransport = 'none';
-  let printed = 0;
-  let lastError: string | undefined;
+      // The job rows and the tenant lookup do not depend on each other.
+      const [jobs, orgFromInput] = await withSpan('intent.load_jobs', () =>
+        Promise.all([
+          loadJobs(submitted.job_ids),
+          Promise.resolve(input.organizationId ?? null),
+        ]),
+      );
+      // Device resolution needs org context. Call sites pass a document, not a
+      // tenant, so resolve it from the job's business when omitted.
+      const organizationId =
+        orgFromInput ??
+        (await withSpan('intent.resolve_org', () =>
+          resolveOrganizationId(jobs[0]?.business_id ?? null),
+        ));
+      let transport: PrintTransport = 'none';
+      let printed = 0;
+      let lastError: string | undefined;
 
-  for (const job of jobs) {
-    if ((job.disposition ?? 'print') !== 'print') continue;
-    const outcome = await dispatchQueuedJob(job, organizationId);
-    if (outcome === null) continue; // sweeper owns it
-    transport = outcome.transport;
-    if (outcome.error) lastError = outcome.error;
-    else printed += 1;
-  }
+      annotateTrace({ job_count: jobs.length });
 
-  return {
-    ...submitted,
-    success: !lastError,
-    error: lastError,
-    needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
-    jobIds: submitted.job_ids,
-    transport,
-    copies: printed,
-  };
+      for (const job of jobs) {
+        if ((job.disposition ?? 'print') !== 'print') continue;
+        const outcome = await withSpan('intent.dispatch_job', () =>
+          dispatchQueuedJob(job, organizationId),
+        );
+        if (outcome === null) continue; // sweeper owns it
+        transport = outcome.transport;
+        if (outcome.error) lastError = outcome.error;
+        else printed += 1;
+      }
+
+      return {
+        ...submitted,
+        success: !lastError,
+        error: lastError,
+        needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
+        jobIds: submitted.job_ids,
+        transport,
+        copies: printed,
+      };
+    },
+  );
 }
+
 
 /**
  * Dispatch ONE ledger row through the canonical path: claim → render →
