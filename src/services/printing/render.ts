@@ -17,6 +17,7 @@
  * freezes the pair into a record before it reaches this module.
  */
 import { supabase } from '@/integrations/supabase/client';
+import { withSpan } from '@/services/observability/trace';
 
 export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html';
 
