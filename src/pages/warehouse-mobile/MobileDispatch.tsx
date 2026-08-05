@@ -7,16 +7,16 @@
  *   close_loading_manifest
  *   dispatch_loading_manifest
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofForm";
 import {
   dispatchProofArgs,
@@ -53,7 +53,6 @@ export default function MobileDispatch() {
   const { shipmentId } = useParams<{ shipmentId: string }>();
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [scan, setScan] = useState("");
   const [busy, setBusy] = useState(false);
 
   // Phase C — proof of dispatch. The *server* decides whether proof is
