@@ -4,6 +4,7 @@
  */
 
 import type { PosAPI } from '@/types/electron';
+import { identityCodeCandidates, isIdentifierLive } from '@/lib/gs1/identityCodes';
 
 export interface QueryResult<T = unknown> {
   success: boolean;
