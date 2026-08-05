@@ -473,50 +473,62 @@ export async function dispatchQueuedJob(
   job: QueuedJob,
   organizationId: string | null,
 ): Promise<{ transport: PrintTransport; error?: string } | null> {
-  const handle = await claimForForeground(job);
+  const handle = await withSpan('job.claim', () => claimForForeground(job));
   if (!handle) return null;
 
   let transport: PrintTransport = 'none';
   try {
     const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
     const renderOptions = renderOptionsForJob(job);
-    const artifact = job.document_record_id
-      ? await renderDocumentRecord({
-          documentRecordId: job.document_record_id,
-          medium,
-          options: renderOptions,
-        })
-      : await renderSourcePair({
-          // Ledger rows written before the document-model migration carry a
-          // bare (type, id) pair. They are frozen into a record on recovery
-          // so even a replayed legacy job archives its artifact.
-          documentType: job.doc_type ?? 'document',
-          documentId: job.doc_id ?? '',
-          medium,
-          paperFormat: paperFormatFromRenderOptions(renderOptions),
-          context: { businessId: job.business_id ?? null },
-          options: renderOptions,
-        });
+    const artifact = await withSpan(
+      'render.document',
+      () =>
+        job.document_record_id
+          ? renderDocumentRecord({
+              documentRecordId: job.document_record_id,
+              medium,
+              options: renderOptions,
+            })
+          : renderSourcePair({
+              // Ledger rows written before the document-model migration carry a
+              // bare (type, id) pair. They are frozen into a record on recovery
+              // so even a replayed legacy job archives its artifact.
+              documentType: job.doc_type ?? 'document',
+              documentId: job.doc_id ?? '',
+              medium,
+              paperFormat: paperFormatFromRenderOptions(renderOptions),
+              context: { businessId: job.business_id ?? null },
+              options: renderOptions,
+            }),
+      { medium, from_record: Boolean(job.document_record_id) },
+    );
 
     const copies = Math.max(1, job.copies ?? 1);
     for (let i = 0; i < copies; i++) {
-      const outcome = artifact.medium === 'pdf' && artifact.blob
-        ? await toPage(artifact.blob)
-        : await toDevice({
-            intentOrRole: job.hardware_role ?? 'receipt',
-            op: 'print_raw',
-            payload: { bytes: Array.from(artifact.bytes) },
-            organizationId,
-            businessId: job.business_id,
-            idempotencyKey: `${job.id}:${i + 1}`,
-            sourceDocType: job.doc_type ?? null,
-            sourceDocId: job.doc_id ?? null,
-          });
+      const outcome = await withSpan(
+        'dispatch.job_copy',
+        () =>
+          artifact.medium === 'pdf' && artifact.blob
+            ? toPage(artifact.blob)
+            : toDevice({
+                intentOrRole: job.hardware_role ?? 'receipt',
+                op: 'print_raw',
+                payload: { bytes: Array.from(artifact.bytes) },
+                organizationId,
+                businessId: job.business_id,
+                idempotencyKey: `${job.id}:${i + 1}`,
+                sourceDocType: job.doc_type ?? null,
+                sourceDocId: job.doc_id ?? null,
+              }),
+        { copy: i + 1, bytes: artifact.bytes.length },
+      );
       transport = outcome.transport;
       if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
     }
-    await handle.markAcked();
+    // Settling the ledger is an audit fact; the paper is already out.
+    void handle.markAcked();
     return { transport };
+
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     await handle.markFailed(error);
