@@ -30,6 +30,10 @@ import { useScanTarget } from "@/hooks/pos/useScanTarget";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useCameraDecoder } from "@/services/scanner/camera/useCameraDecoder";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  writeIdentifier,
+  identifierWriteMessage,
+} from "@/features/products/identity/writeIdentifier";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -308,21 +312,23 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             packaging_id: r.packaging_id,
           }));
         if (pending.length === 0) return;
-        // Plain insert (no ignoreDuplicates). The DB unique constraint on
-        // (business_id, code_norm, kind) is the authoritative collision
-        // detector — surface a clear error instead of silently dropping
-        // rows that already belong to a different product.
-        const { error } = await supabase
-          .from("product_identifiers")
-          .insert(pending);
-        if (error) {
-          console.error("[ProductIdentifiersEditor] commit failed", error);
-          const isDup = /duplicate key|unique constraint/i.test(error.message || "");
-          toast({
-            title: isDup ? "Some barcodes already belong to another product" : "Some barcodes could not be saved",
-            description: normalizeError(error).message,
-            variant: "destructive",
+        // Write-through: `upsert_product_identifier` is the only sanctioned
+        // write seam. It enforces the enrollment invariants (packaging
+        // ownership, one primary per product, cross-product code clash)
+        // atomically — a direct insert can satisfy the unique index and
+        // still leave the identity model inconsistent.
+        for (const row of pending) {
+          const failure = await writeIdentifier({
+            businessId: row.business_id,
+            productId: row.product_id,
+            code: row.code,
+            kind: row.kind,
+            packagingId: row.packaging_id,
+            isPrimary: row.is_primary,
           });
+          if (failure) {
+            toast({ title: "Barcode not saved", description: failure, variant: "destructive" });
+          }
         }
       },
     }));
@@ -351,17 +357,17 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       // if it's a persisted row and we have productId, save immediately
       if (target.id && productId) {
         const merged = { ...target, ...patch };
-        const { error } = await supabase
-          .from("product_identifiers")
-          .update({
-            code: merged.code.trim(),
-            kind: merged.kind,
-            is_primary: merged.is_primary,
-            packaging_id: merged.packaging_id,
-          })
-          .eq("id", target.id);
-        if (error) {
-          toast({ title: "Save failed", description: normalizeError(error).message, variant: "destructive" });
+        const failure = await writeIdentifier({
+          businessId,
+          productId,
+          code: merged.code,
+          kind: merged.kind,
+          packagingId: merged.packaging_id,
+          isPrimary: merged.is_primary,
+          identifierId: target.id,
+        });
+        if (failure) {
+          toast({ title: "Save failed", description: failure, variant: "destructive" });
         }
       }
     };
@@ -370,11 +376,20 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       const target = rows[idx];
       if (!target) return;
       setRows((prev) => prev.map((r, i) => ({ ...r, is_primary: i === idx })));
-      if (productId) {
-        // Demote all then promote one — done in two statements to avoid uniqueness pitfalls.
-        await supabase.from("product_identifiers").update({ is_primary: false }).eq("product_id", productId);
-        if (target.id) {
-          await supabase.from("product_identifiers").update({ is_primary: true }).eq("id", target.id);
+      if (productId && target.id) {
+        // The primary flip is atomic inside the service — no demote/promote
+        // window where a product has zero (or two) primary codes.
+        const failure = await writeIdentifier({
+          businessId,
+          productId,
+          code: target.code,
+          kind: target.kind,
+          packagingId: target.packaging_id,
+          isPrimary: true,
+          identifierId: target.id,
+        });
+        if (failure) {
+          toast({ title: "Could not set primary", description: failure, variant: "destructive" });
         }
       }
     };
@@ -384,9 +399,20 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       if (!target) return;
       setRows((prev) => prev.filter((_, i) => i !== idx));
       if (target.id) {
-        const { error } = await supabase.from("product_identifiers").delete().eq("id", target.id);
-        if (error) {
-          toast({ title: "Delete failed", description: normalizeError(error).message, variant: "destructive" });
+        // Retire, never hard-delete: a printed label stays explainable
+        // ("this code was retired") instead of resolving as unknown.
+        const { data, error } = await supabase.rpc("retire_product_identifier" as never, {
+          p_business_id: businessId,
+          p_identifier_id: target.id,
+          p_status: "archived",
+        } as never);
+        const envelope = (data ?? null) as { status?: string; reason?: string } | null;
+        if (error || (envelope && envelope.status && envelope.status !== "ok")) {
+          toast({
+            title: "Could not remove barcode",
+            description: error ? normalizeError(error).message : identifierWriteMessage(envelope?.reason),
+            variant: "destructive",
+          });
         }
       }
     };

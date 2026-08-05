@@ -21,6 +21,7 @@ import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { normalizeError } from "@/services/resilience";
 import {
   WizardShell,
@@ -50,6 +51,8 @@ export default function PhysicalCount() {
   const { resolve: resolveIdentity } = useResolveProductIdentity(
     currentBusiness?.id,
     currentBranch?.id ?? null,
+    // Typing path: an operator may key a SKU into the count box.
+    { allowSkuFallback: true },
   );
   const { user } = useAuth();
   const { products } = useProducts();
@@ -155,13 +158,14 @@ export default function PhysicalCount() {
     };
 
     const resolved = await resolveIdentity(norm);
-    if (resolved.kind === "error") {
-      flash(`Could not verify "${norm}" — ${resolved.err.message}`, 3500);
-      return;
-    }
-    if (resolved.kind === "ambiguous") {
+    if (resolved.kind !== "resolved" && resolved.kind !== "not_found") {
+      // Ambiguous / retired / expired / offline all block the count line.
       flash(
-        `"${norm}" matches ${resolved.matchCount} identifiers — resolve the duplicate first.`,
+        identityOutcomeLine({
+          status: resolved.kind,
+          code: norm,
+          matchCount: resolved.kind === "ambiguous" ? resolved.matchCount : undefined,
+        }),
         3500,
       );
       return;

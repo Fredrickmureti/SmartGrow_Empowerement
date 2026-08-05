@@ -14,6 +14,7 @@ import { useBranches } from "@/hooks/useBranches";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,8 @@ export default function TransferNew() {
   const { resolve: resolveIdentity } = useResolveProductIdentity(
     currentBusiness?.id,
     currentBranch?.id ?? null,
+    // Typing path: transfers can be keyed by SKU as well as scanned.
+    { allowSkuFallback: true },
   );
 
   const inventoryProducts = useMemo(
@@ -81,12 +84,15 @@ export default function TransferNew() {
     };
 
     const resolved = await resolveIdentity(norm);
-    if (resolved.kind === "error") {
-      flash(`Could not verify "${norm}" — ${resolved.err.message}`, 3500);
-      return;
-    }
-    if (resolved.kind === "ambiguous") {
-      flash(`"${norm}" matches ${resolved.matchCount} identifiers — resolve the duplicate first.`, 3500);
+    if (resolved.kind !== "resolved" && resolved.kind !== "not_found") {
+      flash(
+        identityOutcomeLine({
+          status: resolved.kind,
+          code: norm,
+          matchCount: resolved.kind === "ambiguous" ? resolved.matchCount : undefined,
+        }),
+        3500,
+      );
       return;
     }
 

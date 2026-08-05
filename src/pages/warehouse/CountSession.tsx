@@ -30,6 +30,7 @@ import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { useCountLines, countLineProductLabel, countLineProductSubLabel } from "@/features/warehouse/counts/useCountLines";
 import { useRequestRecount } from "@/features/warehouse/counts/useRequestRecount";
 import { CountDocumentsMenu } from "@/features/warehouse/counts/CountDocumentsMenu";
@@ -117,20 +118,16 @@ export default function CountSession() {
     setScanProductId(null);
     if (!norm) return;
     const res = await resolveIdentity(norm);
-    if (res.kind === "error") {
-      flash(`Could not verify "${norm}" — ${res.err.message}`, 3500);
-      return;
-    }
-    if (res.kind === "ambiguous") {
-      flash(`"${norm}" matches ${res.matchCount} identifiers — resolve the duplicate first.`, 3500);
-      return;
-    }
     if (res.kind === "resolved") {
       setScanProductId(res.identity.productId);
       flash(res.identity.productName, 1500);
       return;
     }
-    flash(`Unknown code "${norm}" — enrol it before counting.`, 3500);
+    flash(identityOutcomeLine({
+      status: res.kind,
+      code: norm,
+      matchCount: res.kind === "ambiguous" ? res.matchCount : undefined,
+    }), 3500);
   };
 
   // Barcode-to-line resolver: match bin.code + resolved product identity
