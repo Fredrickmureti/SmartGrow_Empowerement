@@ -250,11 +250,7 @@ export default function CycleCounts() {
               </Section>
 
               <Section title="Counting accuracy" description="Posted lines, last 30 days." className="min-w-0 @4xl/page:col-span-1">
-                <Card>
-                  <CardContent className="p-4">
-                    <AccuracySparkline points={c?.accuracy_trend ?? []} />
-                  </CardContent>
-                </Card>
+                <AccuracySparkline points={c?.accuracy_trend ?? []} />
               </Section>
             </div>
 
@@ -335,104 +331,94 @@ export default function CycleCounts() {
             </Section>
 
             <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-2">
-              <Section title="Counter productivity today" description="Lines counted since midnight.">
-                <Card>
-                  <CardContent className="p-0">
-                    {(c?.operator_productivity.length ?? 0) === 0 ? (
-                      <p className="p-4 text-sm text-muted-foreground">Nothing counted yet today.</p>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Counter</TableHead>
-                            <TableHead className="text-right">Lines</TableHead>
-                            <TableHead className="text-right">Variances</TableHead>
-                            <TableHead className="text-right">Flagged</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(c?.operator_productivity ?? []).map((o) => (
-                            <TableRow key={o.user_id}>
-                              <TableCell className="font-mono text-xs">{o.user_id.slice(0, 8)}</TableCell>
-                              <TableCell className="text-right font-mono">{o.lines_counted}</TableCell>
-                              <TableCell className="text-right font-mono">{o.variance_lines}</TableCell>
-                              <TableCell className="text-right font-mono">{o.flagged_lines}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
+              <Section title="Counter productivity today" description="Lines counted since midnight." contentClassName="px-0 pb-0">
+                {(c?.operator_productivity.length ?? 0) === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">Nothing counted yet today.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Counter</TableHead>
+                        <TableHead className="text-right">Lines</TableHead>
+                        <TableHead className="text-right">Variances</TableHead>
+                        <TableHead className="text-right">Flagged</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(c?.operator_productivity ?? []).map((o) => (
+                        <TableRow key={o.user_id}>
+                          <TableCell className="font-mono text-xs">{o.user_id.slice(0, 8)}</TableCell>
+                          <TableCell className="text-right font-mono">{o.lines_counted}</TableCell>
+                          <TableCell className="text-right font-mono">{o.variance_lines}</TableCell>
+                          <TableCell className="text-right font-mono">{o.flagged_lines}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </Section>
 
               <Section title="Problem bins" description="Bins with the most variance lines over the last 90 days of posted counts.">
-                <Card>
-                  <CardContent className="space-y-2 p-4">
-                    {(c?.bin_heatmap.length ?? 0) === 0 ? (
-                      <p className="text-sm text-muted-foreground">No posted variances in the last 90 days.</p>
-                    ) : (
-                      (c?.bin_heatmap ?? []).map((b) => {
-                        const worst = c?.bin_heatmap[0]?.variance_lines || 1;
-                        const share = Math.max(4, (b.variance_lines / worst) * 100);
-                        return (
-                          <div key={b.location_id ?? b.location_code ?? "unknown"} className="flex items-center gap-3 text-sm">
-                            <span className="w-32 shrink-0 truncate font-mono text-xs">
-                              {b.location_code ?? "—"}
-                            </span>
-                            <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                              <span className="block h-full rounded-full bg-destructive" style={{ width: `${share}%` }} />
-                            </span>
-                            <span className="w-24 shrink-0 text-right tabular-nums text-xs text-muted-foreground">
-                              {b.variance_lines}/{b.counted_lines} lines
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="space-y-2">
+                  {(c?.bin_heatmap.length ?? 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">No posted variances in the last 90 days.</p>
+                  ) : (
+                    (c?.bin_heatmap ?? []).map((b) => {
+                      const worst = c?.bin_heatmap[0]?.variance_lines || 1;
+                      const share = Math.max(4, (b.variance_lines / worst) * 100);
+                      return (
+                        <div key={b.location_id ?? b.location_code ?? "unknown"} className="flex items-center gap-3 text-sm">
+                          <span className="w-32 shrink-0 truncate font-mono text-xs">
+                            {b.location_code ?? "—"}
+                          </span>
+                          <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                            <span className="block h-full rounded-full bg-destructive" style={{ width: `${share}%` }} />
+                          </span>
+                          <span className="w-24 shrink-0 text-right tabular-nums text-xs text-muted-foreground">
+                            {b.variance_lines}/{b.counted_lines} lines
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </Section>
             </div>
 
-            <Section title="Activity feed" description="The last 40 recorded count lines across every session.">
-              <Card>
-                <CardContent className="p-0">
-                  {(c?.activity.length ?? 0) === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">No counting activity yet.</p>
-                  ) : (
-                    <ul className="divide-y">
-                      {(c?.activity ?? []).map((a) => (
-                        <li key={a.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                          <span className="w-36 shrink-0 text-xs text-muted-foreground">
-                            {new Date(a.counted_at).toLocaleString()}
-                          </span>
-                          <Link to={`/warehouse-app/counts/${a.session_id}`} className="w-24 shrink-0 truncate font-mono text-xs underline">
-                            {a.session_code ?? "—"}
-                          </Link>
-                          <span className="w-24 shrink-0 truncate font-mono text-xs">{a.location_code ?? "—"}</span>
-                          <span className="flex-1 truncate">{a.product_name ?? "—"}</span>
-                          {a.recount_round && a.recount_round > 1 ? (
-                            <StatusBadge tone="warning">round {a.recount_round}</StatusBadge>
-                          ) : null}
-                          {a.tolerance_outcome === "recount_required" ? (
-                            <StatusBadge tone="danger">recount</StatusBadge>
-                          ) : null}
-                          <span className="w-20 shrink-0 text-right tabular-nums">
-                            {a.variance_qty === null ? (
-                              <span className="text-muted-foreground">hidden</span>
-                            ) : Number(a.variance_qty) === 0 ? (
-                              <span className="text-muted-foreground">0</span>
-                            ) : (
-                              <span className="text-destructive">{Number(a.variance_qty) > 0 ? "+" : ""}{a.variance_qty}</span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+            <Section title="Activity feed" description="The last 40 recorded count lines across every session." contentClassName="px-0 pb-0">
+              {(c?.activity.length ?? 0) === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No counting activity yet.</p>
+              ) : (
+                <ul className="divide-y">
+                  {(c?.activity ?? []).map((a) => (
+                    <li key={a.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                      <span className="w-36 shrink-0 text-xs text-muted-foreground">
+                        {new Date(a.counted_at).toLocaleString()}
+                      </span>
+                      <Link to={`/warehouse-app/counts/${a.session_id}`} className="w-24 shrink-0 truncate font-mono text-xs underline">
+                        {a.session_code ?? "—"}
+                      </Link>
+                      <span className="w-24 shrink-0 truncate font-mono text-xs">{a.location_code ?? "—"}</span>
+                      <span className="flex-1 truncate">{a.product_name ?? "—"}</span>
+                      {a.recount_round && a.recount_round > 1 ? (
+                        <StatusBadge tone="warning">round {a.recount_round}</StatusBadge>
+                      ) : null}
+                      {a.tolerance_outcome === "recount_required" ? (
+                        <StatusBadge tone="danger">recount</StatusBadge>
+                      ) : null}
+                      <span className="w-20 shrink-0 text-right tabular-nums">
+                        {a.variance_qty === null ? (
+                          <span className="text-muted-foreground">hidden</span>
+                        ) : Number(a.variance_qty) === 0 ? (
+                          <span className="text-muted-foreground">0</span>
+                        ) : (
+                          <span className="text-destructive">{Number(a.variance_qty) > 0 ? "+" : ""}{a.variance_qty}</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </Section>
           </>
         )}

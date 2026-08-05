@@ -300,82 +300,74 @@ export default function PickList() {
           </Card>
         </Section>
 
-        <Section title="Open picks" description="Ordered by pick sequence. The scan strip highlights the current target.">
-          <Card>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <LoadingState />
-              ) : open.length === 0 ? (
-                <EmptyState
-                  icon={PackageCheck}
-                  title="All picks complete"
-                  description={wave?.state === "picked" ? "Move to packing." : "Nothing left to pick."}
-                />
-              ) : (
-                <ul className="divide-y">
-                  {open.map((t) => {
-                    const suggested = t.quantity != null ? String(t.quantity) : "";
-                    const val = pickedQty[t.id] ?? suggested;
-                    const isMatch = matched?.id === t.id;
-                    return (
-                      <li
-                        key={t.id}
-                        ref={(el) => { rowRefs.current[t.id] = el; }}
-                        className={cn(
-                          "p-3 flex flex-wrap items-center gap-3 transition-colors",
-                          isMatch && "bg-emerald-500/5 ring-1 ring-inset ring-emerald-500/30",
-                        )}
-                      >
-                        <StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge>
-                        <span className="font-mono text-sm">{t.source_loc?.code ?? "?"}</span>
-                        <span className="text-sm flex-1">
-                          {t.product?.name ?? "—"}
-                          {t.product?.sku ? <span className="text-muted-foreground"> · {t.product.sku}</span> : null}
-                          {t.lot_number ? <span className="text-muted-foreground"> · lot {t.lot_number}</span> : null}
-                          {t.notes ? <span className="text-warning ml-2">· {t.notes}</span> : null}
-                        </span>
-                        <div className="text-xs text-muted-foreground">req {Number(t.quantity ?? 0).toFixed(2)}</div>
-                        <Input
-                          className="w-24"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={val}
-                          onChange={(e) => setPickedQty((p) => ({ ...p, [t.id]: e.target.value }))}
-                        />
-                        <Button
-                          size="sm"
-                          variant={isMatch ? "default" : "outline"}
-                          disabled={complete.isPending}
-                          onClick={() => complete.mutate({ taskId: t.id, pickedQty: Number(val || 0) }, { onSuccess: onPickSuccess })}
-                        >
-                          <Check className="h-3.5 w-3.5 mr-1" /> Confirm
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+        <Section title="Open picks" description="Ordered by pick sequence. The scan strip highlights the current target." contentClassName="px-0 pb-0">
+          {isLoading ? (
+            <LoadingState />
+          ) : open.length === 0 ? (
+            <EmptyState
+              icon={PackageCheck}
+              title="All picks complete"
+              description={wave?.state === "picked" ? "Move to packing." : "Nothing left to pick."}
+            />
+          ) : (
+            <ul className="divide-y">
+              {open.map((t) => {
+                const suggested = t.quantity != null ? String(t.quantity) : "";
+                const val = pickedQty[t.id] ?? suggested;
+                const isMatch = matched?.id === t.id;
+                return (
+                  <li
+                    key={t.id}
+                    ref={(el) => { rowRefs.current[t.id] = el; }}
+                    className={cn(
+                      "p-3 flex flex-wrap items-center gap-3 transition-colors",
+                      isMatch && "bg-emerald-500/5 ring-1 ring-inset ring-emerald-500/30",
+                    )}
+                  >
+                    <StatusBadge tone={STATE_TONE[t.state]}>{t.state.replace("_", " ")}</StatusBadge>
+                    <span className="font-mono text-sm">{t.source_loc?.code ?? "?"}</span>
+                    <span className="text-sm flex-1">
+                      {t.product?.name ?? "—"}
+                      {t.product?.sku ? <span className="text-muted-foreground"> · {t.product.sku}</span> : null}
+                      {t.lot_number ? <span className="text-muted-foreground"> · lot {t.lot_number}</span> : null}
+                      {t.notes ? <span className="text-warning ml-2">· {t.notes}</span> : null}
+                    </span>
+                    <div className="text-xs text-muted-foreground">req {Number(t.quantity ?? 0).toFixed(2)}</div>
+                    <Input
+                      className="w-24"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={val}
+                      onChange={(e) => setPickedQty((p) => ({ ...p, [t.id]: e.target.value }))}
+                    />
+                    <Button
+                      size="sm"
+                      variant={isMatch ? "default" : "outline"}
+                      disabled={complete.isPending}
+                      onClick={() => complete.mutate({ taskId: t.id, pickedQty: Number(val || 0) }, { onSuccess: onPickSuccess })}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Confirm
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Section>
 
         {done.length > 0 && (
-          <Section title={`Completed (${done.length})`}>
-            <Card>
-              <CardContent className="p-0">
-                <ul className="divide-y">
-                  {done.map((t) => (
-                    <li key={t.id} className="p-3 flex items-center gap-3 text-sm">
-                      <StatusBadge tone="success">done</StatusBadge>
-                      <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
-                      <span className="flex-1">{t.product?.name ?? "—"}</span>
-                      <span className="font-mono">{Number(t.quantity ?? 0).toFixed(2)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+          <Section title={`Completed (${done.length})`} contentClassName="px-0 pb-0">
+            <ul className="divide-y">
+              {done.map((t) => (
+                <li key={t.id} className="p-3 flex items-center gap-3 text-sm">
+                  <StatusBadge tone="success">done</StatusBadge>
+                  <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
+                  <span className="flex-1">{t.product?.name ?? "—"}</span>
+                  <span className="font-mono">{Number(t.quantity ?? 0).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
           </Section>
         )}
         <ActivitySection aggregateId={waveId} title="Wave activity" description="Lifecycle events emitted for this pick wave." />

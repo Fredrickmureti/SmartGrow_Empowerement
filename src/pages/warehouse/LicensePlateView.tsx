@@ -246,113 +246,101 @@ export default function LicensePlateView() {
         </div>
 
         <Section title="Contents" description="Stock physically carried by this handling unit.">
-          <Card>
-            <CardContent className="p-4">
-              {!contents?.length ? (
-                <EmptyState
-                  icon={PackageOpen}
-                  title="Empty plate"
-                  description={
-                    unlocated
-                      ? "This plate is not in a bin yet. Move it to a bin, then load stock from that bin."
-                      : "Load stock from this plate's bin to start building the handling unit."
-                  }
-                  action={
-                    unlocated ? (
-                      <Button onClick={() => setDialog("move")} disabled={locked}>Move to a bin</Button>
-                    ) : (
-                      <Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>
-                    )
-                  }
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Lot</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Reserved</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {contents.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell>{c.products?.name ?? c.product_id}</TableCell>
-                        <TableCell className="font-mono text-sm">{c.products?.sku ?? "—"}</TableCell>
-                        <TableCell className="font-mono text-sm">{c.lot_number ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{Number(c.quantity)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{Number(c.reserved_quantity ?? 0)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {!contents?.length ? (
+            <EmptyState
+              icon={PackageOpen}
+              title="Empty plate"
+              description={
+                unlocated
+                  ? "This plate is not in a bin yet. Move it to a bin, then load stock from that bin."
+                  : "Load stock from this plate's bin to start building the handling unit."
+              }
+              action={
+                unlocated ? (
+                  <Button onClick={() => setDialog("move")} disabled={locked}>Move to a bin</Button>
+                ) : (
+                  <Button onClick={() => setDialog("load")} disabled={locked || sealed}>Load stock</Button>
+                )
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Lot</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Reserved</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contents.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.products?.name ?? c.product_id}</TableCell>
+                    <TableCell className="font-mono text-sm">{c.products?.sku ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-sm">{c.lot_number ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(c.quantity)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(c.reserved_quantity ?? 0)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Section>
 
         {!!children?.length && (
           <Section title="Nested plates" description="Child handling units that travel with this plate.">
-            <Card>
-              <CardContent className="p-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Plate</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">SKUs</TableHead>
-                      <TableHead className="text-right">Units</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {children.map((c) => (
-                      <TableRow key={c.id}>
-                        <TableCell>
-                          <Link to={`/warehouse-app/plates/${c.id}`} className="font-mono hover:underline">
-                            {c.code}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="capitalize">{c.lpn_type}</TableCell>
-                        <TableCell className="text-right tabular-nums">{Number(c.sku_count ?? 0)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{Number(c.total_quantity ?? 0)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Plate</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">SKUs</TableHead>
+                  <TableHead className="text-right">Units</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {children.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <Link to={`/warehouse-app/plates/${c.id}`} className="font-mono hover:underline">
+                        {c.code}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="capitalize">{c.lpn_type}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(c.sku_count ?? 0)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Number(c.total_quantity ?? 0)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Section>
         )}
 
         <Section title="Handling ledger" description="Every load, move, split, merge and status change on this plate.">
-          <Card>
-            <CardContent className="p-4">
-              {!events?.length ? (
-                <p className="text-sm text-muted-foreground">No plate events yet.</p>
-              ) : (
-                <ol className="space-y-2">
-                  {events.map((e) => (
-                    <li key={e.id} className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium capitalize">{e.event_type.replace(/_/g, " ")}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {e.from_status || e.to_status
-                            ? `${e.from_status ?? "—"} → ${e.to_status ?? "—"}`
-                            : null}
-                          {e.quantity_delta ? ` · ${Number(e.quantity_delta)} units` : ""}
-                        </p>
-                      </div>
-                      <span className="whitespace-nowrap text-xs text-muted-foreground">
-                        {new Date(e.created_at).toLocaleString()}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </CardContent>
-          </Card>
+          {!events?.length ? (
+            <p className="text-sm text-muted-foreground">No plate events yet.</p>
+          ) : (
+            <ol className="space-y-2">
+              {events.map((e) => (
+                <li key={e.id} className="flex items-start justify-between gap-4 border-b pb-2 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium capitalize">{e.event_type.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {e.from_status || e.to_status
+                        ? `${e.from_status ?? "—"} → ${e.to_status ?? "—"}`
+                        : null}
+                      {e.quantity_delta ? ` · ${Number(e.quantity_delta)} units` : ""}
+                    </p>
+                  </div>
+                  <span className="whitespace-nowrap text-xs text-muted-foreground">
+                    {new Date(e.created_at).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </Section>
 
         <ActivitySection aggregateId={lpn.id} />

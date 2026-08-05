@@ -190,86 +190,82 @@ export default function CountReview() {
 
         {uncounted.length > 0 && (
           <Section title={`Not counted (${uncounted.length})`} description="These lines were included in the count but never recorded. Submitting treats them as no difference.">
-            <Card><CardContent className="p-3 text-sm text-muted-foreground">
-              {uncounted.slice(0, 20).map((l) => (
-                <div key={l.id}>{l.location_code ?? "—"} · {countLineProductLabel(l)}</div>
-              ))}
-              {uncounted.length > 20 && <div>…and {uncounted.length - 20} more</div>}
-            </CardContent></Card>
-          </Section>
+            <div className="text-sm text-muted-foreground">
+            {uncounted.slice(0, 20).map((l) => (
+              <div key={l.id}>{l.location_code ?? "—"} · {countLineProductLabel(l)}</div>
+            ))}
+            {uncounted.length > 20 && <div>…and {uncounted.length - 20} more</div>}
+            </div>
+          </Section> )}
         )}
 
-        <Section title={`Differences (${variances.length})`}>
-          <Card>
-            <CardContent className="p-0">
-              {variances.length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">No differences — submitting will simply close the count.</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr className="text-left">
-                      <th className="p-2">Bin</th>
-                      <th className="p-2">Product</th>
-                      <th className="p-2">Lot</th>
-                      <th className="p-2 text-right">Expected</th>
-                      <th className="p-2 text-right">Counted</th>
-                      <th className="p-2 text-right">Difference</th>
-                      <th className="p-2">Check</th>
-                      <th className="p-2">Reason</th>
+        <Section title={`Differences (${variances.length})`} contentClassName="px-0 pb-0">
+          {variances.length === 0 ? (
+            <div className="p-4 text-sm text-muted-foreground">No differences — submitting will simply close the count.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr className="text-left">
+                  <th className="p-2">Bin</th>
+                  <th className="p-2">Product</th>
+                  <th className="p-2">Lot</th>
+                  <th className="p-2 text-right">Expected</th>
+                  <th className="p-2 text-right">Counted</th>
+                  <th className="p-2 text-right">Difference</th>
+                  <th className="p-2">Check</th>
+                  <th className="p-2">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {variances.map((l) => {
+                  const outcome = l.tolerance_outcome as ToleranceOutcome | null;
+                  return (
+                    <tr key={l.id} className="border-t">
+                      <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
+                      <td className="p-2">{countLineProductLabel(l)}</td>
+                      <td className="p-2">{l.lot_number ?? "—"}</td>
+                      <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
+                      <td className="p-2">
+                        {outcome ? (
+                          <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                            {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                          </StatusBadge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <Select
+                          value={l.variance_reason ?? undefined}
+                          disabled={session.state === "posted" || setReason.isPending}
+                          onValueChange={(value) =>
+                            setReason.mutate({
+                              line_id: l.id,
+                              counted_qty: Number(l.counted_qty ?? 0),
+                              reason: value as VarianceReason,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-56">
+                            <SelectValue placeholder="Why is it different?" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VARIANCE_REASONS.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {r.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {variances.map((l) => {
-                      const outcome = l.tolerance_outcome as ToleranceOutcome | null;
-                      return (
-                        <tr key={l.id} className="border-t">
-                          <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
-                          <td className="p-2">{countLineProductLabel(l)}</td>
-                          <td className="p-2">{l.lot_number ?? "—"}</td>
-                          <td className="p-2 text-right font-mono">{l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}</td>
-                          <td className="p-2 text-right font-mono">{Number(l.counted_qty ?? 0).toFixed(2)}</td>
-                          <td className="p-2 text-right font-mono text-destructive">{Number(l.variance_qty ?? 0).toFixed(2)}</td>
-                          <td className="p-2">
-                            {outcome ? (
-                              <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
-                                {TOLERANCE_COPY[outcome]?.label ?? outcome}
-                              </StatusBadge>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="p-2">
-                            <Select
-                              value={l.variance_reason ?? undefined}
-                              disabled={session.state === "posted" || setReason.isPending}
-                              onValueChange={(value) =>
-                                setReason.mutate({
-                                  line_id: l.id,
-                                  counted_qty: Number(l.counted_qty ?? 0),
-                                  reason: value as VarianceReason,
-                                })
-                              }
-                            >
-                              <SelectTrigger className="h-8 w-56">
-                                <SelectValue placeholder="Why is it different?" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VARIANCE_REASONS.map((r) => (
-                                  <SelectItem key={r.value} value={r.value}>
-                                    {r.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </Section>
       </PageBody>
     </>

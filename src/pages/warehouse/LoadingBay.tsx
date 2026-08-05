@@ -352,86 +352,78 @@ export default function LoadingBay() {
             description={isComplete
               ? "All sealed cartons for this manifest's waves are loaded."
               : `${shortCount} sealed carton(s) still missing — dispatch is blocked until every one is loaded.`}>
-            <Card><CardContent className="p-4">
-              <div className="h-2 w-full rounded bg-muted overflow-hidden">
-                <div
-                  className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
-                  style={{ width: `${scannedPct}%` }}
-                />
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Loaded {loadedCount} · Missing {shortCount}
-              </div>
-            </CardContent></Card>
-          </Section>
+          <div className="h-2 w-full rounded bg-muted overflow-hidden">
+            <div
+              className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
+              style={{ width: `${scannedPct}%` }}
+            />
+          </div>
+          <div className="mt-2 text-sm text-muted-foreground">
+            Loaded {loadedCount} · Missing {shortCount}
+          </div>
+          </Section> )}
         )}
 
         {canLoad && (
           <Section title="Scan carton LPN">
-            <Card><CardContent className="p-4">
-              <EntityScanField
-                label="Carton LPN"
-                intent="load.lpn"
-                entity="carton"
-                disabled={load.isPending}
-                onResolve={resolveCartonScan}
-              />
-            </CardContent></Card>
-          </Section>
+          <EntityScanField
+            label="Carton LPN"
+            intent="load.lpn"
+            entity="carton"
+            disabled={load.isPending}
+            onResolve={resolveCartonScan}
+          />
+          </Section> )}
         )}
 
-        <Section title={`Loaded (${(loaded ?? []).length})`}>
-          <Card><CardContent className="p-0">
-            {(loaded ?? []).length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">No cartons loaded yet.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50"><tr className="text-left">
-                  <th className="p-2">#</th><th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Loaded</th>
-                </tr></thead>
-                <tbody>
-                  {(loaded ?? []).map((l) => (
-                    <tr key={l.id} className="border-t">
-                      <td className="p-2 font-mono">{l.sequence}</td>
-                      <td className="p-2 font-mono">{l.lpn?.code ?? "—"}</td>
-                      <td className="p-2">{l.carton?.weight_kg != null ? `${l.carton.weight_kg} kg` : "—"}</td>
-                      <td className="p-2 text-muted-foreground">{new Date(l.loaded_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent></Card>
+        <Section title={`Loaded (${(loaded ?? []).length})`} contentClassName="px-0 pb-0">
+        {(loaded ?? []).length === 0 ? (
+          <div className="p-4 text-sm text-muted-foreground">No cartons loaded yet.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50"><tr className="text-left">
+              <th className="p-2">#</th><th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Loaded</th>
+            </tr></thead>
+            <tbody>
+              {(loaded ?? []).map((l) => (
+                <tr key={l.id} className="border-t">
+                  <td className="p-2 font-mono">{l.sequence}</td>
+                  <td className="p-2 font-mono">{l.lpn?.code ?? "—"}</td>
+                  <td className="p-2">{l.carton?.weight_kg != null ? `${l.carton.weight_kg} kg` : "—"}</td>
+                  <td className="p-2 text-muted-foreground">{new Date(l.loaded_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         </Section>
 
         {canLoad && (
           <Section title={`Available (${(available ?? []).filter((c) => !loadedIds.has(c.id)).length})`}
-            description="Sealed cartons not yet on any manifest.">
-            <Card><CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50"><tr className="text-left">
-                  <th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Sealed</th><th className="p-2"></th>
-                </tr></thead>
-                <tbody>
-                  {(available ?? []).filter((c) => !loadedIds.has(c.id)).slice(0, 50).map((c) => (
-                    <tr key={c.id} className="border-t">
-                      <td className="p-2 font-mono">{c.shipment_lpn?.code ?? "—"}</td>
-                      <td className="p-2">{c.weight_kg != null ? `${c.weight_kg} kg` : "—"}</td>
-                      <td className="p-2 text-muted-foreground">{c.sealed_at ? new Date(c.sealed_at).toLocaleString() : "—"}</td>
-                      <td className="p-2 text-right">
-                        <Button size="sm" variant="outline" onClick={() => load.mutate(c.id)} disabled={load.isPending}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Load
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {(available ?? []).filter((c) => !loadedIds.has(c.id)).length === 0 && (
-                    <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No available cartons.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </CardContent></Card>
-          </Section>
+            description="Sealed cartons not yet on any manifest." contentClassName="px-0 pb-0">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50"><tr className="text-left">
+              <th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Sealed</th><th className="p-2"></th>
+            </tr></thead>
+            <tbody>
+              {(available ?? []).filter((c) => !loadedIds.has(c.id)).slice(0, 50).map((c) => (
+                <tr key={c.id} className="border-t">
+                  <td className="p-2 font-mono">{c.shipment_lpn?.code ?? "—"}</td>
+                  <td className="p-2">{c.weight_kg != null ? `${c.weight_kg} kg` : "—"}</td>
+                  <td className="p-2 text-muted-foreground">{c.sealed_at ? new Date(c.sealed_at).toLocaleString() : "—"}</td>
+                  <td className="p-2 text-right">
+                    <Button size="sm" variant="outline" onClick={() => load.mutate(c.id)} disabled={load.isPending}>
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Load
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {(available ?? []).filter((c) => !loadedIds.has(c.id)).length === 0 && (
+                <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No available cartons.</td></tr>
+              )}
+            </tbody>
+          </table>
+          </Section> )}
         )}
         <ActivitySection aggregateId={manifestId} title="Manifest activity" description="Lifecycle events emitted for this loading manifest." />
       </PageBody>

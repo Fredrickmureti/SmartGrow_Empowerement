@@ -112,83 +112,81 @@ export default function CycleCountPlanner() {
       />
       <PageBody>
         <Section title="Scope">
-          <Card>
-            <CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+            <div>
+              <Label>Warehouse</Label>
+              <select
+                className="border rounded px-2 py-1 w-full bg-background"
+                value={warehouseId}
+                onChange={(e) => { setWarehouseId(e.target.value); setSelected(new Set()); }}
+              >
+                <option value="">Select warehouse…</option>
+                {(warehouses ?? []).map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Strategy</Label>
+              <select
+                className="border rounded px-2 py-1 bg-background"
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value as typeof strategy)}
+              >
+                <option value="targeted">Targeted (chosen locations)</option>
+                <option value="abc">ABC (velocity-based)</option>
+                <option value="random">Random sample</option>
+              </select>
+            </div>
+            {warehouseId && (
               <div>
-                <Label>Warehouse</Label>
-                <select
-                  className="border rounded px-2 py-1 w-full bg-background"
-                  value={warehouseId}
-                  onChange={(e) => { setWarehouseId(e.target.value); setSelected(new Set()); }}
-                >
-                  <option value="">Select warehouse…</option>
-                  {(warehouses ?? []).map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
+                <Label>Locations {selected.size > 0 && <span className="text-muted-foreground text-xs">({selected.size} selected — leave empty for whole warehouse)</span>}</Label>
+                <div className="min-w-0 max-h-56 overflow-auto border rounded p-2 grid grid-cols-2 gap-1 text-sm">
+                  {(locations ?? []).map((l) => (
+                    <label key={l.id} className="flex items-center gap-2">
+                      <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggle(l.id)} />
+                      <span className="font-mono">{l.code ?? "—"}</span> {l.name}
+                    </label>
                   ))}
-                </select>
-              </div>
-              <div>
-                <Label>Strategy</Label>
-                <select
-                  className="border rounded px-2 py-1 bg-background"
-                  value={strategy}
-                  onChange={(e) => setStrategy(e.target.value as typeof strategy)}
-                >
-                  <option value="targeted">Targeted (chosen locations)</option>
-                  <option value="abc">ABC (velocity-based)</option>
-                  <option value="random">Random sample</option>
-                </select>
-              </div>
-              {warehouseId && (
-                <div>
-                  <Label>Locations {selected.size > 0 && <span className="text-muted-foreground text-xs">({selected.size} selected — leave empty for whole warehouse)</span>}</Label>
-                  <div className="min-w-0 max-h-56 overflow-auto border rounded p-2 grid grid-cols-2 gap-1 text-sm">
-                    {(locations ?? []).map((l) => (
-                      <label key={l.id} className="flex items-center gap-2">
-                        <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggle(l.id)} />
-                        <span className="font-mono">{l.code ?? "—"}</span> {l.name}
-                      </label>
-                    ))}
-                  </div>
                 </div>
-              )}
-              <div className="rounded border p-3 space-y-1">
-                <label className="flex items-center gap-2 text-sm font-medium">
-                  <input
-                    type="checkbox"
-                    checked={isBlind}
-                    onChange={(e) => setIsBlind(e.target.checked)}
-                  />
-                  Hide the expected quantity from counters
-                </label>
-                <p className="text-xs text-muted-foreground">{blindHint}</p>
               </div>
-              <div>
-                <Label>Assign to</Label>
-                <select
-                  className="border rounded px-2 py-1 w-full bg-background"
-                  value={assignTo}
-                  onChange={(e) => setAssignTo(e.target.value)}
-                >
-                  <option value="">Leave in the shared task queue</option>
-                  {(operators ?? []).map((o) => (
-                    <option key={o.id} value={o.id}>{o.full_name ?? o.id}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  A count task is created for every bin in scope so the work shows up alongside
-                  picking and putaway.
-                </p>
-              </div>
-              <div>
-                <Label>Notes</Label>
-                <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </div>
-              <Button disabled={!warehouseId || create.isPending} onClick={() => create.mutate()}>
-                <ListChecks className="h-4 w-4 mr-2" /> Open count session
-              </Button>
-            </CardContent>
-          </Card>
+            )}
+            <div className="rounded border p-3 space-y-1">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={isBlind}
+                  onChange={(e) => setIsBlind(e.target.checked)}
+                />
+                Hide the expected quantity from counters
+              </label>
+              <p className="text-xs text-muted-foreground">{blindHint}</p>
+            </div>
+            <div>
+              <Label>Assign to</Label>
+              <select
+                className="border rounded px-2 py-1 w-full bg-background"
+                value={assignTo}
+                onChange={(e) => setAssignTo(e.target.value)}
+              >
+                <option value="">Leave in the shared task queue</option>
+                {(operators ?? []).map((o) => (
+                  <option key={o.id} value={o.id}>{o.full_name ?? o.id}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                A count task is created for every bin in scope so the work shows up alongside
+                picking and putaway.
+              </p>
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+            <Button disabled={!warehouseId || create.isPending} onClick={() => create.mutate()}>
+              <ListChecks className="h-4 w-4 mr-2" /> Open count session
+            </Button>
+          </div>
         </Section>
       </PageBody>
     </>

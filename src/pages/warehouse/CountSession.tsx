@@ -232,137 +232,131 @@ export default function CountSession() {
         )}
 
         <Section title="Scan">
-          <Card>
-            <CardContent className="min-w-0 p-4 grid grid-cols-1 @2xl/page:grid-cols-2 gap-3">
-              <div>
-                <Label>Bin</Label>
-                <Input placeholder="Scan or type bin code" value={scanBin} onChange={(e) => setScanBin(e.target.value)} />
-              </div>
-              <div>
-                <Label>Product</Label>
-                <BarcodeInputField
-                  workflow="count"
-                  placeholder="Scan or type product barcode / SKU"
-                  value={scanProduct}
-                  onChange={(v) => {
-                    setScanProduct(v);
-                    setScanProductId(null);
-                  }}
-                  onScan={handleProductScan}
-                />
-                {scanFlash && (
-                  <p className="mt-1 text-xs text-muted-foreground">{scanFlash}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-2 gap-3">
+            <div>
+              <Label>Bin</Label>
+              <Input placeholder="Scan or type bin code" value={scanBin} onChange={(e) => setScanBin(e.target.value)} />
+            </div>
+            <div>
+              <Label>Product</Label>
+              <BarcodeInputField
+                workflow="count"
+                placeholder="Scan or type product barcode / SKU"
+                value={scanProduct}
+                onChange={(v) => {
+                  setScanProduct(v);
+                  setScanProductId(null);
+                }}
+                onScan={handleProductScan}
+              />
+              {scanFlash && (
+                <p className="mt-1 text-xs text-muted-foreground">{scanFlash}</p>
+              )}
+            </div>
+          </div>
         </Section>
 
-        <Section title="Lines">
-          <Card>
-            <CardContent className="p-0">
-              {(lines ?? []).length === 0 ? (
-                <div className="p-4 text-sm text-muted-foreground">Nothing to count in this session.</div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr className="text-left">
-                      <th className="p-2">Bin</th>
-                      <th className="p-2">Product</th>
-                      <th className="p-2">Lot</th>
-                      {!blind && <th className="p-2 text-right">System</th>}
-                      <th className="p-2">Counted</th>
-                      {!blind && <th className="p-2 text-right">Difference</th>}
-                      <th className="p-2">Check</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(lines ?? []).map((l) => {
-                      const isActive = l.id === activeLineId;
-                      const outcome = l.tolerance_outcome as ToleranceOutcome | null;
-                      return (
-                        <tr
-                          key={l.id}
-                          ref={isActive ? activeRowRef : null}
-                          className={`border-t ${isActive ? "bg-primary/10" : ""}`}
-                        >
-                          <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
-                          <td className="p-2">
-                            <span className={l.product_name ? undefined : "text-muted-foreground italic"}>
-                              {countLineProductLabel(l)}
-                            </span>
-                            {countLineProductSubLabel(l) && (
-                              <span className="text-muted-foreground text-xs"> · {countLineProductSubLabel(l)}</span>
-                            )}
+        <Section title="Lines" contentClassName="px-0 pb-0">
+          {(lines ?? []).length === 0 ? (
+            <div className="p-4 text-sm text-muted-foreground">Nothing to count in this session.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr className="text-left">
+                  <th className="p-2">Bin</th>
+                  <th className="p-2">Product</th>
+                  <th className="p-2">Lot</th>
+                  {!blind && <th className="p-2 text-right">System</th>}
+                  <th className="p-2">Counted</th>
+                  {!blind && <th className="p-2 text-right">Difference</th>}
+                  <th className="p-2">Check</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(lines ?? []).map((l) => {
+                  const isActive = l.id === activeLineId;
+                  const outcome = l.tolerance_outcome as ToleranceOutcome | null;
+                  return (
+                    <tr
+                      key={l.id}
+                      ref={isActive ? activeRowRef : null}
+                      className={`border-t ${isActive ? "bg-primary/10" : ""}`}
+                    >
+                      <td className="p-2 font-mono">{l.location_code ?? "—"}</td>
+                      <td className="p-2">
+                        <span className={l.product_name ? undefined : "text-muted-foreground italic"}>
+                          {countLineProductLabel(l)}
+                        </span>
+                        {countLineProductSubLabel(l) && (
+                          <span className="text-muted-foreground text-xs"> · {countLineProductSubLabel(l)}</span>
+                        )}
 
-                            {(l.recount_round ?? 0) > 0 && (
-                              <span className="ml-2 text-xs text-muted-foreground">recount #{l.recount_round}</span>
-                            )}
-                          </td>
-                          <td className="p-2">{l.lot_number ?? "—"}</td>
-                          {!blind && (
-                            <td className="p-2 text-right font-mono">
-                              {l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}
-                            </td>
-                          )}
-                          <td className="p-2">
-                            <div className="flex gap-1">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                className="w-24 h-8"
-                                value={countedByLine[l.id] ?? (l.counted_qty ?? "")}
-                                onChange={(e) => setCountedByLine((s) => ({ ...s, [l.id]: e.target.value }))}
-                              />
+                        {(l.recount_round ?? 0) > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground">recount #{l.recount_round}</span>
+                        )}
+                      </td>
+                      <td className="p-2">{l.lot_number ?? "—"}</td>
+                      {!blind && (
+                        <td className="p-2 text-right font-mono">
+                          {l.system_qty == null ? "—" : Number(l.system_qty).toFixed(2)}
+                        </td>
+                      )}
+                      <td className="p-2">
+                        <div className="flex gap-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-24 h-8"
+                            value={countedByLine[l.id] ?? (l.counted_qty ?? "")}
+                            onChange={(e) => setCountedByLine((s) => ({ ...s, [l.id]: e.target.value }))}
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={record.isPending}
+                            onClick={() => {
+                              const val = Number(countedByLine[l.id] ?? l.counted_qty ?? 0);
+                              if (Number.isNaN(val)) { toast.error("Invalid qty"); return; }
+                              record.mutate({ line_id: l.id, counted_qty: val });
+                            }}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </td>
+                      {!blind && (
+                        <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
+                          {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}
+                        </td>
+                      )}
+                      <td className="p-2">
+                        {outcome ? (
+                          <div className="flex items-center gap-2">
+                            <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
+                              {TOLERANCE_COPY[outcome]?.label ?? outcome}
+                            </StatusBadge>
+                            {outcome === "recount_required" && !supersededIds.has(l.id) && (
                               <Button
                                 size="sm"
                                 variant="outline"
-                                disabled={record.isPending}
-                                onClick={() => {
-                                  const val = Number(countedByLine[l.id] ?? l.counted_qty ?? 0);
-                                  if (Number.isNaN(val)) { toast.error("Invalid qty"); return; }
-                                  record.mutate({ line_id: l.id, counted_qty: val });
-                                }}
+                                disabled={recount.isPending}
+                                onClick={() => recount.mutate({ line_id: l.id })}
                               >
-                                Save
+                                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
                               </Button>
-                            </div>
-                          </td>
-                          {!blind && (
-                            <td className={`p-2 text-right font-mono ${l.variance_qty && Number(l.variance_qty) !== 0 ? "text-destructive" : ""}`}>
-                              {l.variance_qty == null ? "—" : Number(l.variance_qty).toFixed(2)}
-                            </td>
-                          )}
-                          <td className="p-2">
-                            {outcome ? (
-                              <div className="flex items-center gap-2">
-                                <StatusBadge tone={TOLERANCE_COPY[outcome]?.tone ?? "info"}>
-                                  {TOLERANCE_COPY[outcome]?.label ?? outcome}
-                                </StatusBadge>
-                                {outcome === "recount_required" && !supersededIds.has(l.id) && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={recount.isPending}
-                                    onClick={() => recount.mutate({ line_id: l.id })}
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Count again
-                                  </Button>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
                             )}
-                          </td>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
 
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </Section>
         <ActivitySection aggregateId={sessionId} title="Session activity" description="Lifecycle events emitted for this count session." />
       </PageBody>

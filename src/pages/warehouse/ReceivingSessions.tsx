@@ -545,125 +545,123 @@ export default function ReceivingSessions() {
       />
       <PageBody>
         <Section>
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open_all">Open (default)</SelectItem>
-                    <SelectItem value="open">Open</SelectItem>
-                    <SelectItem value="unloading">Unloading</SelectItem>
-                    <SelectItem value="captured">Captured</SelectItem>
-                    <SelectItem value="discrepant">Discrepant</SelectItem>
-                    <SelectItem value="posted">Posted</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                    <SelectItem value="all">All</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All warehouses</SelectItem>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <ToggleGroup
-                  type="single"
-                  value={view}
-                  onValueChange={(v) => v && setView(v as "board" | "table")}
-                  variant="outline"
-                  size="sm"
-                >
-                  <ToggleGroupItem value="board" aria-label="Board view">
-                    <LayoutGrid className="h-4 w-4" />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="table" aria-label="Table view">
-                    <Rows3 className="h-4 w-4" />
-                  </ToggleGroupItem>
-                </ToggleGroup>
-                <ScanGuidance
-                  expectedLabel="receiving-sessions.item"
-                  hint="Scan an LPN to start unloading, or an item to capture a line"
-                  variant="bar"
-                  className="ml-auto"
-                />
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={stateFilter} onValueChange={setStateFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open_all">Open (default)</SelectItem>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="unloading">Unloading</SelectItem>
+                  <SelectItem value="captured">Captured</SelectItem>
+                  <SelectItem value="discrepant">Discrepant</SelectItem>
+                  <SelectItem value="posted">Posted</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All warehouses</SelectItem>
+                  {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <ToggleGroup
+                type="single"
+                value={view}
+                onValueChange={(v) => v && setView(v as "board" | "table")}
+                variant="outline"
+                size="sm"
+              >
+                <ToggleGroupItem value="board" aria-label="Board view">
+                  <LayoutGrid className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="table" aria-label="Table view">
+                  <Rows3 className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <ScanGuidance
+                expectedLabel="receiving-sessions.item"
+                hint="Scan an LPN to start unloading, or an item to capture a line"
+                variant="bar"
+                className="ml-auto"
+              />
 
-              </div>
+            </div>
 
-              {isLoading ? (
-                <LoadingState />
-              ) : (rows ?? []).length === 0 ? (
-                <EmptyState icon={PackageOpen} title={emptyLabel} description="Create a session when a truck arrives or an ASN is opened." />
-              ) : view === "board" ? (
-                <ReceivingSessionBoard
-                  sessions={rows ?? []}
-                  progress={progress}
-                  dockLabel={dockLabel}
-                  appointment={appointmentFor}
-                  trailerVisit={trailerVisitFor}
-                  supervisorLabel={supervisorLabel}
-                  actions={nextActions}
-                  onOpen={(s) => setActiveSession(s as SessionRow)}
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Dock</TableHead>
-                      <TableHead>Lines</TableHead>
-                      <TableHead>Started</TableHead>
-                      <TableHead>Closed</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+            {isLoading ? (
+              <LoadingState />
+            ) : (rows ?? []).length === 0 ? (
+              <EmptyState icon={PackageOpen} title={emptyLabel} description="Create a session when a truck arrives or an ASN is opened." />
+            ) : view === "board" ? (
+              <ReceivingSessionBoard
+                sessions={rows ?? []}
+                progress={progress}
+                dockLabel={dockLabel}
+                appointment={appointmentFor}
+                trailerVisit={trailerVisitFor}
+                supervisorLabel={supervisorLabel}
+                actions={nextActions}
+                onOpen={(s) => setActiveSession(s as SessionRow)}
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Dock</TableHead>
+                    <TableHead>Lines</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Closed</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(rows ?? []).map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-mono">{r.code}</TableCell>
+                      <TableCell><StatusBadge tone={TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{r.source_doc_type ?? "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {dockLabel(r.dock_id) ?? (r.appointment_id ? "appointment" : "unscheduled")}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const pr = progress?.get(r.id);
+                          if (!pr || pr.line_count === 0) return <span className="text-muted-foreground">no lines</span>;
+                          return (
+                            <span className="space-x-1">
+                              <span className="font-medium">{Number(pr.received_qty)}</span>
+                              <span className="text-muted-foreground">/ {Number(pr.expected_qty)}</span>
+                              {pr.short_lines > 0 && <StatusBadge tone="danger">{pr.short_lines} short</StatusBadge>}
+                              {pr.over_lines > 0 && <StatusBadge tone="warning">{pr.over_lines} over</StatusBadge>}
+                              {pr.unexpected_lines > 0 && <StatusBadge tone="warning">{pr.unexpected_lines} extra</StatusBadge>}
+                              {pr.hold_lines > 0 && <StatusBadge tone="danger">{pr.hold_lines} hold</StatusBadge>}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{r.closed_at ? new Date(r.closed_at).toLocaleString() : "—"}</TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button size="sm" variant="outline" onClick={() => setActiveSession(r)}>Open</Button>
+                        <ActivityHistoryButton aggregateId={r.id} recordLabel={r.code} />
+                        {nextActions(r).map((a, i) => (
+                          <Button key={i} size="sm" variant={a.label.startsWith("Post") || a.label === "Close" ? "default" : "outline"} onClick={a.run}>
+                            <a.icon className="h-3.5 w-3.5 mr-1" />{a.label}
+                          </Button>
+                        ))}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(rows ?? []).map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-mono">{r.code}</TableCell>
-                        <TableCell><StatusBadge tone={TONE[r.state]}>{r.state.replace("_", " ")}</StatusBadge></TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{r.source_doc_type ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {dockLabel(r.dock_id) ?? (r.appointment_id ? "appointment" : "unscheduled")}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {(() => {
-                            const pr = progress?.get(r.id);
-                            if (!pr || pr.line_count === 0) return <span className="text-muted-foreground">no lines</span>;
-                            return (
-                              <span className="space-x-1">
-                                <span className="font-medium">{Number(pr.received_qty)}</span>
-                                <span className="text-muted-foreground">/ {Number(pr.expected_qty)}</span>
-                                {pr.short_lines > 0 && <StatusBadge tone="danger">{pr.short_lines} short</StatusBadge>}
-                                {pr.over_lines > 0 && <StatusBadge tone="warning">{pr.over_lines} over</StatusBadge>}
-                                {pr.unexpected_lines > 0 && <StatusBadge tone="warning">{pr.unexpected_lines} extra</StatusBadge>}
-                                {pr.hold_lines > 0 && <StatusBadge tone="danger">{pr.hold_lines} hold</StatusBadge>}
-                              </span>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{r.started_at ? new Date(r.started_at).toLocaleString() : "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{r.closed_at ? new Date(r.closed_at).toLocaleString() : "—"}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button size="sm" variant="outline" onClick={() => setActiveSession(r)}>Open</Button>
-                          <ActivityHistoryButton aggregateId={r.id} recordLabel={r.code} />
-                          {nextActions(r).map((a, i) => (
-                            <Button key={i} size="sm" variant={a.label.startsWith("Post") || a.label === "Close" ? "default" : "outline"} onClick={a.run}>
-                              <a.icon className="h-3.5 w-3.5 mr-1" />{a.label}
-                            </Button>
-                          ))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </Section>
       </PageBody>
 

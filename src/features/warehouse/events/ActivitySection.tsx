@@ -39,11 +39,7 @@ export function ActivitySection({
   if (!aggregateId) return null;
   return (
     <Section title={title} description={description}>
-      <Card>
-        <CardContent className="p-4">
-          <OutboxTimeline aggregateId={aggregateId} limit={limit} />
-        </CardContent>
-      </Card>
+      <OutboxTimeline aggregateId={aggregateId} limit={limit} />
     </Section>
   );
 }

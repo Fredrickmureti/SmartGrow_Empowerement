@@ -161,63 +161,57 @@ export default function DockSchedule() {
       />
       <PageBody>
         <Section>
-          <Card>
-            <CardContent className="p-4 flex flex-wrap gap-4 items-end">
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Warehouse</label>
-                <select
-                  className="h-9 w-full min-w-0 sm:w-56 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  value={warehouseId}
-                  onChange={(e) => setWarehouseId(e.target.value)}
-                >
-                  <option value="" className="bg-background text-foreground">Select…</option>
-                  {(warehouses ?? []).map((w) => (
-                    <option key={w.id} value={w.id} className="bg-background text-foreground">{w.name}</option>
-                  ))}
-                </select>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Warehouse</label>
+              <select
+                className="h-9 w-full min-w-0 sm:w-56 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+              >
+                <option value="" className="bg-background text-foreground">Select…</option>
+                {(warehouses ?? []).map((w) => (
+                  <option key={w.id} value={w.id} className="bg-background text-foreground">{w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Date</label>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Previous day"
+                  onClick={() => setDay((d) => shiftDay(d, -1))}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-auto" />
+                <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Next day"
+                  onClick={() => setDay((d) => shiftDay(d, 1))}>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDay(localDay())}>Today</Button>
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1">Date</label>
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Previous day"
-                    onClick={() => setDay((d) => shiftDay(d, -1))}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="w-auto" />
-                  <Button size="sm" variant="outline" className="h-9 w-9 p-0" aria-label="Next day"
-                    onClick={() => setDay((d) => shiftDay(d, 1))}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDay(localDay())}>Today</Button>
-                </div>
-              </div>
-              <div className="ml-auto flex gap-1">
-                <Button size="sm" variant={view === "timeline" ? "default" : "outline"}
-                  onClick={() => setView("timeline")}>Timeline</Button>
-                <Button size="sm" variant={view === "list" ? "default" : "outline"}
-                  onClick={() => setView("list")}>List</Button>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="ml-auto flex gap-1">
+              <Button size="sm" variant={view === "timeline" ? "default" : "outline"}
+                onClick={() => setView("timeline")}>Timeline</Button>
+              <Button size="sm" variant={view === "list" ? "default" : "outline"}
+                onClick={() => setView("list")}>List</Button>
+            </div>
+          </div>
         </Section>
 
         {!warehouseId ? (
           <Section>
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
-                <CalendarClock className="h-4 w-4" /> Pick a warehouse to open its dock board.
-              </CardContent>
-            </Card>
+            <div className="text-sm text-muted-foreground flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" /> Pick a warehouse to open its dock board.
+            </div>
           </Section>
         ) : isLoading || docksLoading ? (
           <LoadingState />
         ) : (docks ?? []).length === 0 ? (
           <Section>
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                No docks configured for this warehouse yet.
-              </CardContent>
-            </Card>
+            <div className="text-sm text-muted-foreground">
+              No docks configured for this warehouse yet.
+            </div>
           </Section>
         ) : (
           <>
@@ -259,62 +253,58 @@ export default function DockSchedule() {
                 />
               </Section>
             ) : (
-              <Section title={`Appointments — ${day}`}>
-                <Card>
-                  <CardContent className="p-0 divide-y">
-                    {(appointments ?? []).length === 0 ? (
-                      <div className="p-6 text-sm text-muted-foreground">No appointments booked.</div>
-                    ) : (
-                      (appointments ?? []).map((a) => (
-                        <button
-                          key={a.id}
-                          onClick={() => setSelected(a)}
-                          className="w-full text-left p-3 flex flex-wrap items-center gap-2 hover:bg-muted/40"
-                        >
-                          <span className="font-mono text-xs">{a.appointment_no ?? "—"}</span>
-                          <Badge variant="outline">{a.appointment_type}</Badge>
-                          <span className="text-sm">
-                            {dockById.get(a.dock_id)?.code ?? "—"} · {hhmm(a.window_start)}–{hhmm(a.window_end)}
-                          </span>
-                          {a.trailer_ref && (
-                            <span className="text-xs text-muted-foreground">{a.trailer_ref}</span>
-                          )}
-                          <Badge variant="secondary" className="ml-auto">
-                            {APPOINTMENT_STATE_LABEL[a.state]}
-                          </Badge>
-                        </button>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
+              <Section title={`Appointments — ${day}`} contentClassName="px-0 pb-0">
+                <div className="divide-y">
+                  {(appointments ?? []).length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">No appointments booked.</div>
+                  ) : (
+                    (appointments ?? []).map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelected(a)}
+                        className="w-full text-left p-3 flex flex-wrap items-center gap-2 hover:bg-muted/40"
+                      >
+                        <span className="font-mono text-xs">{a.appointment_no ?? "—"}</span>
+                        <Badge variant="outline">{a.appointment_type}</Badge>
+                        <span className="text-sm">
+                          {dockById.get(a.dock_id)?.code ?? "—"} · {hhmm(a.window_start)}–{hhmm(a.window_end)}
+                        </span>
+                        {a.trailer_ref && (
+                          <span className="text-xs text-muted-foreground">{a.trailer_ref}</span>
+                        )}
+                        <Badge variant="secondary" className="ml-auto">
+                          {APPOINTMENT_STATE_LABEL[a.state]}
+                        </Badge>
+                      </button>
+                    ))
+                  )}
+                </div>
               </Section>
             )}
 
-            <Section title="On site now">
-              <Card>
-                <CardContent className="p-0 divide-y">
-                  {(visits ?? []).length === 0 ? (
-                    <div className="p-6 text-sm text-muted-foreground">No trailers on site.</div>
-                  ) : (
-                    (visits ?? []).map((v) => (
-                      <div key={v.id} className="p-3 flex flex-wrap items-center gap-2 text-sm">
-                        <Truck className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{v.trailer_ref}</span>
-                        <Badge variant="outline">{v.status.replace(/_/g, " ")}</Badge>
-                        {v.driver_name && <span className="text-muted-foreground">{v.driver_name}</span>}
-                        {v.dock_id && (
-                          <span className="text-xs text-muted-foreground">
-                            at {dockById.get(v.dock_id)?.code ?? "dock"}
-                          </span>
-                        )}
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          in yard since {hhmm(v.arrived_at)}
+            <Section title="On site now" contentClassName="px-0 pb-0">
+              <div className="divide-y">
+                {(visits ?? []).length === 0 ? (
+                  <div className="p-6 text-sm text-muted-foreground">No trailers on site.</div>
+                ) : (
+                  (visits ?? []).map((v) => (
+                    <div key={v.id} className="p-3 flex flex-wrap items-center gap-2 text-sm">
+                      <Truck className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{v.trailer_ref}</span>
+                      <Badge variant="outline">{v.status.replace(/_/g, " ")}</Badge>
+                      {v.driver_name && <span className="text-muted-foreground">{v.driver_name}</span>}
+                      {v.dock_id && (
+                        <span className="text-xs text-muted-foreground">
+                          at {dockById.get(v.dock_id)?.code ?? "dock"}
                         </span>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                      )}
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        in yard since {hhmm(v.arrived_at)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </Section>
           </>
         )}
