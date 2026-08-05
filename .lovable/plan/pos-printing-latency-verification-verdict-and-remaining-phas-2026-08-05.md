@@ -3,6 +3,9 @@
 Roadmap of record: `.lovable/plan/pos-printing-latency-architecture-audit-and-redesign-2026-08-05.md`.
 This file is the live status board.
 
+> Superseded as the live board by `.lovable/plan.md` (updated 2026-08-05, later).
+> 1R.4b and 1R.5 are now complete; see that file for current status.
+
 ## Status board (updated 2026-08-05)
 
 Done:
