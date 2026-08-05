@@ -201,7 +201,7 @@ export function LabelProductPicker({ businessId }: { businessId: string | null }
                 </TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>SKU</TableHead>
-                <TableHead>Barcode</TableHead>
+                <TableHead>Type</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
