@@ -930,9 +930,21 @@ export async function dispatchQueuedJob(
   );
   if (!handle) return null;
 
+  // A server-expanded bulk label line carries no document record: its bytes
+  // come from `label_templates` + the vars frozen into `render_params`. It is
+  // rendered here, by the same compiler a single button-press label uses, so
+  // a run line and a one-off label are byte-identical and — crucially — reach
+  // printers the edge relay cannot address (network / USB devices bound to no
+  // paired workstation).
+  const labelRun = labelRunParams(job);
+  if (labelRun) {
+    return dispatchLabelRunJob(job, labelRun, organizationId, handle, correlationId);
+  }
+
   let transport: PrintTransport = 'none';
   let handedOff = false;
   try {
+
     const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
     const renderOptions = renderOptionsForJob(job);
     const artifact = await withSpan(
