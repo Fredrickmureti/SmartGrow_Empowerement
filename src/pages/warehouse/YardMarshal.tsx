@@ -20,14 +20,14 @@ import { PageHeader, PageBody, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, CheckCircle2, ScanBarcode, Truck, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Truck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useWarehouses } from "@/features/warehouse/dock/useDockScheduling";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import {
   useCancelYardMove,
   useCompleteYardMove,
@@ -45,7 +45,6 @@ import {
 export default function YardMarshal() {
   const [warehouseId, setWarehouseId] = useState("");
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [destCode, setDestCode] = useState("");
 
   const warehouses = useWarehouses();
   const effectiveWarehouse = warehouseId || warehouses.data?.[0]?.id || "";
@@ -75,14 +74,31 @@ export default function YardMarshal() {
     if (!activeTask) return;
     complete.mutate(
       { taskId: activeTask.id, confirmedCode: code },
-      {
-        onSuccess: () => {
-          setActiveTaskId(null);
-          setDestCode("");
-        },
-      },
+      { onSuccess: () => setActiveTaskId(null) },
     );
   }
+
+  /**
+   * Phase 3 — the destination prompt is a first-class scan field: the
+   * label is admitted by the entity gate (a product barcode or a bin
+   * label is refused outright), then checked against the yard's own slot
+   * and dock registers before the move is confirmed server-side.
+   */
+  const resolveDestination = useCallback(
+    async (code: string) => {
+      if (!activeTask) return { ok: false, message: "No yard move is active." };
+      const known =
+        (slots.data ?? []).some((s) => entityCodeEquals(s.code, code)) ||
+        (docks.data ?? []).some((d) => entityCodeEquals(d.code, code) || entityCodeEquals(d.name, code));
+      if (!known) {
+        return { ok: false, message: `${code} is not a slot or dock in this yard.` };
+      }
+      await complete.mutateAsync({ taskId: activeTask.id, confirmedCode: code });
+      setActiveTaskId(null);
+      return { ok: true, message: `Dropped at ${code}.` };
+    },
+    [activeTask, slots.data, docks.data, complete],
+  );
 
   /* Step 1 — the trailer placard picks the work order. */
   const trailerScan = useWmsScanIntent({
@@ -102,15 +118,8 @@ export default function YardMarshal() {
     },
   });
 
-  /* Step 2 — the destination label confirms the drop. */
-  useWmsScanIntent({
-    intent: "yard.slot",
-    enabled: !!activeTask,
-    onScan: ({ resolveCode }) => {
-      setDestCode(resolveCode.trim().toUpperCase());
-      finish(resolveCode.trim());
-    },
-  });
+  /* Step 2 — the destination label is captured by `EntityScanField`,
+     which owns the `yard.slot` intent while the execution card is up. */
 
   return (
     <>
@@ -158,42 +167,27 @@ export default function YardMarshal() {
                 </span>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs flex items-center gap-1.5">
-                  <ScanBarcode className="h-3.5 w-3.5" /> Scan the destination label
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    className="h-12 text-base"
-                    inputMode="text"
-                    autoFocus
-                    value={destCode}
-                    onChange={(e) => setDestCode(e.target.value.toUpperCase())}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && destCode.trim()) finish(destCode.trim());
-                    }}
-                    placeholder="Slot or dock code"
-                  />
-                  <ScanCameraButton label="Scan destination" />
-                </div>
-              </div>
+              <EntityScanField
+                label="Destination label"
+                intent="yard.slot"
+                entity="yard_slot"
+                disabled={complete.isPending}
+                onResolve={resolveDestination}
+              />
 
               <div className="min-w-0 grid grid-cols-2 gap-2">
                 <Button
                   className="h-12 gap-1.5"
                   disabled={complete.isPending}
-                  onClick={() => finish(destCode.trim() || null)}
+                  onClick={() => finish(null)}
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  {destCode.trim() ? "Confirm drop" : "Complete without scan"}
+                  Complete without scan
                 </Button>
                 <Button
                   variant="outline"
                   className="h-12"
-                  onClick={() => {
-                    setActiveTaskId(null);
-                    setDestCode("");
-                  }}
+                  onClick={() => setActiveTaskId(null)}
                 >
                   Back to list
                 </Button>
