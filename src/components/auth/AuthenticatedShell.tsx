@@ -12,6 +12,7 @@ import { BodyPointerEventsGuard } from '@/components/common/BodyPointerEventsGua
 import { useScanCapture } from '@/hooks/pos/useScanCapture';
 import { ScannerWorkspaceProvider } from '@/contexts/ScannerWorkspaceContext';
 import { LocalScanOverlay } from '@/components/scanner/LocalScanOverlay';
+import { ScanFeedbackTonePlayer } from '@/components/scanner/ScanFeedbackTonePlayer';
 
 
 interface AuthenticatedShellProps {
@@ -37,6 +38,8 @@ export function AuthenticatedShell({ children }: AuthenticatedShellProps) {
         {/* Handheld mode: this device's own camera feeds the focused scan
             target in this same tab — no pairing, no second device. */}
         <LocalScanOverlay />
+        {/* Audible scan feedback for every module that emits a verdict. */}
+        <ScanFeedbackTonePlayer />
       </ScannerWorkspaceProvider>
     </>
   );
