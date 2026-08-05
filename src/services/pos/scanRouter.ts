@@ -268,6 +268,18 @@ export const scanRouter = {
       .sort((a, b) => b.e.priority - a.e.priority || b.i - a.i)
       .map((x) => x.e);
   },
+  /**
+   * Subscribe to target-stack changes. Returns an unsubscribe function.
+   * Pair with `getStackVersion()` for `useSyncExternalStore`.
+   */
+  subscribe(listener: () => void): () => void {
+    stackListeners.add(listener);
+    return () => stackListeners.delete(listener);
+  },
+  /** Monotonic snapshot token — changes whenever the target stack changes. */
+  getStackVersion(): number {
+    return stackVersion;
+  },
   /** Test helper. */
   _inspect() {
     return { stack: [...stack] };
@@ -279,5 +291,7 @@ export const scanRouter = {
     missingContextWarned = false;
     scanBus.setRouter(null);
     scanBus.setDedupeBypass(null);
+    notifyStackChanged();
   },
+
 };
