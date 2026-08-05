@@ -14,7 +14,7 @@ import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
