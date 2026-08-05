@@ -561,32 +561,8 @@ export async function printDocumentIntent(input: {
         (await withSpan('intent.resolve_org', () =>
           resolveOrganizationId(jobs[0]?.business_id ?? null),
         ));
-      let transport: PrintTransport = 'none';
-      let printed = 0;
-      let lastError: string | undefined;
 
-      annotateTrace({ job_count: jobs.length });
-
-      for (const job of jobs) {
-        if ((job.disposition ?? 'print') !== 'print') continue;
-        const outcome = await withSpan('intent.dispatch_job', () =>
-          dispatchQueuedJob(job, organizationId),
-        );
-        if (outcome === null) continue; // sweeper owns it
-        transport = outcome.transport;
-        if (outcome.error) lastError = outcome.error;
-        else printed += 1;
-      }
-
-      return {
-        ...submitted,
-        success: !lastError,
-        error: lastError,
-        needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
-        jobIds: submitted.job_ids,
-        transport,
-        copies: printed,
-      };
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
     },
   );
 }
