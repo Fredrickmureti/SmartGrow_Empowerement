@@ -168,6 +168,7 @@ import {
 const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
 const ConsolidationReport = lazy(() => import("@/pages/reports/Consolidation"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
+const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const AppsAndSubscriptions = lazy(() => import("@/pages/settings/AppsAndSubscriptions"));
@@ -366,6 +367,7 @@ const App = () => (
                             <Route path="/settings/governance/sod" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><GovernanceSoD /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/migration" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Migration"><MigrationPage /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/diagnostics/branch-null" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Branch-NULL Diagnostic"><BranchNullDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
+                            <Route path="/settings/diagnostics/print-latency" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Print Latency Diagnostic"><PrintLatencyDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/profile" element={<ProtectedRoute><LazyRoute module="Profile"><UserProfilePage /></LazyRoute></ProtectedRoute>} />
                             <Route path="/settings/apps" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><AppsAndSubscriptions /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/carriers" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Carriers"><CarriersSettings /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
