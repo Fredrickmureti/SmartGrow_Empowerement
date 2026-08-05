@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBranches } from "@/hooks/useBranches";
 import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
+import { drainLabelRunJobs } from "@/services/printing/labelRunDrain";
+
 
 export type LabelEntityType = "product" | "location" | "lot" | "carton" | "pallet";
 export type LabelRunStatus =
@@ -112,7 +114,13 @@ async function kickRun(runId: string) {
   } catch {
     /* cron will pick it up — the run is already durable */
   }
+  // Expansion is server-side, but the last mile is not always: printers bound
+  // to this session (network / USB, no paired workstation) can only be reached
+  // from here. Drain in the background so the operator is never blocked, and
+  // so bulk lines print through the same seam a single label does.
+  void drainLabelRunJobs(runId);
 }
+
 
 export function useLabelRuns(businessId?: string | null) {
   return useQuery({

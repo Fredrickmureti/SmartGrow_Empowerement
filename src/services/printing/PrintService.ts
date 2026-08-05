@@ -930,9 +930,21 @@ export async function dispatchQueuedJob(
   );
   if (!handle) return null;
 
+  // A server-expanded bulk label line carries no document record: its bytes
+  // come from `label_templates` + the vars frozen into `render_params`. It is
+  // rendered here, by the same compiler a single button-press label uses, so
+  // a run line and a one-off label are byte-identical and — crucially — reach
+  // printers the edge relay cannot address (network / USB devices bound to no
+  // paired workstation).
+  const labelRun = labelRunParams(job);
+  if (labelRun) {
+    return dispatchLabelRunJob(job, labelRun, organizationId, handle, correlationId);
+  }
+
   let transport: PrintTransport = 'none';
   let handedOff = false;
   try {
+
     const medium = job.medium === 'escpos' ? 'escpos' : 'pdf';
     const renderOptions = renderOptionsForJob(job);
     const artifact = await withSpan(
@@ -1001,6 +1013,106 @@ export async function dispatchQueuedJob(
     return { transport, error };
   }
 }
+
+// ---------------------------------------------------------------------
+// Bulk label lines (Label Operations Engine)
+// ---------------------------------------------------------------------
+
+interface LabelRunJobParams {
+  runId: string;
+  templateKey: string;
+  workflow?: string;
+  vars: Record<string, string | number | null | undefined>;
+  mediaProfileId: string | null;
+}
+
+/**
+ * Recognise a job row that `expand_label_run` produced. Such a row has no
+ * document record and no artifact — the template key, the workflow and the
+ * resolved vars ARE the request.
+ */
+function labelRunParams(job: QueuedJob): LabelRunJobParams | null {
+  const params = (job.render_params ?? {}) as Record<string, unknown>;
+  const runId = typeof params.run_id === 'string' ? params.run_id : null;
+  const templateKey = typeof params.template_key === 'string' ? params.template_key : null;
+  if (!runId || !templateKey) return null;
+  if (job.doc_type !== 'label') return null;
+  return {
+    runId,
+    templateKey,
+    workflow: typeof params.workflow === 'string' ? params.workflow : undefined,
+    vars: (params.vars ?? {}) as Record<string, string | number | null | undefined>,
+    mediaProfileId:
+      typeof params.media_profile_id === 'string' ? params.media_profile_id : null,
+  };
+}
+
+/**
+ * Render + dispatch one bulk label line. Same compiler, same hardware seam
+ * and same ledger transitions as `printLabel`; only the source of the vars
+ * differs (a run line rather than a live selection).
+ */
+async function dispatchLabelRunJob(
+  job: QueuedJob,
+  params: LabelRunJobParams,
+  organizationId: string | null,
+  handle: JobHandle,
+  correlationId?: string,
+): Promise<{ transport: PrintTransport; error?: string }> {
+  let transport: PrintTransport = 'none';
+  try {
+    const orgId = organizationId ?? (await resolveOrganizationId(job.business_id ?? null));
+    if (!orgId) throw new Error('label_run_missing_organization');
+
+    const rendered = await withSpan(
+      'render.label',
+      () =>
+        renderLabelPayload({
+          orgId,
+          templateKey: params.templateKey,
+          workflow: params.workflow as LabelDispatchInput['workflow'],
+          vars: params.vars,
+          branchId: job.branch_id ?? null,
+          mediaProfileId: params.mediaProfileId,
+          idempotencyKey: job.id,
+        }),
+      { template_key: params.templateKey, run_id: params.runId },
+      correlationId,
+    );
+    if (rendered.ok === false) throw new Error(rendered.error);
+
+    const copies = Math.max(1, job.copies ?? 1);
+    for (let i = 0; i < copies; i++) {
+      const outcome = await withSpan(
+        'dispatch.job_copy',
+        () =>
+          toDevice({
+            intentOrRole: rendered.role,
+            op: 'print_raw',
+            payload: rendered.payload,
+            organizationId: orgId,
+            businessId: job.business_id ?? null,
+            idempotencyKey: `${job.id}:${i + 1}`,
+            sourceDocType: 'label_run',
+            sourceDocId: params.runId,
+            correlationId,
+          }),
+        { copy: i + 1 },
+        correlationId,
+      );
+      transport = outcome.transport;
+      if (!outcome.success) throw new Error(outcome.error ?? 'dispatch failed');
+    }
+
+    void handle.markAcked();
+    return { transport };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await handle.markFailed(error);
+    return { transport, error };
+  }
+}
+
 
 function renderOptionsForJob(job: QueuedJob): Record<string, unknown> {
   return {

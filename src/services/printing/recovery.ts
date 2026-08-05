@@ -106,22 +106,16 @@ async function findAbandonedJobs(businessId: string, limit: number): Promise<Que
   // ours to close out (Phase 5.5). Email/archive targets belong to their own
   // delivery channels and are left alone.
   //
-  // Label-run rows are explicitly NOT ours: the Label Operations engine
-  // expands them server-side with no document record, and
-  // `dispatch-print-jobs` renders their bytes from `label_templates`.
-  // If this janitor claims one it drags it into the document snapshot
-  // path and fails it with `unsupported_document_type: label`.
+  // Bulk label-run rows are included: `dispatchQueuedJob` now renders them
+  // from `label_templates` + the vars frozen into `render_params`, so a run
+  // line abandoned by the session that started it is recoverable exactly
+  // like any other print. (The edge drainer can only relay to a paired
+  // workstation; most label printers are bound to a session instead.)
   return (data as unknown as QueuedJob[]).filter(
-    (j) =>
-      !isLabelRunJob(j) && ((j.disposition ?? 'print') === 'print' || isStranded(j)),
+    (j) => (j.disposition ?? 'print') === 'print' || isStranded(j),
   );
 }
 
-/** Server-expanded bulk label job — owned by the edge drainer, not the tab. */
-function isLabelRunJob(job: QueuedJob): boolean {
-  const params = (job.render_params ?? {}) as Record<string, unknown>;
-  return Boolean(params.run_id) && job.doc_type === 'label';
-}
 
 /**
  * Run one sweep. Exported so administrators can trigger a replay on
