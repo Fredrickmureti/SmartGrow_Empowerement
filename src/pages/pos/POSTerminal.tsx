@@ -715,7 +715,7 @@ function POSTerminalInner() {
   const [unknownScan, setUnknownScan] = useState<{ code: string; reason: string } | null>(null);
 
   const handleScan = useCallback(
-    async (code: string, qtyMultiplier: number, source: "keyboard" | "manual" | "camera" | "serial") => {
+    async (code: string, qtyMultiplier: number, source: ScanEvent["source"]) => {
       const norm = code.trim();
       if (!norm) return;
       // Sub-100ms perceptual feedback: tell the cashier we accepted the
