@@ -136,10 +136,34 @@ export async function printDocument(req: PrintDocumentRequest): Promise<PrintRes
   );
 }
 
-async function printDocumentTraced(
+/**
+ * Phase 2 (POS latency redesign): a print is now two distinct moments.
+ *
+ *   1. ACKNOWLEDGEMENT — policy resolved and durable `print_jobs` rows
+ *      opened. The request is now recoverable by the sweeper even if the
+ *      tab closes. This is what the cashier waits for.
+ *   2. COMPLETION — render + dispatch + ledger close. Nobody waits for
+ *      this; the UI follows the ledger rows instead.
+ *
+ * `printDocument` still awaits both (every non-POS caller keeps its old
+ * semantics); `startPrintDocument` returns at (1) and hands back a
+ * promise for (2).
+ */
+interface PrintPlan {
+  handles: JobHandle[];
+  jobIds: string[];
+  medium: 'pdf' | 'escpos';
+  copies: number;
+  disposition: PrintDisposition;
+  intent: string;
+  paperFormat: PaperFormatOption | null;
+  transport: PrintTransport;
+}
+
+async function planPrint(
   req: PrintDocumentRequest,
   correlationId: string,
-): Promise<PrintResult> {
+): Promise<PrintPlan> {
   let policy: ResolvedPrintPolicy | null = null;
   try {
     policy = await withSpan('policy.resolve', () =>
@@ -186,6 +210,16 @@ async function printDocumentTraced(
     { copies },
   );
   const jobIds = handles.map((h) => h.id).filter((id): id is string => Boolean(id));
+
+  return { handles, jobIds, medium, copies, disposition, intent, paperFormat, transport };
+}
+
+async function executePrint(
+  plan: PrintPlan,
+  req: PrintDocumentRequest,
+  correlationId: string,
+): Promise<PrintResult> {
+  const { handles, jobIds, medium, copies, disposition, intent, paperFormat, transport } = plan;
 
   // ---- render once, dispatch N times -------------------------------
   let artifact: RenderedArtifact;
@@ -245,6 +279,101 @@ async function printDocumentTraced(
 
   return { success: true, jobIds, transport, copies, artifact };
 }
+
+async function printDocumentTraced(
+  req: PrintDocumentRequest,
+  correlationId: string,
+): Promise<PrintResult> {
+  const plan = await planPrint(req, correlationId);
+  return executePrint(plan, req, correlationId);
+}
+
+/** What the caller gets back the moment the print is durable. */
+export interface PrintAcknowledgement {
+  /** False only when the request could not even be queued. */
+  queued: boolean;
+  error?: string;
+  jobIds: string[];
+  correlationId: string;
+  transport: PrintTransport;
+  copies: number;
+  /** Resolves when the bytes have actually been dispatched. Never rejects. */
+  completion: Promise<PrintResult>;
+}
+
+/**
+ * Queue a print and return as soon as the ledger rows exist.
+ *
+ * The render + dispatch continue in the background; watch the returned
+ * `jobIds` in `print_jobs` (Realtime) or await `completion` for the
+ * terminal outcome. Used by the POS post-payment screen so the cashier
+ * is released at "queued", not at "printer finished".
+ */
+export async function startPrintDocument(
+  req: PrintDocumentRequest,
+): Promise<PrintAcknowledgement> {
+  const correlationId = req.correlationId ?? newCorrelationId();
+  let ack!: (value: Omit<PrintAcknowledgement, 'completion'>) => void;
+  const acked = new Promise<Omit<PrintAcknowledgement, 'completion'>>((resolve) => {
+    ack = resolve;
+  });
+
+  const completion = withTrace(
+    {
+      label: req.documentType,
+      correlationId,
+      attributes: {
+        entry: 'startPrintDocument',
+        document_type: req.documentType,
+        document_id: req.documentId,
+        reprint: req.isReprint ?? false,
+        non_blocking: true,
+      },
+    },
+    async (): Promise<PrintResult> => {
+      let plan: PrintPlan;
+      try {
+        plan = await planPrint(req, correlationId);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        ack({ queued: false, error, jobIds: [], correlationId, transport: 'none', copies: 0 });
+        return { success: false, error, jobIds: [], transport: 'none', copies: 0 };
+      }
+      ack({
+        queued: true,
+        jobIds: plan.jobIds,
+        correlationId,
+        transport: plan.transport,
+        copies: plan.copies,
+      });
+      try {
+        return await executePrint(plan, req, correlationId);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        await Promise.all(plan.handles.map((h) => h.markFailed(error)));
+        return {
+          success: false,
+          error,
+          jobIds: plan.jobIds,
+          transport: plan.transport,
+          copies: plan.copies,
+        };
+      }
+    },
+  );
+
+  // A rejection here would otherwise surface as an unhandled rejection in
+  // the background task — normalise it into a failed result.
+  const safeCompletion = completion.catch((err): PrintResult => {
+    const error = err instanceof Error ? err.message : String(err);
+    ack({ queued: false, error, jobIds: [], correlationId, transport: 'none', copies: 0 });
+    return { success: false, error, jobIds: [], transport: 'none', copies: 0 };
+  });
+
+  return { ...(await acked), completion: safeCompletion };
+}
+
+
 
 
 async function emit(
