@@ -116,6 +116,8 @@ export function MobilePlateDetail() {
     <MobileWarehouseLayout
       title={plate.code}
       back="/wm/plate"
+      scanLabel="Scan the destination bin"
+
       bottomBar={
         <Button
           className="h-12 w-full"
