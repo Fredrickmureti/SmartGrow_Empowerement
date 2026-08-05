@@ -438,10 +438,18 @@ export default function Products() {
             }
           }
           toast({ title: `Found: ${row.product_name}` });
-        } else {
+        } else if (decision.kind === "not_found") {
           playPOSSound("low_stock_warning");
           navigate(`/inventory-app/products/new?createWithCode=${encodeURIComponent(code)}`);
           toast({ title: "New barcode", description: "Fill in product details to onboard." });
+        } else {
+          // Registered, but not usable: ambiguous / inactive / archived /
+          // expired / another tenant. Never offer "create a new product" —
+          // that is how duplicate masters get born. Copy comes from the
+          // shared taxonomy, never from RPC detail.
+          playPOSSound("error");
+          const copy = describeResolution(decision, code);
+          toast({ title: copy.title, description: copy.detail, variant: "destructive" });
         }
       } catch (err: any) {
         playPOSSound("error");
