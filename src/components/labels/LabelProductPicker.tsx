@@ -231,9 +231,7 @@ export function LabelProductPicker({ businessId }: { businessId: string | null }
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{p.sku ?? "—"}</TableCell>
                   <TableCell>
-                    {p.barcode
-                      ? <Badge variant="secondary">{p.barcode}</Badge>
-                      : <span className="text-xs text-muted-foreground">none</span>}
+                    <Badge variant="secondary">{p.type ?? "product"}</Badge>
                   </TableCell>
                 </TableRow>
               ))}
