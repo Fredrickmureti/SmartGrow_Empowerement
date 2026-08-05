@@ -87268,6 +87268,10 @@ export type Database = {
         Args: { p_business_id: string; p_view_id: string }
         Returns: Json
       }
+      label_vars_for_carton: {
+        Args: { p_business_id: string; p_carton_id: string }
+        Returns: Json
+      }
       label_vars_for_location: {
         Args: { p_business_id: string; p_location_id: string }
         Returns: Json
@@ -90889,6 +90893,10 @@ export type Database = {
       publish_salary_rule_set: {
         Args: { p_effective_from?: string; p_structure_id: string }
         Returns: string
+      }
+      purge_label_run_lines: {
+        Args: { p_max_rows?: number; p_retention_days?: number }
+        Returns: Json
       }
       purge_scan_events: { Args: never; Returns: undefined }
       raise_label_demand: {
