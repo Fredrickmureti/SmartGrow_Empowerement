@@ -156,7 +156,8 @@ async function rpcOnce(
   } as never);
   if (error) return { kind: "error", err: new Error(error.message || "RPC error") };
   // Tolerate the legacy row-set shape while the wrapper still exists.
-  const payload = (Array.isArray(data) ? (data[0] ?? null) : (data ?? null)) as
+  const raw = data as unknown;
+  const payload = (Array.isArray(raw) ? (raw[0] ?? null) : (raw ?? null)) as
     | Record<string, unknown>
     | null;
   if (!payload) {
