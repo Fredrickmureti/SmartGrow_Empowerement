@@ -258,6 +258,9 @@ export default function MobilePack() {
     <MobileWarehouseLayout
       title="Pack"
       back="/wm"
+      scanLabel="Scan item or carton label"
+      scanContinuous
+
       bottomBar={
         <Button
           className="w-full h-12"
