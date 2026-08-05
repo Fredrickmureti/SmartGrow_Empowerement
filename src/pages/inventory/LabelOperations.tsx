@@ -338,7 +338,42 @@ export default function LabelOperations() {
 
         <TabsContent value="runs" className="mt-4">
           <Card>
+            <CardHeader className="flex flex-row flex-wrap items-end justify-between gap-3 pb-3">
+              <div>
+                <CardTitle className="text-base">Run history</CardTitle>
+                <CardDescription>
+                  Finished runs are kept as the audit record of what reached paper. Clear
+                  them once you no longer need the trail — in-flight runs are never removed.
+                </CardDescription>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Clear finished runs</Label>
+                  <Select value={purgeAge} onValueChange={setPurgeAge}>
+                    <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">Older than 7 days</SelectItem>
+                      <SelectItem value="30">Older than 30 days</SelectItem>
+                      <SelectItem value="90">Older than 90 days</SelectItem>
+                      <SelectItem value="365">Older than 1 year</SelectItem>
+                      <SelectItem value="0">All finished runs</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  disabled={purgeRuns.isPending || !runs.length}
+                  onClick={() => purgeRuns.mutate({ olderThanDays: Number(purgeAge) })}
+                >
+                  {purgeRuns.isPending
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Trash2 className="mr-2 h-4 w-4" />}
+                  Clear
+                </Button>
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
+
               <Table>
                 <TableHeader>
                   <TableRow>
