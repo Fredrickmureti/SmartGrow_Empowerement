@@ -381,6 +381,7 @@ export default function UomManagement() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
