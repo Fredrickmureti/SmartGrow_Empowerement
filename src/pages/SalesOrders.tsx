@@ -66,7 +66,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
