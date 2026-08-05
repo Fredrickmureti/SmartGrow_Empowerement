@@ -5,7 +5,7 @@
  * pipeline is moved, removed, or made asynchronous, every stage must be
  * measurable. This module gives the whole pipeline one vocabulary:
  *
- *   await withSpan('render.document', () => renderDocumentRecord(...))
+ *   await withSpan('render.document', () => renderDocumentRecord(...), attrs, correlationId)
  *
  * Design constraints, in priority order:
  *
@@ -16,7 +16,14 @@
  *     `correlationId` that already flows through `PrintService`, so one
  *     cashier action produces one waterfall rather than a pile of unrelated
  *     timings.
- *  3. **One flush, off the hot path.** Spans accumulate in memory and are
+ *  3. **Concurrency-safe.** Two prints in flight at once (a label while an
+ *     invoice renders, N copies of a receipt) must not share or clobber one
+ *     another's spans. The active trace is therefore resolved by an explicit
+ *     `correlationId` handle, not by a module-global "current trace". The
+ *     global is retained only as a best-effort fallback for call sites that
+ *     have no correlation id in scope, and it is never used when a handle is
+ *     supplied.
+ *  4. **One flush, off the hot path.** Spans accumulate in memory and are
  *     flushed to `print_traces` after the trace closes, in the background.
  *     The operator never waits for telemetry.
  *
@@ -47,13 +54,35 @@ export interface TraceContext {
   attributes: Record<string, string | number | boolean | null>;
 }
 
+/**
+ * How a call site names the trace it is recording into: the context itself,
+ * its correlation id, or nothing (fall back to the ambient trace).
+ */
+export type TraceRef = TraceContext | string | null | undefined;
+
 const MAX_SPANS = 200;
+/** Safety valve: a trace whose owner never closes it must not leak forever. */
+const MAX_OPEN_TRACES = 64;
 
-let current: TraceContext | null = null;
+/** Open traces, keyed by correlation id. Concurrency lives here. */
+const open = new Map<string, TraceContext>();
 
-/** The trace spans are being recorded into, if any. */
+/**
+ * Ambient trace for call sites with no correlation id in scope. Only ever a
+ * fallback — anything on the printing hot path passes an explicit handle.
+ */
+let ambient: TraceContext | null = null;
+
+/** The ambient trace, if any. Prefer an explicit `TraceRef`. */
 export function currentTrace(): TraceContext | null {
-  return current;
+  return ambient;
+}
+
+/** Resolve a handle to a live trace, or null when there is nothing to record into. */
+function resolve(ref: TraceRef): TraceContext | null {
+  if (!ref) return ambient;
+  if (typeof ref === 'string') return open.get(ref) ?? null;
+  return ref;
 }
 
 function newCorrelationId(): string {
@@ -81,17 +110,18 @@ export async function withSpan<T>(
   name: string,
   fn: () => Promise<T> | T,
   attributes?: Record<string, string | number | boolean | null>,
+  trace?: TraceRef,
 ): Promise<T> {
-  const trace = current;
-  if (!trace) return await fn();
+  const ctx = resolve(trace);
+  if (!ctx) return await fn();
 
   const start = now();
   try {
     const value = await fn();
-    push(trace, name, start, true, undefined, attributes);
+    push(ctx, name, start, true, undefined, attributes);
     return value;
   } catch (err) {
-    push(trace, name, start, false, err instanceof Error ? err.message : String(err), attributes);
+    push(ctx, name, start, false, err instanceof Error ? err.message : String(err), attributes);
     throw err;
   }
 }
@@ -102,13 +132,14 @@ export function addSpan(
   durationMs: number,
   attributes?: Record<string, string | number | boolean | null>,
   ok = true,
+  trace?: TraceRef,
 ): void {
-  const trace = current;
-  if (!trace) return;
-  if (trace.spans.length >= MAX_SPANS) return;
-  trace.spans.push({
+  const ctx = resolve(trace);
+  if (!ctx) return;
+  if (ctx.spans.length >= MAX_SPANS) return;
+  ctx.spans.push({
     name,
-    startOffsetMs: Math.round(now() - trace.startedAt),
+    startOffsetMs: Math.round(now() - ctx.startedAt),
     durationMs: Math.round(durationMs),
     ok,
     attributes,
@@ -118,9 +149,11 @@ export function addSpan(
 /** Attach a fact to the whole trace (document type, copies, transport…). */
 export function annotateTrace(
   attributes: Record<string, string | number | boolean | null>,
+  trace?: TraceRef,
 ): void {
-  if (!current) return;
-  Object.assign(current.attributes, attributes);
+  const ctx = resolve(trace);
+  if (!ctx) return;
+  Object.assign(ctx.attributes, attributes);
 }
 
 function push(
@@ -145,27 +178,49 @@ function push(
 /**
  * Run `fn` inside a fresh trace and flush the result in the background.
  *
- * Traces do not nest: a nested call joins the outer trace so a reprint
- * triggered from inside a print still produces one waterfall.
+ * Re-entering with a correlation id that is already open joins that trace —
+ * a reprint triggered from inside a print still produces one waterfall —
+ * while two different correlation ids running at the same time keep
+ * completely separate span lists.
  */
 export async function withTrace<T>(
-  input: { label: string; correlationId?: string; attributes?: Record<string, string | number | boolean | null> },
+  input: {
+    label: string;
+    correlationId?: string;
+    attributes?: Record<string, string | number | boolean | null>;
+  },
   fn: (ctx: TraceContext) => Promise<T>,
 ): Promise<T> {
-  if (current) return await fn(current);
+  const correlationId = input.correlationId ?? newCorrelationId();
+
+  const existing = open.get(correlationId);
+  if (existing) {
+    Object.assign(existing.attributes, input.attributes ?? {});
+    return await fn(existing);
+  }
 
   const trace: TraceContext = {
-    correlationId: input.correlationId ?? newCorrelationId(),
+    correlationId,
     label: input.label,
     startedAt: now(),
     spans: [],
     attributes: { ...(input.attributes ?? {}) },
   };
-  current = trace;
+
+  if (open.size >= MAX_OPEN_TRACES) {
+    // Oldest first — a leaked trace must never starve a live one.
+    const oldest = open.keys().next().value as string | undefined;
+    if (oldest) open.delete(oldest);
+  }
+  open.set(correlationId, trace);
+
+  const previousAmbient = ambient;
+  ambient = trace;
   try {
     return await fn(trace);
   } finally {
-    current = null;
+    ambient = previousAmbient;
+    open.delete(correlationId);
     void flush(trace);
   }
 }
@@ -187,12 +242,22 @@ export async function flush(trace: TraceContext): Promise<void> {
   } catch { /* console failures never matter */ }
 
   try {
-    await supabase.from('print_traces' as never).insert({
+    const { error } = await supabase.from('print_traces' as never).insert({
       correlation_id: trace.correlationId,
       label: trace.label,
       total_ms: totalMs,
       spans: trace.spans,
       attributes: trace.attributes,
     } as never);
-  } catch { /* telemetry never blocks or throws */ }
+    if (error) {
+      // Silent telemetry loss is how Phase 1 shipped a tracer that recorded
+      // nothing for weeks. Never thrown, never awaited on the hot path — but
+      // never invisible either.
+      // eslint-disable-next-line no-console
+      console.warn('[print.trace] persist failed', error.message);
+    }
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[print.trace] persist threw', err instanceof Error ? err.message : String(err));
+  }
 }

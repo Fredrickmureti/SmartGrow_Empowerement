@@ -658,7 +658,7 @@ class AgentClientImpl {
     ipAddress: string,
     port: number,
     data: number[],
-    opts?: { workstationId?: string | null },
+    opts?: { workstationId?: string | null; correlationId?: string },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._netKey(ipAddress, port), async () => {
       if (this._isLoopbackTarget(ipAddress) && this._loopbackUsable()) {
@@ -676,6 +676,7 @@ class AgentClientImpl {
           idempotencyKey: idem,
           deadlineMs: 15_000,
           queueAware: true,
+          correlationId: opts?.correlationId,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;
@@ -730,7 +731,7 @@ class AgentClientImpl {
     vendorId: number,
     productId: number,
     data: number[],
-    opts?: { workstationId?: string | null },
+    opts?: { workstationId?: string | null; correlationId?: string },
   ): Promise<AgentPrintResponse> {
     return this._withEndpointLock(this._usbKey(vendorId, productId), async () => {
       const relay = this._relayFor(opts?.workstationId);
@@ -742,6 +743,7 @@ class AgentClientImpl {
           idempotencyKey: idem,
           deadlineMs: 15_000,
           queueAware: true,
+          correlationId: opts?.correlationId,
         });
         if (r.status === 'done' && r.result) return r.result;
         if (r.status === 'error' && r.result) return r.result;

@@ -51,6 +51,11 @@ export interface DispatchArgs {
    * 1's clock and gets expired before the agent ever reaches it.
    */
   queueAware?: boolean;
+  /**
+   * Trace key of the originating print. Without it, relay spans attach to
+   * whichever trace happens to be ambient — wrong once two prints overlap.
+   */
+  correlationId?: string;
 }
 
 export interface DispatchResult<T = unknown> {
@@ -103,11 +108,15 @@ export class RelayTransport {
     // Liveness and queue depth are two independent reads. Running them in
     // series put a full extra cloud round trip in front of every single
     // relay print for information that does not depend on the other.
-    const [liveness, allowance] = await withSpan('relay.preflight', () =>
-      Promise.all([
-        this._liveness(),
-        args.queueAware ? this._queueAllowanceMs() : Promise.resolve(0),
-      ]),
+    const [liveness, allowance] = await withSpan(
+      'relay.preflight',
+      () =>
+        Promise.all([
+          this._liveness(),
+          args.queueAware ? this._queueAllowanceMs() : Promise.resolve(0),
+        ]),
+      undefined,
+      args.correlationId,
     );
 
     if (!liveness.alive) {
@@ -149,6 +158,7 @@ export class RelayTransport {
           .select('id, status, result, error')
           .single(),
       { role: args.role, op: args.op ?? 'exec' },
+      args.correlationId,
     );
 
 
@@ -187,7 +197,12 @@ export class RelayTransport {
 
     // The single biggest unknown in the waterfall: how long the workstation
     // takes to claim the row and finish the physical write.
-    return await withSpan('relay.agent_roundtrip', () => this._await<T>(jobId, deadlineMs));
+    return await withSpan(
+      'relay.agent_roundtrip',
+      () => this._await<T>(jobId, deadlineMs),
+      undefined,
+      args.correlationId,
+    );
 
   }
 

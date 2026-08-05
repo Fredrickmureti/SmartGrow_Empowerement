@@ -676,6 +676,8 @@ export const hardwareClient = {
     sourceDocId?: string | null;
     businessEventId?: string | null;
     isReprint?: boolean;
+    /** Trace key of the originating print, threaded to the relay transport. */
+    correlationId?: string;
   }): Promise<DriverResult> {
     const startedAt = Date.now();
     let result: DriverResult & { decision?: RouteDecision } = {
@@ -688,6 +690,7 @@ export const hardwareClient = {
         op: cmd.op,
         payload: cmd.payload,
         idempotencyKey: cmd.idempotencyKey,
+        correlationId: cmd.correlationId,
         ipcAvailable: ipcAvailable(),
         execElectron: (role, op, payload) =>
           execElectron(role, op, payload, cmd.idempotencyKey, cmd.maxAttempts),
