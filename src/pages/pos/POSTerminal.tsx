@@ -82,7 +82,7 @@ import { interpretScan } from "@/lib/gs1/useGs1Scanner";
 // useScanCapture is mounted globally in AuthenticatedShell
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
 import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
-import { scanBus } from "@/services/pos/scanBus";
+import { scanBus, type ScanEvent } from "@/services/pos/scanBus";
 import { scanRouter } from "@/services/pos/scanRouter";
 import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
 import { ScanGhostTicker } from "@/components/pos/ScanGhostTicker";
