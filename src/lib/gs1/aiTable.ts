@@ -43,6 +43,8 @@ export const GS1_AI_TABLE: AiSpec[] = [
   { ai: "37", name: "countOfUnits", max: 8 },
   { ai: "240", name: "additionalItemId", max: 30 },
   { ai: "241", name: "customerPart", max: 30 },
+  // 414 — GLN of a physical location (bin/dock/door labels, ADR-0110 Phase 7).
+  { ai: "414", name: "gln", fixed: 13 },
   // 310n..316n — measurement AIs with decimal indicator, 6-digit value.
   { ai: "310", name: "netWeightKg", fixed: 6, decimalIndicator: true },
   { ai: "311", name: "lengthM", fixed: 6, decimalIndicator: true },

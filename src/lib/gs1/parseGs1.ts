@@ -19,6 +19,10 @@ import { GS1_AI_TABLE, GS1_SYMBOLOGY_PREFIXES, FNC1, type AiSpec } from "./aiTab
 
 export interface Gs1Normalized {
   gtin?: string;
+  /** AI (00) — Serial Shipping Container Code (pallet / carton). */
+  sscc?: string;
+  /** AI (414) — GLN of a physical location. */
+  gln?: string;
   lot?: string;
   serial?: string;
   expiry?: Date;
@@ -139,6 +143,8 @@ export function parseGs1(raw: string): Gs1ParseResult {
 
   const normalized: Gs1Normalized = {};
   if (elements.gtin) normalized.gtin = elements.gtin;
+  if (elements.sscc) normalized.sscc = elements.sscc;
+  if (elements.gln) normalized.gln = elements.gln;
   if (elements.lot) normalized.lot = elements.lot;
   if (elements.serial) normalized.serial = elements.serial;
   if (elements.expiry) normalized.expiry = parseYymmdd(elements.expiry);
