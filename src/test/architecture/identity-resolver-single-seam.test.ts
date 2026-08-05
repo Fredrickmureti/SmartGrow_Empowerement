@@ -125,9 +125,16 @@ describe("Phase 9 — repo-wide: identity RPCs have exactly one caller each", ()
   it("supplier context is derived from an inbound document, never operator input", () => {
     // A supplier id widens what a scan may match, so it must come from the
     // receiving session's own document — never from a picker or free text.
+    // The seams themselves only forward the value; the rule is about the
+    // surfaces that ORIGINATE it.
+    const PASS_THROUGH = [
+      "features/warehouse/scanning/useWmsIdentityGate.ts",
+      "hooks/inventory/useResolveProductIdentity.ts",
+    ];
     const callers = files.filter((f) => /supplierId\s*[:=]/.test(readFileSync(f, "utf8")))
       .filter((f) => /useWmsIdentityGate\(|useResolveProductIdentity\(/.test(readFileSync(f, "utf8")))
-      .map((f) => path.relative(SRC, f).replace(/\\/g, "/"));
+      .map((f) => path.relative(SRC, f).replace(/\\/g, "/"))
+      .filter((rel) => !PASS_THROUGH.includes(rel));
     for (const rel of callers) {
       const src = readFileSync(path.join(SRC, rel), "utf8");
       expect({ file: rel, derived: /useReceivingSessionSupplier/.test(src) }).toEqual({
