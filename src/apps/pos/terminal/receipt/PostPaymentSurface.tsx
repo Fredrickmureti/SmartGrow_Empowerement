@@ -59,7 +59,8 @@ import {
 } from "@/lib/pos/receipt/renderers";
 import type { LineMeta } from "@/lib/receipt/preview/buildReceiptLines";
 import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
-import { printDocument, renderDocumentBlob, renderDocumentPreview } from "@/services/printing/PrintService";
+import { startPrintDocument, renderDocumentBlob, renderDocumentPreview } from "@/services/printing/PrintService";
+import { usePrintJobStatus } from "@/hooks/printing/usePrintJobStatus";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
 
@@ -82,6 +83,8 @@ interface PostPaymentSurfaceProps {
 
 type PrintState =
   | { kind: "idle" }
+  /** Ledger row exists; bytes are being rendered/dispatched in the background. */
+  | { kind: "queued" }
   | { kind: "printing" }
   | { kind: "printed"; channel: "thermal" | "pdf" }
   | { kind: "failed"; message: string };
@@ -118,6 +121,10 @@ export function PostPaymentSurface({
   });
 
   const [printState, setPrintState] = useState<PrintState>({ kind: "idle" });
+  // Phase 2: the thermal path no longer blocks the cashier, so the outcome
+  // arrives from the `print_jobs` ledger rather than from an awaited call.
+  const [printJobIds, setPrintJobIds] = useState<string[]>([]);
+  const jobStatus = usePrintJobStatus(printJobIds);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
   // Wave 12 redesign — the receipt preview is a first-class column on this
   // screen (right side). The old "details" drawer is gone. `showPreview`
@@ -204,10 +211,12 @@ export function PostPaymentSurface({
     setPrintState({ kind: "printing" });
     try {
       if (thermalAvailable) {
-        // One pipeline. `printDocument` opens the ledger row, renders the
-        // receipt, resolves the winning `device_assignments` row via
-        // `resolve_device`, and dispatches through `TransportRouter`.
-        const res = await printDocument({
+        // One pipeline, two moments. `startPrintDocument` resolves as soon
+        // as the durable `print_jobs` rows exist — the sweeper can recover
+        // the print from there even if this tab closes — and renders +
+        // dispatches in the background. The cashier is released here; the
+        // ledger drives the status pill from now on.
+        const ack = await startPrintDocument({
           documentType: "pos_receipt",
           documentId: model.meta.transaction_id,
           intent: "receipt",
@@ -216,16 +225,33 @@ export function PostPaymentSurface({
           businessId: currentBusiness?.id ?? null,
           branchId: currentBranch?.id ?? null,
         });
-        if (res.success) {
-          setPrintState({ kind: "printed", channel: "thermal" });
+        if (!ack.queued) {
+          const errMsg = ack.error || "Could not queue the receipt";
+          setPrintState({ kind: "failed", message: errMsg });
+          toast({
+            title: "Receipt printer failed",
+            description: errMsg,
+            variant: "destructive",
+          });
           return;
         }
-        const errMsg = res.error || "Thermal print failed";
-        setPrintState({ kind: "failed", message: errMsg });
-        toast({
-          title: "Receipt printer failed",
-          description: errMsg,
-          variant: "destructive",
+        setPrintJobIds(ack.jobIds);
+        setPrintState({ kind: "queued" });
+        // No ledger rows (platform-admin / no business context) means there
+        // is nothing to follow — fall back to the completion promise.
+        void ack.completion.then((res) => {
+          if (ack.jobIds.length > 0) return;
+          if (res.success) {
+            setPrintState({ kind: "printed", channel: "thermal" });
+            return;
+          }
+          const errMsg = res.error || "Thermal print failed";
+          setPrintState({ kind: "failed", message: errMsg });
+          toast({
+            title: "Receipt printer failed",
+            description: errMsg,
+            variant: "destructive",
+          });
         });
         return;
       }
@@ -270,6 +296,24 @@ export function PostPaymentSurface({
       setIsSavingPdf(false);
     }
   }, [model, toast]);
+
+  // Ledger → UI. `queued`/`sent` keep the pill spinning, `acked` closes it.
+  useEffect(() => {
+    if (printJobIds.length === 0) return;
+    if (jobStatus.phase === "printed") {
+      setPrintState({ kind: "printed", channel: "thermal" });
+    } else if (jobStatus.phase === "failed") {
+      const message = jobStatus.error || "Receipt printer failed";
+      setPrintState({ kind: "failed", message });
+      toast({
+        title: "Receipt printer failed",
+        description: message,
+        variant: "destructive",
+      });
+    } else if (jobStatus.phase === "sent") {
+      setPrintState({ kind: "printing" });
+    }
+  }, [jobStatus.phase, jobStatus.error, printJobIds.length, toast]);
 
   // Auto-print on mount when policy says so.
   useEffect(() => {
@@ -326,7 +370,7 @@ export function PostPaymentSurface({
 
   const showRetry = printState.kind === "failed";
   const showReprint = printState.kind === "printed" || isReprint;
-  const isPrinting = printState.kind === "printing";
+  const isPrinting = printState.kind === "printing" || printState.kind === "queued";
 
   return (
     <div
@@ -705,6 +749,14 @@ function PrintStatusPill({
       <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground rounded-full bg-muted/60 px-2 py-1">
         <Printer className="h-3 w-3" />
         Ready
+      </span>
+    );
+  }
+  if (state.kind === "queued") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Queued
       </span>
     );
   }
