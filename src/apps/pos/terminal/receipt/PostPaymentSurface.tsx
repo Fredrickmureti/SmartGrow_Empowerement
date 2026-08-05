@@ -59,7 +59,7 @@ import {
 } from "@/lib/pos/receipt/renderers";
 import type { LineMeta } from "@/lib/receipt/preview/buildReceiptLines";
 import { MonospacePreview } from "@/lib/receipt/preview/MonospacePreview";
-import { printDocument, startPrintDocument, renderDocumentBlob, renderDocumentPreview } from "@/services/printing/PrintService";
+import { startPrintDocument, renderDocumentBlob, renderDocumentPreview } from "@/services/printing/PrintService";
 import { usePrintJobStatus } from "@/hooks/printing/usePrintJobStatus";
 import { downloadPdfBlob, printPdfInPage } from "@/services/printing/pdfUtils";
 import { TransactionSummaryView } from "@/components/pos/TransactionSummaryView";
