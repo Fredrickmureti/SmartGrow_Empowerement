@@ -1,5 +1,5 @@
 /**
- * warehouse-nav-ia.test.ts — guards ADR 0102 (Warehouse information
+ * warehouse-nav-ia.test.ts — guards ADR 0121 (Warehouse information
  * architecture).
  *
  * The Warehouse sidebar previously grew into a flat 29-item list because
@@ -71,7 +71,7 @@ function depthOf(item: WorkspaceNavItem, depth = 1): number {
   return Math.max(...item.children.map((c) => depthOf(c, depth + 1)));
 }
 
-describe("ADR 0102 — warehouse navigation IA", () => {
+describe("ADR 0121 — warehouse navigation IA", () => {
   it("reads the warehouse route tree", () => {
     expect(surfaceRoutes().length).toBeGreaterThan(20);
   });

@@ -1,6 +1,6 @@
 /**
  * Warehouse (WMS) workspace navigation — domain-oriented information
- * architecture (ADR 0102).
+ * architecture (ADR 0121).
  *
  * WMS is the operational execution layer *above* Inventory. Inventory owns
  * quantities and cost; WMS owns physical location, operator, task, dock,
