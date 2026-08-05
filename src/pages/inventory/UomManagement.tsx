@@ -280,9 +280,9 @@ export default function UomManagement() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+    <div className="w-full min-w-0 px-1 py-2 sm:px-2 md:px-4 md:py-4 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <Scale className="h-6 w-6" /> Units of Measure
           </h1>
@@ -291,7 +291,7 @@ export default function UomManagement() {
             Each non-reference unit declares how many reference units it represents.
           </p>
         </div>
-        <Button onClick={openCreateCategory}>
+        <Button onClick={openCreateCategory} className="shrink-0">
           <Plus className="h-4 w-4 mr-2" /> New Category
         </Button>
       </div>
@@ -309,9 +309,9 @@ export default function UomManagement() {
         const ref = items.find((u) => u.id === cat.reference_uom_id) ?? items.find((u) => u.uom_type === "reference");
         return (
           <Card key={cat.id}>
-            <CardHeader className="flex flex-row items-start justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2">
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="flex flex-wrap items-center gap-2">
                   <Ruler className="h-4 w-4" /> {cat.name}
                   {ref && <Badge variant="secondary">Reference: {ref.code}</Badge>}
                 </CardTitle>
@@ -319,7 +319,7 @@ export default function UomManagement() {
                   {items.length} unit{items.length === 1 ? "" : "s"}
                 </CardDescription>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 shrink-0">
                 <Button size="sm" variant="outline" onClick={() => openCreateUnit(cat.id)}>
                   <Plus className="h-4 w-4 mr-1" /> Add unit
                 </Button>
@@ -335,10 +335,11 @@ export default function UomManagement() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-w-0">
               {items.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No units yet — add a reference unit first.</div>
               ) : (
+                <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
