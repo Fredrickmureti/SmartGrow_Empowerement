@@ -85256,16 +85256,6 @@ export type Database = {
         }
         Returns: string
       }
-      enroll_product_barcode: {
-        Args: {
-          p_business_id: string
-          p_code: string
-          p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
-          p_packaging_id?: string
-          p_product_id: string
-        }
-        Returns: Json
-      }
       ensure_canonical_work_entry_types: {
         Args: { _org_id: string }
         Returns: undefined
@@ -93596,7 +93586,7 @@ export type Database = {
       upsert_product_identifier: {
         Args: {
           p_business_id: string
-          p_code: string
+          p_code?: string
           p_identifier_id?: string
           p_is_primary?: boolean
           p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
