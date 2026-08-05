@@ -357,11 +357,12 @@ export default function Invoices() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Invoice ${invoice.invoice_number}`));
+      // Returns at the durable enqueue; render + printer happen after.
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Invoice ${invoice.invoice_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
