@@ -37,7 +37,7 @@ export function PriorityStack({
   }
 
   return (
-    <ol className="space-y-2">
+    <ol className="min-w-0 max-w-full space-y-2">
       {items.slice(0, limit).map((item, index) => {
         const tone = severityTone(item.severity);
         const Icon = ICON[tone];
@@ -46,7 +46,7 @@ export function PriorityStack({
             <Link
               to={item.route}
               className={cn(
-                "group flex items-start gap-3 rounded-lg border p-3 transition-colors",
+                "group grid min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-3 rounded-lg border p-3 transition-colors @md/page:grid-cols-[auto_minmax(0,1fr)_auto]",
                 "hover:bg-muted/50",
                 index === 0 && tone !== "healthy" && "border-current/30",
               )}
@@ -62,15 +62,15 @@ export function PriorityStack({
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Icon className={cn("h-4 w-4 shrink-0", HEALTH_TEXT[tone])} />
-                  <span className="text-sm font-medium">{humanise(item.reason_code)}</span>
+                  <span className="min-w-0 break-words text-sm font-medium">{humanise(item.reason_code)}</span>
                   <Badge variant="outline" className="text-[10px]">
                     {ORIGIN_LABEL[item.origin]}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">{item.scope}</span>
+                  <span className="min-w-0 break-words text-xs text-muted-foreground">{item.scope}</span>
                 </div>
-                <p className="text-sm text-muted-foreground">{item.reason}</p>
+                <p className="break-words text-sm text-muted-foreground">{item.reason}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-2 pl-2 text-right">
+              <div className="col-start-2 flex min-w-0 items-center justify-between gap-2 text-right @md/page:col-start-auto @md/page:shrink-0 @md/page:justify-end @md/page:pl-2">
                 <div>
                   <div className="text-sm font-semibold tabular-nums">{item.impact_count}</div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">

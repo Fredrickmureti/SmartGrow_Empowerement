@@ -44,23 +44,23 @@ export function HealthBanner({ health }: Props) {
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
-        "rounded-lg border p-4 sm:p-5",
+        "min-w-0 max-w-full overflow-hidden rounded-lg border p-4 sm:p-5",
         HEALTH_SURFACE[state],
       )}
     >
       <div className="flex flex-col gap-4 @xl/page:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <Icon className={cn("mt-0.5 h-7 w-7 shrink-0", HEALTH_TEXT[state])} />
-          <div>
-            <div className="flex items-center gap-2">
-              <p className={cn("text-xl font-semibold", HEALTH_TEXT[state])}>
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className={cn("min-w-0 break-words text-xl font-semibold", HEALTH_TEXT[state])}>
                 Warehouse {HEALTH_LABEL[state].toLowerCase()}
               </p>
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Activity className="h-3 w-3" /> live
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="break-words text-sm text-muted-foreground">
               {health?.reason ?? "Waiting for the first health read."}
             </p>
           </div>
