@@ -69,7 +69,6 @@ import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord"
 import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },

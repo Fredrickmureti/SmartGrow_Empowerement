@@ -66,7 +66,6 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarkDeliveryReady, useCompleteDelivery } from "@/hooks/useDeliveryLifecycle";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },

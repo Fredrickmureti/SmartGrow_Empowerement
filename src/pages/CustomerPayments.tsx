@@ -87,7 +87,6 @@ import { CustomerPaymentPeekSheet } from "@/features/sales/payments/CustomerPaym
 import { usePeekParam } from "@/features/sales/record";
 import { PaymentListTable } from "@/components/payments/PaymentListTable";
 import { Eye } from "lucide-react";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Extended payment type with status
 interface PaymentWithStatus extends Payment {

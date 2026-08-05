@@ -59,7 +59,6 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ProformaPeekSheet } from "@/features/sales/proforma/ProformaPeekSheet";
 import { usePeekParam } from "@/features/sales/record";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function ProformaInvoices() {
   const navigate = useNavigate();

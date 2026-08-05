@@ -78,7 +78,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Compact workflow pipeline for table rows
 function WorkflowPipeline({ status }: { status: string }) {

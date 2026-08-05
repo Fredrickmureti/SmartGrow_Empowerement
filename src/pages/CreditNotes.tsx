@@ -85,7 +85,6 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { CreditNoteListTable } from "@/components/credit-notes/CreditNoteListTable";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function CreditNotes() {
   const navigate = useNavigate();
