@@ -22,6 +22,7 @@
  */
 
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import { withSpan } from '@/services/observability/trace';
 
 export type EdgeRole =
   | 'print'
