@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { resendJob, requeueJob } from "@/services/printing/jobs";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
+import { useRequestFullWidth } from "@/contexts/AppLayoutContext";
+
 import {
   docTypeLabel,
   intentLabel,
