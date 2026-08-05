@@ -535,7 +535,7 @@ export default function Employees() {
 
 
 
-        <div className={`stats-grid grid-cols-1 sm:grid-cols-2 ${can("viewPayroll") ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+        <div className="grid gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
           <StatCard
             label="Total"
             value={stats.total.toString()}
