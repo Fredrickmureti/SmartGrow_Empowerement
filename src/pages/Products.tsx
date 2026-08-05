@@ -7,6 +7,7 @@ import { Product } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { writeIdentifier } from "@/features/products/identity/writeIdentifier";
 import { useIndustryProfile } from "@/hooks/useIndustryProfile";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useViewMode } from "@/hooks/useViewMode";
