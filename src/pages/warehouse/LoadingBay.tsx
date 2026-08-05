@@ -180,12 +180,27 @@ export default function LoadingBay() {
     },
   });
 
-  const submitScan = () => {
-    if (!scanCode.trim()) return;
-    const match = (available ?? []).find((c) => c.shipment_lpn?.code?.toLowerCase() === scanCode.trim().toLowerCase());
-    if (!match) { toast.error("No available carton matches that code"); return; }
-    load.mutate(match.id, { onSuccess: () => setScanCode("") });
-  };
+  /**
+   * Phase 3 — the loading bay is a scan surface, not a text box. Admission
+   * is gated by `gateEntityToken` (a product barcode is refused before any
+   * lookup runs); resolution stays here because only this screen knows
+   * which sealed cartons belong to this manifest's waves.
+   */
+  const resolveCartonScan = useCallback(
+    async (code: string) => {
+      const pool = available ?? [];
+      const match = pool.find((c) => entityCodeEquals(c.shipment_lpn?.code, code));
+      if (!match) {
+        return { ok: false, message: "No sealed carton awaiting this manifest carries that LPN." };
+      }
+      if (loadedIds.has(match.id)) {
+        return { ok: false, message: `${match.shipment_lpn?.code ?? code} is already loaded.` };
+      }
+      await load.mutateAsync(match.id);
+      return { ok: true, message: `Loaded ${match.shipment_lpn?.code ?? code}.` };
+    },
+    [available, loadedIds, load],
+  );
 
   if (isLoading) return <LoadingState />;
   if (!manifest) return <EmptyState icon={Truck} title="Manifest not found" action={<Button asChild><Link to="/warehouse-app/dispatch">Back</Link></Button>} />;
