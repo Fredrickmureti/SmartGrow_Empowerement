@@ -209,6 +209,27 @@ export default function MobilePack() {
     }
   };
 
+  /**
+   * Seal by scanning the carton's own label. Tapping "Seal" on a list row
+   * works for a single-carton task, but a packer working a wall of open
+   * cartons must be able to scan the one in their hands — the same intent
+   * engine that drives every other RF prompt.
+   */
+  const sealByScan = useCallback(
+    async (code: string) => {
+      const match = (cartons ?? []).find(
+        (c) => entityCodeEquals(c.shipment_lpn?.code, code) || entityCodeEquals(c.id, code),
+      );
+      if (!match) return { ok: false, message: `${code} is not a carton on this pack task.` };
+      if (match.sealed_at) return { ok: false, message: `${code} is already sealed.` };
+      await sealCarton(match.id);
+      return { ok: true, message: `${code} sealed` };
+    },
+    // sealCarton is recreated per render but closes only over stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cartons],
+  );
+
   const completePack = async () => {
     if (!task || busy) return;
     setBusy(true);
@@ -276,6 +297,17 @@ export default function MobilePack() {
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
             Cartons · {(cartons ?? []).length}
           </h2>
+          {openCartons.length > 0 && !done && (
+            <div className="mb-3">
+              <EntityScanField
+                label="Scan carton to seal"
+                intent="pack.carton"
+                entity="carton"
+                disabled={busy}
+                onResolve={sealByScan}
+              />
+            </div>
+          )}
           {(cartons ?? []).length === 0 ? (
             <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
               No cartons opened yet.
