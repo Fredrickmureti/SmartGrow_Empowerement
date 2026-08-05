@@ -24,6 +24,7 @@ import {
   describeResolution,
   type ProductIdentity,
 } from "@/hooks/inventory/useResolveProductIdentity";
+import { classifyScanToken, describeTokenMismatch } from "@/lib/scan/classifyScanToken";
 import type { WmsScanPayload } from "./wmsScanIntent";
 
 export interface GatedScan {
@@ -60,6 +61,13 @@ export function useWmsIdentityGate(
         scanFeedbackBus.emit({ kind: "error", raw: p.raw, source: "field", workflow, detail });
         return null;
       };
+
+      // Phase 7 — dispatch on the token kind BEFORE the resolver runs, so a
+      // pallet (SSCC) or position label scanned at an item prompt says so
+      // instead of "no product matches 003123456789012345".
+      const token = classifyScanToken(p.raw || p.resolveCode);
+      const mismatch = describeTokenMismatch(token, "product");
+      if (mismatch) return reject(mismatch);
 
       const result = await resolve(p.raw || p.resolveCode);
       if (result.kind !== "resolved") {
