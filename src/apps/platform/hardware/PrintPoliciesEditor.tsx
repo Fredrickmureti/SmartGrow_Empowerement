@@ -166,17 +166,29 @@ export default function PrintPoliciesEditor() {
 
   const getDraft = (branchScope: string, docType: string): RowState => {
     const key = `${branchScope}:${docType}`;
-    if (drafts[key]) return drafts[key];
+    const sheetOnly = SHEET_ONLY_DOCUMENT_TYPES.has(docType);
+    const draft = drafts[key];
+    if (draft) {
+      if (!sheetOnly) return draft;
+      return {
+        ...draft,
+        paper_format: THERMAL_PAPER_FORMATS.has(draft.paper_format) ? "a4" : draft.paper_format,
+        render_mode: draft.render_mode === "escpos" ? "pdf" : draft.render_mode,
+      };
+    }
     const branchId = branchScope === "business" ? null : branchScope;
     const existing = findPolicy(branchId, docType);
+    const paper = existing?.paper_format ?? "a4";
+    const mode = existing?.render_mode ?? "pdf";
     return {
-      paper_format: existing?.paper_format ?? "a4",
-      render_mode: existing?.render_mode ?? "pdf",
+      paper_format: sheetOnly && THERMAL_PAPER_FORMATS.has(paper) ? "a4" : paper,
+      render_mode: sheetOnly && mode === "escpos" ? "pdf" : mode,
       trigger: (existing?.trigger as OutputTrigger | undefined) ?? "manual",
       role_code: existing?.role_code ?? null,
       branch_scope: branchScope,
     };
   };
+
 
   const setDraft = (branchScope: string, docType: string, patch: Partial<RowState>) => {
     const key = `${branchScope}:${docType}`;
