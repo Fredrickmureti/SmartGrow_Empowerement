@@ -14,6 +14,8 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
+
 
 export interface ProductDetailData {
   product: any | null;
@@ -163,10 +165,10 @@ export function useProductDetailData({
         .gte("movement_date", since);
       if (branchId) velQ = velQ.eq("branch_id", branchId);
 
-      const identifiersQ = supabase
-        .from("product_identifiers")
-        .select("*")
-        .eq("product_id", productId);
+      // Lifecycle-faithful: retired identifiers are archived rows, not deleted
+      // ones. The overview shows canonical (live) identity only.
+      const identifiersQ = activeIdentifiersForProduct(productId, "*");
+
 
       const [lotsRes, identifiersRes, rrRes, mvRes, poRes, velRes] =
         await Promise.all([lotsQ, identifiersQ, rrQ, mvQ, poQ, velQ]);

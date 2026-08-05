@@ -35,6 +35,8 @@ import {
   identifierWriteMessage,
   retireIdentifier,
 } from "@/features/products/identity/writeIdentifier";
+import { activeIdentifiersForProduct } from "@/features/products/identity/activeIdentifiers";
+
 import { resolveProductIdentityOnce } from "@/hooks/inventory/useResolveProductIdentity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,12 +153,13 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       let cancelled = false;
       setLoading(true);
       (async () => {
-        const { data, error } = await supabase
-          .from("product_identifiers")
-          .select("id, code, kind, is_primary, packaging_id")
-          .eq("product_id", productId)
-          .order("is_primary", { ascending: false })
-          .order("created_at", { ascending: true });
+        // Lifecycle-faithful read: retiring an identifier archives the row,
+        // so an unfiltered select renders retired codes as live ones.
+        const { data, error } = await activeIdentifiersForProduct(
+          productId,
+          "id, code, kind, is_primary, packaging_id",
+        );
+
         if (cancelled) return;
         setLoading(false);
         if (error) {
