@@ -422,11 +422,11 @@ export default function Estimates() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Estimate ${estimate.estimate_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Estimate ${estimate.estimate_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
