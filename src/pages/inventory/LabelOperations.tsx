@@ -159,6 +159,10 @@ export default function LabelOperations() {
         />
       </div>
 
+      <LabelRunHealthStrip businessId={businessId} />
+
+
+
       <Tabs defaultValue="demand">
         <TabsList>
           <TabsTrigger value="demand">Demand ({demand.length})</TabsTrigger>
