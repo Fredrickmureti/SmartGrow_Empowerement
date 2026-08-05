@@ -32,6 +32,7 @@ import {
   loadJobs,
   claimForForeground,
   noopJobHandle,
+  settleJobs,
   type JobHandle,
   type PrintFormat,
   type PrintTransport,
@@ -43,8 +44,13 @@ import {
   type SourceDocumentContext,
 } from '@/services/documents/resolveSourceDocumentRecord';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
-import { renderLabelPayload, type LabelDispatchInput } from './labelDispatch';
-import { enqueueDocumentIntent, type SubmitDocumentIntentResult } from '@/services/documents/submitIntent';
+import { renderLabelPayload, type LabelDispatchInput, type LabelRenderResult } from './labelDispatch';
+import {
+  enqueueDocumentIntent,
+  materializeAndSubmitIntent,
+  type SubmitDocumentIntentResult,
+} from '@/services/documents/submitIntent';
+import type { EnsureDocumentRecordInput } from '@/services/documents/ensureDocumentRecord';
 import { supabase } from '@/integrations/supabase/client';
 import { withTrace, withSpan, annotateTrace } from '@/services/observability/trace';
 import type { PaperFormatOption } from './render';
@@ -252,6 +258,7 @@ async function executePrint(
   }
 
   // Sequential on purpose — copy 2 must never overtake copy 1.
+  const settled: string[] = [];
   for (let i = 0; i < handles.length; i++) {
     const handle = handles[i];
     const outcome = await withSpan(
@@ -271,11 +278,13 @@ async function executePrint(
         artifact,
       };
     }
-    // The ledger close is an audit fact, not a precondition for the next
-    // copy. Awaiting it put two cloud round trips per copy on the
-    // operator's clock for no operational benefit.
-    void handle.markSent(null).then(() => handle.markAcked());
+    if (handle.id) settled.push(handle.id);
   }
+
+  // Phase 3: one batched ledger close for every copy instead of two RPCs
+  // per copy. The paper is already out — this is an audit fact, so it is
+  // fire-and-forget relative to the caller.
+  void settleJobs(settled);
 
   return { success: true, jobIds, transport, copies, artifact };
 }
@@ -506,6 +515,21 @@ export async function printLabel(req: PrintLabelRequest): Promise<LabelPrintResu
   };
 }
 
+/**
+ * Compile a label without dispatching it — the sanctioned preview seam.
+ *
+ * Surfaces that show "what will come out of the printer" (LPN label
+ * dialog, template editors) call this instead of reaching into
+ * `printing/labelDispatch`, so there is still exactly one module that
+ * knows how label bytes are produced. Nothing is printed and no ledger
+ * row is opened: a preview is a render, not a print.
+ */
+export async function previewLabel(
+  req: LabelDispatchInput,
+): Promise<LabelRenderResult> {
+  return renderLabelPayload(req);
+}
+
 // ---------------------------------------------------------------------
 // Document-model intents
 // ---------------------------------------------------------------------
@@ -558,32 +582,86 @@ export async function printDocumentIntent(input: {
         (await withSpan('intent.resolve_org', () =>
           resolveOrganizationId(jobs[0]?.business_id ?? null),
         ));
-      let transport: PrintTransport = 'none';
-      let printed = 0;
-      let lastError: string | undefined;
 
-      annotateTrace({ job_count: jobs.length });
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
+    },
+  );
+}
 
-      for (const job of jobs) {
-        if ((job.disposition ?? 'print') !== 'print') continue;
-        const outcome = await withSpan('intent.dispatch_job', () =>
-          dispatchQueuedJob(job, organizationId),
-        );
-        if (outcome === null) continue; // sweeper owns it
-        transport = outcome.transport;
-        if (outcome.error) lastError = outcome.error;
-        else printed += 1;
-      }
+/**
+ * Drain the print-targets of an already-submitted routing plan.
+ *
+ * Shared by the two-hop legacy entry (`printDocumentIntent`) and the
+ * Phase 3 single-hop entry (`printSourceDocumentIntent`) so there is
+ * exactly one foreground drainer, whichever way the jobs were enqueued.
+ */
+async function drainIntentJobs(
+  jobs: QueuedJob[],
+  organizationId: string | null,
+): Promise<PrintResult> {
+  let transport: PrintTransport = 'none';
+  let printed = 0;
+  let lastError: string | undefined;
 
-      return {
-        ...submitted,
-        success: !lastError,
-        error: lastError,
-        needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
-        jobIds: submitted.job_ids,
-        transport,
-        copies: printed,
-      };
+  annotateTrace({ job_count: jobs.length });
+
+  for (const job of jobs) {
+    if ((job.disposition ?? 'print') !== 'print') continue;
+    const outcome = await withSpan('intent.dispatch_job', () =>
+      dispatchQueuedJob(job, organizationId),
+    );
+    if (outcome === null) continue; // sweeper owns it
+    transport = outcome.transport;
+    if (outcome.error) lastError = outcome.error;
+    else printed += 1;
+  }
+
+  return {
+    success: !lastError,
+    error: lastError,
+    needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
+    jobIds: jobs.map((j) => j.id),
+    transport,
+    copies: printed,
+  };
+}
+
+/**
+ * Phase 3 (POS latency): materialize the document record, submit its
+ * output intent and read back the enqueued rows in ONE round trip, then
+ * drain them through the same foreground dispatcher.
+ *
+ * Replaces `ensureDocumentRecord` → `submit-document-intent` (Edge cold
+ * boot) → `loadJobs` → `resolveOrganizationId`: four sequential hops
+ * become one. Behaviour is otherwise identical — same authorisation, same
+ * dedupe, same ledger rows, same sweeper recovery.
+ */
+export async function printSourceDocumentIntent(
+  input: EnsureDocumentRecordInput & {
+    scenario?: string;
+    triggeredSource?: 'business_event' | 'manual' | 'reprint' | 'api';
+  },
+): Promise<PrintResult & SubmitDocumentIntentResult> {
+  return withTrace(
+    {
+      label: 'document_intent',
+      attributes: {
+        entry: 'printSourceDocumentIntent',
+        kind_code: input.kindCode,
+        source_doc_id: input.sourceDocId,
+        triggered_source: input.triggeredSource ?? 'manual',
+      },
+    },
+    async () => {
+      const submitted = await withSpan('intent.materialize_submit', () =>
+        materializeAndSubmitIntent({
+          ...input,
+          triggeredSource: input.triggeredSource ?? 'manual',
+        }),
+      );
+      const jobs = submitted.jobs as unknown as QueuedJob[];
+      const organizationId = submitted.organization_id ?? input.organizationId ?? null;
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
     },
   );
 }
@@ -769,7 +847,9 @@ export const PrintService = {
   openInteractiveJob,
   printDocument,
   printLabel,
+  previewLabel,
   printDocumentIntent,
+  printSourceDocumentIntent,
   downloadDocumentRecord,
   downloadArchivedArtifact,
 };

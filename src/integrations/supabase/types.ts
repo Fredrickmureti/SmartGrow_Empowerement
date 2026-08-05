@@ -83989,6 +83989,28 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      document_materialize_and_submit_intent: {
+        Args: {
+          p_branch_id?: string
+          p_business_id?: string
+          p_currency?: string
+          p_document_date?: string
+          p_document_number?: string
+          p_kind_code: string
+          p_locale?: string
+          p_metadata?: Json
+          p_organization_id: string
+          p_party_id?: string
+          p_party_kind?: string
+          p_scenario?: string
+          p_snapshot?: Json
+          p_source_doc_id: string
+          p_source_doc_type: string
+          p_source_module: string
+          p_triggered_source?: string
+        }
+        Returns: Json
+      }
       earth: { Args: never; Returns: number }
       edge_jobs_expire_stale: { Args: never; Returns: number }
       edit_procurement_recommendation_qty: {
@@ -90346,6 +90368,10 @@ export type Database = {
         Returns: undefined
       }
       print_job_resend: { Args: { p_id: string }; Returns: string }
+      print_jobs_settle: {
+        Args: { p_hw_command_id?: number; p_ids: string[] }
+        Returns: number
+      }
       process_leave_accruals: { Args: { p_org_id?: string }; Returns: Json }
       process_payroll_loan_deductions: {
         Args: {
