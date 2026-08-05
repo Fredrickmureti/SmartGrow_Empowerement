@@ -1109,6 +1109,9 @@ export const PrintService = {
   previewLabel,
   printDocumentIntent,
   printSourceDocumentIntent,
+  startPrintDocumentIntent,
+  startPrintSourceDocumentIntent,
+
   downloadDocumentRecord,
   downloadArchivedArtifact,
 };

@@ -12,7 +12,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { startPrintDocumentIntent } from "@/services/printing/PrintService";
 
 export interface DispatchVendorStatementArgs {
   /** `vendor_statements.id` of the saved statement. */
@@ -55,10 +55,12 @@ export async function dispatchVendorStatement({
     snapshot: built.snapshot,
   });
 
-  const result = await printDocumentIntent({
-    documentRecordId,
-    triggeredSource,
-  });
+  // Non-blocking (Phase 5): released at the durable enqueue, drained in
+  // the background.
+  const ack = await startPrintDocumentIntent({ documentRecordId, triggeredSource });
+  if (!ack.queued) {
+    throw new Error(ack.error ?? "Failed to queue vendor statement");
+  }
 
-  return { documentRecordId, targetCount: result.target_count };
+  return { documentRecordId, targetCount: ack.targetCount };
 }
