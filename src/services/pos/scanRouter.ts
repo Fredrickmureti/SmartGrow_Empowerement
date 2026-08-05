@@ -95,6 +95,30 @@ let routerInstalled = false;
 const consumedEvents = new WeakSet<ScanEvent>();
 
 /**
+ * Target-stack change notification.
+ *
+ * Presence surfaces (the WMS scan guidance bar) must know *which* target
+ * owns the stream. Before this seam existed they polled `getActiveTargets()`
+ * on a 1 s interval — one timer per mounted surface. The router now tells
+ * them, so the UI is both instant and free when nothing changes.
+ */
+type StackListener = () => void;
+const stackListeners = new Set<StackListener>();
+let stackVersion = 0;
+
+function notifyStackChanged() {
+  stackVersion++;
+  for (const fn of Array.from(stackListeners)) {
+    try {
+      fn();
+    } catch (err) {
+      console.error("[scanRouter] stack listener error", err);
+    }
+  }
+}
+
+
+/**
  * Active workspace scan context — supplies `register_id` / `session_id` to
  * `log_scan_event` so the DB SECURITY DEFINER fn can resolve org+branch.
  * Set by the topmost workspace screen on mount (POSTerminal sets
