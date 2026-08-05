@@ -66,10 +66,9 @@ import { useToast } from "@/hooks/use-toast";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -140,11 +139,11 @@ export default function SalesOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      shadcnToast(printOutcomeToast(result, `Sales order ${order.so_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        shadcnToast,
+        { label: `Sales order ${order.so_number}` },
+      );
     } catch (err) {
       shadcnToast({
         title: "Print failed",

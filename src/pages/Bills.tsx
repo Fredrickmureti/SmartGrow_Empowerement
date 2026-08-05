@@ -20,7 +20,7 @@ import { queryKeys } from "@/lib/queryKeys";
 
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
@@ -102,7 +102,6 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 
 // Workflow pipeline for Bills
@@ -269,11 +268,11 @@ export default function Bills() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Bill ${bill.bill_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Bill ${bill.bill_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

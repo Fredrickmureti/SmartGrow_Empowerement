@@ -76,7 +76,7 @@ import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendD
 // /purchases/orders/new. See src/features/purchases/orders/PurchaseOrderCreatePage.tsx.
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -84,7 +84,6 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PurchaseOrderPeekSheet } from "@/features/purchases/orders/PurchaseOrderPeekSheet";
 import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Workflow pipeline for Purchase Orders
 function POWorkflowPipeline({ status }: { status: string }) {
@@ -315,11 +314,11 @@ export default function PurchaseOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `PO ${po.po_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `PO ${po.po_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

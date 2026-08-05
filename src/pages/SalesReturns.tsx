@@ -52,7 +52,7 @@ import { PermissionGate } from "@/components/common/PermissionGate";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { fetchAndBuildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -62,7 +62,6 @@ import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { PageHeader, PageBody } from "@/design-system";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Workflow step indicator component
 function WorkflowPipeline({ status, hasCreditNote, creditNoteStatus }: { status: string; hasCreditNote: boolean; creditNoteStatus?: string }) {
@@ -159,11 +158,11 @@ export default function SalesReturns() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      shadcnToast(printOutcomeToast(result, `Sales return ${ret.return_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        shadcnToast,
+        { label: `Sales return ${ret.return_number}` },
+      );
     } catch (err) {
       shadcnToast({
         title: "Print failed",

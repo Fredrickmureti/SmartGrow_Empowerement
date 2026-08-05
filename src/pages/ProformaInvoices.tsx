@@ -51,7 +51,7 @@ import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { fetchAndBuildSalesProformaSnapshot } from "@/services/documents/snapshots/salesProforma";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { normalizeError } from "@/services/resilience";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -59,7 +59,6 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ProformaPeekSheet } from "@/features/sales/proforma/ProformaPeekSheet";
 import { usePeekParam } from "@/features/sales/record";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function ProformaInvoices() {
   const navigate = useNavigate();
@@ -154,11 +153,11 @@ export default function ProformaInvoices() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Proforma ${inv.proforma_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Proforma ${inv.proforma_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

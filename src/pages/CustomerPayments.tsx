@@ -14,7 +14,7 @@ import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
@@ -87,7 +87,6 @@ import { CustomerPaymentPeekSheet } from "@/features/sales/payments/CustomerPaym
 import { usePeekParam } from "@/features/sales/record";
 import { PaymentListTable } from "@/components/payments/PaymentListTable";
 import { Eye } from "lucide-react";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Extended payment type with status
 interface PaymentWithStatus extends Payment {
@@ -364,11 +363,11 @@ export default function CustomerPayments() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Receipt ${receiptNum}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Receipt ${receiptNum}` },
+      );
     } catch (err) {
       toast({
         title: "Receipt dispatch failed",

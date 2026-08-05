@@ -59,14 +59,13 @@ import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { fetchAndBuildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarkDeliveryReady, useCompleteDelivery } from "@/hooks/useDeliveryLifecycle";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -158,11 +157,11 @@ export default function DeliveryNotes() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Delivery note ${note.delivery_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Delivery note ${note.delivery_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

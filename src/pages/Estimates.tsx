@@ -92,7 +92,7 @@ import { AdditionalCost } from "@/components/common/AdditionalCostsSection";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
@@ -102,7 +102,6 @@ import { EstimatePeekSheet } from "@/features/sales/estimates/EstimatePeekSheet"
 import { usePeekParam } from "@/features/sales/record";
 import { EstimateListTable } from "@/components/estimates/EstimateListTable";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function Estimates() {
   // View mode state
@@ -422,11 +421,11 @@ export default function Estimates() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Estimate ${estimate.estimate_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Estimate ${estimate.estimate_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

@@ -14,8 +14,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
@@ -92,11 +91,13 @@ export function useRecordPrint(kind: RecordPrintKind) {
           documentDate: built.documentDate,
           snapshot: built.snapshot,
         });
-        const result = await printDocumentIntent({
-          documentRecordId,
-          triggeredSource: "manual",
-        });
-        toast(printOutcomeToast(result, label));
+        // Released at the durable enqueue — the printer is not on the
+        // operator's clock any more.
+        await acknowledgeRecordPrint(
+          { documentRecordId, triggeredSource: "manual" },
+          toast,
+          { label },
+        );
       } catch (err) {
         toast({
           title: "Print failed",

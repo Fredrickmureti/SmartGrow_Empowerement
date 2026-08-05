@@ -44,7 +44,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
@@ -69,7 +69,6 @@ import { type ResolvedScan } from "@/hooks/scanner";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useSalesOpenDraftHandler, useSalesHasActiveDraft } from "@/contexts/SalesScanContext";
 import { dialogReadyBus } from "@/services/scanner/dialogReadyBus";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 function describeInvoicePrintError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err ?? "");
@@ -357,11 +356,12 @@ export default function Invoices() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Invoice ${invoice.invoice_number}`));
+      // Returns at the durable enqueue; render + printer happen after.
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Invoice ${invoice.invoice_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",

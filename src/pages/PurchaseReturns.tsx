@@ -69,7 +69,7 @@ import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -78,7 +78,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 // Compact workflow pipeline for table rows
 function WorkflowPipeline({ status }: { status: string }) {
@@ -177,11 +176,11 @@ export default function PurchaseReturns() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Return ${pr.return_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Return ${pr.return_number}` },
+      );
     } catch (err) {
       toast({ title: "Print failed", description: normalizeError(err).message, variant: "destructive" });
     } finally {

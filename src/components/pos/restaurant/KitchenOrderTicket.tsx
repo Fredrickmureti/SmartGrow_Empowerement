@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { startPrintDocumentIntent } from "@/services/printing/PrintService";
 import { buildKitchenTicketSnapshot } from "@/services/documents/snapshots/posKitchenTicket";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
@@ -113,16 +113,24 @@ export function KitchenOrderTicket({
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const res = await printDocumentIntent({
+      // Kitchen tickets are the most latency-sensitive print in the house:
+      // release the expo the moment the ticket is durably queued.
+      const ack = await startPrintDocumentIntent({
         documentRecordId: recordId,
         scenario: "on_close",
         triggeredSource: "manual",
       });
-      if (res.job_ids.length > 0) {
+      if (ack.queued && ack.jobIds.length > 0) {
         toast.success(`Sent to ${order.printer_category} printer`);
       } else {
-        toast.error(`Print failed: no kitchen printer bound for ${order.printer_category}`);
+        toast.error(
+          ack.error ??
+            `Print failed: no kitchen printer bound for ${order.printer_category}`,
+        );
       }
+      void ack.completion.then((res) => {
+        if (!res.success) toast.error(`Print failed: ${res.error ?? "unknown error"}`);
+      });
     } catch (err) {
       toast.error(`Print failed: ${(err as Error).message}`);
     } finally {

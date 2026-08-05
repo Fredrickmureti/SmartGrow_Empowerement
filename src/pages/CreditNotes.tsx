@@ -6,7 +6,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
 
 import { useCurrency } from "@/hooks/useCurrency";
@@ -85,7 +85,6 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { CreditNoteListTable } from "@/components/credit-notes/CreditNoteListTable";
 import { normalizeError } from "@/services/resilience";
-import { printOutcomeToast } from "@/services/printing/printOutcomeToast";
 
 export default function CreditNotes() {
   const navigate = useNavigate();
@@ -240,11 +239,11 @@ export default function CreditNotes() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Credit note ${cn.credit_note_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Credit note ${cn.credit_note_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
