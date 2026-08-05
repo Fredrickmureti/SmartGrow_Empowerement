@@ -99,7 +99,14 @@ export function parseGs1(raw: string): Gs1ParseResult {
   let cursor = 0;
 
   while (cursor < input.length) {
+    // A fixed-length AI may still be followed by a separator (many
+    // printers emit one unconditionally). Skip it, or the next AI is read
+    // one character out of phase and the whole tail is misparsed.
+    while (input[cursor] === FNC1) cursor += 1;
+    if (cursor >= input.length) break;
+
     const m = matchAi(input, cursor);
+
     if (!m) {
       // Not an AI at this position. Only fail if we haven't parsed
       // anything yet — otherwise stop cleanly with what we have.
