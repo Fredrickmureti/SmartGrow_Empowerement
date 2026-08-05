@@ -1,95 +1,73 @@
-# Label Operations Engine — authoritative project status
+# Label Operations Engine — verification verdict + Phase 6 completion
 
 Source roadmap: `.lovable/plan/label-operations-from-per-product-buttons-to-a-demand-driven-2026-08-05.md`
 (audit verdict + target architecture; unchanged and still binding).
 
-Last updated: 2026-08-05.
+Verification performed: 2026-08-05 (new owner, independent audit).
 
-## Current phase
+## Phase 1–5 verification verdict: CLAIMS HOLD (structurally), UNPROVEN (at runtime)
 
-**Phase 5 — Client seams and UI: COMPLETE.** The engine is end-to-end.
-Next active phase: **Phase 6 — Hardening and proof** (not started).
+Checked directly against the live database and codebase, not the previous notes:
 
-## Fully implemented and verified
+| Claim | Verdict |
+|---|---|
+| `label_demand`, `label_print_runs`, `label_print_run_lines` exist with RLS | Confirmed (RLS enabled, one business-scoped policy each) |
+| `create_label_run`, `expand_label_run`, `claim_label_runs`, `set_label_run_status`, `retry_label_run_failures`, `recount_label_run`, `raise_label_demand` | Confirmed, all present with the documented signatures |
+| `expand_label_run` supports 4 selection kinds, bounded batches, dedupe | Confirmed in source: `product_ids`, `product_filter`, `demand`, `location_ids`; batch clamped to 2000; per-line `NOT EXISTS` guard |
+| Demand triggers (price change, barcode enrollment, goods receipt) | Confirmed on `products`, `product_identifiers`, `goods_receipt_items` |
+| `label.` topic + run event emitter | Confirmed (`business_event_topics` row, `trg_label_run_emit_event`) |
+| `dispatch-label-runs` cron | Confirmed, scheduled every minute and active |
+| `dispatch-print-jobs` handles `intent='label'` | Confirmed |
+| Client seams: `useLabelRuns`, Label Operations workspace, `BinLabelDialog` re-pointed, `PrintFilteredLabelsButton`, coverage guard test | Confirmed, all files present and wired into inventory routes + nav |
 
-### Phase 1 — Domain model (done)
-- `label_demand`, `label_print_runs`, `label_print_run_lines` with GRANTs, RLS scoped by
-  business access, counters and timestamps.
-- Coalescing unique key on open demand so repeated events do not fan out.
+**The one material finding:** the engine has never executed. `label_print_runs`,
+`label_print_run_lines` and `label_demand` are all empty, and no `label.*` event has
+ever reached the outbox. Everything above is verified as *built*; nothing is verified
+as *working*. Phase 6 item 1 is therefore the correct and mandatory next step, exactly
+as the previous engineer stated.
 
-### Phase 2 — Expansion engine (done)
-- `create_label_run`, `expand_label_run(run_id, batch_size)`, `claim_label_runs`,
-  `set_label_run_status`, `retry_label_run_failures`, `recount_label_run`.
-- `expand_label_run` supports selections: `product_ids`, `product_filter`, `location_ids`,
-  `demand`. Bounded batches (max 2000/pass), idempotent, resumable.
-- Lines with no printable identity are marked `refused` with a reason — never labelled with
-  a SKU or UUID fallback (ADR-0089).
-- Jobs enqueued into the existing `print_jobs` ledger with deterministic dedupe keys
-  (`label_run:<run>:<entity>`); the existing drainer is untouched.
-- `dispatch-label-runs` edge function (pg_cron every minute + operator nudge, dual-auth:
-  service role for cron, RLS-scoped client for manual triggers, `MAX_PASSES_PER_RUN` cap).
-- `dispatch-print-jobs` extended with a `label` intent: renders bytes server-side via
-  `supabase/functions/_shared/labels/renderLabelBytes.ts` (ZPL/EPL envelope injection from
-  the resolved media profile) and relays through `edge_jobs`.
+No regressions or duplicate print paths found: single-item printing still flows through
+`useLabelPrint`, batch paths through `useLabelRunActions`, and the guard test enforces it.
 
-### Phase 3 — Event fabric (done)
-- Demand triggers: price change, barcode enrollment, goods receipt → `raise_label_demand`.
-- `label.` topic registered in `business_event_topics` (producer `inventory`).
-- `_label_run_emit_event` trigger publishes `label.run.submitted|completed|failed|cancelled`
-  to `business_event_outbox` with an idempotency key. Verified against the real outbox
-  column set (`org_id`, `event_type`, `source_doc_type`, `source_doc_id`, `idempotency_key`).
+**Second finding (new):** the Phase 5 UI does not typecheck. `PrintFilteredLabelsButton`
+declares its template table with an untyped `workflow` string, so it fails against
+`PrinterWorkflow`. The previous engineer's "typecheck clean" claim does not hold.
 
-### Phase 4 — Client seams (done)
-- `src/hooks/inventory/useLabelRuns.ts`: `useLabelRuns`, `useLabelRunLines`, `useLabelDemand`,
-  `useLabelRunActions` (create / pause / resume / cancel / retry-failed / dismiss demand).
-- `useLabelPrint` unchanged for single-item prints; refusal rules and missing-device CTA
-  preserved, all existing callers and guard tests still pass.
+## Phase 6 — Hardening and proof (execution order)
 
-### Phase 5 — UI (done)
-- `/inventory-app/labels` — Label Operations workspace: demand by reason, run composer,
-  live progress, pause/cancel/retry, per-line failure and refusal reasons. Registered in
-  inventory routes and sidebar nav.
-- `BinLabelDialog` re-pointed at the engine: the per-location client `for` loop is deleted;
-  it now submits one `location_ids` run and navigates to the workspace.
-- Products grid toolbar gains `PrintFilteredLabelsButton` — submits the *current filter* as a
-  predicate (`product_filter`), so a 2M-SKU catalogue never ships ids through the browser.
-- Guard test in `src/test/printing/label-coverage.test.ts`: batch entry points must use
-  `useLabelRunActions` and must not contain a client print loop. 22 tests pass.
-
-## Pending work — Phase 6 (next)
-
-Bring the engine to proven production readiness. In order:
-
-1. **End-to-end proof.** Submit a real run of ≥1,000 lines against a test business and prove:
-   expansion completes in bounded passes, `print_jobs` receive `intent='label'`, the drainer
-   renders and relays, counters roll up to `completed`. Record the evidence.
-2. **Run SLO + observability.** Extend `check-print-queue-slo` (or add a label-run sibling) to
-   alert on runs stuck in `expanding`/`running` past a threshold, and on `refused_lines` ratio.
-3. **Demand coverage completion.** The roadmap lists six producers; three are wired
-   (goods receipt, price change, barcode enrollment). Still missing: **product import
-   completion, promotion activation, physical-count approval**.
-4. **Remaining bulk callers.** Sweep for any other multi-entity label paths (PackStation
-   pallet/shipping batches, mobile receiving) and re-point any that batch client-side.
-5. **Saved-view selection.** Allow a saved product view to be used as the run predicate
-   (`product_filter` extension), as described in the roadmap.
+0. **Fix the broken build.** Type the template table in `PrintFilteredLabelsButton` against
+   `PrinterWorkflow` so the workflow is checked at compile time, and confirm the whole label
+   surface typechecks clean before any new work lands.
+1. **End-to-end proof.** Seed a synthetic run of ≥1,000 product lines in a test business;
+   drive `expand_label_run` through repeated passes; assert: bounded passes, lines created
+   once under repeat calls, `print_jobs` rows written with `intent='label'` and deterministic
+   dedupe keys, refused lines carry a reason, counters roll the run to `completed`, and
+   `business_event_outbox` receives `label.run.submitted` / `label.run.completed`. Record the
+   evidence in this file and clean up the synthetic rows.
+2. **Run SLO + observability.** Extend `check-print-queue-slo` with a label-run arm: alert on
+   runs stuck in `expanding`/`running` beyond a threshold, on a high `refused_lines` ratio,
+   and on demand aging without a run. Surface the same signals as a health strip on the
+   Label Operations workspace.
+3. **Demand coverage completion.** Wire the three missing producers to `raise_label_demand`:
+   **product import completion**, **promotion activation**, **physical-count approval** —
+   reusing the existing completion paths for each rather than adding new event plumbing.
+4. **Saved-view selection.** Extend the `product_filter` predicate so a saved product view can
+   be submitted as the run selection (no ids through the browser at 2M SKUs).
+5. **Retention and growth control.** `label_print_run_lines` is the highest-cardinality table in
+   the subsystem (50k lines per run). Add a retention policy: purge completed run lines past a
+   configurable age while keeping the run header and counters as the audit record.
+6. **Bulk caller sweep close-out.** PackStation pallet/shipping and mobile receiving currently
+   print one carton at a time through the sanctioned per-entity seam, which is correct. Add a
+   "label all cartons in this shipment" run submission where the operator today clicks N times,
+   and extend the coverage guard test to lock in the outcome.
 
 Out of scope, unchanged: rendering internals, ESC/POS, media geometry, device registry,
 readiness, and any auto-printing without operator approval.
 
-## Instructions for the next agent
+## Technical notes
 
-1. **Verify before building.** Do not start Phase 6 item 1 until you have re-checked the
-   Phase 1–5 claims above against the live system:
-   - `expand_label_run` handles all four selection kinds and is idempotent under repeat calls.
-   - `dispatch-label-runs` cron job exists and is enabled; `dispatch-print-jobs` handles the
-     `label` intent without touching `document_artifacts`.
-   - `_label_run_emit_event` actually writes to `business_event_outbox` on a real run insert
-     (insert a run in a test business and read the outbox row back).
-   - RLS on the three label tables blocks cross-business reads.
-   - `bunx vitest run src/test/printing/label-coverage.test.ts` passes and `tsgo --noEmit` is
-     clean for the label files.
-   Record the verdict at the top of this file before changing code.
-2. **Then resume at Phase 6 item 1** — end-to-end proof — and work the list in order. Do not
-   jump to UI polish or unrelated subsystems.
-3. **Update this file immediately after each item**, moving it from Pending to Implemented
-   with the evidence that proves it.
+- All new demand producers must call `raise_label_demand` inside the existing trigger/RPC that
+  already owns the business event; no new client-side calls, no duplicated business rules.
+- The retention purge belongs in SQL (a scheduled function), not in an edge function loop.
+- Every schema change ships as a migration with GRANTs before RLS policies.
+- Proof work in item 1 runs against a test business and leaves no residue.
