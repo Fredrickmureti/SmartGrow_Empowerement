@@ -28,7 +28,6 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,

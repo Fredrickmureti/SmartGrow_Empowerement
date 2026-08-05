@@ -24,7 +24,6 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { CancelAggregateButton } from "./CancelAggregateButton";
 import { useReleaseWave } from "./useDomainOperations";
 

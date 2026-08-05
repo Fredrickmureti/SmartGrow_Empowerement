@@ -20,7 +20,6 @@ import { usePostCountSession } from "@/features/warehouse/aggregates/useDomainOp
 import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCall";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, CheckCircle2, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CancelAggregateButton } from "@/features/warehouse/aggregates/CancelAggregateButton";

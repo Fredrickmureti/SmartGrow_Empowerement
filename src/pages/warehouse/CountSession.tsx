@@ -21,7 +21,6 @@ import { replayGuardedCall } from "@/features/warehouse/scanning/replayGuardedCa
 import { toast } from "sonner";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ClipboardCheck, EyeOff, RotateCcw } from "lucide-react";
