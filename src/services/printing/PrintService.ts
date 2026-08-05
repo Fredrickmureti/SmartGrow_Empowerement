@@ -567,6 +567,84 @@ export async function printDocumentIntent(input: {
   );
 }
 
+/**
+ * Drain the print-targets of an already-submitted routing plan.
+ *
+ * Shared by the two-hop legacy entry (`printDocumentIntent`) and the
+ * Phase 3 single-hop entry (`printSourceDocumentIntent`) so there is
+ * exactly one foreground drainer, whichever way the jobs were enqueued.
+ */
+async function drainIntentJobs(
+  jobs: QueuedJob[],
+  organizationId: string | null,
+): Promise<PrintResult> {
+  let transport: PrintTransport = 'none';
+  let printed = 0;
+  let lastError: string | undefined;
+
+  annotateTrace({ job_count: jobs.length });
+
+  for (const job of jobs) {
+    if ((job.disposition ?? 'print') !== 'print') continue;
+    const outcome = await withSpan('intent.dispatch_job', () =>
+      dispatchQueuedJob(job, organizationId),
+    );
+    if (outcome === null) continue; // sweeper owns it
+    transport = outcome.transport;
+    if (outcome.error) lastError = outcome.error;
+    else printed += 1;
+  }
+
+  return {
+    success: !lastError,
+    error: lastError,
+    needsDevice: Boolean(lastError?.startsWith(NO_DEVICE_BOUND)),
+    jobIds: jobs.map((j) => j.id),
+    transport,
+    copies: printed,
+  };
+}
+
+/**
+ * Phase 3 (POS latency): materialize the document record, submit its
+ * output intent and read back the enqueued rows in ONE round trip, then
+ * drain them through the same foreground dispatcher.
+ *
+ * Replaces `ensureDocumentRecord` → `submit-document-intent` (Edge cold
+ * boot) → `loadJobs` → `resolveOrganizationId`: four sequential hops
+ * become one. Behaviour is otherwise identical — same authorisation, same
+ * dedupe, same ledger rows, same sweeper recovery.
+ */
+export async function printSourceDocumentIntent(
+  input: EnsureDocumentRecordInput & {
+    scenario?: string;
+    triggeredSource?: 'business_event' | 'manual' | 'reprint' | 'api';
+  },
+): Promise<PrintResult & SubmitDocumentIntentResult> {
+  return withTrace(
+    {
+      label: 'document_intent',
+      attributes: {
+        entry: 'printSourceDocumentIntent',
+        kind_code: input.kindCode,
+        source_doc_id: input.sourceDocId,
+        triggered_source: input.triggeredSource ?? 'manual',
+      },
+    },
+    async () => {
+      const submitted = await withSpan('intent.materialize_submit', () =>
+        materializeAndSubmitIntent({
+          ...input,
+          triggeredSource: input.triggeredSource ?? 'manual',
+        }),
+      );
+      const jobs = submitted.jobs as unknown as QueuedJob[];
+      const organizationId = submitted.organization_id ?? input.organizationId ?? null;
+      return { ...submitted, ...(await drainIntentJobs(jobs, organizationId)) };
+    },
+  );
+}
+
 
 /**
  * Dispatch ONE ledger row through the canonical path: claim → render →
