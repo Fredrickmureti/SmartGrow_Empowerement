@@ -20,7 +20,7 @@ import { queryKeys } from "@/lib/queryKeys";
 
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
