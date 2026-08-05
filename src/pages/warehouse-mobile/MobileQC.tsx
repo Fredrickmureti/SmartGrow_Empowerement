@@ -11,7 +11,7 @@
  * The mobile screen collapses the desktop's rich free-form checks into
  * scan-friendly pass / hold / fail actions.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -22,11 +22,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { ProductScanField } from "@/features/warehouse/scanning/ProductScanField";
+import type { GatedScan } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import { Check, X, Pause } from "lucide-react";
 
 interface Inspection {
   id: string;
   state: string;
+  business_id: string;
+  branch_id: string | null;
+  product_id: string | null;
   quantity: number;
   accepted_qty: number;
   rejected_qty: number;
@@ -44,6 +49,9 @@ export default function MobileQC() {
   const [passQty, setPassQty] = useState("");
   const [failQty, setFailQty] = useState("");
   const [notes, setNotes] = useState("");
+  // Phase 3 — an inspector must prove they are holding the inspected item
+  // before a verdict is posted. Same identity gate as receiving and picking.
+  const [verified, setVerified] = useState(false);
 
   const { data: insp, isLoading } = useQuery({
     queryKey: ["wm-qc-inspection", taskId],
@@ -51,13 +59,15 @@ export default function MobileQC() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_qc_inspections")
-        .select("id, state, quantity, accepted_qty, rejected_qty, disposition, lot_number, notes, product:product_id(sku, name)")
+        .select("id, state, business_id, branch_id, product_id, quantity, accepted_qty, rejected_qty, disposition, lot_number, notes, product:product_id(sku, name)")
         .eq("id", taskId!)
         .maybeSingle();
       if (error) throw error;
       return data as unknown as Inspection | null;
     },
   });
+
+  const onScanned = useCallback((scan: GatedScan | null) => setVerified(Boolean(scan)), []);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["wm-qc-inspection", taskId] });
 
