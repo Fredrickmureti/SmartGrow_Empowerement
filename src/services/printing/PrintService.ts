@@ -46,6 +46,7 @@ import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './d
 import { renderLabelPayload, type LabelDispatchInput } from './labelDispatch';
 import { enqueueDocumentIntent, type SubmitDocumentIntentResult } from '@/services/documents/submitIntent';
 import { supabase } from '@/integrations/supabase/client';
+import { withTrace, withSpan, annotateTrace } from '@/services/observability/trace';
 import type { PaperFormatOption } from './render';
 
 export { NO_DEVICE_BOUND };
