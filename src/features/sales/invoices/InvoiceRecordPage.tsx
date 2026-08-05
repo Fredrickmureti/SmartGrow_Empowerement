@@ -28,6 +28,7 @@ import {
   DocumentActivityPanel,
   DocumentTotalsPanel,
   LineItemsGrid,
+  useRecordPrint,
   type LineItemColumn,
   type LineItemRow,
 } from "@/features/sales/record";
@@ -79,6 +80,7 @@ export default function InvoiceRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { print, printing } = useRecordPrint("invoice");
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -231,8 +233,13 @@ export default function InvoiceRecordPage() {
               <Button variant="outline" size="sm" onClick={() => navigate("/sales/invoices")}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button variant="outline" size="sm" disabled>
-                <Printer className="mr-2 h-4 w-4" /> Print
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={printing}
+                onClick={() => void print(invoice.id, `Invoice ${invoice.invoice_number}`)}
+              >
+                <Printer className="mr-2 h-4 w-4" /> {printing ? "Printing…" : "Print"}
               </Button>
               <Button size="sm" disabled title="Editing still uses the list dialog while migration is in progress">
                 <Pencil className="mr-2 h-4 w-4" /> Edit

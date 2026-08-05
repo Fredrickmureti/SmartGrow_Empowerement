@@ -29,3 +29,5 @@ export { SalesPeekScaffold } from "./SalesPeekScaffold";
 export type { DetailField } from "./SalesRecordBody";
 export { DocumentPeekShell } from "./DocumentPeekShell";
 export { useSalesDocumentRecord } from "./useSalesDocumentRecord";
+export { useRecordPrint } from "./useRecordPrint";
+export type { RecordPrintKind } from "./useRecordPrint";

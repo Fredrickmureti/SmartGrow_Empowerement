@@ -26,6 +26,7 @@ import {
   DocumentActivityPanel,
   DocumentTotalsPanel,
   LineItemsGrid,
+  useRecordPrint,
   type LineItemColumn,
   type LineItemRow,
 } from "@/features/sales/record";
@@ -73,6 +74,7 @@ export default function EstimateRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
+  const { print, printing } = useRecordPrint("estimate");
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -218,8 +220,13 @@ export default function EstimateRecordPage() {
               <Button variant="outline" size="sm" onClick={() => navigate("/sales/estimates")}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
-              <Button variant="outline" size="sm" disabled>
-                <Printer className="mr-2 h-4 w-4" /> Print
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={printing}
+                onClick={() => void print(estimate.id, `Estimate ${estimate.estimate_number}`)}
+              >
+                <Printer className="mr-2 h-4 w-4" /> {printing ? "Printing…" : "Print"}
               </Button>
               <Button size="sm" disabled title="Editing still uses the list dialog while migration is in progress">
                 <Pencil className="mr-2 h-4 w-4" /> Edit
