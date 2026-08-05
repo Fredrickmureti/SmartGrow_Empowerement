@@ -213,12 +213,18 @@ export class RelayTransport {
 
     // The single biggest unknown in the waterfall: how long the workstation
     // takes to claim the row and finish the physical write.
-    const awaited = await withSpan(
-      'relay.agent_roundtrip',
-      () => this._await<T>(jobId, deadlineMs),
-      undefined,
-      args.correlationId,
-    );
+    this._inFlight += 1;
+    let awaited: DispatchResult<T>;
+    try {
+      awaited = await withSpan(
+        'relay.agent_roundtrip',
+        () => this._await<T>(jobId, deadlineMs),
+        undefined,
+        args.correlationId,
+      );
+    } finally {
+      this._inFlight = Math.max(0, this._inFlight - 1);
+    }
 
     // The agent reports its own stage timings (relay queue wait, handler,
     // printer queue wait, socket write) inside the result. Replay them into
