@@ -1,6 +1,13 @@
 # ADR 0102 — Product identification: one canonical resolver, level-aware
 
 - **Status**: Accepted (2026-08-01)
+
+> **Superseded in part by [ADR 0114](./0114-product-identity-and-resolution.md)** (2026-08-05):
+> the decision envelope, the single read/write client seams, supplier-scoped
+> identifiers and the authenticated-only identity surface replace the
+> resolution rules described below. The transport/labelling rules that ADR
+> 0114 does not restate remain in force.
+
 - **Supersedes in part**: ADR 0017 (universal product acquisition), ADR 0089
   (label barcode identity policy — extended, not replaced)
 - **Related**: ADR 0025 (lot-aware quants), ADR 0071 (GS1 capture)

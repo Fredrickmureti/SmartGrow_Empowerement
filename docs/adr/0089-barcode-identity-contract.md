@@ -1,6 +1,13 @@
 # ADR-0089 — Barcode identity contract
 
 - Status: Accepted (2026-07-21)
+
+> **Superseded in part by [ADR 0114](./0114-product-identity-and-resolution.md)** (2026-08-05):
+> the decision envelope, the single read/write client seams, supplier-scoped
+> identifiers and the authenticated-only identity surface replace the
+> resolution rules described below. The labelling rules that ADR 0114 does
+> not restate remain in force.
+
 - Related: ADR-0085 (rendering ownership), ADR-0088 (media-relative
   geometry), `mem/features/barcode-enrollment.md`
 

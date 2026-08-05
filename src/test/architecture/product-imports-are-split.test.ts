@@ -48,6 +48,8 @@ describe("ADR 0074 — product imports are split", () => {
     for (const abs of walk(ROOT)) {
       const rel = abs.slice(process.cwd().length + 1).replace(/\\/g, "/");
       if (ALLOWLIST.has(rel)) continue;
+      // This guard names the legacy path in its own regex; skip itself.
+      if (rel.endsWith("src/test/architecture/product-imports-are-split.test.ts")) continue;
       const src = readFileSync(abs, "utf8");
       if (/importConfigs\/productImportConfig(?!\/)/.test(src)) {
         offenders.push(rel);

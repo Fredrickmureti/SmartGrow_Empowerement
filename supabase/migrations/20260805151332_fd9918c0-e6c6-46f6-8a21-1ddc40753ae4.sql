@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.upsert_product_identifier(uuid, uuid, text, product_identifier_kind, uuid, boolean, uuid, product_identifier_source, uuid, timestamptz, timestamptz) FROM anon;
