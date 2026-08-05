@@ -60,7 +60,9 @@ describe("parseGs1 — variable-length AIs need FNC1", () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.normalized.gtin).toBe("03453120000011");
-      expect(r.normalized.expiry?.getUTCFullYear()).toBe(2017);
+      // (17)091125 is YYMMDD → 25 Nov 2009. The "17" is the AI, not the year.
+      expect(r.normalized.expiry?.getUTCFullYear()).toBe(2009);
+      expect(r.normalized.expiry?.getUTCMonth()).toBe(10);
       expect(r.normalized.lot).toBe("ABC1234");
       expect(r.normalized.serial).toBe("XYZ987");
     }
