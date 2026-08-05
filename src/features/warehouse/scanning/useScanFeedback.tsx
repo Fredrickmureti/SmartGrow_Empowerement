@@ -156,7 +156,10 @@ export function useScanFeedback(): ScanFeedback {
     signal,
     success: useCallback(() => signal("success"), [signal]),
     warn: useCallback(() => signal("warn"), [signal]),
+    duplicate: useCallback(() => signal("duplicate"), [signal]),
+    reject: useCallback(() => signal("reject"), [signal]),
     error: useCallback(() => signal("error"), [signal]),
+
     Flash,
     muted,
     setMuted,
