@@ -86806,6 +86806,16 @@ export type Database = {
         }
         Returns: Json
       }
+      gs1_ai_table: {
+        Args: never
+        Returns: {
+          ai: string
+          decimal_indicator: boolean
+          fixed: number
+          max_len: number
+          name: string
+        }[]
+      }
       gs1_check_digit: { Args: { p_body: string }; Returns: number }
       has_any_org_role: {
         Args: {
@@ -86898,6 +86908,7 @@ export type Database = {
         Args: { _actor?: string; _event: string; _loan_id: string }
         Returns: Json
       }
+      identity_code_candidates: { Args: { p_raw: string }; Returns: string[] }
       initiate_ownership_transfer: {
         Args: { _notes?: string; _to_user_id: string }
         Returns: Json
@@ -87972,6 +87983,7 @@ export type Database = {
           validation_regex: string
         }[]
       }
+      parse_gs1_element_string: { Args: { p_raw: string }; Returns: Json }
       party_upsert_authority_from_form: {
         Args: {
           p_address_line1?: string
@@ -90158,32 +90170,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      pos_resolve_barcode: {
-        Args: { p_branch_id: string; p_business_id: string; p_code: string }
-        Returns: {
-          base_uom_id: string
-          category_id: string
-          category_name: string
-          cost_price: number
-          etims_tax_code: string
-          is_weighted: boolean
-          matched_code: string
-          matched_kind: Database["public"]["Enums"]["product_identifier_kind"]
-          on_hand: number
-          packaging_id: string
-          product_id: string
-          product_name: string
-          rule_kind: Database["public"]["Enums"]["pos_barcode_rule_kind"]
-          scan_price: number
-          scan_quantity: number
-          scan_weight: number
-          sku: string
-          tax_rate: number
-          tax_rate_id: string
-          tax_rate_name: string
-          unit_price: number
-        }[]
       }
       pos_resolve_cashier_fk: {
         Args: {
