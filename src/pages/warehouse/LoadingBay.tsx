@@ -368,7 +368,7 @@ export default function LoadingBay() {
             disabled={load.isPending}
             onResolve={resolveCartonScan}
           />
-          </Section> )}
+          </Section>
         )}
 
         <Section title={`Loaded (${(loaded ?? []).length})`} contentClassName="px-0 pb-0">
