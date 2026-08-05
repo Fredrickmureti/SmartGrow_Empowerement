@@ -128,7 +128,8 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
     const seq = ++checkSeqRef.current;
     debounceRef.current = setTimeout(async () => {
       try {
-        const { data } = await supabase.rpc("pos_resolve_barcode" as any, {
+        // ADR-0110: single authoritative resolver seam.
+        const { data } = await supabase.rpc("resolve_product_identity" as any, {
           p_business_id: businessId,
           p_branch_id: branchId,
           p_code: code.trim(),
@@ -136,8 +137,9 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
         // Drop the result if a newer check has started since we fired.
         if (seq !== checkSeqRef.current) return;
         const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
-        if (row && row.product_id !== excludeProductId) {
-          setDuplicate({ name: row.name as string });
+        const taken = row && (row.status === "resolved" || row.status === "ambiguous");
+        if (taken && row.product_id !== excludeProductId) {
+          setDuplicate({ name: (row.product_name ?? "another product") as string });
         } else {
           setDuplicate(null);
         }
