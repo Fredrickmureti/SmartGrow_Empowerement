@@ -140,11 +140,11 @@ export default function SalesOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      shadcnToast(printOutcomeToast(result, `Sales order ${order.so_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        shadcnToast,
+        { label: `Sales order ${order.so_number}` },
+      );
     } catch (err) {
       shadcnToast({
         title: "Print failed",
