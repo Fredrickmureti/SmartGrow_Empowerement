@@ -238,6 +238,9 @@ export default function MobileDispatch() {
     <MobileWarehouseLayout
       title="Dispatch"
       back="/wm"
+      scanLabel="Scan carton or pallet label"
+      scanContinuous
+
       bottomBar={
         <div className="grid grid-cols-2 gap-2">
           <Button
