@@ -5,7 +5,7 @@
  *   - registers itself with `scanRouter` while focused so phone/camera/
  *     keyboard scans land here regardless of source
  *   - shows a small "Scan ready" chip when connected
- *   - optional duplicate check via `pos_resolve_barcode`
+ *   - optional duplicate check via `resolve_product_identity`
  *   - optional `nextFocusRef` to auto-advance after a scan
  *
  * Always import the global scanner kernel ONCE near the app root via

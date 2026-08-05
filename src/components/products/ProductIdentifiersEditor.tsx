@@ -225,7 +225,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
     // IMPORTANT (audit fix, 2026-05-19): this target NEVER appends a new
     // row on scan. It either (a) fills the first empty row, (b) toasts
     // "already in the list" if the code matches a local row, or
-    // (c) toasts "already used by X" if `pos_resolve_barcode` finds the
+    // (c) toasts "already used by X" if `resolve_product_identity` finds the
     // code on a different product. Appending requires an explicit
     // "+ Add identifier" click. Without this, advancing focus away from
     // the barcode field caused surprise duplicate rows.

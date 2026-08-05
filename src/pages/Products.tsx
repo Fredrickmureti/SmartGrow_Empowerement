@@ -333,7 +333,7 @@ export default function Products() {
   // Re-entry guard for page-level scan-to-onboard. The ref is the actual
   // guard (synchronous, race-proof); the state drives the router-active
   // gate + a "Looking up barcode…" toast so the operator gets immediate
-  // feedback during the pos_resolve_barcode RPC.
+  // feedback during the resolve_product_identity RPC.
   const resolvingScanRef = useRef(false);
   const [isResolvingScan, setIsResolvingScan] = useState(false);
 
@@ -393,7 +393,7 @@ export default function Products() {
 
   // Scan-to-onboard: page-level scan target at priority 5 so any focused
   // <BarcodeInputField> (priority 10) still wins. Resolves the code via
-  // pos_resolve_barcode — hit opens the product detail dialog, miss
+  // resolve_product_identity — hit opens the product detail dialog, miss
   // navigates to /products/new with the barcode prefilled.
   useScanTarget({
     active: !!currentBusiness?.id && !showDetailDialog && !isResolvingScan,
@@ -435,7 +435,7 @@ export default function Products() {
               setShowDetailDialog(true);
             }
           }
-          toast({ title: `Found: ${row.name}` });
+          toast({ title: `Found: ${row.product_name}` });
         } else {
           playPOSSound("low_stock_warning");
           navigate(`/inventory-app/products/new?createWithCode=${encodeURIComponent(code)}`);
