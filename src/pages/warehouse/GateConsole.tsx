@@ -94,6 +94,24 @@ export default function GateConsole() {
           </SelectContent>
         </Select>
 
+        {/*
+          Phase 3 — the gatehouse is a scan surface. The driver presents a
+          gate pass or a trailer placard; the guard scans it instead of
+          hunting the expected list, and check-in opens pre-filled from the
+          appointment the planner already booked.
+        */}
+        <Card>
+          <CardContent className="p-4">
+            <EntityScanField
+              label="Gate pass or trailer placard"
+              intent="gate.pass"
+              entity="gate_pass"
+              disabled={!effectiveWarehouse}
+              onResolve={resolveGatePass}
+            />
+          </CardContent>
+        </Card>
+
         {visits.isLoading ? (
           <LoadingState />
         ) : (
@@ -237,8 +255,12 @@ export default function GateConsole() {
 
       <GateCheckInDialog
         open={checkInOpen}
-        onOpenChange={setCheckInOpen}
+        onOpenChange={(v) => {
+          setCheckInOpen(v);
+          if (!v) setScannedApptId(null);
+        }}
         warehouseId={effectiveWarehouse}
+        initialAppointmentId={scannedApptId}
         onCheckedIn={setSelected}
       />
       <TrailerVisitDrawer
