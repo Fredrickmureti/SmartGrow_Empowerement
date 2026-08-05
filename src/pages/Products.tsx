@@ -306,19 +306,18 @@ export default function Products() {
     if (created?.id && rawBarcode && currentOrg && currentBusiness) {
       const codes = rawBarcode.split(/[,;|]/).map((s) => s.trim()).filter(Boolean);
       if (codes.length > 0) {
-        await supabase
-          .from("product_identifiers")
-          .upsert(
-            codes.map((code, i) => ({
-              organization_id: currentOrg.id,
-              business_id: currentBusiness.id,
-              product_id: created.id,
-              code,
-              kind: "gtin" as const,
-              is_primary: i === 0,
-            })),
-            { onConflict: "business_id,code_norm,kind", ignoreDuplicates: true },
-          );
+        // ADR-0110 — enrolment goes through the identity service so the
+        // primary flip and code-clash checks happen in one transaction.
+        for (let i = 0; i < codes.length; i++) {
+          await writeIdentifier({
+            businessId: currentBusiness.id,
+            productId: created.id,
+            code: codes[i],
+            kind: "gtin",
+            isPrimary: i === 0,
+            source: "import",
+          });
+        }
       }
     }
   };
