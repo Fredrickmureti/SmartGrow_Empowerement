@@ -37,6 +37,7 @@ import { BarcodeInputField } from "@/components/scanner/BarcodeInputField";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
 import { useResolveProductIdentity } from "@/hooks/inventory/useResolveProductIdentity";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { cn } from "@/lib/utils";
 
 interface PickTask {
@@ -179,18 +180,18 @@ export default function PickList() {
       const result = await resolveIdentity(code);
       if (result.kind === "resolved") {
         setScanProductId(result.identity.productId);
-      } else if (result.kind === "ambiguous") {
-        // Never guess on an ambiguous identifier — block and make the
-        // duplicate visible instead of picking the wrong product.
-        setScanProductId(null);
-        setScanError(`${code} matches ${result.matchCount} identifiers — resolve the duplicate first.`);
-      } else if (result.kind === "not_found") {
-        setScanProductId(null);
-        setScanError(`Unknown code: ${code}`);
-      } else {
-        setScanProductId(null);
-        setScanError("Scanner network blip — try again.");
+        return;
       }
+      // Never guess: every non-resolved outcome blocks the pick and states
+      // its own reason (duplicate, retired, expired, unknown, offline).
+      setScanProductId(null);
+      setScanError(
+        identityOutcomeLine({
+          status: result.kind,
+          code,
+          matchCount: result.kind === "ambiguous" ? result.matchCount : undefined,
+        }),
+      );
     },
     [resolveIdentity],
   );

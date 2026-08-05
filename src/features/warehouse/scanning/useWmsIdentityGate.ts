@@ -21,6 +21,7 @@ import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
 import {
   useResolveProductIdentity,
   scanToBaseUnits,
+  describeResolution,
   type ProductIdentity,
 } from "@/hooks/inventory/useResolveProductIdentity";
 import type { WmsScanPayload } from "./wmsScanIntent";
@@ -61,16 +62,12 @@ export function useWmsIdentityGate(
       };
 
       const result = await resolve(p.raw || p.resolveCode);
-      if (result.kind === "not_found") {
-        return reject(`Unknown code ${result.code || p.resolveCode} — enrol it before receiving`);
-      }
-      if (result.kind === "error") {
-        return reject(`Could not verify ${p.resolveCode} — ${result.err.message}`);
-      }
-      if (result.kind === "ambiguous") {
-        return reject(
-          `${p.resolveCode} matches ${result.matchCount} identifiers — resolve the duplicate first`,
-        );
+      if (result.kind !== "resolved") {
+        // One taxonomy, one sentence: inactive / archived / expired /
+        // foreign-tenant / unauthorized all block the line just like an
+        // unknown code, and each says exactly why.
+        const copy = describeResolution(result, p.resolveCode || p.raw);
+        return reject(`${copy.title} — ${copy.detail}`);
       }
 
       const identity = result.identity;

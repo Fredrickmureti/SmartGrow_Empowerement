@@ -49455,7 +49455,13 @@ export type Database = {
           organization_id: string
           packaging_id: string | null
           product_id: string
+          replaced_by_id: string | null
+          source: Database["public"]["Enums"]["product_identifier_source"]
+          status: Database["public"]["Enums"]["product_identifier_status"]
+          supplier_id: string | null
           updated_at: string
+          valid_from: string | null
+          valid_to: string | null
         }
         Insert: {
           business_id: string
@@ -49470,7 +49476,13 @@ export type Database = {
           organization_id: string
           packaging_id?: string | null
           product_id: string
+          replaced_by_id?: string | null
+          source?: Database["public"]["Enums"]["product_identifier_source"]
+          status?: Database["public"]["Enums"]["product_identifier_status"]
+          supplier_id?: string | null
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
         }
         Update: {
           business_id?: string
@@ -49485,7 +49497,13 @@ export type Database = {
           organization_id?: string
           packaging_id?: string | null
           product_id?: string
+          replaced_by_id?: string | null
+          source?: Database["public"]["Enums"]["product_identifier_source"]
+          status?: Database["public"]["Enums"]["product_identifier_status"]
+          supplier_id?: string | null
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
         }
         Relationships: [
           {
@@ -49507,6 +49525,20 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_identifiers_replaced_by_id_fkey"
+            columns: ["replaced_by_id"]
+            isOneToOne: false
+            referencedRelation: "product_identifiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_identifiers_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -85215,26 +85247,16 @@ export type Database = {
         }
         Returns: string
       }
-      enroll_product_barcode:
-        | {
-            Args: {
-              p_business_id: string
-              p_code: string
-              p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
-              p_product_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_business_id: string
-              p_code: string
-              p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
-              p_packaging_id?: string
-              p_product_id: string
-            }
-            Returns: Json
-          }
+      enroll_product_barcode: {
+        Args: {
+          p_business_id: string
+          p_code: string
+          p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
+          p_packaging_id?: string
+          p_product_id: string
+        }
+        Returns: Json
+      }
       ensure_canonical_work_entry_types: {
         Args: { _org_id: string }
         Returns: undefined
@@ -90141,26 +90163,26 @@ export type Database = {
         Args: { p_branch_id: string; p_business_id: string; p_code: string }
         Returns: {
           base_uom_id: string
-          branch_on_hand: number
           category_id: string
           category_name: string
           cost_price: number
-          embedded_price: number
           etims_tax_code: string
           is_weighted: boolean
           matched_code: string
           matched_kind: Database["public"]["Enums"]["product_identifier_kind"]
-          matched_rule_kind: Database["public"]["Enums"]["pos_barcode_rule_kind"]
-          name: string
+          on_hand: number
           packaging_id: string
           product_id: string
+          product_name: string
+          rule_kind: Database["public"]["Enums"]["pos_barcode_rule_kind"]
+          scan_price: number
           scan_quantity: number
           scan_weight: number
-          selling_price: number
           sku: string
           tax_rate: number
           tax_rate_id: string
           tax_rate_name: string
+          unit_price: number
         }[]
       }
       pos_resolve_cashier_fk: {
@@ -92038,7 +92060,12 @@ export type Database = {
         Returns: string
       }
       resolve_product_identity: {
-        Args: { p_branch_id?: string; p_business_id: string; p_code: string }
+        Args: {
+          p_allow_sku_fallback?: boolean
+          p_branch_id?: string
+          p_business_id: string
+          p_code: string
+        }
         Returns: {
           base_uom_id: string
           identifier_id: string
@@ -92052,6 +92079,7 @@ export type Database = {
           product_name: string
           qty_in_base_uom: number
           sku: string
+          status: string
         }[]
       }
       resolve_product_price: {
@@ -92171,6 +92199,15 @@ export type Database = {
         Returns: number
       }
       resume_my_invitation: { Args: never; Returns: Json }
+      retire_product_identifier: {
+        Args: {
+          p_business_id: string
+          p_identifier_id: string
+          p_replaced_by_id?: string
+          p_status?: Database["public"]["Enums"]["product_identifier_status"]
+        }
+        Returns: Json
+      }
       retry_failed_business_event: {
         Args: { p_event_id: string }
         Returns: {
@@ -93565,6 +93602,22 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      upsert_product_identifier: {
+        Args: {
+          p_business_id: string
+          p_code: string
+          p_identifier_id?: string
+          p_is_primary?: boolean
+          p_kind?: Database["public"]["Enums"]["product_identifier_kind"]
+          p_packaging_id?: string
+          p_product_id: string
+          p_source?: Database["public"]["Enums"]["product_identifier_source"]
+          p_supplier_id?: string
+          p_valid_from?: string
+          p_valid_to?: string
+        }
+        Returns: Json
       }
       upsert_project_cost: {
         Args: {
@@ -96566,6 +96619,14 @@ export type Database = {
         | "internal"
         | "plu"
         | "alias"
+      product_identifier_source:
+        | "manual"
+        | "import"
+        | "asn"
+        | "gs1"
+        | "migration"
+        | "pos"
+      product_identifier_status: "active" | "inactive" | "archived"
       product_type: "product" | "service"
       qc_resolution_kind:
         | "accept"
@@ -97707,6 +97768,15 @@ export const Constants = {
         "plu",
         "alias",
       ],
+      product_identifier_source: [
+        "manual",
+        "import",
+        "asn",
+        "gs1",
+        "migration",
+        "pos",
+      ],
+      product_identifier_status: ["active", "inactive", "archived"],
       product_type: ["product", "service"],
       qc_resolution_kind: [
         "accept",

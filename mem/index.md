@@ -19,6 +19,8 @@ Tenant and admin edit templates through the SAME full-page shells (`CertificateE
 
 Product identity: ONE resolver. Client → `useResolveProductIdentity` (or `useWmsIdentityGate` in WMS); SQL → `resolve_product_identity`. Never query `product_identifiers` from a capture surface. Pack size = `product_packaging.qty_in_base_uom` only (`pack_quantity` / `packaging.barcode_id` dropped). See ADR 0102.
 
+Identity resolution returns a DECISION (resolved/ambiguous/not_found/inactive/archived/expired/foreign_tenant/unauthorized). Operator copy comes only from `identityOutcome.ts`; SKU fallback is opt-in for typing paths.
+
 Scanning has two device modes: handheld (own camera → scanBus in-process) and companion (paired phone). Never make a phone pair to itself. ADR 0107.
 
 A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside one app, navigation expands via `WorkspaceNavItem.children`. ADR 0101.
@@ -27,6 +29,7 @@ A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside o
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
 - [Product identification](mem://features/product-identification) — canonical resolver contract, level-aware labels, Phase D removals
+- [Product identity decisions](mem://features/product-identity-decisions) — decision envelope statuses, lifecycle columns, outcome copy taxonomy, write-through RPCs
 - [Scanner device modes](mem://features/scanner-device-modes) — handheld vs companion, single camera engine, LocalScanOverlay, /wm scan button contract
 - [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
 
