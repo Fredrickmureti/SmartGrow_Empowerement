@@ -315,11 +315,11 @@ export default function PurchaseOrders() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `PO ${po.po_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `PO ${po.po_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
