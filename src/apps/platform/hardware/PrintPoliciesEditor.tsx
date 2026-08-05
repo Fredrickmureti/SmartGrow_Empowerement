@@ -292,6 +292,19 @@ export default function PrintPoliciesEditor() {
               const existing = findPolicy(branchId, dt.value);
               const draftKey = `${branchScope}:${dt.value}`;
               const dirty = !!drafts[draftKey];
+              // Statements are sheet-only: thermal widths, ESC/POS and thermal
+              // roles are not offered at all.
+              const sheetOnly = SHEET_ONLY_DOCUMENT_TYPES.has(dt.value);
+              const paperOptions = sheetOnly
+                ? PAPER_OPTIONS.filter((p) => !THERMAL_PAPER_FORMATS.has(p.value))
+                : PAPER_OPTIONS;
+              const renderOptions = sheetOnly
+                ? RENDER_OPTIONS.filter((r) => r.value !== "escpos")
+                : RENDER_OPTIONS;
+              const roleOptions = sheetOnly
+                ? roles.filter((r) => !THERMAL_ROLE_KINDS.has(r.hardware_kind))
+                : roles;
+
               // A role is required whenever the trigger will actually reach
               // hardware. Download-only and preview-only skip role selection.
               const roleRequired = draft.trigger === "auto" || draft.trigger === "manual";
