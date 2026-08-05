@@ -23,6 +23,21 @@ const SCAN_SURFACES = [
 /** The sanctioned fields themselves legitimately render the raw input. */
 const SANCTIONED = ["BinScanField", "ProductScanField", "EntityScanField"];
 
+/**
+ * Desktop execution mirrors — screens that stand where physical work
+ * happens. Each must own a scan path (a sanctioned field or a declared
+ * WMS intent); a wedge gun typing into an unguarded input here is worse
+ * than no scanning at all.
+ */
+const EXECUTION_MIRRORS = [
+  "src/pages/warehouse/PackStation.tsx",
+  "src/pages/warehouse/LoadingBay.tsx",
+  "src/pages/warehouse/GateConsole.tsx",
+  "src/pages/warehouse/YardMarshal.tsx",
+  "src/pages/warehouse/LicensePlateView.tsx",
+  "src/pages/warehouse/ReceivingSessions.tsx",
+];
+
 function files(dir: string): string[] {
   let out: string[] = [];
   let entries: string[];
@@ -57,6 +72,17 @@ describe("WMS scan prompt coverage", () => {
     expect(
       offenders,
       `Scan prompts must use BinScanField / ProductScanField / EntityScanField:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("every desktop execution mirror owns a scan path", () => {
+    const missing = EXECUTION_MIRRORS.filter((rel) => {
+      const src = readFileSync(join(process.cwd(), rel), "utf8");
+      return !SANCTIONED.some((c) => src.includes(`<${c}`)) && !src.includes("useWmsScanIntent");
+    });
+    expect(
+      missing,
+      `These screens mirror physical work and must register a scan path:\n${missing.join("\n")}`,
     ).toEqual([]);
   });
 });
