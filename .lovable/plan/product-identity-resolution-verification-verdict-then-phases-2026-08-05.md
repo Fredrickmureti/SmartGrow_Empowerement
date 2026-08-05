@@ -1,44 +1,63 @@
-# Product Identity & Resolution — verification verdict, then Phases 6–8
+# Product Identity & Resolution — verification verdict, then Phases 9–11
 
-Roadmap: `.lovable/plan/product-identity-architecture-audit-and-remediation-2026-08-05.md`.
+## Phase 1 verdict: what the previous engineer claimed vs. what is actually there
 
-## Phase 1 — verification verdict (done, evidence-based)
+Verified directly against the database and the source tree.
 
-Confirmed genuinely landed:
-- **Identity RPCs exist with a single signature each** — `resolve_product_identity(business, code, branch, allow_sku_fallback)`, `pos_resolve_scan`, `upsert_product_identifier`, `retire_product_identifier`. No overload duplicates remain, so the PGRST203 ambiguity that produced the original "internal server error" is genuinely gone.
-- **Grants** — every identity RPC is `authenticated` + `service_role` only; no PUBLIC/anon EXECUTE.
-- **Client seam** — `src/features/products/identity/{identityOutcome,writeIdentifier}.ts` exist; a repo-wide search finds **no** direct insert/update/upsert/delete against `product_identifiers` outside the seam. Consumers (`useResolveProductIdentity`, `useWmsIdentityGate`, WMS mobile pick/count, receiving, barcode import config) route through it.
-- Lifecycle columns/decision statuses are in place and reflected in project memory.
+**Genuinely landed (Phases 0–8, mostly real):**
+- `resolve_product_identity(business, code, branch, allow_sku_fallback, supplier)` exists with a single 5-arg signature. `pos_resolve_barcode` and `resolve_barcode_v2` are gone from the database and nothing calls them.
+- `pos_resolve_scan`, `upsert_product_identifier`, `retire_product_identifier`, `discover_supplier_identity` all exist, all `authenticated` + `service_role` only, no anon.
+- Both partitioned uniqueness indexes exist: `..._active_global_code_uidx` (business, code_norm) and `..._active_supplier_code_uidx` (business, supplier, code_norm), plus supplier lookup index.
+- Client seams exist and are wired: `useResolveProductIdentity`, `useWmsIdentityGate`, `writeIdentifier`/`retireIdentifier`, `identityOutcome`, `useSupplierCodeDiscovery`, `useReceivingSessionSupplier`, `SupplierCodeDiscoveryPanel`, `classifyScanToken`, shared GS1 grammar + SQL mirror and its parity test.
 
-Verdict: Phases 0–5 are real, not cosmetic. But three claims are **overstated**, and they are exactly the residue that keeps producing the reported symptoms:
+**Overstated or wrong — treated as pending work:**
 
-1. **Legacy resolver still live and still called.** `pos_resolve_barcode` and `resolve_barcode_v2` both still exist in the database, and three UI surfaces still call `pos_resolve_barcode` directly for duplicate/lookup checks: `src/components/scanner/BarcodeInputField.tsx:131`, `src/components/products/ProductIdentifiersEditor.tsx:267`, `src/pages/Products.tsx:413`. These bypass the decision envelope, so "SKU edits appear inconsistent" and "duplicate already used by X" behave differently from a real scan.
-2. **A legacy write RPC survives.** `enroll_product_barcode` is still present and executable by `authenticated`. It writes identifiers without the lifecycle invariants that `upsert_product_identifier` enforces — the write seam is guarded in the client only, not in the database.
-3. **Two grammars, and a third offline.** SQL resolution understands only GS1 AI `(01)` plus digit padding; the client `src/lib/gs1/{parseGs1,aiTable}.ts` implements the full AI table; and the offline POS matcher `SQLiteBridge.getProductByBarcode` matches `pi.code = ?` raw — no `code_norm`, no GTIN padding, no `status`/`valid_from`/`valid_to` filter. Offline POS will therefore resolve retired or wrongly-cased codes that online resolution blocks.
+1. **The write seam is not actually single.** The legacy `enroll_product_barcode` RPC is still in the database, still executable by `authenticated`, and still called at `src/hooks/inventory/useEnrollmentWorkflow.ts:206` — the main barcode-enrollment workspace. It writes identifiers without the lifecycle, supplier-scope and primary-label invariants that `upsert_product_identifier` enforces. This is the mechanism behind "SKU edits appearing inconsistent" and it survived the whole programme.
+2. **The write-seam guard cannot see this.** `identity-write-seam.test.ts` only forbids table mutations (`.from("product_identifiers").insert/update/...`). It says nothing about legacy write RPCs, so the bypass passes the build.
+3. **`ProductIdentifiersEditor.tsx:405` calls `retire_product_identifier` directly** instead of going through `retireIdentifier`, duplicating the failure-copy mapping.
+4. **Three surfaces bypass the client read seam** by calling `resolve_product_identity` raw: `src/pages/Products.tsx:413`, `src/components/scanner/BarcodeInputField.tsx:132`, `src/components/products/ProductIdentifiersEditor.tsx:267`. They skip the decision envelope, the shared copy taxonomy, the candidate grammar and the cache — so a duplicate check disagrees with a real scan.
+5. **The resolver guard is file-list based.** `identity-resolver-single-seam.test.ts` checks five hardcoded cutover files, so any new or untouched surface (the three above) is invisible to it. Its header comment also still names the deleted `pos_resolve_barcode` as canonical.
+6. **Phase 9 is untouched**: no ADR, no operator documentation, no SQL parity test for supplier scoping.
+7. **ADR number 0110 is already taken twice** (`0110-dispatch-proof-carrier-abstraction-and-documents.md`; `0102` is triple-booked). The identity ADR needs a free number, and the numbering collision itself should be recorded.
+8. **Grammar helpers are `PUBLIC`-executable**: `identity_code_candidates`, `parse_gs1_element_string`, `gs1_ai_table` grant EXECUTE to PUBLIC (so anon). They read no data, but the "identity surface is authenticated-only" claim is not literally true.
+9. **Supplier code capture at import still has nowhere to land** — `productSupplierImportConfig` writes the vendor product code into a free-text `notes` field (`vendor_sku=…`), not into `product_identifiers`.
 
-Phase 7 (token dispatcher) and Phase 8 (supplier identifiers, importer discovery) are untouched; `resolve_scanned_token` does not exist. A separate location resolver seam (`useResolveLocationIdentity`) does exist and is guarded, so Phase 7 is a unification, not a build-from-zero. ADR-0110 was never written.
+Test/typecheck state: identity suites pass. Two unrelated pre-existing failures exist in `src/test/architecture` (pack token registry / pack skeleton install gate) and are out of scope here.
 
-## Phase 6 — one grammar, one matcher (next, execute fully)
+---
 
-1. **Single GS1 grammar.** Promote the client AI table to the canonical definition and mirror it into one SQL function (`parse_gs1_element_string`) generated from the same vector list: AI parsing, `code_norm = upper(btrim(code))`, GTIN-8/12/13/14 padding variants, packaging-level conversion. `resolve_product_identity` calls it; no inline `(01)` handling anywhere.
-2. **Offline parity.** Rewrite `SQLiteBridge.getProductByBarcode` to normalise and pad exactly as SQL does, filter `status='active'` and `valid_from/valid_to`, and return the same decision statuses as online (including `ambiguous` on multi-match) instead of `null`-means-unknown. Sync must materialise `code_norm` and lifecycle columns into the local table.
-3. **Shared test vectors.** One vector table exercised by three suites — client parser, SQL resolver, offline matcher — asserting identical decisions.
-4. **Delete the shims.** Cut `BarcodeInputField`, `ProductIdentifiersEditor` and `Products.tsx` duplicate/lookup checks over to `useResolveProductIdentity` (`allowSkuFallback` true only on typing paths), then drop `resolve_barcode_v2`, the `pos_resolve_barcode` row wrapper, and `enroll_product_barcode` in one migration. Add an architecture guard forbidding those names outside `supabase/migrations` and generated types.
+## Phase 9 — Close the seams that are still open (do first, before documentation)
 
-## Phase 7 — one scanned-token dispatcher
+9.1 **Retire `enroll_product_barcode`.** Rewrite `useEnrollmentWorkflow`'s `defaultEnroll` on top of `writeIdentifier`, mapping its result to the existing `EnrollRpcResult` shape so the reducer and the test seam are unchanged. Drop the RPC from the database in the same migration and delete `supabase/tests/enroll_product_barcode_test.sql`, replacing its coverage with `upsert_product_identifier` vectors.
 
-`resolve_scanned_token(business, code, branch, context)` returns a tagged union over product identifier / warehouse location / license plate / lot / serial. Product and location hooks become thin callers of it; `useWmsIdentityGate` and `BinScanField` keep their current operator copy, extended from `identityOutcome.ts` with the new token kinds. No surface may guess a token's type from its shape.
+9.2 **Make the write guard RPC-aware.** Extend `identity-write-seam.test.ts` so that outside `writeIdentifier.ts` no source may call `upsert_product_identifier`, `retire_product_identifier`, or any legacy identifier-write RPC by name. Cut `ProductIdentifiersEditor` over to `retireIdentifier`.
 
-## Phase 8 — supplier identity and identifier-discovery import
+9.3 **Make the read guard repo-wide.** Replace the five-file allowlist in `identity-resolver-single-seam.test.ts` with a whole-tree scan: only `useResolveProductIdentity` may call `resolve_product_identity`; only `useResolveBarcode` may call `pos_resolve_scan`; only `useSupplierCodeDiscovery` may call `discover_supplier_identity`. Fix the stale header comment.
 
-- Supplier item codes become first-class identifiers (`kind='supplier'` + `supplier_id`), resolvable and used for ASN/EDI/PO line matching, with supplier-scoped uniqueness.
-- The product importer moves from a rigid column template to identifier discovery: any recognised identifier column (barcode/EAN/UPC/GTIN, supplier SKU, manufacturer code, legacy code, pack-level codes) maps to `product_identifiers` rows through `upsert_product_identifier`, with a per-row decision report instead of a hard failure.
+9.4 **Cut the three bypass surfaces over.** `Products.tsx`, `BarcodeInputField`, `ProductIdentifiersEditor` use `useResolveProductIdentity` (typing paths pass `allowSkuFallback: true`, scanning paths `false`) and render failure copy from `describeIdentityOutcome` only.
 
-## Phase 9 — documentation and guardrails
+9.5 **Lock the grammar helpers down**: revoke EXECUTE from PUBLIC on `identity_code_candidates`, `parse_gs1_element_string`, `gs1_ai_table`; grant `authenticated` + `service_role`.
 
-ADR-0110 (identifier lifecycle + decision envelope + database-enforced write seam), memory update, and a guard test asserting no client surface authors identity failure copy.
+9.6 **Supplier-context guard.** An architecture test asserting no surface passes a `supplierId` into the resolver that it did not derive from an inbound document (`useReceivingSessionSupplier`) — never from free operator input.
+
+## Phase 10 — SQL parity and documentation
+
+10.1 `supabase/tests/resolve_product_identity_supplier_scope_test.sql`: cross-vendor code reuse, `supplier_scoped` blocking status without vendor context, resolution with vendor context, both partial unique indexes enforced, global code always resolving.
+
+10.2 ADR at the next free number (`docs/adr/0114-product-identity-and-resolution.md`): decision envelope, one grammar, token dispatcher, supplier scoping, the two seams. Annotate ADR-0017, 0071, 0089, 0102 where superseded, and note the duplicate-number problem in `docs/adr/README.md`.
+
+10.3 Operator documentation: what each blocking outcome means on the dock and in POS, and the supplier-code linking flow.
+
+10.4 Update `mem/features/product-identity-decisions.md` with the single-write-RPC rule.
+
+## Phase 11 — Supplier code capture at import (was Phase 10 backlog)
+
+11.1 Route `productSupplierImportConfig`'s vendor product code into `product_identifiers` as a supplier-scoped identifier via `writeIdentifier` (`kind: "supplier"`, `source: "import"`), instead of the `notes` string. Report per-row identity outcomes in the import result rather than failing the row silently.
+
+11.2 Returns/RMA scanning parity review against `classifyScanToken` and the identity gate.
 
 ## Technical notes
 
-- Write-seam enforcement moves into the database: revoke direct DML on `product_identifiers` from `authenticated` so the RPCs are the only mutation path — the current guard is a lint-style test, which a future surface can bypass.
-- Symptoms expected to disappear as a consequence, not as individual fixes: barcode 500s (already gone), inconsistent SKU/barcode edits (item 1), duplicate-detection mismatches (item 1), offline/online scan divergence (item 3).
+- Migrations: one for dropping `enroll_product_barcode` + the grammar-helper revokes; keep the `upsert_product_identifier` signature unchanged so no client churn.
+- `useEnrollmentWorkflow` keeps its `enrollFn` injection point, so its existing tests keep working after the seam swap.
+- No UI redesign in this programme — only failure copy moves to `describeIdentityOutcome`.
