@@ -44,7 +44,7 @@ import {
   type SourceDocumentContext,
 } from '@/services/documents/resolveSourceDocumentRecord';
 import { toDevice, toPage, toDownload, pdfTransport, NO_DEVICE_BOUND } from './dispatch';
-import { renderLabelPayload, type LabelDispatchInput } from './labelDispatch';
+import { renderLabelPayload, type LabelDispatchInput, type LabelRenderResult } from './labelDispatch';
 import {
   enqueueDocumentIntent,
   materializeAndSubmitIntent,
@@ -515,6 +515,21 @@ export async function printLabel(req: PrintLabelRequest): Promise<LabelPrintResu
   };
 }
 
+/**
+ * Compile a label without dispatching it — the sanctioned preview seam.
+ *
+ * Surfaces that show "what will come out of the printer" (LPN label
+ * dialog, template editors) call this instead of reaching into
+ * `printing/labelDispatch`, so there is still exactly one module that
+ * knows how label bytes are produced. Nothing is printed and no ledger
+ * row is opened: a preview is a render, not a print.
+ */
+export async function previewLabel(
+  req: LabelDispatchInput,
+): Promise<LabelRenderResult> {
+  return renderLabelPayload(req);
+}
+
 // ---------------------------------------------------------------------
 // Document-model intents
 // ---------------------------------------------------------------------
@@ -832,6 +847,7 @@ export const PrintService = {
   openInteractiveJob,
   printDocument,
   printLabel,
+  previewLabel,
   printDocumentIntent,
   printSourceDocumentIntent,
   downloadDocumentRecord,

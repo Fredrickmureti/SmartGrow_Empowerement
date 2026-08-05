@@ -8,7 +8,7 @@
  * `wms_lpn_events`.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { renderLabelPayload } from "@/services/printing/labelDispatch";
+import { previewLabel } from "@/services/printing/PrintService";
 import { printWmsLabel, WMS_LABEL_KEY } from "@/features/warehouse/labels/wmsLabels";
 import type { LpnOverviewRow } from "./useLpnOps";
 
@@ -53,7 +53,7 @@ export async function previewLpnLabel(
   orgId: string,
   plate: LpnOverviewRow,
 ): Promise<LpnLabelPreview> {
-  const rendered = await renderLabelPayload({
+  const rendered = await previewLabel({
     orgId,
     templateKey: WMS_LABEL_KEY.LPN,
     vars: lpnLabelVars(plate),
