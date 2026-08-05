@@ -583,11 +583,13 @@ export default function ReceivingSessions() {
                     <Rows3 className="h-4 w-4" />
                   </ToggleGroupItem>
                 </ToggleGroup>
-                <ScanStatusChip
+                <ScanGuidance
                   expectedLabel="receiving-sessions.item"
                   hint="Scan an LPN to start unloading, or an item to capture a line"
+                  variant="bar"
                   className="ml-auto"
                 />
+
               </div>
 
               {isLoading ? (
