@@ -21,6 +21,7 @@ import { useResolveLocationIdentity, type ResolvedLocation } from "./useResolveL
 import { useWmsScanIntent, type WmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { useScanFeedback } from "@/features/warehouse/scanning/useScanFeedback";
 import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
+import { classifyScanToken, describeTokenMismatch } from "@/lib/scan/classifyScanToken";
 
 export type BinScanState = "idle" | "checking" | "confirmed" | "mismatch" | "unknown";
 
@@ -74,6 +75,18 @@ export function BinScanField({
         setState("idle");
         setMessage(null);
         onConfirmedChange(false);
+        onResolvedLocation?.(null);
+        return;
+      }
+      // Phase 7 — a product or pallet label scanned at a bin prompt is a
+      // wrong-kind scan, not an unknown position.
+      const mismatch = describeTokenMismatch(classifyScanToken(trimmed), "location");
+      if (mismatch) {
+        setState("unknown");
+        setMessage(mismatch);
+        feedback.error();
+        onConfirmedChange(false);
+        onDeviationChange?.(false);
         onResolvedLocation?.(null);
         return;
       }
