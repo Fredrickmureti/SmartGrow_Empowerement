@@ -44,9 +44,29 @@ export function identifierWriteMessage(reason?: string | null): string {
   return "The identifier could not be saved. Check the code and try again.";
 }
 
-export async function writeIdentifier(input: IdentifierWriteInput): Promise<string | null> {
+/**
+ * Structured outcome of a write. `duplicate` names the product that already
+ * holds the code so the caller can show it; `idempotent` means the same code
+ * was already enrolled on the same product and level — a repeated gun
+ * trigger, not an operator error.
+ */
+export type IdentifierWriteResult =
+  | { status: "ok"; identifierId: string; idempotent: boolean }
+  | {
+      status: "duplicate";
+      conflictProductId: string | null;
+      conflictProductName: string | null;
+      message: string;
+    }
+  | { status: "invalid"; reason: string | null; message: string };
+
+export async function writeIdentifierResult(
+  input: IdentifierWriteInput,
+): Promise<IdentifierWriteResult> {
   const code = (input.code || "").trim();
-  if (!code) return REASONS.empty_code;
+  if (!code) {
+    return { status: "invalid", reason: "empty_code", message: REASONS.empty_code };
+  }
   const { data, error } = await supabase.rpc("upsert_product_identifier" as never, {
     p_business_id: input.businessId,
     p_product_id: input.productId,
@@ -60,12 +80,42 @@ export async function writeIdentifier(input: IdentifierWriteInput): Promise<stri
     p_valid_from: input.validFrom ?? undefined,
     p_valid_to: input.validTo ?? undefined,
   } as never);
-  if (error) return identifierWriteMessage(null);
-  const envelope = (data ?? null) as { status?: string; reason?: string } | null;
-  if (envelope?.status && envelope.status !== "ok") {
-    return identifierWriteMessage(envelope.reason);
+  if (error) {
+    return { status: "invalid", reason: null, message: identifierWriteMessage(null) };
   }
-  return null;
+  const envelope = (data ?? null) as {
+    status?: string;
+    reason?: string;
+    identifier_id?: string;
+    idempotent?: boolean;
+    product_id?: string;
+    product_name?: string;
+  } | null;
+  if (envelope?.status === "ok") {
+    return {
+      status: "ok",
+      identifierId: envelope.identifier_id ?? "",
+      idempotent: !!envelope.idempotent,
+    };
+  }
+  if (envelope?.status === "duplicate") {
+    return {
+      status: "duplicate",
+      conflictProductId: envelope.product_id ?? null,
+      conflictProductName: envelope.product_name ?? null,
+      message: identifierWriteMessage(envelope.reason ?? "code_taken"),
+    };
+  }
+  return {
+    status: "invalid",
+    reason: envelope?.reason ?? null,
+    message: identifierWriteMessage(envelope?.reason),
+  };
+}
+
+export async function writeIdentifier(input: IdentifierWriteInput): Promise<string | null> {
+  const result = await writeIdentifierResult(input);
+  return result.status === "ok" ? null : result.message;
 }
 
 /**
