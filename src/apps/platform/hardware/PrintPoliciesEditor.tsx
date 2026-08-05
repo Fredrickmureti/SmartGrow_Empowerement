@@ -58,6 +58,16 @@ const THERMAL_ROLE_KINDS: ReadonlySet<string> = new Set([
   "label_printer",
 ]);
 
+// Sheet-only document types. Statements are multi-page, columnar ledgers sent
+// to customers/vendors — a 40/58/80 mm receipt roll or raw ESC/POS stream can
+// never render them legibly, so those options are removed from the UI entirely
+// (not merely warned about) and thermal roles are not selectable.
+const SHEET_ONLY_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
+  "customer_statement",
+  "vendor_statement",
+]);
+
+
 // Nominal media width per paper format, used only to warn when a policy's
 // width can't be honoured by any device bound to the selected role.
 const PAPER_WIDTH_MM: Partial<Record<PaperFormat, number>> = {
@@ -154,19 +164,40 @@ export default function PrintPoliciesEditor() {
   const canWrite = permissions.canManageBusiness;
   const branchList = (branches ?? []).filter((b) => b && b.id);
 
+  const isThermalRole = (code: string | null): boolean => {
+    if (!code) return false;
+    const kind = roles.find((r) => r.code === code)?.hardware_kind;
+    return !!kind && THERMAL_ROLE_KINDS.has(kind);
+  };
+
   const getDraft = (branchScope: string, docType: string): RowState => {
     const key = `${branchScope}:${docType}`;
-    if (drafts[key]) return drafts[key];
+    const sheetOnly = SHEET_ONLY_DOCUMENT_TYPES.has(docType);
+    const draft = drafts[key];
+    if (draft) {
+      if (!sheetOnly) return draft;
+      return {
+        ...draft,
+        paper_format: THERMAL_PAPER_FORMATS.has(draft.paper_format) ? "a4" : draft.paper_format,
+        render_mode: draft.render_mode === "escpos" ? "pdf" : draft.render_mode,
+        role_code: isThermalRole(draft.role_code) ? null : draft.role_code,
+      };
+    }
     const branchId = branchScope === "business" ? null : branchScope;
     const existing = findPolicy(branchId, docType);
+    const paper = existing?.paper_format ?? "a4";
+    const mode = existing?.render_mode ?? "pdf";
+    const role = existing?.role_code ?? null;
     return {
-      paper_format: existing?.paper_format ?? "a4",
-      render_mode: existing?.render_mode ?? "pdf",
+      paper_format: sheetOnly && THERMAL_PAPER_FORMATS.has(paper) ? "a4" : paper,
+      render_mode: sheetOnly && mode === "escpos" ? "pdf" : mode,
       trigger: (existing?.trigger as OutputTrigger | undefined) ?? "manual",
-      role_code: existing?.role_code ?? null,
+      role_code: sheetOnly && isThermalRole(role) ? null : role,
       branch_scope: branchScope,
     };
   };
+
+
 
   const setDraft = (branchScope: string, docType: string, patch: Partial<RowState>) => {
     const key = `${branchScope}:${docType}`;
@@ -270,6 +301,19 @@ export default function PrintPoliciesEditor() {
               const existing = findPolicy(branchId, dt.value);
               const draftKey = `${branchScope}:${dt.value}`;
               const dirty = !!drafts[draftKey];
+              // Statements are sheet-only: thermal widths, ESC/POS and thermal
+              // roles are not offered at all.
+              const sheetOnly = SHEET_ONLY_DOCUMENT_TYPES.has(dt.value);
+              const paperOptions = sheetOnly
+                ? PAPER_OPTIONS.filter((p) => !THERMAL_PAPER_FORMATS.has(p.value))
+                : PAPER_OPTIONS;
+              const renderOptions = sheetOnly
+                ? RENDER_OPTIONS.filter((r) => r.value !== "escpos")
+                : RENDER_OPTIONS;
+              const roleOptions = sheetOnly
+                ? roles.filter((r) => !THERMAL_ROLE_KINDS.has(r.hardware_kind))
+                : roles;
+
               // A role is required whenever the trigger will actually reach
               // hardware. Download-only and preview-only skip role selection.
               const roleRequired = draft.trigger === "auto" || draft.trigger === "manual";
@@ -347,7 +391,7 @@ export default function PrintPoliciesEditor() {
                   >
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {PAPER_OPTIONS.map((p) => (
+                      {paperOptions.map((p) => (
                         <SelectItem key={p.value} value={p.value} className="text-xs">{p.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -363,7 +407,7 @@ export default function PrintPoliciesEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {RENDER_OPTIONS.map((r) => (
+                      {renderOptions.map((r) => (
                         <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
                       ))}
                     </SelectContent>
@@ -409,7 +453,7 @@ export default function PrintPoliciesEditor() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__" className="text-xs">— none —</SelectItem>
-                      {roles.map((r) => (
+                      {roleOptions.map((r) => (
                         <SelectItem key={r.code} value={r.code} className="text-xs">
                           {r.label} <span className="text-muted-foreground">· {r.code}</span>
                         </SelectItem>
