@@ -183,3 +183,26 @@ export async function requeueJob(jobId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+
+/**
+ * Phase 3 (POS latency): close N ledger rows in ONE round trip.
+ *
+ * The old shape was two RPCs per copy (`mark_sent` then `mark_acked`),
+ * i.e. 2N cloud hops for an audit fact nobody is waiting on. The batch
+ * RPC performs the same transition (`sent_at` + `acked_at` stamped, parent
+ * fan-out rows promoted) for every id at once. Never throws — a ledger
+ * failure must never surface as a print failure.
+ */
+export async function settleJobs(
+  jobIds: Array<string | null | undefined>,
+  hwCommandId: number | null = null,
+): Promise<void> {
+  const ids = jobIds.filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return;
+  try {
+    await supabase.rpc('print_jobs_settle', {
+      p_ids: ids,
+      p_hw_command_id: hwCommandId,
+    } as never);
+  } catch { /* ledger failures never block printing */ }
+}
