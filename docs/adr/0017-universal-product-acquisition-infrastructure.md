@@ -2,6 +2,13 @@
 
 Status: Accepted (2026-05-21)
 
+> **Superseded in part by [ADR 0114](./0114-product-identity-and-resolution.md)** (2026-08-05):
+> the decision envelope, the single read/write client seams, supplier-scoped
+> identifiers and the authenticated-only identity surface replace the
+> resolution rules described below. The transport/labelling rules that ADR
+> 0114 does not restate remain in force.
+
+
 ## Context
 
 Scanner kernel, router, resolver, and BarcodeInputField were all built

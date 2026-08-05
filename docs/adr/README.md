@@ -21,6 +21,17 @@ breaks the deliberately-simple model.
 | 0001 | [v1 inventory has no per-lot quants](./0001-no-per-lot-quants-v1.md)              | Accepted |
 | 0002 | [Single costing method: AVCO on receipt, snapshot on sale](./0002-costing-method-avco-on-receipt.md) | Accepted |
 | 0003 | [React Router DOM is the de-facto router](./0003-react-router-dom-de-facto.md)    | Accepted |
+| 0114 | [Product identity and resolution](./0114-product-identity-and-resolution.md)       | Accepted |
+
+> The index above is partial — the directory listing is authoritative.
+
+## Numbering hygiene
+
+Numbers were allocated concurrently and collided: **0102** is used by three
+ADRs and **0110** by two. Those files are left as they are (an accepted ADR
+is immutable), but the numbers are burnt: never reuse them, and always
+allocate the next number by listing `docs/adr/` rather than by memory. The
+highest allocated number is **0114**.
 
 ## Format
 

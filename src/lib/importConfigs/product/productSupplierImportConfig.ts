@@ -1,10 +1,16 @@
 /**
- * Product SUPPLIER PRICELIST import config (ADR 0074).
+ * Product SUPPLIER PRICELIST import config (ADR 0074, ADR 0114).
  *
- * Populates `vendor_pricelists` (vendor cost tiers, lead time).
+ * Populates `vendor_pricelists` (vendor cost tiers, lead time) and — when the
+ * sheet carries a vendor product code — registers that code as a
+ * supplier-scoped product identifier through the canonical write seam, so a
+ * receiving clerk can scan the vendor's own carton label. Before ADR 0114 the
+ * code was stringified into `notes` as `vendor_sku=…`, where nothing could
+ * ever resolve it.
  */
 import { FieldDefinition } from "@/lib/importUtils";
 import { supabase } from "@/integrations/supabase/client";
+import { writeIdentifierResult } from "@/features/products/identity/writeIdentifier";
 import {
   type BatchResult,
   type ImportContext,
@@ -87,13 +93,37 @@ export function createProductSupplierBatchMigrationHandler(ctx: ImportContext) {
         lead_time_days: row.lead_time_days != null ? Math.max(0, Math.floor(Number(row.lead_time_days))) : 0,
         is_preferred: toBool(row.is_preferred),
         is_active: true,
-        notes: row.vendor_product_code ? `vendor_sku=${row.vendor_product_code}` : null,
+        // The vendor product code is an identifier, not a note — it is
+        // registered below through the identity write seam.
+        notes: null,
       } as any);
       if (error) {
         if ((error as any).code === "23505") imported++;
         else errors.push({ rowIndex: i + 2, data: row, errors: error.message });
       } else {
         imported++;
+      }
+
+      // Supplier-scoped identifier. A failure here must not lose the
+      // pricelist row that already landed, so it is reported per row
+      // rather than aborting the import.
+      const vendorCode = row.vendor_product_code ? String(row.vendor_product_code).trim() : "";
+      if (vendorCode) {
+        const identity = await writeIdentifierResult({
+          businessId: ctx.businessId,
+          productId,
+          code: vendorCode,
+          kind: "supplier",
+          supplierId: vendorId,
+          source: "import",
+        });
+        if (identity.status !== "ok") {
+          errors.push({
+            rowIndex: i + 2,
+            data: row,
+            errors: `Vendor code "${vendorCode}" not registered — ${identity.message}`,
+          });
+        }
       }
     }
     const result: BatchResult = { total: rows.length, imported, skipped: errors.length, errors };
