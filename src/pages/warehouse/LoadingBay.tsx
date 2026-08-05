@@ -32,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, ShieldCheck, Tag, Truck } from "lucide-react";
 
 interface Manifest {
@@ -55,7 +57,6 @@ interface AvailableCarton {
 export default function LoadingBay() {
   const { manifestId } = useParams<{ manifestId: string }>();
   const qc = useQueryClient();
-  const [scanCode, setScanCode] = useState("");
 
   const { data: manifest, isLoading } = useQuery({
     queryKey: ["wms-manifest", manifestId],
