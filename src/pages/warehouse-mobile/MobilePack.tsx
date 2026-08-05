@@ -16,7 +16,7 @@
  * We never touch `wms_pack_cartons` directly; state transitions are
  * strictly RPC-driven, exactly like the desktop station.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 import {
   packagingFailureMessage,
   type PackagingSuggestion,
@@ -56,6 +58,7 @@ interface Carton {
   sealed_at: string | null;
   weight_kg: number | null;
   sales_order_id: string | null;
+  shipment_lpn: { code: string | null } | null;
   packaging_type: { code: string | null; name: string | null } | null;
 }
 
@@ -106,7 +109,7 @@ export default function MobilePack() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("wms_pack_cartons")
-        .select("id, sealed_at, weight_kg, sales_order_id, packaging_type:packaging_type_id(code, name)")
+        .select("id, sealed_at, weight_kg, sales_order_id, shipment_lpn:shipment_lpn_id(code), packaging_type:packaging_type_id(code, name)")
         .eq("wave_id", waveId!)
         .eq("sales_order_id", salesOrderId!)
         .order("created_at", { ascending: true });
