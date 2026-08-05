@@ -30,3 +30,13 @@ type: feature
 - Add a new (role, op) → update `HARDWARE_CAPABILITY_MATRIX.md` in the same PR.
 - Add a new print `doc_type` / `intent` / `format` / `transport` / `RuntimeReason` → add the label to `src/apps/platform/hardware/lib/humanize.ts` in the same PR (guarded).
 - Add a new operator signal on `/platform/hardware/diagnostics` → put it inside an existing tab (or add a new tab). Never grow another top-level card on the page.
+
+## Print acknowledgement (Phase 5)
+
+UI surfaces never await the printer. They call
+`acknowledgeRecordPrint` / `acknowledgeSourcePrint`
+(`src/services/printing/acknowledge.ts`) or `usePrintDispatch`, which are
+released the moment the `print_jobs` rows are durable ("Print queued"),
+and report only terminal failures later. `printDocumentIntent` /
+`printSourceDocumentIntent` stay for background jobs and tests. Guardrail:
+`src/test/printing/non-blocking-surfaces.test.ts`.
