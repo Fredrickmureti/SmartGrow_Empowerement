@@ -177,11 +177,11 @@ export default function PurchaseReturns() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Return ${pr.return_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Return ${pr.return_number}` },
+      );
     } catch (err) {
       toast({ title: "Print failed", description: normalizeError(err).message, variant: "destructive" });
     } finally {
