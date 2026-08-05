@@ -90372,6 +90372,10 @@ export type Database = {
         Args: { p_hw_command_id?: number; p_ids: string[] }
         Returns: number
       }
+      print_jobs_strand: {
+        Args: { p_ids: string[]; p_reason?: string }
+        Returns: number
+      }
       process_leave_accruals: { Args: { p_org_id?: string }; Returns: Json }
       process_payroll_loan_deductions: {
         Args: {
