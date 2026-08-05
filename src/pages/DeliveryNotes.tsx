@@ -158,11 +158,11 @@ export default function DeliveryNotes() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Delivery note ${note.delivery_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Delivery note ${note.delivery_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
