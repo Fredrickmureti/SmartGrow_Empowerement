@@ -33,7 +33,9 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   writeIdentifier,
   identifierWriteMessage,
+  retireIdentifier,
 } from "@/features/products/identity/writeIdentifier";
+import { resolveProductIdentityOnce } from "@/hooks/inventory/useResolveProductIdentity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -264,17 +266,18 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         // row so the user can't unknowingly Save a colliding identifier.
         void (async () => {
           try {
-            const { data } = await supabase.rpc("resolve_product_identity" as any, {
-              p_business_id: businessId,
-              p_branch_id: null,
-              p_code: code,
-            } as any);
-            const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
-            const taken = row && (row.status === "resolved" || row.status === "ambiguous");
-            if (taken && row.product_id && row.product_id !== productId) {
+            const decision = await resolveProductIdentityOnce({
+              businessId,
+              code,
+            });
+            const identity =
+              decision.kind === "resolved" || decision.kind === "ambiguous"
+                ? decision.identity
+                : null;
+            if (identity && identity.productId && identity.productId !== productId) {
               toast({
                 title: "Barcode already used",
-                description: `Used by ${row.product_name ?? "another product"}. Cleared from the row.`,
+                description: `Used by ${identity.productName || "another product"}. Cleared from the row.`,
                 variant: "destructive",
               });
               setRows((prev) =>
@@ -402,16 +405,15 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
       if (target.id) {
         // Retire, never hard-delete: a printed label stays explainable
         // ("this code was retired") instead of resolving as unknown.
-        const { data, error } = await supabase.rpc("retire_product_identifier" as never, {
-          p_business_id: businessId,
-          p_identifier_id: target.id,
-          p_status: "archived",
-        } as never);
-        const envelope = (data ?? null) as { status?: string; reason?: string } | null;
-        if (error || (envelope && envelope.status && envelope.status !== "ok")) {
+        const failure = await retireIdentifier({
+          businessId,
+          identifierId: target.id,
+          status: "archived",
+        });
+        if (failure) {
           toast({
             title: "Could not remove barcode",
-            description: error ? normalizeError(error).message : identifierWriteMessage(envelope?.reason),
+            description: failure,
             variant: "destructive",
           });
         }

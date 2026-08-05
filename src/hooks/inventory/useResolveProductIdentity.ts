@@ -227,6 +227,37 @@ export interface ResolveIdentityOptions {
   supplierId?: string | null;
 }
 
+/**
+ * Imperative one-shot resolution for surfaces that are not inside a React
+ * render (scan callbacks, debounced duplicate checks, import loops).
+ *
+ * It shares the module's GS1 interpretation, decision mapping and retry with
+ * the hook — it just has no LRU cache. Nothing outside this module may call
+ * `resolve_product_identity` directly; the guard test enforces it.
+ */
+export async function resolveProductIdentityOnce(args: {
+  businessId: string;
+  code: string;
+  branchId?: string | null;
+  allowSkuFallback?: boolean;
+  supplierId?: string | null;
+}): Promise<IdentityResolution> {
+  const gs1 = interpretScan(args.code ?? "");
+  const code = gs1.resolveCode;
+  if (!code) return { kind: "not_found", code: "" };
+  if (!args.businessId) {
+    return { kind: "error", err: new Error("No business context for identity resolution") };
+  }
+  return rpcWithRetry(
+    args.businessId,
+    args.branchId ?? null,
+    code,
+    gs1,
+    args.allowSkuFallback ?? false,
+    args.supplierId ?? null,
+  );
+}
+
 export function useResolveProductIdentity(
   businessId: string | undefined,
   branchId: string | null = null,

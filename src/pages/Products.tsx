@@ -89,6 +89,10 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
+import {
+  resolveProductIdentityOnce,
+  describeResolution,
+} from "@/hooks/inventory/useResolveProductIdentity";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { playPOSSound } from "@/lib/pos/sounds";
 
@@ -410,14 +414,16 @@ export default function Products() {
         description: code,
       });
       try {
-        const { data, error } = await supabase.rpc("resolve_product_identity" as any, {
-          p_business_id: currentBusiness.id,
-          p_branch_id: currentBranch?.id ?? null,
-          p_code: code,
-        } as any);
-        if (error) throw error;
-        const decision = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
-        const row = decision && decision.status === "resolved" ? decision : null;
+        const decision = await resolveProductIdentityOnce({
+          businessId: currentBusiness.id,
+          branchId: currentBranch?.id ?? null,
+          code,
+        });
+        if (decision.kind === "error") throw decision.err;
+        const row =
+          decision.kind === "resolved"
+            ? { product_id: decision.identity.productId, product_name: decision.identity.productName }
+            : null;
         if (row) {
           playPOSSound("barcode_scan");
           const local = products.find((p) => p.id === row.product_id);
@@ -436,10 +442,18 @@ export default function Products() {
             }
           }
           toast({ title: `Found: ${row.product_name}` });
-        } else {
+        } else if (decision.kind === "not_found") {
           playPOSSound("low_stock_warning");
           navigate(`/inventory-app/products/new?createWithCode=${encodeURIComponent(code)}`);
           toast({ title: "New barcode", description: "Fill in product details to onboard." });
+        } else {
+          // Registered, but not usable: ambiguous / inactive / archived /
+          // expired / another tenant. Never offer "create a new product" —
+          // that is how duplicate masters get born. Copy comes from the
+          // shared taxonomy, never from RPC detail.
+          playPOSSound("error");
+          const copy = describeResolution(decision, code);
+          toast({ title: copy.title, description: copy.detail, variant: "destructive" });
         }
       } catch (err: any) {
         playPOSSound("error");

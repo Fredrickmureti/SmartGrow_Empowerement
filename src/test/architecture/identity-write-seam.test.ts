@@ -33,6 +33,17 @@ function walk(dir: string, out: string[] = []): string[] {
 const MUTATION =
   /from\(\s*["']product_identifiers["'](?:\s+as\s+any)?\s*\)\s*(?:as\s+any\s*)?\.\s*(insert|update|upsert|delete)\b/;
 
+/**
+ * Table writes were never the only bypass: a legacy write RPC
+ * (`enroll_product_barcode`) skipped the same invariants while passing this
+ * guard. Write RPCs are therefore owned by the seam too.
+ */
+const WRITE_RPCS = [
+  "upsert_product_identifier",
+  "retire_product_identifier",
+  "enroll_product_barcode",
+];
+
 describe("Phase 5 — product_identifiers has one write seam", () => {
   const files = walk(SRC);
 
@@ -50,5 +61,13 @@ describe("Phase 5 — product_identifiers has one write seam", () => {
     expect(src).toMatch(/upsert_product_identifier/);
     expect(src).toMatch(/retire_product_identifier/);
     expect(src).not.toMatch(/from\(\s*["']product_identifiers["']/);
+  });
+
+  it.each(WRITE_RPCS)("no source outside the seam calls %s", (rpc) => {
+    const pattern = new RegExp(`rpc\\(\\s*["']${rpc}["']`);
+    const offenders = files
+      .filter((f) => pattern.test(readFileSync(f, "utf8")))
+      .map((f) => path.relative(SRC, f).replace(/\\/g, "/"));
+    expect(offenders).toEqual([]);
   });
 });
