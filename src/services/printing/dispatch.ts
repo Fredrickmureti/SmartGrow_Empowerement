@@ -48,6 +48,16 @@ export interface DispatchOutcome {
   assignmentId?: string | null;
 }
 
+export interface PageDispatchOptions {
+  /**
+   * Phase 5.4 — invoked when the host print dialog has taken the bytes.
+   * For paper output that is the terminal moment the system can observe:
+   * what the operator then does in the OS dialog is outside our control,
+   * so the ledger must not wait for it.
+   */
+  onHandedToHost?: () => void;
+}
+
 /** Send bytes/payload to the printer the platform resolves for this intent. */
 export async function toDevice(input: DeviceDispatchInput): Promise<DispatchOutcome> {
   const res = await execForIntent({
@@ -72,10 +82,13 @@ export async function toDevice(input: DeviceDispatchInput): Promise<DispatchOutc
 }
 
 /** Print a PDF through the host print dialog (Electron pipe or browser iframe). */
-export async function toPage(blob: Blob): Promise<DispatchOutcome> {
+export async function toPage(
+  blob: Blob,
+  opts?: PageDispatchOptions,
+): Promise<DispatchOutcome> {
   const transport: PrintTransport = isElectron() ? 'pdf-electron' : 'pdf-browser';
   try {
-    await printPdfInPage(blob);
+    await printPdfInPage(blob, { onHandedToHost: opts?.onHandedToHost });
     return { success: true, transport };
   } catch (err) {
     return { success: false, transport, error: err instanceof Error ? err.message : String(err) };

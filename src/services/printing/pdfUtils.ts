@@ -37,7 +37,21 @@ export function openPdfInNewTab(blob: Blob, title?: string): void {
  *     blob URL only after `afterprint` (or a safety timeout) so the
  *     native print dialog still sees the source.
  */
-export async function printPdfInPage(blob: Blob): Promise<void> {
+export interface PrintPdfInPageOptions {
+  /**
+   * Phase 5.4 — fired the instant the host print dialog has been handed the
+   * bytes (`window.print()` called / Electron main invoked), NOT when the
+   * operator dismisses the dialog. The ledger settles on this signal so a
+   * PDF job is never left sitting in `sent` for as long as a human takes to
+   * click "Print" in the OS dialog.
+   */
+  onHandedToHost?: () => void;
+}
+
+export async function printPdfInPage(
+  blob: Blob,
+  opts?: PrintPdfInPageOptions,
+): Promise<void> {
   // Wave B3 (Plan P1) — global FIFO queue for the PDF/iframe transport.
   //
   // Prior behaviour: two overlapping printPdfInPage calls each spawned
@@ -56,7 +70,7 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
   // and `AgentClient._withEndpointLock`.
   const next = pdfPrintQueue
     .catch(() => undefined)
-    .then(() => runPrintPdfInPage(blob));
+    .then(() => runPrintPdfInPage(blob, opts));
   pdfPrintQueue = next;
   return next;
 }
@@ -66,14 +80,20 @@ export async function printPdfInPage(blob: Blob): Promise<void> {
 // the queue for subsequent jobs.
 let pdfPrintQueue: Promise<void> = Promise.resolve();
 
-async function runPrintPdfInPage(blob: Blob): Promise<void> {
+async function runPrintPdfInPage(
+  blob: Blob,
+  opts?: PrintPdfInPageOptions,
+): Promise<void> {
   // Electron path — defer to the main-process lifecycle-supervised
   // hidden window so renderer unmount can never race the print job.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bridge: any = typeof window !== "undefined" ? (window as any).pos : undefined;
   if (bridge?.isElectron && bridge.print?.pdfBytes) {
     const buf = new Uint8Array(await blob.arrayBuffer());
-    const res = await bridge.print.pdfBytes(buf, { silent: false });
+    const pending = bridge.print.pdfBytes(buf, { silent: false });
+    // The bytes are with the host the moment the main process accepts them.
+    opts?.onHandedToHost?.();
+    const res = await pending;
     if (!res?.success) {
       throw new Error(res?.error || "Electron print failed");
     }
@@ -119,6 +139,7 @@ async function runPrintPdfInPage(blob: Blob): Promise<void> {
 
         cw.focus();
         cw.print();
+        opts?.onHandedToHost?.();
       } catch (e) {
         console.error("In-page print failed:", e);
         cleanup();
