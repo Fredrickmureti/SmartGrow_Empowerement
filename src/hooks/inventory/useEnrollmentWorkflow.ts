@@ -211,7 +211,7 @@ async function defaultEnroll(args: {
     // Above the base unit the code identifies a pack, not the item.
     kind: args.kind ?? (args.packagingId ? "pack" : "gtin"),
     packagingId: args.packagingId ?? null,
-    source: "scan",
+    source: "manual",
   });
   if (result.status === "ok") {
     return { status: "ok", identifier_id: result.identifierId, idempotent: result.idempotent };
