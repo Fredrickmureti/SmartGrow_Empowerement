@@ -219,12 +219,9 @@ export default function WavePlanner() {
             <Section
               title="Unwaved demand"
               description="Open orders the strategies have not claimed. Batch them manually when the floor needs it."
-            >
-              <Card>
-                <CardHeader className="flex-row items-center gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm">Demand</CardTitle>
+              actions={
+                <>
                   <span className="text-xs text-muted-foreground">{selected.size} selected</span>
-                  <div className="flex-1" />
                   <Button
                     size="sm"
                     disabled={selected.size === 0 || createAndRelease.isPending}
@@ -232,19 +229,18 @@ export default function WavePlanner() {
                   >
                     <Rocket className="mr-2 h-4 w-4" /> Create &amp; release
                   </Button>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  {demand.isLoading ? (
-                    <LoadingState />
-                  ) : (
-                    <WaveDemandTable
-                      rows={demand.data ?? []}
-                      selected={selected}
-                      onToggle={toggle}
-                    />
-                  )}
-                </CardContent>
-              </Card>
+                </>
+              }
+            >
+              {demand.isLoading ? (
+                <LoadingState />
+              ) : (
+                <WaveDemandTable
+                  rows={demand.data ?? []}
+                  selected={selected}
+                  onToggle={toggle}
+                />
+              )}
             </Section>
             <Section
               title="Planning strategies"
