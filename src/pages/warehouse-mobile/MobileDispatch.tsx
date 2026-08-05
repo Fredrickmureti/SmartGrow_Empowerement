@@ -141,31 +141,39 @@ export default function MobileDispatch() {
     }
   };
 
-  const loadCode = async () => {
-    const code = scan.trim();
-    if (!code || busy || !manifest) return;
-    const match = (available ?? []).find(
-      (c) => (c.shipment_lpn?.code ?? "").toLowerCase() === code.toLowerCase(),
-    );
-    if (!match) {
-      toast.error("No sealed carton with that LPN");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await enqueue("load_carton_onto_manifest", {
-        p_manifest_id: manifest.id,
-        p_carton_id: match.id,
-      });
-      toast.success(r.queued ? "Queued (offline)" : "Carton loaded");
-      setScan("");
-      invalidate();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Load failed");
-    } finally {
-      setBusy(false);
-    }
-  };
+  /**
+   * Carton admission. The wrong-kind refusal (a product barcode scanned at
+   * the carton prompt) is handled upstream by `EntityScanField`; here we
+   * only answer "is this carton loadable onto THIS manifest?".
+   */
+  const loadCode = useCallback(
+    async (code: string) => {
+      if (busy || !manifest) return { ok: false, message: "Busy — wait for the last scan to finish." };
+      const match = (available ?? []).find((c) => entityCodeEquals(c.shipment_lpn?.code, code));
+      if (!match) {
+        return { ok: false, message: `${code} is not a sealed carton waiting for this bay.` };
+      }
+      if (loadedIds.has(match.id)) {
+        return { ok: false, message: `${code} is already on this manifest.` };
+      }
+      setBusy(true);
+      try {
+        const r = await enqueue("load_carton_onto_manifest", {
+          p_manifest_id: manifest.id,
+          p_carton_id: match.id,
+        });
+        invalidate();
+        return { ok: true, message: r.queued ? `${code} queued (offline)` : `${code} loaded` };
+      } catch (e) {
+        return { ok: false, message: e instanceof Error ? e.message : "Load failed" };
+      } finally {
+        setBusy(false);
+      }
+    },
+    // `invalidate` is a stable-enough closure over the query client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [busy, manifest, available, loadedIds],
+  );
 
   // Phase 3.7 §4 — translate WMS_SCAN_SHORTAGE into a plain
   // "load the remaining cartons first" message instead of the raw code.
@@ -270,25 +278,13 @@ export default function MobileDispatch() {
         )}
 
         {canLoad && (
-          <div>
-            <Label>Scan carton LPN</Label>
-            <div className="flex gap-2">
-              <Input
-                autoFocus
-                inputMode="text"
-                value={scan}
-                onChange={(e) => setScan(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") loadCode();
-                }}
-                placeholder="Scan carton…"
-                className="h-12 text-lg font-mono flex-1"
-              />
-              <Button className="h-12" disabled={busy || !scan.trim()} onClick={loadCode}>
-                Load
-              </Button>
-            </div>
-          </div>
+          <EntityScanField
+            label="Scan carton LPN"
+            intent="load.lpn"
+            entity="carton"
+            disabled={busy}
+            onResolve={loadCode}
+          />
         )}
 
         <section>
