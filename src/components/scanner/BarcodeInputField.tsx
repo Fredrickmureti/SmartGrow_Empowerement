@@ -207,9 +207,12 @@ export const BarcodeInputField = forwardRef<BarcodeInputFieldHandle, Props>(func
             setDuplicate(null);
           }}
           onFocus={() => setFocused(true)}
-          onBlur={() => {
+          onBlur={(e) => {
             setFocused(false);
             runDuplicateCheck(value);
+            // Callers persist on blur — keep their handler alive even though
+            // `...rest` is spread after these props.
+            (rest as { onBlur?: (ev: typeof e) => void }).onBlur?.(e);
           }}
           placeholder={placeholder}
           className={cn("pr-32", className)}

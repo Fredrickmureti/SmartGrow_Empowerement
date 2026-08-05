@@ -79,7 +79,7 @@ interface IdentifierRow {
 
 export interface ProductIdentifiersEditorHandle {
   /** Persist pending rows after the parent creates the product. */
-  commit: (productId: string) => Promise<void>;
+  commit: (productId?: string) => Promise<void>;
   /** True if at least one row was added in create mode. */
   hasPending: () => boolean;
 }
@@ -617,6 +617,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
                     ref={(h) => { fieldRefs.current[idx] = h; }}
                     value={row.code}
                     onChange={(next) => updateRow(idx, { code: next })}
+                    onBlur={() => { void persistRow(idx); }}
                     businessId={businessId}
                     scannerConnected={isPhonePaired}
                     checkUniqueness={row.kind === "gtin" || row.kind === "sku"}
