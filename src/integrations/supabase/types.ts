@@ -48741,6 +48741,45 @@ export type Database = {
           },
         ]
       }
+      print_traces: {
+        Row: {
+          attributes: Json
+          business_id: string | null
+          correlation_id: string
+          created_at: string
+          created_by: string
+          id: string
+          label: string
+          organization_id: string | null
+          spans: Json
+          total_ms: number
+        }
+        Insert: {
+          attributes?: Json
+          business_id?: string | null
+          correlation_id: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          label: string
+          organization_id?: string | null
+          spans?: Json
+          total_ms?: number
+        }
+        Update: {
+          attributes?: Json
+          business_id?: string | null
+          correlation_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          label?: string
+          organization_id?: string | null
+          spans?: Json
+          total_ms?: number
+        }
+        Relationships: []
+      }
       printer_roles: {
         Row: {
           code: string
