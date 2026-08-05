@@ -364,11 +364,11 @@ export default function CustomerPayments() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Receipt ${receiptNum}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Receipt ${receiptNum}` },
+      );
     } catch (err) {
       toast({
         title: "Receipt dispatch failed",
