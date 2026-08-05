@@ -48,6 +48,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useDocumentBranding } from "@/hooks/useDocumentBranding";
 import { useMergedReceiptSettings } from "@/hooks/pos/useMergedReceiptSettings";
 import { useReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
+import { useIntentReadiness } from "@/hooks/hardware/useIntentReadiness";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
 import {
   buildReceiptDocument,
@@ -109,7 +110,6 @@ export function PostPaymentSurface({
   const { mergedSettings: liveSettings } = useMergedReceiptSettings();
   const { data: snapshot } = useReceiptSnapshot(transaction?.id);
   const {
-    printerStatus,
     isRoleAvailable,
     updateDisplay,
     reconnectRole,
@@ -172,19 +172,40 @@ export function PostPaymentSurface({
     });
   }, [devices]);
 
+  // Readiness first (registry + workstation heartbeat). `printerStatus()` was
+  // the old gate and it lies for relay-routed printers: a till printer driven
+  // by another machine's IoT agent is never locally "connected", so a healthy
+  // printer read as disconnected and every receipt silently fell back to PDF.
+  const receiptReadiness = useIntentReadiness("receipt", {
+    scope: transaction?.register_id
+      ? { kind: "register", id: transaction.register_id }
+      : undefined,
+  });
+
   const thermalAvailable =
-    printerStatus() === "connected"
+    receiptReadiness.isReady
     || isRoleAvailable("receipt_printer")
     || (agentAvailable && hasNetworkReceiptPrinter);
 
   const printerOfflineReason = useMemo(() => {
+    if (receiptReadiness.readiness && !receiptReadiness.isReady) {
+      return [receiptReadiness.message, receiptReadiness.detail]
+        .filter(Boolean)
+        .join(" — ");
+    }
     for (const info of deviceStatuses.values()) {
       if (info.role === "receipt_printer" && !info.connected) {
         return info.lastError || `Printer status: ${info.status}`;
       }
     }
     return null;
-  }, [deviceStatuses]);
+  }, [
+    deviceStatuses,
+    receiptReadiness.readiness,
+    receiptReadiness.isReady,
+    receiptReadiness.message,
+    receiptReadiness.detail,
+  ]);
 
   const hasReceiptPrinterRegistered = useMemo(() => {
     for (const info of deviceStatuses.values()) {

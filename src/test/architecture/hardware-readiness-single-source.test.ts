@@ -78,6 +78,19 @@ describe('hardware readiness has a single source', () => {
     expect(status!.code).not.toMatch(/devices\.getStatuses\(\)/);
   });
 
+  it('no POS surface derives printer availability from printerStatus()', () => {
+    // `printerStatus()` is the renderer's local transport probe. A till
+    // printer owned by another machine's IoT agent is never locally
+    // connected, so POS badges/gates built on it read "Disconnected" while
+    // the printer happily prints. POS must ask `useIntentReadiness`.
+    const offenders = FILES.filter(
+      (f) =>
+        /(^src\/pages\/pos\/|^src\/apps\/pos\/|^src\/components\/pos\/)/.test(f.rel) &&
+        /printerStatus\(\)/.test(f.code),
+    ).map((f) => f.rel);
+    expect(offenders).toEqual([]);
+  });
+
   it('readiness applies a workstation liveness window', () => {
     const readiness = FILES.find((f) => f.rel === 'src/services/hardware/readiness.ts');
     expect(readiness).toBeDefined();

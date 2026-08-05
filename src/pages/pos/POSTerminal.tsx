@@ -57,6 +57,7 @@ import { usePOSAgeVerification } from "@/hooks/pos/usePOSAgeVerification";
 import { usePOSOffline } from "@/hooks/pos/usePOSOffline";
 import { usePOSSessionsOffline } from "@/hooks/pos/usePOSSessionsOffline";
 import { useHardwareProxy } from "@/hooks/hardware/useHardwareProxy";
+import { useIntentReadiness } from "@/hooks/hardware/useIntentReadiness";
 import { useCustomerDisplay } from "@/hooks/pos/useCustomerDisplay";
 import { domainEventBus } from "@/services/events/domainEventBus";
 import { TerminalStateBridge, useTerminalContext } from "@/apps/pos/terminal";
@@ -331,8 +332,17 @@ function POSTerminalInner() {
   }, [registerId, activeShift?.id, commitKey, cart.total, tipAmount]);
   
   // Hardware — proxy-based device management (replaces old direct-service approach)
-  const { printerStatus, isConnecting: isPrinterAutoConnecting, openDrawer: openDrawerHw, printRawBytes } = useHardwareProxy(registerId);
-  const hardwareStatus = { printer: printerStatus(), cashDrawer: 'disconnected' as const, scale: 'disconnected' as const };
+  const { openDrawer: openDrawerHw, printRawBytes } = useHardwareProxy(registerId);
+  // Printer badge readiness. NOT `printerStatus()`: that is the renderer's
+  // LOCAL transport probe, and a till printer owned by another machine's IoT
+  // agent (reached over the `edge_jobs` relay) is never "connected" locally —
+  // which is exactly why POS showed "Disconnected" while the printer was
+  // online and printing fine. Readiness is a registry + workstation-heartbeat
+  // question, answered once in `services/hardware/readiness.ts`.
+  const receiptReadiness = useIntentReadiness("receipt", {
+    scope: registerId ? { kind: "register", id: registerId } : undefined,
+  });
+
   
   // Customer display for secondary screen.
   // NOTE: Writes to the display are owned exclusively by
@@ -1563,23 +1573,45 @@ function POSTerminalInner() {
                 Table {tableNumber || tableId?.slice(0, 4) || ""}
               </Badge>
             )}
-            {/* Printer Status */}
-            {hardwareStatus.printer === 'connected' ? (
-              <Badge variant="outline" className="text-xs text-green-600 border-green-600 px-1.5 sm:px-2 hidden sm:inline-flex">
+            {/* Printer readiness — registry + workstation heartbeat, never a
+                local transport probe (see receiptReadiness above). */}
+            {receiptReadiness.isReady ? (
+              <Badge
+                variant="outline"
+                title={receiptReadiness.message}
+                className="text-xs text-green-600 border-green-600 px-1.5 sm:px-2 hidden sm:inline-flex"
+              >
                 <Printer className="h-3 w-3 sm:mr-1" />
-                <span className="hidden md:inline">Printer</span>
+                <span className="hidden md:inline">
+                  {receiptReadiness.state === "degraded" ? "Printer (check)" : "Printer"}
+                </span>
               </Badge>
-            ) : isPrinterAutoConnecting ? (
-              <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-600 px-1.5 sm:px-2 hidden sm:inline-flex">
+            ) : receiptReadiness.state === "unknown" ? (
+              <Badge
+                variant="outline"
+                title={receiptReadiness.message}
+                className="text-xs text-yellow-600 border-yellow-600 px-1.5 sm:px-2 hidden sm:inline-flex"
+              >
                 <Printer className="h-3 w-3 animate-pulse sm:mr-1" />
-                <span className="hidden md:inline">Connecting...</span>
+                <span className="hidden md:inline">Checking…</span>
               </Badge>
-            ) : hardwareStatus.printer === 'disconnected' ? (
-              <Badge variant="outline" className="text-xs text-muted-foreground px-1.5 sm:px-2 hidden sm:inline-flex">
+            ) : (
+              <Badge
+                variant="outline"
+                title={[receiptReadiness.message, receiptReadiness.detail]
+                  .filter(Boolean)
+                  .join(" — ")}
+                className="text-xs text-muted-foreground px-1.5 sm:px-2 hidden sm:inline-flex"
+              >
                 <Printer className="h-3 w-3 sm:mr-1" />
-                <span className="hidden md:inline">Disconnected</span>
+                <span className="hidden md:inline">
+                  {receiptReadiness.state === "no_device_bound"
+                    ? "No printer"
+                    : "Printer offline"}
+                </span>
               </Badge>
-            ) : null}
+            )}
+
           </div>
         </div>
         
