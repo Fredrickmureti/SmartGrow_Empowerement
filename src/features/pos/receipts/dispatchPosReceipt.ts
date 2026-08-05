@@ -66,38 +66,56 @@ export async function dispatchPosReceipt({
   branchId,
   triggeredSource = "reprint",
 }: DispatchPosReceiptArgs): Promise<DispatchPosReceiptResult> {
-  const frozen = await fetchFrozenPosReceipt(transactionId);
-  const built = buildPosReceiptSnapshot({ frozen, copy });
+  return withTrace(
+    {
+      label: "pos_receipt",
+      attributes: {
+        entry: "dispatchPosReceipt",
+        transaction_id: transactionId,
+        copy,
+        triggered_source: triggeredSource,
+      },
+    },
+    async () => {
+      const frozen = await withSpan("snapshot.fetch", () =>
+        fetchFrozenPosReceipt(transactionId),
+      );
+      const built = buildPosReceiptSnapshot({ frozen, copy });
 
-  const resolvedOrgId =
-    (frozen.organization?.id as string | undefined) ?? organizationId ?? null;
-  if (!resolvedOrgId) {
-    throw new Error(
-      `dispatchPosReceipt: cannot resolve organization for transaction ${transactionId}`,
-    );
-  }
+      const resolvedOrgId =
+        (frozen.organization?.id as string | undefined) ?? organizationId ?? null;
+      if (!resolvedOrgId) {
+        throw new Error(
+          `dispatchPosReceipt: cannot resolve organization for transaction ${transactionId}`,
+        );
+      }
 
-  const documentRecordId = await ensureDocumentRecord({
-    kindCode:
-      copy === "merchant" ? "pos.receipt_merchant" : "pos.receipt_customer",
-    organizationId: resolvedOrgId,
-    sourceModule: "pos",
-    sourceDocType: copy === "merchant" ? "receipt_merchant" : "receipt",
-    sourceDocId: transactionId,
-    businessId: built.businessId ?? businessId ?? null,
-    branchId: built.branchId ?? branchId ?? null,
-    partyKind: built.partyKind,
-    partyId: built.partyId,
-    currency: built.currency,
-    documentNumber: built.documentNumber,
-    documentDate: built.documentDate,
-    snapshot: built.snapshot,
-  });
+      const documentRecordId = await withSpan("document.ensure_record", () =>
+        ensureDocumentRecord({
+          kindCode:
+            copy === "merchant" ? "pos.receipt_merchant" : "pos.receipt_customer",
+          organizationId: resolvedOrgId,
+          sourceModule: "pos",
+          sourceDocType: copy === "merchant" ? "receipt_merchant" : "receipt",
+          sourceDocId: transactionId,
+          businessId: built.businessId ?? businessId ?? null,
+          branchId: built.branchId ?? branchId ?? null,
+          partyKind: built.partyKind,
+          partyId: built.partyId,
+          currency: built.currency,
+          documentNumber: built.documentNumber,
+          documentDate: built.documentDate,
+          snapshot: built.snapshot,
+        }),
+      );
 
-  const result = await printDocumentIntent({
-    documentRecordId,
-    triggeredSource,
-  });
+      const result = await printDocumentIntent({
+        documentRecordId,
+        triggeredSource,
+      });
 
-  return { documentRecordId, targetCount: result.target_count };
+      return { documentRecordId, targetCount: result.target_count };
+    },
+  );
 }
+
