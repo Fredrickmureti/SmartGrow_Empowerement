@@ -17,11 +17,12 @@
  */
 import { useMemo, useState } from "react";
 import {
-  Play, Pause, RotateCcw, X, Loader2, Tags, Printer, AlertTriangle, Ban,
+  Play, Pause, RotateCcw, X, Loader2, Tags, Printer, AlertTriangle, Ban, Trash2, Package,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { LabelRunHealthStrip } from "@/components/labels/LabelRunHealthStrip";
+import { LabelProductPicker } from "@/components/labels/LabelProductPicker";
 
 import {
   useLabelRuns, useLabelRunLines, useLabelDemand, useLabelRunActions,
