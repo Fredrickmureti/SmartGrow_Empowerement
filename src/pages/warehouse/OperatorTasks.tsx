@@ -22,7 +22,6 @@ import {
   StatusBadge,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -306,109 +305,107 @@ export default function OperatorTasks() {
       />
       <PageBody>
         <Section>
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={stateFilter} onValueChange={setStateFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[160px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="open">Open (default)</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="claimed">Claimed</SelectItem>
-                    <SelectItem value="in_progress">In progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                    <SelectItem value="exception">Exception</SelectItem>
-                    <SelectItem value="all">All</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    {TASK_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All warehouses</SelectItem>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Button variant={mineOnly ? "default" : "outline"} size="sm" onClick={() => setMineOnly((v) => !v)}>
-                  Mine only
-                </Button>
-              </div>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={stateFilter} onValueChange={setStateFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[160px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open (default)</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="claimed">Claimed</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                  <SelectItem value="exception">Exception</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[140px]"><SelectValue placeholder="Type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {TASK_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue placeholder="Warehouse" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All warehouses</SelectItem>
+                  {warehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button variant={mineOnly ? "default" : "outline"} size="sm" onClick={() => setMineOnly((v) => !v)}>
+                Mine only
+              </Button>
+            </div>
 
-              {isLoading ? (
-                <LoadingState />
-              ) : (rows ?? []).length === 0 ? (
-                <EmptyState icon={ListChecks} title={emptyLabel} description="Claim next, create an ad-hoc task, or wait for downstream workflows to seed one." />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>State</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>From → To</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>SLA</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(rows ?? []).map((t) => (
-                      <TableRow key={t.id}>
-                        <TableCell className="capitalize">{t.task_type}</TableCell>
-                        <TableCell><StatusBadge tone={STATE_TONE[t.state] ?? "neutral"}>{t.state.replace("_", " ")}</StatusBadge></TableCell>
-                        <TableCell>{t.priority}</TableCell>
-                        <TableCell className="text-sm">
-                          <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
-                          <span className="mx-1 text-muted-foreground">→</span>
-                          <span className="font-mono">{t.dest_loc?.code ?? "—"}</span>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{t.quantity != null ? Number(t.quantity).toFixed(2) : "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {t.sla_at ? new Date(t.sla_at).toLocaleString() : "—"}
-                        </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          {isCountTask(t) && (
-                            <Button size="sm" variant="outline" onClick={() => openCount(t)}>
-                              <ClipboardList className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {(t.state === "pending" || t.state === "available") && (
-                            <Button size="sm" variant="outline" onClick={() => claim(t)}><UserPlus className="h-3.5 w-3.5" /></Button>
-                          )}
-                          {t.state === "claimed" && (
-                            <Button size="sm" variant="outline" onClick={() => start(t)}><Play className="h-3.5 w-3.5" /></Button>
-                          )}
-                          {TASK_HELD_STATES.includes(t.state as (typeof TASK_HELD_STATES)[number]) && (
-                            <Button size="sm" onClick={() => complete(t)}><Check className="h-3.5 w-3.5" /></Button>
-                          )}
-                          {t.state !== "completed" && t.state !== "cancelled" && (
-                            <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Execution history"
-                            onClick={() => setHistoryTask(t)}
-                          >
-                            <History className="h-3.5 w-3.5" />
+            {isLoading ? (
+              <LoadingState />
+            ) : (rows ?? []).length === 0 ? (
+              <EmptyState icon={ListChecks} title={emptyLabel} description="Claim next, create an ad-hoc task, or wait for downstream workflows to seed one." />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>From → To</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>SLA</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(rows ?? []).map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="capitalize">{t.task_type}</TableCell>
+                      <TableCell><StatusBadge tone={STATE_TONE[t.state] ?? "neutral"}>{t.state.replace("_", " ")}</StatusBadge></TableCell>
+                      <TableCell>{t.priority}</TableCell>
+                      <TableCell className="text-sm">
+                        <span className="font-mono">{t.source_loc?.code ?? "—"}</span>
+                        <span className="mx-1 text-muted-foreground">→</span>
+                        <span className="font-mono">{t.dest_loc?.code ?? "—"}</span>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{t.quantity != null ? Number(t.quantity).toFixed(2) : "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {t.sla_at ? new Date(t.sla_at).toLocaleString() : "—"}
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
+                        {isCountTask(t) && (
+                          <Button size="sm" variant="outline" onClick={() => openCount(t)}>
+                            <ClipboardList className="h-3.5 w-3.5" />
                           </Button>
-                        </TableCell>
+                        )}
+                        {(t.state === "pending" || t.state === "available") && (
+                          <Button size="sm" variant="outline" onClick={() => claim(t)}><UserPlus className="h-3.5 w-3.5" /></Button>
+                        )}
+                        {t.state === "claimed" && (
+                          <Button size="sm" variant="outline" onClick={() => start(t)}><Play className="h-3.5 w-3.5" /></Button>
+                        )}
+                        {TASK_HELD_STATES.includes(t.state as (typeof TASK_HELD_STATES)[number]) && (
+                          <Button size="sm" onClick={() => complete(t)}><Check className="h-3.5 w-3.5" /></Button>
+                        )}
+                        {t.state !== "completed" && t.state !== "cancelled" && (
+                          <Button size="sm" variant="ghost" onClick={() => setCancelOpen(t)}><X className="h-3.5 w-3.5" /></Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Execution history"
+                          onClick={() => setHistoryTask(t)}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
 
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
         </Section>
       </PageBody>
 

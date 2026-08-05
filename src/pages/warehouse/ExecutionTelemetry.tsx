@@ -146,95 +146,87 @@ export default function ExecutionTelemetry() {
             <Section
               title="By task type"
               description="Wait = ledger first-seen to claim. Execution = start to completion. Reap rate is work recovered from a lost lease."
-            >
-              <Card>
-                <CardContent className="p-0">
-                  {(data?.by_type ?? []).length === 0 ? (
-                    <EmptyState
-                      icon={Activity}
-                      title="No execution events in this window"
-                      description="Telemetry appears as operators claim and complete work."
-                    />
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Type</TableHead>
-                          <TableHead className="text-right">Tasks</TableHead>
-                          <TableHead className="text-right">Completed</TableHead>
-                          <TableHead className="text-right">Avg wait</TableHead>
-                          <TableHead className="text-right">Avg execution</TableHead>
-                          <TableHead className="text-right">Exception rate</TableHead>
-                          <TableHead className="text-right">Reap rate</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data!.by_type.map((r) => (
-                          <TableRow key={r.task_type}>
-                            <TableCell className="font-medium">{r.task_type}</TableCell>
-                            <TableCell className="text-right tabular-nums">{r.tasks}</TableCell>
-                            <TableCell className="text-right tabular-nums">{r.completed}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatDuration(r.avg_wait_seconds)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatDuration(r.avg_execution_seconds)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {pct(r.exception_rate)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {pct(r.reap_rate)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+             contentClassName="px-0 pb-0">
+              {(data?.by_type ?? []).length === 0 ? (
+                <EmptyState
+                  icon={Activity}
+                  title="No execution events in this window"
+                  description="Telemetry appears as operators claim and complete work."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Tasks</TableHead>
+                      <TableHead className="text-right">Completed</TableHead>
+                      <TableHead className="text-right">Avg wait</TableHead>
+                      <TableHead className="text-right">Avg execution</TableHead>
+                      <TableHead className="text-right">Exception rate</TableHead>
+                      <TableHead className="text-right">Reap rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data!.by_type.map((r) => (
+                      <TableRow key={r.task_type}>
+                        <TableCell className="font-medium">{r.task_type}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.tasks}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.completed}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatDuration(r.avg_wait_seconds)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatDuration(r.avg_execution_seconds)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {pct(r.exception_rate)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {pct(r.reap_rate)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </Section>
 
             <Section
               title="By operator"
               description="Completions attributed to the actor recorded on the completion event."
-            >
-              <Card>
-                <CardContent className="p-0">
-                  {(data?.by_operator ?? []).length === 0 ? (
-                    <EmptyState
-                      icon={Timer}
-                      title="No completions recorded"
-                      description="Operator throughput appears once tasks are completed in this window."
-                    />
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Operator</TableHead>
-                          <TableHead className="text-right">Completed</TableHead>
-                          <TableHead className="text-right">Avg execution</TableHead>
-                          <TableHead className="text-right">Exceptions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {data!.by_operator.map((o) => (
-                          <TableRow key={o.operator_id}>
-                            <TableCell className="font-mono text-xs">
-                              {o.operator_id.slice(0, 8)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{o.completed}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {formatDuration(o.avg_execution_seconds)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{o.exceptions}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+             contentClassName="px-0 pb-0">
+              {(data?.by_operator ?? []).length === 0 ? (
+                <EmptyState
+                  icon={Timer}
+                  title="No completions recorded"
+                  description="Operator throughput appears once tasks are completed in this window."
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Operator</TableHead>
+                      <TableHead className="text-right">Completed</TableHead>
+                      <TableHead className="text-right">Avg execution</TableHead>
+                      <TableHead className="text-right">Exceptions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data!.by_operator.map((o) => (
+                      <TableRow key={o.operator_id}>
+                        <TableCell className="font-mono text-xs">
+                          {o.operator_id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{o.completed}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatDuration(o.avg_execution_seconds)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{o.exceptions}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </Section>
           </>
         )}

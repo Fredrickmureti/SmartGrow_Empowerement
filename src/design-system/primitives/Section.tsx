@@ -59,7 +59,14 @@ export function Section({
           )}
         </header>
       )}
-      <div className={cn("min-w-0 max-w-full", !unstyled && "px-4 pb-5 sm:px-5", contentClassName)}>
+      <div
+        className={cn(
+          "min-w-0 max-w-full",
+          !unstyled && "px-4 pb-5 sm:px-5",
+          !unstyled && !(title || actions) && "pt-4 sm:pt-5",
+          contentClassName,
+        )}
+      >
         {children}
       </div>
     </section>

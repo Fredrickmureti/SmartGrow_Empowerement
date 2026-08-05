@@ -212,128 +212,126 @@ export default function LicensePlates() {
           title="Board"
           description="Scan a plate barcode at any time to open its cockpit."
         >
-          <Card>
-            <CardContent className="space-y-4 p-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="relative min-w-[220px] flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search plate or bin code"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All warehouses</SelectItem>
-                    {warehouses.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All types</SelectItem>
-                    <SelectItem value="pallet">Pallet</SelectItem>
-                    <SelectItem value="carton">Carton</SelectItem>
-                    <SelectItem value="tote">Tote</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    {(statuses ?? []).map((s) => (
-                      <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Badge variant="outline" className="gap-1">
-                  <ScanLine className="h-3 w-3" /> Scanner armed
-                </Badge>
-              </div>
-
-              {isLoading ? (
-                <LoadingState />
-              ) : filtered.length === 0 ? (
-                <EmptyState
-                  icon={PackageOpen}
-                  title="No plates match"
-                  description="Adjust the filters or build a new handling unit."
-                  action={<Button onClick={() => setCreateOpen(true)}>New plate</Button>}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="relative min-w-[220px] flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search plate or bin code"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-8" />
-                        <TableHead>Plate</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead className="text-right">SKUs</TableHead>
-                        <TableHead className="text-right">Units</TableHead>
-                        <TableHead className="text-right">Nested</TableHead>
-                        <TableHead>Updated</TableHead>
+              </div>
+              <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All warehouses</SelectItem>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  <SelectItem value="pallet">Pallet</SelectItem>
+                  <SelectItem value="carton">Carton</SelectItem>
+                  <SelectItem value="tote">Tote</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {(statuses ?? []).map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Badge variant="outline" className="gap-1">
+                <ScanLine className="h-3 w-3" /> Scanner armed
+              </Badge>
+            </div>
+
+            {isLoading ? (
+              <LoadingState />
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={PackageOpen}
+                title="No plates match"
+                description="Adjust the filters or build a new handling unit."
+                action={<Button onClick={() => setCreateOpen(true)}>New plate</Button>}
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8" />
+                      <TableHead>Plate</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead className="text-right">SKUs</TableHead>
+                      <TableHead className="text-right">Units</TableHead>
+                      <TableHead className="text-right">Nested</TableHead>
+                      <TableHead>Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((r: LpnOverviewRow) => (
+                      <TableRow key={r.id} className="cursor-pointer">
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selected.includes(r.id)}
+                            onCheckedChange={() => toggle(r.id)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            to={`/warehouse-app/plates/${r.id}`}
+                            className="font-mono font-medium hover:underline"
+                          >
+                            {r.code}
+                          </Link>
+                          {r.parent_lpn_id && (
+                            <Badge variant="secondary" className="ml-2">nested</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="capitalize">{r.lpn_type}</TableCell>
+                        <TableCell>
+                          <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>
+                            {r.status}
+                          </StatusBadge>
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {r.location_code ? (
+                            <>
+                              <div>{r.location_code}</div>
+                              {r.location_path && r.location_path !== r.location_code && (
+                                <div className="text-[11px] text-muted-foreground">{r.location_path}</div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">Unlocated</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(r.sku_count ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(r.total_quantity ?? 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{Number(r.child_count ?? 0)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(r.updated_at).toLocaleString()}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filtered.map((r: LpnOverviewRow) => (
-                        <TableRow key={r.id} className="cursor-pointer">
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={selected.includes(r.id)}
-                              onCheckedChange={() => toggle(r.id)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Link
-                              to={`/warehouse-app/plates/${r.id}`}
-                              className="font-mono font-medium hover:underline"
-                            >
-                              {r.code}
-                            </Link>
-                            {r.parent_lpn_id && (
-                              <Badge variant="secondary" className="ml-2">nested</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="capitalize">{r.lpn_type}</TableCell>
-                          <TableCell>
-                            <StatusBadge tone={STATUS_TONE[r.status] ?? "neutral"}>
-                              {r.status}
-                            </StatusBadge>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {r.location_code ? (
-                              <>
-                                <div>{r.location_code}</div>
-                                {r.location_path && r.location_path !== r.location_code && (
-                                  <div className="text-[11px] text-muted-foreground">{r.location_path}</div>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground">Unlocated</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{Number(r.sku_count ?? 0)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{Number(r.total_quantity ?? 0)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{Number(r.child_count ?? 0)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(r.updated_at).toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </Section>
       </PageBody>
 

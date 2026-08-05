@@ -13,7 +13,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PageHeader, PageBody, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Truck } from "lucide-react";
@@ -133,74 +132,74 @@ export default function LoadingManifestPlanner() {
       />
       <PageBody>
         <Section title="Manifest">
-          <Card><CardContent className="p-4 space-y-4">
+          <div className="space-y-4">
+          <div>
+            <Label>Warehouse</Label>
+            <select className="border rounded px-2 py-1 w-full bg-background" value={warehouseId}
+              onChange={(e) => { setWarehouseId(e.target.value); setDockId(""); }}>
+              <option value="">Select…</option>
+              {(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
+          </div>
+          {warehouseId && (
             <div>
-              <Label>Warehouse</Label>
-              <select className="border rounded px-2 py-1 w-full bg-background" value={warehouseId}
-                onChange={(e) => { setWarehouseId(e.target.value); setDockId(""); }}>
-                <option value="">Select…</option>
-                {(warehouses ?? []).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            {warehouseId && (
-              <div>
-                <Label>Dock</Label>
-                <div className="flex gap-2">
-                  <select className="border rounded px-2 py-1 flex-1 bg-background" value={dockId} onChange={(e) => setDockId(e.target.value)}>
-                    <option value="">Select…</option>
-                    {(docks ?? []).map((d) => <option key={d.id} value={d.id}>{d.code} — {d.name ?? d.dock_type}</option>)}
-                  </select>
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <Input placeholder="Or add dock code (e.g. D-01)" value={newDockCode} onChange={(e) => setNewDockCode(e.target.value)} />
-                  <Button variant="outline" onClick={() => createDock.mutate()} disabled={createDock.isPending}>Add dock</Button>
-                </div>
-              </div>
-            )}
-            <div>
-              <Label>Carrier (optional)</Label>
-              <select className="border rounded px-2 py-1 bg-background" value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
-                <option value="">None</option>
-                {(carriers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            {dockId && (
-              <div>
-                <Label>Dock appointment (optional)</Label>
-                <select className="border rounded px-2 py-1 bg-background w-full" value={appointmentId} onChange={(e) => {
-                  const id = e.target.value;
-                  setAppointmentId(id);
-                  const appt = (appointments ?? []).find((a) => a.id === id);
-                  if (appt) {
-                    if (appt.carrier_id) setCarrierId(appt.carrier_id);
-                    if (!plannedAt) {
-                      const d = new Date(appt.window_end);
-                      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                      setPlannedAt(local);
-                    }
-                  }
-                }}>
-                  <option value="">None</option>
-                  {(appointments ?? []).map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {new Date(a.window_start).toLocaleString()} – {new Date(a.window_end).toLocaleTimeString()} · {a.reference ?? a.state}
-                    </option>
-                  ))}
+              <Label>Dock</Label>
+              <div className="flex gap-2">
+                <select className="border rounded px-2 py-1 flex-1 bg-background" value={dockId} onChange={(e) => setDockId(e.target.value)}>
+                  <option value="">Select…</option>
+                  {(docks ?? []).map((d) => <option key={d.id} value={d.id}>{d.code} — {d.name ?? d.dock_type}</option>)}
                 </select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  <Link to="/warehouse-app/schedule/new" className="underline">Schedule an appointment</Link> for this dock.
-                </p>
               </div>
-            )}
-            <div>
-              <Label>Planned departure</Label>
-              <Input type="datetime-local" value={plannedAt} onChange={(e) => setPlannedAt(e.target.value)} />
+              <div className="flex gap-2 mt-2">
+                <Input placeholder="Or add dock code (e.g. D-01)" value={newDockCode} onChange={(e) => setNewDockCode(e.target.value)} />
+                <Button variant="outline" onClick={() => createDock.mutate()} disabled={createDock.isPending}>Add dock</Button>
+              </div>
             </div>
-            <Button disabled={!dockId || openManifest.isPending} onClick={() => openManifest.mutate()}>
-              <Truck className="h-4 w-4 mr-2" /> Open manifest
-            </Button>
-          </CardContent></Card>
-        </Section>
+          )}
+          <div>
+            <Label>Carrier (optional)</Label>
+            <select className="border rounded px-2 py-1 bg-background" value={carrierId} onChange={(e) => setCarrierId(e.target.value)}>
+              <option value="">None</option>
+              {(carriers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {dockId && (
+            <div>
+              <Label>Dock appointment (optional)</Label>
+              <select className="border rounded px-2 py-1 bg-background w-full" value={appointmentId} onChange={(e) => {
+                const id = e.target.value;
+                setAppointmentId(id);
+                const appt = (appointments ?? []).find((a) => a.id === id);
+                if (appt) {
+                  if (appt.carrier_id) setCarrierId(appt.carrier_id);
+                  if (!plannedAt) {
+                    const d = new Date(appt.window_end);
+                    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                    setPlannedAt(local);
+                  }
+                }
+              }}>
+                <option value="">None</option>
+                {(appointments ?? []).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {new Date(a.window_start).toLocaleString()} – {new Date(a.window_end).toLocaleTimeString()} · {a.reference ?? a.state}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                <Link to="/warehouse-app/schedule/new" className="underline">Schedule an appointment</Link> for this dock.
+              </p>
+            </div>
+          )}
+          <div>
+            <Label>Planned departure</Label>
+            <Input type="datetime-local" value={plannedAt} onChange={(e) => setPlannedAt(e.target.value)} />
+          </div>
+          <Button disabled={!dockId || openManifest.isPending} onClick={() => openManifest.mutate()}>
+            <Truck className="h-4 w-4 mr-2" /> Open manifest
+          </Button>
+          </div>
+        </Section> </PageBody>
       </PageBody>
     </>
   );

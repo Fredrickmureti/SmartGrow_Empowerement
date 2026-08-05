@@ -21,7 +21,6 @@ import {
 } from "@/features/warehouse/aggregates/useDomainOperations";
 import { PageHeader, PageBody, Section, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -186,10 +185,8 @@ export default function QCInspectionDetail() {
       />
       <PageBody>
         <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-2">
-          <Section>
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Checks</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
+          <Section title="Checks">
+            <div className="space-y-3">
                 <div className="divide-y">
                   {(checks.data ?? []).length === 0 ? (
                     <p className="text-sm text-muted-foreground py-2">No checks recorded yet.</p>
@@ -222,14 +219,11 @@ export default function QCInspectionDetail() {
                     </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+            </div>
           </Section>
 
-          <Section>
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-base">Disposition</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
+          <Section title="Disposition">
+            <div className="space-y-3">
                 <div className="min-w-0 grid grid-cols-3 gap-2 text-sm">
                   <div><p className="text-muted-foreground">Total</p><p className="font-medium">{row.quantity}</p></div>
                   <div><p className="text-muted-foreground">Accepted</p><p className="font-medium">{row.accepted_qty}</p></div>
@@ -269,8 +263,7 @@ export default function QCInspectionDetail() {
                     </div>
                   </>
                 )}
-              </CardContent>
-            </Card>
+            </div>
           </Section>
         </div>
         <ActivitySection aggregateId={id} title="Inspection activity" description="Lifecycle events emitted for this QC inspection." />

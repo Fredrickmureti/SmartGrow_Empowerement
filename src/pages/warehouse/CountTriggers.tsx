@@ -192,53 +192,51 @@ export default function CountTriggers() {
         </Section>
 
         <Section title="Add a rule">
-          <Card>
-            <CardContent className="min-w-0 pt-6 grid gap-4 @2xl/page:grid-cols-4">
-              <div>
-                <Label>Warehouse</Label>
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger><SelectValue placeholder="Pick a warehouse…" /></SelectTrigger>
-                  <SelectContent>
-                    {(warehouses ?? []).map((w) => (
-                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Event</Label>
-                <Select value={triggerEvent} onValueChange={setTriggerEvent}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TRIGGER_EVENTS.map((e) => (
-                      <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {TRIGGER_EVENTS.find((e) => e.value === triggerEvent)?.help}
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="cooldown">Cooldown (hours)</Label>
-                <Input
-                  id="cooldown"
-                  inputMode="numeric"
-                  value={cooldown}
-                  onChange={(e) => setCooldown(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col justify-between gap-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <Switch checked={blind} onCheckedChange={setBlind} aria-label="Blind counting" />
-                  Blind count
-                </label>
-                <Button onClick={() => createRule.mutate()} disabled={createRule.isPending}>
-                  <Plus className="h-4 w-4 mr-2" /> Add rule
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="min-w-0 grid gap-4 @2xl/page:grid-cols-4">
+            <div>
+              <Label>Warehouse</Label>
+              <Select value={warehouseId} onValueChange={setWarehouseId}>
+                <SelectTrigger><SelectValue placeholder="Pick a warehouse…" /></SelectTrigger>
+                <SelectContent>
+                  {(warehouses ?? []).map((w) => (
+                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Event</Label>
+              <Select value={triggerEvent} onValueChange={setTriggerEvent}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TRIGGER_EVENTS.map((e) => (
+                    <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {TRIGGER_EVENTS.find((e) => e.value === triggerEvent)?.help}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="cooldown">Cooldown (hours)</Label>
+              <Input
+                id="cooldown"
+                inputMode="numeric"
+                value={cooldown}
+                onChange={(e) => setCooldown(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={blind} onCheckedChange={setBlind} aria-label="Blind counting" />
+                Blind count
+              </label>
+              <Button onClick={() => createRule.mutate()} disabled={createRule.isPending}>
+                <Plus className="h-4 w-4 mr-2" /> Add rule
+              </Button>
+            </div>
+          </div>
         </Section>
       </PageBody>
     </>

@@ -29,7 +29,6 @@ import { DispatchProofForm } from "@/features/warehouse/dispatch/DispatchProofFo
 import { DispatchDocumentsMenu } from "@/features/warehouse/dispatch/DispatchDocumentsMenu";
 import { PageHeader, PageBody, Section, LoadingState, StatusBadge, EmptyState } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
@@ -235,84 +234,82 @@ export default function LoadingBay() {
           title="Carrier & tracking"
           description="Who is carrying this load, under which service, and the tracking identity the customer will quote."
         >
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-3 text-sm">
-                <div>
-                  <div className="text-muted-foreground">Carrier</div>
-                  <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {(manifest.carrier?.carrier_kind ?? "own_fleet").replace("_", " ")}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Tracking number</div>
-                  <div className="font-mono">{manifest.tracking_number ?? "—"}</div>
-                  {manifest.tracking_url && (
-                    <a
-                      className="text-xs underline text-primary"
-                      href={manifest.tracking_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Track shipment
-                    </a>
-                  )}
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Delivery notes</div>
-                  {(linkedNotes ?? []).length === 0 ? (
-                    <div className="text-muted-foreground">
-                      {manifest.delivery_note_id ? "Linked" : "Consolidated / none linked"}
-                    </div>
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {(linkedNotes ?? []).map((n) => (
-                        <li key={n.id} className="flex items-center gap-2">
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <Link className="underline font-mono" to={`/sales/delivery-notes/${n.id}`}>
-                            {n.delivery_number}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">{n.status}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+          <div className="space-y-3">
+            <div className="min-w-0 grid gap-3 @xl/page:grid-cols-3 text-sm">
+              <div>
+                <div className="text-muted-foreground">Carrier</div>
+                <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(manifest.carrier?.carrier_kind ?? "own_fleet").replace("_", " ")}
                 </div>
               </div>
-
-              {manifest.state !== "dispatched" && manifest.carrier_id && (
-                <div className="flex flex-wrap items-end gap-2">
-                  {(services.data ?? []).length > 0 && (
-                    <div>
-                      <Label>Service</Label>
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm"
-                        value={serviceId || manifest.carrier_service_id || ""}
-                        onChange={(e) => setServiceId(e.target.value)}
-                      >
-                        <option value="">Default</option>
-                        {(services.data ?? []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                            {s.transit_days ? ` · ${s.transit_days}d` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <Button
-                    variant="outline"
-                    disabled={allocate.isPending}
-                    onClick={() => allocate.mutate(serviceId || manifest.carrier_service_id || null)}
+              <div>
+                <div className="text-muted-foreground">Tracking number</div>
+                <div className="font-mono">{manifest.tracking_number ?? "—"}</div>
+                {manifest.tracking_url && (
+                  <a
+                    className="text-xs underline text-primary"
+                    href={manifest.tracking_url}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    <Tag className="h-4 w-4 mr-2" />
-                    {manifest.tracking_number ? "Re-issue tracking" : "Allocate tracking"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    Track shipment
+                  </a>
+                )}
+              </div>
+              <div>
+                <div className="text-muted-foreground">Delivery notes</div>
+                {(linkedNotes ?? []).length === 0 ? (
+                  <div className="text-muted-foreground">
+                    {manifest.delivery_note_id ? "Linked" : "Consolidated / none linked"}
+                  </div>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {(linkedNotes ?? []).map((n) => (
+                      <li key={n.id} className="flex items-center gap-2">
+                        <FileText className="h-3 w-3 text-muted-foreground" />
+                        <Link className="underline font-mono" to={`/sales/delivery-notes/${n.id}`}>
+                          {n.delivery_number}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">{n.status}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {manifest.state !== "dispatched" && manifest.carrier_id && (
+              <div className="flex flex-wrap items-end gap-2">
+                {(services.data ?? []).length > 0 && (
+                  <div>
+                    <Label>Service</Label>
+                    <select
+                      className="h-9 rounded-md border bg-background px-2 text-sm"
+                      value={serviceId || manifest.carrier_service_id || ""}
+                      onChange={(e) => setServiceId(e.target.value)}
+                    >
+                      <option value="">Default</option>
+                      {(services.data ?? []).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                          {s.transit_days ? ` · ${s.transit_days}d` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  disabled={allocate.isPending}
+                  onClick={() => allocate.mutate(serviceId || manifest.carrier_service_id || null)}
+                >
+                  <Tag className="h-4 w-4 mr-2" />
+                  {manifest.tracking_number ? "Re-issue tracking" : "Allocate tracking"}
+                </Button>
+              </div>
+            )}
+          </div>
         </Section>
 
         {manifest.state !== "dispatched" && proofStatus?.required && (
@@ -324,26 +321,24 @@ export default function LoadingBay() {
                 : "This warehouse requires seal, driver and signature before the load can leave."
             }
           >
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
-                  <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
-                    {proofStatus.satisfied ? "Captured" : "Outstanding"}
-                  </StatusBadge>
-                  {proofStatus.captured_at && (
-                    <span className="text-muted-foreground">
-                      {new Date(proofStatus.captured_at).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-                <DispatchProofForm
-                  status={proofStatus}
-                  submitting={captureProof.isPending}
-                  onSubmit={(v) => captureProof.mutate(v)}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
+                <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
+                  {proofStatus.satisfied ? "Captured" : "Outstanding"}
+                </StatusBadge>
+                {proofStatus.captured_at && (
+                  <span className="text-muted-foreground">
+                    {new Date(proofStatus.captured_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <DispatchProofForm
+                status={proofStatus}
+                submitting={captureProof.isPending}
+                onSubmit={(v) => captureProof.mutate(v)}
+              />
+            </div>
           </Section>
         )}
 
@@ -352,86 +347,78 @@ export default function LoadingBay() {
             description={isComplete
               ? "All sealed cartons for this manifest's waves are loaded."
               : `${shortCount} sealed carton(s) still missing — dispatch is blocked until every one is loaded.`}>
-            <Card><CardContent className="p-4">
-              <div className="h-2 w-full rounded bg-muted overflow-hidden">
-                <div
-                  className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
-                  style={{ width: `${scannedPct}%` }}
-                />
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Loaded {loadedCount} · Missing {shortCount}
-              </div>
-            </CardContent></Card>
-          </Section>
+          <div className="h-2 w-full rounded bg-muted overflow-hidden">
+            <div
+              className={isComplete ? "h-full bg-emerald-500 transition-all" : "h-full bg-amber-500 transition-all"}
+              style={{ width: `${scannedPct}%` }}
+            />
+          </div>
+          <div className="mt-2 text-sm text-muted-foreground">
+            Loaded {loadedCount} · Missing {shortCount}
+          </div>
+          </Section> )}
         )}
 
         {canLoad && (
           <Section title="Scan carton LPN">
-            <Card><CardContent className="p-4">
-              <EntityScanField
-                label="Carton LPN"
-                intent="load.lpn"
-                entity="carton"
-                disabled={load.isPending}
-                onResolve={resolveCartonScan}
-              />
-            </CardContent></Card>
-          </Section>
+          <EntityScanField
+            label="Carton LPN"
+            intent="load.lpn"
+            entity="carton"
+            disabled={load.isPending}
+            onResolve={resolveCartonScan}
+          />
+          </Section> )}
         )}
 
-        <Section title={`Loaded (${(loaded ?? []).length})`}>
-          <Card><CardContent className="p-0">
-            {(loaded ?? []).length === 0 ? (
-              <div className="p-4 text-sm text-muted-foreground">No cartons loaded yet.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50"><tr className="text-left">
-                  <th className="p-2">#</th><th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Loaded</th>
-                </tr></thead>
-                <tbody>
-                  {(loaded ?? []).map((l) => (
-                    <tr key={l.id} className="border-t">
-                      <td className="p-2 font-mono">{l.sequence}</td>
-                      <td className="p-2 font-mono">{l.lpn?.code ?? "—"}</td>
-                      <td className="p-2">{l.carton?.weight_kg != null ? `${l.carton.weight_kg} kg` : "—"}</td>
-                      <td className="p-2 text-muted-foreground">{new Date(l.loaded_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </CardContent></Card>
+        <Section title={`Loaded (${(loaded ?? []).length})`} contentClassName="px-0 pb-0">
+        {(loaded ?? []).length === 0 ? (
+          <div className="p-4 text-sm text-muted-foreground">No cartons loaded yet.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50"><tr className="text-left">
+              <th className="p-2">#</th><th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Loaded</th>
+            </tr></thead>
+            <tbody>
+              {(loaded ?? []).map((l) => (
+                <tr key={l.id} className="border-t">
+                  <td className="p-2 font-mono">{l.sequence}</td>
+                  <td className="p-2 font-mono">{l.lpn?.code ?? "—"}</td>
+                  <td className="p-2">{l.carton?.weight_kg != null ? `${l.carton.weight_kg} kg` : "—"}</td>
+                  <td className="p-2 text-muted-foreground">{new Date(l.loaded_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         </Section>
 
         {canLoad && (
           <Section title={`Available (${(available ?? []).filter((c) => !loadedIds.has(c.id)).length})`}
-            description="Sealed cartons not yet on any manifest.">
-            <Card><CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50"><tr className="text-left">
-                  <th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Sealed</th><th className="p-2"></th>
-                </tr></thead>
-                <tbody>
-                  {(available ?? []).filter((c) => !loadedIds.has(c.id)).slice(0, 50).map((c) => (
-                    <tr key={c.id} className="border-t">
-                      <td className="p-2 font-mono">{c.shipment_lpn?.code ?? "—"}</td>
-                      <td className="p-2">{c.weight_kg != null ? `${c.weight_kg} kg` : "—"}</td>
-                      <td className="p-2 text-muted-foreground">{c.sealed_at ? new Date(c.sealed_at).toLocaleString() : "—"}</td>
-                      <td className="p-2 text-right">
-                        <Button size="sm" variant="outline" onClick={() => load.mutate(c.id)} disabled={load.isPending}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Load
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {(available ?? []).filter((c) => !loadedIds.has(c.id)).length === 0 && (
-                    <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No available cartons.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </CardContent></Card>
-          </Section>
+            description="Sealed cartons not yet on any manifest." contentClassName="px-0 pb-0">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50"><tr className="text-left">
+              <th className="p-2">LPN</th><th className="p-2">Weight</th><th className="p-2">Sealed</th><th className="p-2"></th>
+            </tr></thead>
+            <tbody>
+              {(available ?? []).filter((c) => !loadedIds.has(c.id)).slice(0, 50).map((c) => (
+                <tr key={c.id} className="border-t">
+                  <td className="p-2 font-mono">{c.shipment_lpn?.code ?? "—"}</td>
+                  <td className="p-2">{c.weight_kg != null ? `${c.weight_kg} kg` : "—"}</td>
+                  <td className="p-2 text-muted-foreground">{c.sealed_at ? new Date(c.sealed_at).toLocaleString() : "—"}</td>
+                  <td className="p-2 text-right">
+                    <Button size="sm" variant="outline" onClick={() => load.mutate(c.id)} disabled={load.isPending}>
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Load
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {(available ?? []).filter((c) => !loadedIds.has(c.id)).length === 0 && (
+                <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No available cartons.</td></tr>
+              )}
+            </tbody>
+          </table>
+          </Section> )}
         )}
         <ActivitySection aggregateId={manifestId} title="Manifest activity" description="Lifecycle events emitted for this loading manifest." />
       </PageBody>

@@ -9,13 +9,7 @@ import { useBranches } from "@/hooks/useBranches";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-// SCOPE-TRIGGER-EXEMPT: form selector for assigning a branch to a warehouse, not a scope switcher
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
