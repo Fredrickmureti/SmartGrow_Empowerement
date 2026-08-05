@@ -87,8 +87,26 @@ function Waterfall({ trace }: { trace: TraceRow }) {
   );
 }
 
+const ALL_DOC_TYPES = "__all__";
+
+/** Best available document identity for grouping: kind → intent → trace label. */
+function docTypeOf(trace: TraceRow): string {
+  const attrs = trace.attributes ?? {};
+  const candidate = attrs.kind_code ?? attrs.intent ?? attrs.source_doc_type;
+  return String(candidate ?? trace.label ?? "unknown");
+}
+
+/** Nearest-rank percentile; small sample sizes are the norm here. */
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const rank = Math.ceil((p / 100) * sorted.length);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))];
+}
+
 export default function PrintLatency() {
   const [selected, setSelected] = useState<string | null>(null);
+  const [docType, setDocType] = useState<string>(ALL_DOC_TYPES);
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["print-latency-traces"],
@@ -113,19 +131,48 @@ export default function PrintLatency() {
     [traces, selected],
   );
 
-  const stageTotals = useMemo(() => {
-    const totals = new Map<string, { ms: number; n: number }>();
-    for (const trace of traces) {
+  const docTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const trace of traces) set.add(docTypeOf(trace));
+    return [...set].sort();
+  }, [traces]);
+
+  const scoped = useMemo(
+    () => (docType === ALL_DOC_TYPES ? traces : traces.filter((t) => docTypeOf(t) === docType)),
+    [traces, docType],
+  );
+
+  /**
+   * p50/p95 per stage, scoped to one document type. The average alone hides
+   * exactly the cases operators complain about: a stage that is fast most of
+   * the time and occasionally stalls shows up only in the tail.
+   */
+  const stageStats = useMemo(() => {
+    const buckets = new Map<string, number[]>();
+    for (const trace of scoped) {
       for (const span of trace.spans ?? []) {
-        const prev = totals.get(span.name) ?? { ms: 0, n: 0 };
-        totals.set(span.name, { ms: prev.ms + span.durationMs, n: prev.n + 1 });
+        const arr = buckets.get(span.name) ?? [];
+        arr.push(span.durationMs);
+        buckets.set(span.name, arr);
       }
     }
-    return [...totals.entries()]
-      .map(([name, v]) => ({ name, avg: v.ms / Math.max(v.n, 1), n: v.n }))
-      .sort((a, b) => b.avg - a.avg)
-      .slice(0, 8);
-  }, [traces]);
+    const totals = scoped.map((t) => t.total_ms);
+    const rows = [...buckets.entries()].map(([name, values]) => ({
+      name,
+      n: values.length,
+      p50: percentile(values, 50),
+      p95: percentile(values, 95),
+    }));
+    rows.sort((a, b) => b.p95 - a.p95);
+    return {
+      rows,
+      endToEnd: {
+        n: totals.length,
+        p50: percentile(totals, 50),
+        p95: percentile(totals, 95),
+      },
+    };
+  }, [scoped]);
 
   return (
     <div className="container mx-auto space-y-6 p-6">
@@ -229,27 +276,80 @@ export default function PrintLatency() {
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Slowest stages (average)</CardTitle>
-                <CardDescription>Across the traces loaded above</CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base">Stage latency (p50 / p95)</CardTitle>
+                    <CardDescription>
+                      {stageStats.endToEnd.n} traces · end-to-end p50{" "}
+                      {Math.round(stageStats.endToEnd.p50)}ms · p95{" "}
+                      {Math.round(stageStats.endToEnd.p95)}ms
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={docType === ALL_DOC_TYPES ? "secondary" : "ghost"}
+                      onClick={() => setDocType(ALL_DOC_TYPES)}
+                    >
+                      All documents
+                    </Button>
+                    {docTypes.map((dt) => (
+                      <Button
+                        key={dt}
+                        type="button"
+                        size="sm"
+                        variant={docType === dt ? "secondary" : "ghost"}
+                        onClick={() => setDocType(dt)}
+                      >
+                        {dt}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-1">
-                {stageTotals.map((stage) => (
-                  <div
-                    key={stage.name}
-                    className="grid grid-cols-[minmax(9rem,14rem)_1fr_6rem] items-center gap-2"
-                  >
-                    <span className="truncate font-mono text-xs">{stage.name}</span>
-                    <div className="h-3 rounded bg-muted">
-                      <div
-                        className="h-3 rounded bg-primary"
-                        style={{ width: `${pct(stage.avg, stageTotals[0]?.avg ?? 1)}%` }}
-                      />
+                <div className="grid grid-cols-[minmax(9rem,14rem)_1fr_4rem_4rem_3rem] items-center gap-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <span>Stage</span>
+                  <span>p95 share</span>
+                  <span className="text-right">p50</span>
+                  <span className="text-right">p95</span>
+                  <span className="text-right">n</span>
+                </div>
+                {stageStats.rows.length === 0 ? (
+                  <p className="py-2 text-sm text-muted-foreground">
+                    No spans for this document type yet.
+                  </p>
+                ) : (
+                  stageStats.rows.map((stage) => (
+                    <div
+                      key={stage.name}
+                      className="grid grid-cols-[minmax(9rem,14rem)_1fr_4rem_4rem_3rem] items-center gap-2"
+                    >
+                      <span className="truncate font-mono text-xs" title={stage.name}>
+                        {stage.name}
+                      </span>
+                      <div className="h-3 rounded bg-muted">
+                        <div
+                          className={cn(
+                            "h-3 rounded",
+                            bandFor(stage.p95, stageStats.endToEnd.p95 || stage.p95),
+                          )}
+                          style={{ width: `${pct(stage.p95, stageStats.rows[0]?.p95 ?? 1)}%` }}
+                        />
+                      </div>
+                      <span className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        {Math.round(stage.p50)}ms
+                      </span>
+                      <span className="text-right font-mono text-xs tabular-nums">
+                        {Math.round(stage.p95)}ms
+                      </span>
+                      <span className="text-right font-mono text-xs text-muted-foreground">
+                        {stage.n}
+                      </span>
                     </div>
-                    <span className="text-right font-mono text-xs text-muted-foreground">
-                      {Math.round(stage.avg)}ms ×{stage.n}
-                    </span>
-                  </div>
-                ))}
+                  ))
+                )}
               </CardContent>
             </Card>
           </div>
