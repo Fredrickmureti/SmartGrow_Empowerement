@@ -89,6 +89,10 @@ import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { CustomizeFieldsButton } from "@/components/studio/CustomizeFieldsButton";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { useScanTarget } from "@/hooks/pos/useScanTarget";
+import {
+  resolveProductIdentityOnce,
+  describeResolution,
+} from "@/hooks/inventory/useResolveProductIdentity";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { playPOSSound } from "@/lib/pos/sounds";
 
