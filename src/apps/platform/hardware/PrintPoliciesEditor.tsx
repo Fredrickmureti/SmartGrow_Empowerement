@@ -444,7 +444,7 @@ export default function PrintPoliciesEditor() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__" className="text-xs">— none —</SelectItem>
-                      {roles.map((r) => (
+                      {roleOptions.map((r) => (
                         <SelectItem key={r.code} value={r.code} className="text-xs">
                           {r.label} <span className="text-muted-foreground">· {r.code}</span>
                         </SelectItem>
