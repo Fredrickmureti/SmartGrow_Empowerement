@@ -87264,6 +87264,10 @@ export type Database = {
         }
         Returns: string
       }
+      label_saved_view_filter: {
+        Args: { p_business_id: string; p_view_id: string }
+        Returns: Json
+      }
       label_vars_for_location: {
         Args: { p_business_id: string; p_location_id: string }
         Returns: Json
