@@ -26,6 +26,7 @@ import {
   DocumentActivityPanel,
   DocumentTotalsPanel,
   LineItemsGrid,
+  useRecordPrint,
   type LineItemColumn,
   type LineItemRow,
 } from "@/features/sales/record";
