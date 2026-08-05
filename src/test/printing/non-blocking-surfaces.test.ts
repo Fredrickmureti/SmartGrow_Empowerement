@@ -9,7 +9,6 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { globSync } from "node:fs";
 
 const SURFACES = [
   "src/pages/Invoices.tsx",
