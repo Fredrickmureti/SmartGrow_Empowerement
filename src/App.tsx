@@ -168,6 +168,7 @@ import {
 const MigrationPage = lazy(() => import("@/pages/settings/MigrationPage"));
 const ConsolidationReport = lazy(() => import("@/pages/reports/Consolidation"));
 const BranchNullDiagnostic = lazy(() => import("@/pages/diagnostics/BranchNullDiagnostic"));
+const PrintLatencyDiagnostic = lazy(() => import("@/pages/diagnostics/PrintLatency"));
 const UserProfilePage = lazy(() => import("@/pages/settings/UserProfilePage"));
 const CarriersSettings = lazy(() => import("@/pages/settings/Carriers"));
 const AppsAndSubscriptions = lazy(() => import("@/pages/settings/AppsAndSubscriptions"));
