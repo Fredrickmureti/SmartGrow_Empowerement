@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { resendJob, requeueJob } from "@/services/printing/jobs";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
+import { useRequestFullWidth } from "@/contexts/AppLayoutContext";
+
 import {
   docTypeLabel,
   intentLabel,
@@ -74,8 +76,12 @@ function datePresetSince(preset: DatePreset): string | null {
 }
 
 export default function HardwarePrintQueue() {
+  // Wide data table — drop the shell's max-w-6xl centring cap so the grid
+  // uses the viewport instead of being squeezed into the middle.
+  useRequestFullWidth();
   const { currentBusiness } = useBusinesses();
   const businessId = currentBusiness?.id ?? null;
+
 
   const [rows, setRows] = useState<PrintJobRow[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -251,7 +257,7 @@ export default function HardwarePrintQueue() {
 
   if (!businessId) {
     return (
-      <div className="p-6">
+      <div className="">
         <Card>
           <CardHeader>
             <CardTitle>Print activity</CardTitle>
@@ -265,7 +271,7 @@ export default function HardwarePrintQueue() {
   const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / pageSize)) : 1;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
