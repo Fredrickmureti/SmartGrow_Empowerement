@@ -77,7 +77,7 @@ export const WAREHOUSE_NAV: WorkspaceNav = {
         { to: "/warehouse-app/schedule", label: "Appointments", icon: CalendarClock },
         { to: "/warehouse-app/receiving", label: "Receiving", icon: Inbox },
         { to: "/warehouse-app/qc", label: "Quality inspections", icon: ShieldCheck },
-        { to: "/warehouse-app/putaway", label: "Putaway", icon: Truck },
+        { to: "/warehouse-app/putaway", label: "Putaway", icon: Truck, end: true },
         { to: "/warehouse-app/crossdock", label: "Cross-dock", icon: Split },
         { to: "/warehouse-app/returns", label: "Returns", icon: Undo2 },
       ],
