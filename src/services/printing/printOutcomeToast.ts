@@ -49,3 +49,22 @@ export function printOutcomeToast(result: PrintIntentOutcome, label: string): Ou
     description: `${label} sent to ${targets} target(s).`,
   };
 }
+
+/**
+ * Acknowledgement copy for the non-blocking path (Phase 5).
+ *
+ * The claim here is deliberately narrower than "dispatched": at this point
+ * the routing plan and its ledger rows are durable and recoverable, but no
+ * byte has reached a printer yet. Saying "queued" is the honest statement,
+ * and it is the one enterprise spools make — SAP's output request, D365's
+ * document routing entry. A failure later arrives as its own toast.
+ */
+export function printQueuedToast(label: string, targetCount: number): OutcomeToast {
+  return {
+    title: 'Print queued',
+    description:
+      targetCount > 0
+        ? `${label} queued to ${targetCount} target(s).`
+        : `${label} queued.`,
+  };
+}
