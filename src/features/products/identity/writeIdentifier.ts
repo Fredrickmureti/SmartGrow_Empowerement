@@ -67,3 +67,28 @@ export async function writeIdentifier(input: IdentifierWriteInput): Promise<stri
   }
   return null;
 }
+
+/**
+ * Canonical retire seam. Deleting an identifier row destroys the audit
+ * trail and lets a code silently re-resolve later; archiving keeps the
+ * history and frees the code for re-issue via the partial unique index.
+ */
+export async function retireIdentifier(input: {
+  businessId: string;
+  identifierId: string;
+  status?: "inactive" | "archived";
+  replacedById?: string | null;
+}): Promise<string | null> {
+  const { data, error } = await supabase.rpc("retire_product_identifier" as never, {
+    p_business_id: input.businessId,
+    p_identifier_id: input.identifierId,
+    p_status: input.status ?? "archived",
+    p_replaced_by_id: input.replacedById ?? undefined,
+  } as never);
+  if (error) return identifierWriteMessage(null);
+  const envelope = (data ?? null) as { status?: string; reason?: string } | null;
+  if (envelope?.status && envelope.status !== "ok") {
+    return identifierWriteMessage(envelope.reason);
+  }
+  return null;
+}

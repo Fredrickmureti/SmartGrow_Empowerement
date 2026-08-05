@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { writeIdentifier, retireIdentifier } from "@/features/products/identity/writeIdentifier";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -120,27 +121,20 @@ function IdentifiersTab() {
     mutationFn: async (row: Partial<IdentifierRow>) => {
       if (!currentOrg?.id || !currentBusiness?.id) throw new Error("No business");
       if (!row.product_id || !row.code) throw new Error("Product and code are required");
-      if (row.id) {
-        const { error } = await supabase
-          .from("product_identifiers" as any)
-          .update({
-            code: row.code,
-            kind: row.kind ?? "gtin",
-            is_primary: row.is_primary ?? false,
-          })
-          .eq("id", row.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("product_identifiers" as any).insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          product_id: row.product_id,
-          code: row.code,
-          kind: row.kind ?? "gtin",
-          is_primary: row.is_primary ?? false,
-        });
-        if (error) throw error;
-      }
+      // ADR-0110 — identifier writes go through the identity service so
+      // primary-uniqueness, packaging ownership and cross-product code
+      // clashes are enforced in one transaction.
+      const failure = await writeIdentifier({
+        businessId: currentBusiness.id,
+        productId: row.product_id,
+        identifierId: row.id ?? null,
+        code: row.code,
+        kind: row.kind ?? "gtin",
+        packagingId: row.packaging_id ?? null,
+        isPrimary: row.is_primary ?? false,
+        source: "manual",
+      });
+      if (failure) throw new Error(failure);
     },
     onSuccess: () => {
       toast.success("Identifier saved");
@@ -152,11 +146,12 @@ function IdentifiersTab() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("product_identifiers" as any).delete().eq("id", id);
-      if (error) throw error;
+      if (!currentBusiness?.id) throw new Error("No business");
+      const failure = await retireIdentifier({ businessId: currentBusiness.id, identifierId: id });
+      if (failure) throw new Error(failure);
     },
     onSuccess: () => {
-      toast.success("Identifier removed");
+      toast.success("Identifier retired");
       qc.invalidateQueries({ queryKey: ["product-identifiers"] });
     },
     onError: (e: any) => toast.error(normalizeError(e).message ?? "Delete failed"),

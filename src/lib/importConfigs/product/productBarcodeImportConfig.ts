@@ -13,6 +13,7 @@ import {
   resolveProductIds,
 } from "./_resolveProduct";
 import { emitProductImportCompleted, newBatchId } from "./_emitImportEvent";
+import { writeIdentifier } from "@/features/products/identity/writeIdentifier";
 
 export const PRODUCT_BARCODE_IMPORT_FIELDS: FieldDefinition[] = [
   { key: "sku", label: "SKU", required: true, type: "text", aliases: ["code", "item_code", "product_code", "SKU", "Product Code"] },
@@ -84,27 +85,26 @@ export function createProductBarcodeBatchMigrationHandler(ctx: ImportContext) {
         errors.push({ rowIndex: i + 2, data: row, errors: "Missing barcode" });
         continue;
       }
-      const { error } = await supabase.from("product_identifiers").insert({
-        organization_id: ctx.orgId,
-        business_id: ctx.businessId,
-        product_id: productId,
+      // ADR-0110 — the importer is a caller of the identity service, not a
+      // second writer. `upsert_product_identifier` enforces primary
+      // uniqueness, packaging ownership and cross-product code clashes,
+      // and is idempotent for a code already enrolled on this product.
+      const failure = await writeIdentifier({
+        businessId: ctx.businessId,
+        productId,
         code: String(row.barcode).trim(),
-        kind: normalizeKind(row.identifier_type) as any,
-        is_primary: toBool(row.is_primary),
+        kind: normalizeKind(row.identifier_type),
+        isPrimary: toBool(row.is_primary),
+        source: "import",
         // Phase D — pack size is owned by the packaging level, so a
         // `packaging_qty` column resolves to that level rather than being
         // copied onto the identifier.
-        packaging_id: row.packaging_qty != null
+        packagingId: row.packaging_qty != null
           ? await resolvePackagingLevel(ctx, productId, Number(row.packaging_qty))
           : null,
-      } as any);
-      if (error) {
-        // 23505 = unique violation → treat as already imported (idempotent).
-        if ((error as any).code === "23505") {
-          imported++;
-        } else {
-          errors.push({ rowIndex: i + 2, data: row, errors: error.message });
-        }
+      });
+      if (failure) {
+        errors.push({ rowIndex: i + 2, data: row, errors: failure });
       } else {
         imported++;
       }

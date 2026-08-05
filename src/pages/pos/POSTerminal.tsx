@@ -81,6 +81,7 @@ import { parseScanPayload } from "@/services/pos/parseBarcode";
 import { interpretScan } from "@/lib/gs1/useGs1Scanner";
 // useScanCapture is mounted globally in AuthenticatedShell
 import { useResolveBarcode } from "@/hooks/pos/useResolveBarcode";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { scanBus } from "@/services/pos/scanBus";
 import { scanRouter } from "@/services/pos/scanRouter";
 import { scanFeedbackBus } from "@/services/pos/scanFeedbackBus";
@@ -731,7 +732,14 @@ function POSTerminalInner() {
         return;
       }
       if (result.kind === "miss") {
-        const reason = offline ? "Offline — code not cached" : "Unknown barcode";
+        const reason = offline
+          ? "Offline — code not cached"
+          : identityOutcomeLine({
+              status: result.status,
+              code: norm,
+              matchCount: result.matchCount,
+              productName: result.productName,
+            });
         scanFeedbackBus.emit({ kind: "unknown", raw: norm, detail: reason });
         sound.play("error");
         setUnknownScan({ code: norm, reason });
