@@ -314,13 +314,26 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
 
     useImperativeHandle(ref, () => ({
       hasPending: () => rows.some((r) => !r.id && r.code.trim().length > 0),
-      commit: async (newProductId: string) => {
-        const pending = rows
+      commit: async (newProductId?: string) => {
+        const targetProductId = newProductId ?? productId;
+        if (!targetProductId) return;
+        const live = rowsRef.current;
+
+        // Flush edits to already-persisted rows first (form Save on an
+        // existing product): typing no longer writes per keystroke.
+        for (let i = 0; i < live.length; i += 1) {
+          const r = live[i];
+          if (r.id && r._dirty && r.code.trim()) {
+            await persistRow(i);
+          }
+        }
+
+        const pending = live
           .filter((r) => !r.id && r.code.trim().length > 0)
           .map((r) => ({
             organization_id: organizationId,
             business_id: businessId,
-            product_id: newProductId,
+            product_id: targetProductId,
             code: r.code.trim(),
             kind: r.kind,
             is_primary: r.is_primary,
@@ -347,6 +360,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         }
       },
     }));
+
 
     const addRow = (initialCode = "", kind: IdentifierKind = "gtin") => {
       setRows((prev) => {
