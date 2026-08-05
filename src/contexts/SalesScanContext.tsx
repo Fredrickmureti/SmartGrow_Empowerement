@@ -35,6 +35,7 @@ import {
   type ReactNode,
 } from "react";
 import { useResolveBarcode, useScanTarget, type ResolvedScan } from "@/hooks/scanner";
+import { describeIdentityOutcome } from "@/features/products/identity/identityOutcome";
 import { useActiveScanContext } from "@/hooks/pos/useActiveScanContext";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
@@ -289,14 +290,20 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
           return;
         }
         if (result.kind === "miss") {
+          const outcome = describeIdentityOutcome({
+            status: result.status,
+            code: norm,
+            matchCount: result.matchCount,
+            productName: result.productName,
+          });
           scanFeedbackBus.emit({
             kind: "unknown", raw: norm, source: "field",
             workflow: "quantity", fieldLabel: "Sales workspace",
           });
           if (!controllerRef.current && mode === "browse") {
             toast({
-              title: "Unknown barcode",
-              description: `"${norm}" did not match any product.`,
+              title: outcome.title,
+              description: outcome.detail,
               variant: "destructive",
             });
           }

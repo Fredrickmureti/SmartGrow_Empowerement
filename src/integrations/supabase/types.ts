@@ -90205,6 +90205,10 @@ export type Database = {
         }
         Returns: Json
       }
+      pos_resolve_scan: {
+        Args: { p_branch_id: string; p_business_id: string; p_code: string }
+        Returns: Json
+      }
       pos_return_authorization_transition: {
         Args: { p_id: string; p_manager_pin?: string; p_to_state: string }
         Returns: string

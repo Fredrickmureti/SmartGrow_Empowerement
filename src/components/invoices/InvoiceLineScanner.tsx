@@ -35,6 +35,7 @@ import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton"
 import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useResolveBarcode, type ResolvedScan } from "@/hooks/scanner";
+import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useSalesScanController } from "@/contexts/SalesScanContext";
 
@@ -117,7 +118,15 @@ export function InvoiceLineScanner({
             fieldLabel: "Invoice line",
           });
         } else if (result.kind === "miss") {
-          setLastFlash({ kind: "miss", text: `Unknown barcode: ${norm}` });
+          setLastFlash({
+            kind: "miss",
+            text: identityOutcomeLine({
+              status: result.status,
+              code: norm,
+              matchCount: result.matchCount,
+              productName: result.productName,
+            }),
+          });
           scanFeedbackBus.emit({
             kind: "unknown",
             raw: norm,

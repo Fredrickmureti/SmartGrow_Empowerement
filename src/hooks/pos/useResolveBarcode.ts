@@ -2,10 +2,13 @@
  * useResolveBarcode — server-indexed scanner resolution with LRU cache,
  * single-flight dedupe, and tagged result envelope.
  *
- * Wraps the `pos_resolve_barcode` RPC. Replaces the previous client-only
- * `findByBarcode` which (a) only matched on `products.sku`, (b) only saw
- * the first 500 cached rows, and (c) silently dropped any code that wasn't
- * a literal SKU.
+ * Wraps the `pos_resolve_scan` RPC (ADR-0110). POS no longer owns an
+ * identity envelope of its own: `pos_resolve_scan` delegates matching to
+ * `resolve_product_identity` and layers price/tax/packaging on top, so the
+ * DECISION (`status`) that every other capture surface sees is the same
+ * one the cashier sees. Operator copy comes from the shared taxonomy in
+ * `@/features/products/identity/identityOutcome` — this hook never writes
+ * its own failure wording.
  *
  * Track H-Scan (ADR-0014) — fixes the intermittent "barcode invalid /
  * not found" flicker reported on the web POS phone scanner:
@@ -33,6 +36,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { IdentityStatus } from "@/features/products/identity/identityOutcome";
 
 export interface ResolvedScan {
   productId: string;
@@ -62,14 +66,14 @@ export interface ResolvedScan {
 
 export type ResolveResult =
   | { kind: "hit"; row: ResolvedScan }
-  | { kind: "miss" }
+  | { kind: "miss"; status: Exclude<IdentityStatus, "resolved" | "error">; code: string; matchCount: number; productName: string | null }
   | { kind: "error"; err: Error };
 
 const MAX_CACHE = 256;
 const MISS_TTL_MS = 5_000;
 
 interface CacheEntry {
-  result: { kind: "hit"; row: ResolvedScan } | { kind: "miss" };
+  result: Extract<ResolveResult, { kind: "hit" } | { kind: "miss" }>;
   cachedAt: number;
 }
 
@@ -124,21 +128,48 @@ function rowToResolved(row: Record<string, unknown>): ResolvedScan {
   };
 }
 
+const MISS_STATUSES: ReadonlyArray<Exclude<IdentityStatus, "resolved" | "error">> = [
+  "ambiguous",
+  "not_found",
+  "inactive",
+  "archived",
+  "expired",
+  "foreign_tenant",
+  "unauthorized",
+];
+
+function missStatus(raw: unknown): Exclude<IdentityStatus, "resolved" | "error"> {
+  return MISS_STATUSES.includes(raw as never)
+    ? (raw as Exclude<IdentityStatus, "resolved" | "error">)
+    : "not_found";
+}
+
 async function rpcOnce(
   businessId: string,
   branchId: string | null,
   code: string,
 ): Promise<ResolveResult> {
-  const { data, error } = await supabase.rpc("pos_resolve_barcode" as never, {
+  const { data, error } = await supabase.rpc("pos_resolve_scan" as never, {
     p_business_id: businessId,
     p_branch_id: branchId,
     p_code: code,
   } as never);
   if (error) return { kind: "error", err: new Error(error.message || "RPC error") };
-  const arr = (data as unknown) as Array<Record<string, unknown>> | null;
-  const row = arr && arr.length > 0 ? arr[0] : null;
-  if (!row) return { kind: "miss" };
-  return { kind: "hit", row: rowToResolved(row) };
+  // Tolerate the legacy row-set shape while the wrapper still exists.
+  const payload = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  if (!payload) {
+    return { kind: "miss", status: "not_found", code, matchCount: 0, productName: null };
+  }
+  if (payload.status === "resolved" || (payload.status === undefined && payload.product_id)) {
+    return { kind: "hit", row: rowToResolved(payload) };
+  }
+  return {
+    kind: "miss",
+    status: missStatus(payload.status),
+    code,
+    matchCount: Number(payload.match_count) || 0,
+    productName: (payload.product_name as string | null) ?? null,
+  };
 }
 
 async function rpcWithRetry(
@@ -182,7 +213,7 @@ export function useResolveBarcode(businessId: string | undefined, branchId: stri
     async (code: string): Promise<ResolveResult> => {
       if (!businessId) return { kind: "error", err: new Error("no business context") };
       const norm = code.trim();
-      if (!norm) return { kind: "miss" };
+      if (!norm) return { kind: "miss", status: "not_found", code, matchCount: 0, productName: null };
       const cacheKey = `${businessId}|${branchId ?? ""}|${norm.toLowerCase()}`;
 
       // Cache hit / unexpired miss.

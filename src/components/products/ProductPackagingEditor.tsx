@@ -46,6 +46,7 @@ import {
 import { toast } from "sonner";
 import { Trash2, Plus, LayoutTemplate, Sparkles } from "lucide-react";
 import { useIndustryProfile } from "@/hooks/useIndustryProfile";
+import { writeIdentifier } from "@/features/products/identity/writeIdentifier";
 
 type PackRow = {
   id: string;
@@ -153,6 +154,7 @@ export const ProductPackagingEditor = forwardRef<
 
   async function bindIdentifierToLevel(levelId: string, identifierId: string | null) {
     const previous = identifierForLevel(levelId);
+    if (!productId) return;
     // Optimistic: one identifier per level in this picker.
     setBarcodes((prev) =>
       prev.map((b) => {
@@ -162,23 +164,37 @@ export const ProductPackagingEditor = forwardRef<
       }),
     );
     if (previous && previous !== identifierId) {
-      const { error } = await supabase
-        .from("product_identifiers")
-        .update({ packaging_id: null })
-        .eq("id", previous);
-      if (error) {
-        toast.error(`Failed to unbind barcode: ${error.message}`);
+      const row = barcodes.find((b) => b.id === previous);
+      const failure = row
+        ? await writeIdentifier({
+            businessId,
+            productId,
+            identifierId: previous,
+            code: row.code,
+            kind: row.kind,
+            packagingId: null,
+          })
+        : "That identifier no longer exists — refresh and try again.";
+      if (failure) {
+        toast.error(failure);
         void load();
         return;
       }
     }
     if (identifierId) {
-      const { error } = await supabase
-        .from("product_identifiers")
-        .update({ packaging_id: levelId })
-        .eq("id", identifierId);
-      if (error) {
-        toast.error(`Failed to bind barcode: ${error.message}`);
+      const row = barcodes.find((b) => b.id === identifierId);
+      const failure = row
+        ? await writeIdentifier({
+            businessId,
+            productId,
+            identifierId,
+            code: row.code,
+            kind: row.kind,
+            packagingId: levelId,
+          })
+        : "That identifier no longer exists — refresh and try again.";
+      if (failure) {
+        toast.error(failure);
         void load();
         return;
       }
