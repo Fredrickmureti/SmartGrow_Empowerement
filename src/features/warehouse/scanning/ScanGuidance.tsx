@@ -99,14 +99,14 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
   const Icon = last ? VERDICT_ICON[last.verdict] : null;
 
   const statusLine = otherOwner ? (
-    <span className="inline-flex items-center gap-1 text-warning">
-      <ShieldAlert className="h-3.5 w-3.5" />
-      Scans are going to another open panel — close it to scan here
+    <span className="flex min-w-0 items-center gap-1 text-warning">
+      <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 truncate">Scans are going to another open panel — close it to scan here</span>
     </span>
   ) : (
-    <span className={cn("inline-flex items-center gap-1", armed ? "text-foreground" : "text-muted-foreground")}>
-      <ScanLine className="h-3.5 w-3.5" />
-      {instruction}
+    <span className={cn("flex min-w-0 items-center gap-1", armed ? "text-foreground" : "text-muted-foreground")}>
+      <ScanLine className="h-3.5 w-3.5 shrink-0" />
+      <span className="min-w-0 truncate">{instruction}</span>
     </span>
   );
 
@@ -114,13 +114,13 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
     return (
       <div
         className={cn(
-          "flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1.5 text-xs",
+          "flex w-full min-w-0 max-w-full items-center justify-between gap-2 overflow-hidden rounded-md border bg-muted/40 px-2 py-1.5 text-xs",
           className,
         )}
         role="status"
         aria-live="polite"
       >
-        <div className="min-w-0 truncate font-medium">{statusLine}</div>
+        <div className="min-w-0 flex-1 font-medium">{statusLine}</div>
         <div className="flex shrink-0 items-center gap-1.5">
           {last && Icon && (
             <span className={cn("inline-flex shrink-0 items-center gap-1", VERDICT_TONE[last.verdict])}>
@@ -137,10 +137,14 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
   }
 
   return (
-    <div className={cn("rounded-md border bg-muted/30 p-2 text-xs", className)} role="status" aria-live="polite">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="font-medium">{statusLine}</div>
-        <span className="text-muted-foreground">{sourceText}</span>
+    <div
+      className={cn("w-full min-w-0 max-w-full overflow-hidden rounded-md border bg-muted/30 p-2 text-xs", className)}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 flex-1 font-medium">{statusLine}</div>
+        <span className="shrink-0 text-muted-foreground">{sourceText}</span>
       </div>
       {!hideCamera && (
         <ScanCameraButton
@@ -154,10 +158,10 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
         <div className="mt-0.5 text-muted-foreground">{prompt.then}</div>
       )}
       {last && Icon && (
-        <div className={cn("mt-1 inline-flex items-center gap-1", VERDICT_TONE[last.verdict])}>
-          <Icon className="h-3.5 w-3.5" />
+        <div className={cn("mt-1 flex min-w-0 flex-wrap items-center gap-1", VERDICT_TONE[last.verdict])}>
+          <Icon className="h-3.5 w-3.5 shrink-0" />
           <span>{verdictCopy(last.verdict)}</span>
-          <span className="font-mono">{last.raw.slice(0, 24) || "—"}</span>
+          <span className="min-w-0 truncate font-mono">{last.raw.slice(0, 24) || "—"}</span>
           {last.detail && <span className="truncate max-w-[18rem] text-muted-foreground">{last.detail}</span>}
         </div>
       )}
@@ -176,7 +180,7 @@ function ScanHistoryStrip({ entries }: { entries: ScanHistoryEntry[] }) {
             key={e.key}
             title={`${verdictCopy(e.verdict)}${e.detail ? ` — ${e.detail}` : ""}`}
             className={cn(
-              "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono",
+              "inline-flex max-w-full items-center gap-1 truncate rounded border px-1.5 py-0.5 font-mono",
               VERDICT_TONE[e.verdict],
             )}
           >
