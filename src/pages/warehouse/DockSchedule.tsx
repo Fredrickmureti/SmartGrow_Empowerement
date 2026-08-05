@@ -166,13 +166,13 @@ export default function DockSchedule() {
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Warehouse</label>
                 <select
-                  className="border rounded px-2 py-1 bg-background"
+                  className="h-9 w-full min-w-0 sm:w-56 rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   value={warehouseId}
                   onChange={(e) => setWarehouseId(e.target.value)}
                 >
-                  <option value="">Select…</option>
+                  <option value="" className="bg-background text-foreground">Select…</option>
                   {(warehouses ?? []).map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
+                    <option key={w.id} value={w.id} className="bg-background text-foreground">{w.name}</option>
                   ))}
                 </select>
               </div>
