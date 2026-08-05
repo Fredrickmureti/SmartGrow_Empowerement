@@ -398,7 +398,7 @@ export default function PrintPoliciesEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {RENDER_OPTIONS.map((r) => (
+                      {renderOptions.map((r) => (
                         <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
                       ))}
                     </SelectContent>
