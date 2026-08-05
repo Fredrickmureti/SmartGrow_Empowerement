@@ -59,7 +59,7 @@ import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { fetchAndBuildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { useToast } from "@/hooks/use-toast";
