@@ -125,9 +125,10 @@ Findings that drive the remaining phases:
    agent spans arriving in `print_traces` for a real relay print, `print_traces`
    grants and RLS, and the diagnostics view rendering percentiles per document type.
    If anything fails verification, fix it before moving on and record the finding here.
-2. **Then resume at the next milestone in order** — the 1R exit criterion (measured
-   latency table), then Phase 4, then Phase 5, then Phase 6. Do not start Phase 4
-   before the table exists.
+2. **Then resume at the next milestone in order** — Phase 4 item 4 (before/after
+   percentiles once the long-poll agent build is on a workstation), then Phase 5
+   starting with the stalled PDF drain path, then Phase 6. Do not skip ahead to
+   Phase 6 guardrails before the Phase 5 surfaces exist to guard.
 3. Keep execution chronological; do not open unrelated work, leave partial features,
    or ship orphaned functionality. Bring each phase to a production-ready state.
 4. Update this file immediately after each completed item.
@@ -135,7 +136,8 @@ Findings that drive the remaining phases:
 ## Technical notes
 
 - The original roadmap's latency claims (labels 3–5 s, invoices 11–18 s, receipts
-  ~21 s) are still **unmeasured** in this codebase. 1R exists so the redesign is
-  driven by traces, not by that reading.
+  ~21 s) are now partly measured — see the table above. Labels and the escpos paths
+  are far faster than claimed; the pdf disposition is far *slower*. Re-measure from
+  `print_traces` (finer stage granularity) once operator prints have run.
 - Existing guards (`no-printservice-shim`, `no-raw-escpos-bytes`, hardware
   chokepoint, `no-direct-generate-document-in-pages`) must stay green.
