@@ -33,7 +33,9 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   writeIdentifier,
   identifierWriteMessage,
+  retireIdentifier,
 } from "@/features/products/identity/writeIdentifier";
+import { resolveProductIdentityOnce } from "@/hooks/inventory/useResolveProductIdentity";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
