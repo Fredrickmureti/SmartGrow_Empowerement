@@ -140,13 +140,16 @@ export function ScanGuidance({ expectedLabel, hint, variant = "block", showHisto
     <div className={cn("rounded-md border bg-muted/30 p-2 text-xs", className)} role="status" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="font-medium">{statusLine}</div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">{sourceText}</span>
-          {!hideCamera && (
-            <ScanCameraButton label={instruction} continuous={continuous} withText className="h-8 px-2 text-xs" />
-          )}
-        </div>
+        <span className="text-muted-foreground">{sourceText}</span>
       </div>
+      {!hideCamera && (
+        <ScanCameraButton
+          label={instruction}
+          continuous={continuous}
+          withText
+          className="mt-2 h-11 w-full text-sm sm:mt-1.5 sm:h-8 sm:w-auto sm:text-xs"
+        />
+      )}
       {armed && prompt && !otherOwner && (
         <div className="mt-0.5 text-muted-foreground">{prompt.then}</div>
       )}
