@@ -16,6 +16,7 @@ vi.mock("@/services/printing/jobs", () => ({
   openJob: (...args: unknown[]) => openJob(...args),
   loadJobs: vi.fn(async () => []),
   claimForForeground: vi.fn(async () => null),
+  settleJobs: vi.fn(async () => undefined),
   noopJobHandle: () => ({
     id: null,
     markSent: async () => undefined,
