@@ -264,16 +264,17 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         // row so the user can't unknowingly Save a colliding identifier.
         void (async () => {
           try {
-            const { data } = await supabase.rpc("pos_resolve_barcode" as any, {
+            const { data } = await supabase.rpc("resolve_product_identity" as any, {
               p_business_id: businessId,
               p_branch_id: null,
               p_code: code,
             } as any);
             const row = Array.isArray(data) && data.length > 0 ? (data[0] as any) : null;
-            if (row && row.product_id && row.product_id !== productId) {
+            const taken = row && (row.status === "resolved" || row.status === "ambiguous");
+            if (taken && row.product_id && row.product_id !== productId) {
               toast({
                 title: "Barcode already used",
-                description: `Used by ${row.name ?? "another product"}. Cleared from the row.`,
+                description: `Used by ${row.product_name ?? "another product"}. Cleared from the row.`,
                 variant: "destructive",
               });
               setRows((prev) =>
