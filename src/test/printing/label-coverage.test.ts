@@ -60,6 +60,8 @@ describe("Label print coverage (Phase 17)", () => {
 const BATCH_ENTRY_POINTS = [
   "features/warehouse/locations/BinLabelDialog.tsx",
   "components/labels/PrintFilteredLabelsButton.tsx",
+  // Phase 6 item 6 — whole-shipment carton labelling.
+  "features/warehouse/packaging/PackWaveLabelButton.tsx",
 ];
 
 describe("Label engine: no client-side batch print loops", () => {

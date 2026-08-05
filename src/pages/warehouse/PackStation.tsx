@@ -45,6 +45,7 @@ import {
   packagingFailureMessage,
 } from "@/features/warehouse/packaging/packagingEngine";
 import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+import { PackWaveLabelButton } from "@/features/warehouse/packaging/PackWaveLabelButton";
 import {
   resolveCartonScan,
   cartonScanFailureMessage,
@@ -487,7 +488,16 @@ export default function PackStation() {
                 </Card>
 
                 <Card>
-                  <CardHeader className="p-3 pb-0"><CardTitle className="text-sm">Cartons</CardTitle></CardHeader>
+                  <CardHeader className="p-3 pb-0 flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-sm">Cartons</CardTitle>
+                    <PackWaveLabelButton
+                      businessId={wave.business_id ?? null}
+                      waveId={waveId!}
+                      warehouseId={wave.warehouse_id}
+                      sealedCount={(cartons ?? []).filter((c) => !!c.sealed_at).length}
+                    />
+                  </CardHeader>
+
                   <CardContent className="p-3 space-y-2">
                     {soCartons.length === 0 && (
                       <p className="text-sm text-muted-foreground">No cartons yet. Open one to start packing.</p>

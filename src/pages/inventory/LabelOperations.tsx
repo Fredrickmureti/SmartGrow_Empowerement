@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { LabelRunHealthStrip } from "@/components/labels/LabelRunHealthStrip";
+
 import {
   useLabelRuns, useLabelRunLines, useLabelDemand, useLabelRunActions,
   type LabelDemandReason, type LabelRun, type LabelRunStatus,
@@ -158,6 +160,10 @@ export default function LabelOperations() {
           tone="warning"
         />
       </div>
+
+      <LabelRunHealthStrip businessId={businessId} />
+
+
 
       <Tabs defaultValue="demand">
         <TabsList>

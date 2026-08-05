@@ -72,13 +72,25 @@ export type LabelSelection =
   | { kind: "product_ids"; ids: string[] }
   | {
       kind: "product_filter";
+      /**
+       * Submit a saved product view instead of ids. The server re-derives
+       * the predicate from the view at expansion time, so a view covering
+       * the whole catalogue never has to travel through the browser.
+       * Any explicit key below narrows the view further.
+       */
+      saved_view_id?: string | null;
       search?: string | null;
       category_id?: string | null;
       is_active?: boolean;
       only_with_barcode?: boolean;
     }
+
   | { kind: "location_ids"; ids: string[] }
+  | { kind: "carton_ids"; ids: string[] }
+  /** Every carton on a packing wave — sealed only unless told otherwise. */
+  | { kind: "pack_wave"; wave_id: string; sealed_only?: boolean }
   | { kind: "demand"; reason?: LabelDemandReason | null };
+
 
 export interface CreateLabelRunArgs {
   templateKey: string;
@@ -252,4 +264,95 @@ export function useLabelRunActions(businessId?: string | null) {
   });
 
   return { createRun, setStatus, retryFailures, dismissDemand };
+}
+
+/* ------------------------------------------------------------------ *
+ * Run health — the same SLO signals the nightly monitor alerts on,
+ * shown to the operator who can actually act on them.
+ *
+ * Thresholds are duplicated from `check-print-queue-slo` on purpose:
+ * the edge function is the alerting authority, this is the read-only
+ * mirror of it. Keep the two in step when tuning.
+ * ------------------------------------------------------------------ */
+export const LABEL_SLO = {
+  runStallMinutes: 15,
+  refusedRatioThreshold: 0.2,
+  demandAgeHours: 24,
+  demandMinCount: 25,
+  minSampleSize: 20,
+} as const;
+
+export interface LabelRunHealth {
+  stalledRuns: number;
+  refusedLines: number;
+  totalLines: number;
+  refusedRatio: number;
+  refusalBreach: boolean;
+  agingDemand: number;
+  agingBreach: boolean;
+  healthy: boolean;
+}
+
+export function useLabelRunHealth(businessId?: string | null) {
+  return useQuery({
+    queryKey: ["label-run-health", businessId],
+    enabled: !!businessId,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<LabelRunHealth> => {
+      const now = Date.now();
+      const runStallCutoff = new Date(now - LABEL_SLO.runStallMinutes * 60_000).toISOString();
+      const window24h = new Date(now - 24 * 3_600_000).toISOString();
+      const demandCutoff = new Date(now - LABEL_SLO.demandAgeHours * 3_600_000).toISOString();
+
+      const [stalled, recent, aging] = await Promise.all([
+        supabase
+          .from("label_print_runs")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", businessId!)
+          .in("status", ["expanding", "running"])
+          .lt("updated_at", runStallCutoff),
+        supabase
+          .from("label_print_runs")
+          .select("total_lines, refused_lines")
+          .eq("business_id", businessId!)
+          .gte("created_at", window24h)
+          .limit(500),
+        supabase
+          .from("label_demand")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", businessId!)
+          .eq("status", "open")
+          .lt("created_at", demandCutoff),
+      ]);
+
+      if (stalled.error) throw stalled.error;
+      if (recent.error) throw recent.error;
+      if (aging.error) throw aging.error;
+
+      let totalLines = 0;
+      let refusedLines = 0;
+      for (const r of (recent.data ?? []) as { total_lines: number | null; refused_lines: number | null }[]) {
+        totalLines += r.total_lines ?? 0;
+        refusedLines += r.refused_lines ?? 0;
+      }
+      const refusedRatio = totalLines > 0 ? refusedLines / totalLines : 0;
+
+      const stalledRuns = stalled.count ?? 0;
+      const agingDemand = aging.count ?? 0;
+      const refusalBreach =
+        totalLines >= LABEL_SLO.minSampleSize && refusedRatio >= LABEL_SLO.refusedRatioThreshold;
+      const agingBreach = agingDemand >= LABEL_SLO.demandMinCount;
+
+      return {
+        stalledRuns,
+        refusedLines,
+        totalLines,
+        refusedRatio,
+        refusalBreach,
+        agingDemand,
+        agingBreach,
+        healthy: stalledRuns === 0 && !refusalBreach && !agingBreach,
+      };
+    },
+  });
 }
