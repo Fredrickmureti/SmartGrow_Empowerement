@@ -39,4 +39,19 @@ UI surfaces never await the printer. They call
 released the moment the `print_jobs` rows are durable ("Print queued"),
 and report only terminal failures later. `printDocumentIntent` /
 `printSourceDocumentIntent` stay for background jobs and tests. Guardrail:
-`src/test/printing/non-blocking-surfaces.test.ts`.
+`src/test/printing/non-blocking-surfaces.test.ts`. The non-page dispatchers
+(GRN, HR letters, vendor statements, POS receipt reprints, payslips) also
+return at the enqueue, never at the printer.
+
+## Print job terminal semantics (Phase 5.4/5.5)
+
+- Paper output (PDF) is terminal at **host handoff**: `toPage` fires
+  `onHandedToHost` when `window.print()` / the Electron main process takes the
+  bytes, and the ledger settles there — never when the operator dismisses the
+  OS dialog.
+- A `sent` row on a host-dialog transport (`pdf-browser`, `pdf-electron`,
+  `download`, `virtual`) or with `disposition = 'download'` is **stranded**:
+  the recovery sweeper closes it as `abandoned` via `print_jobs_strand`
+  instead of reprinting it. Only device (`thermal`) and `queued` rows are
+  replayed. Guardrail: `src/test/printing/pdf-handoff-and-strand.test.ts`.
+

@@ -35,8 +35,8 @@
  * mid-print, it still owns its own job.
  */
 import { supabase } from '@/integrations/supabase/client';
-import { dispatchQueuedJob, resolveOrganizationId } from './PrintService';
-import { strandJobs, type QueuedJob } from './jobs';
+import { dispatchQueuedJob, resolveOrganizationId, strandJobs } from './PrintService';
+import type { QueuedJob } from './jobs';
 
 /** A job stays the foreground session's business for this long. */
 const ABANDON_AFTER_MS = 90_000;

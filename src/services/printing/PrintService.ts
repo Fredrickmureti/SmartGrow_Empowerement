@@ -1100,6 +1100,14 @@ export async function downloadDocumentRecord(input: {
   }
 }
 
+/**
+ * Phase 5.5 — the ledger's close-out for rows that can never be settled.
+ * Re-exported here (rather than imported from `./jobs` by the sweeper) so
+ * `printing/jobs` keeps exactly one value importer: this module owns the
+ * `print_jobs` lifecycle, the janitor only asks it to act.
+ */
+export { strandJobs } from './jobs';
+
 export const PrintService = {
   renderDocumentBlob,
   renderDocumentPreview,

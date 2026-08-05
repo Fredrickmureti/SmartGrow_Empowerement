@@ -87,12 +87,10 @@ describe("Phase 5.5 — stranded rows are closed, not reprinted", () => {
         }),
       },
     }));
-    vi.doMock("@/services/printing/jobs", () => ({
-      strandJobs: (...args: unknown[]) => strandJobs(...(args as [string[]])),
-    }));
     vi.doMock("@/services/printing/PrintService", () => ({
       dispatchQueuedJob: (...args: unknown[]) => dispatchQueuedJob(...(args as [])),
       resolveOrganizationId: async () => "org-1",
+      strandJobs: (...args: unknown[]) => strandJobs(...(args as [string[]])),
     }));
 
     const { sweepAbandonedPrintJobs } = await import("@/services/printing/recovery");
