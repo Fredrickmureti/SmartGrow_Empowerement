@@ -19,8 +19,6 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
 import { BinScanField } from "@/features/warehouse/locations/BinScanField";
 import type { ResolvedLocation } from "@/features/warehouse/locations/useResolveLocationIdentity";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
 import {
   useLpn, useLpnContents, resolveLpnByCode,
 } from "@/features/warehouse/lpn/useLpnOps";
