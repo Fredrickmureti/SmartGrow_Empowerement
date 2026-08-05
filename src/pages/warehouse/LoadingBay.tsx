@@ -356,7 +356,7 @@ export default function LoadingBay() {
           <div className="mt-2 text-sm text-muted-foreground">
             Loaded {loadedCount} · Missing {shortCount}
           </div>
-          </Section> )}
+          </Section>
         )}
 
         {canLoad && (
@@ -368,7 +368,7 @@ export default function LoadingBay() {
             disabled={load.isPending}
             onResolve={resolveCartonScan}
           />
-          </Section> )}
+          </Section>
         )}
 
         <Section title={`Loaded (${(loaded ?? []).length})`} contentClassName="px-0 pb-0">
@@ -418,7 +418,7 @@ export default function LoadingBay() {
               )}
             </tbody>
           </table>
-          </Section> )}
+          </Section>
         )}
         <ActivitySection aggregateId={manifestId} title="Manifest activity" description="Lifecycle events emitted for this loading manifest." />
       </PageBody>

@@ -170,8 +170,8 @@ export default function LicensePlates() {
   return (
     <>
       <PageHeader
-        title="License plates"
-        description="Handling units carrying stock through the warehouse — scan, move, consolidate, label."
+        title="Handling units"
+        description="License plates carrying stock through the warehouse — scan, move, consolidate, label."
         actions={
           <div className="flex flex-wrap gap-2">
             {selected.length > 0 && (

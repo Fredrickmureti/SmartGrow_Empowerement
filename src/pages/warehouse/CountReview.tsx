@@ -195,7 +195,7 @@ export default function CountReview() {
             ))}
             {uncounted.length > 20 && <div>…and {uncounted.length - 20} more</div>}
             </div>
-          </Section> )}
+          </Section>
         )}
 
         <Section title={`Differences (${variances.length})`} contentClassName="px-0 pb-0">
