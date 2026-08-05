@@ -30,7 +30,7 @@ import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
 import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History, Truck } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
-import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
+import { ScanGuidance } from "@/features/warehouse/scanning/ScanGuidance";
 import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import { useReceivingSessionSupplier } from "./useReceivingSessionSupplier";
 import SupplierCodeDiscoveryPanel from "./SupplierCodeDiscoveryPanel";
