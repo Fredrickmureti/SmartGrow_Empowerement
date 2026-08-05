@@ -55,10 +55,19 @@ const JOB_COLUMNS =
  * only honest close-out is `abandoned`; reprinting is the operator's
  * explicit decision, never the janitor's.
  */
-const HOST_DIALOG_TRANSPORTS = new Set(['pdf-browser', 'pdf-electron', 'download']);
+const HOST_DIALOG_TRANSPORTS = new Set([
+  'pdf-browser',
+  'pdf-electron',
+  'download',
+  'virtual',
+]);
 
 function isStranded(job: QueuedJob): boolean {
-  return job.status === 'sent' && HOST_DIALOG_TRANSPORTS.has(job.transport ?? '');
+  if (job.status !== 'sent') return false;
+  // A download is terminal the moment the file reaches the operator's disk;
+  // replaying it would silently re-save a document nobody asked for again.
+  if ((job.disposition ?? 'print') === 'download') return true;
+  return HOST_DIALOG_TRANSPORTS.has(job.transport ?? '');
 }
 
 export interface RecoveryStatus {
@@ -93,9 +102,12 @@ async function findAbandonedJobs(businessId: string, limit: number): Promise<Que
     .order('created_at', { ascending: true })
     .limit(limit);
   if (error || !Array.isArray(data)) return [];
-  // Only print-dispositioned rows are ours; email/archive targets belong
-  // to their own delivery channels.
-  return (data as unknown as QueuedJob[]).filter((j) => (j.disposition ?? 'print') === 'print');
+  // Print-dispositioned rows are ours to replay; a stale `download` row is
+  // ours to close out (Phase 5.5). Email/archive targets belong to their own
+  // delivery channels and are left alone.
+  return (data as unknown as QueuedJob[]).filter(
+    (j) => (j.disposition ?? 'print') === 'print' || isStranded(j),
+  );
 }
 
 /**
