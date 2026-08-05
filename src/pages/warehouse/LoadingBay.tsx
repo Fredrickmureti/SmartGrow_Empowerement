@@ -356,7 +356,7 @@ export default function LoadingBay() {
           <div className="mt-2 text-sm text-muted-foreground">
             Loaded {loadedCount} · Missing {shortCount}
           </div>
-          </Section> )}
+          </Section>
         )}
 
         {canLoad && (
