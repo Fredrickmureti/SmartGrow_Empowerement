@@ -28,7 +28,7 @@ export function PackWaveLabelButton({ businessId, waveId, warehouseId, sealedCou
   if (sealedCount < 2) return null;
 
   const submit = async () => {
-    const run = await createRun.mutateAsync({
+    const runId = await createRun.mutateAsync({
       templateKey: "shipping_label",
       workflow: "shipping",
       entityType: "carton",
@@ -36,8 +36,9 @@ export function PackWaveLabelButton({ businessId, waveId, warehouseId, sealedCou
       warehouseId: warehouseId ?? null,
       name: `Shipping labels · ${sealedCount} carton${sealedCount === 1 ? "" : "s"}`,
     });
-    if (run?.id) navigate("/inventory/label-operations");
+    if (runId) navigate("/inventory/label-operations");
   };
+
 
   return (
     <Button size="sm" variant="outline" onClick={submit} disabled={createRun.isPending}>
