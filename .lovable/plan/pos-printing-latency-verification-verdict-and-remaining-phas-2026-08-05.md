@@ -3,6 +3,28 @@
 Roadmap of record: `.lovable/plan/pos-printing-latency-architecture-audit-and-redesign-2026-08-05.md`.
 This file is the live status board.
 
+## Status board (updated 2026-08-05)
+
+Done:
+- 1R.1 grants + indexes on `print_traces`, `anon` execute revoked on the printing RPCs.
+- 1R.2 concurrency-safe tracer (`Map<correlationId, TraceContext>`), correlation id
+  threaded end-to-end: print entry -> policy/ledger -> render edge invoke/decode ->
+  device resolve -> hardware exec -> relay preflight/enqueue/agent round-trip.
+  Guarded by `src/test/printing/trace-concurrency.test.ts`.
+- 1R.3 flush failures now warn instead of failing silently.
+- 1R.4 waterfall view at `/settings/diagnostics/print-latency` (per-trace span bars,
+  totals, slowest-stage rollup).
+
+Pending:
+- 1R.4b p50/p95 per stage per document type in the diagnostics view.
+- 1R.5 agent-side spans (`agent/src/relay.ts`, `agent/src/routes/print.ts`) fed back
+  through `addSpan`.
+- 1R exit criterion: the measured per-document latency table is not written yet
+  (needs real traces after the grants fix). Phase 4 stays blocked on it.
+- Phase 4 (relay dead time), Phase 5 (all document surfaces on the collapsed
+  non-blocking path; only `PostPaymentSurface` uses `startPrintDocument` today),
+  Phase 6 (remaining guardrail tests).
+
 ## Phase 1 verification — code shipped, but it measures nothing (must be re-done)
 
 Confirmed directly against the codebase and the database:
