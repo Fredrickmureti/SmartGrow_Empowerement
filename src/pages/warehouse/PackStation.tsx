@@ -45,6 +45,7 @@ import {
   packagingFailureMessage,
 } from "@/features/warehouse/packaging/packagingEngine";
 import { CartonSsccLabelButton } from "@/features/warehouse/packaging/CartonSsccLabelButton";
+import { PackWaveLabelButton } from "@/features/warehouse/packaging/PackWaveLabelButton";
 import {
   resolveCartonScan,
   cartonScanFailureMessage,
