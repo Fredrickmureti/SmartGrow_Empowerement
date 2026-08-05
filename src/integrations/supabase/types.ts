@@ -83934,6 +83934,15 @@ export type Database = {
         }
         Returns: number
       }
+      discover_supplier_identity: {
+        Args: {
+          p_business_id: string
+          p_code: string
+          p_purchase_order_id?: string
+          p_supplier_id?: string
+        }
+        Returns: Json
+      }
       dispatch_delivery_atomic: {
         Args: { p_dn_id: string; p_payload?: Json; p_user_id: string }
         Returns: Json
@@ -92045,6 +92054,7 @@ export type Database = {
           p_branch_id?: string
           p_business_id: string
           p_code: string
+          p_supplier_id?: string
         }
         Returns: {
           base_uom_id: string

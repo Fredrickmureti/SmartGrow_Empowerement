@@ -32,6 +32,9 @@ import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Ch
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
 import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
 import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
+import { useReceivingSessionSupplier } from "./useReceivingSessionSupplier";
+import SupplierCodeDiscoveryPanel from "./SupplierCodeDiscoveryPanel";
+import { useSupplierCodeDiscovery } from "@/features/products/identity/useSupplierCodeDiscovery";
 import {
   useReceivingLines,
   useMaterializeExpectedLines,
@@ -214,7 +217,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
   const capture = useCaptureReceivingLine();
   const flag = useFlagVariances();
   const post = usePostReceivingSession();
-  const gate = useWmsIdentityGate(businessId);
+  // Phase 8 — the supplier behind the inbound document. Supplier-scoped
+  // identifiers (a vendor's own part number) only resolve with this context,
+  // and it drives discovery for a code the catalogue does not know yet.
+  const supplierCtx = useReceivingSessionSupplier(businessId, session);
+  const gate = useWmsIdentityGate(businessId, null, { supplierId: supplierCtx.supplierId });
+  const discovery = useSupplierCodeDiscovery(businessId);
   const [expandedLine, setExpandedLine] = useState<string | null>(null);
 
   // Tracking flags for every product on the session — batched once so each
@@ -322,7 +330,17 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
         return;
       }
       const gated = await gate.gate({ raw: p.raw, resolveCode: p.resolveCode, workflow: "receive" });
-      if (!gated) return;
+      if (!gated) {
+        // The gate already blocked the line and gave audible feedback. A code
+        // the catalogue does not know may still be this supplier's own part
+        // number — offer the evidence instead of a dead end.
+        await discovery.discover(p.resolveCode || p.raw, {
+          supplierId: supplierCtx.supplierId,
+          purchaseOrderId: supplierCtx.purchaseOrderId,
+        });
+        return;
+      }
+      discovery.dismiss();
       const { identity, baseUnits, lot, serial, expiry } = gated;
       if (tracking.get(identity.productId).is_serial_tracked && !serial) {
         toast.error(`${identity.productName} is serial-tracked — scan the unit serial (GS1 AI 21)`);
@@ -383,6 +401,25 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             Scans land on lines while this panel is open — quantity, lot, expiry and damage are recorded, not narrated.
           </SheetDescription>
         </SheetHeader>
+
+        {discovery.discovery && discovery.discovery.status !== "empty" ? (
+          <SupplierCodeDiscoveryPanel
+            discovery={discovery.discovery}
+            supplierName={supplierCtx.supplierName}
+            busy={discovery.busy}
+            error={discovery.error}
+            onLink={async (c) => {
+              const failure = await discovery.link(c, supplierCtx.supplierId);
+              if (failure) {
+                toast.error(failure);
+              } else {
+                gate.invalidate();
+                toast.success(`Code linked to ${c.productName} — scan it again to receive`);
+              }
+            }}
+            onDismiss={discovery.dismiss}
+          />
+        ) : null}
 
         {visit ? (
           <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">

@@ -271,12 +271,14 @@ export async function resolveProductIdentityOffline(
             pi.valid_from  AS identifier_valid_from,
             pi.valid_to    AS identifier_valid_to,
             pi.packaging_id,
+            pi.supplier_id AS identifier_supplier_id,
             pi.qty_in_base_uom
        FROM products p
        INNER JOIN product_identifiers pi ON pi.product_id = p.id
      WHERE p.organization_id = ?
        AND p.is_active = 1
        AND upper(trim(pi.code)) IN (${placeholders})
+       AND (pi.supplier_id IS NULL OR pi.supplier_id = '')
      LIMIT 50`,
     [organizationId, ...candidates],
   );

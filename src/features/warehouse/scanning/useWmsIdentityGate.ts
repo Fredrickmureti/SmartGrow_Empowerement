@@ -42,11 +42,25 @@ export function describeLevel(identity: ProductIdentity): string {
   return identity.qtyInBaseUom > 1 ? `${level} × ${identity.qtyInBaseUom}` : level;
 }
 
+export interface WmsIdentityGateOptions {
+  /**
+   * Supplier context (Phase 8). Receiving against a vendor's PO / ASN passes
+   * the vendor id so that supplier's own part numbers resolve; every other
+   * surface leaves it null and a supplier code is refused as `supplier_scoped`
+   * instead of silently matching another vendor's goods.
+   */
+  supplierId?: string | null;
+}
+
 export function useWmsIdentityGate(
   businessId: string | undefined,
   branchId: string | null = null,
+  options: WmsIdentityGateOptions = {},
 ) {
-  const { resolve, invalidate } = useResolveProductIdentity(businessId, branchId);
+  const { resolve, invalidate } = useResolveProductIdentity(businessId, branchId, {
+    supplierId: options.supplierId ?? null,
+  });
+
 
   /**
    * Resolve a scan payload to a gated identity, or `null` when the line must

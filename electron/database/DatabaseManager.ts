@@ -126,6 +126,9 @@ class DatabaseManager {
       "ALTER TABLE product_identifiers ADD COLUMN status TEXT DEFAULT 'active'",
       "ALTER TABLE product_identifiers ADD COLUMN valid_from TEXT",
       "ALTER TABLE product_identifiers ADD COLUMN valid_to TEXT",
+      // ADR-0110 Phase 8: a supplier's own part number is scoped to that
+      // supplier and must never resolve on a POS lane, which has no vendor.
+      "ALTER TABLE product_identifiers ADD COLUMN supplier_id TEXT",
       "CREATE INDEX IF NOT EXISTS product_identifiers_code_norm_idx ON product_identifiers(code_norm)",
     ]) {
       try { this.db.exec(sql); } catch { /* already applied */ }
@@ -207,6 +210,7 @@ class DatabaseManager {
         status TEXT DEFAULT 'active',
         valid_from TEXT,
         valid_to TEXT,
+        supplier_id TEXT,
         is_primary INTEGER DEFAULT 0,
         packaging_id TEXT,
         qty_in_base_uom REAL DEFAULT 1,
