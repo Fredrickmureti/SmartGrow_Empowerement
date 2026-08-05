@@ -180,6 +180,20 @@ export default function MobileQC() {
 
         {!terminal && (
           <>
+            <ProductScanField
+              label="Scan the item"
+              intent="qc.item"
+              businessId={insp.business_id}
+              branchId={insp.branch_id}
+              expectedProductId={insp.product_id}
+              expectedSku={insp.product?.sku}
+              onResolved={onScanned}
+            />
+            {!verified && (
+              <p className="text-xs text-muted-foreground">
+                Scan the inspected item to unlock the verdict.
+              </p>
+            )}
             <div>
               <Label>Pass qty</Label>
               <Input
@@ -212,7 +226,7 @@ export default function MobileQC() {
               <Button
                 variant="outline"
                 className="h-14"
-                disabled={busy}
+                disabled={busy || !verified}
                 onClick={hold}
               >
                 <Pause className="h-4 w-4 mr-1" /> Hold
@@ -220,12 +234,12 @@ export default function MobileQC() {
               <Button
                 variant="destructive"
                 className="h-14"
-                disabled={busy}
+                disabled={busy || !verified}
                 onClick={reject}
               >
                 <X className="h-4 w-4 mr-1" /> Fail
               </Button>
-              <Button className="h-14" disabled={busy} onClick={accept}>
+              <Button className="h-14" disabled={busy || !verified} onClick={accept}>
                 <Check className="h-4 w-4 mr-1" /> Pass
               </Button>
             </div>
