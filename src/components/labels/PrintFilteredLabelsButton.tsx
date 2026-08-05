@@ -31,6 +31,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useLabelRunActions } from "@/hooks/inventory/useLabelRuns";
+import type { PrinterWorkflow } from "@/services/printing/labelDispatch";
 
 interface Props {
   /** Free-text filter currently applied to the grid. */
@@ -42,7 +43,7 @@ interface Props {
   disabled?: boolean;
 }
 
-const TEMPLATES: { key: string; label: string; workflow: string }[] = [
+const TEMPLATES: { key: string; label: string; workflow: PrinterWorkflow }[] = [
   { key: "product_label", label: "Product label", workflow: "product_tag" },
   { key: "shelf_label", label: "Shelf edge label", workflow: "shelf_edge" },
 ];
