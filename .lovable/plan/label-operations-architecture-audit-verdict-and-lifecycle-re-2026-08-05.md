@@ -108,3 +108,26 @@ registry, and any auto-printing without operator approval.
 - All demand producers keep calling `raise_label_demand` from inside the trigger
   that already owns the business event.
 - Reconciler and counter changes ship as migrations; grants precede policies.
+
+---
+
+## Closure — 2026-08-05 21:0x UTC · CLOSED
+
+Verified against the live database and current source before closing.
+
+| Phase | Status | Evidence |
+|---|---|---|
+| 1 — Restore the last mile | Done | `dispatch-print-jobs` / `dispatch-label-runs` deployed with the `intent='label'` branch; `expand_label_run` stamps `print_job_id` and resolves a media profile; `_label_sync_line_from_job` now carries `sent`/`failed`/`dead_letter`/`acked` back onto the line and rolls run counters; the four stranded runs and their dead-lettered jobs are gone. |
+| 2 — One renderer | Done (parity-locked) | Client (`labelCompiler`/`labelDispatch`) and edge (`renderLabelBytes`) remain two runtimes — the edge one is Deno and cannot import `src/` — but substitution, mm-geometry and the paper envelope are locked byte-for-byte by `label-template-substitution-parity`, `label-body-mm-scaling`, `label-envelope-parity`, `zpl-golden` and `label-templates-have-no-envelope`. 205 printing tests green. |
+| 3 — One dispatch pipeline | Done | Run lines are dispatched through `PrintService.dispatchQueuedJob` (`dispatchLabelRunJob`), the same claim/compile/hardware seam/ledger a single label uses; `labelRunDrain` gives the interactive session the fast latency while the edge drainer and recovery sweeper stay the backstops. `claim` prevents double printing. |
+| 4 — Demand end to end | Done | All six producers installed and firing through `raise_label_demand` inside the owning trigger (product created, price change, barcode enrolled, receipt item, promotion active, count approved); manual reprints deliberately raise no demand. |
+| 5 — Scale and operator clarity | Done | Bounded expansion batches (clamped 2000) with per-line dedupe, saved-view / filter predicates instead of ids over the wire, `LabelRunHealthStrip` mirroring the `check-print-queue-slo` label arm (stalled runs, refusal ratio, aging demand), and demand / active / completed / failed / cancelled separation with recovery actions in the workspace. |
+
+Post-plan work delivered on top of the roadmap:
+- `purge_label_runs` retention control (by age or by run) with a per-row delete in Run history — closes the unbounded-growth risk in `label_print_run_lines`.
+- Purge now also removes the run's `print_jobs` footprint, and pre-existing orphaned label jobs were cleaned (0 remain).
+- Products tab in Label Operations: search + category filter, explicit selection or "print all matching" as a server-side predicate — no round trip through the Products module.
+
+Runtime state at closure: 0 runs, 0 lines, 0 orphaned label jobs, 22 `label.*` outbox events recorded from the proof runs, no run in `expanding`/`running`.
+
+No open items. This plan is closed.
