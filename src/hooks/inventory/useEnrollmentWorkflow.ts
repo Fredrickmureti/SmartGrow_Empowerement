@@ -10,7 +10,8 @@
  *   - a per-code single-flight sequence id (stale RPC responses dropped)
  *
  * The orchestrator (returned hook) wires the reducer to:
- *   - the `enroll_product_barcode` RPC
+ *   - the canonical identifier write seam (`writeIdentifierResult`, over
+ *     `upsert_product_identifier`) — ADR: one write seam, no legacy RPC
  *   - the `scanFeedbackBus` (ghost-ticker / phone beep mirror)
  *   - the `usePOSSound` envelope (OK pip, duplicate warn, invalid blip)
  *
@@ -20,7 +21,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { writeIdentifierResult } from "@/features/products/identity/writeIdentifier";
 import { scanFeedbackBus } from "@/services/scanner";
 import { playPOSSound } from "@/lib/pos/sounds";
 import type { IdentificationTarget } from "@/hooks/inventory/useIdentificationQueue";
@@ -203,16 +204,26 @@ async function defaultEnroll(args: {
   packagingId?: string | null;
   kind?: "gtin" | "pack";
 }): Promise<EnrollRpcResult> {
-  const { data, error } = await supabase.rpc("enroll_product_barcode" as any, {
-    p_business_id: args.businessId,
-    p_product_id: args.productId,
-    p_code: args.code,
+  const result = await writeIdentifierResult({
+    businessId: args.businessId,
+    productId: args.productId,
+    code: args.code,
     // Above the base unit the code identifies a pack, not the item.
-    p_kind: args.kind ?? (args.packagingId ? "pack" : "gtin"),
-    p_packaging_id: args.packagingId ?? null,
-  } as any);
-  if (error) return { status: "invalid", reason: error.message };
-  return data as EnrollRpcResult;
+    kind: args.kind ?? (args.packagingId ? "pack" : "gtin"),
+    packagingId: args.packagingId ?? null,
+    source: "scan",
+  });
+  if (result.status === "ok") {
+    return { status: "ok", identifier_id: result.identifierId, idempotent: result.idempotent };
+  }
+  if (result.status === "duplicate") {
+    return {
+      status: "duplicate",
+      conflict_product_id: result.conflictProductId ?? "",
+      conflict_product_name: result.conflictProductName ?? "another product",
+    };
+  }
+  return { status: "invalid", reason: result.message };
 }
 
 export function useEnrollmentWorkflow({
