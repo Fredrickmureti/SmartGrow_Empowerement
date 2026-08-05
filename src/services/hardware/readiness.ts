@@ -93,6 +93,17 @@ function isElectronRuntime(): boolean {
   }
 }
 
+/** True when a print agent on THIS machine is up and authorized. It can carry
+ *  bytes to a LAN printer regardless of any `workstation_id` bookkeeping. */
+function localAgentAvailable(): boolean {
+  try {
+    return hardwareClient.agent.isAvailable() && hardwareClient.agent.isAuthorized();
+  } catch {
+    return false;
+  }
+}
+
+
 function ageLabel(iso: string | null): string | undefined {
   if (!iso) return 'never polled';
   const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -195,6 +206,23 @@ export async function resolveIntentReadiness(
       transport === 'serial' || transport === 'usb' || transport === 'tcp';
 
     if (needsWorkstation && !isElectronRuntime()) {
+      // A live agent on THIS machine is a legitimate executor for a LAN
+      // printer even with no `workstation_id` on the row: it reaches the
+      // printer over the network itself. Without this, POS reported
+      // "Printer offline" for a printer it was successfully printing to,
+      // because a workstation row is an inventory record, not a transport.
+      if (localAgentAvailable()) {
+        return result({
+          state: device.status === 'error' ? 'degraded' : 'ready',
+          role,
+          device: identity,
+          message:
+            device.status === 'error'
+              ? `${device.display_name} reported a problem — printing may fail`
+              : `${device.display_name} ready`,
+          detail: 'Served by the print agent on this computer.',
+        });
+      }
       const connected = await localRoleConnected(role);
       if (!connected) {
         return result({
@@ -217,6 +245,7 @@ export async function resolveIntentReadiness(
         : `${device.display_name} is only reachable from the machine it is plugged into`,
     });
   }
+
 
   let lastSeenAt: string | null = null;
   try {
