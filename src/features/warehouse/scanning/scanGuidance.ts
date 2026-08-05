@@ -12,7 +12,7 @@
  * needs no prop plumbing through the screens.
  */
 import type { WmsScanIntent } from "./wmsScanIntent";
-import type { ScanEvent } from "@/services/pos/scanBus";
+
 
 export interface ScanPrompt {
   /** Imperative instruction: "Scan the destination bin". */
