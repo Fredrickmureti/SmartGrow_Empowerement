@@ -1,23 +1,47 @@
 /**
  * Architecture guard — Phase C of the product identification plan.
  *
- * Operational capture surfaces (WMS receiving / picking / counts, the
- * goods-receipt wizard, stock transfers) must resolve product identity ONLY
- * through the canonical `resolve_product_identity` seam:
+ * Every surface in the repo must resolve product identity ONLY through the
+ * canonical client seams:
  *
- *   useResolveProductIdentity  (client hook)
+ *   useResolveProductIdentity / resolveProductIdentityOnce  (identity)
  *   useWmsIdentityGate         (WMS wrapper, adds block-the-line feedback)
- *   pos_resolve_barcode        (POS, delegates to the same SQL resolver)
+ *   useResolveBarcode          (POS, over `pos_resolve_scan`)
+ *   useSupplierCodeDiscovery   (supplier-code discovery)
  *
- * They must never hand-roll a `product_identifiers` query: that path skips
- * packaging-level conversion, GS1 handling, the tenant gate and the
- * ambiguity signal — which is exactly the drift this phase removed.
+ * They must never hand-roll a `product_identifiers` query nor call an
+ * identity RPC by name: those paths skip packaging-level conversion, GS1
+ * handling, the tenant gate, the decision envelope and the shared operator
+ * copy — exactly the drift this programme removed. The scan is repo-wide on
+ * purpose: a hardcoded file list cannot see a NEW bypass.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import path from "path";
 
 const SRC = path.resolve(__dirname, "../..");
+
+/** The only module allowed to call each identity RPC by name. */
+const RPC_OWNERS: Record<string, string> = {
+  resolve_product_identity: "hooks/inventory/useResolveProductIdentity.ts",
+  pos_resolve_scan: "hooks/pos/useResolveBarcode.ts",
+  discover_supplier_identity: "features/products/identity/useSupplierCodeDiscovery.ts",
+  upsert_product_identifier: "features/products/identity/writeIdentifier.ts",
+  retire_product_identifier: "features/products/identity/writeIdentifier.ts",
+};
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      if (entry === "node_modules" || entry === "test") continue;
+      walk(full, out);
+    } else if (/\.(ts|tsx)$/.test(entry) && !full.endsWith("integrations/supabase/types.ts")) {
+      out.push(full);
+    }
+  }
+  return out;
+}
 
 /** Capture surfaces cut over in C2–C5. */
 const CUTOVER_FILES = [
