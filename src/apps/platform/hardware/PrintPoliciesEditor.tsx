@@ -58,6 +58,16 @@ const THERMAL_ROLE_KINDS: ReadonlySet<string> = new Set([
   "label_printer",
 ]);
 
+// Sheet-only document types. Statements are multi-page, columnar ledgers sent
+// to customers/vendors — a 40/58/80 mm receipt roll or raw ESC/POS stream can
+// never render them legibly, so those options are removed from the UI entirely
+// (not merely warned about) and thermal roles are not selectable.
+const SHEET_ONLY_DOCUMENT_TYPES: ReadonlySet<string> = new Set([
+  "customer_statement",
+  "vendor_statement",
+]);
+
+
 // Nominal media width per paper format, used only to warn when a policy's
 // width can't be honoured by any device bound to the selected role.
 const PAPER_WIDTH_MM: Partial<Record<PaperFormat, number>> = {
