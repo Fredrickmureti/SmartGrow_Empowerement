@@ -252,6 +252,7 @@ async function executePrint(
   }
 
   // Sequential on purpose — copy 2 must never overtake copy 1.
+  const settled: string[] = [];
   for (let i = 0; i < handles.length; i++) {
     const handle = handles[i];
     const outcome = await withSpan(
@@ -271,11 +272,13 @@ async function executePrint(
         artifact,
       };
     }
-    // The ledger close is an audit fact, not a precondition for the next
-    // copy. Awaiting it put two cloud round trips per copy on the
-    // operator's clock for no operational benefit.
-    void handle.markSent(null).then(() => handle.markAcked());
+    if (handle.id) settled.push(handle.id);
   }
+
+  // Phase 3: one batched ledger close for every copy instead of two RPCs
+  // per copy. The paper is already out — this is an audit fact, so it is
+  // fire-and-forget relative to the caller.
+  void settleJobs(settled);
 
   return { success: true, jobIds, transport, copies, artifact };
 }
