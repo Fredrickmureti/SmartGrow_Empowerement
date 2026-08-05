@@ -274,7 +274,7 @@ export default function HardwareDiagnostics() {
   }, []);
 
   return (
-    <div className="space-y-4 p-4 md:p-6" data-testid="hardware-diagnostics-page">
+    <div className="space-y-4 py-4 md:py-6" data-testid="hardware-diagnostics-page">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">Hardware diagnostics</h1>
