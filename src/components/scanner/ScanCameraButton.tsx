@@ -12,6 +12,7 @@ import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import { hasCamera } from "@/services/scanner/camera/deviceMode";
 import { feedbackTones } from "@/services/scanner/feedbackTones";
 
 interface Props {
@@ -38,8 +39,11 @@ export function ScanCameraButton({
   className,
   withText,
 }: Props) {
-  const { handheld, scan } = useLocalScan();
-  if (!handheld) return null;
+  const { scan } = useLocalScan();
+  // Offer the camera on any device that has one. Hiding it on a
+  // "workstation" left operators on laptops and mis-detected tablets with a
+  // scan prompt and no way to scan.
+  if (!hasCamera()) return null;
 
   const open = () => {
     // iOS: unlock WebAudio inside this gesture so the decode can beep.
