@@ -95,6 +95,30 @@ let routerInstalled = false;
 const consumedEvents = new WeakSet<ScanEvent>();
 
 /**
+ * Target-stack change notification.
+ *
+ * Presence surfaces (the WMS scan guidance bar) must know *which* target
+ * owns the stream. Before this seam existed they polled `getActiveTargets()`
+ * on a 1 s interval — one timer per mounted surface. The router now tells
+ * them, so the UI is both instant and free when nothing changes.
+ */
+type StackListener = () => void;
+const stackListeners = new Set<StackListener>();
+let stackVersion = 0;
+
+function notifyStackChanged() {
+  stackVersion++;
+  for (const fn of Array.from(stackListeners)) {
+    try {
+      fn();
+    } catch (err) {
+      console.error("[scanRouter] stack listener error", err);
+    }
+  }
+}
+
+
+/**
  * Active workspace scan context — supplies `register_id` / `session_id` to
  * `log_scan_event` so the DB SECURITY DEFINER fn can resolve org+branch.
  * Set by the topmost workspace screen on mount (POSTerminal sets
@@ -203,10 +227,15 @@ export const scanRouter = {
       }
     }
     stack.push(entry);
+    notifyStackChanged();
     return () => {
       const i = stack.indexOf(entry);
-      if (i >= 0) stack.splice(i, 1);
+      if (i >= 0) {
+        stack.splice(i, 1);
+        notifyStackChanged();
+      }
     };
+
   },
   /** Was the given scan event already consumed by a registered target? */
   wasConsumed(event: ScanEvent): boolean {
@@ -239,6 +268,18 @@ export const scanRouter = {
       .sort((a, b) => b.e.priority - a.e.priority || b.i - a.i)
       .map((x) => x.e);
   },
+  /**
+   * Subscribe to target-stack changes. Returns an unsubscribe function.
+   * Pair with `getStackVersion()` for `useSyncExternalStore`.
+   */
+  subscribe(listener: () => void): () => void {
+    stackListeners.add(listener);
+    return () => stackListeners.delete(listener);
+  },
+  /** Monotonic snapshot token — changes whenever the target stack changes. */
+  getStackVersion(): number {
+    return stackVersion;
+  },
   /** Test helper. */
   _inspect() {
     return { stack: [...stack] };
@@ -250,5 +291,7 @@ export const scanRouter = {
     missingContextWarned = false;
     scanBus.setRouter(null);
     scanBus.setDedupeBypass(null);
+    notifyStackChanged();
   },
+
 };

@@ -147,7 +147,8 @@ export default function MobileQC() {
   const remaining = insp.quantity - insp.accepted_qty - insp.rejected_qty;
 
   return (
-    <MobileWarehouseLayout title="QC" back="/wm">
+    <MobileWarehouseLayout title="QC" back="/wm" scanLabel="Scan the item under inspection">
+
       <div className="space-y-4">
         <div className="rounded border p-3">
           <div className="text-xs text-muted-foreground">Product</div>

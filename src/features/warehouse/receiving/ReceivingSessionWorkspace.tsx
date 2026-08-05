@@ -30,7 +30,7 @@ import { StatusBadge, LoadingState, EmptyState } from "@/design-system";
 import { AlertTriangle, Boxes, ListPlus, PackageCheck, ScanLine, ShieldAlert, Check, X, History, Truck } from "lucide-react";
 
 import { useWmsScanIntent, type WmsScanPayload } from "@/features/warehouse/scanning/wmsScanIntent";
-import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
+import { ScanGuidance } from "@/features/warehouse/scanning/ScanGuidance";
 import { useWmsIdentityGate, describeLevel } from "@/features/warehouse/scanning/useWmsIdentityGate";
 import { useReceivingSessionSupplier } from "./useReceivingSessionSupplier";
 import SupplierCodeDiscoveryPanel from "./SupplierCodeDiscoveryPanel";
@@ -447,11 +447,12 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
 
 
 
-        <ScanStatusChip
+        <ScanGuidance
           expectedLabel="receiving-workspace.item"
           hint="Scan an item to capture against its expected line"
           className="mt-3"
         />
+
 
 
         <div className="mt-3 flex flex-wrap items-center gap-2">

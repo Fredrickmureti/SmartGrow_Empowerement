@@ -15,25 +15,40 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 
-export type ScanOutcome = "success" | "error" | "warn";
+/**
+ * The four outcomes an operator must be able to tell apart without looking
+ * at the screen (Phase 4.3). `warn` stays as the generic caution tone for
+ * non-scan callers; `duplicate` and `reject` are the scan-specific states
+ * that used to collapse into it.
+ */
+export type ScanOutcome = "success" | "error" | "warn" | "duplicate" | "reject";
 
 const TONES: Record<ScanOutcome, { freq: number[]; ms: number }> = {
   success: { freq: [880, 1320], ms: 90 },
   warn: { freq: [660], ms: 160 },
+  // Two flat repeats: "you already did this one".
+  duplicate: { freq: [660, 660], ms: 70 },
+  // Descending pair: "that is not the thing I asked for".
+  reject: { freq: [520, 330], ms: 130 },
   error: { freq: [220, 165], ms: 200 },
 };
 
 const HAPTICS: Record<ScanOutcome, number | number[]> = {
   success: 35,
   warn: [40, 60, 40],
+  duplicate: [25, 50, 25],
+  reject: [60, 40, 60],
   error: [80, 70, 80],
 };
 
 const FLASH_CLASS: Record<ScanOutcome, string> = {
   success: "bg-success/30",
   warn: "bg-warning/30",
+  duplicate: "bg-warning/30",
+  reject: "bg-destructive/30",
   error: "bg-destructive/30",
 };
+
 
 const MUTE_KEY = "wms_scan_feedback_muted";
 
@@ -82,7 +97,12 @@ export interface ScanFeedback {
   /** Convenience wrappers. */
   success: () => void;
   warn: () => void;
+  /** The operator already scanned this one. */
+  duplicate: () => void;
+  /** Positively the wrong kind of label for the active prompt. */
+  reject: () => void;
   error: () => void;
+
   /** Render this inside the screen to get the colour flash. */
   Flash: () => ReactElement | null;
   muted: boolean;
@@ -136,7 +156,10 @@ export function useScanFeedback(): ScanFeedback {
     signal,
     success: useCallback(() => signal("success"), [signal]),
     warn: useCallback(() => signal("warn"), [signal]),
+    duplicate: useCallback(() => signal("duplicate"), [signal]),
+    reject: useCallback(() => signal("reject"), [signal]),
     error: useCallback(() => signal("error"), [signal]),
+
     Flash,
     muted,
     setMuted,

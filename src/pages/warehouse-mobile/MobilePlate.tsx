@@ -88,7 +88,7 @@ export function MobilePlateDetail() {
     try {
       const r = await enqueue("wms_lpn_move", {
         _lpn_id: plate.id,
-        _to_location_id: bin.id,
+        _to_location_id: bin.location_id,
         _expected_version: null,
         _reason: "RF plate move",
       });

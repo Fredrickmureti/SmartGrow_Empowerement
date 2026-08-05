@@ -46,7 +46,7 @@ import { useReceivingTrailerVisits } from "@/features/warehouse/receiving/useRec
 import { tryResolvePlateScan } from "@/features/warehouse/receiving/useReceivingLpn";
 import { ActivityHistoryButton } from "@/features/warehouse/events/ActivitySection";
 import ReceivingSessionWorkspace from "@/features/warehouse/receiving/ReceivingSessionWorkspace";
-import { ScanStatusChip } from "@/features/warehouse/scanning/ScanStatusChip";
+import { ScanGuidance } from "@/features/warehouse/scanning/ScanGuidance";
 import {
   useReceivingProgress,
   useCaptureReceivingLine,
@@ -583,11 +583,13 @@ export default function ReceivingSessions() {
                     <Rows3 className="h-4 w-4" />
                   </ToggleGroupItem>
                 </ToggleGroup>
-                <ScanStatusChip
+                <ScanGuidance
                   expectedLabel="receiving-sessions.item"
                   hint="Scan an LPN to start unloading, or an item to capture a line"
+                  variant="bar"
                   className="ml-auto"
                 />
+
               </div>
 
               {isLoading ? (
