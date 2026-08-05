@@ -154,11 +154,11 @@ export default function ProformaInvoices() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      toast(printOutcomeToast(result, `Proforma ${inv.proforma_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        toast,
+        { label: `Proforma ${inv.proforma_number}` },
+      );
     } catch (err) {
       toast({
         title: "Print failed",
