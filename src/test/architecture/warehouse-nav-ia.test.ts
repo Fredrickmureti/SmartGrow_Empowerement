@@ -35,10 +35,22 @@ function declaredRoutes(): string[] {
   return [...out];
 }
 
+/**
+ * Routes that are deliberately not in the sidebar, with the reason.
+ * Adding to this list requires a justification — it is the only escape hatch
+ * from the no-orphan rule.
+ */
+const NAV_EXEMPT: Record<string, string> = {
+  // Handheld "give me my next task" deep link. Reached from the scanner /
+  // mobile task flow, never from the desktop sidebar.
+  "mobile/next": "handheld deep link, not a desktop surface",
+};
+
 /** Route paths that represent a navigable *surface*, not a detail/redirect. */
 function surfaceRoutes(): string[] {
   return declaredRoutes().filter((p) => {
     if (p.includes(":")) return false; // detail views, reached from a list
+    if (p in NAV_EXEMPT) return false;
     // `<Route path="x" element={<Navigate .../>} />` — legacy redirects.
     const isRedirect = new RegExp(
       `path="${p.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}"[^>]*<Navigate`,
