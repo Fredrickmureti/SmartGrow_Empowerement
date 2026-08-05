@@ -18,6 +18,7 @@ import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
 import { printDocumentIntent } from "@/services/printing/PrintService";
+import { withTrace, withSpan } from "@/services/observability/trace";
 
 export interface DispatchPosReceiptArgs {
   /** `pos_transactions.id` of the receipt being re-issued. */
