@@ -118,6 +118,18 @@ class DatabaseManager {
     try {
       this.db.exec("ALTER TABLE hw_command_queue ADD COLUMN next_attempt_at INTEGER");
     } catch { /* column already exists — SQLite throws on duplicate */ }
+
+    // ADR-0110 Phase 6: identifier lifecycle + normalised code offline,
+    // so the offline matcher enforces the same rules as the SQL resolver.
+    for (const sql of [
+      "ALTER TABLE product_identifiers ADD COLUMN code_norm TEXT",
+      "ALTER TABLE product_identifiers ADD COLUMN status TEXT DEFAULT 'active'",
+      "ALTER TABLE product_identifiers ADD COLUMN valid_from TEXT",
+      "ALTER TABLE product_identifiers ADD COLUMN valid_to TEXT",
+      "CREATE INDEX IF NOT EXISTS product_identifiers_code_norm_idx ON product_identifiers(code_norm)",
+    ]) {
+      try { this.db.exec(sql); } catch { /* already applied */ }
+    }
   }
 
 
@@ -190,7 +202,11 @@ class DatabaseManager {
         id TEXT PRIMARY KEY,
         product_id TEXT NOT NULL,
         code TEXT NOT NULL,
+        code_norm TEXT,
         kind TEXT,
+        status TEXT DEFAULT 'active',
+        valid_from TEXT,
+        valid_to TEXT,
         is_primary INTEGER DEFAULT 0,
         packaging_id TEXT,
         qty_in_base_uom REAL DEFAULT 1,
@@ -198,6 +214,7 @@ class DatabaseManager {
         updated_at TEXT
       );
       CREATE INDEX IF NOT EXISTS product_identifiers_code_idx ON product_identifiers(code);
+      CREATE INDEX IF NOT EXISTS product_identifiers_code_norm_idx ON product_identifiers(code_norm);
       CREATE INDEX IF NOT EXISTS product_identifiers_product_idx ON product_identifiers(product_id);
 
 

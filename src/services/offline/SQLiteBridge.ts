@@ -4,6 +4,7 @@
  */
 
 import type { PosAPI } from '@/types/electron';
+import { identityCodeCandidates, isIdentifierLive } from '@/lib/gs1/identityCodes';
 
 export interface QueryResult<T = unknown> {
   success: boolean;
@@ -230,21 +231,93 @@ export async function searchProducts(organizationId: string, query: string): Pro
 }
 
 /**
- * Get a product by any identifier (GTIN/SKU/PLU/alias) via `product_identifiers`.
- * Returns `null` when no identifier row matches — callers MUST then fall
- * through to the online `pos_resolve_barcode` RPC for full resolution.
+ * Offline identity resolution (ADR-0110 Phase 6).
+ *
+ * Parity with the SQL resolver `resolve_product_identity`:
+ *   - candidates come from the ONE shared grammar
+ *     (`identityCodeCandidates`) so `code_norm` normalisation, the GS1
+ *     AI (01) GTIN and the GTIN-8/12/13/14 padding family behave the
+ *     same online and offline;
+ *   - lifecycle is enforced (`status`/`valid_from`/`valid_to`) so a
+ *     retired or not-yet-live code cannot resolve on a disconnected lane;
+ *   - more than one distinct product ⇒ `ambiguous`, never a silent pick.
  */
-export async function getProductByBarcode(organizationId: string, barcode: string): Promise<any | null> {
+export type OfflineIdentityStatus = "resolved" | "ambiguous" | "not_found" | "error";
+
+export interface OfflineIdentityDecision {
+  status: OfflineIdentityStatus;
+  product: any | null;
+  matchCount: number;
+  /** The identifier row that matched, when exactly one product matched. */
+  identifier: any | null;
+}
+
+export async function resolveProductIdentityOffline(
+  organizationId: string,
+  code: string,
+): Promise<OfflineIdentityDecision> {
+  const candidates = identityCodeCandidates(code);
+  if (candidates.length === 0) {
+    return { status: "not_found", product: null, matchCount: 0, identifier: null };
+  }
+
+  const placeholders = candidates.map(() => "?").join(",");
   const result = await executeQuery<any>(
-    `SELECT p.* FROM products p
+    `SELECT p.*,
+            pi.id          AS identifier_id,
+            pi.code        AS identifier_code,
+            pi.kind        AS identifier_kind,
+            pi.status      AS identifier_status,
+            pi.valid_from  AS identifier_valid_from,
+            pi.valid_to    AS identifier_valid_to,
+            pi.packaging_id,
+            pi.qty_in_base_uom
+       FROM products p
        INNER JOIN product_identifiers pi ON pi.product_id = p.id
      WHERE p.organization_id = ?
-       AND pi.code = ?
        AND p.is_active = 1
-     LIMIT 1`,
-    [organizationId, barcode]
+       AND upper(trim(pi.code)) IN (${placeholders})
+     LIMIT 50`,
+    [organizationId, ...candidates],
   );
-  return result.success && result.data?.length ? result.data[0] : null;
+  if (!result.success) {
+    return { status: "error", product: null, matchCount: 0, identifier: null };
+  }
+
+  const live = (result.data || []).filter((r) =>
+    isIdentifierLive({
+      status: r.identifier_status,
+      valid_from: r.identifier_valid_from,
+      valid_to: r.identifier_valid_to,
+    }),
+  );
+  const distinct = Array.from(new Set(live.map((r) => r.id)));
+  if (distinct.length === 0) {
+    return { status: "not_found", product: null, matchCount: 0, identifier: null };
+  }
+  if (distinct.length > 1) {
+    return { status: "ambiguous", product: null, matchCount: distinct.length, identifier: null };
+  }
+
+  // Prefer the candidate that matched most specifically (candidates are
+  // ordered most-specific-first) so a level scan keeps its packaging row.
+  const best =
+    candidates
+      .map((c) => live.find((r) => (r.identifier_code ?? "").trim().toUpperCase() === c))
+      .find(Boolean) ?? live[0];
+
+  return { status: "resolved", product: best, matchCount: 1, identifier: best };
+}
+
+/**
+ * Get a product by any identifier (GTIN/SKU/PLU/alias).
+ * Thin wrapper over `resolveProductIdentityOffline` — returns the product
+ * only on an unambiguous, lifecycle-valid match. `null` means callers must
+ * fall through to the online `resolve_product_identity` RPC.
+ */
+export async function getProductByBarcode(organizationId: string, barcode: string): Promise<any | null> {
+  const decision = await resolveProductIdentityOffline(organizationId, barcode);
+  return decision.status === "resolved" ? decision.product : null;
 }
 
 

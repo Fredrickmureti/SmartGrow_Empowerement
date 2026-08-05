@@ -156,7 +156,10 @@ async function rpcOnce(
   } as never);
   if (error) return { kind: "error", err: new Error(error.message || "RPC error") };
   // Tolerate the legacy row-set shape while the wrapper still exists.
-  const payload = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  const raw = data as unknown;
+  const payload = (Array.isArray(raw) ? (raw[0] ?? null) : (raw ?? null)) as
+    | Record<string, unknown>
+    | null;
   if (!payload) {
     return { kind: "miss", status: "not_found", code, matchCount: 0, productName: null };
   }
