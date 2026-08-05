@@ -142,6 +142,37 @@ async function complete(
  * returns a no-op and logs once so the operator can see why the relay is
  * inactive.
  */
+/** Agent-side timing, mirrored into the browser's print trace. */
+export interface AgentSpan {
+  name: string;
+  durationMs: number;
+  ok: boolean;
+  attributes?: Record<string, string | number | boolean | null>;
+}
+
+/**
+ * Merge agent spans into the job result under `_agent_spans`.
+ *
+ * They ride inside `result` rather than as a sibling field because that is
+ * the only part of the completion payload the browser is guaranteed to read
+ * back off `edge_jobs`. Route-level spans (printer queue wait, socket time)
+ * already present in the result are preserved and prefixed by the relay's.
+ */
+export function attachAgentSpans(
+  outcome: { success: boolean; result?: unknown; error?: string },
+  spans: AgentSpan[],
+): { success: boolean; result?: unknown; error?: string } {
+  const base = outcome.result;
+  const isPlain = base !== null && typeof base === 'object' && !Array.isArray(base);
+  const inner = isPlain ? (base as Record<string, unknown>) : {};
+  const routeSpans = Array.isArray(inner.spans) ? (inner.spans as AgentSpan[]) : [];
+  const merged = [...spans, ...routeSpans];
+  const result: Record<string, unknown> = isPlain ? { ...inner } : { value: base ?? null };
+  delete result.spans;
+  result._agent_spans = merged;
+  return { ...outcome, result };
+}
+
 export function startRelay(handler: RelayHandler): () => void {
   let cfg = loadConfig();
   let mtime = configMtimeMs();
@@ -234,11 +265,28 @@ export function startRelay(handler: RelayHandler): () => void {
           }
           let outcome: { success: boolean; result?: unknown; error?: string };
           const startedAt = Date.now();
+          const queuedMs = Number.isFinite(Date.parse(job.created_at))
+            ? startedAt - Date.parse(job.created_at)
+            : null;
           try {
             outcome = await handler(job);
           } catch (err) {
             outcome = { success: false, error: err instanceof Error ? err.message : String(err) };
           }
+          // Feed the agent's own timings back to the browser waterfall. The
+          // relay hop is otherwise a single opaque `relay.agent_roundtrip`
+          // bar, which is where most "the print was slow" reports die.
+          outcome = attachAgentSpans(outcome, [
+            ...(queuedMs !== null
+              ? [{ name: 'agent.relay_queue_wait', durationMs: queuedMs, ok: true }]
+              : []),
+            {
+              name: 'agent.handler',
+              durationMs: Date.now() - startedAt,
+              ok: outcome.success,
+              attributes: { role: job.role, op: job.op },
+            },
+          ]);
           await complete(active, job.id, outcome);
           log('info', 'relay.job.completed', {
             jobId: job.id,

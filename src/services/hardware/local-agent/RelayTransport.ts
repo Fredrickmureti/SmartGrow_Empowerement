@@ -22,7 +22,7 @@
  */
 
 import type { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
-import { withSpan } from '@/services/observability/trace';
+import { withSpan, addSpan } from '@/services/observability/trace';
 
 export type EdgeRole =
   | 'print'
@@ -197,13 +197,49 @@ export class RelayTransport {
 
     // The single biggest unknown in the waterfall: how long the workstation
     // takes to claim the row and finish the physical write.
-    return await withSpan(
+    const awaited = await withSpan(
       'relay.agent_roundtrip',
       () => this._await<T>(jobId, deadlineMs),
       undefined,
       args.correlationId,
     );
 
+    // The agent reports its own stage timings (relay queue wait, handler,
+    // printer queue wait, socket write) inside the result. Replay them into
+    // the caller's trace so the waterfall covers the whole journey instead of
+    // stopping at the cloud boundary.
+    return this._absorbAgentSpans(awaited, args.correlationId);
+
+  }
+
+  /**
+   * Lift `_agent_spans` out of the job result into the print trace.
+   *
+   * The key is stripped from the returned result so callers keep seeing the
+   * plain route response shape they had before tracing existed.
+   */
+  private _absorbAgentSpans<T>(
+    res: DispatchResult<T>,
+    correlationId?: string,
+  ): DispatchResult<T> {
+    const raw = res.result as unknown;
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return res;
+    const obj = raw as Record<string, unknown>;
+    const spans = obj._agent_spans;
+    if (!Array.isArray(spans)) return res;
+    for (const span of spans as Array<Record<string, unknown>>) {
+      if (!span || typeof span.name !== 'string') continue;
+      addSpan(
+        span.name,
+        Number(span.durationMs) || 0,
+        (span.attributes as Record<string, string | number | boolean | null>) ?? undefined,
+        span.ok !== false,
+        correlationId,
+      );
+    }
+    const { _agent_spans: _drop, ...rest } = obj;
+    void _drop;
+    return { ...res, result: rest as T };
   }
 
   private _finalize<T>(jobId: string, status: DispatchResult['status'], result: T | null, error: string | null): DispatchResult<T> {

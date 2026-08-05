@@ -7,10 +7,24 @@ interface PrintRequest {
   timeout?: number;
 }
 
+/** One measured stage of the agent's own work, fed back into the browser waterfall. */
+export interface AgentSpan {
+  name: string;
+  durationMs: number;
+  ok: boolean;
+  attributes?: Record<string, string | number | boolean | null>;
+}
+
 interface PrintResponse {
   success: boolean;
   error?: string;
   bytesWritten?: number;
+  /**
+   * Agent-side timings. The browser cannot see how long a job sat behind
+   * another job for the same printer versus how long the printer itself
+   * took, and that split is exactly where "the receipt was slow" lives.
+   */
+  spans?: AgentSpan[];
 }
 
 /**
@@ -35,16 +49,40 @@ export function handlePrint(body: PrintRequest): Promise<PrintResponse> {
   }
 
   const key = endpointKey(ipAddress, port);
+  const enqueuedAt = Date.now();
   const prev = endpointQueues.get(key) ?? Promise.resolve();
   const run = prev
     .catch(() => undefined)
-    .then(() => sendToPrinter(ipAddress, port, data, timeout));
+    .then(async () => {
+      const queueWaitMs = Date.now() - enqueuedAt;
+      const socketStart = Date.now();
+      const result = await sendToPrinter(ipAddress, port, data, timeout);
+      const socketMs = Date.now() - socketStart;
+      return {
+        ...result,
+        spans: [
+          {
+            name: 'agent.printer_queue_wait',
+            durationMs: queueWaitMs,
+            ok: true,
+            attributes: { endpoint: key },
+          },
+          {
+            name: 'agent.printer_socket',
+            durationMs: socketMs,
+            ok: result.success,
+            attributes: { bytes: data.length },
+          },
+        ],
+      } satisfies PrintResponse;
+    });
   endpointQueues.set(key, run);
   void run.finally(() => {
     if (endpointQueues.get(key) === run) endpointQueues.delete(key);
   });
   return run;
 }
+
 
 function sendToPrinter(
   ipAddress: string,
