@@ -251,6 +251,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
         const code = e.code.trim();
         if (!code) return;
         let filledRow = false;
+        let filledIdx = -1;
         setRows((prev) => {
           if (prev.some((r) => r.code.trim().toLowerCase() === code.toLowerCase())) {
             toast({ title: "Already in the list", description: code });
@@ -267,6 +268,7 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
             return prev;
           }
           filledRow = true;
+          filledIdx = emptyIdx;
           return prev.map((r, i) =>
             i === emptyIdx ? { ...r, code, kind: "gtin", _dirty: true } : r,
           );
@@ -302,6 +304,8 @@ export const ProductIdentifiersEditor = forwardRef<ProductIdentifiersEditorHandl
               return;
             }
             scanFeedbackBus.emit({ kind: "ok", raw: code, source: "field" });
+            // A confirmed scan carries a complete code — persist it now.
+            if (filledIdx >= 0) await persistRow(filledIdx, { code });
           } catch {
             // Network/RPC failure — leave the row filled; submit-time
             // upsert is still backed by the DB unique constraint.
