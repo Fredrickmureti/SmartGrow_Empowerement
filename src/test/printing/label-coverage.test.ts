@@ -50,3 +50,26 @@ describe("Label print coverage (Phase 17)", () => {
     });
   }
 });
+/**
+ * Label engine guardrail — bulk labelling must be a server-side run.
+ *
+ * A client `for` loop over `print()` cannot survive a tab close, has no
+ * ledger object, no resume and no retry. Batch entry points therefore go
+ * through `useLabelRuns` (`create_label_run` → `expand_label_run`).
+ */
+const BATCH_ENTRY_POINTS = [
+  "features/warehouse/locations/BinLabelDialog.tsx",
+  "components/labels/PrintFilteredLabelsButton.tsx",
+];
+
+describe("Label engine: no client-side batch print loops", () => {
+  for (const path of BATCH_ENTRY_POINTS) {
+    it(`${path} submits a label run instead of looping prints`, () => {
+      const src = readFileSync(R(path), "utf-8");
+      expect(src).toMatch(/useLabelRunActions/);
+      expect(src).not.toMatch(/useLabelPrint/);
+      // no `for (... of ...) { await print(...) }` style batching
+      expect(src).not.toMatch(/for\s*\([^)]*\)\s*\{[\s\S]{0,400}await\s+print\(/);
+    });
+  }
+});

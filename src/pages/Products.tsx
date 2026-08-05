@@ -76,6 +76,7 @@ import {
   Printer,
 } from "lucide-react";
 import { useLabelPrint } from "@/hooks/inventory/useLabelPrint";
+import { PrintFilteredLabelsButton } from "@/components/labels/PrintFilteredLabelsButton";
 import type { PrintableProduct } from "@/services/printing/labelBarcode";
 import {
   DropdownMenu,
@@ -661,6 +662,12 @@ export default function Products() {
               ))}
             </SelectContent>
           </Select>
+          <PrintFilteredLabelsButton
+            search={searchQuery}
+            categoryId={categoryFilter}
+            matchCount={pagination.totalCount}
+            disabled={!currentBusiness}
+          />
         </div>
 
         <CustomFieldFilters entityType="product" filters={customFieldFilters} onFiltersChange={setCustomFieldFilters} />
