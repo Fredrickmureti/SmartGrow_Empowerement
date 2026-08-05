@@ -464,6 +464,14 @@ export default function LabelOperations() {
                                 <X className="h-4 w-4" />
                               </Button>
                             )}
+                            {(r.status === "completed" || r.status === "cancelled" || r.status === "failed") && (
+                              <Button
+                                size="icon" variant="ghost" aria-label="Delete run"
+                                onClick={() => purgeRuns.mutate({ runIds: [r.id] })}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
