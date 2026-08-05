@@ -76,7 +76,7 @@ import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendD
 // /purchases/orders/new. See src/features/purchases/orders/PurchaseOrderCreatePage.tsx.
 import { useBranches } from "@/hooks/useBranches";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
