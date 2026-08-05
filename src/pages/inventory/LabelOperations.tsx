@@ -171,8 +171,17 @@ export default function LabelOperations() {
       <Tabs defaultValue="demand">
         <TabsList>
           <TabsTrigger value="demand">Demand ({demand.length})</TabsTrigger>
+          <TabsTrigger value="products">
+            <Package className="mr-1.5 h-3.5 w-3.5" />
+            Products
+          </TabsTrigger>
           <TabsTrigger value="runs">Runs ({runs.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="products" className="mt-4">
+          <LabelProductPicker businessId={businessId} />
+        </TabsContent>
+
 
         <TabsContent value="demand" className="mt-4 space-y-4">
           <Card>
