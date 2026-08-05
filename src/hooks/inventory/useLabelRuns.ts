@@ -72,11 +72,19 @@ export type LabelSelection =
   | { kind: "product_ids"; ids: string[] }
   | {
       kind: "product_filter";
+      /**
+       * Submit a saved product view instead of ids. The server re-derives
+       * the predicate from the view at expansion time, so a view covering
+       * the whole catalogue never has to travel through the browser.
+       * Any explicit key below narrows the view further.
+       */
+      saved_view_id?: string | null;
       search?: string | null;
       category_id?: string | null;
       is_active?: boolean;
       only_with_barcode?: boolean;
     }
+
   | { kind: "location_ids"; ids: string[] }
   | { kind: "demand"; reason?: LabelDemandReason | null };
 
