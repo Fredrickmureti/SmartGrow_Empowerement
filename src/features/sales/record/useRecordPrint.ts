@@ -91,11 +91,13 @@ export function useRecordPrint(kind: RecordPrintKind) {
           documentDate: built.documentDate,
           snapshot: built.snapshot,
         });
-        const result = await printDocumentIntent({
-          documentRecordId,
-          triggeredSource: "manual",
-        });
-        toast(printOutcomeToast(result, label));
+        // Released at the durable enqueue — the printer is not on the
+        // operator's clock any more.
+        await acknowledgeRecordPrint(
+          { documentRecordId, triggeredSource: "manual" },
+          toast,
+          { label },
+        );
       } catch (err) {
         toast({
           title: "Print failed",
