@@ -93,3 +93,47 @@ describe("Phase C — canonical identity resolver is the only seam", () => {
     expect(gate).not.toMatch(/\btoast\s*\(|\btoast\.(error|success|warning)\s*\(/);
   });
 });
+
+describe("Phase 9 — repo-wide: identity RPCs have exactly one caller each", () => {
+  const files = walk(SRC);
+
+  it("finds application sources to scan", () => {
+    expect(files.length).toBeGreaterThan(100);
+  });
+
+  it.each(Object.entries(RPC_OWNERS))(
+    "only the owning seam calls %s",
+    (rpc, owner) => {
+      const pattern = new RegExp(`rpc\\(\\s*["']${rpc}["']`);
+      const offenders = files
+        .filter((f) => pattern.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(SRC, f).replace(/\\/g, "/"));
+      expect(offenders).toEqual([owner]);
+    },
+  );
+
+  it("the dropped legacy identity RPCs are never called again", () => {
+    for (const dead of ["pos_resolve_barcode", "resolve_barcode_v2", "enroll_product_barcode"]) {
+      const pattern = new RegExp(`rpc\\(\\s*["']${dead}["']`);
+      const offenders = files
+        .filter((f) => pattern.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(SRC, f).replace(/\\/g, "/"));
+      expect({ [dead]: offenders }).toEqual({ [dead]: [] });
+    }
+  });
+
+  it("supplier context is derived from an inbound document, never operator input", () => {
+    // A supplier id widens what a scan may match, so it must come from the
+    // receiving session's own document — never from a picker or free text.
+    const callers = files.filter((f) => /supplierId\s*[:=]/.test(readFileSync(f, "utf8")))
+      .filter((f) => /useWmsIdentityGate\(|useResolveProductIdentity\(/.test(readFileSync(f, "utf8")))
+      .map((f) => path.relative(SRC, f).replace(/\\/g, "/"));
+    for (const rel of callers) {
+      const src = readFileSync(path.join(SRC, rel), "utf8");
+      expect({ file: rel, derived: /useReceivingSessionSupplier/.test(src) }).toEqual({
+        file: rel,
+        derived: true,
+      });
+    }
+  });
+});
