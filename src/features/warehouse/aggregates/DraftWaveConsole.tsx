@@ -87,110 +87,106 @@ export function DraftWaveConsole({ businessId, warehouseNames }: Props) {
     <Section
       title="Awaiting release"
       description="Draft waves built automatically from allocated sales orders. Releasing generates pick tasks and moves the reservation from the order to the wave."
-    >
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <LoadingState />
-          ) : (waves ?? []).length === 0 ? (
-            <EmptyState
-              icon={Waves}
-              title="No waves awaiting release"
-              description="Allocating a sales order automatically builds a draft wave here."
-            />
-          ) : (
-            <ul className="divide-y">
-              {waves!.map((w) => {
-                const orders = new Set(
-                  w.lines.map((l) => l.sales_order_id).filter(Boolean),
-                ).size;
-                const units = w.lines.reduce(
-                  (sum, l) => sum + Number(l.quantity_ordered ?? 0),
-                  0,
-                );
-                const open = expanded === w.id;
-                return (
-                  <li key={w.id} className="p-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0"
-                        aria-label={open ? "Collapse wave" : "Expand wave"}
-                        onClick={() => setExpanded(open ? null : w.id)}
-                      >
-                        {open ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <StatusBadge tone="neutral">draft</StatusBadge>
-                      <span className="font-mono">{w.wave_number}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {warehouseNames[w.warehouse_id] ?? "—"} · {w.strategy}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {orders} order(s) · {w.lines.length} line(s) · {units} unit(s)
-                      </span>
-                      <div className="flex-1" />
-                      <Button
-                        size="sm"
-                        disabled={release.isPending || w.lines.length === 0}
-                        onClick={() =>
-                          release.mutate(w.id, { onSuccess: refresh })
-                        }
-                      >
-                        <Rocket className="mr-2 h-4 w-4" /> Release
-                      </Button>
-                      <CancelAggregateButton
-                        aggregate="wave"
-                        id={w.id}
-                        rowVersion={w.row_version}
-                        state={w.state}
-                        onCancelled={refresh}
-                      />
-                    </div>
-
-                    {open && (
-                      <div className="mt-3 overflow-auto rounded border">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted/50 text-left">
-                            <tr>
-                              <th className="p-2">Product</th>
-                              <th className="p-2">SKU</th>
-                              <th className="p-2">Lot</th>
-                              <th className="p-2 text-right">Ordered</th>
-                              <th className="p-2 text-right">Picked</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {w.lines.map((l) => (
-                              <tr key={l.id} className="border-t">
-                                <td className="p-2">{l.product?.name ?? "—"}</td>
-                                <td className="p-2 font-mono text-xs">
-                                  {l.product?.sku ?? "—"}
-                                </td>
-                                <td className="p-2">{l.lot_number ?? "—"}</td>
-                                <td className="p-2 text-right font-mono">
-                                  {Number(l.quantity_ordered ?? 0)}
-                                </td>
-                                <td className="p-2 text-right font-mono">
-                                  {Number(l.quantity_picked ?? 0)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+     contentClassName="px-0 pb-0">
+      {isLoading ? (
+        <LoadingState />
+      ) : (waves ?? []).length === 0 ? (
+        <EmptyState
+          icon={Waves}
+          title="No waves awaiting release"
+          description="Allocating a sales order automatically builds a draft wave here."
+        />
+      ) : (
+        <ul className="divide-y">
+          {waves!.map((w) => {
+            const orders = new Set(
+              w.lines.map((l) => l.sales_order_id).filter(Boolean),
+            ).size;
+            const units = w.lines.reduce(
+              (sum, l) => sum + Number(l.quantity_ordered ?? 0),
+              0,
+            );
+            const open = expanded === w.id;
+            return (
+              <li key={w.id} className="p-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0"
+                    aria-label={open ? "Collapse wave" : "Expand wave"}
+                    onClick={() => setExpanded(open ? null : w.id)}
+                  >
+                    {open ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
                     )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  </Button>
+                  <StatusBadge tone="neutral">draft</StatusBadge>
+                  <span className="font-mono">{w.wave_number}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {warehouseNames[w.warehouse_id] ?? "—"} · {w.strategy}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {orders} order(s) · {w.lines.length} line(s) · {units} unit(s)
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    size="sm"
+                    disabled={release.isPending || w.lines.length === 0}
+                    onClick={() =>
+                      release.mutate(w.id, { onSuccess: refresh })
+                    }
+                  >
+                    <Rocket className="mr-2 h-4 w-4" /> Release
+                  </Button>
+                  <CancelAggregateButton
+                    aggregate="wave"
+                    id={w.id}
+                    rowVersion={w.row_version}
+                    state={w.state}
+                    onCancelled={refresh}
+                  />
+                </div>
+
+                {open && (
+                  <div className="mt-3 overflow-auto rounded border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-left">
+                        <tr>
+                          <th className="p-2">Product</th>
+                          <th className="p-2">SKU</th>
+                          <th className="p-2">Lot</th>
+                          <th className="p-2 text-right">Ordered</th>
+                          <th className="p-2 text-right">Picked</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {w.lines.map((l) => (
+                          <tr key={l.id} className="border-t">
+                            <td className="p-2">{l.product?.name ?? "—"}</td>
+                            <td className="p-2 font-mono text-xs">
+                              {l.product?.sku ?? "—"}
+                            </td>
+                            <td className="p-2">{l.lot_number ?? "—"}</td>
+                            <td className="p-2 text-right font-mono">
+                              {Number(l.quantity_ordered ?? 0)}
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                              {Number(l.quantity_picked ?? 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Section>
   );
 }

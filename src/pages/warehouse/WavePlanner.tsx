@@ -201,23 +201,19 @@ export default function WavePlanner() {
             <Section
               title="Live waves"
               description="Each wave as a lifecycle: readiness, progress, tasks and the cut-off it serves."
-            >
-              <Card>
-                <CardContent className="p-0">
-                  {board.isLoading ? (
-                    <LoadingState />
-                  ) : (
-                    <WaveLifecycleBoard
-                      waves={board.data ?? []}
-                      busyId={busyId}
-                      onEvaluate={(id) => evaluateWave.mutate(id)}
-                      onRelease={handleRelease}
-                      onSuspend={handleSuspend}
-                      onResume={handleResume}
-                    />
-                  )}
-                </CardContent>
-              </Card>
+             contentClassName="px-0 pb-0">
+              {board.isLoading ? (
+                <LoadingState />
+              ) : (
+                <WaveLifecycleBoard
+                  waves={board.data ?? []}
+                  busyId={busyId}
+                  onEvaluate={(id) => evaluateWave.mutate(id)}
+                  onRelease={handleRelease}
+                  onSuspend={handleSuspend}
+                  onResume={handleResume}
+                />
+              )}
             </Section>
 
             <Section

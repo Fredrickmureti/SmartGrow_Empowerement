@@ -235,84 +235,82 @@ export default function LoadingBay() {
           title="Carrier & tracking"
           description="Who is carrying this load, under which service, and the tracking identity the customer will quote."
         >
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <div className="min-w-0 grid gap-3 @xl/page:grid-cols-3 text-sm">
-                <div>
-                  <div className="text-muted-foreground">Carrier</div>
-                  <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {(manifest.carrier?.carrier_kind ?? "own_fleet").replace("_", " ")}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Tracking number</div>
-                  <div className="font-mono">{manifest.tracking_number ?? "—"}</div>
-                  {manifest.tracking_url && (
-                    <a
-                      className="text-xs underline text-primary"
-                      href={manifest.tracking_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Track shipment
-                    </a>
-                  )}
-                </div>
-                <div>
-                  <div className="text-muted-foreground">Delivery notes</div>
-                  {(linkedNotes ?? []).length === 0 ? (
-                    <div className="text-muted-foreground">
-                      {manifest.delivery_note_id ? "Linked" : "Consolidated / none linked"}
-                    </div>
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {(linkedNotes ?? []).map((n) => (
-                        <li key={n.id} className="flex items-center gap-2">
-                          <FileText className="h-3 w-3 text-muted-foreground" />
-                          <Link className="underline font-mono" to={`/sales/delivery-notes/${n.id}`}>
-                            {n.delivery_number}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">{n.status}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+          <div className="space-y-3">
+            <div className="min-w-0 grid gap-3 @xl/page:grid-cols-3 text-sm">
+              <div>
+                <div className="text-muted-foreground">Carrier</div>
+                <div className="font-medium">{manifest.carrier?.name ?? "Unassigned"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {(manifest.carrier?.carrier_kind ?? "own_fleet").replace("_", " ")}
                 </div>
               </div>
-
-              {manifest.state !== "dispatched" && manifest.carrier_id && (
-                <div className="flex flex-wrap items-end gap-2">
-                  {(services.data ?? []).length > 0 && (
-                    <div>
-                      <Label>Service</Label>
-                      <select
-                        className="h-9 rounded-md border bg-background px-2 text-sm"
-                        value={serviceId || manifest.carrier_service_id || ""}
-                        onChange={(e) => setServiceId(e.target.value)}
-                      >
-                        <option value="">Default</option>
-                        {(services.data ?? []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                            {s.transit_days ? ` · ${s.transit_days}d` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <Button
-                    variant="outline"
-                    disabled={allocate.isPending}
-                    onClick={() => allocate.mutate(serviceId || manifest.carrier_service_id || null)}
+              <div>
+                <div className="text-muted-foreground">Tracking number</div>
+                <div className="font-mono">{manifest.tracking_number ?? "—"}</div>
+                {manifest.tracking_url && (
+                  <a
+                    className="text-xs underline text-primary"
+                    href={manifest.tracking_url}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    <Tag className="h-4 w-4 mr-2" />
-                    {manifest.tracking_number ? "Re-issue tracking" : "Allocate tracking"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    Track shipment
+                  </a>
+                )}
+              </div>
+              <div>
+                <div className="text-muted-foreground">Delivery notes</div>
+                {(linkedNotes ?? []).length === 0 ? (
+                  <div className="text-muted-foreground">
+                    {manifest.delivery_note_id ? "Linked" : "Consolidated / none linked"}
+                  </div>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {(linkedNotes ?? []).map((n) => (
+                      <li key={n.id} className="flex items-center gap-2">
+                        <FileText className="h-3 w-3 text-muted-foreground" />
+                        <Link className="underline font-mono" to={`/sales/delivery-notes/${n.id}`}>
+                          {n.delivery_number}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">{n.status}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {manifest.state !== "dispatched" && manifest.carrier_id && (
+              <div className="flex flex-wrap items-end gap-2">
+                {(services.data ?? []).length > 0 && (
+                  <div>
+                    <Label>Service</Label>
+                    <select
+                      className="h-9 rounded-md border bg-background px-2 text-sm"
+                      value={serviceId || manifest.carrier_service_id || ""}
+                      onChange={(e) => setServiceId(e.target.value)}
+                    >
+                      <option value="">Default</option>
+                      {(services.data ?? []).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                          {s.transit_days ? ` · ${s.transit_days}d` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  disabled={allocate.isPending}
+                  onClick={() => allocate.mutate(serviceId || manifest.carrier_service_id || null)}
+                >
+                  <Tag className="h-4 w-4 mr-2" />
+                  {manifest.tracking_number ? "Re-issue tracking" : "Allocate tracking"}
+                </Button>
+              </div>
+            )}
+          </div>
         </Section>
 
         {manifest.state !== "dispatched" && proofStatus?.required && (
@@ -324,26 +322,24 @@ export default function LoadingBay() {
                 : "This warehouse requires seal, driver and signature before the load can leave."
             }
           >
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
-                  <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
-                    {proofStatus.satisfied ? "Captured" : "Outstanding"}
-                  </StatusBadge>
-                  {proofStatus.captured_at && (
-                    <span className="text-muted-foreground">
-                      {new Date(proofStatus.captured_at).toLocaleString()}
-                    </span>
-                  )}
-                </div>
-                <DispatchProofForm
-                  status={proofStatus}
-                  submitting={captureProof.isPending}
-                  onSubmit={(v) => captureProof.mutate(v)}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <ShieldCheck className={proofStatus.satisfied ? "h-4 w-4 text-emerald-600" : "h-4 w-4 text-amber-600"} />
+                <StatusBadge tone={proofStatus.satisfied ? "success" : "warning"}>
+                  {proofStatus.satisfied ? "Captured" : "Outstanding"}
+                </StatusBadge>
+                {proofStatus.captured_at && (
+                  <span className="text-muted-foreground">
+                    {new Date(proofStatus.captured_at).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <DispatchProofForm
+                status={proofStatus}
+                submitting={captureProof.isPending}
+                onSubmit={(v) => captureProof.mutate(v)}
+              />
+            </div>
           </Section>
         )}
 

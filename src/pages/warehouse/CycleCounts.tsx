@@ -200,26 +200,24 @@ export default function CycleCounts() {
                 description="Lines outside tolerance with no newer attempt. These sessions cannot be submitted."
                 className="min-w-0 @4xl/page:col-span-1"
               >
-                <Card>
-                  <CardContent className="space-y-2 p-4">
-                    {recountQueue.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No open recounts.</p>
-                    ) : (
-                      recountQueue.map((s) => (
-                        <Link
-                          key={s.id}
-                          to={sessionHref(s)}
-                          className="flex items-center justify-between rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm hover:border-destructive"
-                        >
-                          <span className="font-mono">{s.code}</span>
-                          <span className="text-destructive">
-                            {s.open_recounts} line{s.open_recounts === 1 ? "" : "s"}
-                          </span>
-                        </Link>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="space-y-2">
+                  {recountQueue.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No open recounts.</p>
+                  ) : (
+                    recountQueue.map((s) => (
+                      <Link
+                        key={s.id}
+                        to={sessionHref(s)}
+                        className="flex items-center justify-between rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm hover:border-destructive"
+                      >
+                        <span className="font-mono">{s.code}</span>
+                        <span className="text-destructive">
+                          {s.open_recounts} line{s.open_recounts === 1 ? "" : "s"}
+                        </span>
+                      </Link>
+                    ))
+                  )}
+                </div>
               </Section>
 
               <Section
@@ -227,26 +225,24 @@ export default function CycleCounts() {
                 description="Sessions in review that need a supervisor other than the counter."
                 className="min-w-0 @4xl/page:col-span-1"
               >
-                <Card>
-                  <CardContent className="space-y-2 p-4">
-                    {approvalQueue.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nothing waiting on approval.</p>
-                    ) : (
-                      approvalQueue.map((s) => (
-                        <Link
-                          key={s.id}
-                          to={sessionHref(s)}
-                          className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:border-primary"
-                        >
-                          <span className="font-mono">{s.code}</span>
-                          <span className="text-muted-foreground">
-                            {s.variance_lines === null ? "blind" : `${s.variance_lines} variance`}
-                          </span>
-                        </Link>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
+                <div className="space-y-2">
+                  {approvalQueue.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nothing waiting on approval.</p>
+                  ) : (
+                    approvalQueue.map((s) => (
+                      <Link
+                        key={s.id}
+                        to={sessionHref(s)}
+                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm hover:border-primary"
+                      >
+                        <span className="font-mono">{s.code}</span>
+                        <span className="text-muted-foreground">
+                          {s.variance_lines === null ? "blind" : `${s.variance_lines} variance`}
+                        </span>
+                      </Link>
+                    ))
+                  )}
+                </div>
               </Section>
 
               <Section title="Counting accuracy" description="Posted lines, last 30 days." className="min-w-0 @4xl/page:col-span-1">
@@ -257,77 +253,73 @@ export default function CycleCounts() {
             <Section
               title="Sessions"
               description="Most recent first. Expected and variance figures stay hidden while a blind session is being counted."
-            >
-              <Card>
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-[8rem_7rem_6rem_1fr_7rem_7rem_6rem] gap-2 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-                    <span>Code</span>
-                    <span>Strategy</span>
-                    <span>State</span>
-                    <span>Progress</span>
-                    <span className="text-right">Variance</span>
-                    <span className="text-right">Recounts</span>
-                    <span />
+             contentClassName="px-0 pb-0">
+              <div className="grid grid-cols-[8rem_7rem_6rem_1fr_7rem_7rem_6rem] gap-2 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+                <span>Code</span>
+                <span>Strategy</span>
+                <span>State</span>
+                <span>Progress</span>
+                <span className="text-right">Variance</span>
+                <span className="text-right">Recounts</span>
+                <span />
+              </div>
+              {sessions.length === 0 ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">No sessions yet.</p>
+              ) : (
+                <div ref={scrollRef} className="max-h-[28rem] overflow-auto">
+                  <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+                    {virtualizer.getVirtualItems().map((v) => {
+                      const s = sessions[v.index];
+                      const pct = s.line_count
+                        ? Math.round((s.counted_count / s.line_count) * 100)
+                        : 0;
+                      return (
+                        <div
+                          key={s.id}
+                          className="absolute left-0 top-0 grid w-full grid-cols-[8rem_7rem_6rem_1fr_7rem_7rem_6rem] items-center gap-2 border-b px-3 text-sm"
+                          style={{ height: v.size, transform: `translateY(${v.start}px)` }}
+                        >
+                          <span className="flex items-center gap-1 truncate font-mono">
+                            {s.code}
+                            {s.is_blind ? <EyeOff className="h-3 w-3 text-muted-foreground" aria-label="Blind" /> : null}
+                          </span>
+                          <span className="truncate capitalize">{s.strategy?.replace(/_/g, " ")}</span>
+                          <span>
+                            <StatusBadge tone={stateTone(s.state)}>{s.state}</StatusBadge>
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="h-2 w-full max-w-32 overflow-hidden rounded-full bg-muted">
+                              <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                            </span>
+                            <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                              {s.counted_count}/{s.line_count}
+                            </span>
+                          </span>
+                          <span className="text-right tabular-nums">
+                            {s.variance_lines === null ? (
+                              <span className="text-muted-foreground">hidden</span>
+                            ) : (
+                              s.variance_lines
+                            )}
+                          </span>
+                          <span className="text-right tabular-nums">
+                            {s.open_recounts > 0 ? (
+                              <span className="text-destructive">{s.open_recounts}</span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </span>
+                          <span className="text-right">
+                            <Button size="sm" variant="outline" asChild>
+                              <Link to={sessionHref(s)}>Open</Link>
+                            </Button>
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {sessions.length === 0 ? (
-                    <p className="p-4 text-center text-sm text-muted-foreground">No sessions yet.</p>
-                  ) : (
-                    <div ref={scrollRef} className="max-h-[28rem] overflow-auto">
-                      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-                        {virtualizer.getVirtualItems().map((v) => {
-                          const s = sessions[v.index];
-                          const pct = s.line_count
-                            ? Math.round((s.counted_count / s.line_count) * 100)
-                            : 0;
-                          return (
-                            <div
-                              key={s.id}
-                              className="absolute left-0 top-0 grid w-full grid-cols-[8rem_7rem_6rem_1fr_7rem_7rem_6rem] items-center gap-2 border-b px-3 text-sm"
-                              style={{ height: v.size, transform: `translateY(${v.start}px)` }}
-                            >
-                              <span className="flex items-center gap-1 truncate font-mono">
-                                {s.code}
-                                {s.is_blind ? <EyeOff className="h-3 w-3 text-muted-foreground" aria-label="Blind" /> : null}
-                              </span>
-                              <span className="truncate capitalize">{s.strategy?.replace(/_/g, " ")}</span>
-                              <span>
-                                <StatusBadge tone={stateTone(s.state)}>{s.state}</StatusBadge>
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-full max-w-32 overflow-hidden rounded-full bg-muted">
-                                  <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                                </span>
-                                <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-                                  {s.counted_count}/{s.line_count}
-                                </span>
-                              </span>
-                              <span className="text-right tabular-nums">
-                                {s.variance_lines === null ? (
-                                  <span className="text-muted-foreground">hidden</span>
-                                ) : (
-                                  s.variance_lines
-                                )}
-                              </span>
-                              <span className="text-right tabular-nums">
-                                {s.open_recounts > 0 ? (
-                                  <span className="text-destructive">{s.open_recounts}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">0</span>
-                                )}
-                              </span>
-                              <span className="text-right">
-                                <Button size="sm" variant="outline" asChild>
-                                  <Link to={sessionHref(s)}>Open</Link>
-                                </Button>
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </Section>
 
             <div className="min-w-0 grid gap-4 @4xl/page:grid-cols-2">
