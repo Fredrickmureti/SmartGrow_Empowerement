@@ -63,6 +63,31 @@ export default function GateConsole() {
   const stillExpected = (expected.data ?? []).filter((a) => !arrivedApptIds.has(a.id));
   const selectedLive = selected ? (all.find((v) => v.id === selected.id) ?? selected) : null;
 
+  /**
+   * A scanned pass is matched against today's expected appointments by
+   * appointment number or trailer reference. A trailer already on site is
+   * refused with the reason rather than opening a second check-in.
+   */
+  const resolveGatePass = useCallback(
+    (code: string) => {
+      const onSite = live.find((v) => entityCodeEquals(v.trailer_ref, code));
+      if (onSite) {
+        setSelected(onSite);
+        return { ok: false, message: `${onSite.trailer_ref} is already on site — opened its visit.` };
+      }
+      const appt = (expected.data ?? []).find(
+        (a) => entityCodeEquals(a.appointment_no, code) || entityCodeEquals(a.trailer_ref, code),
+      );
+      if (!appt) {
+        return { ok: false, message: `No expected arrival matches ${code}. Use Check in for a walk-in.` };
+      }
+      setScannedApptId(appt.id);
+      setCheckInOpen(true);
+      return { ok: true, message: `${appt.appointment_no ?? appt.appointment_type} — check-in opened.` };
+    },
+    [live, expected.data],
+  );
+
   return (
     <>
       <PageHeader
