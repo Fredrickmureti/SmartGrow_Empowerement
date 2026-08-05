@@ -10,7 +10,7 @@
  * The client never writes `wms_loading_manifests`, `wms_manifest_cartons`,
  * or `wms_pack_cartons.manifest_id` directly.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ActivitySection } from "@/features/warehouse/events/ActivitySection";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -368,13 +368,14 @@ export default function LoadingBay() {
 
         {canLoad && (
           <Section title="Scan carton LPN">
-            <Card><CardContent className="p-4 flex gap-2 items-end">
-              <div className="flex-1">
-                <Label>Carton LPN code</Label>
-                <Input autoFocus value={scanCode} onChange={(e) => setScanCode(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") submitScan(); }} placeholder="Scan or type…" />
-              </div>
-              <Button onClick={submitScan} disabled={load.isPending}>Load</Button>
+            <Card><CardContent className="p-4">
+              <EntityScanField
+                label="Carton LPN"
+                intent="load.lpn"
+                entity="carton"
+                disabled={load.isPending}
+                onResolve={resolveCartonScan}
+              />
             </CardContent></Card>
           </Section>
         )}
