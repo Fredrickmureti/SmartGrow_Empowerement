@@ -5,7 +5,7 @@
  * or reject arrivals, and release trailers that are cleared to leave.
  * Same RPC layer as the control tower — no shortcut writes.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PageHeader, PageBody, LoadingState } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -34,10 +34,13 @@ import {
 } from "@/features/warehouse/yard/yardModel";
 import { GateCheckInDialog } from "@/features/warehouse/yard/GateCheckInDialog";
 import { TrailerVisitDrawer } from "@/features/warehouse/yard/TrailerVisitDrawer";
+import { EntityScanField } from "@/features/warehouse/scanning/EntityScanField";
+import { entityCodeEquals } from "@/features/warehouse/scanning/wmsEntityScan";
 
 export default function GateConsole() {
   const [warehouseId, setWarehouseId] = useState("");
   const [checkInOpen, setCheckInOpen] = useState(false);
+  const [scannedApptId, setScannedApptId] = useState<string | null>(null);
   const [selected, setSelected] = useState<VisitRow | null>(null);
   const [sealOut, setSealOut] = useState<Record<string, string>>({});
 
