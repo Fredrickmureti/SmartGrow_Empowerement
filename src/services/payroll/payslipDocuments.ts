@@ -76,11 +76,14 @@ export async function downloadPayslipPdf(
 /** Print a payslip through the routing plan (print / email / archive). */
 export async function printPayslip(payslipId: string): Promise<void> {
   const ref = await ensurePayslipDocumentRecord(payslipId);
-  const result = await PrintService.printDocumentIntent({
+  // Phase 5: the payroll clerk is released at the durable enqueue; the
+  // render + dispatch chain drains in the background and the print_jobs
+  // rows carry the outcome.
+  const ack = await PrintService.startPrintDocumentIntent({
     documentRecordId: ref.documentRecordId,
     scenario: 'payslip_issue',
     triggeredSource: 'manual',
     organizationId: ref.organizationId,
   });
-  if (!result.success) throw new Error(result.error ?? 'Failed to print payslip');
+  if (!ack.queued) throw new Error(ack.error ?? 'Failed to print payslip');
 }

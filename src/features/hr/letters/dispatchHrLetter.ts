@@ -17,7 +17,7 @@ import {
   type HrLetterType,
 } from "@/services/documents/snapshots/hrLetter";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { printDocumentIntent } from "@/services/printing/PrintService";
+import { startPrintDocumentIntent } from "@/services/printing/PrintService";
 
 /** `documents.source_doc_type` per letter — the row the letter was cut from. */
 const SOURCE_DOC_TYPE: Record<HrLetterType, string> = {
@@ -76,7 +76,13 @@ export async function dispatchHrLetter({
     snapshot: built.snapshot,
   });
 
-  const result = await printDocumentIntent({ documentRecordId, triggeredSource });
+  // Phase 5.4/5.5: the caller is released the moment the routing plan is
+  // durable. Render + dispatch continue in the background and the ledger
+  // rows are the record of what happened — nobody waits for the printer.
+  const ack = await startPrintDocumentIntent({ documentRecordId, triggeredSource });
+  if (!ack.queued) {
+    throw new Error(ack.error ?? `Failed to queue ${letterType}`);
+  }
 
-  return { documentRecordId, targetCount: result.target_count };
+  return { documentRecordId, targetCount: ack.targetCount };
 }

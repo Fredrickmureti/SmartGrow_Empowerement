@@ -16,7 +16,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { POSReceiptSnapshot } from "@/hooks/pos/useReceiptSnapshot";
 import { buildPosReceiptSnapshot } from "@/services/documents/snapshots/posReceipt";
-import { printSourceDocumentIntent } from "@/services/printing/PrintService";
+import { startPrintSourceDocumentIntent } from "@/services/printing/PrintService";
 import { withTrace, withSpan } from "@/services/observability/trace";
 
 export interface DispatchPosReceiptArgs {
@@ -100,7 +100,7 @@ export async function dispatchPosReceipt({
 
       // Phase 3: record materialization + intent submission + job read-back
       // are ONE round trip (`document_materialize_and_submit_intent`).
-      const result = await printSourceDocumentIntent({
+      const ack = await startPrintSourceDocumentIntent({
         kindCode:
           copy === "merchant" ? "pos.receipt_merchant" : "pos.receipt_customer",
         organizationId: resolvedOrgId,
@@ -118,9 +118,15 @@ export async function dispatchPosReceipt({
         triggeredSource,
       });
 
+      if (!ack.queued) {
+        throw new Error(
+          ack.error ?? `Failed to queue receipt for transaction ${transactionId}`,
+        );
+      }
+
       return {
-        documentRecordId: result.document_record_id,
-        targetCount: result.target_count,
+        documentRecordId: ack.documentRecordId ?? "",
+        targetCount: ack.targetCount,
       };
     },
   );
