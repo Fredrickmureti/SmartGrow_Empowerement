@@ -25,6 +25,13 @@ const SURFACES = [
   "src/pages/SalesOrders.tsx",
   "src/features/sales/record/useRecordPrint.ts",
   "src/components/pos/restaurant/KitchenOrderTicket.tsx",
+  // Phase 5 completion — the non-page dispatchers. They return a result to
+  // their callers, but the result is the *enqueue*, never the printer.
+  "src/features/hr/letters/dispatchHrLetter.ts",
+  "src/features/purchases/goods-receipt/dispatchGoodsReceipt.ts",
+  "src/features/purchases/statements/dispatchVendorStatement.ts",
+  "src/features/pos/receipts/dispatchPosReceipt.ts",
+  "src/services/payroll/payslipDocuments.ts",
 ];
 
 describe("Phase 5 non-blocking surfaces", () => {
