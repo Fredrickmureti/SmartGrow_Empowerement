@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.resolve_barcode_v2(uuid, uuid, text);

@@ -91786,16 +91786,6 @@ export type Database = {
         }
         Returns: number
       }
-      resolve_barcode_v2: {
-        Args: { p_branch_id: string; p_business_id: string; p_code: string }
-        Returns: {
-          match_source: string
-          packaging_id: string
-          product_id: string
-          qty_in_base_uom: number
-          scan_weight: number
-        }[]
-      }
       resolve_branch_scoped: {
         Args: { _branch_id: string; _business_id: string; _table_name: string }
         Returns: Json[]
