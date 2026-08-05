@@ -159,11 +159,11 @@ export default function SalesReturns() {
         documentDate: built.documentDate,
         snapshot: built.snapshot,
       });
-      const result = await printDocumentIntent({
-        documentRecordId,
-        triggeredSource: "manual",
-      });
-      shadcnToast(printOutcomeToast(result, `Sales return ${ret.return_number}`));
+      await acknowledgeRecordPrint(
+        { documentRecordId, triggeredSource: "manual" },
+        shadcnToast,
+        { label: `Sales return ${ret.return_number}` },
+      );
     } catch (err) {
       shadcnToast({
         title: "Print failed",
