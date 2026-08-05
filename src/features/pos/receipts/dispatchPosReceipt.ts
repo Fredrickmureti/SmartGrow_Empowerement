@@ -66,6 +66,7 @@ export async function dispatchPosReceipt({
   businessId,
   branchId,
   triggeredSource = "reprint",
+  frozen: prefetched,
 }: DispatchPosReceiptArgs): Promise<DispatchPosReceiptResult> {
   return withTrace(
     {
@@ -78,9 +79,11 @@ export async function dispatchPosReceipt({
       },
     },
     async () => {
-      const frozen = await withSpan("snapshot.fetch", () =>
-        fetchFrozenPosReceipt(transactionId),
-      );
+      const frozen =
+        prefetched ??
+        (await withSpan("snapshot.fetch", () =>
+          fetchFrozenPosReceipt(transactionId),
+        ));
       const built = buildPosReceiptSnapshot({ frozen, copy });
 
       const resolvedOrgId =
@@ -91,31 +94,30 @@ export async function dispatchPosReceipt({
         );
       }
 
-      const documentRecordId = await withSpan("document.ensure_record", () =>
-        ensureDocumentRecord({
-          kindCode:
-            copy === "merchant" ? "pos.receipt_merchant" : "pos.receipt_customer",
-          organizationId: resolvedOrgId,
-          sourceModule: "pos",
-          sourceDocType: copy === "merchant" ? "receipt_merchant" : "receipt",
-          sourceDocId: transactionId,
-          businessId: built.businessId ?? businessId ?? null,
-          branchId: built.branchId ?? branchId ?? null,
-          partyKind: built.partyKind,
-          partyId: built.partyId,
-          currency: built.currency,
-          documentNumber: built.documentNumber,
-          documentDate: built.documentDate,
-          snapshot: built.snapshot,
-        }),
-      );
-
-      const result = await printDocumentIntent({
-        documentRecordId,
+      // Phase 3: record materialization + intent submission + job read-back
+      // are ONE round trip (`document_materialize_and_submit_intent`).
+      const result = await printSourceDocumentIntent({
+        kindCode:
+          copy === "merchant" ? "pos.receipt_merchant" : "pos.receipt_customer",
+        organizationId: resolvedOrgId,
+        sourceModule: "pos",
+        sourceDocType: copy === "merchant" ? "receipt_merchant" : "receipt",
+        sourceDocId: transactionId,
+        businessId: built.businessId ?? businessId ?? null,
+        branchId: built.branchId ?? branchId ?? null,
+        partyKind: built.partyKind,
+        partyId: built.partyId,
+        currency: built.currency,
+        documentNumber: built.documentNumber,
+        documentDate: built.documentDate,
+        snapshot: built.snapshot,
         triggeredSource,
       });
 
-      return { documentRecordId, targetCount: result.target_count };
+      return {
+        documentRecordId: result.document_record_id,
+        targetCount: result.target_count,
+      };
     },
   );
 }
