@@ -1,14 +1,23 @@
 /**
  * Mobile warehouse layout — top bar, scrollable body, no sidebar.
  * Locked to portrait CSS width; used by every /wm/* route.
+ *
+ * Owns the whole RF surface's scan affordances (Phase 4.2 / 4.5):
+ *  - the operator guidance bar (what to scan now, what just happened),
+ *  - the camera button, which is the handheld-mode entry to the one
+ *    viewfinder,
+ *  - the visible single / continuous mode switch. Screens declare their
+ *    sensible default via `scanContinuous`; the operator can override it
+ *    without leaving the task.
  */
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Home, Volume2, VolumeX, Repeat, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QueueIndicator } from "./QueueIndicator";
 import { startDrainLoop } from "./offlineQueue";
 import { useScanFeedbackBridge } from "@/features/warehouse/scanning/useScanFeedback";
+import { ScanGuidance } from "@/features/warehouse/scanning/ScanGuidance";
 import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 
 interface Props {
@@ -22,7 +31,7 @@ interface Props {
    * WMS scan intent this screen has registered — no field focus required.
    */
   scanLabel?: string;
-  /** Keep the viewfinder open between decodes (counting, receiving). */
+  /** Default for the mode switch: keep the viewfinder open between decodes. */
   scanContinuous?: boolean;
 }
 
@@ -31,6 +40,8 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar, scanLa
   // Subscribes once for the whole /wm/* surface: the offline queue emits a
   // scan outcome, this renders the tone + haptic + colour flash.
   const { Flash, muted, setMuted } = useScanFeedbackBridge();
+  const [continuous, setContinuous] = useState(!!scanContinuous);
+  useEffect(() => setContinuous(!!scanContinuous), [scanContinuous]);
   useEffect(() => {
     startDrainLoop();
   }, []);
@@ -60,6 +71,19 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar, scanLa
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {scanLabel && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-9 w-9 p-0"
+              aria-label={continuous ? "Switch to single scan" : "Switch to continuous scan"}
+              aria-pressed={continuous}
+              title={continuous ? "Continuous scanning" : "Single scan"}
+              onClick={() => setContinuous((c) => !c)}
+            >
+              {continuous ? <Repeat className="h-5 w-5" /> : <Target className="h-5 w-5" />}
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
@@ -73,12 +97,15 @@ export function MobileWarehouseLayout({ title, back, children, bottomBar, scanLa
           <QueueIndicator />
         </div>
       </header>
+      {/* One guidance bar for the whole RF app: it reads the mounted scan
+          intent from the router, so screens never restate their prompt. */}
+      <ScanGuidance variant="bar" className="mx-3 mt-2" />
       <main className="relative flex-1 overflow-y-auto p-3">
         {children}
         {scanLabel && (
           <ScanCameraButton
-            label={scanLabel}
-            continuous={scanContinuous}
+            label={`${scanLabel}${continuous ? " · continuous" : ""}`}
+            continuous={continuous}
             withText
             className="fixed bottom-24 right-4 z-40 h-12 rounded-full shadow-lg"
           />
