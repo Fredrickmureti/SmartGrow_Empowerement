@@ -36,7 +36,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 import { dispatchQueuedJob, resolveOrganizationId } from './PrintService';
-import type { QueuedJob } from './jobs';
+import { strandJobs, type QueuedJob } from './jobs';
 
 /** A job stays the foreground session's business for this long. */
 const ABANDON_AFTER_MS = 90_000;
@@ -47,13 +47,27 @@ const SWEEP_INTERVAL_MS = 60_000;
 const MAX_PER_SWEEP = 5;
 
 const JOB_COLUMNS =
-  'id, business_id, branch_id, document_record_id, artifact_id, disposition, medium, hardware_role, copies, correlation_id, doc_type, doc_id, render_params, status';
+  'id, business_id, branch_id, document_record_id, artifact_id, disposition, medium, hardware_role, copies, correlation_id, doc_type, doc_id, render_params, status, transport';
+
+/**
+ * Phase 5.5 — a claimed row on a host-dialog transport is stranded, not
+ * replayable. The PDF left the app the moment the dialog opened, so the
+ * only honest close-out is `abandoned`; reprinting is the operator's
+ * explicit decision, never the janitor's.
+ */
+const HOST_DIALOG_TRANSPORTS = new Set(['pdf-browser', 'pdf-electron', 'download']);
+
+function isStranded(job: QueuedJob): boolean {
+  return job.status === 'sent' && HOST_DIALOG_TRANSPORTS.has(job.transport ?? '');
+}
 
 export interface RecoveryStatus {
   startedAt: number;
   lastSweepAt: number | null;
   recovered: number;
   failed: number;
+  /** Rows closed as `abandoned` because they could never be settled. */
+  stranded: number;
   running: boolean;
 }
 
@@ -91,9 +105,21 @@ async function findAbandonedJobs(businessId: string, limit: number): Promise<Que
 export async function sweepAbandonedPrintJobs(
   businessId: string,
   limit = MAX_PER_SWEEP,
-): Promise<{ recovered: number; failed: number }> {
-  const jobs = await findAbandonedJobs(businessId, limit);
-  if (jobs.length === 0) return { recovered: 0, failed: 0 };
+): Promise<{ recovered: number; failed: number; stranded: number }> {
+  const all = await findAbandonedJobs(businessId, limit);
+  if (all.length === 0) return { recovered: 0, failed: 0, stranded: 0 };
+
+  // Close stranded host-dialog rows instead of reprinting them.
+  const strandedRows = all.filter(isStranded);
+  const stranded = strandedRows.length
+    ? await strandJobs(
+        strandedRows.map((j) => j.id),
+        'stranded: host print dialog owned the bytes; owning session never reported back',
+      )
+    : 0;
+
+  const jobs = all.filter((j) => !isStranded(j));
+  if (jobs.length === 0) return { recovered: 0, failed: 0, stranded };
 
   const organizationId = await resolveOrganizationId(businessId);
   let recovered = 0;
@@ -106,7 +132,7 @@ export async function sweepAbandonedPrintJobs(
     if (outcome.error) failed += 1;
     else recovered += 1;
   }
-  return { recovered, failed };
+  return { recovered, failed, stranded };
 }
 
 /**
@@ -121,6 +147,7 @@ export function startPrintRecoverySweeper(businessId: string): () => void {
     lastSweepAt: null,
     recovered: 0,
     failed: 0,
+    stranded: 0,
     running: false,
   };
 
@@ -133,6 +160,7 @@ export function startPrintRecoverySweeper(businessId: string): () => void {
       const res = await sweepAbandonedPrintJobs(businessId);
       status.recovered += res.recovered;
       status.failed += res.failed;
+      status.stranded += res.stranded;
       status.lastSweepAt = Date.now();
     } catch {
       /* a failing janitor must never break the app */

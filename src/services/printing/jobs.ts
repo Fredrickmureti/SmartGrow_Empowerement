@@ -130,6 +130,8 @@ export interface QueuedJob {
   doc_id: string | null;
   render_params: Record<string, unknown> | null;
   status: string | null;
+  /** Transport the owning session chose (`thermal`, `pdf-browser`, …). */
+  transport?: string | null;
 }
 
 /**
@@ -205,4 +207,30 @@ export async function settleJobs(
       p_hw_command_id: hwCommandId,
     } as never);
   } catch { /* ledger failures never block printing */ }
+}
+
+/**
+ * Phase 5.5 — close rows that can never be settled truthfully.
+ *
+ * A `sent` row whose owning session vanished is not a print waiting to
+ * happen: for paper output the bytes already reached the host print dialog,
+ * so replaying it would put a second copy in the operator's hands. Those
+ * rows are stranded, and the honest ledger state is `abandoned` with a
+ * reason — not an eternal "in progress". Never throws.
+ */
+export async function strandJobs(
+  jobIds: Array<string | null | undefined>,
+  reason: string,
+): Promise<number> {
+  const ids = jobIds.filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return 0;
+  try {
+    const { data } = await supabase.rpc('print_jobs_strand', {
+      p_ids: ids,
+      p_reason: reason.slice(0, 500),
+    } as never);
+    return typeof data === 'number' ? data : 0;
+  } catch {
+    return 0;
+  }
 }
