@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { scanRouter } from "@/services/pos/scanRouter";
-import { feedbackTones } from "@/services/scanner/feedbackTones";
+import { beepForScan } from "@/services/scanner/scanBeep";
 import { useCameraDecoder } from "@/services/scanner/camera/useCameraDecoder";
 import {
   localScanService,
@@ -52,7 +52,9 @@ export function LocalScanOverlay() {
       const event = localScanService.emitDecoded(raw);
       const accepted = scanRouter.wasConsumed(event);
       if (accepted) acceptedRef.current += 1;
-      feedbackTones.play(accepted ? "ok" : "invalid");
+      // Deduped: if the target produces a verdict, that ack beeps instead
+      // (and may escalate to duplicate/invalid).
+      beepForScan(event.code, accepted ? "ok" : "invalid");
       setHits((prev) => [{ code: event.code, accepted, at: event.at }, ...prev].slice(0, 6));
       if (accepted && !continuous) {
         // Let the tone start before the overlay tears the camera down.

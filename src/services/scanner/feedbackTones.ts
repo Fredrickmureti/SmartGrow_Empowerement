@@ -85,7 +85,7 @@ const VIBRATE_FOR: Partial<Record<ToneName, number | number[]>> = {
   disconnect: [120, 60, 120],
 };
 
-function scheduleStep(audio: AudioContext, step: ToneStep, startAt: number, gainValue = 0.08) {
+function scheduleStep(audio: AudioContext, step: ToneStep, startAt: number, gainValue = 0.22) {
   const osc = audio.createOscillator();
   const gain = audio.createGain();
   osc.type = step.type ?? "square";
@@ -122,6 +122,13 @@ export const feedbackTones = {
   onMutedChange(listener: (m: boolean) => void): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
+  },
+  /**
+   * Create/resume the AudioContext inside a user gesture (iOS Safari will
+   * otherwise refuse to play the later, gesture-less scan tone).
+   */
+  unlock(): void {
+    getCtx();
   },
   /** Fire the named tone. No-op when muted. */
   play(tone: ToneName): void {

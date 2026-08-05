@@ -12,6 +12,7 @@ import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import { feedbackTones } from "@/services/scanner/feedbackTones";
 
 interface Props {
   /** Header text in the viewfinder — e.g. "Scan destination bin". */
@@ -41,6 +42,8 @@ export function ScanCameraButton({
   if (!handheld) return null;
 
   const open = () => {
+    // iOS: unlock WebAudio inside this gesture so the decode can beep.
+    feedbackTones.unlock();
     onBeforeOpen?.();
     scan({ label, continuous, onClose });
   };
