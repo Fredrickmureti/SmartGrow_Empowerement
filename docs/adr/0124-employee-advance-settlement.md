@@ -60,3 +60,29 @@ and 8-arg), the pattern ADR 0123 bans: one concern, one implementation.
   guessing the original funding account and period would be wrong.
 - Advance **repayment** posting (relieving the receivable as payroll deducts)
   remains outstanding and is tracked as the next item.
+
+## Addendum — the recovery leg (payroll)
+
+Disbursement without recovery only fixed half the loop: the receivable was
+booked but never relieved, and payroll credited a generic
+`advance_recovery_payable`, double-counting the money as a liability. The
+recovery leg now mirrors the loan pattern from ADR 0091:
+
+1. **One writer.** `process_payroll_advance_recoveries(run, number, period,
+   recoveries)` owns the `advance_repayment_schedule` rows and the
+   `employee_advances.recovered_amount` / status transition. `compute-payroll`
+   hands over the list and writes none of it itself. Replay is a no-op: a
+   schedule row already existing for `(advance_id, payroll_run_id)` is skipped.
+
+2. **One resolver.** `payroll_advance_recovery_gl_targets(run)` returns the
+   per-advance receivable account — `employee_advance_receivable`, falling back
+   to `loan_receivable`, exactly as disbursement resolves it — so the credit
+   lands on the same account the debit did.
+
+3. **`post-payroll-gl` diverts `advance_recovery` lines** away from the payable
+   sweep and credits those targets instead, with any rounding residual applied
+   to the first target so the journal balances against the payslip lines.
+
+4. **`payroll_required_gl_mappings_for_run`** no longer demands
+   `advance_recovery_payable`; it asks for the advance receivable instead, and
+   treats an existing `loan_receivable` mapping as satisfying it.
