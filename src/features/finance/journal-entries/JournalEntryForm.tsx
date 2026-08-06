@@ -97,7 +97,7 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
     }
   }, [mode, entry]);
 
-  const handleAddLine = () => {
+  const handleAddLine = useCallback(() => {
     setFormData((prev) => ({
       ...prev,
       lines: [
@@ -105,27 +105,28 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
         { account_id: "", description: "", debit: 0, credit: 0 },
       ],
     }));
-  };
+  }, []);
 
-  const handleRemoveLine = (index: number) => {
+  const handleRemoveLine = useCallback((index: number) => {
     setFormData((prev) => ({
       ...prev,
       lines: prev.lines.filter((_, i) => i !== index),
     }));
-  };
+  }, []);
 
-  const handleLineChange = (
-    index: number,
-    field: keyof JournalLine,
-    value: string | number,
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      lines: prev.lines.map((line, i) =>
-        i === index ? { ...line, [field]: value } : line,
-      ),
-    }));
-  };
+  /** Stable patch handler so `JournalLineRow`'s memo actually engages. */
+  const handlePatchLine = useCallback(
+    (index: number, patch: Partial<JournalLine>) => {
+      setFormData((prev) => ({
+        ...prev,
+        lines: prev.lines.map((line, i) =>
+          i === index ? { ...line, ...patch } : line,
+        ),
+      }));
+    },
+    [],
+  );
+
 
   const totalDebit = formData.lines.reduce((s, l) => s + (l.debit || 0), 0);
   const totalCredit = formData.lines.reduce((s, l) => s + (l.credit || 0), 0);
