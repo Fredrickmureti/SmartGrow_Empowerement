@@ -55,6 +55,7 @@ const ExecutionTelemetry = lazy(() => import("@/pages/warehouse/ExecutionTelemet
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
 const PackagingCatalogue = lazy(() => import("@/pages/warehouse/PackagingCatalogue"));
+const PackagingWorkspace = lazy(() => import("@/pages/warehouse/PackagingWorkspace"));
 const ExceptionsInbox = lazy(() => import("@/pages/warehouse/ExceptionsInbox"));
 const ReceivingSessions = lazy(() => import("@/pages/warehouse/ReceivingSessions"));
 const ReturnOrders = lazy(() => import("@/pages/warehouse/ReturnOrders"));
@@ -307,6 +308,8 @@ export function WarehouseApp() {
         <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="crossdock" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Cross-dock"><CrossdockBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="packaging" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging catalogue"><PackagingCatalogue /></LazyRoute></SubscriptionProtectedRoute>} />
+        {/* Packaging object page (ADR 0122) — catalogue previews, workspace edits. */}
+        <Route path="packaging/:id" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging"><PackagingWorkspace /></LazyRoute></SubscriptionProtectedRoute>} />
         {/* Legacy carton catalogue — superseded by the Packaging Master (ADR 0105). */}
         <Route path="cartons" element={<Navigate to="../packaging" replace />} />
         <Route path="exceptions" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Exceptions Inbox"><ExceptionsInbox /></LazyRoute></SubscriptionProtectedRoute>} />
