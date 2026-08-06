@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { encode as encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { resolvePrintPolicy } from "../_shared/printing/resolvePolicy.ts";
 import { resolveCanonicalPdf } from "../_shared/documents/canonicalPdf.ts";
 import { formatAccountingNumber as formatCurrency } from "../_shared/format/index.ts";
@@ -794,7 +794,7 @@ const handler = async (req: Request): Promise<Response> => {
           // printed in-app. ESC/POS resolutions are coerced to PDF here — raw
           // thermal bytes are not a useful email attachment. Note this is a
           // *paper* override on one renderer, never a second renderer.
-          const emailPolicy = await resolvePrintPolicy(supabaseClient, {
+          const emailPolicy = await resolvePrintPolicy(supabaseClient as never, {
             businessId: document.business_id ?? null,
             branchId: document.branch_id ?? null,
             documentType,

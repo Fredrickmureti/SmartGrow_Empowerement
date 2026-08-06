@@ -26,7 +26,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { encode as encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { renderDocument, serviceClient } from "../_shared/rendering/engine.ts";
 import { requireOrgMember } from "../_shared/requireOrgMember.ts";
 import type { RenderRequest } from "../_shared/rendering/types.ts";

@@ -106,7 +106,10 @@ async function findDocumentRecord(
     .order("created_at", { ascending: false });
 
   if (error || !data?.length) return null;
-  const exact = data.find((row) => row.source_doc_type === documentType);
+  const exact = data.find(
+    (row: { source_doc_type?: string | null }) =>
+      row.source_doc_type === documentType,
+  );
   return ((exact ?? data[0]).id as string) ?? null;
 }
 
