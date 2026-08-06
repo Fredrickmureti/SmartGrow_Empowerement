@@ -19,7 +19,6 @@ const PAYMENT: PaymentHeaderRow = {
   payment_date: "2026-07-27",
   amount: 1500,
   status: "completed",
-  currency: "KES",
   notes: "Cheque #4471",
   payment_method: "bank_transfer",
   reference: "TXN-9911",
@@ -66,6 +65,14 @@ describe("buildPaymentReceiptSnapshot", () => {
     expect(snapshot.document_number).toBe("RCP-2026-0001");
   });
 
+  it("uses the real payment status vocabulary when status is absent", () => {
+    const { snapshot } = buildPaymentReceiptSnapshot(
+      { ...PAYMENT, status: null },
+      ALLOCS,
+    );
+    expect(snapshot.status).toBe("applied");
+  });
+
   it("falls back to RCP-<uuid8> when receipt_number is missing", () => {
     const { documentNumber } = buildPaymentReceiptSnapshot(
       { ...PAYMENT, receipt_number: null, id: "aaaaaaaa-1111-2222-3333-444444444444" },
@@ -110,21 +117,30 @@ describe("buildPaymentReceiptSnapshot", () => {
     expect(snapshot.total).toBe(1500);
   });
 
-  it("picks uniform allocation currency, else falls back to payment/business/USD", () => {
+  it("uses a uniform allocation currency and rejects mixed currencies", () => {
     const mixed: PaymentAllocationRow[] = [
       { ...ALLOCS[0], invoices: { ...ALLOCS[0].invoices!, currency: "USD" } },
       { ...ALLOCS[1], invoices: { ...ALLOCS[1].invoices!, currency: "KES" } },
     ];
-    expect(buildPaymentReceiptSnapshot(PAYMENT, mixed).currency).toBe("KES");
+    expect(() => buildPaymentReceiptSnapshot(PAYMENT, mixed)).toThrow(
+      "allocations contain multiple currencies",
+    );
     const uniform = buildPaymentReceiptSnapshot(PAYMENT, [
       { ...ALLOCS[0], invoices: { ...ALLOCS[0].invoices!, currency: "USD" } },
     ]);
     expect(uniform.currency).toBe("USD");
     const noAlloc = buildPaymentReceiptSnapshot(
-      { ...PAYMENT, currency: null, business: { id: "b", name: "x", base_currency: null } },
+      { ...PAYMENT, business: { id: "b", name: "x", base_currency: "KES" } },
       [],
     );
-    expect(noAlloc.currency).toBe("USD");
+    expect(noAlloc.currency).toBe("KES");
+  });
+
+  it("surfaces missing currency instead of inventing a fallback", () => {
+    expect(() => buildPaymentReceiptSnapshot(
+      { ...PAYMENT, business: { id: "b", name: "x", base_currency: null } },
+      [],
+    )).toThrow("currency is missing");
   });
 
   it("maps payment_method through the display labels", () => {
