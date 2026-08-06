@@ -86583,6 +86583,10 @@ export type Database = {
         Args: { p_doc_id: string; p_doc_type: string }
         Returns: Json
       }
+      get_document_settlement_lineage: {
+        Args: { p_doc_id: string; p_doc_type: string }
+        Returns: Json
+      }
       get_effective_company_config: {
         Args: { p_branch_id?: string; p_business_id: string }
         Returns: Json
