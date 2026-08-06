@@ -52,4 +52,18 @@ describe("Journal posting monopoly", () => {
     const offenders = rgFiles('invoice_payments', APP_PATHS);
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * Advance disbursement moves cash. It must therefore go through
+   * `disburse_employee_advance`, which posts the receivable/bank entry
+   * via the engine. A client-side status flip to 'disbursed' would move
+   * money with no journal — the exact defect this ratchet freezes out.
+   */
+  it("no application code flips employee_advances to disbursed directly", () => {
+    const offenders = rgFiles(
+      'from\\("employee_advances"\\)[\\s\\S]{0,200}?"disbursed"',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
 });
