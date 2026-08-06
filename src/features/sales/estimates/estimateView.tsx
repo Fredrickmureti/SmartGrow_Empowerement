@@ -65,6 +65,7 @@ export function useEstimateView(
 
     return {
       kind: "estimate",
+      documentId: estimate?.id,
       eyebrow: "Sales Estimate",
       listPath: "/sales/estimates",
       title: estimate?.contact?.name ?? "Customer",
@@ -129,14 +130,8 @@ export function useEstimateView(
           <DocumentVersionsSection documentType="estimate" documentId={estimate.id} />
         </>
       ) : undefined,
-      activity: estimate
+      activityExtra: estimate
         ? [
-            {
-              id: "created",
-              at: fmt(estimate.created_at),
-              actor: "System",
-              title: `Estimate ${estimate.estimate_number} created`,
-            },
             ...(estimate.signed_at
               ? [
                   {

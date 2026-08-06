@@ -41,6 +41,7 @@ export type {
 } from "./panels";
 export { usePeekParam } from "./usePeekParam";
 export { useDocumentRecord } from "./useDocumentRecord";
+export { useDocumentActivity } from "./useDocumentActivity";
 
 // Status vocabulary — one registry for every document type.
 export {

@@ -62,6 +62,18 @@ describe("document workspace — two projections, one descriptor", () => {
   });
 });
 
+describe("document workspace — activity is sourced, not synthesised", () => {
+  it("no Sales view builder hand-builds an activity list", () => {
+    const offenders = RECORD_SURFACES.filter((f) =>
+      /\n\s*activity:\s/.test(read(f)),
+    );
+    expect(
+      offenders,
+      "Set `documentId` and let the audit-backed feed load; use `activityExtra` for non-audited milestones",
+    ).toEqual([]);
+  });
+});
+
 describe("document workspace — line items adapt to their container", () => {
   it("LineItemsGrid is the only line-item renderer", () => {
     const offenders = SALES_FILES.filter(

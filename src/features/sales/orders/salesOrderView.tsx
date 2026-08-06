@@ -67,6 +67,7 @@ export function useSalesOrderView(
 
     return {
       kind: "sales_order",
+      documentId: order?.id,
       eyebrow: "Sales Order",
       listPath: "/sales/orders",
       title: order?.contact?.name ?? "Customer",
@@ -125,26 +126,17 @@ export function useSalesOrderView(
           <DocumentVersionsSection documentType="sales_order" documentId={order.id} />
         </>
       ) : undefined,
-      activity: order
-        ? [
-            {
-              id: "created",
-              at: fmt(order.created_at),
-              actor: "System",
-              title: `Sales order ${order.so_number} created`,
-            },
-            ...(order.converted_at
-              ? [
-                  {
-                    id: "converted",
-                    at: fmt(order.converted_at),
-                    title: "Converted to invoice",
-                    tone: "success" as const,
-                  },
-                ]
-              : []),
-          ]
-        : undefined,
+      activityExtra:
+        order && order.converted_at
+          ? [
+              {
+                id: "converted",
+                at: fmt(order.converted_at),
+                title: "Converted to invoice",
+                tone: "success" as const,
+              },
+            ]
+          : undefined,
     };
   }, [order, loading, error, formatCurrency]);
 

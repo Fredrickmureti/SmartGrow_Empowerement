@@ -11,10 +11,13 @@
 import { SummaryPanel } from "@/design-system";
 import { RecordBody } from "./RecordBody";
 import { DocumentActivityPanel, DocumentTotalsPanel } from "./panels";
+import type { DocumentActivityEntry } from "./panels";
 import { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
 import { buildTotalsRows } from "./money";
 import { DocumentStatusBadge } from "./documentStatus";
+import { useDocumentActivity } from "./useDocumentActivity";
 import type { DocumentRecordView } from "./types";
+import type { DocumentKind } from "./documentStatus";
 
 /** Format money in the document's currency, falling back to plain digits. */
 function formatterFor(currency?: string | null) {
@@ -78,18 +81,54 @@ export function DocumentWorkspaceBody({
   );
 }
 
+/**
+ * Audit-backed feed. Rendered whenever the descriptor carries a row id and
+ * does not override `activity`, so no feature module has to remember to wire
+ * history — supplying the id is enough.
+ */
+function AuditActivityPanel({
+  kind,
+  documentId,
+  extra,
+}: {
+  kind: DocumentKind;
+  documentId: string;
+  extra?: DocumentActivityEntry[];
+}) {
+  const { entries, loading } = useDocumentActivity(kind, documentId);
+  return (
+    <DocumentActivityPanel
+      entries={extra?.length ? [...extra, ...entries] : entries}
+      empty={loading ? "Loading activity…" : "No recorded activity yet."}
+    />
+  );
+}
+
 export function DocumentWorkspaceAside({ view }: { view: DocumentRecordView }) {
   const totals = resolveTotalsRows(view);
-  if (!totals && !view.activity && !view.extraAside) return null;
+  if (!hasAside(view)) return null;
   return (
     <SummaryPanel>
       {totals && <DocumentTotalsPanel rows={totals} footer={view.totalsFooter} />}
-      {view.activity && <DocumentActivityPanel entries={view.activity} />}
+      {view.activity ? (
+        <DocumentActivityPanel entries={view.activity} />
+      ) : view.documentId ? (
+        <AuditActivityPanel
+          kind={view.kind}
+          documentId={view.documentId}
+          extra={view.activityExtra}
+        />
+      ) : null}
       {view.extraAside}
     </SummaryPanel>
   );
 }
 
 export function hasAside(view: DocumentRecordView) {
-  return !!(resolveTotalsRows(view) || view.activity || view.extraAside);
+  return !!(
+    resolveTotalsRows(view) ||
+    view.activity ||
+    view.documentId ||
+    view.extraAside
+  );
 }
