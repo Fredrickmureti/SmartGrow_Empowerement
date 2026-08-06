@@ -51,6 +51,7 @@ import {
 import { useLocationMutations } from "@/features/warehouse/locations/useLocationMutations";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { useEntitySelection } from "@/features/warehouse/entity/useEntitySelection";
 
 /** Deep-link into the full-page structure builder (no modal, no lost work). */
