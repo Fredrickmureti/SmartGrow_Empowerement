@@ -6,9 +6,9 @@
  * from the retired dialog; footer actions move to `FooterActionBar`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import {
   ActionBar,
@@ -30,7 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
@@ -45,7 +44,8 @@ import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
