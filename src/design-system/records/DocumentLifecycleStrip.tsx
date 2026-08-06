@@ -3,7 +3,8 @@
  *
  * Enterprise operators do not think in tables, they think in chains: a
  * quotation became an order, the order shipped on a delivery note, the note
- * was invoiced, the invoice was paid, the payment posted a journal entry.
+ * was invoiced. This strip renders that chain for whichever document you
+ * are standing on.
  * This strip renders that chain for whichever document you are standing on,
  * with the current step marked and every other step navigable.
  *
@@ -56,8 +57,8 @@ interface Step {
 
 /**
  * The order-to-cash chain, in business order. Downstream settlement steps
- * (payment, credit note, return) were previously unreachable from any
- * document surface even though the data existed.
+ * Steps the lineage RPC does not return render as unrealised, so the
+ * operator can see what has not happened yet.
  */
 const STEPS: Step[] = [
   { key: "estimate", label: "Quotation", icon: ClipboardList, kind: "estimate", path: (id) => `/sales/estimates/${id}` },
