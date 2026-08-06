@@ -257,9 +257,10 @@ export default function WarehouseOverview() {
                         {humanise(e.state)}
                       </Badge>
                     </Link>
-                  ))}
-                </li>
+                  </li>
+                ))}
               </ul>
+
             </DashboardWidget>
           </DashboardBand>
 
