@@ -135,13 +135,20 @@ export function LineItemsGrid({
       cols.reduce((sum, c) => sum + minWidthOf(c), 0) + GAP * Math.max(0, cols.length - 1) <=
       available;
 
-    let kept = [...columns];
+    // Identity (first) and amount (last) are load-bearing: a line item is
+    // meaningless without what it is and what it costs.
+    const ranked = columns.map((c, i) => ({
+      ...c,
+      priority: c.priority ?? (i === 0 || i === columns.length - 1 ? 1 : 2),
+    }));
+
+    let kept = [...ranked];
     const dropped: LineItemColumn[] = [];
 
     for (const priority of [3, 2] as const) {
       // Drop right-to-left within the priority band until the set fits.
       for (let i = kept.length - 1; i >= 0 && !fits(kept); i--) {
-        if ((kept[i].priority ?? 2) !== priority) continue;
+        if (kept[i].priority !== priority) continue;
         dropped.unshift(kept[i]);
         kept = kept.filter((_, idx) => idx !== i);
       }
