@@ -22,7 +22,7 @@
 import { memo, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
+import { ProductCombobox, type ProductOption } from "@/components/common/ProductCombobox";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 import {
   EditableLineRowCells,
@@ -73,13 +73,7 @@ export const PRICED_LINE_COLUMNS_NO_TAX = PRICED_LINE_COLUMNS.filter(
   (c) => c.id !== "tax_rate",
 );
 
-export interface PricedLineRowProduct {
-  id: string;
-  name: string;
-  unit_price: number;
-  tax_rate?: number;
-  [key: string]: unknown;
-}
+export type PricedLineRowProduct = ProductOption & { tax_rate?: number | null };
 
 interface Props<T extends PricedLineShape> {
   index: number;
@@ -121,7 +115,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
         return (
           <div className="min-w-0 space-y-2">
             <ProductCombobox
-              products={products as never}
+              products={products}
               value={item.product_id || ""}
               onChange={(value) =>
                 onProductSelect
