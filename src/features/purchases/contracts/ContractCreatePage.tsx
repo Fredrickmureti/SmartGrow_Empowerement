@@ -252,7 +252,12 @@ export default function ContractCreatePage() {
             onRemoveRow={removeLine}
             addLabel="Add line"
             disabled={busy}
-            emptyMessage="No lines. You can create a value-only contract without lines."
+            canRemoveRow={() => true}
+            empty={
+              <p className="text-sm text-muted-foreground">
+                No lines. You can create a value-only contract without lines.
+              </p>
+            }
             renderRow={(line, i, layout) => (
               <ContractLineRow
                 key={i}
