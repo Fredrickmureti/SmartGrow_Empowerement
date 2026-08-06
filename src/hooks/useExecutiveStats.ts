@@ -211,14 +211,21 @@ export function useExecutiveStats() {
       // not honoured by fetchGLTotals today — flagged as follow-up).
       const glTotals = await fetchGLTotals(orgId, allTimeFrom, allTimeTo);
 
-      const outstandingInvoices = invoices.filter(i => ["sent", "viewed", "partial", "overdue"].includes(i.status));
+      // Document-pipeline list — used ONLY for the collection-rate document
+      // metric, never for receivable amounts.
+      const outstandingInvoices = invoices.filter(i => ["sent", "viewed", "partial", "overdue", "confirmed"].includes(i.status));
 
-      // Headline numbers come from the scope-enforced RPC. We retain
-      // the client-side outstanding list because we still need it to
-      // build per-debtor breakdowns and DSO.
+      // Receivables/payables are GL-anchored: same open-item projection as the
+      // AR/AP workspaces, ageing and control-account reconciliation.
+      const [arSummary, apSummary] = await Promise.all([
+        fetchARSummary(orgId, scope.businessId, branchEq),
+        fetchAPSummary(orgId, scope.businessId, branchEq),
+      ]);
+
       const cashPosition = Number(rpc.cash_position ?? 0);
-      const totalReceivables = Number(rpc.receivables ?? 0);
-      const totalPayables = Number(rpc.payables ?? 0);
+      const totalReceivables = arSummary.totalResidual;
+      const totalPayables = apSummary.totalResidual;
+
       const totalRevenue = glTotals.revenue;
       const dso = totalRevenue > 0 ? (totalReceivables / totalRevenue) * 365 : 0;
 
