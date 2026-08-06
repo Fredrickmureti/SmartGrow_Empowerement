@@ -22,6 +22,10 @@ import { useOrganization } from "./useOrganization";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDashboardScope } from "./useDashboardScope";
+import {
+  fetchARSummary,
+  EMPTY_OPEN_ITEMS_SUMMARY,
+} from "@/services/finance/openItems";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -183,25 +187,18 @@ export function useDashboardStats() {
         return { month: format(monthStart, "MMM"), revenue: pnl.revenue, expenses: pnl.expenses };
       }));
 
-      const { data: outstandingRows, error: outstandingError } = await (() => {
-        let q = supabase
-          .from("invoices")
-          .select("total, amount_paid", { count: "exact" })
-          .eq("organization_id", orgId)
-          .eq("business_id", businessId)
-          .in("status", ["sent", "viewed", "partial", "overdue", "confirmed"]);
-        if (scopeKind === "branch_only" && branchId) q = q.eq("branch_id", branchId);
-        return q;
-      })();
-      if (outstandingError) {
-        console.warn("[useDashboardStats] outstanding invoices failed:", outstandingError.message);
-      }
+      // Outstanding receivables — GL-anchored open items (never document status).
+      const arSummary = await fetchARSummary(
+        orgId,
+        businessId,
+        scopeKind === "branch_only" ? branchId : null,
+      ).catch((e) => {
+        console.warn("[useDashboardStats] AR summary failed:", e?.message);
+        return EMPTY_OPEN_ITEMS_SUMMARY;
+      });
+      const outstandingAmount = arSummary.totalResidual;
+      const outstandingCount = arSummary.openDocumentCount;
 
-      const outstandingAmount = (outstandingRows || []).reduce(
-        (sum: number, row: any) => sum + ((Number(row.total) || 0) - (Number(row.amount_paid) || 0)),
-        0,
-      );
-      const outstandingCount = outstandingRows?.length ?? 0;
 
       const monthlyRevenue: MonthlyData[] = monthlyRows.map((m) => ({ month: m.month, amount: m.revenue }));
       const monthlyExpenses: MonthlyData[] = monthlyRows.map((m) => ({ month: m.month, amount: m.expenses }));
