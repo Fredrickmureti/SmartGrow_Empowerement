@@ -471,7 +471,6 @@ export default function Employees() {
         className="px-1 pb-2 pt-3 sm:px-6"
         eyebrow="HR · People"
         title="Employees"
-        description="Directory of people in this company."
         actions={
           <>
             <CustomizeFieldsButton entityType="employee" />
