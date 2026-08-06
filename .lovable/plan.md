@@ -1,106 +1,81 @@
-# Enterprise Document Rendering, Preview, Print & Delivery — Convergence Roadmap
+# Enterprise Document Workspace — Verification Verdict & Remaining Phases
 
-Authoritative status file. Update after every completed implementation.
+## Phase 1 — Verification of the previous engineer's handover
 
-Last updated: 2026-08-06 (Phase 3a complete)
+I checked the claims directly against the code rather than the log.
 
-## Architectural vision
+| Claim | Verdict |
+|---|---|
+| One descriptor (`DocumentRecordView`) with two projections | Confirmed — `src/design-system/records/{types.ts,RecordScaffold,PeekScaffold,DocumentWorkspace}`. |
+| Status + money vocabularies centralised | Confirmed — `documentStatus.tsx`, `money.ts`; no local status maps in Sales/Purchases/Finance/Inventory record surfaces. |
+| Container-adaptive line grids, no width floors | Confirmed — `LineItemsGrid` + `EditableLineItemsGrid` both on `adaptiveColumns.ts` (`ResizeObserver`), no unconditional `min-w-[…px]`. |
+| Sales + Purchases + Finance + Inventory line editors migrated | Confirmed — 20 create/edit pages consume `EditableLineItemsGrid`; no Sales form retains `grid-cols-12` or `<TableHead>` line editors. |
+| "Only VendorStatementRecordPage remains off-protocol" | **Stale — already fixed.** It now renders `RecordScaffold` from a shared `vendorStatementView` descriptor, and the peek consumes the same hook. |
+| Ratchet suite green | Confirmed — `document-workspace-canonical.test.ts` 10/10. |
+| Typecheck clean | Confirmed — `tsgo --noEmit -p tsconfig.app.json` reports nothing. |
 
-One business record → one frozen snapshot (`document_records.snapshot`) → one
-rendering engine (`supabase/functions/_shared/rendering/*`) → one canonical
-artifact per (document, medium, template version) in `document_artifacts`.
-Disposition — preview, print, email, export, archive — **selects** an artifact.
-It never selects a renderer, never re-reads live rows, and never draws its own
-layout.
+No inflated claims found. The handover's one outstanding item is closed.
 
-Client seams (do not bypass):
-- `src/services/printing/render.ts` — the only client caller of `render-document`.
-- `src/services/exports/documentExport.ts` — exports go through the render seam.
-- `src/services/documents/snapshots/*` — snapshot builders (kind → frozen blob).
+Genuinely still open (verified by reading the files, not the log):
 
-## Phase status
+1. **Downstream lifecycle traversal is missing.** `DocumentLifecycleStrip`
+   stops at Invoice: its `STEPS` array is quotation → proforma → sales order →
+   delivery → invoice, and `get_document_lineage` resolves only those five.
+   The parent prompt requires a controller to walk Invoice → Payment →
+   Journal Entry → Reconciliation → Credit Note → Return → Collections. The
+   data to do it exists (`payment_allocations.invoice_id`,
+   `journal_entries.source_type/source_id`, `bank_reconciliation_matches`,
+   `credit_notes.invoice_id`, `sales_returns.invoice_id`); nothing surfaces it.
+2. **The ratchet does not close the form gap.** It asserts that *migrated*
+   forms are clean, but a brand-new create page with an inline `grid-cols-12`
+   line editor or a `<Table>` of line rows would pass CI today.
+3. **Collections has no backing table** (no `collections`/`dunning` tables in
+   the schema), so lifecycle must express it as a derived state on the
+   invoice — a receivable position — not as a fake linked document.
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| 1 | Email consumes canonical artifacts | **Done & verified** |
-| 2 | CSV / XLSX exports become first-class rendering mediums | **Done & verified** |
-| 3a | `generate-document` is snapshot-first (canonical short-circuit) | **Done & verified** |
-| 3b | Retire legacy `fetchX` projections per kind as builders land | Pending — **next** |
-| 4 | Replace React/HTML statement + POS previews with the canonical artifact viewer | Pending |
-| 5 | ESLint rules + architecture ratchet closing the drift surface for good | Pending |
+## Phase 10 — Downstream lifecycle (the settlement half)
 
-## Completed and verified
+Extend the chain so the strip covers the full order-to-cash spine.
 
-### Phase 1 — Email
-- `supabase/functions/_shared/documents/canonicalPdf.ts`: resolves the canonical
-  PDF — archived `document_artifacts` bytes first, then a render of the frozen
-  snapshot via `render-document`, then `null` (caller falls back to legacy).
-- `send-document-email` attaches canonical bytes; `encodeBase64` replaces
-  `btoa(String.fromCharCode(...))` (stack overflow on large PDFs).
-- Fixed a latent crash: undefined `businessRow` in the report-email branch.
+- New migration adding `get_document_settlement_lineage(p_doc_type, p_doc_id)`:
+  same tenant guard as the existing RPC (`user_can_access_business`), read-only,
+  `STABLE SECURITY DEFINER`, `GRANT EXECUTE … TO authenticated`. Returns, for an
+  invoice anchor: `payments[]` (via `payment_allocations`, excluding voided),
+  `journal_entry` (`source_type='invoice'`), `reconciliation` state for the
+  matched bank lines, `credit_notes[]`, `returns[]`, plus a derived
+  `collections` position (overdue bucket + balance) rather than a document.
+- `DocumentLifecycleStrip` gains a second row — the settlement segment — fed by
+  the new RPC. Upstream steps stay single-instance; downstream steps are
+  cardinal (many payments, many credit notes), so they render as a count-badged
+  node that expands into a linked list rather than one chevron per row.
+- Unrealised downstream steps stay visible and dimmed: "no payment yet" is the
+  single most useful fact on an unpaid invoice.
+- Existing RPC untouched; the strip composes the two so no upstream regression
+  is possible.
 
-### Phase 2 — Tabular exports
-- `_shared/exports/snapshotToTable.ts` — one snapshot → table projection
-  (transaction statements and item documents), honouring `hide_amounts`.
-- `_shared/rendering/renderers/csv.ts`, `xlsx.ts` registered as mediums in
-  `types.ts` + `mediumRegistry.ts`; `render-document` serves them.
-- `documentExport.ts` no longer calls `fetch` — it resolves the document record
-  and uses `renderDocumentRecord`.
+## Phase 11 — Close the ratchet gap
 
-### Phase 3a — Snapshot-first legacy generator
-- `generate-document/index.ts`: after org-membership **and** subscription
-  entitlement gating, PDF requests attempt `resolveCanonicalPdf`. When a
-  `document_records` row exists, the archived/frozen bytes are returned with
-  `X-Document-Canonical-Source` / `X-Document-Record-Id` headers. Kinds with no
-  record fall through to the legacy fetcher unchanged; a resolver failure is
-  logged and falls back (a print is never failed by the canonical path).
-  Not short-circuited by design: `escpos` / `zpl` / `csv`, thermal-width PDF
-  previews, and `force_refresh_settings` reprints.
-- Guard: `src/test/architecture/legacy-generator-snapshot-first.test.ts`
-  (resolver used, PDF-only, after tenancy+entitlement, fallback preserved).
-- Closed a pre-existing coverage hole: `wmsReturn.ts` had no case in
-  `src/test/documents/snapshot-contract.test.ts` — added.
+Extend `document-workspace-canonical.test.ts` so it fails when:
 
-Verification run: `legacy-generator-snapshot-first`,
-`document-renderer-single-transport`, `printing-architecture`,
-`src/test/printing/**`, `src/test/documents/**`, `src/test/pos/stage-b-receipt-snapshot`
-— all green.
+- any Sales/Purchases/Finance create/edit page renders line rows through an
+  inline `grid-cols-12` block or a `<TableHead>` instead of
+  `EditableLineItemsGrid` (allowlist only genuinely non-line tables);
+- a record surface renders a lifecycle chain of its own instead of
+  `DocumentLifecycleStrip`;
+- a settlement-linked document (payment, credit note, return) record page ships
+  a bespoke "related documents" list rather than the shared relationship panel.
 
-## Pending work
+## Phase 12 — Verification
 
-### Phase 3b (next) — retire legacy projections per kind
-1. Inventory which `FETCHER_MAP` entries in `generate-document` still have no
-   snapshot builder. Known gap: **vendor credit notes** (no document kind at
-   all today — they are only rows inside vendor statements).
-2. For each gap: add a builder under `src/services/documents/snapshots/`, wire
-   `ensureDocumentRecord` at the module's submit/issue point, add a case to
-   `snapshot-contract.test.ts` and a field-for-field parity test against the
-   legacy fetcher (see `src/test/documents/*-snapshot.test.ts` for the pattern).
-3. Only once a kind is fully record-backed, delete its `fetchX` and
-   `FETCHER_MAP` entry. Never delete a fetcher whose kind can still arrive
-   without a record.
+- `tsgo --noEmit -p tsconfig.app.json` clean.
+- `document-workspace-canonical.test.ts` plus the new guards green.
+- Playwright pass on an invoice with payments, a credit note and a return, at
+  drawer width and desktop width: the settlement row renders, links resolve,
+  and no horizontal scroll appears in the peek.
 
-### Phase 4 — preview convergence
-`src/components/purchases/VendorStatementPreview.tsx` and the POS summary tabs
-are hand-built React/HTML that can drift from the PDF. Replace with the
-canonical artifact viewer (`render-document` → PDF → preview surface via
-`src/services/printing/previewSurface.ts`).
+## Technical notes
 
-### Phase 5 — ratchet
-ESLint rules extending `eslint-rules/no-direct-generate-document-in-pages.js`
-to forbid any new direct edge invocation, plus an architecture test that fails
-when a new `fetchX` is added to `generate-document`.
-
-## Instructions for the next agent
-
-1. **Verify before building.** Re-run the suites listed under *Verification run*
-   above, then read `generate-document/index.ts` around the Phase 3a block and
-   `_shared/documents/canonicalPdf.ts`. Confirm: the short-circuit sits after
-   both tenancy gates, non-PDF formats are untouched, and the legacy fallback is
-   still reachable. Confirm `send-document-email` and `documentExport.ts` still
-   route through the canonical seam.
-2. **Then resume at Phase 3b, step 1** — do not start Phase 4 or 5 first, and do
-   not open unrelated modules.
-3. Bring each kind to a production-ready state (builder + record wiring +
-   parity test + fetcher removal) before starting the next kind. No partial
-   onboarding, no orphaned builders.
+No new dependencies. One additive migration (a read-only RPC + grant); no schema
+changes, no writes. All new UI composes existing design-system record
+primitives; the lifecycle strip stays the single lifecycle renderer for every
+module that inherits the workspace.
