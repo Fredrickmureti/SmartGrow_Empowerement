@@ -6,9 +6,9 @@
  * from the retired dialog; footer actions move to `FooterActionBar`.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import {
   ActionBar,
@@ -30,7 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { useToast } from "@/hooks/use-toast";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
@@ -45,7 +44,8 @@ import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 
 type LineItem = Omit<PurchaseOrderItem, "id" | "purchase_order_id">;
 
@@ -136,35 +136,44 @@ export default function PurchaseOrderEditPage() {
     setPrimed(true);
   }, [po, primed]);
 
-  const calculateLineTotal = (item: LineItem) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * (item.tax_rate / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const subtotal = merged.quantity * merged.unit_price;
+        return {
+          ...merged,
+          line_total: subtotal,
+          tax_amount: subtotal * ((merged.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  }, []);
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      const vendorPrice = priceLists.find((pl) => pl.product_id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = vendorPrice
-          ? vendorPrice.unit_price
-          : product.cost_price || product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-    updated[index].line_total = lineTotal;
-    updated[index].tax_amount = taxAmount;
-    setLineItems(updated);
-  };
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      const vendorPrice = priceLists.find((pl) => pl.product_id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: vendorPrice
+                ? vendorPrice.unit_price
+                : product.cost_price || product.unit_price,
+              tax_rate: product.tax_rate || 0,
+            }
+          : {}),
+      } as Partial<LineItem>);
+    },
+    [products, priceLists, patchLineItem],
+  );
 
-  const addLineItem = () => {
-    setLineItems([
-      ...lineItems,
+  const addLineItem = useCallback(() => {
+    setLineItems((prev) => [
+      ...prev,
       {
         product_id: null,
         description: "",
@@ -174,17 +183,17 @@ export default function PurchaseOrderEditPage() {
         tax_rate: 0,
         tax_amount: 0,
         line_total: 0,
-        sort_order: lineItems.length,
+        sort_order: prev.length,
         project_id: null,
         task_id: null,
       } as any,
     ]);
-  };
+  }, []);
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1)
-      setLineItems(lineItems.filter((_, i) => i !== index));
-  };
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
+
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -361,150 +370,77 @@ export default function PurchaseOrderEditPage() {
           </div>
         </Section>
 
-        <Section
-          title="Line items"
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLineItem}
-            >
-              <Plus className="mr-1 h-3 w-3" /> Add item
-            </Button>
-          }
-        >
-          <div className="space-y-2">
-            {lineItems.map((item, index) => (
-              <div
+        <Section title="Line items">
+          <EditableLineItemsGrid
+            columns={PRICED_LINE_COLUMNS}
+            rows={lineItems}
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            addLabel="Add item"
+            disabled={isSubmitting}
+            renderRow={(item, index, layout) => (
+              <PricedLineRow
                 key={index}
-                className="grid grid-cols-12 items-start gap-2"
-              >
-                <div className="col-span-4 space-y-2">
-                  <ProductCombobox
-                    products={products}
-                    value={item.product_id}
-                    onChange={(v) => updateLineItem(index, "product_id", v)}
-                    placeholder="Product"
-                  />
+                index={index}
+                item={item}
+                products={products}
+                layout={layout}
+                disabled={isSubmitting}
+                formatCurrency={formatCurrency}
+                onPatch={patchLineItem}
+                onProductSelect={selectProduct}
+                productPlaceholder="Product"
+                extra={
                   <LineAnalyticsCell
                     projectId={(item as any).project_id ?? null}
                     taskId={(item as any).task_id ?? null}
                     headerProjectId={formData.project_id}
-                    onChange={(next) => {
-                      updateLineItem(index, "project_id", next.project_id);
-                      updateLineItem(index, "task_id", next.task_id);
-                    }}
+                    onChange={(next) =>
+                      patchLineItem(index, {
+                        project_id: next.project_id,
+                        task_id: next.task_id,
+                      } as Partial<LineItem>)
+                    }
                     disabled={isSubmitting}
                   />
-                </div>
-                <div className="col-span-3">
-                  <Input
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateLineItem(index, "description", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        const { lineTotal, taxAmount } =
-                          calculateLineTotal(merged);
-                        next[index] = {
-                          ...merged,
-                          line_total: lineTotal,
-                          tax_amount: taxAmount,
-                        };
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    value={item.unit_price}
-                    onChange={(e) =>
-                      updateLineItem(
-                        index,
-                        "unit_price",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Input
-                    type="number"
-                    value={item.tax_rate}
-                    onChange={(e) =>
-                      updateLineItem(
-                        index,
-                        "tax_rate",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLineItem(index)}
-                    disabled={lineItems.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                }
+              />
+            )}
+            footer={
+              <div className="flex justify-end">
+                <div className="w-64 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax:</span>
+                    <span className="tabular-nums">{formatCurrency(totalTax)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Discount:</span>
+                    <Input
+                      type="number"
+                      className="h-8 w-24"
+                      value={formData.discount_amount}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          discount_amount: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                    <span>Total:</span>
+                    <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <div className="w-64 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tax:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(totalTax)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Discount:</span>
-                <Input
-                  type="number"
-                  className="h-8 w-24"
-                  value={formData.discount_amount}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      discount_amount: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                <span>Total:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(grandTotal)}
-                </span>
-              </div>
-            </div>
-          </div>
+            }
+          />
         </Section>
+
 
         <Section title="Notes">
           <Textarea

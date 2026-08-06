@@ -8,7 +8,7 @@
  * Deep-link params:
  *   ?contact_id=<uuid>   pre-fill customer
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,12 +38,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { AITextAssist } from "@/components/shared/AITextAssist";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -99,27 +98,45 @@ export default function ProformaCreatePage() {
     if (prefillContactId) form.setValue("contact_id", prefillContactId);
   }, [prefillContactId, form]);
 
-  const addLineItem = () => {
-    setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
-  };
+  const addLineItem = useCallback(() => {
+    setLineItems((prev) => [
+      ...prev,
+      { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 },
+    ]);
+  }, []);
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-    setLineItems(updated);
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
+  }, []);
+
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      setLineItems((prev) =>
+        prev.map((line, i) =>
+          i === index
+            ? {
+                ...line,
+                product_id: productId,
+                description: product?.name ?? line.description,
+                unit_price: product?.unit_price ?? line.unit_price,
+                tax_rate: product?.tax_rate ?? 0,
+              }
+            : line,
+        ),
+      );
+    },
+    [products],
+  );
+
+  const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
+
 
   const calculateTotals = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
@@ -281,72 +298,36 @@ export default function ProformaCreatePage() {
           </FieldGroup>
 
           <FieldGroup label="Line Items">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="h-4 w-4 mr-1" /> Add Item
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {lineItems.map((item, index) => (
-                <div
+            <EditableLineItemsGrid
+              columns={PRICED_LINE_COLUMNS}
+              rows={lineItems}
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              addLabel="Add Item"
+              renderRow={(item, index, layout) => (
+                <PricedLineRow
                   key={index}
-                  className="line-item-card sm:p-0 sm:border-0 sm:rounded-none sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-                >
-                  <div className="sm:col-span-4">
-                    <label className="text-xs text-muted-foreground">Product</label>
-                    <ProductCombobox
-                      products={products}
-                      value={item.product_id}
-                      onChange={(v) => updateLineItem(index, "product_id", v)}
-                    />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <label className="text-xs text-muted-foreground">Description</label>
-                    <Input
-                      value={item.description}
-                      onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                      placeholder="Description"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 sm:contents">
-                    <div className="sm:col-span-1">
-                      <label className="text-xs text-muted-foreground">Qty</label>
-                      <NumericInput value={item.quantity} onValueChange={(v) => updateLineItem(index, "quantity", v ?? 0)} />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs text-muted-foreground">Unit Price</label>
-                      <NumericInput value={item.unit_price} onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)} />
-                    </div>
-                    <div className="sm:col-span-1">
-                      <label className="text-xs text-muted-foreground">Tax %</label>
-                      <NumericInput value={item.tax_rate} onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)} />
-                    </div>
-                  </div>
-                  <div className="sm:col-span-1 flex justify-end sm:block">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeLineItem(index)}
-                      disabled={lineItems.length === 1}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  formatCurrency={formatLineCurrency}
+                  onPatch={patchLineItem}
+                  onProductSelect={selectProduct}
+                />
+              )}
+              footer={
+                <div className="flex justify-end">
+                  <div className="w-64 space-y-2">
+                    <div className="flex justify-between text-sm"><span>Subtotal:</span><span>{totals.subtotal.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span>Tax:</span><span>{totals.taxAmount.toFixed(2)}</span></div>
+                    <div className="flex justify-between font-medium border-t pt-2"><span>Total:</span><span>{totals.total.toFixed(2)}</span></div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <div className="w-64 space-y-2">
-                <div className="flex justify-between text-sm"><span>Subtotal:</span><span>{totals.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between text-sm"><span>Tax:</span><span>{totals.taxAmount.toFixed(2)}</span></div>
-                <div className="flex justify-between font-medium border-t pt-2"><span>Total:</span><span>{totals.total.toFixed(2)}</span></div>
-              </div>
-            </div>
+              }
+            />
           </FieldGroup>
+
 
           <FieldGroup label="Additional Info">
             <FormField

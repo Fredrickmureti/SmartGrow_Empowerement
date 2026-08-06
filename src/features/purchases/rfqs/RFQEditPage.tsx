@@ -7,10 +7,9 @@
  * to the record page so the user is never stuck on a form they can't
  * save).
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -19,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumericInput } from "@/components/ui/numeric-input";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { RequestLineRow, REQUEST_LINE_COLUMNS } from "@/components/documents/lines/RequestLineRow";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -93,26 +93,41 @@ export default function RFQEditPage() {
     (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
   );
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].target_price =
-          product.cost_price || product.unit_price || null;
-      }
-    }
-    setLineItems(updated);
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => (i === index ? ({ ...line, ...patch } as LineItem) : line)),
+    );
+  }, []);
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              target_price: product.cost_price || product.unit_price || null,
+            }
+          : {}),
+      } as Partial<LineItem>);
+    },
+    [products, patchLineItem],
+  );
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
+  const formatLineCurrency = useCallback(
+    (n: number) => formatCurrency(n, baseCurrency),
+    [formatCurrency, baseCurrency],
+  );
+
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
+
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
   const toggleVendor = (vendorId: string) => {
     setSelectedVendorIds((prev) =>
@@ -196,81 +211,35 @@ export default function RFQEditPage() {
       </FieldGroup>
 
       <FieldGroup label="Line items">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-muted-foreground">
-            Estimated value:{" "}
-            <span className="font-medium text-foreground tabular-nums">
-              {formatCurrency(estimatedTotal, baseCurrency)}
-            </span>
-          </span>
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add item
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {lineItems.map((item, index) => (
-            <div
+        <EditableLineItemsGrid
+          columns={REQUEST_LINE_COLUMNS}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add item"
+          disabled={isUpdating}
+          renderRow={(item, index, layout) => (
+            <RequestLineRow
               key={index}
-              className="border rounded-lg p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-            >
-              <div className="sm:col-span-5">
-                <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                <Select
-                  value={item.product_id || ""}
-                  onValueChange={(v) => updateLineItem(index, "product_id", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.filter((p) => p.is_active).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="sm:col-span-3">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:contents">
-                <div className="sm:col-span-2">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                  <NumericInput
-                    placeholder="Qty"
-                    value={item.quantity}
-                    onValueChange={(v) => updateLineItem(index, "quantity", v ?? 0)}
-                  />
-                </div>
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Target</Label>
-                  <NumericInput
-                    placeholder="Target"
-                    value={item.target_price ?? null}
-                    onValueChange={(v) => updateLineItem(index, "target_price", v ?? null)}
-                  />
-                </div>
-              </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              index={index}
+              item={item}
+              products={products.filter((p) => p.is_active)}
+              layout={layout}
+              disabled={isUpdating}
+              formatCurrency={formatLineCurrency}
+              onPatch={patchLineItem}
+              onProductSelect={selectProduct}
+            />
+          )}
+          footer={
+            <div className="flex justify-end text-xs text-muted-foreground">
+              Estimated value:{" "}
+              <span className="ml-1 font-medium text-foreground tabular-nums">
+                {formatCurrency(estimatedTotal, baseCurrency)}
+              </span>
             </div>
-          ))}
-        </div>
+          }
+        />
       </FieldGroup>
 
       <FieldGroup label={`Invite suppliers (${selectedVendorIds.length} selected)`}>

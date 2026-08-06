@@ -11,10 +11,9 @@
  *   ?contact_id=<uuid>   pre-fill vendor
  *   ?project_id=<uuid>   pre-fill project (persisted onto the PO)
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -22,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
   SelectContent,
@@ -30,8 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -119,36 +117,50 @@ export default function PurchaseOrderCreatePage() {
     return { lineTotal: subtotal, taxAmount: tax };
   };
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value } as LineItem;
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const subtotal = merged.quantity * merged.unit_price;
+        return {
+          ...merged,
+          line_total: subtotal,
+          tax_amount: subtotal * ((merged.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  }, []);
 
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      const vendorPrice = priceLists.find((pl) => pl.product_id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = vendorPrice
-          ? vendorPrice.unit_price
-          : product.cost_price || product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      const vendorPrice = priceLists.find((pl) => pl.product_id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: vendorPrice
+                ? vendorPrice.unit_price
+                : product.cost_price || product.unit_price,
+              tax_rate: product.tax_rate || 0,
+            }
+          : {}),
+      } as Partial<LineItem>);
+    },
+    [products, priceLists, patchLineItem],
+  );
 
-    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-    updated[index].line_total = lineTotal;
-    updated[index].tax_amount = taxAmount;
-    setLineItems(updated);
-  };
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
 
   const handleVendorChange = async (v: string) => {
     setFormData((p) => ({ ...p, vendor_id: v }));
@@ -273,101 +285,46 @@ export default function PurchaseOrderCreatePage() {
       </FieldGroup>
 
       <FieldGroup label="Line Items">
-        <div className="flex items-center justify-between mb-1">
-          <span />
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add Item
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {lineItems.map((item, index) => (
-            <div
+        <EditableLineItemsGrid
+          columns={PRICED_LINE_COLUMNS}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add Item"
+          renderRow={(item, index, layout) => (
+            <PricedLineRow
               key={index}
-              className="border rounded-lg p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-            >
-              <div className="sm:col-span-4">
-                <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                <ProductCombobox
-                  products={products}
-                  value={item.product_id}
-                  onChange={(v) => updateLineItem(index, "product_id", v)}
-                  placeholder="Product"
-                />
-              </div>
-              <div className="sm:col-span-3">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:contents">
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item as any}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        const { lineTotal, taxAmount } = calculateLineTotal(merged);
-                        next[index] = { ...merged, line_total: lineTotal, tax_amount: taxAmount };
-                        return next;
-                      })
-                    }
-                  />
+              index={index}
+              item={item}
+              products={products}
+              layout={layout}
+              formatCurrency={formatCurrency}
+              onPatch={patchLineItem}
+              onProductSelect={selectProduct}
+              productPlaceholder="Product"
+            />
+          )}
+          footer={
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(subtotal)}</span>
                 </div>
-                <div className="sm:col-span-2">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
-                  <NumericInput
-                    placeholder="Price"
-                    value={item.unit_price}
-                    onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)}
-                  />
+                <div className="flex justify-between">
+                  <span>Tax:</span>
+                  <span>{formatCurrency(totalTax)}</span>
                 </div>
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Tax %</Label>
-                  <NumericInput
-                    placeholder="Tax %"
-                    value={item.tax_rate}
-                    onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)}
-                  />
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span>{formatCurrency(grandTotal)}</span>
                 </div>
               </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <div className="w-64 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Tax:</span>
-              <span>{formatCurrency(totalTax)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Total:</span>
-              <span>{formatCurrency(grandTotal)}</span>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </FieldGroup>
+
 
       <FieldGroup label="Additional Info">
         <div className="space-y-2">

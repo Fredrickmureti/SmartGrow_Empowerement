@@ -5,10 +5,9 @@
  * Enterprise UX Standardization: retires the inline "Create Purchase
  * Return" dialog on `src/pages/PurchaseReturns.tsx`.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -16,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumericInput } from "@/components/ui/numeric-input";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS_NO_TAX } from "@/components/documents/lines/PricedLineRow";
 import {
   Select,
   SelectContent,
@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
 
 import {
   usePurchaseReturns,
@@ -66,27 +65,48 @@ export default function PurchaseReturnCreatePage() {
     (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
   );
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value } as LineItem;
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        return {
+          ...merged,
+          line_total: (Number(merged.quantity) || 0) * (Number(merged.unit_price) || 0),
+        };
+      }),
+    );
+  }, []);
 
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.cost_price || product.unit_price;
-      }
-    }
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: product.cost_price || product.unit_price,
+            }
+          : {}),
+      } as Partial<LineItem>);
+    },
+    [products, patchLineItem],
+  );
 
-    updated[index].line_total = updated[index].quantity * updated[index].unit_price;
-    setLineItems(updated);
-  };
+  const formatLineCurrency = useCallback(
+    (n: number) => formatCurrency(n, baseCurrency),
+    [formatCurrency, baseCurrency],
+  );
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
+
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
   const grandTotal = lineItems.reduce((s, i) => s + i.line_total, 0);
 
@@ -176,94 +196,34 @@ export default function PurchaseReturnCreatePage() {
       </FieldGroup>
 
       <FieldGroup label="Line Items">
-        <div className="flex items-center justify-between mb-1">
-          <span />
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add Item
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {lineItems.map((item, index) => (
-            <div
+        <EditableLineItemsGrid
+          columns={PRICED_LINE_COLUMNS_NO_TAX}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add Item"
+          disabled={isSubmitting}
+          renderRow={(item, index, layout) => (
+            <PricedLineRow
               key={index}
-              className="border rounded-lg p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-            >
-              <div className="sm:col-span-4">
-                <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                <Select
-                  value={item.product_id || ""}
-                  onValueChange={(v) => updateLineItem(index, "product_id", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products
-                      .filter((p) => p.is_active)
-                      .map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="sm:col-span-4">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2 sm:contents">
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item as any}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        next[index] = {
-                          ...merged,
-                          line_total: merged.quantity * merged.unit_price,
-                        };
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
-                  <NumericInput
-                    placeholder="Price"
-                    value={item.unit_price}
-                    onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)}
-                  />
-                </div>
-              </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              index={index}
+              item={item}
+              products={products.filter((p) => p.is_active)}
+              layout={layout}
+              disabled={isSubmitting}
+              formatCurrency={formatLineCurrency}
+              onPatch={patchLineItem}
+              onProductSelect={selectProduct}
+            />
+          )}
+          footer={
+            <div className="flex justify-end">
+              <div className="text-lg font-semibold">
+                Total: {formatCurrency(grandTotal, baseCurrency)}
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end pt-3">
-          <div className="text-lg font-semibold">
-            Total: {formatCurrency(grandTotal, baseCurrency)}
-          </div>
-        </div>
+          }
+        />
       </FieldGroup>
 
       <FieldGroup label="Notes">

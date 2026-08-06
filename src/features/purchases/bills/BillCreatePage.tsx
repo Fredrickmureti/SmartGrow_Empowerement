@@ -4,10 +4,9 @@
  * Retires the last Bills create dialog by hosting supplier, dates, line
  * items, totals, analytics, and notes on the enterprise RecordFormShell.
  */
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 
 import { FieldGrid, FieldGroup, RecordFormShell } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -21,8 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
@@ -54,6 +53,11 @@ const emptyLine = (sortOrder = 0): LineItem => ({
   project_id: null,
   task_id: null,
 });
+
+const calculateLineTotal = (item: LineItem) => {
+  const subtotal = item.quantity * item.unit_price;
+  return { lineTotal: subtotal, taxAmount: subtotal * ((item.tax_rate || 0) / 100) };
+};
 
 export default function BillCreatePage() {
   const navigate = useNavigate();
@@ -91,41 +95,47 @@ export default function BillCreatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillContactId]);
 
-  const calculateLineTotal = (item: LineItem) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * ((item.tax_rate || 0) / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const subtotal = merged.quantity * merged.unit_price;
+        return {
+          ...merged,
+          line_total: subtotal,
+          tax_amount: subtotal * ((merged.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  }, []);
 
-  const updateLineItem = (index: number, field: string, value: unknown) => {
-    setLineItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value } as LineItem;
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: product.cost_price || product.unit_price,
+              tax_rate: product.tax_rate || 0,
+            }
+          : {}),
+      });
+    },
+    [products, patchLineItem],
+  );
 
-      if (field === "product_id" && value) {
-        const product = products.find((p) => p.id === value);
-        if (product) {
-          updated[index].description = product.name;
-          updated[index].unit_price = product.cost_price || product.unit_price;
-          updated[index].tax_rate = product.tax_rate || 0;
-        }
-      }
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
 
-      const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-      updated[index].line_total = lineTotal;
-      updated[index].tax_amount = taxAmount;
-      return updated;
-    });
-  };
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems((prev) => prev.filter((_, i) => i !== index));
-    }
-  };
 
   const handleVendorChange = async (vendorId: string) => {
     setFormData((prev) => ({ ...prev, vendor_id: vendorId }));
@@ -312,134 +322,76 @@ export default function BillCreatePage() {
       </FieldGroup>
 
       <FieldGroup label="Line items">
-        <div className="mb-1 flex items-center justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add item
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {lineItems.map((item, index) => (
-            <div
+        <EditableLineItemsGrid
+          columns={PRICED_LINE_COLUMNS}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add item"
+          disabled={isSubmitting}
+          renderRow={(item, index, layout) => (
+            <PricedLineRow
               key={index}
-              className="grid grid-cols-1 gap-2 rounded-lg border p-3 sm:grid-cols-12 sm:items-start sm:border-0 sm:p-0"
-            >
-              <div className="space-y-2 sm:col-span-4">
-                <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                <ProductCombobox
-                  products={products}
-                  value={item.product_id}
-                  onChange={(value) => updateLineItem(index, "product_id", value)}
-                  placeholder="Product (optional)"
-                />
+              index={index}
+              item={item}
+              products={products}
+              layout={layout}
+              disabled={isSubmitting}
+              formatCurrency={formatCurrency}
+              onPatch={patchLineItem}
+              onProductSelect={selectProduct}
+              productPlaceholder="Product (optional)"
+              extra={
                 <LineAnalyticsCell
                   projectId={item.project_id ?? null}
                   taskId={item.task_id ?? null}
                   headerProjectId={formData.project_id}
-                  onChange={(next) => {
-                    updateLineItem(index, "project_id", next.project_id);
-                    updateLineItem(index, "task_id", next.task_id);
-                  }}
+                  onChange={(next) =>
+                    patchLineItem(index, {
+                      project_id: next.project_id,
+                      task_id: next.task_id,
+                    })
+                  }
                   disabled={isSubmitting}
                 />
-              </div>
-              <div className="sm:col-span-3">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(event) =>
-                    updateLineItem(index, "description", event.target.value)
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:contents">
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        const { lineTotal, taxAmount } = calculateLineTotal(merged);
-                        next[index] = {
-                          ...merged,
-                          line_total: lineTotal,
-                          tax_amount: taxAmount,
-                        };
-                        return next;
+              }
+            />
+          )}
+          footer={
+            <div className="flex justify-end">
+              <div className="w-72 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax:</span>
+                  <span className="tabular-nums">{formatCurrency(totalTax)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="shrink-0">Discount:</Label>
+                  <Input
+                    type="number"
+                    className="h-8 w-28"
+                    value={formData.discount_amount}
+                    onChange={(event) =>
+                      setFormData({
+                        ...formData,
+                        discount_amount: parseFloat(event.target.value) || 0,
                       })
                     }
                   />
                 </div>
-                <div className="sm:col-span-2">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Unit price</Label>
-                  <Input
-                    type="number"
-                    value={item.unit_price}
-                    onChange={(event) =>
-                      updateLineItem(index, "unit_price", parseFloat(event.target.value) || 0)
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Tax %</Label>
-                  <Input
-                    type="number"
-                    value={item.tax_rate}
-                    onChange={(event) =>
-                      updateLineItem(index, "tax_rate", parseFloat(event.target.value) || 0)
-                    }
-                  />
+                <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                  <span>Total:</span>
+                  <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
                 </div>
               </div>
-              <div className="flex justify-end sm:col-span-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
-          ))}
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <div className="w-72 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span className="tabular-nums">{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Tax:</span>
-              <span className="tabular-nums">{formatCurrency(totalTax)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <Label className="shrink-0">Discount:</Label>
-              <Input
-                type="number"
-                className="h-8 w-28"
-                value={formData.discount_amount}
-                onChange={(event) =>
-                  setFormData({
-                    ...formData,
-                    discount_amount: parseFloat(event.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-            <div className="flex justify-between border-t pt-2 text-lg font-bold">
-              <span>Total:</span>
-              <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </FieldGroup>
+
 
       <FieldGroup label="Notes">
         <Textarea

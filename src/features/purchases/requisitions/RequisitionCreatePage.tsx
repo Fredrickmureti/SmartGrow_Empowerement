@@ -6,9 +6,9 @@
  * requisitions do not consume any budget or emit lifecycle events
  * until submitted.
  */
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { PageBody, PageHeader, ActionBar, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import {
+  RequisitionLineRow,
+  REQUISITION_LINE_COLUMNS,
+} from "@/components/documents/lines/RequisitionLineRow";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
@@ -49,20 +54,34 @@ export default function RequisitionCreatePage() {
   ]);
   const [busy, setBusy] = useState(false);
 
-  function addLine() {
-    setLines((ls) => [
-      ...ls,
-      { description: "", quantity: 1, estimated_unit_price: 0 },
-    ]);
-  }
+  const addLine = useCallback(
+    () =>
+      setLines((ls) => [
+        ...ls,
+        { description: "", quantity: 1, estimated_unit_price: 0 },
+      ]),
+    [],
+  );
 
-  function updateLine(idx: number, patch: Partial<RequisitionLineInput>) {
-    setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
-  }
+  const updateLine = useCallback(
+    (idx: number, patch: Partial<RequisitionLineInput>) =>
+      setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l))),
+    [],
+  );
 
-  function removeLine(idx: number) {
-    setLines((ls) => ls.filter((_, i) => i !== idx));
-  }
+  const removeLine = useCallback(
+    (idx: number) => setLines((ls) => ls.filter((_, i) => i !== idx)),
+    [],
+  );
+
+  const supplierOptions = useMemo(
+    () =>
+      suppliers.map((s) => ({
+        id: s.id,
+        label: s.contact?.name ?? s.supplier_code ?? s.id,
+      })),
+    [suppliers],
+  );
 
   const estimatedTotal = lines.reduce(
     (t, l) => t + (Number(l.quantity) || 0) * (Number(l.estimated_unit_price) || 0),
@@ -184,101 +203,35 @@ export default function RequisitionCreatePage() {
         <Section
           title="Lines"
           description="Items or services being requested. Approvers see the estimated total."
-          actions={
-            <Button variant="outline" size="sm" onClick={addLine}>
-              <Plus className="mr-2 h-4 w-4" /> Add line
-            </Button>
-          }
         >
-          <div className="space-y-3">
-            {lines.map((l, i) => (
-              <div
+          <EditableLineItemsGrid
+            columns={REQUISITION_LINE_COLUMNS}
+            rows={lines}
+            onAddRow={addLine}
+            onRemoveRow={removeLine}
+            addLabel="Add line"
+            disabled={busy}
+            renderRow={(line, i, layout) => (
+              <RequisitionLineRow
                 key={i}
-                className="grid grid-cols-12 gap-2 items-end border rounded-md p-3"
-              >
-                <div className="col-span-4">
-                  <Label className="text-xs">Description *</Label>
-                  <Input
-                    value={l.description}
-                    onChange={(e) => updateLine(i, { description: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Label className="text-xs">Qty</Label>
-                  <Input
-                    type="number"
-                    value={l.quantity}
-                    onChange={(e) =>
-                      updateLine(i, { quantity: Number(e.target.value || 0) })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs">Est. unit price</Label>
-                  <Input
-                    type="number"
-                    value={l.estimated_unit_price}
-                    onChange={(e) =>
-                      updateLine(i, {
-                        estimated_unit_price: Number(e.target.value || 0),
-                      })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs">Suggested supplier</Label>
-                  <Select
-                    value={l.suggested_supplier_id ?? "none"}
-                    onValueChange={(v) =>
-                      updateLine(i, {
-                        suggested_supplier_id: v === "none" ? null : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={suppliersLoading ? "Loading…" : "None"}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {suppliers.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.contact?.name ?? s.supplier_code ?? s.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <Label className="text-xs">Need by</Label>
-                  <Input
-                    type="date"
-                    value={l.need_by_date ?? ""}
-                    onChange={(e) =>
-                      updateLine(i, { need_by_date: e.target.value || null })
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLine(i)}
-                    aria-label="Remove line"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                index={i}
+                item={line}
+                suppliers={supplierOptions}
+                suppliersLoading={suppliersLoading}
+                layout={layout}
+                disabled={busy}
+                onPatch={updateLine}
+              />
+            )}
+            footer={
+              <div className="text-right text-sm">
+                Estimated total:{" "}
+                <span className="font-semibold">
+                  {currency} {estimatedTotal.toFixed(2)}
+                </span>
               </div>
-            ))}
-          </div>
-          <div className="mt-3 text-right text-sm">
-            Estimated total:{" "}
-            <span className="font-semibold">
-              {currency} {estimatedTotal.toFixed(2)}
-            </span>
-          </div>
+            }
+          />
         </Section>
 
         <Section title="Notes">

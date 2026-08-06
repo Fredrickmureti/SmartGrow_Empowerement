@@ -5,9 +5,9 @@
  * inline; each carries an optional product FK plus min/max/ceiling
  * quantities that the ceiling trigger enforces at PO time.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { PageBody, PageHeader, ActionBar, Section } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import {
+  ContractLineRow,
+  CONTRACT_LINE_COLUMNS,
+} from "@/components/documents/lines/ContractLineRow";
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
@@ -62,26 +67,31 @@ export default function ContractCreatePage() {
   const [lines, setLines] = useState<ContractLineInput[]>([]);
   const [busy, setBusy] = useState(false);
 
-  function addLine() {
-    setLines((ls) => [
-      ...ls,
-      {
-        description: "",
-        unit_price: null,
-        ceiling_quantity: null,
-        ceiling_value: null,
-        sort_order: ls.length + 1,
-      },
-    ]);
-  }
+  const addLine = useCallback(
+    () =>
+      setLines((ls) => [
+        ...ls,
+        {
+          description: "",
+          unit_price: null,
+          ceiling_quantity: null,
+          ceiling_value: null,
+          sort_order: ls.length + 1,
+        },
+      ]),
+    [],
+  );
 
-  function updateLine(idx: number, patch: Partial<ContractLineInput>) {
-    setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
-  }
+  const updateLine = useCallback(
+    (idx: number, patch: Partial<ContractLineInput>) =>
+      setLines((ls) => ls.map((l, i) => (i === idx ? { ...l, ...patch } : l))),
+    [],
+  );
 
-  function removeLine(idx: number) {
-    setLines((ls) => ls.filter((_, i) => i !== idx));
-  }
+  const removeLine = useCallback(
+    (idx: number) => setLines((ls) => ls.filter((_, i) => i !== idx)),
+    [],
+  );
 
   async function handleSubmit() {
     if (!currentBusiness) return;
@@ -234,88 +244,31 @@ export default function ContractCreatePage() {
         <Section
           title="Lines"
           description="Optional pre-agreed items with ceilings enforced at PO time."
-          actions={
-            <Button variant="outline" size="sm" onClick={addLine}>
-              <Plus className="mr-2 h-4 w-4" /> Add line
-            </Button>
-          }
         >
-          {lines.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No lines. You can create a value-only contract without lines.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {lines.map((l, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-12 gap-2 items-end border rounded-md p-3"
-                >
-                  <div className="col-span-4">
-                    <Label className="text-xs">Description</Label>
-                    <Input
-                      value={l.description ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, { description: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Unit price</Label>
-                    <Input
-                      type="number"
-                      value={l.unit_price ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, {
-                          unit_price: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Ceiling qty</Label>
-                    <Input
-                      type="number"
-                      value={l.ceiling_quantity ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, {
-                          ceiling_quantity: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="col-span-3">
-                    <Label className="text-xs">Ceiling value</Label>
-                    <Input
-                      type="number"
-                      value={l.ceiling_value ?? ""}
-                      onChange={(e) =>
-                        updateLine(i, {
-                          ceiling_value: e.target.value
-                            ? Number(e.target.value)
-                            : null,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="col-span-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeLine(i)}
-                      aria-label="Remove line"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <EditableLineItemsGrid
+            columns={CONTRACT_LINE_COLUMNS}
+            rows={lines}
+            onAddRow={addLine}
+            onRemoveRow={removeLine}
+            addLabel="Add line"
+            disabled={busy}
+            canRemoveRow={() => true}
+            empty={
+              <p className="text-sm text-muted-foreground">
+                No lines. You can create a value-only contract without lines.
+              </p>
+            }
+            renderRow={(line, i, layout) => (
+              <ContractLineRow
+                key={i}
+                index={i}
+                item={line}
+                layout={layout}
+                disabled={busy}
+                onPatch={updateLine}
+              />
+            )}
+          />
         </Section>
 
         <Section title="Notes">

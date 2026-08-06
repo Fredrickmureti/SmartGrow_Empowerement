@@ -34,7 +34,7 @@ import { AITextAssist } from "@/components/shared/AITextAssist";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
-import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
