@@ -364,7 +364,6 @@ export default function CreditNoteEditPage() {
               />
             )}
           />
-          </div>
 
           <div className="flex justify-end pt-2">
             <div className="w-full sm:w-72 space-y-1.5 text-sm bg-muted/50 rounded-lg p-4">
