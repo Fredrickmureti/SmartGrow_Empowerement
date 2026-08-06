@@ -95,3 +95,7 @@ export type {
   DocumentActivityEntry,
   DocumentAttachment,
 } from "./records";
+
+// Dashboard layer — the shared composition language for module dashboards.
+// Pages compose bands + widgets; they never author grid geometry. ADR 0103.
+export * from "./dashboard";
