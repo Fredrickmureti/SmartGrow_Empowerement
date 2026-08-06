@@ -13,6 +13,7 @@ import { RecordBody } from "./RecordBody";
 import { DocumentActivityPanel, DocumentTotalsPanel } from "./panels";
 import type { DocumentActivityEntry } from "./panels";
 import { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
+import { DocumentSettlementStrip } from "./DocumentSettlementStrip";
 import { buildTotalsRows } from "./money";
 import { DocumentStatusBadge } from "./documentStatus";
 import { useDocumentActivity } from "./useDocumentActivity";
