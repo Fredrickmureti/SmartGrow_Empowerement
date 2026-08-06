@@ -236,29 +236,16 @@ export function useExecutiveStats() {
       const employeeCount = Number(rpc.employee_count ?? employees.length);
       const revenuePerEmployee = employeeCount > 0 ? totalRevenue / employeeCount : 0;
 
-      // Top debtors
-      const debtorMap = new Map<string, { name: string; bizName: string; amount: number; maxOverdue: number }>();
-      for (const inv of outstandingInvoices) {
-        const contact = contacts.find(c => c.id === inv.contact_id);
-        const biz = businesses.find(b => b.id === inv.business_id);
-        const key = inv.contact_id || inv.id;
-        const outstanding = inv.total - (inv.amount_paid || 0);
-        const daysOverdue = inv.due_date ? Math.max(0, differenceInDays(now, new Date(inv.due_date))) : 0;
-        const existing = debtorMap.get(key);
-        if (existing) {
-          existing.amount += outstanding;
-          existing.maxOverdue = Math.max(existing.maxOverdue, daysOverdue);
-        } else {
-          debtorMap.set(key, {
-            name: contact?.parent_contact?.name || contact?.name || "Unknown",
-            bizName: biz?.name || "",
-            amount: outstanding, maxOverdue: daysOverdue,
-          });
-        }
-      }
-      const topDebtors: TopDebtor[] = [...debtorMap.values()]
-        .sort((a, b) => b.amount - a.amount).slice(0, 5)
-        .map(d => ({ contactName: d.name, businessName: d.bizName, amount: d.amount, daysOverdue: d.maxOverdue }));
+      // Top debtors — GL-gated open items, not document status.
+      const topDebtors: TopDebtor[] = (
+        await fetchTopOpenCounterparties("ar", orgId, scope.businessId, branchEq, 5)
+      ).map((d) => ({
+        contactName: d.name,
+        businessName: businesses.find((b) => b.id === scope.businessId)?.name || "",
+        amount: d.amount,
+        daysOverdue: Math.max(0, d.daysOverdue),
+      }));
+
 
       // Expenses by category
       const catMap = new Map<string, number>();
