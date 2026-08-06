@@ -25,6 +25,8 @@ Scanning has two device modes: handheld (own camera → scanBus in-process) and 
 
 A `WorkspaceNav` may only be replaced when crossing an `AppDefinition`. Inside one app, navigation expands via `WorkspaceNavItem.children`. ADR 0101.
 
+Warehouse side panes are read-only `EntityPreview` peeks; editing/config/history lives on `EntityWorkspaceShell` routes. ADR 0122.
+
 Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/Workforce/Analysis/Configuration-last); new surfaces attach inside a domain, depth<=2, group<=8. ADR 0121.
 
 ## Memories
@@ -35,5 +37,4 @@ Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/W
 - [Scanner device modes](mem://features/scanner-device-modes) — handheld vs companion, single camera engine, LocalScanOverlay, /wm scan button contract
 - [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
 - [Warehouse nav IA](mem://features/warehouse-nav-ia) — ADR 0121 domain groups, execution vs configuration split, depth/size caps, WMS terminology
-
-
+- [Warehouse preview vs workspace](mem://features/warehouse-preview-vs-workspace) — ADR 0122 EntityPreview/EntityWorkspaceShell contract, which entities get workspace routes, ?sel/?tab conventions
