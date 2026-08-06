@@ -90544,6 +90544,7 @@ export type Database = {
         Returns: Json
       }
       post_count_session: { Args: { p_session_id: string }; Returns: Json }
+      post_expense_gl: { Args: { p_expense_id: string }; Returns: Json }
       post_journal_entry_atomic: {
         Args: {
           _branch_id?: string
@@ -92170,6 +92171,10 @@ export type Database = {
           device_assignment_id: string
           scope: string
         }[]
+      }
+      resolve_expense_default_account: {
+        Args: { p_business_id: string; p_org_id: string; p_setting_key: string }
+        Returns: string
       }
       resolve_fefo_lots: {
         Args: {
