@@ -29,11 +29,28 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const SALES_FILES = walk("src/features/sales");
+const DOCUMENT_FILES = [
+  ...SALES_FILES,
+  ...walk("src/features/purchases"),
+  ...walk("src/features/finance"),
+  ...walk("src/components/inventory"),
+];
 const RECORD_SURFACES = SALES_FILES.filter((f) =>
   /(RecordPage|PeekSheet|View)\.tsx$/.test(f),
 );
+const ALL_RECORD_SURFACES = DOCUMENT_FILES.filter((f) =>
+  /(RecordPage|PeekSheet)\.tsx$/.test(f),
+);
+
+/**
+ * `WarehouseStockPeekSheet` is an editable stock browser, not a business
+ * document: it has no descriptor, status ladder or totals. It stays on
+ * `DetailSheet` by decision, so it is the one exemption from the shell guard.
+ */
+const SHELL_EXEMPT = /WarehouseStockPeekSheet\.tsx$/;
 
 const read = (f: string) => readFileSync(f, "utf8");
+
 
 describe("document workspace — one status vocabulary", () => {
   it("no Sales record surface declares its own status tone or label map", () => {
