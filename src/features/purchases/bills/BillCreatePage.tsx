@@ -54,6 +54,11 @@ const emptyLine = (sortOrder = 0): LineItem => ({
   task_id: null,
 });
 
+const calculateLineTotal = (item: LineItem) => {
+  const subtotal = item.quantity * item.unit_price;
+  return { lineTotal: subtotal, taxAmount: subtotal * ((item.tax_rate || 0) / 100) };
+};
+
 export default function BillCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
