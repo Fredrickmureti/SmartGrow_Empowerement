@@ -13,7 +13,7 @@ import { LoadingState, ErrorState, StatusBadge, Section } from "@/design-system"
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { EntityWorkspaceShell } from "@/features/warehouse/entity/EntityWorkspaceShell";
 import {
-  LIFECYCLE_TONE, packagingErrorMessage, usePackagingTypes,
+  LIFECYCLE_TONE, usePackagingTypes,
 } from "@/features/warehouse/packaging/packagingMaster";
 import { PackagingSpecForm } from "@/features/warehouse/packaging/workspace/PackagingSpecForm";
 import {
@@ -135,7 +135,3 @@ export default function PackagingWorkspace() {
     />
   );
 }
-
-// `packagingErrorMessage` is the sanctioned error surface for this module;
-// re-exported use lives in the panels themselves.
-void packagingErrorMessage;
