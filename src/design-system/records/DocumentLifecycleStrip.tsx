@@ -17,13 +17,10 @@ import { Link } from "react-router-dom";
 import {
   ChevronRight,
   ClipboardList,
-  CreditCard,
   FileText,
   Receipt,
-  RotateCcw,
   ScrollText,
   Truck,
-  Undo2,
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -36,10 +33,7 @@ export type LifecycleDocType =
   | "proforma_invoice"
   | "sales_order"
   | "delivery_note"
-  | "invoice"
-  | "payment"
-  | "credit_note"
-  | "sales_return";
+  | "invoice";
 
 interface LineageNode {
   id: string;
@@ -71,9 +65,6 @@ const STEPS: Step[] = [
   { key: "sales_order", label: "Sales Order", icon: FileText, kind: "sales_order", path: (id) => `/sales/orders/${id}` },
   { key: "delivery_note", label: "Delivery", icon: Truck, kind: "delivery_note", path: (id) => `/sales/delivery-notes/${id}` },
   { key: "invoice", label: "Invoice", icon: Receipt, kind: "invoice", path: (id) => `/sales/invoices/${id}` },
-  { key: "payment", label: "Payment", icon: CreditCard, kind: "customer_payment", path: (id) => `/sales/payments/${id}` },
-  { key: "credit_note", label: "Credit Note", icon: Undo2, kind: "credit_note", path: (id) => `/sales/credit-notes/${id}` },
-  { key: "sales_return", label: "Return", icon: RotateCcw, kind: "sales_return", path: (id) => `/sales/returns/${id}` },
 ];
 
 interface Props {

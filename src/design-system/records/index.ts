@@ -58,3 +58,12 @@ export type { DocumentMoney } from "./money";
 // Lifecycle traversal.
 export { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
 export type { LifecycleDocType } from "./DocumentLifecycleStrip";
+
+// The canonical document descriptor + the shared renderer both projections use.
+export type { DocumentRecordView } from "./types";
+export {
+  DocumentWorkspaceBody,
+  DocumentWorkspaceAside,
+  DocumentStatusSlot,
+  resolveTotalsRows,
+} from "./DocumentWorkspace";
