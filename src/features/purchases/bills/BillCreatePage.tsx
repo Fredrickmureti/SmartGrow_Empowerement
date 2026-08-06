@@ -91,41 +91,47 @@ export default function BillCreatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillContactId]);
 
-  const calculateLineTotal = (item: LineItem) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * ((item.tax_rate || 0) / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const subtotal = merged.quantity * merged.unit_price;
+        return {
+          ...merged,
+          line_total: subtotal,
+          tax_amount: subtotal * ((merged.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  }, []);
 
-  const updateLineItem = (index: number, field: string, value: unknown) => {
-    setLineItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value } as LineItem;
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: product.cost_price || product.unit_price,
+              tax_rate: product.tax_rate || 0,
+            }
+          : {}),
+      });
+    },
+    [products, patchLineItem],
+  );
 
-      if (field === "product_id" && value) {
-        const product = products.find((p) => p.id === value);
-        if (product) {
-          updated[index].description = product.name;
-          updated[index].unit_price = product.cost_price || product.unit_price;
-          updated[index].tax_rate = product.tax_rate || 0;
-        }
-      }
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
 
-      const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-      updated[index].line_total = lineTotal;
-      updated[index].tax_amount = taxAmount;
-      return updated;
-    });
-  };
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
-
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems((prev) => prev.filter((_, i) => i !== index));
-    }
-  };
 
   const handleVendorChange = async (vendorId: string) => {
     setFormData((prev) => ({ ...prev, vendor_id: vendorId }));
