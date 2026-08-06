@@ -29,6 +29,8 @@ export interface DocumentRecordView {
   listPath: string;
   /** Primary heading — the counterparty, not the document number. */
   title: ReactNode;
+  /** Row id. Supplying it wires the audit-backed activity feed automatically. */
+  documentId?: string;
   /** The document's own identifier, e.g. "INV-2026-0148". */
   docNumber?: ReactNode;
   /** Raw status value; rendered through the status registry. */
@@ -62,6 +64,11 @@ export interface DocumentRecordView {
   extraSections?: ReactNode;
 
   // ---- Context ------------------------------------------------------
+  /**
+   * Escape hatch only. Leave undefined and set `documentId`: the activity
+   * feed is then sourced from `audit_logs` + `document_emails` rather than
+   * synthesised from the row's own columns.
+   */
   activity?: DocumentActivityEntry[];
   /** Order-to-cash traversal anchor. Omit for non-lifecycle documents. */
   lifecycle?: { docType: LifecycleDocType; docId: string };
