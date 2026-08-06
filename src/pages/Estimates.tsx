@@ -99,7 +99,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { EstimatePeekSheet } from "@/features/sales/estimates/EstimatePeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { EstimateListTable } from "@/components/estimates/EstimateListTable";
 import { normalizeError } from "@/services/resilience";
 

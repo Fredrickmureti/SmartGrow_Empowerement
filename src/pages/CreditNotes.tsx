@@ -75,7 +75,7 @@ import { format } from "date-fns";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { CreditNotePeekSheet } from "@/features/sales/credit-notes/CreditNotePeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 // Apply-credit + refund flows are dedicated wizard routes under
 // /finance/customer-credits/:id/apply and /:id/refund — see rewires below.
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";

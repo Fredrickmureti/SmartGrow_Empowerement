@@ -47,7 +47,8 @@ export default function JournalEntryDetailPage() {
       notFound={notFound}
       title={view?.title ?? "Journal Entry"}
       docNumber={view?.docNumber}
-      status={view?.status}
+      kind="generic"
+      statusSlot={view?.status}
       meta={view?.meta}
       onEdit={
         canEdit

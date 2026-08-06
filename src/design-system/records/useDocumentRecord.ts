@@ -1,5 +1,5 @@
 /**
- * useSalesDocumentRecord — generic single-record fetcher shared by every
+ * useDocumentRecord — generic single-record fetcher shared by every
  * Sales entity peek sheet. Each entity wraps this with its typed row +
  * embedded select. Guarantees a single source of truth for the peek
  * surface so peek and object page cannot drift.
@@ -24,7 +24,7 @@ interface Options {
   entityLabel?: string;
 }
 
-export function useSalesDocumentRecord<T>({
+export function useDocumentRecord<T>({
   table,
   select,
   id,

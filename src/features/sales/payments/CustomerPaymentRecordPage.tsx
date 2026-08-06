@@ -1,6 +1,6 @@
 /**
  * CustomerPaymentRecordPage — object-page route for a customer payment
- * (AR receipt). Read-only view built on SalesRecordScaffold; allocations
+ * (AR receipt). Read-only view built on RecordScaffold; allocations
  * are rendered inline via the shared LineItemsGrid. Record/edit still
  * routes through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
@@ -11,8 +11,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
@@ -45,12 +45,6 @@ function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
 }
-
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
-  applied: "success",
-  voided: "danger",
-  unreconciled: "warning",
-};
 
 export default function CustomerPaymentRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -106,7 +100,7 @@ export default function CustomerPaymentRecordPage() {
   const status = row?.status || (unapplied > 0.005 ? "unreconciled" : "applied");
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Customer Payment"
       listPath="/sales/payments"
       id={id}
@@ -116,7 +110,8 @@ export default function CustomerPaymentRecordPage() {
       newLabel="Record customer payment"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.receipt_number ?? undefined}
-      status={row ? <StatusBadge tone={TONE[status] ?? "neutral"}>{status}</StatusBadge> : undefined}
+      kind="customer_payment"
+      status={row ? status : undefined}
       meta={row && (
         <>
           <span>Paid {fmt(row.payment_date)}</span>

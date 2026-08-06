@@ -68,6 +68,9 @@ export function AssetPeekSheet({ assetId, onOpenChange }: Props) {
 
   return (
     <PeekScaffold
+      kind="generic"
+      eyebrow="Fixed Asset"
+      listPath="/finance/fixed-assets"
       open={open}
       onOpenChange={onOpenChange}
       title={

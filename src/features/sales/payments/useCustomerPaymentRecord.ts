@@ -1,8 +1,8 @@
-import { useSalesDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { Payment } from "@/hooks/usePayments";
 
 export function useCustomerPaymentRecord(id: string | null | undefined) {
-  return useSalesDocumentRecord<Payment>({
+  return useDocumentRecord<Payment>({
     table: "payments",
     select:
       "*, contact:contacts(name), payment_allocations(amount, invoice:invoices(id, invoice_number, total))",

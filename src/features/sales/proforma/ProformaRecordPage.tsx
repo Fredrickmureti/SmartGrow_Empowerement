@@ -1,6 +1,6 @@
 /**
  * ProformaRecordPage — object-page route for a Proforma Invoice.
- * Read-only view built on SalesRecordScaffold. Create/edit still routes
+ * Read-only view built on RecordScaffold. Create/edit still routes
  * through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
  */
@@ -10,8 +10,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProformaInvoice, ProformaInvoiceItem } from "@/hooks/useProformaInvoices";
@@ -20,15 +20,6 @@ import { DocumentVersionsSection } from "@/components/documents/DocumentVersions
 type Row = ProformaInvoice & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
   proforma_invoice_items?: ProformaInvoiceItem[];
-};
-
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  sent: "info",
-  accepted: "success",
-  expired: "warning",
-  converted: "success",
-  cancelled: "danger",
 };
 
 function fmt(d?: string | null) {
@@ -90,7 +81,7 @@ export default function ProformaRecordPage() {
   }, [row, formatCurrency]);
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Proforma Invoice"
       listPath="/sales/proforma"
       id={id}
@@ -100,7 +91,8 @@ export default function ProformaRecordPage() {
       newLabel="New proforma"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.proforma_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="proforma"
+      status={row?.status}
       meta={row && (
         <>
           <span>Issued {fmt(row.issue_date)}</span>

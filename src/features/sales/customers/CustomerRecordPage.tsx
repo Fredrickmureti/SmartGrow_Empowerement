@@ -1,6 +1,6 @@
 /**
  * CustomerRecordPage — object-page route for a customer (contact scoped
- * to the customer role). Read-only view built on SalesRecordScaffold.
+ * to the customer role). Read-only view built on RecordScaffold.
  * The 360-degree profile lives at `/contacts-app/profile?id=<id>`; this
  * page is the enterprise-grade Sales-scoped record surface — deep-linkable
  * from the Sales list, wired to the same navigation model as Invoices,
@@ -14,7 +14,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
@@ -112,7 +112,7 @@ export default function CustomerRecordPage() {
   ) : undefined;
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Customer"
       listPath="/sales/customers"
       id={id}
@@ -122,7 +122,8 @@ export default function CustomerRecordPage() {
       newLabel="New customer"
       title={row?.name ?? "Customer"}
       docNumber={row?.company || undefined}
-      status={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
+      kind="customer"
+      statusSlot={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
       meta={row && (
         <>
           {row.email && <span>{row.email}</span>}

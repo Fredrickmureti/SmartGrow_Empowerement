@@ -29,7 +29,7 @@ import {
   LineItemsGrid,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/documents";
+} from "@/design-system/records";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";

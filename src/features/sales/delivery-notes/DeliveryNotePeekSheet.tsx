@@ -4,23 +4,19 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Section, StatusBadge } from "@/design-system";
+import { Section } from "@/design-system";
 import {
   DocumentActivityPanel,
   DocumentPeekShell,
+  DocumentStatusBadge,
   LineItemsGrid,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral", pending: "warning", in_transit: "info",
-  delivered: "success", cancelled: "danger",
-};
-const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
 
 interface Props { deliveryNoteId: string | null; onOpenChange: (o: boolean) => void; }
@@ -57,7 +53,7 @@ export function DeliveryNotePeekSheet({ deliveryNoteId, onOpenChange }: Props) {
       title={loading ? "Loading delivery note…" : record ? `Delivery Note ${record.delivery_number}` : "Delivery Note"}
       description={record ? (
         <span className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={TONE[record.status] ?? "neutral"}>{label(record.status)}</StatusBadge>
+          <DocumentStatusBadge kind="delivery_note" status={record.status} />
           <span className="text-muted-foreground">{record.contact?.name ?? "Customer"}</span>
         </span>
       ) : undefined}

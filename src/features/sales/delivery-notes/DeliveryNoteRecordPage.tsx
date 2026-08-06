@@ -1,6 +1,6 @@
 /**
  * DeliveryNoteRecordPage — object-page route for a Delivery Note.
- * Read-only, powered by SalesRecordScaffold.
+ * Read-only, powered by RecordScaffold.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,8 +8,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
@@ -17,14 +17,6 @@ import { DocumentVersionsSection } from "@/components/documents/DocumentVersions
 type Row = DeliveryNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
   delivery_note_items?: DeliveryNoteItem[];
-};
-
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  ready: "info",
-  in_transit: "accent",
-  delivered: "success",
-  cancelled: "danger",
 };
 
 function fmt(d?: string | null) {
@@ -81,7 +73,7 @@ export default function DeliveryNoteRecordPage() {
   }, [row]);
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Delivery Note"
       listPath="/sales/delivery-notes"
       id={id}
@@ -91,7 +83,8 @@ export default function DeliveryNoteRecordPage() {
       newLabel="New delivery note"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.delivery_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="delivery_note"
+      status={row?.status}
       meta={row && (
         <>
           <span>Date {fmt(row.delivery_date)}</span>

@@ -1,6 +1,6 @@
 /**
  * RecurringInvoiceRecordPage — object-page route for a recurring invoice
- * template. Read-only view built on SalesRecordScaffold. Create/edit still
+ * template. Read-only view built on RecordScaffold. Create/edit still
  * routes through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
  */
@@ -10,8 +10,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { RecurringInvoice, RecurringInvoiceItem } from "@/hooks/useRecurringInvoices";
@@ -95,7 +95,7 @@ export default function RecurringInvoiceRecordPage() {
   const statusTone: "success" | "warning" = row?.is_active ? "success" : "warning";
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Recurring Invoice"
       listPath="/sales/recurring"
       id={id}
@@ -105,7 +105,8 @@ export default function RecurringInvoiceRecordPage() {
       newLabel="New recurring template"
       title={row?.template_name ?? "Recurring invoice"}
       docNumber={row?.contact?.name}
-      status={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
+      kind="recurring_invoice"
+      statusSlot={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
       meta={row && (
         <>
           <span>Every {row.frequency}</span>

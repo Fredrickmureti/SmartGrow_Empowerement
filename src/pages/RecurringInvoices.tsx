@@ -79,7 +79,7 @@ import { format } from "date-fns";
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { RecurringInvoicePeekSheet } from "@/features/sales/recurring/RecurringInvoicePeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { normalizeError } from "@/services/resilience";
 export default function RecurringInvoices() {

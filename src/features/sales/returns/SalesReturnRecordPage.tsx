@@ -1,6 +1,6 @@
 /**
  * SalesReturnRecordPage — object-page route for a Sales Return.
- * Read-only, powered by SalesRecordScaffold. Refund wizard lands at
+ * Read-only, powered by RecordScaffold. Refund wizard lands at
  * /sales/returns/:id/refund.
  */
 
@@ -9,8 +9,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesReturn, SalesReturnItem } from "@/hooks/useSalesReturns";
@@ -19,14 +19,6 @@ import { DocumentVersionsSection } from "@/components/documents/DocumentVersions
 type Row = SalesReturn & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
   sales_return_items?: SalesReturnItem[];
-};
-
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  approved: "info",
-  processed: "success",
-  refunded: "success",
-  cancelled: "danger",
 };
 
 function fmt(d?: string | null) {
@@ -88,7 +80,7 @@ export default function SalesReturnRecordPage() {
   }, [row, formatCurrency]);
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Sales Return"
       listPath="/sales/returns"
       id={id}
@@ -98,7 +90,8 @@ export default function SalesReturnRecordPage() {
       newLabel="New sales return"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.return_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="sales_return"
+      status={row?.status}
       meta={row && (
         <>
           <span>Date {fmt(row.return_date)}</span>

@@ -49,7 +49,7 @@ import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshot
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { DataTablePagination } from "@/components/common/DataTablePagination";
 import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 // CreateInvoiceDialog retired — /sales/invoices/new hosts the create form on RecordFormShell.
 import { InvoiceListTable } from "@/components/invoices/InvoiceListTable";
 import { RecordPaymentDialog } from "@/components/invoices/RecordPaymentDialog";

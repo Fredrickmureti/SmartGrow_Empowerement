@@ -1,6 +1,6 @@
 /**
  * CreditNoteRecordPage — object-page route for a Credit Note.
- * Read-only, powered by SalesRecordScaffold. The "apply to invoice"
+ * Read-only, powered by RecordScaffold. The "apply to invoice"
  * wizard lands separately at /sales/credit-notes/:id/apply.
  */
 
@@ -9,8 +9,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote, CreditNoteItem } from "@/hooks/useCreditNotes";
@@ -81,7 +81,7 @@ export default function CreditNoteRecordPage() {
   const isFullyApplied = row && remaining <= 0;
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Credit Note"
       listPath="/sales/credit-notes"
       id={id}
@@ -91,7 +91,8 @@ export default function CreditNoteRecordPage() {
       newLabel="New credit note"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.credit_note_number}
-      status={row ? (
+      kind="credit_note"
+      statusSlot={row ? (
         <StatusBadge tone={isFullyApplied ? "success" : "warning"}>
           {isFullyApplied ? "Fully applied" : "Open"}
         </StatusBadge>

@@ -20,7 +20,7 @@ import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
 import { ImportResults, BatchImportFn } from "@/hooks/useImport";
 import { SalesOrderPeekSheet } from "@/features/sales/orders/SalesOrderPeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { SalesOrderListTable } from "@/components/sales/SalesOrderListTable";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
