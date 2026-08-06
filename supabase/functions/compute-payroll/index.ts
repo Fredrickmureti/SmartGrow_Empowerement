@@ -5438,49 +5438,31 @@ Deno.serve(async (req) => {
     }
 
     // ─── Record advance recoveries ───
+    // Single writer: `process_payroll_advance_recoveries` owns the schedule
+    // rows and the advance balance/status transition, exactly as
+    // `process_payroll_loan_deductions` does for loans. Composing those writes
+    // here would be a second settlement implementation.
     if (advanceRecoveriesToRecord.length > 0) {
-      const advScheduleRows = advanceRecoveriesToRecord.map((r) => ({
-        advance_id: r.advance_id,
-        organization_id,
-        business_id: business_id || null,
-        due_period_start: pay_period_start,
-        due_period_end: pay_period_end,
-        scheduled_amount: r.amount,
-        recovered_amount: r.amount,
-        payroll_run_id: payrollRun.id,
-        payslip_id: psIdByEmployee.get(r.employee_id) ?? null,
-        status: "recovered" as const,
-      }));
-      const { error: advSchedErr } = await supabaseAdmin
-        .from("advance_repayment_schedule")
-        .insert(advScheduleRows);
-      if (advSchedErr) {
-        console.warn("[compute-payroll] advance schedule insert failed:", advSchedErr.message);
-      }
-
-      // Bump recovered_amount on each advance and flip status to recovering/recovered
-      const totalsByAdvance = new Map<string, number>();
-      for (const r of advanceRecoveriesToRecord) {
-        totalsByAdvance.set(r.advance_id, (totalsByAdvance.get(r.advance_id) || 0) + r.amount);
-      }
-      for (const [advId, totalRecovered] of totalsByAdvance) {
-        const { data: advRow } = await supabaseAdmin
-          .from("employee_advances")
-          .select("amount, recovered_amount")
-          .eq("id", advId)
-          .maybeSingle();
-        if (!advRow) continue;
-        const newRecovered = Number(advRow.recovered_amount || 0) + totalRecovered;
-        const fullyRecovered = newRecovered >= Number(advRow.amount || 0) - 0.005;
-        await supabaseAdmin
-          .from("employee_advances")
-          .update({
-            recovered_amount: newRecovered,
-            status: fullyRecovered ? "recovered" : "recovering",
-          })
-          .eq("id", advId);
+      const { error: advErr } = await supabaseAdmin.rpc("process_payroll_advance_recoveries", {
+        _payroll_run_id: payrollRun.id,
+        _payroll_number: finalPayrollNumber,
+        _period_start: pay_period_start,
+        _period_end: pay_period_end,
+        _recoveries: advanceRecoveriesToRecord.map((r) => ({
+          advance_id: r.advance_id,
+          amount: r.amount,
+          payslip_id: psIdByEmployee.get(r.employee_id) ?? null,
+        })),
+      });
+      if (advErr) {
+        console.error("Advance recovery recording failed, rolling back payroll:", advErr);
+        await supabaseAdmin.from("payslip_lines").delete().eq("payroll_run_id", payrollRun.id);
+        await supabaseAdmin.from("payslips").delete().eq("payroll_run_id", payrollRun.id);
+        await supabaseAdmin.from("payroll_runs").delete().eq("id", payrollRun.id);
+        throw new Error(`Payroll rolled back: advance recovery failed — ${advErr.message}`);
       }
     }
+
 
     // ─── Audit log ───
     await supabaseAdmin.from("audit_logs").insert({
