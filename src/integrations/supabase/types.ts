@@ -92172,6 +92172,10 @@ export type Database = {
           scope: string
         }[]
       }
+      resolve_expense_default_account: {
+        Args: { p_business_id: string; p_org_id: string; p_setting_key: string }
+        Returns: string
+      }
       resolve_fefo_lots: {
         Args: {
           p_business_id: string
