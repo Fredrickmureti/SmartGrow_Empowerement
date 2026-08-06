@@ -217,7 +217,7 @@ export default function RFQEditPage() {
           onAddRow={addLineItem}
           onRemoveRow={removeLineItem}
           addLabel="Add item"
-          disabled={isSubmitting}
+          disabled={isUpdating}
           renderRow={(item, index, layout) => (
             <RequestLineRow
               key={index}
@@ -225,7 +225,7 @@ export default function RFQEditPage() {
               item={item}
               products={products.filter((p) => p.is_active)}
               layout={layout}
-              disabled={isSubmitting}
+              disabled={isUpdating}
               formatCurrency={formatLineCurrency}
               onPatch={patchLineItem}
               onProductSelect={selectProduct}
