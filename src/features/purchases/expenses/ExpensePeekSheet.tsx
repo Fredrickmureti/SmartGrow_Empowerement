@@ -20,7 +20,7 @@ export function ExpensePeekSheet({ expenseId, onOpenChange, onVoid }: Props) {
   const { formatCurrency } = useCurrency();
   const { record, view } = useExpenseView(expenseId, formatCurrency);
   const isLocked = record?.status === "approved" || record?.status === "paid";
-  const canVoid = !!(onVoid && record && isLocked && record.status !== "voided");
+  const canVoid = !!(onVoid && record && isLocked);
 
   return (
     <PeekScaffold
