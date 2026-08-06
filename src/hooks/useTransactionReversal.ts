@@ -90,7 +90,9 @@ export interface VoidBillPaymentOptions {
   billPaymentId: string;
   reason: string;
   voidDate?: string;
+  clientRequestId?: string;
 }
+
 
 /**
  * @deprecated ADR 0012 Wave R2 — the legacy unreconcile path is gone from
