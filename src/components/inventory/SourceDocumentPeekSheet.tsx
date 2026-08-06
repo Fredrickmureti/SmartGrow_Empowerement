@@ -1,13 +1,21 @@
-import { DetailSheet } from "@/design-system/primitives/DetailSheet";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { ExternalLink, Loader2, FileText } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+/**
+ * SourceDocumentPeekSheet — the drawer projection of a generic "source
+ * document" reference (PO, invoice, bill, sales order, POS transaction,
+ * stock adjustment, stock transfer).
+ *
+ * This used to be a hand-rolled `DetailSheet` with its own status badge and
+ * ad-hoc field grid. It is now a `DocumentRecordView` descriptor projected
+ * through `PeekScaffold`, like every other document peek.
+ */
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+
+import { PeekScaffold } from "@/design-system/records";
+import type { DocumentRecordView } from "@/design-system/records";
+import type { DocumentKind } from "@/design-system/records/documentStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
-import { format } from "date-fns";
 
 interface SourceDocumentPeekSheetProps {
   open: boolean;
@@ -25,6 +33,7 @@ const DOC_CONFIG: Record<string, {
   totalField?: string;
   contactField?: string;
   route: string;
+  kind: DocumentKind;
 }> = {
   purchase_order: {
     table: "purchase_orders",
@@ -35,6 +44,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/purchases",
+    kind: "purchase_order",
   },
   invoice: {
     table: "invoices",
@@ -45,6 +55,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/invoices",
+    kind: "invoice",
   },
   bill: {
     table: "bills",
@@ -55,6 +66,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "vendor",
     route: "/bills",
+    kind: "bill",
   },
   sales_order: {
     table: "sales_orders",
@@ -65,6 +77,7 @@ const DOC_CONFIG: Record<string, {
     totalField: "total",
     contactField: "contacts",
     route: "/sales",
+    kind: "sales_order",
   },
   pos_transaction: {
     table: "pos_transactions",
@@ -74,6 +87,7 @@ const DOC_CONFIG: Record<string, {
     statusField: "status",
     totalField: "total",
     route: "/pos",
+    kind: "generic",
   },
   stock_adjustment: {
     table: "stock_adjustments",
@@ -82,6 +96,7 @@ const DOC_CONFIG: Record<string, {
     dateField: "adjustment_date",
     statusField: "status",
     route: "/inventory-app/stock",
+    kind: "stock_adjustment",
   },
   stock_transfer: {
     table: "stock_transfers",
@@ -90,7 +105,17 @@ const DOC_CONFIG: Record<string, {
     dateField: "transfer_date",
     statusField: "status",
     route: "/warehouse-app/warehouses",
+    kind: "stock_transfer",
   },
+};
+
+const fmtDate = (v?: string | null) => {
+  if (!v) return "—";
+  try {
+    return format(new Date(v), "PP");
+  } catch {
+    return v;
+  }
 };
 
 export function SourceDocumentPeekSheet({
@@ -99,9 +124,7 @@ export function SourceDocumentPeekSheet({
   referenceType,
   referenceId,
 }: SourceDocumentPeekSheetProps) {
-  const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
-
   const config = referenceType ? DOC_CONFIG[referenceType] : null;
 
   const { data: document, isLoading } = useQuery({
@@ -119,132 +142,72 @@ export function SourceDocumentPeekSheet({
     enabled: !!config && !!referenceId && open,
   });
 
-  const docTitle = document?.[config?.titleField || ""] || referenceType || "Document";
-  const docDate = document?.[config?.dateField || ""];
-  const docStatus = config?.statusField ? document?.[config.statusField] : null;
-  const docTotal = config?.totalField ? document?.[config.totalField] : null;
-  const contact = config?.contactField ? document?.[config.contactField] : null;
-  const contactName = contact?.company_name || contact?.name || null;
+  const view = useMemo<DocumentRecordView>(() => {
+    const docTitle =
+      document?.[config?.titleField || ""] || referenceType || "Document";
+    const docDate = config?.dateField ? document?.[config.dateField] : null;
+    const docStatus = config?.statusField ? document?.[config.statusField] : null;
+    const docTotal = config?.totalField ? document?.[config.totalField] : null;
+    const contact = config?.contactField ? document?.[config.contactField] : null;
+    const contactName = contact?.company_name || contact?.name || null;
+
+    const detailFields = document
+      ? [
+          { label: "Date", value: docDate ? fmtDate(docDate) : "—" },
+          { label: "Contact", value: contactName ?? "—" },
+          ...(referenceType === "stock_transfer" && document.from_warehouse
+            ? [
+                { label: "From", value: document.from_warehouse.name },
+                { label: "To", value: document.to_warehouse?.name ?? "—" },
+              ]
+            : []),
+          ...(referenceType === "pos_transaction"
+            ? [
+                { label: "Customer", value: document.customer_name ?? "—" },
+                { label: "Type", value: document.transaction_type ?? "—" },
+                { label: "Payment", value: document.payment_status ?? "—" },
+              ]
+            : []),
+          { label: "Notes", value: document.notes ?? "—" },
+        ]
+      : undefined;
+
+    return {
+      kind: config?.kind ?? "generic",
+      documentId: document?.id,
+      eyebrow: referenceType
+        ? referenceType.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+        : "Document",
+      listPath: config?.route ?? "/",
+      title: docTitle,
+      docNumber: config?.titleField ? document?.[config.titleField] : undefined,
+      status: docStatus,
+      loading: isLoading,
+      notFound: !isLoading && !!referenceId && !document,
+      meta: document ? (
+        <>
+          {docDate && <span>{fmtDate(docDate)}</span>}
+          {docTotal != null && (
+            <span className="tabular-nums">{formatCurrency(docTotal)}</span>
+          )}
+        </>
+      ) : undefined,
+      detailFields,
+    };
+  }, [config, document, formatCurrency, isLoading, referenceId, referenceType]);
 
   return (
-    <DetailSheet
+    <PeekScaffold
+      {...view}
       open={open}
       onOpenChange={onOpenChange}
-      size="sm"
-      title={
-        <span className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          {docTitle}
-        </span>
+      fullPageHref={
+        config?.route && referenceId
+          ? `${config.route}?selected=${referenceId}`
+          : undefined
       }
-      description={`${referenceType?.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())} details`}
-    >
-
-
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : document ? (
-          <div className="space-y-4 mt-6">
-            <div className="grid grid-cols-2 gap-3">
-              {docDate && (
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Date</p>
-                  <p className="font-medium">{format(new Date(docDate), "MMM d, yyyy")}</p>
-                </div>
-              )}
-              {docStatus && (
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant="outline" className="capitalize mt-1">{docStatus}</Badge>
-                </div>
-              )}
-              {docTotal != null && (
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="font-semibold">{formatCurrency(docTotal)}</p>
-                </div>
-              )}
-              {contactName && (
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Contact</p>
-                  <p className="font-medium truncate">{contactName}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Transfer-specific info */}
-            {referenceType === "stock_transfer" && document.from_warehouse && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">From</span>
-                    <span className="font-medium">{document.from_warehouse.name}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">To</span>
-                    <span className="font-medium">{document.to_warehouse.name}</span>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* POS-specific info */}
-            {referenceType === "pos_transaction" && (
-              <>
-                <Separator />
-                <div className="space-y-2">
-                  {document.customer_name && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Customer</span>
-                      <span className="font-medium">{document.customer_name}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Type</span>
-                    <Badge variant="outline" className="capitalize">{document.transaction_type}</Badge>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Payment</span>
-                    <Badge variant="outline" className="capitalize">{document.payment_status}</Badge>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {document.notes && (
-              <>
-                <Separator />
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">Notes</p>
-                  <p className="text-sm">{document.notes}</p>
-                </div>
-              </>
-            )}
-
-            {config?.route && referenceId && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate(`${config.route}?selected=${referenceId}`);
-                }}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Full Details
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Document not found</p>
-          </div>
-      )}
-    </DetailSheet>
-
+    />
   );
 }
+
+export default SourceDocumentPeekSheet;
