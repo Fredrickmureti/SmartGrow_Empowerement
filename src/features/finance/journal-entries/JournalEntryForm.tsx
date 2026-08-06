@@ -8,32 +8,26 @@
  * requirement, fiscal-period lock guard, and RPC calls via
  * `useJournalEntries`.
  */
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Loader2, Plus, Trash2, Lock } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   RecordFormShell,
   Section,
   FieldGrid,
   FieldCell,
 } from "@/design-system";
-import { AccountCombobox } from "@/components/finance/AccountCombobox";
-import { ContactCombobox } from "@/components/finance/ContactCombobox";
+import { EditableLineItemsGrid } from "@/design-system/records";
+import {
+  JournalLineRow,
+  JOURNAL_LINE_COLUMNS,
+} from "@/components/documents/lines/JournalLineRow";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -42,6 +36,7 @@ import {
   useJournalEntries,
   type JournalEntry,
 } from "@/hooks/useJournalEntries";
+
 
 interface JournalLine {
   account_id: string;
