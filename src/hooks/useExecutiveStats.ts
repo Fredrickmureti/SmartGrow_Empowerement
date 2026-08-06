@@ -4,6 +4,11 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { startOfMonth, subMonths, differenceInDays, format } from "date-fns";
 import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  fetchTopOpenCounterparties,
+} from "@/services/finance/openItems";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDashboardScope } from "./useDashboardScope";
 
@@ -262,7 +267,8 @@ export function useExecutiveStats() {
         const rev = paidInvoices.filter(i => i.business_id === biz.id).reduce((s, i) => s + i.total, 0);
         const exp = expenses.filter(e => e.business_id === biz.id).reduce((s, e) => s + e.amount, 0);
         const profit = rev - exp;
-        const ar = outstandingInvoices.filter(i => i.business_id === biz.id).reduce((s, i) => s + (i.total - (i.amount_paid || 0)), 0);
+        // AR per scorecard is GL-anchored; scope is single-business today.
+        const ar = biz.id === scope.businessId ? totalReceivables : 0;
         const custs = contacts.filter(c => c.business_id === biz.id).length;
         return {
           businessId: biz.id, businessName: biz.name,
