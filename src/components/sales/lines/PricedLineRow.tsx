@@ -78,7 +78,10 @@ export type PricedLineRowProduct = ProductOption & { tax_rate?: number | null };
 interface Props<T extends PricedLineShape> {
   index: number;
   item: T;
-  products: PricedLineRowProduct[];
+  /** Omit together with `hideProductPicker` for documents with no catalogue picker. */
+  products?: PricedLineRowProduct[];
+  /** Renders the item cell as a bare description input (credit notes, returns). */
+  hideProductPicker?: boolean;
   /** Layout resolved by `EditableLineItemsGrid` for the measured container. */
   layout: EditableRowLayout;
   disabled?: boolean;
@@ -100,6 +103,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
   index,
   item,
   products,
+  hideProductPicker,
   layout,
   disabled,
   flashed,
@@ -112,10 +116,23 @@ function PricedLineRowInner<T extends PricedLineShape>({
   const cell = (columnId: string) => {
     switch (columnId) {
       case "item":
+        if (hideProductPicker) {
+          return (
+            <Input
+              placeholder="Description"
+              value={item.description}
+              onChange={(e) =>
+                onPatch(index, { description: e.target.value } as Partial<T>)
+              }
+              className="h-8"
+              disabled={disabled}
+            />
+          );
+        }
         return (
           <div className="min-w-0 space-y-2">
             <ProductCombobox
-              products={products}
+              products={products ?? []}
               value={item.product_id || ""}
               onChange={(value) =>
                 onProductSelect
