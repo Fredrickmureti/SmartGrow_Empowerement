@@ -21,6 +21,12 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
 import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
 import { fetchGLTotals, type GLTotals } from "@/services/gl/fetchGLTotals";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  EMPTY_OPEN_ITEMS_SUMMARY,
+} from "@/services/finance/openItems";
+import { arSummaryKey, apSummaryKey } from "@/hooks/finance/useOpenItemsSummary";
 import { queryKeys } from "@/lib/queryKeys";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from "date-fns";
@@ -141,7 +147,23 @@ export default function FinanceDashboard() {
     staleTime: 30_000,
   });
 
-  const isLoading = invLoading || billsLoading || bankLoading || jeLoading || glLoading;
+  // Canonical AR/AP — GL-gated open items (same engine as the AR/AP
+  // workspaces, ageing report and control-account reconciliation).
+  const { data: arSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: arLoading } = useQuery({
+    queryKey: arSummaryKey(orgId, businessId, branchId),
+    queryFn: () => fetchARSummary(orgId, businessId, branchId),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
+  const { data: apSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: apLoading } = useQuery({
+    queryKey: apSummaryKey(orgId, businessId, branchId),
+    queryFn: () => fetchAPSummary(orgId, businessId, branchId),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
+
+  const isLoading = invLoading || billsLoading || bankLoading || jeLoading || glLoading || arLoading || apLoading;
+
 
   // Query keys for RefreshButton (branch-scoped)
   const refreshKeys = useMemo(() => [
