@@ -18,8 +18,11 @@ describe('POS multi-entity architecture guards', () => {
     const invoiceRequest = read('src/hooks/pos/usePOSInvoiceRequest.ts');
     expect(creditSale).not.toContain('currentBranch');
     expect(invoiceRequest).not.toContain('currentBranch');
-    expect(creditSale).toContain('invoiceBranchId');
-    expect(invoiceRequest).toContain('(txn as any).branch_id');
+    // ADR 0128 — branch (and business) lineage is resolved server-side from
+    // the POS transaction row inside `create_pos_credit_sale_invoice_atomic`,
+    // so neither hook may derive the invoice's branch on the client.
+    expect(creditSale).toContain('create_pos_credit_sale_invoice_atomic');
+    expect(invoiceRequest).toContain('create_pos_credit_sale_invoice_atomic');
   });
 
   it('offline transaction replay carries business and branch scope', () => {
@@ -27,7 +30,11 @@ describe('POS multi-entity architecture guards', () => {
     const hook = read('src/hooks/pos/usePOSTransactionOffline.ts');
     expect(queue).toContain('business_id: string');
     expect(queue).toContain('branch_id: string');
-    expect(queue).toContain('p_business_id: data.business_id');
+    // Replay goes through the payment-session lifecycle, which resolves
+    // business/branch from the register server-side and collapses retries.
+    expect(queue).toContain('registerId: data.register_id');
+    expect(queue).toContain('idempotencyKey: queued.id');
     expect(hook).toContain('branch_id: branchId');
   });
 });
+

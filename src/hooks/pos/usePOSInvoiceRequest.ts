@@ -1,11 +1,17 @@
 import { normalizeError } from "@/services/resilience";
 /**
  * POS Invoice Request Hook (Odoo-style)
- * 
+ *
  * Allows any completed POS transaction (even cash) to optionally generate
  * a formal invoice in the invoices table. Matches Odoo's "Invoice" button on POS.
- * 
- * Requires a customer to be associated with the transaction.
+ *
+ * ADR 0128 — the document itself is created by ONE server-side writer,
+ * `create_pos_credit_sale_invoice_atomic(_mode := 'full')`: header, lines and
+ * the `pos_transactions.invoice_id` link land in a single transaction and are
+ * idempotent by POS transaction id. This hook only collects context, then
+ * settles the recorded tenders through the canonical allocation contract
+ * (`record_payment_atomic`, ADR 0027). It never inserts invoice rows or
+ * reserves invoice numbers on the client.
  */
 
 import { useState } from "react";
@@ -53,7 +59,7 @@ export function usePOSInvoiceRequest() {
 
     setIsGenerating(true);
     try {
-      // Fetch the POS transaction with items
+      // Read-only context for the settlement leg and the operator message.
       const { data: txn, error: txnError } = await supabase
         .from("pos_transactions")
         .select("*, customer:contacts(id, name)")
@@ -61,7 +67,6 @@ export function usePOSInvoiceRequest() {
         .single();
 
       if (txnError || !txn) throw new Error("Transaction not found");
-      if (!(txn as any).branch_id) throw new Error("POS transaction is missing branch context");
 
       if (!txn.customer_id) {
         toast({
@@ -77,76 +82,27 @@ export function usePOSInvoiceRequest() {
         return txn.invoice_id;
       }
 
-      // Fetch items
-      const { data: items } = await supabase
-        .from("pos_transaction_items")
-        .select("*")
-        .eq("transaction_id", transactionId)
-        .order("sort_order");
-
-      // Get next invoice number
-      const { data: invoiceNumber, error: numError } = await supabase.rpc(
-        "get_next_invoice_number",
-        { _org_id: currentOrg.id, _business_id: (currentBusiness?.id ?? (txn as any).business_id) as string },
-      );
-      if (numError) throw numError;
-
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Create the invoice as "confirmed" with amount_paid=0. The settlement
-      // leg below routes through `record_payment_atomic` which inserts the
-      // `payments` row + `payment_allocations` row, flips status → paid, and
-      // updates `amount_paid`. This is the ADR 0027 contract; writing
-      // status='paid' here directly would re-create the "ledger doesn't see
-      // the cash leg" defect for every POS-originated invoice.
-      const { data: invoice, error: invoiceError } = await supabase
+      // Single writer: header + lines + POS link, one transaction, idempotent.
+      const { data: newInvoiceId, error: rpcError } = await supabase.rpc(
+        "create_pos_credit_sale_invoice_atomic" as never,
+        {
+          _pos_transaction_id: transactionId,
+          _due_days: 0,
+          _user_id: user?.id ?? null,
+          _mode: "full",
+        } as never,
+      );
+      if (rpcError) throw rpcError;
+      const invoiceId = newInvoiceId as unknown as string | null;
+      if (!invoiceId) throw new Error("Invoice was not created");
+
+      const { data: invoice } = await supabase
         .from("invoices")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness?.id || txn.business_id,
-          branch_id: (txn as any).branch_id,
-          contact_id: txn.customer_id,
-          invoice_number: invoiceNumber,
-          status: "confirmed" as any,
-          issue_date: new Date(txn.created_at).toISOString().split("T")[0],
-          due_date: new Date(txn.created_at).toISOString().split("T")[0],
-          subtotal: txn.subtotal || 0,
-          tax_amount: txn.tax_amount || 0,
-          discount_amount: txn.discount_amount || 0,
-          total: txn.total || 0,
-          amount_paid: 0,
-          currency: currentBusiness?.base_currency,
-          notes: `Generated from POS transaction ${txn.transaction_number}`,
-          source: 'pos',
-          created_by: user?.id,
-          salesperson_id: user?.id,
-          confirmed_by: user?.id,
-        } as any)
-        .select()
+        .select("id, invoice_number")
+        .eq("id", invoiceId)
         .single();
-
-      if (invoiceError) throw invoiceError;
-
-      // Insert invoice line items
-      if (items && items.length > 0) {
-        const invoiceItems = items.map((item: any, index: number) => ({
-          invoice_id: invoice.id,
-          product_id: item.product_id,
-          description: item.product_name,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_rate: item.tax_rate || 0,
-          tax_amount: item.tax_amount || 0,
-          discount_percent: item.discount_amount && item.unit_price > 0
-            ? ((item.discount_amount / (item.quantity * item.unit_price)) * 100)
-            : 0,
-          line_total: item.line_total,
-          sort_order: index,
-        }));
-
-        await supabase.from("invoice_items").insert(invoiceItems);
-      }
 
       // Settle the invoice through the canonical allocation contract.
       // Pulls one payments row + one payment_allocations row per tender in
@@ -189,7 +145,7 @@ export function usePOSInvoiceRequest() {
             _org_id: currentOrg.id,
             _business_id: (currentBusiness?.id ?? (txn as any).business_id) as string,
             _contact_id: txn.customer_id,
-            _invoice_id: invoice.id,
+            _invoice_id: invoiceId,
             _amount: s.amount,
             _payment_date: new Date(txn.created_at).toISOString().split("T")[0],
             _payment_method: s.method,
@@ -211,19 +167,12 @@ export function usePOSInvoiceRequest() {
         }
       }
 
-      // Link invoice to POS transaction
-      await supabase
-        .from("pos_transactions")
-        .update({ invoice_id: invoice.id })
-        .eq("id", transactionId)
-        .eq("branch_id", (txn as any).branch_id); // branch-bind
-
       toast({
         title: "Invoice generated",
-        description: `Invoice ${invoiceNumber} created from POS transaction ${txn.transaction_number}`,
+        description: `Invoice ${invoice?.invoice_number ?? ""} created from POS transaction ${txn.transaction_number}`.trim(),
       });
 
-      return invoice.id;
+      return invoiceId;
     } catch (error: any) {
       console.error("Failed to generate invoice from POS transaction:", error);
       toast({

@@ -83781,28 +83781,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      confirm_invoice_and_release_stock_atomic:
-        | {
-            Args: {
-              p_invoice_id: string
-              p_main_lines: Json
-              p_release_stock?: boolean
-              p_user_id: string
-              p_warehouse_id?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_final_status?: string
-              p_invoice_id: string
-              p_main_lines: Json
-              p_release_stock?: boolean
-              p_user_id: string
-              p_warehouse_id?: string
-            }
-            Returns: Json
-          }
+      confirm_invoice_and_release_stock_atomic: {
+        Args: {
+          p_final_status?: string
+          p_invoice_id: string
+          p_main_lines: Json
+          p_release_stock?: boolean
+          p_user_id: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
       confirm_invoice_atomic: {
         Args: {
           p_final_status?: string
@@ -84059,6 +84048,15 @@ export type Database = {
           p_warehouse_id: string
         }
         Returns: Json
+      }
+      create_pos_credit_sale_invoice_atomic: {
+        Args: {
+          _due_days?: number
+          _mode?: string
+          _pos_transaction_id: string
+          _user_id?: string
+        }
+        Returns: string
       }
       create_procurement_contract: {
         Args: {
