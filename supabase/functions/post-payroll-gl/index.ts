@@ -447,6 +447,13 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // ─── Advance recovery lines: relieve the advance receivable ───
+      if (key === "advance_recovery" && empAmt > 0) {
+        advanceRecoveryTotal += empAmt;
+        continue;
+      }
+
+
       if (!key) continue;
 
       const bucket = classifyPayslipLine(line as any);
