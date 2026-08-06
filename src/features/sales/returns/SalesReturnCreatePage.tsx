@@ -9,7 +9,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  *   ?invoice_id=<uuid>   pre-fill the original invoice (auto-loads items)
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";

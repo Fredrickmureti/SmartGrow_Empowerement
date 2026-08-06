@@ -9,7 +9,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  *   ?invoice_id=<uuid>   pre-fill related invoice (auto-loads its items)
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCreditNotes, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { useContacts } from "@/hooks/useContacts";

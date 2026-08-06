@@ -5,7 +5,7 @@
  * Phase-3 route replacement for the retired `EditCreditNoteDialog`.
  * Only draft credit notes can be edited.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useContacts } from "@/hooks/useContacts";
