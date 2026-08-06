@@ -37,7 +37,11 @@ export type DocumentKind =
   | "customer"
   | "bill"
   | "purchase_order"
+  | "journal_entry"
+  | "stock_adjustment"
+  | "stock_transfer"
   | "generic";
+
 
 interface StatusMeta {
   label: string;
@@ -113,7 +117,22 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
     approved: { label: "Approved", tone: "info" },
     cancelled: { label: "Cancelled", tone: "danger" },
   },
+  journal_entry: {
+    // A posted entry has hit the ledger and can no longer be edited freely.
+    posted: { label: "Posted", tone: "success" },
+    reversed: { label: "Reversed", tone: "warning" },
+  },
+  stock_adjustment: {
+    pending_approval: { label: "Pending approval", tone: "warning" },
+    approved: { label: "Approved", tone: "success" },
+  },
+  stock_transfer: {
+    in_transit: { label: "In transit", tone: "accent" },
+    completed: { label: "Received", tone: "success" },
+    approved: { label: "Approved", tone: "info" },
+  },
 };
+
 
 /** Title Case fallback for a status the registry has not met yet. */
 function humanize(value: string): string {
