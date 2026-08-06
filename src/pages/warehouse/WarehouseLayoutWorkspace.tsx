@@ -293,7 +293,11 @@ export default function WarehouseLayoutWorkspace() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+              {/* Handheld: no wedge gun on a phone — the layout scan intent
+                  above receives whatever the camera decodes. */}
+              <ScanCameraButton label="Scan a bin label" />
               <ScanIndicator status={resolution.status} message={resolution.message} />
+
             </div>
 
             <Tabs defaultValue="structure" className="flex min-h-0 flex-1 flex-col">
