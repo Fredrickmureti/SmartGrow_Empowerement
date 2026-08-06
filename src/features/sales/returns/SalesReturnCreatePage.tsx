@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SalesReturnCreatePage — `/sales/returns/new`.
  *

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SalesOrderEditPage — `/sales/orders/:id/edit`.
  *

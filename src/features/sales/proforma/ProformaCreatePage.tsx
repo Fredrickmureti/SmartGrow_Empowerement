@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * ProformaCreatePage — `/sales/proforma/new`.
  *

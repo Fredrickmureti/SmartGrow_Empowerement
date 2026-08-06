@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PurchaseReturnEditPage — `/purchases/returns/:id/edit`.
  *

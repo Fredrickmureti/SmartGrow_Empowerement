@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * InvoiceEditPage — `/sales/invoices/:id/edit`.
  *

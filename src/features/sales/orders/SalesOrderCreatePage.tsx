@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SalesOrderCreatePage — `/sales/orders/new`.
  *

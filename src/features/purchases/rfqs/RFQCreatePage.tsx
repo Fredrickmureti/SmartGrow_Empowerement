@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * RFQCreatePage — `/purchases/rfqs/new`.
  *
