@@ -83849,35 +83849,6 @@ export type Database = {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
       }
-      create_gl_entry_from_source:
-        | {
-            Args: {
-              p_auto_post?: boolean
-              p_business_id: string
-              p_description: string
-              p_entry_date: string
-              p_lines: Json
-              p_organization_id: string
-              p_reference: string
-              p_source_id: string
-              p_source_type: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_auto_post?: boolean
-              p_business_id: string
-              p_description: string
-              p_entry_date: string
-              p_lines: Json
-              p_organization_id: string
-              p_reference: string
-              p_source_id: string
-              p_source_type: string
-            }
-            Returns: string
-          }
       create_goods_receipt: {
         Args: {
           _actor: string
@@ -91243,48 +91214,27 @@ export type Database = {
         }
         Returns: Json
       }
-      record_multi_invoice_payment:
-        | {
-            Args: {
-              _allocations: Json
-              _branch_id?: string
-              _business_id: string
-              _contact_id: string
-              _created_by?: string
-              _customer_credit_account_id?: string
-              _deposit_account_id?: string
-              _notes?: string
-              _org_id: string
-              _payment_date: string
-              _payment_method?: string
-              _receipt_number?: string
-              _receivable_account_id?: string
-              _reference?: string
-              _total_amount: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _allocations: Json
-              _branch_id?: string
-              _business_id: string
-              _contact_id: string
-              _created_by?: string
-              _customer_credit_account_id?: string
-              _deposit_account_id?: string
-              _exchange_rate?: number
-              _notes?: string
-              _org_id: string
-              _payment_date: string
-              _payment_method?: string
-              _receipt_number?: string
-              _receivable_account_id?: string
-              _reference?: string
-              _total_amount: number
-            }
-            Returns: Json
-          }
+      record_multi_invoice_payment: {
+        Args: {
+          _allocations: Json
+          _branch_id?: string
+          _business_id: string
+          _contact_id: string
+          _created_by?: string
+          _customer_credit_account_id?: string
+          _deposit_account_id?: string
+          _exchange_rate?: number
+          _notes?: string
+          _org_id: string
+          _payment_date: string
+          _payment_method?: string
+          _receipt_number?: string
+          _receivable_account_id?: string
+          _reference?: string
+          _total_amount: number
+        }
+        Returns: Json
+      }
       record_onboarding_attempt: {
         Args: { p_idempotency_key: string; p_step?: string }
         Returns: string
