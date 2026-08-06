@@ -129,111 +129,8 @@ export function useExpenses() {
     fetchCategories();
   }, [currentOrg?.id, currentBusiness?.id]);
 
-  /**
-   * Resolves the GL expense (debit) account using priority chain:
-   * 1. expense.account_id (manual override on expense record)
-   * 2. category.account_id (category→COA mapping)
-   * 3. operating_expenses_id (system default fallback)
-   */
-  const resolveExpenseAccountId = (expense: {
-    account_id: string | null;
-    category_id: string | null;
-  }): string => {
-    // Priority 1: explicit account on the expense
-    if (expense.account_id) return expense.account_id;
-
-    // Priority 2: category's mapped account
-    if (expense.category_id) {
-      const cat = categories.find(c => c.id === expense.category_id);
-      if (cat?.account_id) return cat.account_id;
-    }
-
-    // Priority 3: system default
-    return getExpenseAccountMappings().expense_account_id;
-  };
-
-  /**
-   * Posts expense to GL. Creates: Dr Expense Account / Cr Payment Account
-   * With tax handling when applicable.
-   */
-  const postExpenseGL = async (expense: {
-    id: string;
-    expense_date: string;
-    amount: number;
-    tax_amount: number;
-    description: string;
-    reference: string | null;
-    payment_method: string;
-    account_id: string | null;
-    payment_account_id: string | null;
-    category_id: string | null;
-  }) => {
-    if (!hasRequiredAccounts()) return null;
-
-    const resolvedPaymentAccountId = expense.payment_account_id
-      || getExpenseAccountMappings(expense.payment_method, expense.account_id || undefined).payment_account_id;
-
-    const expenseAccountId = resolveExpenseAccountId(expense);
-
-    if (!expenseAccountId || !resolvedPaymentAccountId) {
-      console.warn("Expense GL posting skipped: missing account mappings");
-      return null;
-    }
-
-    const entries: { account_id: string; debit_amount: number; credit_amount: number; description: string }[] = [];
-    const inputTaxAccountId = accounts.input_tax_account_id;
-    const hasTax = expense.tax_amount > 0 && inputTaxAccountId;
-    const netAmount = hasTax ? expense.amount - expense.tax_amount : expense.amount;
-
-    // Dr Expense Account (net amount)
-    entries.push({
-      account_id: expenseAccountId,
-      debit_amount: netAmount,
-      credit_amount: 0,
-      description: `Expense - ${expense.description}`,
-    });
-
-    // Dr Input Tax Asset (if applicable)
-    if (hasTax) {
-      entries.push({
-        account_id: inputTaxAccountId!,
-        debit_amount: expense.tax_amount,
-        credit_amount: 0,
-        description: `Expense Input Tax - ${expense.description}`,
-      });
-    }
-
-    // Cr Payment Account (total amount)
-    entries.push({
-      account_id: resolvedPaymentAccountId,
-      debit_amount: 0,
-      credit_amount: expense.amount,
-      description: `Expense payment - ${expense.description}`,
-    });
-
-    try {
-      const jeId = await postToGL({
-        source_type: "expense",
-        source_id: expense.id,
-        reference: expense.reference || `EXP-${expense.id.slice(0, 8)}`,
-        memo: `Expense: ${expense.description}`,
-        entry_date: expense.expense_date,
-        entries,
-      });
-
-      if (jeId) {
-        await supabase
-          .from("expenses")
-          .update({ journal_entry_id: jeId } as any)
-          .eq("id", expense.id);
-      }
-
-      return jeId;
-    } catch (glError: any) {
-      console.error("GL posting failed for expense:", glError);
-      throw new Error(`Expense saved but GL posting failed: ${glError?.message || "Unknown error"}`);
-    }
-  };
+  // GL posting for expenses is server-side only — see
+  // `@/lib/finance/expenseSettlement` and `public.post_expense_gl` (ADR 0123).
 
   const createExpense = async (expense: Omit<Expense, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "category" | "vendor">) => {
     if (!can("manageFinancials")) throw new Error("Permission denied: cannot create expenses");
@@ -267,18 +164,7 @@ export function useExpenses() {
 
     // Post to GL if expense is approved or paid on creation
     if (expense.status === "approved" || expense.status === "paid") {
-      await postExpenseGL({
-        id: data.id,
-        expense_date: expense.expense_date,
-        amount: expense.amount,
-        tax_amount: expense.tax_amount || 0,
-        description: expense.description,
-        reference: expense.reference,
-        payment_method: expense.payment_method,
-        account_id: expense.account_id,
-        payment_account_id: expense.payment_account_id,
-        category_id: expense.category_id,
-      });
+      await postExpenseGL(data.id);
     }
 
     // Optimistic update
@@ -318,18 +204,7 @@ export function useExpenses() {
       const shouldPostGL = statusChanged && (updates.status === "approved" || updates.status === "paid");
       
       if (shouldPostGL && expense) {
-        await postExpenseGL({
-          id: expense.id,
-          expense_date: updates.expense_date || expense.expense_date,
-          amount: updates.amount || expense.amount,
-          tax_amount: updates.tax_amount !== undefined ? updates.tax_amount : expense.tax_amount || 0,
-          description: updates.description || expense.description,
-          reference: updates.reference !== undefined ? updates.reference : expense.reference,
-          payment_method: (updates as any).payment_method || expense.payment_method || "cash",
-          account_id: updates.account_id !== undefined ? updates.account_id : expense.account_id,
-          payment_account_id: updates.payment_account_id !== undefined ? updates.payment_account_id : expense.payment_account_id,
-          category_id: updates.category_id !== undefined ? updates.category_id : expense.category_id,
-        });
+        await postExpenseGL(expense.id);
       }
 
       // Log update
