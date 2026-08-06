@@ -62,13 +62,22 @@ export function DocumentWorkspaceBody({
   return (
     <>
       {view.lifecycle && (
-        <DocumentLifecycleStrip
-          docType={view.lifecycle.docType}
-          docId={view.lifecycle.docId}
-          dense={dense}
-          className={dense ? "mb-4" : "mb-6"}
-        />
+        <>
+          <DocumentLifecycleStrip
+            docType={view.lifecycle.docType}
+            docId={view.lifecycle.docId}
+            dense={dense}
+            className={dense ? "mb-2" : "mb-2"}
+          />
+          <DocumentSettlementStrip
+            docType={view.lifecycle.docType}
+            docId={view.lifecycle.docId}
+            dense={dense}
+            className={dense ? "mb-4" : "mb-6"}
+          />
+        </>
       )}
+
       <RecordBody
         detailFields={view.detailFields}
         detailsTitle={view.detailsTitle}
