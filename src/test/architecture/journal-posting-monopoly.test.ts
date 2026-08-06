@@ -145,9 +145,12 @@ describe("Journal posting monopoly", () => {
   });
 
   it("stock restoration is only driven from inside void_invoice_atomic", () => {
-    const offenders = rgFiles("restore_invoice_stock_atomic", APP_PATHS);
+    const offenders = rgFiles("restore_invoice_stock_atomic", APP_PATHS)
+      // Generated RPC typings legitimately name every function.
+      .filter((f) => !f.includes("integrations/supabase/types.ts"));
     expect(offenders).toEqual([]);
   });
+
 });
 
 
