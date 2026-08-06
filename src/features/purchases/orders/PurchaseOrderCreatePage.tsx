@@ -273,101 +273,46 @@ export default function PurchaseOrderCreatePage() {
       </FieldGroup>
 
       <FieldGroup label="Line Items">
-        <div className="flex items-center justify-between mb-1">
-          <span />
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add Item
-          </Button>
-        </div>
-        <div className="space-y-3">
-          {lineItems.map((item, index) => (
-            <div
+        <EditableLineItemsGrid
+          columns={PRICED_LINE_COLUMNS}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add Item"
+          renderRow={(item, index, layout) => (
+            <PricedLineRow
               key={index}
-              className="border rounded-lg p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-            >
-              <div className="sm:col-span-4">
-                <Label className="text-xs text-muted-foreground sm:hidden">Product</Label>
-                <ProductCombobox
-                  products={products}
-                  value={item.product_id}
-                  onChange={(v) => updateLineItem(index, "product_id", v)}
-                  placeholder="Product"
-                />
-              </div>
-              <div className="sm:col-span-3">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2 sm:contents">
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item as any}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        const { lineTotal, taxAmount } = calculateLineTotal(merged);
-                        next[index] = { ...merged, line_total: lineTotal, tax_amount: taxAmount };
-                        return next;
-                      })
-                    }
-                  />
+              index={index}
+              item={item}
+              products={products}
+              layout={layout}
+              formatCurrency={formatCurrency}
+              onPatch={patchLineItem}
+              onProductSelect={selectProduct}
+              productPlaceholder="Product"
+            />
+          )}
+          footer={
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(subtotal)}</span>
                 </div>
-                <div className="sm:col-span-2">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
-                  <NumericInput
-                    placeholder="Price"
-                    value={item.unit_price}
-                    onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)}
-                  />
+                <div className="flex justify-between">
+                  <span>Tax:</span>
+                  <span>{formatCurrency(totalTax)}</span>
                 </div>
-                <div className="sm:col-span-1">
-                  <Label className="text-xs text-muted-foreground sm:hidden">Tax %</Label>
-                  <NumericInput
-                    placeholder="Tax %"
-                    value={item.tax_rate}
-                    onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)}
-                  />
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span>{formatCurrency(grandTotal)}</span>
                 </div>
               </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(index)}
-                  disabled={lineItems.length === 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <div className="w-64 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Tax:</span>
-              <span>{formatCurrency(totalTax)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Total:</span>
-              <span>{formatCurrency(grandTotal)}</span>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </FieldGroup>
+
 
       <FieldGroup label="Additional Info">
         <div className="space-y-2">
