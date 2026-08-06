@@ -29,7 +29,7 @@ import {
   LineItemsGrid,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Invoice } from "@/hooks/useInvoices";

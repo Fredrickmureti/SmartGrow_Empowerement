@@ -14,7 +14,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { RecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";

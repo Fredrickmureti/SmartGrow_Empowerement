@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { ProformaInvoice } from "@/hooks/useProformaInvoices";
 
 export function useProformaRecord(id: string | null | undefined) {

@@ -32,7 +32,7 @@ import {
   type DocumentTotalsRow,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import { RecordBody } from "./RecordBody";
 
 import type { DetailField } from "./RecordBody";

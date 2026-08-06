@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { RecurringInvoice } from "@/hooks/useRecurringInvoices";
 
 export function useRecurringInvoiceRecord(id: string | null | undefined) {

@@ -13,7 +13,7 @@ import {
   LineItemsGrid,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Estimate } from "@/hooks/useEstimates";
 import { useEstimateRecord } from "./useEstimateRecord";

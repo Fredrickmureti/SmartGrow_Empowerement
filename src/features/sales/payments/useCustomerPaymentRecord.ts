@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { Payment } from "@/hooks/usePayments";
 
 export function useCustomerPaymentRecord(id: string | null | undefined) {

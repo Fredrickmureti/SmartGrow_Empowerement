@@ -11,7 +11,7 @@ import {
   LineItemsGrid,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";

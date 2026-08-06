@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { SalesOrder } from "@/hooks/useSalesOrders";
 
 export function useSalesOrderRecord(id: string | null | undefined) {

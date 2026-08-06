@@ -8,7 +8,7 @@ import { Section, StatusBadge } from "@/design-system";
 import {
   DocumentActivityPanel,
   DocumentPeekShell,
-} from "@/features/sales/record";
+} from "@/design-system/records";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { Payment } from "@/hooks/usePayments";
 import { useCustomerPaymentRecord } from "./useCustomerPaymentRecord";

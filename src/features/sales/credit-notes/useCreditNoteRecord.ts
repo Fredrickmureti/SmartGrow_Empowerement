@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { CreditNote } from "@/hooks/useCreditNotes";
 
 export function useCreditNoteRecord(id: string | null | undefined) {

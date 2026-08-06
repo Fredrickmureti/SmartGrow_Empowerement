@@ -26,10 +26,10 @@ import {
   DocumentActivityPanel,
   DocumentTotalsPanel,
   LineItemsGrid,
-  useRecordPrint,
   type LineItemColumn,
   type LineItemRow,
-} from "@/features/sales/record";
+} from "@/design-system/records";
+import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";

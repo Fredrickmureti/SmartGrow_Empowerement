@@ -8,8 +8,8 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { RecordScaffold } from "@/features/sales/record";
-import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
+import { RecordScaffold } from "@/design-system/records";
+import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";

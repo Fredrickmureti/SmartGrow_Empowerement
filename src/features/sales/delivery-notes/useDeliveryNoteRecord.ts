@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 
 export function useDeliveryNoteRecord(id: string | null | undefined) {

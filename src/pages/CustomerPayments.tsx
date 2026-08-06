@@ -84,7 +84,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { CustomerPaymentPeekSheet } from "@/features/sales/payments/CustomerPaymentPeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { PaymentListTable } from "@/components/payments/PaymentListTable";
 import { Eye } from "lucide-react";
 

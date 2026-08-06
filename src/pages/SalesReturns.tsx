@@ -15,7 +15,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useContacts } from "@/hooks/useContacts";
 
 import { SalesReturnPeekSheet } from "@/features/sales/returns/SalesReturnPeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";

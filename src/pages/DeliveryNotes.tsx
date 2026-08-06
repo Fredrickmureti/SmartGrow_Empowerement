@@ -19,7 +19,7 @@ import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { BulkDeleteDialog } from "@/components/common/BulkDeleteDialog";
 
 import { DeliveryNotePeekSheet } from "@/features/sales/delivery-notes/DeliveryNotePeekSheet";
-import { usePeekParam } from "@/features/sales/record";
+import { usePeekParam } from "@/design-system/records";
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";

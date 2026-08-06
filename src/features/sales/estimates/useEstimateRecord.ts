@@ -1,4 +1,4 @@
-import { useDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/design-system/records";
 import type { Estimate } from "@/hooks/useEstimates";
 
 export function useEstimateRecord(id: string | null | undefined) {
