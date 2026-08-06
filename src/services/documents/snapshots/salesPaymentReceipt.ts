@@ -205,7 +205,7 @@ export function buildPaymentReceiptSnapshot(
     document_type: "receipt",
     document_type_label: "PAYMENT RECEIPT",
     document_number: documentNumber,
-    status: payment.status || "completed",
+    status: payment.status || "applied",
     issue_date: payment.payment_date,
     subtotal: itemsSubtotal,
     tax_amount: itemsTax,
@@ -332,7 +332,7 @@ export async function resolveAndBuildReceiptSnapshot(
 
   const live = (allocs ?? []).filter((r) => {
     const p = (r as { payments?: { status?: string | null } }).payments;
-    return p != null && (p.status ?? "completed") !== "voided";
+    return p != null && (p.status ?? "applied") !== "voided";
   });
 
   if (live.length === 0) {

@@ -65,6 +65,14 @@ describe("buildPaymentReceiptSnapshot", () => {
     expect(snapshot.document_number).toBe("RCP-2026-0001");
   });
 
+  it("uses the real payment status vocabulary when status is absent", () => {
+    const { snapshot } = buildPaymentReceiptSnapshot(
+      { ...PAYMENT, status: null },
+      ALLOCS,
+    );
+    expect(snapshot.status).toBe("applied");
+  });
+
   it("falls back to RCP-<uuid8> when receipt_number is missing", () => {
     const { documentNumber } = buildPaymentReceiptSnapshot(
       { ...PAYMENT, receipt_number: null, id: "aaaaaaaa-1111-2222-3333-444444444444" },

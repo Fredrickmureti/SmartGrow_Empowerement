@@ -136,3 +136,9 @@ code.
   identity. A follow-up must make the action resolve an explicit payment/allocation
   identity before invoking the single `payment_receipt` document kind, then
   delete the compatibility registry entry rather than preserving both names.
+- **Settlement totals have two authorities today.** Receipt snapshots derive
+  applied and unapplied amounts from `payment_allocations`, while payment list,
+  detail, reversal and deposit workflows consume `payments.applied_amount` and
+  `payments.outstanding_amount`. Add an integrity report/ratchet proving those
+  values reconcile across apply, void, unreconcile and reapply transitions;
+  discrepancies must be surfaced, never silently selected from one side.
