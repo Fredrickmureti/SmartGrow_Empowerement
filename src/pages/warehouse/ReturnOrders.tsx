@@ -9,9 +9,8 @@
  */
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { EmptyState, LoadingState, PageBody, PageHeader, Section, StatusBadge } from "@/design-system";
+import { EmptyState, LoadingState, PageBody, PageHeader, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -167,133 +166,129 @@ export default function ReturnOrders() {
           </Button>
         }
       />
-      <PageBody>
-        <Section>
-          <ResizablePanelGroup
-            direction="horizontal"
-            className="min-h-[70vh] items-stretch rounded-lg border"
-          >
-            <ResizablePanel defaultSize={activeOrder ? 55 : 100} minSize={30}>
-              <div className="h-full space-y-4 overflow-y-auto p-4">
-                <ReturnsLaneBoard
-                  orders={orders ?? []}
-                  linesByOrder={lineMap}
-                  activeLane={lane}
-                  onSelectLane={setLane}
-                />
+      <PageBody className="py-4">
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="min-h-[70vh] min-w-0 items-stretch rounded-[var(--ds-radius-lg)] border bg-card shadow-[var(--ds-elevation-1)]"
+        >
+          <ResizablePanel defaultSize={activeOrder ? 55 : 100} minSize={30}>
+            <div className="flex h-full min-w-0 flex-col gap-4 overflow-y-auto p-4">
+              <ReturnsLaneBoard
+                orders={orders ?? []}
+                linesByOrder={lineMap}
+                activeLane={lane}
+                onSelectLane={setLane}
+              />
 
-                <Card>
-                  <CardContent className="space-y-4 p-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Select value={stateFilter} onValueChange={setStateFilter}>
-                        <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open_all">Open (default)</SelectItem>
-                          <SelectItem value="draft">Draft</SelectItem>
-                          <SelectItem value="authorized">Authorized</SelectItem>
-                          <SelectItem value="in_transit">In transit</SelectItem>
-                          <SelectItem value="received">Received</SelectItem>
-                          <SelectItem value="inspecting">Inspecting</SelectItem>
-                          <SelectItem value="disposed">Disposed</SelectItem>
-                          <SelectItem value="closed">Closed</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                          <SelectItem value="all">All</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
-                        <SelectTrigger className="w-full @xl/page:w-[180px]">
-                          <SelectValue placeholder="Warehouse" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All warehouses</SelectItem>
-                          {warehouses.map((w) => (
-                            <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {lane !== "all" && (
-                        <Button variant="ghost" size="sm" onClick={() => setLane("all")}>
-                          Clear lane: {RETURN_LANE_LABEL[lane]}
-                        </Button>
-                      )}
-                    </div>
-
-                    {isLoading ? (
-                      <LoadingState />
-                    ) : visible.length === 0 ? (
-                      <EmptyState
-                        icon={Undo2}
-                        title="No returns in this view"
-                        description="Create a return when an RMA is issued or a customer parcel arrives at the dock."
-                      />
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Code</TableHead>
-                            <TableHead>Kind</TableHead>
-                            <TableHead>State</TableHead>
-                            <TableHead>Lane</TableHead>
-                            <TableHead className="text-right">Lines</TableHead>
-                            <TableHead className="text-right">Age</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {visible.map((o) => {
-                            const rows = lineMap.get(o.id) ?? [];
-                            const age = ageHours(returnLaneClock(o));
-                            const late = isLaneBreached(o, rows);
-                            return (
-                              <TableRow
-                                key={o.id}
-                                className={`cursor-pointer ${
-                                  activeOrder?.id === o.id ? "bg-muted/60" : ""
-                                }`}
-                                onClick={() => setSelected(o)}
-                              >
-                                <TableCell className="font-mono">{o.code}</TableCell>
-                                <TableCell className="text-sm">{label(o.return_kind)}</TableCell>
-                                <TableCell>
-                                  <StatusBadge tone={RETURN_STATE_TONE[o.state]}>
-                                    {label(o.state)}
-                                  </StatusBadge>
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {RETURN_LANE_LABEL[returnLane(o, rows)]}
-                                </TableCell>
-                                <TableCell className="text-right tabular-nums">{rows.length}</TableCell>
-                                <TableCell
-                                  className={`text-right text-sm tabular-nums ${
-                                    late ? "font-medium text-destructive" : "text-muted-foreground"
-                                  }`}
-                                  title={late ? "Past this lane's SLA" : undefined}
-                                >
-                                  {age == null ? "—" : `${Math.round(age)}h`}
-                                  {late ? " ⚠" : ""}
-                                </TableCell>
-
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={stateFilter} onValueChange={setStateFilter}>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open_all">Open (default)</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="authorized">Authorized</SelectItem>
+                    <SelectItem value="in_transit">In transit</SelectItem>
+                    <SelectItem value="received">Received</SelectItem>
+                    <SelectItem value="inspecting">Inspecting</SelectItem>
+                    <SelectItem value="disposed">Disposed</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={warehouseFilter} onValueChange={setWarehouseFilter}>
+                  <SelectTrigger className="w-full @xl/page:w-[180px]">
+                    <SelectValue placeholder="Warehouse" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All warehouses</SelectItem>
+                    {warehouses.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {lane !== "all" && (
+                  <Button variant="ghost" size="sm" onClick={() => setLane("all")}>
+                    Clear lane: {RETURN_LANE_LABEL[lane]}
+                  </Button>
+                )}
               </div>
-            </ResizablePanel>
 
-            {activeOrder && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={45} minSize={30}>
-                  <ReturnWorkspace order={activeOrder} onClose={() => setSelected(null)} />
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
-        </Section>
+              {isLoading ? (
+                <LoadingState />
+              ) : visible.length === 0 ? (
+                <EmptyState
+                  icon={Undo2}
+                  title="No returns in this view"
+                  description="Create a return when an RMA is issued or a customer parcel arrives at the dock."
+                />
+              ) : (
+                <div className="min-w-0 overflow-x-auto rounded-[var(--ds-radius-md)] border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Kind</TableHead>
+                        <TableHead>State</TableHead>
+                        <TableHead>Lane</TableHead>
+                        <TableHead className="text-right">Lines</TableHead>
+                        <TableHead className="text-right">Age</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visible.map((o) => {
+                        const rows = lineMap.get(o.id) ?? [];
+                        const age = ageHours(returnLaneClock(o));
+                        const late = isLaneBreached(o, rows);
+                        return (
+                          <TableRow
+                            key={o.id}
+                            className={`cursor-pointer ${
+                              activeOrder?.id === o.id ? "bg-muted/60" : ""
+                            }`}
+                            onClick={() => setSelected(o)}
+                          >
+                            <TableCell className="font-mono">{o.code}</TableCell>
+                            <TableCell className="text-sm">{label(o.return_kind)}</TableCell>
+                            <TableCell>
+                              <StatusBadge tone={RETURN_STATE_TONE[o.state]}>
+                                {label(o.state)}
+                              </StatusBadge>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {RETURN_LANE_LABEL[returnLane(o, rows)]}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">{rows.length}</TableCell>
+                            <TableCell
+                              className={`text-right text-sm tabular-nums ${
+                                late ? "font-medium text-destructive" : "text-muted-foreground"
+                              }`}
+                              title={late ? "Past this lane's SLA" : undefined}
+                            >
+                              {age == null ? "—" : `${Math.round(age)}h`}
+                              {late ? " ⚠" : ""}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          </ResizablePanel>
+
+          {activeOrder && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={45} minSize={30}>
+                <ReturnWorkspace order={activeOrder} onClose={() => setSelected(null)} />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       </PageBody>
+
 
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
