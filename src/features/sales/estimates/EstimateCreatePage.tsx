@@ -12,7 +12,7 @@
  * tax-EXCLUSIVE — see `src/lib/invoiceLineMath.ts` and the guard test
  * `src/test/architecture/invoice-totals-contract.test.ts`.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEstimates, EstimateItem } from "@/hooks/useEstimates";
 import { useContacts } from "@/hooks/useContacts";
@@ -24,7 +24,6 @@ import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -34,14 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import { Plus, Trash2 } from "lucide-react";
 import { AdditionalCostsSection, AdditionalCost } from "@/components/common/AdditionalCostsSection";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -108,6 +106,11 @@ export default function EstimateCreatePage() {
     updated[index].tax_amount = calc.tax_amount;
     setLineItems(updated);
   };
+
+  const formatLineCurrency = useCallback(
+    (amount: number) => formatCurrency(amount, baseCurrency),
+    [formatCurrency, baseCurrency],
+  );
 
   const updateLineItem = (index: number, field: string, value: any) => {
     applyLinePatch(index, { [field]: value });
@@ -271,75 +274,24 @@ export default function EstimateCreatePage() {
         </FieldGroup>
 
         <FieldGroup label="Line Items">
-          <div className="flex items-center justify-between mb-2">
-            <span />
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="mr-1 h-3 w-3" /> Add Item
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {lineItems.map((item, index) => (
-              <div
-                key={index}
-                className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 border rounded-lg sm:p-0 sm:border-0"
-              >
-                <div className="sm:col-span-4">
-                  <Label className="sm:hidden text-xs text-muted-foreground mb-1 block">Product</Label>
-                  <ProductCombobox
-                    products={products}
-                    value={item.product_id}
-                    onChange={(v) => updateLineItem(index, "product_id", v)}
-                    placeholder="Product (optional)"
-                  />
-                </div>
-                <div className="sm:col-span-3">
-                  <Label className="sm:hidden text-xs text-muted-foreground mb-1 block">Description</Label>
-                  <Input
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2 sm:col-span-4 sm:contents">
-                  <div className="sm:col-span-1">
-                    <Label className="sm:hidden text-xs text-muted-foreground mb-1 block">Qty</Label>
-                    <PackagedQtyCell
-                      productId={item.product_id}
-                      value={item as any}
-                      onChange={(patch) => applyLinePatch(index, patch)}
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="sm:hidden text-xs text-muted-foreground mb-1 block">Price</Label>
-                    <NumericInput
-                      placeholder="Price"
-                      value={item.unit_price}
-                      onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)}
-                    />
-                  </div>
-                  <div className="sm:col-span-1">
-                    <Label className="sm:hidden text-xs text-muted-foreground mb-1 block">Tax %</Label>
-                    <NumericInput
-                      placeholder="Tax %"
-                      value={item.tax_rate}
-                      onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)}
-                    />
-                  </div>
-                </div>
-                <div className="sm:col-span-1 flex justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLineItem(index)}
-                    disabled={lineItems.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+          <EditableLineItemsGrid
+            columns={PRICED_LINE_COLUMNS}
+            rows={lineItems}
+            addLabel="Add Item"
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            renderRow={(item, index, layout) => (
+              <PricedLineRow
+                index={index}
+                item={item}
+                products={products}
+                layout={layout}
+                formatCurrency={formatLineCurrency}
+                onPatch={applyLinePatch}
+                productPlaceholder="Product (optional)"
+              />
+            )}
+          />
         </FieldGroup>
 
         <AdditionalCostsSection
