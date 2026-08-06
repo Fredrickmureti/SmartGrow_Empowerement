@@ -90544,6 +90544,7 @@ export type Database = {
         Returns: Json
       }
       post_count_session: { Args: { p_session_id: string }; Returns: Json }
+      post_expense_gl: { Args: { p_expense_id: string }; Returns: Json }
       post_journal_entry_atomic: {
         Args: {
           _branch_id?: string
