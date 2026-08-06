@@ -1,74 +1,77 @@
-# Sales & Purchases Document Workspace — Line Editor Consolidation
+# Document Workspace — Verification Verdict, then Phases 9 & 10
 
-Authoritative status of the document-workspace refactor. Update after every implementation.
+## Phase 1 — Independent verification of the previous engineer's claims
 
-## Active phase
+Every claim was re-checked against the code, not the log.
 
-**Phase 8 — Editable line editors (Sales + Purchases): COMPLETE.**
+| Claim | Verdict |
+|---|---|
+| Canonical descriptor + one renderer for page and drawer | Confirmed. `src/design-system/records/types.ts` defines `DocumentRecordView`; `RecordScaffold` and `PeekScaffold` both project it through `DocumentWorkspace.tsx`. No second renderer. |
+| Container-adaptive read-only line grid | Confirmed. `LineItemsGrid` + `adaptiveColumns.ts`, no fixed min-width floor. |
+| Status and money registries | Confirmed. `documentStatus.tsx`, `money.ts`. |
+| Lifecycle strip + audit-backed activity | Confirmed. `DocumentLifecycleStrip.tsx`, `useDocumentActivity.ts`. |
+| Phase 8: editable line engine, all Sales + Purchases forms migrated | Confirmed. `EditableLineItemsGrid` plus shared rows under `src/components/documents/lines/`. A search for `grid-cols-12` line editors under `src/features/sales` and `src/features/purchases` returns nothing. |
+| Ratchet tests | Confirmed. `document-workspace-canonical.test.ts`, 7 tests, passing. |
+| `tsgo --noEmit` clean | Confirmed. |
 
-## Completed and verified
+No inflated claims. One caveat the log understates: 18 of the migrated Sales and
+Purchases form files still carry `@ts-nocheck`, so the clean typecheck does not
+actually cover the code that was rewritten. That is real debt, not a formality.
 
-**Phases 1-7 — Read-only document surfaces**
-- Canonical document descriptors in place.
-- Container-adaptive read-only `LineItemsGrid` shared by every record page.
-- All outlier sales and purchase record pages migrated.
+## Phase 2 — What the previous plan missed
 
-**Phase 8 — Editable line engine**
-- `src/design-system/records/EditableLineItemsGrid.tsx` — measurement engine, column
-  demotion, add/remove affordances, footer + toolbar slots.
-- Shared rows under `src/components/documents/lines/` (promoted out of `components/sales`):
-  - `PricedLineRow` — item / qty / price / tax / total (+ `PRICED_LINE_COLUMNS`,
-    `PRICED_LINE_COLUMNS_NO_TAX`, `hideProductPicker`, `extra` slot).
-  - `DeliveryNoteLineRow` — ordered vs delivered quantities, packaging.
-  - `SalesReturnLineRow` — condition + `max_quantity` clamping.
-  - `RequestLineRow` — demand-side documents (item / qty / indicative price).
-  - `RequisitionLineRow` — description / qty / est. price / suggested supplier / need-by.
-  - `ContractLineRow` — description / unit price / ceiling qty / ceiling value.
+Two gaps found while auditing, added below:
 
-**Sales forms migrated (create + edit)**: Invoices, Estimates, Sales Orders, Credit Notes,
-Proforma, Delivery Notes, Sales Returns.
+1. **Inventory peek sheets are a second peek implementation.**
+   `AdjustmentPeekSheet.tsx`, `StockTransferPeekSheet.tsx` and
+   `WarehouseStockPeekSheet.tsx` hand-roll a drawer; the header comment in the
+   adjustment sheet even says it exists "so callers do not" use `PeekScaffold`.
+   That is exactly the parallel renderer the parent prompt forbids.
+2. **The ratchet only guards Sales and Purchases.** Nothing stops Finance or
+   Inventory from adding the next bespoke line editor.
 
-**Purchase forms migrated (create + edit)**: Purchase Orders, Bills, Vendor Credit Notes,
-Purchase Returns, RFQs, Requisitions (create), Contracts (create).
+## Remaining work
 
-**Verification**: `tsgo --noEmit` clean. No `grid-cols-12` or `<Table>` line editor
-remains anywhere under `src/features/sales` or `src/features/purchases`.
+### Phase 9 — Extend the layer to Finance and Inventory
 
-## Pending
+1. **Journal entries** — `JournalEntryForm.tsx` renders debit/credit lines in a raw
+   `<Table>`. Migrate to `EditableLineItemsGrid` with a new `JournalLineRow`
+   (account / description / analytic / debit / credit) and a sticky footer showing
+   the running debit-credit balance, which the current form lacks visually.
+2. **Payment and credit allocation** — `ApplyCreditWizardPage`,
+   `ReconcileTransactionSheet`: allocation tables move onto the same grid so the
+   allocated-vs-remaining footer behaves like every other document total.
+3. **Inventory peek sheets** — rebuild `AdjustmentPeekSheet`,
+   `StockTransferPeekSheet` and `WarehouseStockPeekSheet` as `DocumentRecordView`
+   descriptors projected through `PeekScaffold`, then delete the bespoke shells.
+4. **Warehouse return lines** — `ReturnLinesPanel` onto `SalesReturnLineRow`
+   or the read-only grid, whichever matches its editability.
 
-**Phase 9 — Finance & Inventory document forms**
-1. Audit remaining line editors outside Sales/Purchases: payments allocation tables,
-   journal entry lines, stock adjustments/transfers, goods receipts.
-2. Migrate them onto `EditableLineItemsGrid`, adding at most one new row component per
-   genuinely distinct column contract (reuse `PricedLineRow` / `RequestLineRow` first).
-3. Retire any remaining bespoke line editors and their orphaned cell components.
+Reuse first: a new row component only when the column contract is genuinely
+distinct. Journal lines qualify; allocations likely reuse `PricedLineRow`.
 
-**Phase 10 — Hardening**
-- Row-level memo audit (all handlers `useCallback`-stable).
-- Remove `// @ts-nocheck` from migrated document form files, file by file.
-- Add regression coverage for the measured grid at narrow container widths.
+### Phase 10 — Hardening
 
-## Next task
+- Extend `document-workspace-canonical.test.ts` so a bespoke `grid-cols-12` or
+  `<Table>` line editor anywhere under `src/features` fails CI, not just Sales
+  and Purchases; and so a hand-rolled `<Sheet>` document peek fails too.
+- Remove `@ts-nocheck` from the 18 migrated Sales/Purchases form files, fixing
+  the errors it hides. This is the step that makes the clean typecheck mean
+  something.
+- Row memo audit: confirm handlers passed into every row are `useCallback`-stable.
+- Narrow-container regression test for the measurement engine.
 
-Start Phase 9 step 1: inventory the non-sales/non-purchase line editors before writing code.
+## Verification at the end
 
-## Instructions for the next agent
-
-1. **Verify before building.** Confirm Phase 8 claims independently:
-   - `rg -l "grid-cols-12" src/features/sales src/features/purchases` returns nothing.
-   - `npx tsgo --noEmit` is clean.
-   - Spot-check two migrated forms in the preview at both a narrow and a wide container:
-     demoted columns must remain editable, totals must recompute on qty/price/tax edits.
-2. **Then resume at the "Next task" above** — do not start unrelated work, and do not
-   leave a document type half-migrated.
-3. **Update this file** immediately after each implementation so it stays authoritative.
+- `tsgo --noEmit` clean *with* the suppressions removed.
+- Full ratchet + memo suites pass.
+- Playwright pass over the journal entry form, one allocation surface and one
+  inventory peek at drawer width and desktop width, screenshotting the line area
+  to confirm columns demote rather than scroll horizontally.
+- Confirm no orphaned peek shells or line-editor components remain.
 
 ## Technical notes
 
-- Row components live in `src/components/documents/lines/` and are shared across domains.
-  Never re-introduce a domain-local line editor.
-- Rows are `memo`-wrapped: parents MUST pass `useCallback`-stable `onPatch`,
-  `onProductSelect`, `onAddRow`, `onRemoveRow` and `formatCurrency`.
-- Quantities are always base units; packaging/UoM provenance rides on
-  `packaging_id` / `display_uom_id` / `display_quantity` via `PackagedQtyCell`.
-- Tax handling stays in the form's patch handler, not in the row.
+Shared API stays `EditableLineItemsGrid` (`columns`, `rows`, `renderRow(row, i,
+layout)`, `onAddRow`, `onRemoveRow`, `footer`, `toolbar`), sharing
+`adaptiveColumns.ts` with the read-only grid. No new dependencies.
