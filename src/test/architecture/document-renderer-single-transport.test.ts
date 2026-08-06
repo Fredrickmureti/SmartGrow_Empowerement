@@ -7,11 +7,10 @@
  * the error contract. Every render — PDF, ESC/POS, preview, POS test print —
  * comes through it, so preview and print can never drift apart.
  *
- * The one documented exception is `src/services/exports/documentExport.ts`:
- * a CSV/XLSX extract is *data*, not a rendered document. It shares the edge
- * function only for archival (`document_artifacts`), has no paper geometry,
- * no policy headers and no printer, and is explicitly barred from importing
- * the print pipeline.
+ * CSV/XLSX extracts are no longer an exception: they are `csv` / `xlsx`
+ * mediums of the ONE rendering engine, projected from the same frozen
+ * snapshot as the PDF, so `documentExport.ts` no longer names an endpoint
+ * at all.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
@@ -22,7 +21,6 @@ const ROOTS = ["src"];
 /** Files allowed to name the renderer endpoint in executable code. */
 const ALLOWED = new Set<string>([
   "src/services/printing/pdfUtils.ts",
-  "src/services/exports/documentExport.ts",
 ]);
 
 const SKIP_DIRS = new Set(["test", "__tests__", "node_modules"]);
@@ -77,5 +75,14 @@ describe("document renderer single transport", () => {
     const src = readFileSync("src/components/common/PrintPreviewDialog.tsx", "utf8");
     expect(src).toMatch(/renderDocumentPreview/);
     expect(stripComments(src)).not.toMatch(/\bfetch\s*\(/);
+  });
+
+  it("data exports render from the frozen snapshot, not a live re-read", () => {
+    const src = stripComments(
+      readFileSync("src/services/exports/documentExport.ts", "utf8"),
+    );
+    expect(src).toMatch(/resolveSourceDocumentRecordId/);
+    expect(src).toMatch(/renderDocumentRecord/);
+    expect(src).not.toMatch(/generate-document/);
   });
 });

@@ -1,32 +1,37 @@
 /**
- * Document data export — the canonical owner of tabular extracts.
+ * Document data export — CSV/XLSX extracts of a business document.
  *
- * ## Why this is not part of the print pipeline
+ * ## An export is a *disposition*, not a second pipeline
  *
- * A CSV/XLSX extract is *data*, not a rendered document. It has no paper
- * geometry, no template, no printer policy, no disposition routing, and no
- * physical device at the end of it. Routing it through the print client
- * conflated two responsibilities that mature ERPs keep apart:
+ * An earlier iteration treated extracts as a wholly separate concern that
+ * re-read the database through the legacy `generate-document` endpoint.
+ * That produced the classic ERP drift: the CSV a controller reconciles with
+ * and the PDF the customer received were two independent reads of a moving
+ * database, so an edit between them silently changed the numbers.
  *
- *   document → template → render → policy → printer → transport → device
- *   dataset  → serialiser → download
+ * Exports now converge on the same lifecycle as every other output:
  *
- * The only thing the two paths legitimately share is the *archive*: the edge
- * function persists an immutable `document_artifacts` row with
- * `render_mode: 'export'`, so the extract shows up in the same version
- * history as the PDF and ESC/POS renders of the same document. That is an
- * archival concern, not a printing one.
+ *   business record → frozen snapshot (`document_records`)
+ *     → rendering engine → medium (`pdf` | `escpos` | `zpl` | `csv` | `xlsx`)
+ *     → archived artifact (`document_artifacts`)
  *
- * Everything a caller needs lives here. Nothing in this module may import
- * from `@/services/printing/**`, and nothing in the print pipeline may
- * import from here.
+ * The `csv` and `xlsx` mediums project the SAME frozen snapshot the PDF was
+ * drawn from, so an extract can no longer disagree with the printed,
+ * emailed or archived copy of the document, and it lands in the same
+ * version history.
+ *
+ * What remains true from before: an extract has no paper geometry, no
+ * printer policy, no disposition routing and no physical device. It borrows
+ * the render seam, not the print pipeline — nothing here may import from
+ * `@/services/printing/printService` or the hardware layer.
  */
-import { supabase } from "@/integrations/supabase/client";
+import { renderDocumentRecord } from "@/services/printing/render";
+import { resolveSourceDocumentRecordId } from "@/services/documents/resolveSourceDocumentRecord";
 
 export type ExportFormat = "csv" | "xlsx";
 
 export interface ExportDocumentInput {
-  /** Server-side allow-listed document type, e.g. `customer_statement`. */
+  /** Document type with a registered snapshot builder, e.g. `customer_statement`. */
   documentType: string;
   documentId: string;
   format: ExportFormat;
@@ -48,29 +53,24 @@ const MIME: Record<ExportFormat, string> = {
 };
 
 /**
- * Fetch a server-rendered extract as a Blob.
+ * Freeze the document (idempotently) and render the extract from its
+ * snapshot.
  *
- * Only document types on the server-side allow-list are accepted; anything
- * else fails at the edge with a 400 rather than silently degrading to an
- * empty file.
+ * Document types without a registered snapshot builder throw rather than
+ * silently degrading to a live re-read — a missing builder is an
+ * architectural gap to close, not a runtime fallback.
  */
 export async function exportDocument(input: ExportDocumentInput): Promise<Blob> {
-  const { data, error } = await supabase.functions.invoke("generate-document", {
-    body: {
-      documentType: input.documentType,
-      documentId: input.documentId,
-      format: input.format,
-    },
+  const documentRecordId = await resolveSourceDocumentRecordId(
+    input.documentType,
+    input.documentId,
+  );
+  const artifact = await renderDocumentRecord({
+    documentRecordId,
+    medium: input.format,
   });
-  if (error) throw error;
-
-  const type = MIME[input.format];
-  if (data instanceof Blob) return data;
-  if (data instanceof Uint8Array) return new Blob([data as BlobPart], { type });
-  if (data instanceof ArrayBuffer) return new Blob([data], { type });
-  // supabase-js returns a string for text responses.
-  if (typeof data === "string") return new Blob([data], { type });
-  return new Blob([data as BlobPart], { type });
+  const type = artifact.mimeType || MIME[input.format];
+  return new Blob([artifact.bytes as unknown as BlobPart], { type });
 }
 
 /** Ensure the filename carries the extension matching the chosen format. */

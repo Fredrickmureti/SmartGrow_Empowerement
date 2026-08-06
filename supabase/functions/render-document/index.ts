@@ -12,7 +12,7 @@
  *
  * Request body:
  *   {
- *     medium: "pdf" | "escpos" | "zpl" | "html",
+ *     medium: "pdf" | "escpos" | "zpl" | "html" | "csv" | "xlsx",
  *     document_id?: string,          // persisted document
  *     preview?: {...},               // inline snapshot for previews
  *     template_id?: string,          // override scope resolution
@@ -26,6 +26,7 @@
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { renderDocument, serviceClient } from "../_shared/rendering/engine.ts";
 import { requireOrgMember } from "../_shared/requireOrgMember.ts";
 import type { RenderRequest } from "../_shared/rendering/types.ts";
@@ -92,7 +93,7 @@ serve(async (req) => {
           content_sha256: result.content_sha256,
           artifact_id: result.artifact_id,
           metadata: result.metadata,
-          bytes_base64: btoa(String.fromCharCode(...result.bytes)),
+          bytes_base64: encodeBase64(result.bytes),
         }),
         { headers: { ...corsHeaders, "content-type": "application/json" } },
       );

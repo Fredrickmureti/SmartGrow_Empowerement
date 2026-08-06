@@ -1,8 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import { resolvePrintPolicy } from "../_shared/printing/resolvePolicy.ts";
+import { resolveCanonicalPdf } from "../_shared/documents/canonicalPdf.ts";
 import { formatAccountingNumber as formatCurrency } from "../_shared/format/index.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -455,8 +458,10 @@ const handler = async (req: Request): Promise<Response> => {
 
       const safeTitle = (reportTitle || "Report").trim();
       const periodLabel = reportPeriod ? ` — ${reportPeriod}` : "";
-      const senderIdentity =
-        businessRow?.legal_name || businessRow?.name || "Your Provider";
+      // `resolveSenderIdentity` (ADR 0023) already applied the
+      // display-name → legal_name → name → org ladder above; the old
+      // `businessRow` local it used to read no longer exists on this path.
+      const senderIdentity = effectiveFromName || "Your Provider";
       const emailSubject = subject || `${safeTitle}${periodLabel}`;
       const filename = pdfFilename || `${safeTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
 
@@ -757,7 +762,10 @@ const handler = async (req: Request): Promise<Response> => {
 
           const pdfArrayBuffer = await pdfResponse.arrayBuffer();
           const pdfBytes = new Uint8Array(pdfArrayBuffer);
-          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
+          // `btoa(String.fromCharCode(...bytes))` overflows the argument
+          // limit on multi-page PDFs; the std encoder streams instead.
+          const pdfBase64Content = encodeBase64(pdfBytes);
+
 
           const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
           const autoFilename = `payslip-${safeDocNumber}.pdf`;
@@ -772,52 +780,79 @@ const handler = async (req: Request): Promise<Response> => {
           if (uploadError) console.error("Failed to store payslip PDF:", uploadError);
           else { pdfStoragePath = storagePath; console.log("Payslip PDF stored at:", storagePath); }
         } else {
-          // Enterprise invariant: `generate-document` is the canonical PDF
-          // owner for ERP documents. Email must not construct DocumentData or
-          // call the A4 coordinate renderer directly; otherwise thermal
-          // printer-profile documents (40/58/80mm) bypass the receipt engine.
-          console.log(`Generating ${documentType} PDF via unified engine for`, resolvedDocumentId);
+          // Enterprise invariant: email ATTACHES the canonical artifact, it
+          // does not render one of its own. `resolveCanonicalPdf` returns the
+          // archived `document_artifacts` bytes when they exist, otherwise
+          // renders the frozen `document_records.snapshot` through the ONE
+          // render endpoint. Only kinds not yet on the document model fall
+          // through to the legacy live-refetch generator below.
+          console.log(`Resolving canonical ${documentType} PDF for`, resolvedDocumentId);
           const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
           // Stage W5 (ADR-0008): consult the per-tenant print policy so the
           // emailed attachment matches what the operator would see if they
           // printed in-app. ESC/POS resolutions are coerced to PDF here — raw
-          // thermal bytes are not a useful email attachment.
-          const emailPolicy = await resolvePrintPolicy(supabaseClient, {
+          // thermal bytes are not a useful email attachment. Note this is a
+          // *paper* override on one renderer, never a second renderer.
+          const emailPolicy = await resolvePrintPolicy(supabaseClient as never, {
             businessId: document.business_id ?? null,
             branchId: document.branch_id ?? null,
             documentType,
           });
           const wasThermal = emailPolicy.render_mode === "escpos";
-
-          const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-document`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${userJwt}`,
-            },
-            body: JSON.stringify({
-              documentType,
-              documentId: resolvedDocumentId,
-              format: "pdf",
-              paperFormat: emailPolicy.paper_format,
-              renderMode: "pdf",
-            }),
-          });
           if (wasThermal) {
             console.log(
               `[send-document-email] policy for ${documentType} resolved to ESC/POS — coerced to PDF for email attachment`,
             );
           }
 
-          if (!pdfResponse.ok) {
-            const errText = await pdfResponse.text();
-            throw new Error(`${docLabel} PDF generation failed: ${errText}`);
+          const canonical = await resolveCanonicalPdf({
+            supabase: supabaseClient,
+            documentType,
+            documentId: resolvedDocumentId,
+            paperFormat: emailPolicy.paper_format,
+            authorization: `Bearer ${userJwt}`,
+          });
+
+          let pdfBytes: Uint8Array;
+          if (canonical) {
+            console.log(
+              `[send-document-email] ${documentType} attachment source=${canonical.source}` +
+                ` record=${canonical.documentRecordId} artifact=${canonical.artifactId ?? "new"}`,
+            );
+            pdfBytes = canonical.bytes;
+          } else {
+            // Legacy path — this document kind has no snapshot builder yet, so
+            // there is nothing frozen to render. Logged loudly: every line of
+            // this branch is a kind still owed a builder.
+            console.warn(
+              `[send-document-email] no document record for ${documentType}/${resolvedDocumentId};` +
+                ` falling back to generate-document (live re-read, not archived)`,
+            );
+            const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-document`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${userJwt}`,
+              },
+              body: JSON.stringify({
+                documentType,
+                documentId: resolvedDocumentId,
+                format: "pdf",
+                paperFormat: emailPolicy.paper_format,
+                renderMode: "pdf",
+              }),
+            });
+
+            if (!pdfResponse.ok) {
+              const errText = await pdfResponse.text();
+              throw new Error(`${docLabel} PDF generation failed: ${errText}`);
+            }
+            pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
           }
 
-          const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-          const pdfBytes = new Uint8Array(pdfArrayBuffer);
-          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
+          const pdfBase64Content = encodeBase64(pdfBytes);
+
 
           const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
           // Filename follows the document type — a contract emailed as

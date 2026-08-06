@@ -19,7 +19,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { withSpan } from '@/services/observability/trace';
 
-export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html';
+/**
+ * `csv` / `xlsx` are data dispositions of the same frozen snapshot, not a
+ * separate export pipeline — see `@/services/exports/documentExport`.
+ */
+export type RenderMedium = 'pdf' | 'escpos' | 'zpl' | 'html' | 'csv' | 'xlsx';
 
 /**
  * Optional paper-format override accepted at every render entry point.
@@ -204,6 +208,9 @@ function mimeFor(medium: RenderMedium): string {
   switch (medium) {
     case 'pdf': return 'application/pdf';
     case 'html': return 'text/html';
+    case 'csv': return 'text/csv;charset=utf-8';
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     default: return 'application/octet-stream';
   }
 }

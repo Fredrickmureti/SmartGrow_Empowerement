@@ -235,9 +235,16 @@ describe('printing architecture — PrintService is the only entry point', () =>
       /from\s+['"]@\/services\/printing\/(dispatch|render|labelDispatch|policy)['"]/,
       PIPELINE_INTERNALS,
     ).filter((f) => !f.startsWith('services/printing/'));
-    // BusinessSagaMount opens a cash drawer — a hardware action, not a
-    // print — through the same dispatch seam. That is the sanctioned use.
-    expect(leaks).toEqual(['components/events/BusinessSagaMount.tsx']);
+    // Two sanctioned uses, neither of which is a second print pipeline:
+    //  - BusinessSagaMount opens a cash drawer — a hardware action, not a
+    //    print — through the same dispatch seam.
+    //  - documentExport renders `csv`/`xlsx` mediums of the SAME frozen
+    //    snapshot through the render seam, so an extract cannot disagree
+    //    with the printed copy. It touches no policy, job or device code.
+    expect(leaks).toEqual([
+      'components/events/BusinessSagaMount.tsx',
+      'services/exports/documentExport.ts',
+    ]);
   });
 
   it('document intents are enqueued only by PrintService', () => {

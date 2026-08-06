@@ -15,6 +15,8 @@ import { renderAstToPdf } from "./renderers/pdf.ts";
 import { renderAstToEscPos } from "./renderers/escpos.ts";
 import { renderAstToZpl } from "./renderers/zpl.ts";
 import { renderAstToHtml } from "./renderers/html.ts";
+import { renderAstToCsv } from "./renderers/csv.ts";
+import { renderAstToXlsx } from "./renderers/xlsx.ts";
 
 /**
  * A renderer may report what it actually resolved (paper width, column
@@ -71,6 +73,19 @@ const REGISTRY: Record<RenderMedium, MediumRenderer> = {
     mime_type: "text/html; charset=utf-8",
     extension: "html",
     render: renderAstToHtml,
+  },
+  csv: {
+    medium: "csv",
+    mime_type: "text/csv; charset=utf-8",
+    extension: "csv",
+    render: renderAstToCsv,
+  },
+  xlsx: {
+    medium: "xlsx",
+    mime_type:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    extension: "xlsx",
+    render: renderAstToXlsx,
   },
 };
 
