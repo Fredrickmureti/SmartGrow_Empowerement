@@ -112,10 +112,6 @@ export default function EstimateCreatePage() {
     [formatCurrency, baseCurrency],
   );
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    applyLinePatch(index, { [field]: value });
-  };
-
   const addLineItem = () => {
     setLineItems([
       ...lineItems,
