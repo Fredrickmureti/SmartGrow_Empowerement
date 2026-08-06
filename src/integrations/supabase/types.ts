@@ -80486,6 +80486,21 @@ export type Database = {
         Args: { p_warehouse_id: string }
         Returns: string
       }
+      _wms_device_liveness: {
+        Args: { p_business_id: string }
+        Returns: {
+          display_name: string
+          effective_seen_at: string
+          health: string
+          id: string
+          last_error: string
+          last_seen_at: string
+          role: string
+          status: string
+          transport: string
+          workstation_id: string
+        }[]
+      }
       _wms_drive_task_to: {
         Args: {
           p_reason?: string
