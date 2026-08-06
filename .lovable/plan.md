@@ -11,7 +11,9 @@ totals ordering or history rendering.
 
 ## Currently active
 
-**Phase 5 — Lifecycle & audit.** Complete for Sales. See "Next milestone".
+**Phase 8 — editable line-item grid.** In progress: the design-system grid is
+built and the Invoice create/edit forms are migrated. Remaining: estimate,
+sales-order, credit-note, delivery-note and return forms.
 
 ## Phase status
 
@@ -24,7 +26,7 @@ totals ordering or history rendering.
 | 5 | Lifecycle strip + audit-backed activity | Done, verified |
 | 6 | Promotion to `@/design-system/records` | Done, verified |
 | 7 | Architecture ratchets | Done, verified |
-| 8 | Editable line-item grid (create/edit forms) | Not started |
+| 8 | Editable line-item grid (create/edit forms) | In progress — engine done, Invoice migrated |
 | 9 | Extend the layer beyond Sales (Purchases, Finance) | Not started |
 
 ## Implemented and verified
@@ -50,8 +52,20 @@ totals ordering or history rendering.
   renders automatically whenever the descriptor carries `documentId`. The old
   two-entry synthetic lists are deleted; non-audited milestones (e-signature,
   conversion) go through `activityExtra`.
+- **Editable line items (Phase 8, partial)** — measurement engine extracted to
+  `records/adaptiveColumns.ts` and shared by `LineItemsGrid` (read) and the new
+  `records/EditableLineItemsGrid.tsx` (write). The editable grid owns the
+  chrome (header, remove, add, footer, toolbar) and hands each row the resolved
+  layout via `renderRow`, so per-row `React.memo` still holds (barcode scanning
+  stays O(1) per scan — pinned by `src/test/sales/invoice-line-row-memo.test.tsx`).
+  `InvoiceLineRow.tsx` now renders grid cells + a full-width extras line
+  (stock status, analytics, lot/serial tracking) and exports the shared
+  `INVOICE_LINE_COLUMNS` contract. `InvoiceCreatePage` / `InvoiceEditPage` are
+  migrated: the `<Table className="min-w-[600px]">` and the duplicated mobile
+  card stack are both deleted — one editor for every container width.
+  `src/test/setup.ts` now stubs `ResizeObserver` as a real constructor.
 - **Ratchets** — `src/test/architecture/document-workspace-canonical.test.ts`
-  (6 tests, passing) fails CI on: local status maps, hand-rolled
+  (7 tests, passing) fails CI on: local status maps, hand-rolled
   `RecordShell` / `DetailSheet` record surfaces, synthetic `activity:` arrays,
   duplicate line-item renderers, and hard `min-w-[NNNpx]` on record surfaces.
 
@@ -62,21 +76,19 @@ pre-existing warehouse guards, unrelated to this work.
 
 ## Pending
 
-1. **Phase 8 — editable line-item grid.** Read surfaces are adaptive; the
-   *entry* surfaces are not. `InvoiceCreatePage.tsx` still renders a bespoke
-   `<Table className="min-w-[600px]">` with inline inputs, and the estimate /
-   sales-order / credit-note forms each carry their own copy. This is the last
-   significant duplication in the module and the remaining source of
-   horizontal scrolling. Target: an `EditableLineItemsGrid` in
-   `design-system/records` sharing column definitions with `LineItemsGrid`, so
-   a column is declared once and rendered read-only or editable.
+1. **Phase 8 remainder — migrate the other document forms.** Still on bespoke
+   `<Table>` line editors: estimate, sales-order, credit-note, delivery-note
+   and sales-return create/edit pages. Each needs a `*_LINE_COLUMNS` contract
+   plus a memoized row component mirroring `InvoiceLineRow`. Do not leave the
+   module half migrated.
 2. **Phase 9 — extend beyond Sales.** Purchases (bills, purchase orders) and
    Finance (payments, journal entries) still have partially migrated record
    surfaces. Migrate module by module, in that order.
 
 ## Next milestone
 
-**Phase 8**, then Phase 9. Do not start Phase 9 before Phase 8 is coherent.
+**Finish Phase 8** (remaining five forms), then Phase 9. Do not start Phase 9
+before every Sales document form is on the editable grid.
 
 ## Instructions for the next agent
 
@@ -89,8 +101,15 @@ pre-existing warehouse guards, unrelated to this work.
    still matches the `entity_type` values written by the audit triggers
    (`select distinct entity_type from audit_logs`) — a kind missing from that
    map yields a silently empty feed, which is the main regression risk here.
-2. **Then resume at Phase 8** as scoped above. Extract the editable grid,
-   migrate the invoice create/edit form first, prove parity, then the
-   remaining three forms — do not leave two of four forms migrated.
-3. **Do not** start unrelated work (warehouse, POS, payroll) in the same pass,
+2. **Verify the Phase 8 slice already shipped** before extending it: run
+   `npx vitest run src/test/sales/invoice-line-row-memo.test.tsx` (memo
+   contract) and `src/test/architecture/outbound-lot-serial-ui.test.ts`
+   (lot/serial pickers still mounted on the invoice line), then open
+   `/sales/invoices/new` at a narrow and a wide width and confirm the grid
+   demotes Tax % / Price instead of scrolling, and that description, packaging,
+   analytics and tracking are all reachable.
+3. **Then resume at the Phase 8 remainder** as scoped above — estimate,
+   sales order, credit note, delivery note, sales return — reusing
+   `EditableLineItemsGrid` + `EditableLineRowCells`.
+4. **Do not** start unrelated work (warehouse, POS, payroll) in the same pass,
    and do not relax a ratchet to make a change pass; change the code instead.
