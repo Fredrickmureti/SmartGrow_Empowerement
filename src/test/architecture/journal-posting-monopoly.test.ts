@@ -128,7 +128,28 @@ describe("Journal posting monopoly", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * ADR 0127 — invoice void is one server transaction
+   * (`void_invoice_atomic`). The browser may not flip the void fields on
+   * `invoices` itself, nor drive stock restoration separately: either would
+   * reintroduce the partial-failure window where the GL is reversed but the
+   * document or inventory still counts the sale.
+   */
+  it("no application code stamps invoice void fields directly", () => {
+    const offenders = rgFiles(
+      'from\\("invoices"\\)[\\s\\S]{0,300}?voided_at\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("stock restoration is only driven from inside void_invoice_atomic", () => {
+    const offenders = rgFiles("restore_invoice_stock_atomic", APP_PATHS);
+    expect(offenders).toEqual([]);
+  });
 });
+
 
 
 
