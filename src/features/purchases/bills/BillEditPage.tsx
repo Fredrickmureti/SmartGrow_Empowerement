@@ -397,150 +397,77 @@ export default function BillEditPage() {
           </div>
         </Section>
 
-        <Section
-          title="Line items"
-          actions={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addLineItem}
-            >
-              <Plus className="mr-1 h-3 w-3" /> Add item
-            </Button>
-          }
-        >
-          <div className="space-y-2">
-            {lineItems.map((item, index) => (
-              <div
+        <Section title="Line items">
+          <EditableLineItemsGrid
+            columns={PRICED_LINE_COLUMNS}
+            rows={lineItems}
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            addLabel="Add item"
+            disabled={isSubmitting}
+            renderRow={(item, index, layout) => (
+              <PricedLineRow
                 key={index}
-                className="grid grid-cols-12 items-start gap-2"
-              >
-                <div className="col-span-4 space-y-2">
-                  <ProductCombobox
-                    products={products}
-                    value={item.product_id}
-                    onChange={(v) => updateLineItem(index, "product_id", v)}
-                    placeholder="Product (optional)"
-                  />
+                index={index}
+                item={item}
+                products={products}
+                layout={layout}
+                disabled={isSubmitting}
+                formatCurrency={formatCurrency}
+                onPatch={patchLineItem}
+                onProductSelect={selectProduct}
+                productPlaceholder="Product"
+                extra={
                   <LineAnalyticsCell
                     projectId={(item as any).project_id ?? null}
                     taskId={(item as any).task_id ?? null}
                     headerProjectId={formData.project_id}
-                    onChange={(next) => {
-                      updateLineItem(index, "project_id", next.project_id);
-                      updateLineItem(index, "task_id", next.task_id);
-                    }}
+                    onChange={(next) =>
+                      patchLineItem(index, {
+                        project_id: next.project_id,
+                        task_id: next.task_id,
+                      } as Partial<LineItem>)
+                    }
                     disabled={isSubmitting}
                   />
-                </div>
-                <div className="col-span-3">
-                  <Input
-                    placeholder="Description"
-                    value={item.description}
-                    onChange={(e) =>
-                      updateLineItem(index, "description", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <PackagedQtyCell
-                    productId={item.product_id}
-                    value={item}
-                    onChange={(patch) =>
-                      setLineItems((prev) => {
-                        const next = [...prev];
-                        const merged = { ...next[index], ...patch };
-                        const { lineTotal, taxAmount } =
-                          calculateLineTotal(merged);
-                        next[index] = {
-                          ...merged,
-                          line_total: lineTotal,
-                          tax_amount: taxAmount,
-                        };
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Input
-                    type="number"
-                    value={item.unit_price}
-                    onChange={(e) =>
-                      updateLineItem(
-                        index,
-                        "unit_price",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Input
-                    type="number"
-                    value={item.tax_rate}
-                    onChange={(e) =>
-                      updateLineItem(
-                        index,
-                        "tax_rate",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                  />
-                </div>
-                <div className="col-span-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeLineItem(index)}
-                    disabled={lineItems.length === 1}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                }
+              />
+            )}
+            footer={
+              <div className="flex justify-end">
+                <div className="w-64 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span className="tabular-nums">{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax:</span>
+                    <span className="tabular-nums">{formatCurrency(totalTax)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Discount:</span>
+                    <Input
+                      type="number"
+                      className="h-8 w-24"
+                      value={formData.discount_amount}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          discount_amount: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="flex justify-between border-t pt-2 text-lg font-bold">
+                    <span>Total:</span>
+                    <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <div className="w-64 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tax:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(totalTax)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Discount:</span>
-                <Input
-                  type="number"
-                  className="h-8 w-24"
-                  value={formData.discount_amount}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      discount_amount: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex justify-between border-t pt-2 text-lg font-bold">
-                <span>Total:</span>
-                <span className="tabular-nums">
-                  {formatCurrency(grandTotal)}
-                </span>
-              </div>
-            </div>
-          </div>
+            }
+          />
         </Section>
+
 
         <Section title="Notes">
           <Textarea
