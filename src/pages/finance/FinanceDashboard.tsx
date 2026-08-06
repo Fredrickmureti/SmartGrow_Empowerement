@@ -172,6 +172,8 @@ export default function FinanceDashboard() {
     ["bill-status-counts", orgId, businessId, branchId] as const,
     ["je-status-counts", orgId, businessId, branchId] as const,
     ['bank-accounts', orgId] as const,
+    arSummaryKey(orgId, businessId, branchId),
+    apSummaryKey(orgId, businessId, branchId),
   ], [orgId, businessId, branchId, dateFrom, dateTo]);
 
   const periodRevenue = glData.revenue;
@@ -331,8 +333,11 @@ export default function FinanceDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{outstandingBillCount} outstanding</div>
-            <p className="text-xs text-muted-foreground">Outstanding payable</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(apSummary.totalResidual)}</div>
+            <p className="text-xs text-muted-foreground">
+              {apSummary.openDocumentCount} open · Source: General Ledger
+            </p>
+
             <div className="flex flex-wrap gap-1.5">
               {draftBillCount > 0 && (
                 <Badge variant="outline" className="text-xs">
