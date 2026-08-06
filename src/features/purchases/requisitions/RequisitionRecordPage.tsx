@@ -1,33 +1,24 @@
 /**
  * RequisitionRecordPage — P3 Requisitions Workbench detail.
  *
- * Aggregates requisition header + lines + approval trail. Lifecycle
- * transitions (submit / approve / reject / cancel) invoke the P3
- * lifecycle RPCs. Self-approval is blocked both in the database
+ * Aggregates requisition header + lines + approval trail into a
+ * `DocumentRecordView` descriptor rendered through `RecordScaffold`.
+ * Lifecycle transitions (submit / approve / reject / cancel) invoke the
+ * P3 lifecycle RPCs. Self-approval is blocked both in the database
  * (`approve_requisition`) and mirrored by the SoD registry rows.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Send,
-  XCircle,
-  Ban,
-} from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban, ArrowLeft } from "lucide-react";
 
-import {
-  PageBody,
-  PageHeader,
-  ActionBar,
-  Section,
-  StatusBadge,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-} from "@/design-system";
+import { ActionBar, Section, StatusBadge } from "@/design-system";
+import { RecordScaffold } from "@/design-system/records";
+import type {
+  DocumentRecordView,
+  LineItemColumn,
+  LineItemRow,
+} from "@/design-system/records";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -55,18 +46,6 @@ import {
   submitRequisition,
 } from "./requisitionRpcs";
 
-const STATUS_TONE: Record<
-  string,
-  "neutral" | "info" | "success" | "warning" | "danger"
-> = {
-  draft: "neutral",
-  submitted: "info",
-  approved: "success",
-  rejected: "danger",
-  cancelled: "warning",
-  closed: "neutral",
-};
-
 const DECISION_TONE: Record<string, "success" | "danger" | "neutral" | "info"> = {
   approved: "success",
   rejected: "danger",
@@ -86,19 +65,17 @@ function money(n: number | null | undefined, cur?: string | null) {
   })}`.trim();
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-sm mt-1">{children}</div>
-    </div>
-  );
-}
+const LINE_COLUMNS: LineItemColumn[] = [
+  { id: "description", header: "Description", priority: 1, minWidth: 200 },
+  { id: "qty", header: "Qty", numeric: true, priority: 2, minWidth: 70, compactLabel: "Qty" },
+  { id: "unit", header: "Est. unit", numeric: true, priority: 2, minWidth: 100, compactLabel: "@" },
+  { id: "total", header: "Est. total", numeric: true, priority: 1, minWidth: 110 },
+  { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
+  { id: "needBy", header: "Need by", priority: 3, minWidth: 100 },
+];
 
 export default function RequisitionRecordPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
@@ -111,24 +88,9 @@ export default function RequisitionRecordPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (loading) return <LoadingState />;
-  if (error)
-    return <ErrorState title="Failed to load requisition" description={error} />;
-  if (!record)
-    return (
-      <ErrorState
-        title="Requisition not found"
-        description="This requisition does not exist or you don't have access."
-      />
-    );
-
-  const canSubmit = record.status === "draft";
-  const canDecide = record.status === "submitted";
-  const canCancel = record.status === "draft" || record.status === "submitted";
-
-  const supplierById = new Map(
-    record.suggested_suppliers.map((s) => [s.id, s]),
-  );
+  const canSubmit = record?.status === "draft";
+  const canDecide = record?.status === "submitted";
+  const canCancel = record?.status === "draft" || record?.status === "submitted";
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -149,206 +111,92 @@ export default function RequisitionRecordPage() {
     }
   }
 
-  return (
-    <>
-      <PageHeader
-        eyebrow={`Requisition · ${record.requisition_number}`}
-        title={record.justification || "Purchase requisition"}
-        description={
-          record.requester?.full_name
-            ? `Requester: ${record.requester.full_name}`
-            : record.requester?.email ?? undefined
-        }
-        actions={
-          <ActionBar>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/purchases/requisitions")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            {canSubmit && (
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() =>
-                  run(() => submitRequisition(record.id), "Requisition submitted")
-                }
-              >
-                <Send className="mr-2 h-4 w-4" /> Submit
-              </Button>
-            )}
-            {canDecide && (
-              <>
-                <Button
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setApproveOpen(true)}
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setRejectOpen(true)}
-                >
-                  <XCircle className="mr-2 h-4 w-4" /> Reject
-                </Button>
-              </>
-            )}
-            {canCancel && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => setCancelOpen(true)}
-              >
-                <Ban className="mr-2 h-4 w-4" /> Cancel
-              </Button>
-            )}
-          </ActionBar>
-        }
-      />
-      <PageBody>
-        <Section>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge tone={STATUS_TONE[record.status] ?? "neutral"}>
-              {fmt(record.status)}
-            </StatusBadge>
-            <StatusBadge tone="info">Priority: {fmt(record.priority)}</StatusBadge>
-            {record.cost_center && (
-              <span className="text-sm text-muted-foreground">
-                Cost centre: <span className="font-medium">{record.cost_center}</span>
-              </span>
-            )}
-          </div>
-        </Section>
+  const view = useMemo<DocumentRecordView>(() => {
+    if (!record) {
+      return {
+        kind: "requisition",
+        eyebrow: "Requisition",
+        listPath: "/purchases/requisitions",
+        title: "Requisition",
+        loading,
+        error,
+        notFound: !loading && !error,
+      };
+    }
 
-        <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="lines">Lines ({record.items.length})</TabsTrigger>
-            <TabsTrigger value="approvals">
-              Approvals ({record.approvals.length})
-            </TabsTrigger>
-          </TabsList>
+    const supplierById = new Map(record.suggested_suppliers.map((s) => [s.id, s]));
 
-          <TabsContent value="overview" className="mt-4 space-y-4">
-            <Section title="Header">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Field label="Requisition #">
-                  <span className="font-mono">{record.requisition_number}</span>
-                </Field>
-                <Field label="Currency">{record.currency}</Field>
-                <Field label="Need by">{record.need_by_date ?? "—"}</Field>
-                <Field label="Estimated total">
-                  {money(record.estimated_total, record.currency)}
-                </Field>
-                <Field label="Submitted at">
-                  {record.submitted_at
-                    ? new Date(record.submitted_at).toLocaleString()
-                    : "—"}
-                </Field>
-                <Field label="Approved at">
-                  {record.approved_at
-                    ? new Date(record.approved_at).toLocaleString()
-                    : "—"}
-                </Field>
-                <Field label="Rejected at">
-                  {record.rejected_at
-                    ? new Date(record.rejected_at).toLocaleString()
-                    : "—"}
-                </Field>
-                <Field label="Cancelled at">
-                  {record.cancelled_at
-                    ? new Date(record.cancelled_at).toLocaleString()
-                    : "—"}
-                </Field>
-              </div>
+    const lineRows: LineItemRow[] = record.items.map((l, idx) => {
+      const sup = l.suggested_supplier_id ? supplierById.get(l.suggested_supplier_id) : null;
+      return {
+        id: l.id,
+        cells: [
+          { columnId: "description", content: l.description },
+          { columnId: "qty", content: l.quantity },
+          { columnId: "unit", content: money(l.estimated_unit_price, record.currency) },
+          {
+            columnId: "total",
+            content: money(
+              l.estimated_line_total ?? Number(l.quantity) * Number(l.estimated_unit_price),
+              record.currency,
+            ),
+          },
+          { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
+          { columnId: "needBy", content: l.need_by_date ?? "—" },
+        ],
+      };
+    });
+
+    return {
+      kind: "requisition",
+      documentId: record.id,
+      eyebrow: `Requisition · ${record.requisition_number}`,
+      listPath: "/purchases/requisitions",
+      title: record.justification || "Purchase requisition",
+      docNumber: record.requisition_number,
+      status: record.status,
+      meta: (
+        <>
+          <span>{record.requester?.full_name ?? record.requester?.email ?? "—"}</span>
+          <StatusBadge tone="info">Priority: {fmt(record.priority)}</StatusBadge>
+          {record.cost_center && <span>Cost centre: {record.cost_center}</span>}
+        </>
+      ),
+      detailFields: [
+        { label: "Requisition #", value: <span className="font-mono">{record.requisition_number}</span> },
+        { label: "Currency", value: record.currency },
+        { label: "Need by", value: record.need_by_date ?? "—" },
+        { label: "Estimated total", value: money(record.estimated_total, record.currency) },
+        { label: "Submitted at", value: record.submitted_at ? new Date(record.submitted_at).toLocaleString() : "—" },
+        { label: "Approved at", value: record.approved_at ? new Date(record.approved_at).toLocaleString() : "—" },
+        { label: "Rejected at", value: record.rejected_at ? new Date(record.rejected_at).toLocaleString() : "—" },
+        { label: "Cancelled at", value: record.cancelled_at ? new Date(record.cancelled_at).toLocaleString() : "—" },
+      ],
+      lineColumns: LINE_COLUMNS,
+      lineRows,
+      lineEmpty: "This requisition has no lines yet.",
+      extraSections: (
+        <>
+          {record.justification && (
+            <Section title="Justification">
+              <p className="text-sm whitespace-pre-wrap">{record.justification}</p>
             </Section>
-
-            {record.justification && (
-              <Section title="Justification">
-                <p className="text-sm whitespace-pre-wrap">{record.justification}</p>
-              </Section>
-            )}
-            {record.rejected_reason && (
-              <Section title="Rejection reason">
-                <p className="text-sm text-destructive whitespace-pre-wrap">
-                  {record.rejected_reason}
-                </p>
-              </Section>
-            )}
-            {record.notes && (
-              <Section title="Notes">
-                <p className="text-sm whitespace-pre-wrap">{record.notes}</p>
-              </Section>
-            )}
-          </TabsContent>
-
-          <TabsContent value="lines" className="mt-4">
-            {record.items.length === 0 ? (
-              <EmptyState
-                title="No line items"
-                description="This requisition has no lines yet."
-              />
-            ) : (
-              <div className="rounded-lg border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="text-right">Est. unit</TableHead>
-                      <TableHead className="text-right">Est. total</TableHead>
-                      <TableHead>Suggested supplier</TableHead>
-                      <TableHead>Need by</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {record.items.map((l, idx) => {
-                      const sup = l.suggested_supplier_id
-                        ? supplierById.get(l.suggested_supplier_id)
-                        : null;
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell>{l.sort_order ?? idx + 1}</TableCell>
-                          <TableCell>{l.description}</TableCell>
-                          <TableCell className="text-right">{l.quantity}</TableCell>
-                          <TableCell className="text-right">
-                            {money(l.estimated_unit_price, record.currency)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {money(
-                              l.estimated_line_total ??
-                                Number(l.quantity) * Number(l.estimated_unit_price),
-                              record.currency,
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {sup?.contact?.name ?? sup?.supplier_code ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {l.need_by_date ?? "—"}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="approvals" className="mt-4">
+          )}
+          {record.rejected_reason && (
+            <Section title="Rejection reason">
+              <p className="text-sm text-destructive whitespace-pre-wrap">{record.rejected_reason}</p>
+            </Section>
+          )}
+          {record.notes && (
+            <Section title="Notes">
+              <p className="text-sm whitespace-pre-wrap">{record.notes}</p>
+            </Section>
+          )}
+          <Section title={`Approvals (${record.approvals.length})`}>
             {record.approvals.length === 0 ? (
-              <EmptyState
-                title="No approval activity yet"
-                description="Approvals appear here once the requisition is submitted."
-              />
+              <p className="text-sm text-muted-foreground">
+                Approvals appear here once the requisition is submitted.
+              </p>
             ) : (
               <div className="rounded-lg border bg-card">
                 <Table>
@@ -373,9 +221,7 @@ export default function RequisitionRecordPage() {
                             {fmt(a.decision)}
                           </StatusBadge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {a.comment ?? "—"}
-                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{a.comment ?? "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {new Date(a.created_at).toLocaleString()}
                         </TableCell>
@@ -385,9 +231,52 @@ export default function RequisitionRecordPage() {
                 </Table>
               </div>
             )}
-          </TabsContent>
-        </Tabs>
-      </PageBody>
+          </Section>
+        </>
+      ),
+    };
+  }, [record, loading, error]);
+
+  const headerActions = (
+    <ActionBar>
+      <Button variant="ghost" size="sm" onClick={() => navigate("/purchases/requisitions")}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      </Button>
+      {canSubmit && (
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() => run(() => submitRequisition(record!.id), "Requisition submitted")}
+        >
+          <Send className="mr-2 h-4 w-4" /> Submit
+        </Button>
+      )}
+      {canDecide && (
+        <>
+          <Button size="sm" disabled={busy} onClick={() => setApproveOpen(true)}>
+            <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
+          </Button>
+          <Button variant="destructive" size="sm" disabled={busy} onClick={() => setRejectOpen(true)}>
+            <XCircle className="mr-2 h-4 w-4" /> Reject
+          </Button>
+        </>
+      )}
+      {canCancel && (
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => setCancelOpen(true)}>
+          <Ban className="mr-2 h-4 w-4" /> Cancel
+        </Button>
+      )}
+    </ActionBar>
+  );
+
+  return (
+    <>
+      <RecordScaffold
+        {...view}
+        id={id}
+        newLabel="New requisition"
+        headerActions={record ? headerActions : undefined}
+      />
 
       {/* Approve dialog */}
       <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
@@ -401,11 +290,7 @@ export default function RequisitionRecordPage() {
           <div className="space-y-3">
             <div>
               <Label>Comment (optional)</Label>
-              <Textarea
-                value={approveComment}
-                onChange={(e) => setApproveComment(e.target.value)}
-                rows={3}
-              />
+              <Textarea value={approveComment} onChange={(e) => setApproveComment(e.target.value)} rows={3} />
             </div>
           </div>
           <DialogFooter>
@@ -416,7 +301,7 @@ export default function RequisitionRecordPage() {
               disabled={busy}
               onClick={async () => {
                 const ok = await run(
-                  () => approveRequisition(record.id, approveComment || undefined),
+                  () => approveRequisition(record!.id, approveComment || undefined),
                   "Requisition approved",
                 );
                 if (ok) {
@@ -436,18 +321,12 @@ export default function RequisitionRecordPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject requisition</DialogTitle>
-            <DialogDescription>
-              A reason is required and will be visible to the requester.
-            </DialogDescription>
+            <DialogDescription>A reason is required and will be visible to the requester.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Reason *</Label>
-              <Textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                rows={3}
-              />
+              <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} />
             </div>
           </div>
           <DialogFooter>
@@ -459,7 +338,7 @@ export default function RequisitionRecordPage() {
               disabled={busy || !rejectReason.trim()}
               onClick={async () => {
                 const ok = await run(
-                  () => rejectRequisition(record.id, rejectReason.trim()),
+                  () => rejectRequisition(record!.id, rejectReason.trim()),
                   "Requisition rejected",
                 );
                 if (ok) {
@@ -479,18 +358,12 @@ export default function RequisitionRecordPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancel requisition</DialogTitle>
-            <DialogDescription>
-              This closes the requisition without generating a PO.
-            </DialogDescription>
+            <DialogDescription>This closes the requisition without generating a PO.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Reason (optional)</Label>
-              <Textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                rows={3}
-              />
+              <Textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} />
             </div>
           </div>
           <DialogFooter>
@@ -502,7 +375,7 @@ export default function RequisitionRecordPage() {
               disabled={busy}
               onClick={async () => {
                 const ok = await run(
-                  () => cancelRequisition(record.id, cancelReason || undefined),
+                  () => cancelRequisition(record!.id, cancelReason || undefined),
                   "Requisition cancelled",
                 );
                 if (ok) {

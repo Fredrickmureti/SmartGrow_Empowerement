@@ -1,32 +1,25 @@
 /**
  * ContractRecordPage — P2 Contracts Workbench detail.
  *
- * Aggregates contract header + lines + release ledger, and surfaces
- * lifecycle transitions (activate / amend / terminate) via P2 RPCs.
- * Utilization is authoritative from `procurement_contracts.utilized_*`
- * columns, maintained by the ceiling trigger.
+ * Aggregates contract header + lines + release ledger into a
+ * `DocumentRecordView` descriptor rendered through `RecordScaffold`, and
+ * surfaces lifecycle transitions (activate / amend / terminate) via P2
+ * RPCs. Utilization is authoritative from
+ * `procurement_contracts.utilized_*` columns, maintained by the ceiling
+ * trigger.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Pencil,
-  XCircle,
-} from "lucide-react";
+import { ArrowLeft, CheckCircle2, Pencil, XCircle } from "lucide-react";
 
-import {
-  PageBody,
-  PageHeader,
-  ActionBar,
-  Section,
-  StatusBadge,
-  LoadingState,
-  ErrorState,
-  EmptyState,
-} from "@/design-system";
+import { ActionBar, Section, StatusBadge } from "@/design-system";
+import { RecordScaffold } from "@/design-system/records";
+import type {
+  DocumentRecordView,
+  LineItemColumn,
+  LineItemRow,
+} from "@/design-system/records";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -54,45 +47,12 @@ import {
   terminateProcurementContract,
 } from "./contractRpcs";
 
-const STATUS_TONE: Record<
-  string,
-  "neutral" | "info" | "success" | "warning" | "danger"
-> = {
-  draft: "neutral",
-  pending_approval: "info",
-  active: "success",
-  expired: "warning",
-  terminated: "danger",
-  suspended: "danger",
-};
-
-function fmtStatus(s: string) {
-  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 function money(n: number | null | undefined, cur?: string | null) {
   if (n == null) return "—";
   return `${cur ?? ""} ${Number(n).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`.trim();
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-sm mt-1">{children}</div>
-    </div>
-  );
 }
 
 function utilizationPct(used?: number | null, ceiling?: number | null) {
@@ -102,8 +62,27 @@ function utilizationPct(used?: number | null, ceiling?: number | null) {
   return Math.min(100, (u / c) * 100);
 }
 
+function UtilizationBar({ pct }: { pct: number }) {
+  return (
+    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+      <div
+        className={`h-full ${pct >= 90 ? "bg-destructive" : pct >= 70 ? "bg-warning" : "bg-primary"}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+const LINE_COLUMNS: LineItemColumn[] = [
+  { id: "description", header: "Description", priority: 1, minWidth: 200 },
+  { id: "unit", header: "Unit price", numeric: true, priority: 2, minWidth: 100, compactLabel: "@" },
+  { id: "ceilingQty", header: "Ceiling qty", numeric: true, priority: 3, minWidth: 90, compactLabel: "Qty" },
+  { id: "ceilingValue", header: "Ceiling value", numeric: true, priority: 1, minWidth: 110 },
+  { id: "utilized", header: "Utilized", numeric: true, priority: 2, minWidth: 110 },
+];
+
 export default function ContractRecordPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { record, loading, error, refresh } = useContractRecord(id);
@@ -117,35 +96,18 @@ export default function ContractRecordPage() {
   const [termReason, setTermReason] = useState("");
   const [busy, setBusy] = useState(false);
 
-  if (loading) return <LoadingState />;
-  if (error)
-    return <ErrorState title="Failed to load contract" description={error} />;
-  if (!record)
-    return (
-      <ErrorState
-        title="Contract not found"
-        description="This contract does not exist or you don't have access."
-      />
-    );
-
-  const canActivate =
-    record.status === "draft" || record.status === "pending_approval";
-  const canAmend = record.status === "active";
-  const canTerminate =
-    record.status === "active" || record.status === "suspended";
+  const canActivate = record?.status === "draft" || record?.status === "pending_approval";
+  const canAmend = record?.status === "active";
+  const canTerminate = record?.status === "active" || record?.status === "suspended";
 
   async function handleActivate() {
     setBusy(true);
     try {
-      await activateProcurementContract(record.id);
+      await activateProcurementContract(record!.id);
       toast({ title: "Contract activated" });
       await refresh();
     } catch (e: any) {
-      toast({
-        title: "Activation failed",
-        description: e?.message ?? String(e),
-        variant: "destructive",
-      });
+      toast({ title: "Activation failed", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -154,7 +116,7 @@ export default function ContractRecordPage() {
   async function handleAmend() {
     setBusy(true);
     try {
-      await amendProcurementContract(record.id, {
+      await amendProcurementContract(record!.id, {
         title: amendTitle || null,
         endDate: amendEnd || null,
         ceilingValue: amendCeiling ? Number(amendCeiling) : null,
@@ -168,11 +130,7 @@ export default function ContractRecordPage() {
       setAmendNotes("");
       await refresh();
     } catch (e: any) {
-      toast({
-        title: "Amendment failed",
-        description: e?.message ?? String(e),
-        variant: "destructive",
-      });
+      toast({ title: "Amendment failed", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -185,234 +143,124 @@ export default function ContractRecordPage() {
     }
     setBusy(true);
     try {
-      await terminateProcurementContract(record.id, termReason);
+      await terminateProcurementContract(record!.id, termReason);
       toast({ title: "Contract terminated" });
       setTermOpen(false);
       setTermReason("");
       await refresh();
     } catch (e: any) {
-      toast({
-        title: "Termination failed",
-        description: e?.message ?? String(e),
-        variant: "destructive",
-      });
+      toast({ title: "Termination failed", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
       setBusy(false);
     }
   }
 
-  const pct = utilizationPct(record.utilized_value, record.ceiling_value);
+  const view = useMemo<DocumentRecordView>(() => {
+    if (!record) {
+      return {
+        kind: "contract",
+        eyebrow: "Contract",
+        listPath: "/purchases/contracts",
+        title: "Contract",
+        loading,
+        error,
+        notFound: !loading && !error,
+      };
+    }
 
-  return (
-    <>
-      <PageHeader
-        eyebrow={`Contract · ${record.contract_number}`}
-        title={record.title}
-        description={
-          record.supplier?.contact?.name
-            ? `Supplier: ${record.supplier.contact.name}`
-            : undefined
-        }
-        actions={
-          <ActionBar>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/purchases/contracts")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            {canActivate && (
-              <Button size="sm" onClick={handleActivate} disabled={busy}>
-                <CheckCircle2 className="mr-2 h-4 w-4" /> Activate
-              </Button>
-            )}
-            {canAmend && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAmendOpen(true)}
-                disabled={busy}
-              >
-                <Pencil className="mr-2 h-4 w-4" /> Amend
-              </Button>
-            )}
-            {canTerminate && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setTermOpen(true)}
-                disabled={busy}
-              >
-                <XCircle className="mr-2 h-4 w-4" /> Terminate
-              </Button>
-            )}
-          </ActionBar>
-        }
-      />
-      <PageBody>
-        <Section>
-          <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge tone={STATUS_TONE[record.status] ?? "neutral"}>
-              {fmtStatus(record.status)}
-            </StatusBadge>
-            <span className="text-sm text-muted-foreground capitalize">
-              {record.kind}
-            </span>
-            {record.auto_renew && (
-              <StatusBadge tone="info">Auto-renew</StatusBadge>
-            )}
-          </div>
-        </Section>
+    const pct = utilizationPct(record.utilized_value, record.ceiling_value);
 
-        <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="lines">Lines ({record.lines.length})</TabsTrigger>
-            <TabsTrigger value="releases">
-              Releases ({record.releases.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-4 space-y-4">
-            <Section title="Header">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Field label="Contract #">
-                  <span className="font-mono">{record.contract_number}</span>
-                </Field>
-                <Field label="Currency">{record.currency ?? "—"}</Field>
-                <Field label="Start">{record.start_date ?? "—"}</Field>
-                <Field label="End">{record.end_date ?? "—"}</Field>
-                <Field label="Approved at">
-                  {record.approved_at
-                    ? new Date(record.approved_at).toLocaleString()
-                    : "—"}
-                </Field>
-                <Field label="Terminated at">
-                  {record.terminated_at
-                    ? new Date(record.terminated_at).toLocaleString()
-                    : "—"}
-                </Field>
-                {record.terminated_reason && (
-                  <Field label="Termination reason">
-                    {record.terminated_reason}
-                  </Field>
-                )}
-              </div>
-            </Section>
-
-            <Section title="Utilization">
-              <div className="space-y-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Consumed vs ceiling
-                  </span>
-                  <span className="text-sm">
-                    {money(record.utilized_value, record.currency)}
-                    <span className="text-muted-foreground"> / </span>
-                    {money(record.ceiling_value, record.currency)}
-                  </span>
-                </div>
-                {pct != null ? (
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+    const lineRows: LineItemRow[] = record.lines.map((l, idx) => {
+      const linePct = utilizationPct(l.utilized_value, l.ceiling_value);
+      return {
+        id: l.id,
+        cells: [
+          { columnId: "description", content: l.description ?? "—" },
+          { columnId: "unit", content: money(l.unit_price, record.currency) },
+          { columnId: "ceilingQty", content: l.ceiling_quantity ?? "—" },
+          { columnId: "ceilingValue", content: money(l.ceiling_value, record.currency) },
+          {
+            columnId: "utilized",
+            content: (
+              <div>
+                <div>{money(l.utilized_value, record.currency)}</div>
+                {linePct != null && (
+                  <div className="mt-1 h-1 w-24 rounded-full bg-muted overflow-hidden">
                     <div
-                      className={`h-full ${
-                        pct >= 90
-                          ? "bg-destructive"
-                          : pct >= 70
-                            ? "bg-warning"
-                            : "bg-primary"
-                      }`}
-                      style={{ width: `${pct}%` }}
+                      className={`h-full ${linePct >= 90 ? "bg-destructive" : linePct >= 70 ? "bg-warning" : "bg-primary"}`}
+                      style={{ width: `${linePct}%` }}
                     />
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No ceiling set — utilization not tracked at header level.
-                  </p>
                 )}
               </div>
-            </Section>
+            ),
+          },
+        ],
+      };
+    });
 
-            {record.notes && (
-              <Section title="Notes">
-                <p className="text-sm whitespace-pre-wrap">{record.notes}</p>
-              </Section>
-            )}
-          </TabsContent>
-
-          <TabsContent value="lines" className="mt-4">
-            {record.lines.length === 0 ? (
-              <EmptyState
-                title="No line items"
-                description="This contract has no pre-agreed lines — it caps by header value only."
-              />
-            ) : (
-              <div className="rounded-lg border bg-card">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Unit price</TableHead>
-                      <TableHead className="text-right">Ceiling qty</TableHead>
-                      <TableHead className="text-right">Ceiling value</TableHead>
-                      <TableHead className="text-right">Utilized</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {record.lines.map((l, idx) => {
-                      const linePct = utilizationPct(
-                        l.utilized_value,
-                        l.ceiling_value,
-                      );
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell>{l.sort_order ?? idx + 1}</TableCell>
-                          <TableCell>{l.description ?? "—"}</TableCell>
-                          <TableCell className="text-right">
-                            {money(l.unit_price, record.currency)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {l.ceiling_quantity ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {money(l.ceiling_value, record.currency)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div>
-                              {money(l.utilized_value, record.currency)}
-                            </div>
-                            {linePct != null && (
-                              <div className="mt-1 h-1 w-24 ml-auto rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className={`h-full ${
-                                    linePct >= 90
-                                      ? "bg-destructive"
-                                      : linePct >= 70
-                                        ? "bg-warning"
-                                        : "bg-primary"
-                                  }`}
-                                  style={{ width: `${linePct}%` }}
-                                />
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+    return {
+      kind: "contract",
+      documentId: record.id,
+      eyebrow: `Contract · ${record.contract_number}`,
+      listPath: "/purchases/contracts",
+      title: record.title,
+      docNumber: record.contract_number,
+      status: record.status,
+      meta: (
+        <>
+          {record.supplier?.contact?.name && <span>Supplier: {record.supplier.contact.name}</span>}
+          <span className="capitalize">{record.kind}</span>
+          {record.auto_renew && <StatusBadge tone="info">Auto-renew</StatusBadge>}
+        </>
+      ),
+      detailFields: [
+        { label: "Contract #", value: <span className="font-mono">{record.contract_number}</span> },
+        { label: "Currency", value: record.currency ?? "—" },
+        { label: "Start", value: record.start_date ?? "—" },
+        { label: "End", value: record.end_date ?? "—" },
+        { label: "Approved at", value: record.approved_at ? new Date(record.approved_at).toLocaleString() : "—" },
+        { label: "Terminated at", value: record.terminated_at ? new Date(record.terminated_at).toLocaleString() : "—" },
+        ...(record.terminated_reason
+          ? [{ label: "Termination reason", value: record.terminated_reason }]
+          : []),
+      ],
+      lineColumns: LINE_COLUMNS,
+      lineRows,
+      lineEmpty: "This contract has no pre-agreed lines — it caps by header value only.",
+      extraSections: (
+        <>
+          <Section title="Utilization">
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-muted-foreground">Consumed vs ceiling</span>
+                <span className="text-sm">
+                  {money(record.utilized_value, record.currency)}
+                  <span className="text-muted-foreground"> / </span>
+                  {money(record.ceiling_value, record.currency)}
+                </span>
               </div>
-            )}
-          </TabsContent>
+              {pct != null ? (
+                <UtilizationBar pct={pct} />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No ceiling set — utilization not tracked at header level.
+                </p>
+              )}
+            </div>
+          </Section>
 
-          <TabsContent value="releases" className="mt-4">
+          {record.notes && (
+            <Section title="Notes">
+              <p className="text-sm whitespace-pre-wrap">{record.notes}</p>
+            </Section>
+          )}
+
+          <Section title={`Releases (${record.releases.length})`}>
             {record.releases.length === 0 ? (
-              <EmptyState
-                title="No releases yet"
-                description="Releases appear here when POs consume against this contract."
-              />
+              <p className="text-sm text-muted-foreground">
+                Releases appear here when POs consume against this contract.
+              </p>
             ) : (
               <div className="rounded-lg border bg-card">
                 <Table>
@@ -428,78 +276,84 @@ export default function ContractRecordPage() {
                     {record.releases.map((r) => (
                       <TableRow
                         key={r.id}
-                        className={
-                          r.purchase_order?.id
-                            ? "cursor-pointer hover:bg-muted/40"
-                            : ""
-                        }
+                        className={r.purchase_order?.id ? "cursor-pointer hover:bg-muted/40" : ""}
                         onClick={() =>
-                          r.purchase_order?.id &&
-                          navigate(`/purchases/orders/${r.purchase_order.id}`)
+                          r.purchase_order?.id && navigate(`/purchases/orders/${r.purchase_order.id}`)
                         }
                       >
-                        <TableCell className="text-sm">
-                          {new Date(r.released_at).toLocaleString()}
-                        </TableCell>
+                        <TableCell className="text-sm">{new Date(r.released_at).toLocaleString()}</TableCell>
                         <TableCell className="font-mono text-sm">
                           {r.purchase_order?.order_number ?? "—"}
                         </TableCell>
-                        <TableCell className="text-right">
-                          {r.quantity ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {money(r.value, record.currency)}
-                        </TableCell>
+                        <TableCell className="text-right">{r.quantity ?? "—"}</TableCell>
+                        <TableCell className="text-right">{money(r.value, record.currency)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
             )}
-          </TabsContent>
-        </Tabs>
-      </PageBody>
+          </Section>
+        </>
+      ),
+    };
+  }, [record, loading, error, navigate]);
+
+  const headerActions = (
+    <ActionBar>
+      <Button variant="ghost" size="sm" onClick={() => navigate("/purchases/contracts")}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      </Button>
+      {canActivate && (
+        <Button size="sm" onClick={handleActivate} disabled={busy}>
+          <CheckCircle2 className="mr-2 h-4 w-4" /> Activate
+        </Button>
+      )}
+      {canAmend && (
+        <Button variant="outline" size="sm" onClick={() => setAmendOpen(true)} disabled={busy}>
+          <Pencil className="mr-2 h-4 w-4" /> Amend
+        </Button>
+      )}
+      {canTerminate && (
+        <Button variant="destructive" size="sm" onClick={() => setTermOpen(true)} disabled={busy}>
+          <XCircle className="mr-2 h-4 w-4" /> Terminate
+        </Button>
+      )}
+    </ActionBar>
+  );
+
+  return (
+    <>
+      <RecordScaffold
+        {...view}
+        id={id}
+        newLabel="New contract"
+        headerActions={record ? headerActions : undefined}
+      />
 
       {/* Amend dialog */}
       <Dialog open={amendOpen} onOpenChange={setAmendOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Amend contract</DialogTitle>
-            <DialogDescription>
-              Leave a field blank to keep its current value.
-            </DialogDescription>
+            <DialogDescription>Leave a field blank to keep its current value.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>New title</Label>
-              <Input
-                value={amendTitle}
-                onChange={(e) => setAmendTitle(e.target.value)}
-              />
+              <Input value={amendTitle} onChange={(e) => setAmendTitle(e.target.value)} />
             </div>
             <div>
               <Label>New end date</Label>
-              <Input
-                type="date"
-                value={amendEnd}
-                onChange={(e) => setAmendEnd(e.target.value)}
-              />
+              <Input type="date" value={amendEnd} onChange={(e) => setAmendEnd(e.target.value)} />
             </div>
             <div>
               <Label>New ceiling value</Label>
-              <Input
-                type="number"
-                value={amendCeiling}
-                onChange={(e) => setAmendCeiling(e.target.value)}
-              />
+              <Input type="number" value={amendCeiling} onChange={(e) => setAmendCeiling(e.target.value)} />
             </div>
             <div>
               <Label>Amendment notes</Label>
-              <Textarea
-                value={amendNotes}
-                onChange={(e) => setAmendNotes(e.target.value)}
-                rows={3}
-              />
+              <Textarea value={amendNotes} onChange={(e) => setAmendNotes(e.target.value)} rows={3} />
             </div>
           </div>
           <DialogFooter>
@@ -519,8 +373,7 @@ export default function ContractRecordPage() {
           <DialogHeader>
             <DialogTitle>Terminate contract</DialogTitle>
             <DialogDescription>
-              Terminating prevents further PO releases. This action is
-              recorded and cannot be undone.
+              Terminating prevents further PO releases. This action is recorded and cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div>
@@ -536,11 +389,7 @@ export default function ContractRecordPage() {
             <Button variant="ghost" onClick={() => setTermOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleTerminate}
-              disabled={busy}
-            >
+            <Button variant="destructive" onClick={handleTerminate} disabled={busy}>
               Terminate
             </Button>
           </DialogFooter>
