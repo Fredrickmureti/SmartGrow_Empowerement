@@ -20,6 +20,7 @@ import { useActiveLpn, tryResolvePlateScan } from "@/features/warehouse/receivin
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -289,14 +290,18 @@ export function MobileReceiveSession() {
           <div>
             <Label>Pallet / LPN (optional)</Label>
             <div className="flex gap-2">
-              <Input
+              <ScanTextField
+                containerClassName="flex-1"
                 className="h-12"
                 placeholder="Scan or type plate"
+                cameraLabel="Scan pallet / LPN label"
+                priority={40}
                 value={lpnInput}
                 disabled={lpnBusy}
-                onChange={(e) => setLpnInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void applyLpn(lpnInput); }}
+                onChange={setLpnInput}
+                onEnter={(v) => void applyLpn(v)}
               />
+
               <Button
                 className="h-12"
                 variant="outline"

@@ -51,6 +51,7 @@ import {
 import { useLocationMutations } from "@/features/warehouse/locations/useLocationMutations";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { useEntitySelection } from "@/features/warehouse/entity/useEntitySelection";
 
 /** Deep-link into the full-page structure builder (no modal, no lost work). */
@@ -293,7 +294,11 @@ export default function WarehouseLayoutWorkspace() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+              {/* Handheld: no wedge gun on a phone — the layout scan intent
+                  above receives whatever the camera decodes. */}
+              <ScanCameraButton label="Scan a bin label" />
               <ScanIndicator status={resolution.status} message={resolution.message} />
+
             </div>
 
             <Tabs defaultValue="structure" className="flex min-h-0 flex-1 flex-col">

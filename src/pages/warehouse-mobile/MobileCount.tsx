@@ -24,6 +24,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
@@ -214,18 +215,18 @@ export default function MobileCount() {
         {tracking?.is_serial_tracked && (
           <div className="space-y-2">
             <Label>Scan each serial number</Label>
-            <Input
+            <ScanTextField
               value={serialEntry}
-              onChange={(e) => setSerialEntry(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addSerial(serialEntry);
-                }
-              }}
+              onChange={setSerialEntry}
+              onEnter={(v) => addSerial(v)}
               placeholder="Scan or type, then Enter"
+              cameraLabel="Scan serial number"
+              continuous
+              allowRepeats
+              priority={40}
               className="h-12 text-lg"
             />
+
             <div className="text-xs text-muted-foreground">
               {serials.length} captured{countedQty ? ` of ${Math.round(Number(countedQty) || 0)}` : ""}
             </div>

@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
+
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -466,14 +468,18 @@ export default function ReceivingSessionWorkspace({ session, businessId, onClose
             </>
           ) : (
             <>
-              <Input
-                className="h-8 w-48"
+              <ScanTextField
+                containerClassName="w-56"
+                className="h-8"
                 placeholder="Scan or type pallet / LPN"
+                cameraLabel="Scan pallet / LPN label"
+                priority={40}
                 value={lpnInput}
                 disabled={lpnBusy}
-                onChange={(e) => setLpnInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void applyLpn(lpnInput); }}
+                onChange={setLpnInput}
+                onEnter={(v) => void applyLpn(v)}
               />
+
               <Button size="sm" variant="outline" disabled={lpnBusy || !lpnInput.trim()} onClick={() => void applyLpn(lpnInput)}>
                 Bind plate
               </Button>

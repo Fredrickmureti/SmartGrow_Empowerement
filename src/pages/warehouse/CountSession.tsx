@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { PageHeader, PageBody, Section, LoadingState, EmptyState, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ClipboardCheck, EyeOff, RotateCcw } from "lucide-react";
 import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
@@ -234,7 +235,13 @@ export default function CountSession() {
           <div className="min-w-0 grid grid-cols-1 @2xl/page:grid-cols-2 gap-3">
             <div>
               <Label>Bin</Label>
-              <Input placeholder="Scan or type bin code" value={scanBin} onChange={(e) => setScanBin(e.target.value)} />
+              <ScanTextField
+                placeholder="Scan or type bin code"
+                cameraLabel="Scan the bin label"
+                value={scanBin}
+                onChange={setScanBin}
+              />
+
             </div>
             <div>
               <Label>Product</Label>

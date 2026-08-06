@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -535,11 +536,14 @@ export default function LicensePlateView() {
           <DialogHeader><DialogTitle>Nest {lpn.code} under a parent</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Parent plate code</Label>
-            <Input
+            <ScanTextField
               placeholder="Scan or type the parent plate code"
+              cameraLabel="Scan the parent plate"
+              priority={40}
               value={parentCode}
-              onChange={(e) => setParentCode(e.target.value)}
+              onChange={setParentCode}
             />
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>

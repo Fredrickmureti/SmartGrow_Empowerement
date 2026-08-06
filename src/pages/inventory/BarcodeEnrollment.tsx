@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
 import { Separator } from "@/components/ui/separator";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
@@ -361,6 +362,16 @@ export default function BarcodeEnrollment() {
                         )}
                         disabled={wf.status === "validating"}
                       />
+                      {/* Handheld operators have no wedge gun — the page's
+                          scan target receives the decode. */}
+                      <ScanCameraButton
+                        label="Scan the code on this unit"
+                        continuous
+                        className="h-11 w-11 shrink-0 border"
+                        disabled={wf.status === "validating"}
+                        onBeforeOpen={() => manualInputRef.current?.focus()}
+                      />
+
                       <Button type="submit" disabled={!manualCode.trim() || wf.status === "validating"}>
                         {wf.status === "validating" ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
