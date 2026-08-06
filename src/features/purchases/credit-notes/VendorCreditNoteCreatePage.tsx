@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * VendorCreditNoteCreatePage — `/purchases/credit-notes/new`.
  *

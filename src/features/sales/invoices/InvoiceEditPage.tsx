@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * InvoiceEditPage — `/sales/invoices/:id/edit`.
  *
@@ -153,7 +152,7 @@ export default function InvoiceEditPage() {
         notes: invoice.notes || "",
         terms: invoice.terms || "",
         discount_amount: invoice.discount_amount || 0,
-        project_id: invoice.project_id ?? null,
+        project_id: (invoice as any).project_id ?? null,
       });
 
       setLineItems(

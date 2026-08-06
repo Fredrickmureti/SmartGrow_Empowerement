@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DeliveryNoteCreatePage — `/sales/delivery-notes/new`.
  *

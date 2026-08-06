@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SalesOrderEditPage — `/sales/orders/:id/edit`.
  *
@@ -103,16 +102,17 @@ export default function SalesOrderEditPage() {
         .single();
 
       if (error) throw error;
-      setOrder(data as OrderData);
+      const row = data as any;
+      setOrder(row as OrderData);
 
       setFormData({
-        contact_id: data.contact_id || "",
-        order_date: data.order_date || "",
-        expected_date: data.expected_date || "",
-        shipping_address: data.shipping_address || "",
-        notes: data.notes || "",
-        terms: data.terms || "",
-        project_id: data.project_id ?? null,
+        contact_id: row.contact_id || "",
+        order_date: row.order_date || "",
+        expected_date: row.expected_date || "",
+        shipping_address: row.shipping_address || "",
+        notes: row.notes || "",
+        terms: row.terms || "",
+        project_id: row.project_id ?? null,
       });
 
       const { data: items, error: itemsError } = await supabase
@@ -222,7 +222,7 @@ export default function SalesOrderEditPage() {
           tax_amount: taxAmount,
           total,
           project_id: formData.project_id,
-        })
+        } as any)
         .eq("id", orderId);
 
       if (soError) throw soError;
@@ -275,7 +275,7 @@ export default function SalesOrderEditPage() {
     <RecordFormShell
       mode="edit"
       entityLabel="Sales Order"
-      title={order?.so_number}
+      recordRef={order?.so_number}
       meta={order ? `${order.so_number} • Only draft sales orders can be edited` : "Only draft sales orders can be edited"}
       cancelHref={orderId ? `/sales/orders/${orderId}` : "/sales/orders"}
       onSubmit={handleSubmit}

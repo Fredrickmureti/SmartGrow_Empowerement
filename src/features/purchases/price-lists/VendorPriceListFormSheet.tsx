@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * VendorPriceListFormSheet — right-side DetailSheet for
  * creating/editing a vendor price list entry.

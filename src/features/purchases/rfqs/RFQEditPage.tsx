@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * RFQEditPage — `/purchases/rfqs/:id/edit`.
  *

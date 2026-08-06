@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * EstimateEditPage — `/sales/estimates/:id/edit`.
  *

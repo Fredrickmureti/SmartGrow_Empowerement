@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * CreditNoteEditPage — `/sales/credit-notes/:id/edit`.
  *
@@ -16,6 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { computeLine } from "@/lib/invoiceLineMath";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
+import { EditableLineItemsGrid } from "@/design-system/records";
+import {
+  PRICED_LINE_COLUMNS,
+  PricedLineRow,
+} from "@/components/documents/lines/PricedLineRow";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

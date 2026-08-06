@@ -52,7 +52,7 @@ interface RecordFormShellProps {
   /** Called on form submit. Receives the native event so callers can
    *  read submitter/formData if they need to. Most callers just close
    *  over their own state and ignore it. */
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onSubmit?: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   /** Disables Cancel + Submit and shows a spinner on Submit. */
   isSubmitting?: boolean;
   /** Blocks Submit even when not submitting (e.g. form invalid). */

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PurchaseReturnCreatePage — `/purchases/returns/new`.
  *

@@ -37,6 +37,14 @@ export type DocumentKind =
   | "customer"
   | "bill"
   | "purchase_order"
+  | "vendor_credit_note"
+  | "purchase_return"
+  | "rfq"
+  | "expense"
+  | "vendor_statement"
+  | "requisition"
+  | "contract"
+  | "stock_movement"
   | "journal_entry"
   | "stock_adjustment"
   | "stock_transfer"
@@ -130,6 +138,45 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
     in_transit: { label: "In transit", tone: "accent" },
     completed: { label: "Received", tone: "success" },
     approved: { label: "Approved", tone: "info" },
+  },
+  bill: {
+    received: { label: "Received", tone: "info" },
+    void: { label: "Voided", tone: "danger" },
+  },
+  purchase_order: {
+    ordered: { label: "Ordered", tone: "info" },
+    partially_received: { label: "Partially received", tone: "warning" },
+    received: { label: "Received", tone: "success" },
+    billed: { label: "Billed", tone: "success" },
+  },
+  vendor_credit_note: {
+    issued: { label: "Issued", tone: "info" },
+    applied: { label: "Applied", tone: "success" },
+    void: { label: "Voided", tone: "danger" },
+  },
+  purchase_return: {
+    shipped: { label: "Shipped", tone: "accent" },
+    received: { label: "Received by vendor", tone: "info" },
+    credited: { label: "Credited", tone: "success" },
+  },
+  rfq: {
+    sent: { label: "Sent to vendors", tone: "info" },
+    responded: { label: "Responses in", tone: "accent" },
+    awarded: { label: "Awarded", tone: "success" },
+  },
+  expense: {
+    submitted: { label: "Submitted", tone: "info" },
+    approved: { label: "Approved", tone: "success" },
+    reimbursed: { label: "Reimbursed", tone: "success" },
+  },
+  requisition: {
+    submitted: { label: "Submitted", tone: "info" },
+    approved: { label: "Approved", tone: "success" },
+    ordered: { label: "Ordered", tone: "accent" },
+  },
+  contract: {
+    active: { label: "Active", tone: "success" },
+    expired: { label: "Expired", tone: "warning" },
   },
 };
 
