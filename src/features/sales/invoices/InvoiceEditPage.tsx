@@ -485,57 +485,41 @@ export default function InvoiceEditPage() {
           />
 
           <FieldGroup label="Line Items">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Item
-              </Button>
-            </div>
-
-            <InvoiceLineScanner
-              businessId={currentBusiness?.id}
-              branchId={currentBranch?.id ?? null}
-              onResolved={handleScanResolved}
-              linesTableRef={linesTableRef}
+            <EditableLineItemsGrid
+              columns={INVOICE_LINE_COLUMNS}
+              rows={lineItems}
+              containerRef={linesTableRef}
               disabled={isSubmitting}
+              addLabel="Add Item"
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              toolbar={
+                <InvoiceLineScanner
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  linesTableRef={linesTableRef}
+                  disabled={isSubmitting}
+                />
+              }
+              renderRow={(item, index, layout) => (
+                <InvoiceLineRow
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  flashed={flashIndex === index}
+                  isSubmitting={isSubmitting}
+                  stockEval={lineStockEvals[index] ?? null}
+                  headerProjectId={formData.project_id}
+                  customerId={formData.contact_id || null}
+                  formatCurrency={formatCurrency}
+                  onProductSelect={handleProductSelect}
+                  onUpdate={updateLineItem}
+                />
+              )}
             />
 
-            <div ref={linesTableRef} className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">Description</TableHead>
-                    <TableHead className="w-24">Qty</TableHead>
-                    <TableHead className="w-28">Price</TableHead>
-                    <TableHead className="w-20">Tax %</TableHead>
-                    <TableHead className="w-28 text-right">Total</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lineItems.map((item, index) => (
-                    <InvoiceLineRow
-                      key={index}
-                      index={index}
-                      item={item}
-                      products={products}
-                      linesCount={lineItems.length}
-                      flashed={flashIndex === index}
-                      isSubmitting={isSubmitting}
-                      stockEval={lineStockEvals[index] ?? null}
-                      headerProjectId={formData.project_id}
-                      customerId={formData.contact_id || null}
-                      variant="compact"
-                      formatCurrency={formatCurrency}
-                      onProductSelect={handleProductSelect}
-                      onUpdate={updateLineItem}
-                      onRemove={removeLineItem}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
 
             <div className="flex justify-end">
               <div className="w-64 space-y-2">
