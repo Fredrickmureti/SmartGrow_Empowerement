@@ -91,7 +91,7 @@ function buildSteps(data: SettlementLineage): StepView[] {
       key: "payment",
       label: "Payments",
       icon: Receipt,
-      kind: "payment",
+      kind: "customer_payment",
       nodes: payments,
       path: (id) => `/sales/payments/${id}`,
     },
