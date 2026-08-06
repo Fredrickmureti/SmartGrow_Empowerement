@@ -66,4 +66,19 @@ describe("Journal posting monopoly", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * The recovery leg has the same single-writer rule: only
+   * `process_payroll_advance_recoveries` may write repayment schedule rows,
+   * so the schedule, the advance balance and the GL credit can never
+   * disagree. Direct inserts from app or edge code reintroduce the drift.
+   */
+  it("only the recovery RPC writes advance_repayment_schedule", () => {
+    const offenders = rgFiles(
+      'from\\("advance_repayment_schedule"\\)[\\s\\S]{0,120}?\\.(insert|upsert|update)\\(',
+      [...APP_PATHS, "supabase/functions"],
+    );
+    expect(offenders).toEqual([]);
+  });
 });
+
