@@ -119,36 +119,50 @@ export default function PurchaseOrderCreatePage() {
     return { lineTotal: subtotal, taxAmount: tax };
   };
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value } as LineItem;
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const subtotal = merged.quantity * merged.unit_price;
+        return {
+          ...merged,
+          line_total: subtotal,
+          tax_amount: subtotal * ((merged.tax_rate || 0) / 100),
+        };
+      }),
+    );
+  }, []);
 
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      const vendorPrice = priceLists.find((pl) => pl.product_id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = vendorPrice
-          ? vendorPrice.unit_price
-          : product.cost_price || product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      const vendorPrice = priceLists.find((pl) => pl.product_id === productId);
+      patchLineItem(index, {
+        product_id: productId,
+        ...(product
+          ? {
+              description: product.name,
+              unit_price: vendorPrice
+                ? vendorPrice.unit_price
+                : product.cost_price || product.unit_price,
+              tax_rate: product.tax_rate || 0,
+            }
+          : {}),
+      } as Partial<LineItem>);
+    },
+    [products, priceLists, patchLineItem],
+  );
 
-    const { lineTotal, taxAmount } = calculateLineTotal(updated[index]);
-    updated[index].line_total = lineTotal;
-    updated[index].tax_amount = taxAmount;
-    setLineItems(updated);
-  };
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) {
-      setLineItems(lineItems.filter((_, i) => i !== index));
-    }
-  };
 
   const handleVendorChange = async (v: string) => {
     setFormData((p) => ({ ...p, vendor_id: v }));
