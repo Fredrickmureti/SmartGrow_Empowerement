@@ -224,7 +224,8 @@ export function RecordPaymentDialog({
       const contact = customers.find(c => c.id === selectedContactId);
       onPaymentRecorded?.({ receiptNumber: lastPaymentResult?.receipt_number || "", paymentId: lastPaymentResult?.id || "", contactEmail: contact?.email || "", contactName: contact?.name || "", amount: totalAllocated });
     } catch (error: any) {
-      toast.error(normalizeError(error).message || "Failed to record payment");
+      const normalized = normalizeError(error);
+      toast.error(normalized.title, { description: normalized.message });
     } finally {
       setIsSubmitting(false);
     }
