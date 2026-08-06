@@ -63,7 +63,7 @@ export const DELIVERY_LINE_COLUMNS: EditableLineColumn[] = [
   {
     id: "discount_percent",
     header: "Disc %",
-    priority: 4,
+    priority: 3,
     minWidth: 90,
     numeric: true,
     compactLabel: "Disc %",
@@ -71,7 +71,7 @@ export const DELIVERY_LINE_COLUMNS: EditableLineColumn[] = [
   {
     id: "tax_rate",
     header: "Tax %",
-    priority: 4,
+    priority: 3,
     minWidth: 90,
     numeric: true,
     compactLabel: "Tax %",
