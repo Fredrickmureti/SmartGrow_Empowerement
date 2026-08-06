@@ -79,21 +79,23 @@ export function LabelVerifyDialog({
         </div>
 
         <div className="relative">
-          <ScanLine className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
+          <ScanLine className="pointer-events-none absolute left-2 top-2.5 z-10 h-4 w-4 text-muted-foreground" />
+          <ScanTextField
             autoFocus
             className="pl-8 font-mono"
             placeholder="Scan or type a label…"
+            cameraLabel="Scan the printed label"
+            continuous
+            allowRepeats
             value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" || !typed.trim()) return;
-              e.preventDefault();
-              void record(typed);
+            onChange={setTyped}
+            onEnter={(v) => {
+              void record(v);
               setTyped("");
             }}
           />
         </div>
+
 
         <div className="max-h-56 overflow-auto rounded-md border">
           {entries.length === 0 ? (
