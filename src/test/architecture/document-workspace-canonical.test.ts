@@ -71,7 +71,7 @@ describe("document workspace — line items adapt to their container", () => {
   });
 
   it("no surface forces a horizontal floor on the grid", () => {
-    const offenders = [...SALES_FILES, ...walk("src/design-system/records")]
+    const offenders = [...RECORD_SURFACES, ...walk("src/design-system/records")]
       .filter((f) => !f.endsWith("LineItemsGrid.tsx"))
       .filter((f) => /min-w-\[\d{3,}px\]/.test(read(f)));
     expect(
@@ -83,6 +83,9 @@ describe("document workspace — line items adapt to their container", () => {
   it("the grid derives its layout from measurement, not a fixed floor", () => {
     const src = read("src/design-system/records/LineItemsGrid.tsx");
     expect(src).toContain("ResizeObserver");
-    expect(src).not.toContain("min-w-[720px]");
+    // The only remaining floor is the last-resort scroll fallback, and it is
+    // conditional on a measurement — never applied unconditionally.
+    expect(src).toContain("needsScroll");
+    expect(src).not.toMatch(/className=\{?"[^"]*min-w-\[\d{3,}px\]/);
   });
 });

@@ -4,10 +4,11 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Section, StatusBadge } from "@/design-system";
+import { Section } from "@/design-system";
 import {
   DocumentActivityPanel,
   DocumentPeekShell,
+  DocumentStatusBadge,
   DocumentTotalsPanel,
   LineItemsGrid,
   type LineItemColumn,
@@ -18,11 +19,6 @@ import type { CreditNote } from "@/hooks/useCreditNotes";
 import { useCreditNoteRecord } from "./useCreditNoteRecord";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral", issued: "info", partially_applied: "warning",
-  applied: "success", refunded: "success", voided: "danger",
-};
-const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
 
 interface Props { creditNoteId: string | null; onOpenChange: (o: boolean) => void; }
@@ -64,7 +60,7 @@ export function CreditNotePeekSheet({ creditNoteId, onOpenChange }: Props) {
       title={loading ? "Loading credit note…" : record ? `Credit Note ${record.credit_note_number}` : "Credit Note"}
       description={record ? (
         <span className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={TONE[record.status] ?? "neutral"}>{label(record.status)}</StatusBadge>
+          <DocumentStatusBadge kind="credit_note" status={record.status} />
           <span className="text-muted-foreground">{(record as any).contact?.name ?? "Customer"}</span>
         </span>
       ) : undefined}

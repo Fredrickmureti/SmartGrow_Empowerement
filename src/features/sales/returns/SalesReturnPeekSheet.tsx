@@ -4,10 +4,11 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Section, StatusBadge } from "@/design-system";
+import { Section } from "@/design-system";
 import {
   DocumentActivityPanel,
   DocumentPeekShell,
+  DocumentStatusBadge,
   DocumentTotalsPanel,
   LineItemsGrid,
   type LineItemColumn,
@@ -18,11 +19,6 @@ import type { SalesReturn } from "@/hooks/useSalesReturns";
 import { useSalesReturnRecord } from "./useSalesReturnRecord";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral", pending: "warning", approved: "info",
-  refunded: "success", credited: "success", cancelled: "danger",
-};
-const label = (s: string) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
 
 interface Props { salesReturnId: string | null; onOpenChange: (o: boolean) => void; }
@@ -62,7 +58,7 @@ export function SalesReturnPeekSheet({ salesReturnId, onOpenChange }: Props) {
       title={loading ? "Loading sales return…" : record ? `Return ${record.return_number}` : "Sales Return"}
       description={record ? (
         <span className="flex flex-wrap items-center gap-2">
-          <StatusBadge tone={TONE[record.status] ?? "neutral"}>{label(record.status)}</StatusBadge>
+          <DocumentStatusBadge kind="sales_return" status={record.status} />
           <span className="text-muted-foreground">{(record as any).contact?.name ?? "Customer"}</span>
         </span>
       ) : undefined}
