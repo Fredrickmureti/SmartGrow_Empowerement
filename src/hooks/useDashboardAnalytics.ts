@@ -3,6 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { useDashboardScope } from "./useDashboardScope";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  fetchTopOpenCounterparties,
+} from "@/services/finance/openItems";
+
 
 export interface SalesSummary {
   totalSales: number;
