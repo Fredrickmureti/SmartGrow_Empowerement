@@ -23,14 +23,13 @@
  * Presentational only; the parent form owns mutation.
  */
 
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   useAdaptiveLayout,
   useContainerWidth,
-  minWidthOf,
   DELETE_COL_WIDTH,
   GRID_GAP,
   type AdaptiveColumn,
