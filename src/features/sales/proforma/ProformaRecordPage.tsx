@@ -22,15 +22,6 @@ type Row = ProformaInvoice & {
   proforma_invoice_items?: ProformaInvoiceItem[];
 };
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  sent: "info",
-  accepted: "success",
-  expired: "warning",
-  converted: "success",
-  cancelled: "danger",
-};
-
 function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
@@ -100,7 +91,8 @@ export default function ProformaRecordPage() {
       newLabel="New proforma"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.proforma_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="proforma"
+      status={row?.status}
       meta={row && (
         <>
           <span>Issued {fmt(row.issue_date)}</span>

@@ -105,7 +105,8 @@ export default function RecurringInvoiceRecordPage() {
       newLabel="New recurring template"
       title={row?.template_name ?? "Recurring invoice"}
       docNumber={row?.contact?.name}
-      status={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
+      kind="recurring_invoice"
+      statusSlot={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
       meta={row && (
         <>
           <span>Every {row.frequency}</span>

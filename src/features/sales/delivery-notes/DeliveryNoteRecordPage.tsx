@@ -19,14 +19,6 @@ type Row = DeliveryNote & {
   delivery_note_items?: DeliveryNoteItem[];
 };
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  ready: "info",
-  in_transit: "accent",
-  delivered: "success",
-  cancelled: "danger",
-};
-
 function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
@@ -91,7 +83,8 @@ export default function DeliveryNoteRecordPage() {
       newLabel="New delivery note"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.delivery_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="delivery_note"
+      status={row?.status}
       meta={row && (
         <>
           <span>Date {fmt(row.delivery_date)}</span>

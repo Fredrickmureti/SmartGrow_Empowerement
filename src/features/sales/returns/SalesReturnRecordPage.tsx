@@ -21,14 +21,6 @@ type Row = SalesReturn & {
   sales_return_items?: SalesReturnItem[];
 };
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger" | "accent"> = {
-  draft: "neutral",
-  approved: "info",
-  processed: "success",
-  refunded: "success",
-  cancelled: "danger",
-};
-
 function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
@@ -98,7 +90,8 @@ export default function SalesReturnRecordPage() {
       newLabel="New sales return"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.return_number}
-      status={row ? <StatusBadge tone={TONE[row.status] ?? "neutral"}>{row.status}</StatusBadge> : undefined}
+      kind="sales_return"
+      status={row?.status}
       meta={row && (
         <>
           <span>Date {fmt(row.return_date)}</span>

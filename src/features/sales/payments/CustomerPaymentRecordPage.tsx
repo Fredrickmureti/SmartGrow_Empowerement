@@ -46,12 +46,6 @@ function fmt(d?: string | null) {
   try { return format(new Date(d), "PP"); } catch { return d; }
 }
 
-const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
-  applied: "success",
-  voided: "danger",
-  unreconciled: "warning",
-};
-
 export default function CustomerPaymentRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency, baseCurrency } = useCurrency();
@@ -116,7 +110,8 @@ export default function CustomerPaymentRecordPage() {
       newLabel="Record customer payment"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.receipt_number ?? undefined}
-      status={row ? <StatusBadge tone={TONE[status] ?? "neutral"}>{status}</StatusBadge> : undefined}
+      kind="customer_payment"
+      status={row ? status : undefined}
       meta={row && (
         <>
           <span>Paid {fmt(row.payment_date)}</span>

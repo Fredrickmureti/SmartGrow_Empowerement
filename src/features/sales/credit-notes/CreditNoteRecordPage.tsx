@@ -91,7 +91,8 @@ export default function CreditNoteRecordPage() {
       newLabel="New credit note"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.credit_note_number}
-      status={row ? (
+      kind="credit_note"
+      statusSlot={row ? (
         <StatusBadge tone={isFullyApplied ? "success" : "warning"}>
           {isFullyApplied ? "Fully applied" : "Open"}
         </StatusBadge>

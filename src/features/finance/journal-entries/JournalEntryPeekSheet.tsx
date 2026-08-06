@@ -42,6 +42,9 @@ export function JournalEntryPeekSheet({
 
   return (
     <PeekScaffold
+      kind="generic"
+      eyebrow="Journal Entry"
+      listPath="/finance/journal-entries"
       open={open}
       onOpenChange={onOpenChange}
       title={view ? `Journal Entry ${view.docNumber}` : "Journal Entry"}

@@ -122,7 +122,8 @@ export default function CustomerRecordPage() {
       newLabel="New customer"
       title={row?.name ?? "Customer"}
       docNumber={row?.company || undefined}
-      status={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
+      kind="customer"
+      statusSlot={row ? <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge> : undefined}
       meta={row && (
         <>
           {row.email && <span>{row.email}</span>}
