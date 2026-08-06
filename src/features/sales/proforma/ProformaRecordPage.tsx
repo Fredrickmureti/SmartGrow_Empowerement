@@ -1,6 +1,6 @@
 /**
  * ProformaRecordPage — object-page route for a Proforma Invoice.
- * Read-only view built on SalesRecordScaffold. Create/edit still routes
+ * Read-only view built on RecordScaffold. Create/edit still routes
  * through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
  */
@@ -10,7 +10,7 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -90,7 +90,7 @@ export default function ProformaRecordPage() {
   }, [row, formatCurrency]);
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Proforma Invoice"
       listPath="/sales/proforma"
       id={id}

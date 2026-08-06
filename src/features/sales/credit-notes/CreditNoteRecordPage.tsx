@@ -1,6 +1,6 @@
 /**
  * CreditNoteRecordPage — object-page route for a Credit Note.
- * Read-only, powered by SalesRecordScaffold. The "apply to invoice"
+ * Read-only, powered by RecordScaffold. The "apply to invoice"
  * wizard lands separately at /sales/credit-notes/:id/apply.
  */
 
@@ -9,7 +9,7 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -81,7 +81,7 @@ export default function CreditNoteRecordPage() {
   const isFullyApplied = row && remaining <= 0;
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Credit Note"
       listPath="/sales/credit-notes"
       id={id}

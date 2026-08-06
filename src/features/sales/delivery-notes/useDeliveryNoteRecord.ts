@@ -1,8 +1,8 @@
-import { useSalesDocumentRecord } from "@/features/sales/record";
+import { useDocumentRecord } from "@/features/sales/record";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 
 export function useDeliveryNoteRecord(id: string | null | undefined) {
-  return useSalesDocumentRecord<DeliveryNote>({
+  return useDocumentRecord<DeliveryNote>({
     table: "delivery_notes",
     select:
       "*, contact:contacts(name, email), sales_order:sales_orders(so_number), items:delivery_note_items(*)",

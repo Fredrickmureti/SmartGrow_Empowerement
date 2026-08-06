@@ -18,37 +18,37 @@
  */
 
 export {
-  SalesRecordScaffold as RecordScaffold,
-  SalesRecordScaffold,
-} from "@/features/sales/record/SalesRecordScaffold";
+  RecordScaffold as RecordScaffold,
+  RecordScaffold,
+} from "@/features/sales/record/RecordScaffold";
 export {
-  SalesRecordBody as RecordBody,
-  SalesRecordBody,
-} from "@/features/sales/record/SalesRecordBody";
-export type { DetailField } from "@/features/sales/record/SalesRecordBody";
+  RecordBody as RecordBody,
+  RecordBody,
+} from "@/features/sales/record/RecordBody";
+export type { DetailField } from "@/features/sales/record/RecordBody";
 export {
-  SalesPeekScaffold as PeekScaffold,
-  SalesPeekScaffold,
-} from "@/features/sales/record/SalesPeekScaffold";
-export { DocumentPeekShell } from "@/features/sales/record/DocumentPeekShell";
-export { LineItemsGrid } from "@/features/sales/record/LineItemsGrid";
+  PeekScaffold as PeekScaffold,
+  PeekScaffold,
+} from "@/features/sales/record/PeekScaffold";
+export { DocumentPeekShell } from "@/design-system/records/DocumentPeekShell";
+export { LineItemsGrid } from "@/design-system/records/LineItemsGrid";
 export type {
   LineItemColumn,
   LineItemRow,
   LineItemRowCell,
-} from "@/features/sales/record/LineItemsGrid";
+} from "@/design-system/records/LineItemsGrid";
 export {
   DocumentTotalsPanel,
   DocumentActivityPanel,
   DocumentAttachmentsPanel,
-} from "@/features/sales/record/panels";
+} from "@/design-system/records/panels";
 export type {
   DocumentTotalsRow,
   DocumentActivityEntry,
   DocumentAttachment,
-} from "@/features/sales/record/panels";
-export { usePeekParam } from "@/features/sales/record/usePeekParam";
+} from "@/design-system/records/panels";
+export { usePeekParam } from "@/design-system/records/usePeekParam";
 export {
-  useSalesDocumentRecord as useDocumentRecord,
-  useSalesDocumentRecord,
-} from "@/features/sales/record/useSalesDocumentRecord";
+  useDocumentRecord as useDocumentRecord,
+  useDocumentRecord,
+} from "@/features/sales/record/useDocumentRecord";

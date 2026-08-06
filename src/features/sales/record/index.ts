@@ -23,11 +23,11 @@ export type {
   LineItemRowCell,
 } from "./LineItemsGrid";
 export { usePeekParam } from "./usePeekParam";
-export { SalesRecordScaffold } from "./SalesRecordScaffold";
-export { SalesRecordBody } from "./SalesRecordBody";
-export { SalesPeekScaffold } from "./SalesPeekScaffold";
-export type { DetailField } from "./SalesRecordBody";
+export { RecordScaffold } from "./RecordScaffold";
+export { RecordBody } from "./RecordBody";
+export { PeekScaffold } from "./PeekScaffold";
+export type { DetailField } from "./RecordBody";
 export { DocumentPeekShell } from "./DocumentPeekShell";
-export { useSalesDocumentRecord } from "./useSalesDocumentRecord";
+export { useDocumentRecord } from "./useDocumentRecord";
 export { useRecordPrint } from "./useRecordPrint";
 export type { RecordPrintKind } from "./useRecordPrint";

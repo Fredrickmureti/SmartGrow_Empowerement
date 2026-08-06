@@ -1,7 +1,7 @@
 /**
- * SalesRecordBody — the shared inner section stack used by both the
- * full-page RecordShell (SalesRecordScaffold) and the peek DetailSheet
- * (SalesPeekScaffold). Keeps peek/full parity guaranteed.
+ * RecordBody — the shared inner section stack used by both the
+ * full-page RecordShell (RecordScaffold) and the peek DetailSheet
+ * (PeekScaffold). Keeps peek/full parity guaranteed.
  */
 import type { ReactNode } from "react";
 import { Section } from "@/design-system";
@@ -16,7 +16,7 @@ export interface DetailField {
   value: ReactNode;
 }
 
-interface SalesRecordBodyProps {
+interface RecordBodyProps {
   detailFields?: DetailField[];
   detailsTitle?: string;
   lineColumns?: LineItemColumn[];
@@ -25,14 +25,14 @@ interface SalesRecordBodyProps {
   extraSections?: ReactNode;
 }
 
-export function SalesRecordBody({
+export function RecordBody({
   detailFields,
   detailsTitle = "Details",
   lineColumns,
   lineRows,
   lineEmpty = "No line items on this record.",
   extraSections,
-}: SalesRecordBodyProps) {
+}: RecordBodyProps) {
   return (
     <>
       {detailFields && detailFields.length > 0 && (

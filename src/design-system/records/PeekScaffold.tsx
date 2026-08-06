@@ -1,6 +1,6 @@
 /**
- * SalesPeekScaffold — the ONE peek surface every Sales list uses. Mirrors
- * SalesRecordScaffold's data shape (details, totals, activity, line items)
+ * PeekScaffold — the ONE peek surface every Sales list uses. Mirrors
+ * RecordScaffold's data shape (details, totals, activity, line items)
  * so the peek and the full record page cannot drift. Consumers pass the
  * same declaration and the scaffold renders inside DocumentPeekShell.
  */
@@ -8,7 +8,7 @@
 import type { ReactNode } from "react";
 import { SummaryPanel } from "@/design-system";
 import { DocumentPeekShell } from "./DocumentPeekShell";
-import { SalesRecordBody, type DetailField } from "./SalesRecordBody";
+import { RecordBody, type DetailField } from "./RecordBody";
 import {
   DocumentActivityPanel,
   DocumentTotalsPanel,
@@ -17,7 +17,7 @@ import {
 } from "./panels";
 import type { LineItemColumn, LineItemRow } from "./LineItemsGrid";
 
-interface SalesPeekScaffoldProps {
+interface PeekScaffoldProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 
@@ -42,7 +42,7 @@ interface SalesPeekScaffoldProps {
   extraAside?: ReactNode;
 }
 
-export function SalesPeekScaffold({
+export function PeekScaffold({
   open,
   onOpenChange,
   title,
@@ -61,7 +61,7 @@ export function SalesPeekScaffold({
   totalsFooter,
   activity,
   extraAside,
-}: SalesPeekScaffoldProps) {
+}: PeekScaffoldProps) {
   const hasAside = !!(totalsRows || activity || extraAside);
   return (
     <DocumentPeekShell
@@ -75,7 +75,7 @@ export function SalesPeekScaffold({
       error={error}
     >
       <div className="space-y-6">
-        <SalesRecordBody
+        <RecordBody
           detailFields={detailFields}
           detailsTitle={detailsTitle}
           lineColumns={lineColumns}
@@ -95,4 +95,4 @@ export function SalesPeekScaffold({
   );
 }
 
-export default SalesPeekScaffold;
+export default PeekScaffold;

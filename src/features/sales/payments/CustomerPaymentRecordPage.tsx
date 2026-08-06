@@ -1,6 +1,6 @@
 /**
  * CustomerPaymentRecordPage — object-page route for a customer payment
- * (AR receipt). Read-only view built on SalesRecordScaffold; allocations
+ * (AR receipt). Read-only view built on RecordScaffold; allocations
  * are rendered inline via the shared LineItemsGrid. Record/edit still
  * routes through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
@@ -11,7 +11,7 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -106,7 +106,7 @@ export default function CustomerPaymentRecordPage() {
   const status = row?.status || (unapplied > 0.005 ? "unreconciled" : "applied");
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Customer Payment"
       listPath="/sales/payments"
       id={id}

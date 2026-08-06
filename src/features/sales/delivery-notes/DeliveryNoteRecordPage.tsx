@@ -1,6 +1,6 @@
 /**
  * DeliveryNoteRecordPage — object-page route for a Delivery Note.
- * Read-only, powered by SalesRecordScaffold.
+ * Read-only, powered by RecordScaffold.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,7 +8,7 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
@@ -81,7 +81,7 @@ export default function DeliveryNoteRecordPage() {
   }, [row]);
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Delivery Note"
       listPath="/sales/delivery-notes"
       id={id}

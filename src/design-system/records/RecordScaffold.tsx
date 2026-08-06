@@ -1,5 +1,5 @@
 /**
- * SalesRecordScaffold — the standard read/view scaffold every Sales
+ * RecordScaffold — the standard read/view scaffold every Sales
  * business-record page composes. Encapsulates the boilerplate the three
  * pilot pages (Invoice / Estimate / SalesOrder) repeated verbatim so
  * subsequent record types are a thin, data-only wrapper.
@@ -33,12 +33,12 @@ import {
   type LineItemColumn,
   type LineItemRow,
 } from "@/features/sales/record";
-import { SalesRecordBody } from "./SalesRecordBody";
+import { RecordBody } from "./RecordBody";
 
-import type { DetailField } from "./SalesRecordBody";
+import type { DetailField } from "./RecordBody";
 export type { DetailField };
 
-interface SalesRecordScaffoldProps {
+interface RecordScaffoldProps {
   /** e.g. "Sales Invoice", "Delivery Note". */
   eyebrow: string;
   /** Back-to-list route (e.g. "/sales/credit-notes"). */
@@ -84,7 +84,7 @@ interface SalesRecordScaffoldProps {
   newDescription?: ReactNode;
 }
 
-export function SalesRecordScaffold(props: SalesRecordScaffoldProps) {
+export function RecordScaffold(props: RecordScaffoldProps) {
   const navigate = useNavigate();
   const {
     eyebrow,
@@ -231,7 +231,7 @@ export function SalesRecordScaffold(props: SalesRecordScaffoldProps) {
         />
       }
     >
-      <SalesRecordBody
+      <RecordBody
         detailFields={detailFields}
         detailsTitle={detailsTitle}
         lineColumns={lineColumns}
@@ -243,4 +243,4 @@ export function SalesRecordScaffold(props: SalesRecordScaffoldProps) {
   );
 }
 
-export default SalesRecordScaffold;
+export default RecordScaffold;

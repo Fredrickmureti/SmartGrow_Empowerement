@@ -1,6 +1,6 @@
 /**
  * RecurringInvoiceRecordPage — object-page route for a recurring invoice
- * template. Read-only view built on SalesRecordScaffold. Create/edit still
+ * template. Read-only view built on RecordScaffold. Create/edit still
  * routes through the list-page dialogs until the wizard migration lands
  * (see docs/design-system/audit/sales.md).
  */
@@ -10,7 +10,7 @@ import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
-import { SalesRecordScaffold } from "@/features/sales/record";
+import { RecordScaffold } from "@/features/sales/record";
 import type { LineItemColumn, LineItemRow } from "@/features/sales/record";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -95,7 +95,7 @@ export default function RecurringInvoiceRecordPage() {
   const statusTone: "success" | "warning" = row?.is_active ? "success" : "warning";
 
   return (
-    <SalesRecordScaffold
+    <RecordScaffold
       eyebrow="Recurring Invoice"
       listPath="/sales/recurring"
       id={id}
