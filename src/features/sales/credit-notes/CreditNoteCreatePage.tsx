@@ -9,7 +9,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  *   ?invoice_id=<uuid>   pre-fill related invoice (auto-loads its items)
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCreditNotes, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
@@ -28,7 +28,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -38,10 +37,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Send, Loader2 } from "lucide-react";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { Send, Loader2 } from "lucide-react";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -100,16 +99,18 @@ export default function CreditNoteCreatePage() {
     return { line_total, tax_amount };
   };
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
+  /** Applies a partial line update and recomputes the line's derived money. */
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
     setLineItems((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      updated[index] = { ...updated[index], ...patch };
       const totals = calculateLineTotal(updated[index]);
       updated[index].line_total = totals.line_total;
       updated[index].tax_amount = totals.tax_amount;
       return updated;
     });
-  };
+  }, []);
+
 
   const addLineItem = () => setLineItems((prev) => [...prev, emptyLine(prev.length)]);
   const removeLineItem = (index: number) => {
@@ -305,100 +306,35 @@ export default function CreditNoteCreatePage() {
         </FieldGroup>
 
         <FieldGroup label="Line Items">
-          <div className="flex items-center justify-between mb-1">
-            <span />
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="h-4 w-4 mr-1" /> Add Item
-            </Button>
-          </div>
-          <div className="space-y-3">
-            {lineItems.map((item, index) => (
-              <Card key={index} className="border">
-                <CardContent className="p-3 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                    <div className="sm:col-span-5">
-                      <Label className="text-xs text-muted-foreground">Description</Label>
-                      <Input
-                        placeholder="Description"
-                        value={item.description}
-                        onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Qty</Label>
-                      <PackagedQtyCell
-                        productId={item.product_id ?? null}
-                        value={{
-                          quantity: item.quantity,
-                          packaging_id: item.packaging_id ?? null,
-                          display_quantity: item.display_quantity ?? null,
-                          display_uom_id: item.display_uom_id ?? null,
-                        }}
-                        onChange={(patch) => {
-                          setLineItems((prev) => {
-                            const updated = [...prev];
-                            updated[index] = { ...updated[index], ...patch };
-                            const totals = calculateLineTotal(updated[index]);
-                            updated[index].line_total = totals.line_total;
-                            updated[index].tax_amount = totals.tax_amount;
-                            return updated;
-                          });
-                        }}
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Unit Price</Label>
-                      <NumericInput
-                        className="h-9"
-                        placeholder="Price"
-                        value={item.unit_price}
-                        onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)}
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label className="text-xs text-muted-foreground">Tax %</Label>
-                      <NumericInput
-                        className="h-9"
-                        placeholder="Tax %"
-                        value={item.tax_rate}
-                        onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)}
-                      />
-                    </div>
-                    <div className="sm:col-span-1 flex items-end justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={() => removeLineItem(index)}
-                        disabled={lineItems.length === 1}
-                        aria-label="Remove item"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                    <span>{item.tax_rate > 0 && `Tax: ${item.tax_rate}% = ${formatCurrency(item.tax_amount)}`}</span>
-                    <span className="font-medium text-foreground">
-                      Line total: {formatCurrency(item.line_total + item.tax_amount)}
-                    </span>
-                  </div>
+          <EditableLineItemsGrid
+            columns={PRICED_LINE_COLUMNS}
+            rows={lineItems}
+            addLabel="Add Item"
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            renderRow={(item, index, layout) => (
+              <PricedLineRow
+                index={index}
+                item={item}
+                hideProductPicker
+                layout={layout}
+                formatCurrency={formatCurrency}
+                onPatch={patchLineItem}
+                extra={
                   <OutboundLineTracking
                     productId={item.product_id ?? null}
                     quantity={item.quantity}
                     onLotChange={(allocs) =>
-                      updateLineItem(index, "lot_number", lotNumberFromAllocations(allocs))
+                      patchLineItem(index, { lot_number: lotNumberFromAllocations(allocs) } as any)
                     }
                     onSerialChange={(_ids, rows) =>
-                      updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                      patchLineItem(index, { serial_number: serialNumberFromRows(rows) } as any)
                     }
                   />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                }
+              />
+            )}
+          />
 
           <div className="flex justify-end pt-2">
             <div className="w-full sm:w-72 space-y-1.5 text-sm bg-muted/50 rounded-lg p-4">

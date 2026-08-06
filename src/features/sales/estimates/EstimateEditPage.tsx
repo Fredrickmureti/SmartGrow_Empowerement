@@ -18,7 +18,6 @@ import { useToast } from "@/hooks/use-toast";
 import { computeLine } from "@/lib/invoiceLineMath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -28,22 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { AdditionalCostsSection, AdditionalCost } from "@/components/common/AdditionalCostsSection";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -406,84 +397,26 @@ export default function EstimateEditPage() {
         />
 
         <FieldGroup label="Line Items">
-          <div className="flex items-center justify-between mb-2">
-            <span />
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="mr-2 h-4 w-4" /> Add Item
-            </Button>
-          </div>
-          <div className="rounded-lg border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[300px]">Description</TableHead>
-                  <TableHead className="w-24">Qty</TableHead>
-                  <TableHead className="w-28">Price</TableHead>
-                  <TableHead className="w-20">Tax %</TableHead>
-                  <TableHead className="w-28 text-right">Total</TableHead>
-                  <TableHead className="w-12" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lineItems.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <div className="space-y-2">
-                        <ProductCombobox
-                          products={products}
-                          value={item.product_id}
-                          onChange={(value) => handleProductSelect(index, value)}
-                          formatCurrency={formatCurrency}
-                        />
-                        <Input
-                          placeholder="Description"
-                          value={item.description}
-                          onChange={(e) => updateLineItem(index, { description: e.target.value })}
-                          className="h-8"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <PackagedQtyCell
-                        productId={item.product_id}
-                        value={item as any}
-                        onChange={(patch) => updateLineItem(index, patch as Partial<LineItem>)}
-                        disabled={isSubmitting}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <NumericInput
-                        className="h-8"
-                        value={item.unit_price}
-                        onValueChange={(v) => updateLineItem(index, { unit_price: v ?? 0 })}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <NumericInput
-                        className="h-8"
-                        value={item.tax_rate}
-                        onValueChange={(v) => updateLineItem(index, { tax_rate: v ?? 0 })}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(item.line_total)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeLineItem(index)}
-                        disabled={lineItems.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <EditableLineItemsGrid
+            columns={PRICED_LINE_COLUMNS}
+            rows={lineItems}
+            disabled={isSubmitting}
+            addLabel="Add Item"
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            renderRow={(item, index, layout) => (
+              <PricedLineRow
+                index={index}
+                item={item}
+                products={products}
+                layout={layout}
+                disabled={isSubmitting}
+                formatCurrency={formatCurrency}
+                onPatch={updateLineItem}
+                onProductSelect={handleProductSelect}
+              />
+            )}
+          />
         </FieldGroup>
 
         <AdditionalCostsSection

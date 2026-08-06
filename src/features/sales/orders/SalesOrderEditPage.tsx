@@ -5,7 +5,7 @@
  * Phase-3 route replacement for the retired `EditSalesOrderDialog`.
  * Only draft sales orders can be edited (RLS + business rule).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -24,21 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -275,6 +266,10 @@ export default function SalesOrderEditPage() {
   const itemsTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
   const grandTotal = itemsSubtotal + itemsTax;
   const currency = order?.currency || "USD"; // architecture-allow: display-only fallback
+  const formatLineCurrency = useCallback(
+    (n: number) => formatCurrency(n, currency),
+    [formatCurrency, currency],
+  );
 
   return (
     <RecordFormShell
@@ -350,85 +345,36 @@ export default function SalesOrderEditPage() {
           </CapabilityGate>
 
           <FieldGroup label="Line Items">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="mr-2 h-4 w-4" /> Add Item
-              </Button>
-            </div>
-
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">Description</TableHead>
-                    <TableHead className="w-24">Qty</TableHead>
-                    <TableHead className="w-28">Price</TableHead>
-                    <TableHead className="w-20">Tax %</TableHead>
-                    <TableHead className="w-28 text-right">Total</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lineItems.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell>
-                        <div className="space-y-2">
-                          <ProductCombobox
-                            products={products}
-                            value={item.product_id}
-                            onChange={(value) => handleProductSelect(index, value)}
-                            formatCurrency={(n) => formatCurrency(n, currency)}
-                          />
-                          <Input
-                            placeholder="Description"
-                            value={item.description}
-                            onChange={(e) => updateLineItem(index, { description: e.target.value })}
-                            className="h-8"
-                          />
-                          <LineAnalyticsCell
-                            projectId={item.project_id ?? null}
-                            taskId={item.task_id ?? null}
-                            headerProjectId={formData.project_id}
-                            customerId={formData.contact_id || null}
-                            onChange={(next) => updateLineItem(index, next)}
-                            disabled={isSubmitting}
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <PackagedQtyCell
-                          productId={item.product_id}
-                          value={item as any}
-                          onChange={(patch) => updateLineItem(index, patch)}
-                          disabled={isSubmitting}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <NumericInput className="h-8" value={item.unit_price} onValueChange={(v) => updateLineItem(index, { unit_price: v ?? 0 })} />
-                      </TableCell>
-                      <TableCell>
-                        <NumericInput className="h-8" value={item.tax_rate} onValueChange={(v) => updateLineItem(index, { tax_rate: v ?? 0 })} />
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(item.line_total, currency)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLineItem(index)}
-                          disabled={lineItems.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <EditableLineItemsGrid
+              columns={PRICED_LINE_COLUMNS}
+              rows={lineItems}
+              disabled={isSubmitting}
+              addLabel="Add Item"
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              renderRow={(item, index, layout) => (
+                <PricedLineRow
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  disabled={isSubmitting}
+                  formatCurrency={formatLineCurrency}
+                  onPatch={updateLineItem}
+                  onProductSelect={handleProductSelect}
+                  extra={
+                    <LineAnalyticsCell
+                      projectId={item.project_id ?? null}
+                      taskId={item.task_id ?? null}
+                      headerProjectId={formData.project_id}
+                      customerId={formData.contact_id || null}
+                      onChange={(next) => updateLineItem(index, next)}
+                      disabled={isSubmitting}
+                    />
+                  }
+                />
+              )}
+            />
 
             <div className="flex justify-end pt-2">
               <div className="w-64 space-y-2">

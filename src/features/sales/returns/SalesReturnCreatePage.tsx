@@ -9,7 +9,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  *   ?invoice_id=<uuid>   pre-fill the original invoice (auto-loads items)
  */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,8 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { SalesReturnLineRow, RETURN_LINE_COLUMNS } from "@/components/sales/lines/SalesReturnLineRow";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -181,25 +181,34 @@ export default function SalesReturnCreatePage() {
     });
   };
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.unit_price;
-      }
-    }
-
-    if (["quantity", "unit_price", "tax_rate"].includes(field)) {
-      const subtotal = updated[index].quantity * updated[index].unit_price;
-      updated[index].tax_amount = subtotal * (updated[index].tax_rate / 100);
-    }
-
-    setLineItems(updated);
-  };
+  /**
+   * Applies a partial line update: derives product defaults, clamps the
+   * returned quantity to the invoiced ceiling, and recomputes line tax.
+   */
+  const patchLineItem = useCallback(
+    (index: number, patch: Partial<LineItem>) => {
+      setLineItems((prev) =>
+        prev.map((it, i) => {
+          if (i !== index) return it;
+          const next: LineItem = { ...it, ...patch };
+          if (patch.product_id) {
+            const product = products.find((p) => p.id === patch.product_id);
+            if (product) {
+              next.description = product.name;
+              next.unit_price = product.unit_price;
+            }
+          }
+          if (typeof next.quantity === "number") {
+            next.quantity = Math.min(next.quantity, next.max_quantity);
+          }
+          const subtotal = next.quantity * next.unit_price;
+          next.tax_amount = subtotal * ((next.tax_rate || 0) / 100);
+          return next;
+        }),
+      );
+    },
+    [products],
+  );
 
   const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
@@ -425,126 +434,40 @@ export default function SalesReturnCreatePage() {
           )}
 
           <FieldGroup label="Returned Items">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Item
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {lineItems.map((item, index) => (
-                <Card key={index} className="border">
-                  <CardContent className="p-3 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
-                      {!selectedInvoiceId && (
-                        <div className="sm:col-span-3">
-                          <label className="text-xs font-medium text-muted-foreground">Product</label>
-                          <Select
-                            value={item.product_id || ""}
-                            onValueChange={(v) => updateLineItem(index, "product_id", v)}
-                          >
-                            <SelectTrigger className="h-9">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {products.map((product) => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      <div className={selectedInvoiceId ? "sm:col-span-5" : "sm:col-span-3"}>
-                        <label className="text-xs font-medium text-muted-foreground">Description</label>
-                        <Input
-                          value={item.description}
-                          onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                          placeholder="Item description"
-                          readOnly={!!selectedInvoiceId}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          Qty {item.max_quantity < 999 && <span className="text-[10px]">(max {item.max_quantity})</span>}
-                        </label>
-                        <PackagedQtyCell
-                          productId={item.product_id ?? null}
-                          value={{
-                            quantity: item.quantity,
-                            packaging_id: item.packaging_id ?? null,
-                            display_quantity: item.display_quantity ?? null,
-                            display_uom_id: item.display_uom_id ?? null,
-                          }}
-                          onChange={(patch) => {
-                            const updated = [...lineItems];
-                            const merged = { ...updated[index], ...patch };
-                            if (typeof merged.quantity === "number") {
-                              merged.quantity = Math.min(merged.quantity, merged.max_quantity);
-                            }
-                            updated[index] = merged;
-                            const sub = merged.quantity * merged.unit_price;
-                            updated[index].tax_amount = sub * (merged.tax_rate / 100);
-                            setLineItems(updated);
-                          }}
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-medium text-muted-foreground">Unit Price</label>
-                        <NumericInput className="h-9" value={item.unit_price} onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)} />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-medium text-muted-foreground">Condition</label>
-                        <Select value={item.condition} onValueChange={(v) => updateLineItem(index, "condition", v)}>
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="good">Good</SelectItem>
-                            <SelectItem value="damaged">Damaged</SelectItem>
-                            <SelectItem value="defective">Defective</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="sm:col-span-1 flex items-end justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9"
-                          onClick={() => removeLineItem(index)}
-                          aria-label="Remove item"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                      <span>
-                        {item.tax_rate > 0 && `Tax: ${item.tax_rate}% = ${formatCurrency(item.tax_amount)}`}
-                      </span>
-                      <span className="font-medium text-foreground">
-                        Line total: {formatCurrency(item.quantity * item.unit_price + item.tax_amount)}
-                      </span>
-                    </div>
+            <EditableLineItemsGrid
+              columns={RETURN_LINE_COLUMNS}
+              rows={lineItems}
+              addLabel="Add Item"
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              renderRow={(item, index, layout) => (
+                <SalesReturnLineRow
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  fromInvoice={!!selectedInvoiceId}
+                  formatCurrency={formatCurrency}
+                  onPatch={patchLineItem}
+                  extra={
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity}
                       onLotChange={(allocs) =>
-                        updateLineItem(index, "lot_number", lotNumberFromAllocations(allocs))
+                        patchLineItem(index, {
+                          lot_number: lotNumberFromAllocations(allocs),
+                        } as any)
                       }
                       onSerialChange={(_ids, rows) =>
-                        updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                        patchLineItem(index, {
+                          serial_number: serialNumberFromRows(rows),
+                        } as any)
                       }
                     />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  }
+                />
+              )}
+            />
 
             <div className="flex justify-end pt-2">
               <div className="w-full sm:w-72 space-y-1.5 text-sm bg-muted/50 rounded-lg p-4">
