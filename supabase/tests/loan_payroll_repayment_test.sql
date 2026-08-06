@@ -73,7 +73,7 @@ BEGIN
   RETURNING id INTO v_loan;
 
   -- instalment 1 of 2 → still active
-  v_res := public.employee_loan_apply_repayment(v_loan, 600, NULL, NULL, 'payroll', 'test 1');
+  v_res := public.employee_loan_apply_repayment(v_loan, 600, NULL, NULL, 'payroll', 'test 1', NULL, NULL);
   IF (v_res->>'status') <> 'active' THEN
     RAISE EXCEPTION 'FAIL: loan should remain active, got %', v_res->>'status';
   END IF;
@@ -82,7 +82,7 @@ BEGIN
   END IF;
 
   -- final instalment → completed via the state machine
-  v_res := public.employee_loan_apply_repayment(v_loan, 600, NULL, NULL, 'payroll', 'test 2');
+  v_res := public.employee_loan_apply_repayment(v_loan, 600, NULL, NULL, 'payroll', 'test 2', NULL, NULL);
   IF (v_res->>'status') <> 'completed' THEN
     RAISE EXCEPTION 'FAIL: final instalment must complete the loan, got %', v_res->>'status';
   END IF;
@@ -104,7 +104,7 @@ BEGIN
 
   -- a completed loan cannot receive another instalment
   BEGIN
-    PERFORM public.employee_loan_apply_repayment(v_loan, 100, NULL, NULL, 'payroll', 'test 3');
+    PERFORM public.employee_loan_apply_repayment(v_loan, 100, NULL, NULL, 'payroll', 'test 3', NULL, NULL);
     RAISE EXCEPTION 'FAIL: repayment against a completed loan must be refused';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL;
   END;
