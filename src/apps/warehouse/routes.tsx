@@ -15,6 +15,7 @@ const InboundDashboard = lazy(() => import("@/pages/warehouse/InboundDashboard")
 const OutboundDashboard = lazy(() => import("@/pages/warehouse/OutboundDashboard"));
 const WarehouseLayoutWorkspace = lazy(() => import("@/pages/warehouse/WarehouseLayoutWorkspace"));
 const LayoutDesigner = lazy(() => import("@/pages/warehouse/LayoutDesigner"));
+const LocationWorkspace = lazy(() => import("@/pages/warehouse/LocationWorkspace"));
 
 // Warehouse master-data pages (ADR 0080). Warehouse app is the canonical
 // author of `warehouses` rows; Inventory consumes read-only.
@@ -140,6 +141,19 @@ export function WarehouseApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Warehouse Layout">
                 <WarehouseLayoutWorkspace />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Location object page (ADR 0122) — the layout board previews a
+            position; deep management lives on its own route. */}
+        <Route
+          path="layout/location/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Location">
+                <LocationWorkspace />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
