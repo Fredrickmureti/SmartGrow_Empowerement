@@ -136,12 +136,6 @@ export default function PurchaseOrderEditPage() {
     setPrimed(true);
   }, [po, primed]);
 
-  const calculateLineTotal = (item: LineItem) => {
-    const subtotal = item.quantity * item.unit_price;
-    const tax = subtotal * (item.tax_rate / 100);
-    return { lineTotal: subtotal, taxAmount: tax };
-  };
-
   const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
     setLineItems((prev) =>
       prev.map((line, i) => {
