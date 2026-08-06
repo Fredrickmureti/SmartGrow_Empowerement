@@ -52,8 +52,33 @@ const NOT_A_RENDERED_DOCUMENT: Record<string, string> = {
     "master data — vendor statements carry the history",
 };
 
+/**
+ * Since the document-workspace refactor a record page renders a shared
+ * `*View.tsx` descriptor that the peek sheet renders too, so the section is
+ * usually declared there. Look at the whole document folder, not just the
+ * page file — what matters is that the surface shows version history once.
+ */
+function folderHasVersions(abs: string): boolean {
+  const dir = join(abs, "..");
+  const stack = [dir];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const entry of readdirSync(cur)) {
+      const full = join(cur, entry);
+      if (statSync(full).isDirectory()) stack.push(full);
+      else if (
+        /\.tsx?$/.test(entry) &&
+        /DocumentVersionsSection/.test(readFileSync(full, "utf-8"))
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 describe("Wave B3.5 — record pages mount DocumentVersionsSection", () => {
-  it("every printable *RecordPage.tsx under Sales/Purchases imports DocumentVersionsSection", () => {
+  it("every printable *RecordPage.tsx under Sales/Purchases shows version history", () => {
     const pages: string[] = [];
     for (const dir of RECORD_DIRS) walk(dir, pages);
     expect(pages.length, "expected to find at least one RecordPage.tsx").toBeGreaterThan(0);
@@ -64,8 +89,7 @@ describe("Wave B3.5 — record pages mount DocumentVersionsSection", () => {
       const rel = relative(ROOT, abs).split("\\").join("/");
       seen.add(rel);
       if (rel in NOT_A_RENDERED_DOCUMENT) continue;
-      const text = readFileSync(abs, "utf-8");
-      if (!/DocumentVersionsSection/.test(text)) offenders.push(rel);
+      if (!folderHasVersions(abs)) offenders.push(rel);
     }
     expect(
       offenders,
@@ -75,8 +99,9 @@ describe("Wave B3.5 — record pages mount DocumentVersionsSection", () => {
     // The exemption list must not rot: every entry has to point at a page
     // that still exists and still lacks the section.
     const stale = Object.keys(NOT_A_RENDERED_DOCUMENT).filter(
-      (rel) => !seen.has(rel) || /DocumentVersionsSection/.test(readFileSync(join(ROOT, rel), "utf-8")),
+      (rel) => !seen.has(rel) || folderHasVersions(join(ROOT, rel)),
     );
     expect(stale, `Stale exemptions — remove from NOT_A_RENDERED_DOCUMENT:\n${stale.join("\n")}`).toEqual([]);
   });
 });
+

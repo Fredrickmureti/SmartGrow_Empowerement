@@ -31,7 +31,10 @@ import { fetchAndBuildSalesCreditNoteSnapshot } from "@/services/documents/snaps
 import { fetchAndBuildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { fetchAndBuildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
 import { fetchAndBuildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
-import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
+import {
+  fetchAndBuildPaymentReceiptSnapshot,
+  resolveAndBuildReceiptSnapshot,
+} from "@/services/documents/snapshots/salesPaymentReceipt";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
@@ -63,6 +66,13 @@ interface BuiltSnapshot {
   branchId: string | null;
   currency: string | null;
   partyId: string | null;
+  /**
+   * Optional identity override. Used when one legacy document type can be
+   * anchored on more than one row (a receipt viewed from a payment vs from
+   * an invoice), so each anchor freezes its own record instead of colliding.
+   */
+  sourceDocType?: string;
+  sourceDocId?: string;
 }
 
 interface RegistryEntry {
@@ -72,6 +82,7 @@ interface RegistryEntry {
   partyKind: "customer" | "supplier" | "employee" | null;
   build: (documentId: string) => Promise<BuiltSnapshot>;
 }
+
 
 /** Builders expose party ids under domain-specific names; normalise them. */
 function normalise(built: Record<string, unknown>): BuiltSnapshot {
@@ -185,6 +196,29 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: "customer",
     build: wrap(fetchAndBuildPaymentReceiptSnapshot),
   },
+  /**
+   * The legacy `receipt` type is anchor-agnostic: Sales → Payments passes a
+   * payment id, the invoice row action passes an invoice id. Both freeze a
+   * receipt snapshot; the invoice anchor restricts it to that invoice and
+   * keys its own record so the two never overwrite each other.
+   */
+  receipt: {
+    kindCode: "sales.payment_receipt",
+    sourceModule: "sales",
+    sourceDocType: "payment_receipt",
+    partyKind: "customer",
+    build: async (id: string) => {
+      const built = await resolveAndBuildReceiptSnapshot(supabase, id);
+      return {
+        ...normalise(built as unknown as Record<string, unknown>),
+        sourceDocType:
+          built.anchor === "invoice"
+            ? "payment_receipt_invoice"
+            : "payment_receipt",
+        sourceDocId: built.anchor === "invoice" ? built.anchorId : built.sourceDocId,
+      };
+    },
+  },
   bill: {
     kindCode: "purchases.bill",
     sourceModule: "purchases",
@@ -279,8 +313,8 @@ export async function resolveSourceDocumentRecordId(
     kindCode: entry.kindCode,
     organizationId,
     sourceModule: entry.sourceModule,
-    sourceDocType: entry.sourceDocType,
-    sourceDocId: documentId,
+    sourceDocType: built.sourceDocType ?? entry.sourceDocType,
+    sourceDocId: built.sourceDocId ?? documentId,
     businessId: built.businessId ?? ctx.businessId ?? null,
     branchId: built.branchId ?? ctx.branchId ?? null,
     partyKind: entry.partyKind,

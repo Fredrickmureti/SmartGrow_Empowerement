@@ -282,3 +282,70 @@ export async function fetchAndBuildPaymentReceiptSnapshot(
     opts?.restrictToInvoiceId ?? null,
   );
 }
+/**
+ * Anchor-agnostic receipt resolution.
+ *
+ * The legacy `receipt` document type is triggered from two places with two
+ * different ids: Sales → Payments passes a payment id, while the invoice
+ * row action ("View receipt") passes an *invoice* id. Both must land on the
+ * same snapshot builder — the invoice case simply restricts the rendered
+ * allocations to that invoice.
+ */
+export interface ResolvedReceiptSnapshot extends BuildPaymentReceiptSnapshotResult {
+  /** Which id the caller supplied. */
+  anchor: "payment" | "invoice";
+  anchorId: string;
+}
+
+export async function resolveAndBuildReceiptSnapshot(
+  supabase: SupabaseClient,
+  anchorId: string,
+): Promise<ResolvedReceiptSnapshot> {
+  if (!anchorId) throw new Error("resolveAndBuildReceiptSnapshot: id required");
+
+  const { data: asPayment } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("id", anchorId)
+    .maybeSingle();
+
+  if (asPayment?.id) {
+    const built = await fetchAndBuildPaymentReceiptSnapshot(supabase, anchorId);
+    return { ...built, anchor: "payment", anchorId };
+  }
+
+  // Invoice anchor: pick the most recent settled payment touching it.
+  const { data: allocs, error } = await supabase
+    .from("payment_allocations")
+    .select("payment_id, payments(id, payment_date, status)")
+    .eq("invoice_id", anchorId);
+
+  if (error) {
+    throw new Error(
+      `resolveAndBuildReceiptSnapshot: allocations for invoice ${anchorId} failed: ${error.message}`,
+    );
+  }
+
+  const live = (allocs ?? []).filter((r) => {
+    const p = (r as { payments?: { status?: string | null } }).payments;
+    return p != null && (p.status ?? "completed") !== "voided";
+  });
+
+  if (live.length === 0) {
+    throw new Error(
+      `no_receipt_for_invoice: invoice ${anchorId} has no payment to receipt`,
+    );
+  }
+
+  live.sort((a, b) => {
+    const da = (a as { payments?: { payment_date?: string | null } }).payments?.payment_date ?? "";
+    const db = (b as { payments?: { payment_date?: string | null } }).payments?.payment_date ?? "";
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+
+  const paymentId = (live[0] as { payment_id: string }).payment_id;
+  const built = await fetchAndBuildPaymentReceiptSnapshot(supabase, paymentId, {
+    restrictToInvoiceId: anchorId,
+  });
+  return { ...built, anchor: "invoice", anchorId };
+}
