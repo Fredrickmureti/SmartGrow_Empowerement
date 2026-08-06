@@ -220,74 +220,46 @@ export default function VendorCreditNoteCreatePage() {
       </FieldGroup>
 
       <FieldGroup label="Line Items">
-        <div className="space-y-3">
-          {lineItems.map((item, idx) => (
-            <div
+        <EditableLineItemsGrid
+          columns={PRICED_LINE_COLUMNS}
+          rows={lineItems}
+          onAddRow={addLineItem}
+          onRemoveRow={removeLineItem}
+          addLabel="Add Line"
+          disabled={isSubmitting}
+          renderRow={(item, idx, layout) => (
+            <PricedLineRow
               key={idx}
-              className="border rounded-lg p-3 space-y-3 sm:border-0 sm:p-0 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-end"
-            >
-              <div className="sm:col-span-5">
-                <Label className="text-xs text-muted-foreground sm:hidden">Description</Label>
-                <Input
-                  placeholder="Description"
-                  value={item.description}
-                  onChange={(e) => updateLineItem(idx, "description", e.target.value)}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs text-muted-foreground sm:hidden">Qty</Label>
-                <NumericInput
-                  placeholder="Qty"
-                  value={item.quantity}
-                  onValueChange={(v) => updateLineItem(idx, "quantity", v ?? 0)}
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-xs text-muted-foreground sm:hidden">Price</Label>
-                <NumericInput
-                  placeholder="Price"
-                  value={item.unit_price}
-                  onValueChange={(v) => updateLineItem(idx, "unit_price", v ?? 0)}
-                />
-              </div>
-              <div className="sm:col-span-2 text-right text-sm font-medium sm:pt-2">
-                {formatCurrency(item.line_total, formData.currency)}
-              </div>
-              <div className="sm:col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeLineItem(idx)}
-                  disabled={lineItems.length <= 1}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              index={idx}
+              item={item}
+              hideProductPicker
+              layout={layout}
+              disabled={isSubmitting}
+              formatCurrency={formatLineCurrency}
+              onPatch={patchLineItem}
+            />
+          )}
+          footer={
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{formatCurrency(subtotal, formData.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax:</span>
+                  <span>{formatCurrency(taxTotal, formData.currency)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-lg border-t pt-2">
+                  <span>Total:</span>
+                  <span>{formatCurrency(grandTotal, formData.currency)}</span>
+                </div>
               </div>
             </div>
-          ))}
-          <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-            <Plus className="mr-1 h-3 w-3" /> Add Line
-          </Button>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <div className="w-64 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span>{formatCurrency(subtotal, formData.currency)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Tax:</span>
-              <span>{formatCurrency(taxTotal, formData.currency)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Total:</span>
-              <span>{formatCurrency(grandTotal, formData.currency)}</span>
-            </div>
-          </div>
-        </div>
+          }
+        />
       </FieldGroup>
+
 
       <FieldGroup label="Notes">
         <div className="space-y-2">
