@@ -200,13 +200,32 @@ export function usePayments() {
     } as any);
 
     if (rpcError) {
-      // Surface known RPC errors verbatim — they are already user-friendly.
-      // Anything else gets a generic wrapper instead of "business_id is required…".
       const msg = rpcError.message || "";
-      const friendly = /belong to different|already paid|outstanding balance|customer credit account|workspace|company|branch|currency|positive allocation|deposit account|Accounts Receivable/i.test(msg)
-        ? msg
-        : `Could not record payment: ${msg}`;
-      throw new Error(friendly);
+      const isBusinessRule = /belong to different|already paid|outstanding balance|customer credit account|workspace|company|branch|currency|positive allocation|deposit account|Accounts Receivable|no invoices|posted journal entry|closed fiscal period/i.test(msg);
+
+      if (isBusinessRule) {
+        throw {
+          kind: "validation",
+          title: "Payment not recorded",
+          message: msg,
+          action: "Review the payment details",
+          retryable: false,
+          cause: rpcError,
+        };
+      }
+
+      // Preserve the full PostgREST error in developer diagnostics, but do not
+      // tell the operator to retry a deterministic database failure.
+      console.error("record_multi_invoice_payment failed", rpcError);
+      const diagnosticCode = rpcError.code || "SETTLEMENT-RPC";
+      throw {
+        kind: "unknown",
+        title: "Payment not recorded",
+        message: `The settlement service rejected this payment. Retrying the same payment will not resolve it. Contact your administrator and provide diagnostic code ${diagnosticCode}.`,
+        action: "Contact your administrator",
+        retryable: false,
+        cause: rpcError,
+      };
     }
 
     const paymentResult = result as any;
