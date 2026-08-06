@@ -93764,6 +93764,10 @@ export type Database = {
         }
         Returns: Json
       }
+      unreconcile_payment_atomic: {
+        Args: { _actor?: string; _payment_id: string; _reason: string }
+        Returns: Json
+      }
       update_app_last_accessed: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: undefined
@@ -94203,6 +94207,17 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
+      }
+      void_payment_atomic: {
+        Args: {
+          _actor?: string
+          _client_request_id?: string
+          _payment_id: string
+          _reason: string
+          _reason_code?: string
+          _void_date?: string
+        }
+        Returns: Json
       }
       waive_product_identification: {
         Args: {

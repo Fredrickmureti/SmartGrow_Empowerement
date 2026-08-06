@@ -80,5 +80,32 @@ describe("Journal posting monopoly", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * Reversal paths (void / unreconcile) recompute invoice balances inside
+   * `void_payment_atomic` and `unreconcile_payment_atomic`. Client-side
+   * writes to `invoices.amount_paid` re-open the window where the GL is
+   * reversed but the invoice still counts the cash.
+   */
+  it("no application code writes invoices.amount_paid directly", () => {
+    const offenders = rgFiles(
+      'from\\("invoices"\\)[\\s\\S]{0,200}?amount_paid\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * Deleting allocation rows destroys the settlement trail. Reversals append
+   * compensating rows instead (ADR 0027 invariant 5).
+   */
+  it("no application code deletes payment allocation rows", () => {
+    const offenders = rgFiles(
+      'from\\("(payment_allocations|bill_payment_allocations)"\\)[\\s\\S]{0,120}?\\.delete\\(',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
 });
+
 
