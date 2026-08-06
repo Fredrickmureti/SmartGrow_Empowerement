@@ -128,7 +128,10 @@ describe("document workspace — line items adapt to their container", () => {
   });
 
   it("document create/edit forms use the editable grid, not a hand-rolled table", () => {
-    const FORMS = SALES_FILES.filter((f) => /(CreatePage|EditPage)\.tsx$/.test(f));
+    const FORMS = DOCUMENT_FILES.filter((f) =>
+      /(CreatePage|EditPage|Form)\.tsx$/.test(f),
+    );
+
     const migrated = FORMS.filter((f) =>
       /EditableLineItemsGrid/.test(read(f)),
     );
