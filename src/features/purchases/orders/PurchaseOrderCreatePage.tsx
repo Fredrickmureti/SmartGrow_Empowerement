@@ -11,10 +11,9 @@
  *   ?contact_id=<uuid>   pre-fill vendor
  *   ?project_id=<uuid>   pre-fill project (persisted onto the PO)
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -22,7 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
   SelectContent,
@@ -30,8 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 
 import { supabase } from "@/integrations/supabase/client";
