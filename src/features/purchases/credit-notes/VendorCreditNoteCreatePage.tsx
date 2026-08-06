@@ -85,26 +85,32 @@ export default function VendorCreditNoteCreatePage() {
     ["received", "partial", "overdue"].includes(b.status),
   );
 
-  const updateLineItem = (index: number, field: string, value: any) => {
-    setLineItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value } as LineItem;
-      const qty = Number(updated[index].quantity) || 0;
-      const price = Number(updated[index].unit_price) || 0;
-      const taxRate = Number(updated[index].tax_rate) || 0;
-      const sub = qty * price;
-      updated[index].tax_amount = sub * (taxRate / 100);
-      updated[index].line_total = sub + updated[index].tax_amount;
-      return updated;
-    });
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => {
+        if (i !== index) return line;
+        const merged = { ...line, ...patch } as LineItem;
+        const sub = (Number(merged.quantity) || 0) * (Number(merged.unit_price) || 0);
+        const taxAmount = sub * ((Number(merged.tax_rate) || 0) / 100);
+        return { ...merged, tax_amount: taxAmount, line_total: sub + taxAmount };
+      }),
+    );
+  }, []);
 
-  const addLineItem = () =>
-    setLineItems((prev) => [...prev, emptyLine(prev.length)]);
-  const removeLineItem = (index: number) => {
-    if (lineItems.length <= 1) return;
-    setLineItems((prev) => prev.filter((_, i) => i !== index));
-  };
+  const formatLineCurrency = useCallback(
+    (n: number) => formatCurrency(n, formData.currency),
+    [formatCurrency, formData.currency],
+  );
+
+  const addLineItem = useCallback(
+    () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
+    [],
+  );
+
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
+
 
   const subtotal = lineItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
   const taxTotal = lineItems.reduce((s, i) => s + i.tax_amount, 0);
