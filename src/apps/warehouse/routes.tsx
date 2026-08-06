@@ -15,6 +15,7 @@ const InboundDashboard = lazy(() => import("@/pages/warehouse/InboundDashboard")
 const OutboundDashboard = lazy(() => import("@/pages/warehouse/OutboundDashboard"));
 const WarehouseLayoutWorkspace = lazy(() => import("@/pages/warehouse/WarehouseLayoutWorkspace"));
 const LayoutDesigner = lazy(() => import("@/pages/warehouse/LayoutDesigner"));
+const LocationWorkspace = lazy(() => import("@/pages/warehouse/LocationWorkspace"));
 
 // Warehouse master-data pages (ADR 0080). Warehouse app is the canonical
 // author of `warehouses` rows; Inventory consumes read-only.
@@ -45,6 +46,7 @@ const QCQueue = lazy(() => import("@/pages/warehouse/QCQueue"));
 const QCInspectionDetail = lazy(() => import("@/pages/warehouse/QCInspectionDetail"));
 const Replenishment = lazy(() => import("@/pages/warehouse/Replenishment"));
 const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
+const TrailerVisitWorkspace = lazy(() => import("@/pages/warehouse/TrailerVisitWorkspace"));
 const YardControlTower = lazy(() => import("@/pages/warehouse/YardControlTower"));
 const GateConsole = lazy(() => import("@/pages/warehouse/GateConsole"));
 const TrailerRegister = lazy(() => import("@/pages/warehouse/TrailerRegister"));
@@ -54,6 +56,7 @@ const ExecutionTelemetry = lazy(() => import("@/pages/warehouse/ExecutionTelemet
 const BillingBoard = lazy(() => import("@/pages/warehouse/BillingBoard"));
 const CrossdockBoard = lazy(() => import("@/pages/warehouse/CrossdockBoard"));
 const PackagingCatalogue = lazy(() => import("@/pages/warehouse/PackagingCatalogue"));
+const PackagingWorkspace = lazy(() => import("@/pages/warehouse/PackagingWorkspace"));
 const ExceptionsInbox = lazy(() => import("@/pages/warehouse/ExceptionsInbox"));
 const ReceivingSessions = lazy(() => import("@/pages/warehouse/ReceivingSessions"));
 const ReturnOrders = lazy(() => import("@/pages/warehouse/ReturnOrders"));
@@ -140,6 +143,19 @@ export function WarehouseApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Warehouse Layout">
                 <WarehouseLayoutWorkspace />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Location object page (ADR 0122) — the layout board previews a
+            position; deep management lives on its own route. */}
+        <Route
+          path="layout/location/:id"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Location">
+                <LocationWorkspace />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }
@@ -284,6 +300,8 @@ export function WarehouseApp() {
         <Route path="replenishment" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Replenishment"><Replenishment /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="slotting" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Slotting"><Slotting /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard & Trailers"><YardControlTower /></LazyRoute></SubscriptionProtectedRoute>} />
+        {/* Yard visit object page (ADR 0122) — boards preview, workspace acts. */}
+        <Route path="yard/visit/:id" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer visit"><TrailerVisitWorkspace /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/gate" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Gate Console"><GateConsole /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/marshal" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard Marshal"><YardMarshal /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/trailers" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer Register"><TrailerRegister /></LazyRoute></SubscriptionProtectedRoute>} />
@@ -293,6 +311,8 @@ export function WarehouseApp() {
         <Route path="billing" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="3PL Billing"><BillingBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="crossdock" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Cross-dock"><CrossdockBoard /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="packaging" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging catalogue"><PackagingCatalogue /></LazyRoute></SubscriptionProtectedRoute>} />
+        {/* Packaging object page (ADR 0122) — catalogue previews, workspace edits. */}
+        <Route path="packaging/:id" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Packaging"><PackagingWorkspace /></LazyRoute></SubscriptionProtectedRoute>} />
         {/* Legacy carton catalogue — superseded by the Packaging Master (ADR 0105). */}
         <Route path="cartons" element={<Navigate to="../packaging" replace />} />
         <Route path="exceptions" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Exceptions Inbox"><ExceptionsInbox /></LazyRoute></SubscriptionProtectedRoute>} />

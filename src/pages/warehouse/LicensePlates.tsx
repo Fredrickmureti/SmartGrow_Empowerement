@@ -40,6 +40,9 @@ import {
   type LpnOverviewRow, type LpnType,
 } from "@/features/warehouse/lpn/useLpnOps";
 import { LpnLabelDialog } from "@/features/warehouse/lpn/LpnLabelDialog";
+import { HandlingUnitPreview } from "@/features/warehouse/lpn/HandlingUnitPreview";
+import { EntityPreviewEmpty } from "@/features/warehouse/entity/EntityPreview";
+import { useEntitySelection } from "@/features/warehouse/entity/useEntitySelection";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "info" | "neutral" | "danger"> = {
   open: "info",
@@ -75,6 +78,9 @@ export default function LicensePlates() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  // Peek-before-navigate (ADR 0122): the row opens a read-only preview; the
+  // plate cockpit stays one click away.
+  const [previewId, setPreviewId] = useEntitySelection();
 
   const { data: rows, isLoading } = useLpnOverview({
     businessId: currentBusiness?.id,
@@ -208,6 +214,7 @@ export default function LicensePlates() {
           <Metric label="Unlocated" value={metrics.unlocated} hint="No bin assigned" />
         </div>
 
+        <div className="min-w-0 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,380px)]">
         <Section
           title="Board"
           description="Scan a plate barcode at any time to open its cockpit."
@@ -283,7 +290,12 @@ export default function LicensePlates() {
                   </TableHeader>
                   <TableBody>
                     {filtered.map((r: LpnOverviewRow) => (
-                      <TableRow key={r.id} className="cursor-pointer">
+                      <TableRow
+                        key={r.id}
+                        onClick={() => setPreviewId(r.id)}
+                        data-state={previewId === r.id ? "selected" : undefined}
+                        className="cursor-pointer"
+                      >
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             checked={selected.includes(r.id)}
@@ -333,6 +345,21 @@ export default function LicensePlates() {
             )}
           </div>
         </Section>
+
+        <Section contentClassName="p-0" className="min-w-0">
+          {(() => {
+            const row = (rows ?? []).find((r) => r.id === previewId);
+            return row ? (
+              <HandlingUnitPreview row={row} />
+            ) : (
+              <EntityPreviewEmpty
+                title="Select a handling unit"
+                description="Pick a plate to see what it carries and where it stands. Building, sealing and moving happen in the plate cockpit."
+              />
+            );
+          })()}
+        </Section>
+        </div>
       </PageBody>
 
       <LpnLabelDialog

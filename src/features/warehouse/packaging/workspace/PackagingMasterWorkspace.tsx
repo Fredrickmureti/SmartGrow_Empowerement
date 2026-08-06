@@ -8,6 +8,7 @@
  * through `wms_packaging_*` RPCs.
  */
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   flexRender,
   getCoreRowModel,
@@ -22,16 +23,10 @@ import {
   PageHeader, PageBody, FilterBar, LoadingState, EmptyState, StatusBadge, Section,
 } from "@/design-system";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Box, Plus, Archive } from "lucide-react";
+import { Box, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
@@ -40,10 +35,9 @@ import {
   usePackagingTypes, useSetPackagingLifecycle,
   type PackagingLifecycle, type PackagingType,
 } from "../packagingMaster";
-import { PackagingSpecForm } from "./PackagingSpecForm";
-import {
-  PackagingActivityPanel, PackagingAvailabilityPanel, PackagingCarriersPanel,
-} from "./PackagingDetailPanels";
+import { PackagingPreview } from "./PackagingPreview";
+import { EntityPreviewEmpty } from "@/features/warehouse/entity/EntityPreview";
+import { useEntitySelection } from "@/features/warehouse/entity/useEntitySelection";
 
 const ALL = "__all__";
 
@@ -56,8 +50,8 @@ export default function PackagingMasterWorkspace() {
   const [classFilter, setClassFilter] = useState<string>(ALL);
   const [lifecycleFilter, setLifecycleFilter] = useState<string>("active_only");
   const [sorting, setSorting] = useState<SortingState>([{ id: "code", desc: false }]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [selectedId, setSelectedId] = useEntitySelection();
+  const navigate = useNavigate();
 
   const setLifecycle = useSetPackagingLifecycle();
   const archive = useArchivePackaging();
@@ -174,7 +168,7 @@ export default function PackagingMasterWorkspace() {
         title="Packaging catalogue"
         description="Every carton, pallet, tote and envelope the cartonization engine may choose."
         actions={
-          <Button onClick={() => { setCreating(true); setSelectedId(null); }}>
+          <Button onClick={() => navigate("/warehouse-app/packaging/new")}>
             <Plus className="mr-2 h-4 w-4" /> New packaging
           </Button>
         }
@@ -216,7 +210,7 @@ export default function PackagingMasterWorkspace() {
                   icon={Box}
                   title="No packaging types"
                   description="Create the boxes, pallets and totes your operation actually uses."
-                  action={<Button onClick={() => setCreating(true)}><Plus className="mr-2 h-4 w-4" />New packaging</Button>}
+                  action={<Button onClick={() => navigate("/warehouse-app/packaging/new")}><Plus className="mr-2 h-4 w-4" />New packaging</Button>}
                 />
               </div>
             ) : (
@@ -242,7 +236,7 @@ export default function PackagingMasterWorkspace() {
                     {table.getRowModel().rows.map((r) => (
                       <tr
                         key={r.id}
-                        onClick={() => { setSelectedId(r.original.id); setCreating(false); }}
+                        onClick={() => setSelectedId(r.original.id)}
                         className={cn(
                           "cursor-pointer border-b last:border-0 hover:bg-muted/50",
                           selectedId === r.original.id && "bg-muted",
@@ -261,91 +255,20 @@ export default function PackagingMasterWorkspace() {
             )}
           </Section>
 
-          <div className="min-w-0">
-            {creating ? (
-              <Section title="New packaging type">
-                <PackagingSpecForm
-                  businessId={businessId}
-                  record={null}
-                  onCancel={() => setCreating(false)}
-                  onSaved={(row) => { setCreating(false); setSelectedId(row.id); }}
-                />
-              </Section>
-            ) : !selected ? (
-              <Section>
-                <EmptyState
-                  icon={Box}
-                  title="Select a packaging type"
-                  description="Pick a row to inspect its geometry, carrier rules, stock and history."
-                />
-              </Section>
+          <Section contentClassName="p-0" className="min-w-0">
+            {!selected ? (
+              <EntityPreviewEmpty
+                title="Select a packaging type"
+                description="Pick a row to see its geometry and lifecycle. Full specification, carrier rules, availability and history live on the packaging workspace."
+              />
             ) : (
-              <Section
-                title={`${selected.code} — ${selected.name}`}
-                description={`Class ${selected.packaging_class} · version ${selected.row_version}`}
-                actions={
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={selected.lifecycle_status}
-                      onValueChange={(v) => changeLifecycle(v as PackagingLifecycle)}
-                    >
-                      <SelectTrigger className="w-full @xl/page:w-[150px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {PACKAGING_LIFECYCLES.map((l) => (
-                          <SelectItem key={l} value={l} className="capitalize">{l}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="icon" aria-label="Archive packaging type">
-                          <Archive className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Archive {selected.code}?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            If any carton ever used this packaging it is retired instead of deleted,
-                            so the audit trail survives.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={doArchive}>Archive</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                }
-              >
-                <Tabs defaultValue="spec">
-                  <TabsList>
-                    <TabsTrigger value="spec">Specification</TabsTrigger>
-                    <TabsTrigger value="carriers">Carriers</TabsTrigger>
-                    <TabsTrigger value="stock">Availability</TabsTrigger>
-                    <TabsTrigger value="activity">Activity</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="spec" className="pt-4">
-                    <PackagingSpecForm
-                      businessId={businessId}
-                      record={selected}
-                      onSaved={(row) => setSelectedId(row.id)}
-                    />
-                  </TabsContent>
-                  <TabsContent value="carriers" className="pt-4">
-                    <PackagingCarriersPanel packagingTypeId={selected.id} businessId={businessId} />
-                  </TabsContent>
-                  <TabsContent value="stock" className="pt-4">
-                    <PackagingAvailabilityPanel packagingTypeId={selected.id} businessId={businessId} />
-                  </TabsContent>
-                  <TabsContent value="activity" className="pt-4">
-                    <PackagingActivityPanel packagingTypeId={selected.id} businessId={businessId} />
-                  </TabsContent>
-                </Tabs>
-              </Section>
+              <PackagingPreview
+                record={selected}
+                onLifecycleChange={changeLifecycle}
+                onArchive={doArchive}
+              />
             )}
-          </div>
+          </Section>
         </div>
       </PageBody>
     </>
