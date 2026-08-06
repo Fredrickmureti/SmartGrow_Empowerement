@@ -188,41 +188,11 @@ async function fetchLiveAllocations(paymentId: string): Promise<LiveAllocation[]
   }));
 }
 
-/**
- * Subtract `delta` from invoices.amount_paid and re-derive status without
- * reopening voided/cancelled invoices.
- */
-async function decrementInvoicePaid(invoiceId: string, delta: number): Promise<void> {
-  if (delta <= 0) return;
-  const { data: inv, error: readErr } = await supabase
-    .from("invoices")
-    .select("total, amount_paid, status")
-    .eq("id", invoiceId)
-    .single();
-  if (readErr) throw readErr;
-  if (!inv) return;
+// NOTE: the client-side `decrementInvoicePaid` helper was removed. Invoice
+// paid amounts are now recomputed inside `void_payment_atomic` and
+// `unreconcile_payment_atomic` from the live allocation sum, so the browser
+// never writes `invoices.amount_paid` on a reversal path.
 
-  const total = Number((inv as any).total) || 0;
-  const currentPaid = Number((inv as any).amount_paid) || 0;
-  const currentStatus = (inv as any).status as string;
-  const newPaid = Math.max(0, currentPaid - delta);
-
-  let newStatus: "sent" | "partial" | "paid" | undefined;
-  if (currentStatus !== "voided" && currentStatus !== "cancelled") {
-    if (newPaid <= 0) newStatus = "sent";
-    else if (newPaid < total) newStatus = "partial";
-    else newStatus = "paid";
-  }
-
-  const update: Record<string, unknown> = { amount_paid: newPaid };
-  if (newStatus) update.status = newStatus;
-
-  const { error: updErr } = await supabase
-    .from("invoices")
-    .update(update as any)
-    .eq("id", invoiceId);
-  if (updErr) throw updErr;
-}
 
 export function useTransactionReversal() {
   const { currentOrg } = useOrganization();
