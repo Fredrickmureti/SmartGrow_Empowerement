@@ -38,8 +38,8 @@ BEGIN
   VALUES (v_loan, 1, CURRENT_DATE, 500, 'pending'),
          (v_loan, 2, CURRENT_DATE + INTERVAL '30 days', 500, 'pending');
 
-  v_apply1 := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i1');
-  v_apply2 := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i2');
+  v_apply1 := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i1', NULL, NULL);
+  v_apply2 := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i2', NULL, NULL);
 
   IF (v_apply2->>'status') <> 'completed' THEN
     RAISE EXCEPTION 'FAIL: final instalment must complete loan, got %', v_apply2->>'status';
@@ -79,7 +79,7 @@ BEGIN
   END;
 
   -- Re-apply lands us back at completed — apply/reverse/apply is a fixed point.
-  v_reapply := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i2-redo');
+  v_reapply := public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'i2-redo', NULL, NULL);
   IF (v_reapply->>'status') <> 'completed' THEN
     RAISE EXCEPTION 'FAIL: re-applying final instalment must re-complete, got %', v_reapply->>'status';
   END IF;

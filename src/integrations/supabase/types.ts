@@ -14900,10 +14900,12 @@ export type Database = {
           created_at: string
           currency: string
           disbursed_at: string | null
+          disbursed_by: string | null
           employee_id: string
           id: string
           installment_amount: number | null
           installment_count: number
+          journal_entry_id: string | null
           min_net_floor: number | null
           notes: string | null
           organization_id: string
@@ -14923,10 +14925,12 @@ export type Database = {
           created_at?: string
           currency?: string
           disbursed_at?: string | null
+          disbursed_by?: string | null
           employee_id: string
           id?: string
           installment_amount?: number | null
           installment_count?: number
+          journal_entry_id?: string | null
           min_net_floor?: number | null
           notes?: string | null
           organization_id: string
@@ -14946,10 +14950,12 @@ export type Database = {
           created_at?: string
           currency?: string
           disbursed_at?: string | null
+          disbursed_by?: string | null
           employee_id?: string
           id?: string
           installment_amount?: number | null
           installment_count?: number
+          journal_entry_id?: string | null
           min_net_floor?: number | null
           notes?: string | null
           organization_id?: string
@@ -15029,6 +15035,48 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "v_my_employee_profile"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "employee_advances_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
           {
@@ -84131,6 +84179,14 @@ export type Database = {
           expired_count: number
         }[]
       }
+      disburse_employee_advance: {
+        Args: {
+          p_advance_id: string
+          p_disbursement_date?: string
+          p_payment_account_id?: string
+        }
+        Returns: Json
+      }
       discard_employee_draft: {
         Args: { p_employee_id: string }
         Returns: boolean
@@ -84333,31 +84389,19 @@ export type Database = {
         }
         Returns: undefined
       }
-      employee_loan_apply_repayment:
-        | {
-            Args: {
-              _amount: number
-              _kind?: string
-              _loan_id: string
-              _notes?: string
-              _payroll_run_id?: string
-              _payslip_id?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _amount: number
-              _kind: string
-              _loan_id: string
-              _notes: string
-              _payroll_run_id: string
-              _payslip_id: string
-              _terminal_end_date: string
-              _terminal_event: string
-            }
-            Returns: Json
-          }
+      employee_loan_apply_repayment: {
+        Args: {
+          _amount: number
+          _kind: string
+          _loan_id: string
+          _notes: string
+          _payroll_run_id: string
+          _payslip_id: string
+          _terminal_end_date: string
+          _terminal_event: string
+        }
+        Returns: Json
+      }
       employee_loan_authorize_disbursement: {
         Args: { _loan_id: string }
         Returns: {

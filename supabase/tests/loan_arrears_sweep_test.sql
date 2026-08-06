@@ -73,7 +73,7 @@ BEGIN
   INSERT INTO public.loan_repayment_schedule(loan_id, sequence, due_date, scheduled_amount, status)
   VALUES (v_loan, 3, CURRENT_DATE + INTERVAL '60 days', 500, 'pending')
   ON CONFLICT DO NOTHING;
-  PERFORM public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'clears arrears');
+  PERFORM public.employee_loan_apply_repayment(v_loan, 500, NULL, NULL, 'payroll', 'clears arrears', NULL, NULL);
   SELECT status INTO v_status FROM public.employee_loans WHERE id = v_loan;
   IF v_status NOT IN ('active','completed') THEN
     RAISE EXCEPTION 'FAIL: repayment must clear arrears (active|completed), got %', v_status;
