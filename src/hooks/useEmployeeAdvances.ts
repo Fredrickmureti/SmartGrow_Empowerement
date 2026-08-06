@@ -113,14 +113,28 @@ export function useEmployeeAdvances(businessId?: string | null) {
     await fetchAdvances();
   }, [user?.id, fetchAdvances]);
 
-  const disburseAdvance = useCallback(async (id: string) => {
-    const { error } = await supabase
-      .from("employee_advances")
-      .update({ status: "disbursed", disbursed_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) { toast.error(error.message); throw error; }
-    await fetchAdvances();
-  }, [fetchAdvances]);
+  /**
+   * Disbursement is an accounting event, not a status flip. The canonical
+   * `disburse_employee_advance` RPC performs the state transition AND posts
+   * the advance-receivable / bank entry through `post_journal_entry_atomic`
+   * in one transaction, idempotently. Never write `status = 'disbursed'`
+   * from the client — that would move cash with no journal.
+   */
+  const disburseAdvance = useCallback(
+    async (id: string, paymentAccountId?: string | null) => {
+      const { error } = await supabase.rpc(
+        "disburse_employee_advance" as never,
+        {
+          p_advance_id: id,
+          p_payment_account_id: paymentAccountId ?? null,
+        } as never,
+      );
+      if (error) { toast.error(error.message); throw error; }
+      await fetchAdvances();
+    },
+    [fetchAdvances],
+  );
+
 
   const cancelAdvance = useCallback(async (id: string) => {
     const { error } = await supabase
