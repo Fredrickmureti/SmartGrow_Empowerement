@@ -148,7 +148,68 @@ describe("document workspace — line items adapt to their container", () => {
     }
     expect(migrated.length, "no form is on the editable grid yet").toBeGreaterThan(0);
   });
+
+  /**
+   * Phase 11 — close the gap the migration guard left open: it only checked
+   * forms that had *already* moved. A brand-new create page with an inline
+   * `grid-cols-12` line editor would have passed CI.
+   *
+   * `BudgetEditPage` is exempt by decision: its table is an account × month
+   * budget-vs-actual matrix, not a transactional line editor.
+   */
+  it("no document form hand-rolls a line editor", () => {
+    const FORM_EXEMPT = /budgets\/BudgetEditPage\.tsx$/;
+    const offenders = DOCUMENT_FILES.filter((f) =>
+      /(CreatePage|EditPage|Form)\.tsx$/.test(f),
+    )
+      .filter((f) => !FORM_EXEMPT.test(f))
+      .filter((f) => {
+        const src = read(f);
+        if (/EditableLineItemsGrid/.test(src)) return false;
+        return /grid-cols-12|<TableHead\b/.test(src);
+      });
+    expect(
+      offenders,
+      "Compose EditableLineItemsGrid — do not hand-roll a line grid or table",
+    ).toEqual([]);
+  });
 });
+
+describe("document workspace — one lifecycle renderer", () => {
+  const STRIPS = [
+    "src/design-system/records/DocumentLifecycleStrip.tsx",
+    "src/design-system/records/DocumentSettlementStrip.tsx",
+  ];
+
+  it("lineage RPCs are called only by the shared strips", () => {
+    const offenders = [...DOCUMENT_FILES, ...walk("src/design-system/records")]
+      .filter((f) => !STRIPS.includes(f))
+      .filter((f) => /get_document_(settlement_)?lineage/.test(read(f)));
+    expect(
+      offenders,
+      "Render DocumentLifecycleStrip / DocumentSettlementStrip instead of querying lineage per feature",
+    ).toEqual([]);
+  });
+
+  it("the settlement half of the chain is rendered", () => {
+    const strip = read("src/design-system/records/DocumentSettlementStrip.tsx");
+    for (const step of [
+      "payment",
+      "journal_entry",
+      "reconciliation",
+      "credit_note",
+      "sales_return",
+      "collections",
+    ]) {
+      expect(strip, `settlement step ${step} is missing`).toContain(step);
+    }
+    // Both halves must be composed by the workspace, not by a feature page.
+    const workspace = read("src/design-system/records/DocumentWorkspace.tsx");
+    expect(workspace).toContain("DocumentLifecycleStrip");
+    expect(workspace).toContain("DocumentSettlementStrip");
+  });
+});
+
 
 describe("document workspace — the layer covers Purchases, Finance and Inventory", () => {
   it("every record page and peek composes the shared scaffolds", () => {
