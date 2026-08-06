@@ -28,7 +28,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -38,9 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Send, Loader2 } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -113,16 +111,6 @@ export default function CreditNoteCreatePage() {
     });
   }, []);
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    setLineItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      const totals = calculateLineTotal(updated[index]);
-      updated[index].line_total = totals.line_total;
-      updated[index].tax_amount = totals.tax_amount;
-      return updated;
-    });
-  };
 
   const addLineItem = () => setLineItems((prev) => [...prev, emptyLine(prev.length)]);
   const removeLineItem = (index: number) => {

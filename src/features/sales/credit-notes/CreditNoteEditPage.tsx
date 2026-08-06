@@ -19,7 +19,6 @@ import { normalizeError } from "@/services/resilience";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,9 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 import { OutboundLineTracking } from "@/components/inventory/OutboundLineTracking";
@@ -168,16 +166,6 @@ export default function CreditNoteEditPage() {
     });
   }, []);
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    setLineItems((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      const totals = calculateLineTotal(updated[index]);
-      updated[index].line_total = totals.line_total;
-      updated[index].tax_amount = totals.tax_amount;
-      return updated;
-    });
-  };
 
   const addLineItem = () => setLineItems((prev) => [...prev, emptyLine(prev.length)]);
   const removeLineItem = (index: number) => {
