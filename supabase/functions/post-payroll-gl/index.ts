@@ -302,6 +302,14 @@ Deno.serve(async (req) => {
     // `payroll_loan_repayment_gl_targets` below.
     let loanRepaymentTotal = 0;
 
+    // Same reasoning for employee advance recovery: the advance was booked as
+    // a receivable at disbursement (`disburse_employee_advance`, ADR 0124), so
+    // recovering it through payroll relieves that asset. Crediting
+    // `advance_recovery_payable` would double-count the money as a liability
+    // and leave the receivable outstanding forever.
+    let advanceRecoveryTotal = 0;
+
+
 
     // Phase C — split labour cost by accounting_tag when the compute layer
     // stamped one. `null` bucket is the legacy "post to generic
