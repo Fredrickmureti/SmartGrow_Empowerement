@@ -604,11 +604,14 @@ export function useTransactionReversal() {
   };
 
   /**
-   * Un-reconcile a payment from its current invoice.
-   * AUDIT FIX (B2): the payment JE was posted with contact_id linkage on the AR
-   * line. Leaving it intact while detaching the payment leaves a contact-mismatched
-   * AR ledger row (Odoo reverses + reposts on every re-apply). We now reverse
-   * the payment JE here; reapplyPayment will post a fresh JE with the new contact.
+   * Un-reconcile a payment from its current invoice(s).
+   *
+   * The whole operation lives in `unreconcile_payment_atomic`: JE reversal,
+   * payment reset, compensating allocation rows and invoice recompute happen
+   * in one transaction. This hook only resolves labels for the audit log and
+   * surfaces the result. Do not re-introduce client-side allocation writes —
+   * the old path DELETEd allocation rows, which destroys the settlement trail
+   * ADR 0027 invariant 5 depends on.
    */
   const unreconcilePayment = async (options: UnreconcilePaymentOptions): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -619,85 +622,46 @@ export function useTransactionReversal() {
     try {
       const { data: payment, error: paymentError } = await supabase
         .from("payments")
-        .select("*")
+        .select("id, receipt_number")
         .eq("id", options.paymentId)
         .single();
 
       if (paymentError) throw paymentError;
       if (!payment) throw new Error("Payment not found");
 
-      // ADR 0027: discover linked invoices through payment_allocations
-      // instead of the deprecated single-invoice FK (ADR 0027).
+      // Labels only — the RPC re-reads allocations under its own lock.
       const allocations = await fetchLiveAllocations(options.paymentId);
       if (allocations.length === 0) {
         toast({ title: "Not Reconciled", description: "This payment is not currently applied to any invoice", variant: "destructive" });
         return false;
       }
-
-      // For the audit log: pretty-print which invoice(s) were detached.
-      const invoiceIds = allocations.map((a) => a.invoice_id);
       const { data: detachedInvoices } = await supabase
         .from("invoices")
         .select("id, invoice_number")
-        .in("id", invoiceIds);
+        .in("id", allocations.map((a) => a.invoice_id));
       const detachedLabel = (detachedInvoices || [])
         .map((i: any) => i.invoice_number)
         .join(", ") || `${allocations.length} invoice(s)`;
 
-      // 1. Reverse the payment JE so AR ledger no longer carries the
-      //    contact-linked credit. JE will be re-posted on reapply.
-      const paymentJeId = (payment as any).journal_entry_id;
-      if (paymentJeId) {
-        await reverseJEAtomic(
-          paymentJeId,
-          `Unreconcile payment ${(payment as any).receipt_number}: ${options.reason}`,
-          user.id
-        );
-      }
-
-      // 2. Flip payment status to 'unreconciled' FIRST so the deferred
-      //    sum-invariant trigger ignores the upcoming allocation DELETEs.
-      //    Reset applied_amount/outstanding_amount to match the cleared state.
-      const { error: updatePaymentError } = await supabase
-        .from("payments")
-        .update({
-          journal_entry_id: null,
-          status: "unreconciled" as any,
-          applied_amount: 0,
-          outstanding_amount: (payment as any).amount ?? 0,
-          unreconciled_at: new Date().toISOString(),
-          unreconciled_by: user.id,
-          unreconcile_reason: options.reason,
-        } as any)
-        .eq("id", options.paymentId);
-
-      if (updatePaymentError) throw updatePaymentError;
-
-      // 3. Restore amount_paid on every invoice the payment had settled.
-      for (const alloc of allocations) {
-        await decrementInvoicePaid(alloc.invoice_id, alloc.amount);
-      }
-
-      // 4. DELETE the allocation rows. The ledger view filters on
-      //    payment.status, but removing the rows keeps the allocation
-      //    history clean for the upcoming reapply.
-      const { error: delErr } = await supabase
-        .from("payment_allocations")
-        .delete()
-        .eq("payment_id", options.paymentId);
-      if (delErr) throw delErr;
+      const { error: rpcError } = await supabase.rpc("unreconcile_payment_atomic" as any, {
+        _payment_id: options.paymentId,
+        _reason: options.reason,
+        _actor: user.id,
+      } as any);
+      if (rpcError) throw rpcError;
 
       logAction({
         action: "unreconciled",
         entityType: "payment",
         entityId: options.paymentId,
         entityName: (payment as any).receipt_number,
-        changesSummary: `Payment unreconciled from invoice(s) ${detachedLabel}. JE reversed. Allocations removed: ${allocations.length}. Reason: ${options.reason}`,
+        changesSummary: `Payment unreconciled from invoice(s) ${detachedLabel}. JE reversed. Allocations compensated: ${allocations.length}. Reason: ${options.reason}`,
       });
 
       toast({ title: "Payment Unreconciled", description: `Payment ${(payment as any).receipt_number} detached and GL reversed.` });
       return true;
     } catch (error: any) {
+
       console.error("Error unreconciling payment:", error);
       toast({ title: "Error Unreconciling Payment", description: normalizeError(error).message, variant: "destructive" });
       return false;
