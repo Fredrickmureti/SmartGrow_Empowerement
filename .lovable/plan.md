@@ -1,42 +1,84 @@
-# Settlement Posting Convergence — Remediation Status
+# Settlement Convergence — Verification Verdict and Next Phases (C4–C6)
 
-Authoritative status file. Roadmap source: `.lovable/plan/settlement-posting-convergence-audit-verdict-and-remediation-2026-08-06.md`.
+## Phase 1 — Independent verification (done this turn, against the live DB and code)
 
-## Completed and verified
+Confirmed **true** in the previous engineer's status file:
 
-- **Phase 1 — Posting monopoly guard**: architecture test `src/test/architecture/journal-posting-monopoly.test.ts` blocks new raw journal inserts, direct settlement-row inserts, the phantom `invoice_payments` table, and (new) client-side advance disbursement.
-- **Phase 2 — Convert offenders (100%)**: re-verified this round by scanning `pg_proc` for raw `INSERT INTO journal_entries|journal_entry_lines`. Only the engine trio (`post_journal_entry_atomic`, `void_journal_entry_atomic`, `update_journal_entry_atomic`) touches journal tables directly.
-- **Phase 3 — Reconciliation demoted**: `reconcile_bank_transaction_atomic` validates and matches; it no longer mints payments.
-- **Phase 4 (F1–F4)**: M-Pesa webhook and loan interest accrual route through the canonical engines.
-- **Phase 4 (F5) — Expense settlement**: `post_expense_gl` + `resolve_expense_default_account` own account resolution, input-tax splitting, posting and link-back server-side; `src/lib/finance/expenseSettlement.ts` is the single client entrypoint.
-- **Phase 5 — POS settlement boundary**: *the previous status entry was wrong.* POS settlement is already server-side: `pos_payment_sessions` + seven lifecycle RPCs, client transport in `paymentSessionClient.ts`. Shift close posts asynchronously and durably: `_pos_stmt_enqueue_gl_post` trigger → `accounting_events` → `outbox-dispatcher` → `accounting_post_event` → `post_pos_statement_gl` → `post_journal_entry_atomic`. No POS path composes journal lines in the browser.
-- **Phase 6 — Retire legacy writers**: `record_payment_atomic` is a thin shim over `record_multi_invoice_payment`; the redundant 15-arg overload is gone; the redundant 6-arg `employee_loan_apply_repayment` overload is now dropped (callers pass the terminal-event args explicitly).
-- **Phase C — Employee advances brought into the GL**: new `public.disburse_employee_advance(advance_id, payment_account_id, disbursement_date)` performs the status transition and posts `Dr advance receivable / Cr bank` through the engine, idempotently, with `employee_advances.journal_entry_id` link-back. `useEmployeeAdvances.disburseAdvance` now calls the RPC instead of writing `status = 'disbursed'`. See `docs/adr/0124-employee-advance-settlement.md`.
-- **Phase C2 — Advance recovery leg closed**: `process_payroll_advance_recoveries` is the only writer of `advance_repayment_schedule` and the advance balance/status (idempotent per `(advance, run)`); `payroll_advance_recovery_gl_targets` resolves the receivable account; `post-payroll-gl` credits it instead of `advance_recovery_payable`; `payroll_required_gl_mappings_for_run` now requires the advance receivable (accepting `loan_receivable` as the documented fallback) rather than a payable. `process_payroll_loan_deductions` was repaired to call the 8-arg repayment signature.
-- **Phase C3 — Payment reversal brought under the settlement engine**: `void_payment_atomic` and `unreconcile_payment_atomic` now own JE reversal, header update, invoice recompute (from the live allocation sum) and the ADR 0012 event in one transaction; both are period-guarded and idempotent. `useTransactionReversal` no longer deletes allocation rows, writes `invoices.amount_paid`, or treats the reversal event as best-effort; the `decrementInvoicePaid` helper is deleted. Two new ratchets guard both shapes. See `docs/adr/0125-payment-reversal-single-writer.md`.
-- **Reallocation append-only proof (was remaining item 3)** — verified: `reallocate_payment_atomic` appends compensating negative rows and never UPDATEs or DELETEs allocations (ADR 0027 invariant 5).
-- **`record_bill_payment_atomic` review (was remaining item 2)** — resolved: the function no longer exists in `pg_proc` and no `src/**` or `supabase/functions/**` code references it. AP settlement has a single writer, `record_multi_bill_payment`.
+- **Posting monopoly holds.** A scan of every `public` function for raw
+  `INSERT INTO journal_entries|journal_entry_lines` returns exactly three:
+  `post_journal_entry_atomic`, `update_journal_entry_atomic`,
+  `void_journal_entry_atomic`. No other database path mints ledger rows.
+- **Duplicate settlement overloads are gone.** `employee_loan_apply_repayment`,
+  `record_payment_atomic`, `record_multi_invoice_payment` and
+  `record_multi_bill_payment` each exist exactly once. `record_bill_payment_atomic`
+  does not exist.
+- **Phase C3 (AR payment reversal) is real.** `void_payment_atomic` exists with
+  both a fiscal-period guard and an `already_voided` idempotency branch;
+  `unreconcile_payment_atomic`, `unapply_payment_atomic` and
+  `reallocate_payment_atomic` all carry period guards.
+- **Client no longer writes AR invoice balances on reversal.**
+  `decrementInvoicePaid` is deleted from `src/hooks/useTransactionReversal.ts`.
+- **POS and advances** post through the engine (`post_pos_statement_gl`,
+  `disburse_employee_advance`).
 
-## Corrections to the previous engineer's claims
+Confirmed **incomplete / newly found**:
 
-- "Phase 5 not started / POS lives in client `useState` with no `pos_payment_sessions` table" — **false**. The table, the RPC set and the async GL path all exist.
-- "Phase 6 remaining: `employee_advances` posting path" — accurate; now closed on both legs.
+1. **AP reversal is still the exact anti-pattern ADR 0125 banned on AR.**
+   `voidBillPayment` (`src/hooks/useTransactionReversal.ts`) runs a multi-step
+   browser sequence: reverse the JE, then loop bills writing
+   `bills.amount_paid` by client-side decrement, then **DELETE the
+   `bill_payments` row**, cascading `bill_payment_allocations` away. This
+   destroys settlement history (violates the append-only allocation invariant),
+   and a mid-sequence failure leaves the GL reversed while the bill still shows
+   paid. AP has no parity with AR. This is the highest-risk remaining item.
+2. **`voidInvoice` is still a client-orchestrated saga** (JE reversal, status
+   flip, payment cascade, optional credit note, stock restore) across separate
+   round-trips.
+3. **No behavioural tests** for the new reversal RPCs — `supabase/tests/`
+   contains no payment-reversal file; only architecture ratchets guard them.
+4. `unapply_payment_atomic` / `unreconcile_payment_atomic` have period guards
+   but no explicit already-applied short-circuit like `void_payment_atomic`'s.
 
-## Currently active
+## Phase 2 — Plan
 
-Nothing in flight. Phase C3 is complete: typecheck clean (`tsgo --noEmit`), architecture ratchets green (7/7 in `journal-posting-monopoly.test.ts`).
+### C4 — AP reversal single writer (parity with ADR 0125)
+New `public.void_bill_payment_atomic(_bill_payment_id, _reason, _void_date, _actor, _client_request_id)`
+doing everything in one transaction: reverse the linked JE (falling back to a
+`source_type='bill_payment'` lookup), set the payment header to `voided`
+(**never delete it**), recompute every touched bill's `amount_paid` and status
+**from the live allocation sum**, and append an audit event. Period-guarded and
+idempotent (`already_voided`). `voidBillPayment` becomes a thin call.
+Extend the ratchet to ban client writes to `bills.amount_paid` and deletes
+against `bill_payments` / `bill_payment_allocations`.
 
-## Remaining work
+### C5 — Invoice void as a server-side operation
+`public.void_invoice_atomic(...)`: reverse main + COGS journals, set invoice
+status, cascade payment voids through `void_payment_atomic`, optionally issue
+the credit note via `issue_credit_note_for_payment_atomic`, and restore stock —
+one transaction, idempotent, period-guarded. `voidInvoice` keeps only reason
+collection and error surfacing. Ratchet: no client-side invoice status flip
+paired with a JE reversal.
 
-1. **Historical advance backfill** (needs a business decision, not code). Advances disbursed before Phase C have no journal. `disburse_employee_advance` is idempotent and safe to replay per advance, but the funding account and period must be chosen deliberately — do not bulk-post blindly. Advances partially recovered before Phase C2 also carry recovery credits against `advance_recovery_payable`; those need a one-off reclass to the receivable.
-2. **Reversal regression coverage.** The new RPCs have ratchets but no pgTAP behavioural tests. Add cases under `supabase/tests/` for: void with multiple allocations (invoice returns to `partial`/`sent` correctly), double void (returns `already_voided`, no second reversal JE), void in a closed period (raises), and unreconcile leaving compensating rows rather than deleting.
-3. **Sweep the remaining reversal surfaces.** `voidInvoice` in the same hook still composes several client steps (JE reversal, status update, cascade to payments, optional credit note, stock restore). It is the last multi-step settlement sequence in the browser and is the natural Phase C4.
+### C6 — Behavioural coverage
+pgTAP under `supabase/tests/payment_reversal_test.sql` and
+`bill_payment_reversal_test.sql`: multi-allocation void restores each document
+from the allocation sum; double void returns `already_voided` with no second
+JE; void in a closed period raises; unreconcile appends compensating rows
+rather than deleting; bill payment row survives a void.
+Add the same short-circuit to `unapply_payment_atomic` /
+`unreconcile_payment_atomic` while covering them.
 
-## Instructions for the next agent
+### Deferred (needs a business decision, not code)
+Historical backfill: advances disbursed before Phase C have no journal, and
+pre-C2 recoveries sit against `advance_recovery_payable` instead of the
+receivable. Funding account and posting period must be chosen deliberately —
+I will raise this rather than bulk-post.
 
-1. **Verify before you build.** Do not trust this prose. Re-read `void_payment_atomic` and `unreconcile_payment_atomic` with `pg_get_functiondef`, confirm the period guard and idempotency branches are present, and run `bunx vitest run src/test/architecture/journal-posting-monopoly.test.ts` plus `tsgo --noEmit`. Confirm `decrementInvoicePaid` is gone from `src/hooks/useTransactionReversal.ts`.
-2. **Then resume chronologically at remaining item 2** (pgTAP coverage for the reversal RPCs), which closes Phase C3 to production-ready, and only then start Phase C4 (item 3, `voidInvoice`). Item 1 is blocked on a business decision — raise it with the user rather than acting on it.
-3. Do not open unrelated areas of the system, and do not leave a phase partially implemented.
-4. Update this file immediately after each implementation.
-
-
+## Technical notes
+- Verification method: `pg_proc` source scans for raw journal inserts, overload
+  counts, period-guard and idempotency markers; ripgrep over
+  `src/hooks/useTransactionReversal.ts` and `supabase/tests/`.
+- Each phase ends with `tsgo --noEmit`, the architecture ratchets in
+  `src/test/architecture/journal-posting-monopoly.test.ts`, and an ADR
+  (`0126-ap-reversal-single-writer.md`, `0127-invoice-void-single-writer.md`).
+- No source files were modified during verification.
