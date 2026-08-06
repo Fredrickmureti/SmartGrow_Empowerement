@@ -68,3 +68,13 @@ export {
   DocumentStatusSlot,
   resolveTotalsRows,
 } from "./DocumentWorkspace";
+
+// Editable line-item surface for document create/edit forms (Phase 8).
+export {
+  EditableLineItemsGrid,
+  EditableLineRowCells,
+} from "./EditableLineItemsGrid";
+export type {
+  EditableLineColumn,
+  EditableRowLayout,
+} from "./EditableLineItemsGrid";
