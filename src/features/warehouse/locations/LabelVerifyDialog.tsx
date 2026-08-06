@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useLabelVerification } from "./useLabelVerification";
