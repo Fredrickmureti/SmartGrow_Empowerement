@@ -536,11 +536,14 @@ export default function LicensePlateView() {
           <DialogHeader><DialogTitle>Nest {lpn.code} under a parent</DialogTitle></DialogHeader>
           <div className="space-y-2">
             <Label>Parent plate code</Label>
-            <Input
+            <ScanTextField
               placeholder="Scan or type the parent plate code"
+              cameraLabel="Scan the parent plate"
+              priority={40}
               value={parentCode}
-              onChange={(e) => setParentCode(e.target.value)}
+              onChange={setParentCode}
             />
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
