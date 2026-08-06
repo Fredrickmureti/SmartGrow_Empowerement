@@ -468,6 +468,7 @@ export default function Employees() {
   return (
     <>
       <PageHeader
+        className="px-1 pb-2 pt-3 sm:px-6"
         eyebrow="HR · People"
         title="Employees"
         description="Directory of people in this company."
@@ -531,7 +532,7 @@ export default function Employees() {
           </>
         }
       />
-      <PageBody fullWidth className="gap-4 sm:gap-6">
+      <PageBody fullWidth className="gap-4 py-4 sm:gap-5">
 
 
 
