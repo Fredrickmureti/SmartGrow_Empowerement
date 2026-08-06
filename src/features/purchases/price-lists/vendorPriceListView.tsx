@@ -78,6 +78,11 @@ interface Options {
   baseCurrency?: string;
 }
 
+export interface VendorPriceListViewResult {
+  view: DocumentRecordView;
+  actions: JSX.Element[];
+}
+
 export function useVendorPriceListView(
   entry: VendorPriceListEntry | null,
   {
@@ -91,15 +96,18 @@ export function useVendorPriceListView(
     formatCurrency,
     baseCurrency,
   }: Options,
-): DocumentRecordView {
-  return useMemo<DocumentRecordView>(() => {
+): VendorPriceListViewResult {
+  return useMemo<VendorPriceListViewResult>(() => {
     if (!entry) {
       return {
-        kind: "generic",
-        eyebrow: "Vendor Price List",
-        listPath: "/purchases/price-lists",
-        title: "Price list entry",
-        notFound: true,
+        view: {
+          kind: "generic",
+          eyebrow: "Vendor Price List",
+          listPath: "/purchases/price-lists",
+          title: "Price list entry",
+          notFound: true,
+        },
+        actions: [],
       };
     }
 
@@ -198,7 +206,7 @@ export function useVendorPriceListView(
       </Button>,
     );
 
-    return {
+    const view: DocumentRecordView = {
       kind: "generic",
       eyebrow: "Vendor Price List",
       listPath: "/purchases/price-lists",
@@ -256,8 +264,9 @@ export function useVendorPriceListView(
           </Section>
         </>
       ),
-      extraAside: <div className="flex flex-wrap gap-2">{actions}</div>,
     };
+
+    return { view, actions };
   }, [
     entry,
     onOpenChange,
