@@ -8,7 +8,7 @@
  * Deep-link params:
  *   ?contact_id=<uuid>   pre-fill customer
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,12 +40,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { validateLineItems } from "@/lib/validation/lineItems";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { DeliveryNoteLineRow, DELIVERY_LINE_COLUMNS } from "@/components/sales/lines/DeliveryNoteLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -118,20 +117,59 @@ export default function DeliveryNoteCreatePage() {
     if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
+  /** Applies a partial line update, deriving defaults when the product changes. */
+  const patchLineItem = useCallback(
+    (index: number, patch: Partial<LineItem>) => {
+      setLineItems((prev) =>
+        prev.map((it, i) => {
+          if (i !== index) return it;
+          const next = { ...it, ...patch };
+          if (patch.product_id) {
+            const product = products.find((p) => p.id === patch.product_id);
+            if (product) {
+              next.description = product.name;
+              if (!next.unit_price) next.unit_price = Number(product.unit_price) || 0;
+              if (!next.tax_rate) next.tax_rate = Number(product.tax_rate) || 0;
+            }
+          }
+          return next;
+        }),
+      );
+    },
+    [products],
+  );
 
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        if (!updated[index].unit_price) updated[index].unit_price = Number(product.unit_price) || 0;
-        if (!updated[index].tax_rate) updated[index].tax_rate = Number(product.tax_rate) || 0;
-      }
-    }
-    setLineItems(updated);
-  };
+  /**
+   * Delivered-quantity edits. Ordered follows delivered only while the two
+   * were still in step, so an explicit short-delivery is never overwritten.
+   */
+  const applyDeliveredPatch = useCallback(
+    (index: number, patch: {
+      quantity?: number;
+      packaging_id?: string | null;
+      display_quantity?: number | null;
+      display_uom_id?: string | null;
+    }) => {
+      setLineItems((prev) =>
+        prev.map((it, i) => {
+          if (i !== index) return it;
+          const next: LineItem = { ...it };
+          if (patch.quantity !== undefined) {
+            const inStep = it.quantity_ordered === it.quantity_delivered;
+            next.quantity_delivered = patch.quantity;
+            if (inStep) next.quantity_ordered = patch.quantity;
+          }
+          if (patch.packaging_id !== undefined) next.packaging_id = patch.packaging_id;
+          if (patch.display_quantity !== undefined) next.display_quantity = patch.display_quantity;
+          if (patch.display_uom_id !== undefined) next.display_uom_id = patch.display_uom_id;
+          return next;
+        }),
+      );
+    },
+    [],
+  );
+
+  const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
 
   const computeLine = (it: LineItem) => {
     const gross = (it.quantity_delivered || 0) * (it.unit_price || 0);
@@ -321,7 +359,6 @@ export default function DeliveryNoteCreatePage() {
                 />
               )}
             />
-            </div>
           </FieldGroup>
 
           <FieldGroup label="Additional Info">
