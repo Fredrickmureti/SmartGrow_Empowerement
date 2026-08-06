@@ -106,6 +106,53 @@ describe("Journal posting monopoly", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * ADR 0126 — AP parity. Supplier payment reversal is owned by
+   * `void_bill_payment_atomic`; the browser may not decrement bill balances
+   * nor delete the payment header (which would cascade the allocation trail
+   * away).
+   */
+  it("no application code writes bills.amount_paid directly", () => {
+    const offenders = rgFiles(
+      'from\\("bills"\\)[\\s\\S]{0,200}?amount_paid\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("no application code deletes bill_payments rows", () => {
+    const offenders = rgFiles(
+      'from\\("bill_payments"\\)[\\s\\S]{0,120}?\\.delete\\(',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * ADR 0127 — invoice void is one server transaction
+   * (`void_invoice_atomic`). The browser may not flip the void fields on
+   * `invoices` itself, nor drive stock restoration separately: either would
+   * reintroduce the partial-failure window where the GL is reversed but the
+   * document or inventory still counts the sale.
+   */
+  it("no application code stamps invoice void fields directly", () => {
+    const offenders = rgFiles(
+      'from\\("invoices"\\)[\\s\\S]{0,300}?voided_at\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("stock restoration is only driven from inside void_invoice_atomic", () => {
+    const offenders = rgFiles("restore_invoice_stock_atomic", APP_PATHS)
+      // Generated RPC typings legitimately name every function.
+      .filter((f) => !f.includes("integrations/supabase/types.ts"));
+    expect(offenders).toEqual([]);
+  });
+
 });
+
+
 
 

@@ -6259,6 +6259,65 @@ export type Database = {
           },
         ]
       }
+      bill_payment_reversal_events: {
+        Row: {
+          amount: number | null
+          bill_payment_id: string
+          business_id: string | null
+          client_request_id: string | null
+          created_at: string
+          id: string
+          op: string
+          organization_id: string
+          performed_at: string
+          performed_by: string | null
+          reason_text: string | null
+          reversal_journal_entry_ids: string[]
+          touched_bills: string[]
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          bill_payment_id: string
+          business_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          id?: string
+          op: string
+          organization_id: string
+          performed_at?: string
+          performed_by?: string | null
+          reason_text?: string | null
+          reversal_journal_entry_ids?: string[]
+          touched_bills?: string[]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          bill_payment_id?: string
+          business_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          id?: string
+          op?: string
+          organization_id?: string
+          performed_at?: string
+          performed_by?: string | null
+          reason_text?: string | null
+          reversal_journal_entry_ids?: string[]
+          touched_bills?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payment_reversal_events_bill_payment_id_fkey"
+            columns: ["bill_payment_id"]
+            isOneToOne: false
+            referencedRelation: "bill_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_payments: {
         Row: {
           amount: number
@@ -6278,8 +6337,13 @@ export type Database = {
           payment_date: string
           payment_method: string | null
           reference: string | null
+          status: string
           submitted_at: string | null
           submitted_by: string | null
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           amount: number
@@ -6299,8 +6363,13 @@ export type Database = {
           payment_date?: string
           payment_method?: string | null
           reference?: string | null
+          status?: string
           submitted_at?: string | null
           submitted_by?: string | null
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           amount?: number
@@ -6320,8 +6389,13 @@ export type Database = {
           payment_date?: string
           payment_method?: string | null
           reference?: string | null
+          status?: string
           submitted_at?: string | null
           submitted_by?: string | null
+          updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -81275,8 +81349,13 @@ export type Database = {
           payment_date: string
           payment_method: string | null
           reference: string | null
+          status: string
           submitted_at: string | null
           submitted_by: string | null
+          updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         SetofOptions: {
           from: "*"
@@ -94196,6 +94275,27 @@ export type Database = {
       }
       verify_tenant_ownership_transfer: {
         Args: { p_token: string }
+        Returns: Json
+      }
+      void_bill_payment_atomic: {
+        Args: {
+          _actor?: string
+          _bill_payment_id: string
+          _client_request_id?: string
+          _reason: string
+          _void_date?: string
+        }
+        Returns: Json
+      }
+      void_invoice_atomic: {
+        Args: {
+          _actor?: string
+          _cascade_payments?: boolean
+          _client_request_id?: string
+          _invoice_id: string
+          _reason: string
+          _void_date?: string
+        }
         Returns: Json
       }
       void_journal_entry_atomic: {

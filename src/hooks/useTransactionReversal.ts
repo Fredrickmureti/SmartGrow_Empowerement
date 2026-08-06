@@ -90,7 +90,9 @@ export interface VoidBillPaymentOptions {
   billPaymentId: string;
   reason: string;
   voidDate?: string;
+  clientRequestId?: string;
 }
+
 
 /**
  * @deprecated ADR 0012 Wave R2 — the legacy unreconcile path is gone from
@@ -339,111 +341,31 @@ export function useTransactionReversal() {
       }
 
       const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
-
-      // AUDIT FIX (G2): derive business_id from the INVOICE row, not UI context.
-      // Voiding from HQ (no business selected) or after switching companies must
-      // still match the JE that belongs to this invoice.
       const invoiceBusinessId = (invoice as any).business_id as string | null;
 
-      // 1. Reverse main invoice JE (if linked) — canonical RPC handles everything.
-      const invoiceJeId = (invoice as any).journal_entry_id;
-      let mainReversalJeId: string | null = null;
-      if (invoiceJeId) {
-        mainReversalJeId = await reverseJEAtomic(invoiceJeId, `Void invoice ${invoice.invoice_number}: ${options.reason}`, user.id, voidDate);
-      } else {
-        // Fallback: look up by source linkage (no subtype = main) using the
-        // invoice's own business_id, NOT the UI-active business.
-        let mainQ = supabase
-          .from("journal_entries")
-          .select("id, source_subtype")
-          .eq("organization_id", currentOrg.id)
-          .eq("source_type", "invoice")
-          .eq("source_id", options.invoiceId)
-          .neq("status", "voided")
-          .neq("status", "reversed");
-        if (invoiceBusinessId) mainQ = mainQ.eq("business_id", invoiceBusinessId);
-        const { data: mainJE } = await mainQ;
-        const main = (mainJE || []).find(je => (je.source_subtype || "main") === "main");
-        if (main?.id) {
-          mainReversalJeId = await reverseJEAtomic(main.id, `Void invoice ${invoice.invoice_number}: ${options.reason}`, user.id, voidDate);
-        }
+      // ADR 0125/0127: the whole reversal is one server transaction —
+      // JE reversal (main + COGS), header flip, cascading payment voids
+      // through `void_payment_atomic`, and stock restoration. Never re-split
+      // this into client steps: the old sequence could leave the GL reversed
+      // while invoices and inventory still counted the sale.
+      const { data: voidResult, error: voidErr } = await supabase.rpc("void_invoice_atomic" as any, {
+        _invoice_id: options.invoiceId,
+        _reason: options.reason,
+        _void_date: voidDate,
+        _actor: user.id,
+        _cascade_payments: Boolean(options.createCreditNote),
+        _client_request_id: (options as any).clientRequestId ?? null,
+      } as any);
+      if (voidErr) throw voidErr;
+
+      if ((voidResult as any)?.already_voided) {
+        toast({ title: "Already Voided", description: "This invoice was already voided." });
+        return true;
       }
 
-      // 2. Reverse COGS sub-entry — keyed off the invoice's business_id.
-      let cogsQ = supabase
-        .from("journal_entries")
-        .select("id")
-        .eq("organization_id", currentOrg.id)
-        .eq("source_type", "invoice")
-        .eq("source_id", options.invoiceId)
-        .eq("source_subtype", "cogs")
-        .neq("status", "voided")
-        .neq("status", "reversed");
-      if (invoiceBusinessId) cogsQ = cogsQ.eq("business_id", invoiceBusinessId);
-      const { data: cogsJEs } = await cogsQ;
-      for (const cogsJE of cogsJEs || []) {
-        await reverseJEAtomic(cogsJE.id, `Void COGS for invoice ${invoice.invoice_number}: ${options.reason}`, user.id, voidDate);
-      }
-
-      // 2b. Defensive verification — assert every reversed original now has a real
-      //     reversal sub-entry pointing at it.
-      let verifyQ = supabase
-        .from("journal_entries")
-        .select("id, entry_number, source_subtype, status, reversed_by_id")
-        .eq("organization_id", currentOrg.id)
-        .eq("source_type", "invoice")
-        .eq("source_id", options.invoiceId);
-      if (invoiceBusinessId) verifyQ = verifyQ.eq("business_id", invoiceBusinessId);
-      const { data: allInvoiceJEs } = await verifyQ;
-      for (const je of allInvoiceJEs || []) {
-        if (je.status !== "reversed" || !je.reversed_by_id) continue;
-        const expectedSubtype =
-          !je.source_subtype || je.source_subtype === "" ? "reversal" : `reversal:${je.source_subtype}`;
-        const { data: rev } = await supabase
-          .from("journal_entries")
-          .select("source_subtype, reversal_of_id")
-          .eq("id", je.reversed_by_id)
-          .maybeSingle();
-        if (!rev || rev.reversal_of_id !== je.id || rev.source_subtype !== expectedSubtype) {
-          throw new Error(
-            `Reversal integrity check failed for ${je.entry_number}: expected reversal sub-entry with subtype '${expectedSubtype}' linked back to this entry, found ${JSON.stringify(rev)}`,
-          );
-        }
-      }
-
-      // 3. GL succeeded → update invoice status. AUDIT FIX (G4): null out
-      //    journal_entry_id (forward link) and stamp reversal_journal_entry_id
-      //    so reports filtering "voided invoices with active JE" stay honest.
-      const { error: updateInvoiceError } = await supabase
-        .from("invoices")
-        .update({
-          status: "voided" as any,
-          voided_at: new Date().toISOString(),
-          voided_by: user.id,
-          void_reason: options.reason,
-          journal_entry_id: null,
-          reversal_journal_entry_id: mainReversalJeId,
-        } as any)
-        .eq("id", options.invoiceId);
-
-      if (updateInvoiceError) throw updateInvoiceError;
-
-      // 4. Void all active payments and reverse their GL entries
+      // Credit note is a separate accounting document, not part of the
+      // reversal transaction: it has its own number series and posting.
       if (hasActivePayments && options.createCreditNote) {
-        for (const payment of activePayments) {
-          const paymentJeId = (payment as any).journal_entry_id;
-          if (paymentJeId) {
-            await reverseJEAtomic(paymentJeId, `Auto-void payment ${payment.receipt_number}: parent invoice voided`, user.id, voidDate);
-          }
-          await supabase.from("payments").update({
-            status: "voided" as any,
-            voided_at: new Date().toISOString(),
-            voided_by: user.id,
-            void_reason: `Auto-voided: parent invoice ${invoice.invoice_number} voided`,
-          } as any).eq("id", payment.id);
-        }
-
-        // 5. Create credit note for paid amount
         const { data: cnNumber } = await supabase.rpc("get_next_credit_note_number", { _org_id: currentOrg.id });
         const creditNoteNumber = cnNumber || `CN-${Date.now()}`;
 
@@ -499,18 +421,6 @@ export function useTransactionReversal() {
         }
       }
 
-      // 6. Restore stock atomically via RPC (G3 fix). Idempotent: a second void
-      //    attempt is a no-op. Mirrors original warehouse_id + branch_id.
-      const { error: stockErr } = await supabase.rpc("restore_invoice_stock_atomic", {
-        p_invoice_id: options.invoiceId,
-        p_user_id: user.id,
-        p_reason: options.reason,
-      } as any);
-      if (stockErr) {
-        // Stock restoration failure must NOT silently leave inventory wrong.
-        console.error("restore_invoice_stock_atomic failed:", stockErr);
-        throw new Error(`Stock restoration failed: ${stockErr.message}`);
-      }
 
       logAction({
         action: "voided",
@@ -840,7 +750,11 @@ export function useTransactionReversal() {
   };
 
   /**
-   * Void a bill payment — reverses linked JE atomically, deletes record, restores bill balance.
+   * ADR 0126 — Void a supplier payment. The whole operation (journal reversal,
+   * header void, per-bill recompute from the live allocation sum, audit event)
+   * belongs to `void_bill_payment_atomic` and runs in one transaction. The
+   * payment row and its allocations are preserved as history; this client owns
+   * nothing but the reason, the audit log label and error surfacing.
    */
   const voidBillPayment = async (options: VoidBillPaymentOptions): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -851,78 +765,36 @@ export function useTransactionReversal() {
     try {
       const { data: payment, error: paymentError } = await supabase
         .from("bill_payments")
-        .select("*")
+        .select("id, amount, reference")
         .eq("id", options.billPaymentId)
         .single();
 
       if (paymentError) throw paymentError;
       if (!payment) throw new Error("Bill payment not found");
 
-      // Allocation-aware (ADR 0028): a payment can settle many bills.
-      const { data: allocations, error: allocError } = await supabase
-        .from("bill_payment_allocations")
-        .select("bill_id, amount, bill:bills(id, bill_number, total, amount_paid)")
-        .eq("bill_payment_id", options.billPaymentId);
-      if (allocError) throw allocError;
+      const { data, error } = await supabase.rpc("void_bill_payment_atomic" as any, {
+        _bill_payment_id: options.billPaymentId,
+        _reason: options.reason,
+        _void_date: options.voidDate ?? null,
+        _actor: user.id,
+        _client_request_id: options.clientRequestId ?? null,
+      } as any);
+      if (error) throw error;
 
-      const allocList = (allocations || []) as Array<{
-        bill_id: string;
-        amount: number;
-        bill: { id: string; bill_number: string; total: number; amount_paid: number } | null;
-      }>;
-
-      const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
-      const billLabel = allocList.length === 1
-        ? (allocList[0].bill?.bill_number ?? "unknown")
-        : `${allocList.length} bills`;
-
-      const bpJeId = (payment as any).journal_entry_id;
-      if (bpJeId) {
-        await reverseJEAtomic(bpJeId, `Void bill payment for ${billLabel}: ${options.reason}`, user.id, voidDate);
-      } else {
-        const { data: orphanJE } = await supabase
-          .from("journal_entries")
-          .select("id")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("source_type", "bill_payment")
-          .eq("source_id", options.billPaymentId)
-          .neq("status", "voided")
-          .neq("status", "reversed")
-          .maybeSingle();
-        if (orphanJE?.id) {
-          await reverseJEAtomic(orphanJE.id, `Void bill payment for ${billLabel}: ${options.reason}`, user.id, voidDate);
-        }
+      if ((data as any)?.already_voided) {
+        toast({ title: "Already Voided", description: "This supplier payment was already voided." });
+        return true;
       }
-
-      // Restore each bill's amount_paid by its specific allocated share.
-      for (const alloc of allocList) {
-        if (!alloc.bill) continue;
-        const newAmountPaid = Math.max(0, (alloc.bill.amount_paid || 0) - alloc.amount);
-        const newStatus = newAmountPaid <= 0 ? "received" : "partial";
-        await supabase
-          .from("bills")
-          .update({ amount_paid: newAmountPaid, status: newStatus })
-          .eq("id", alloc.bill.id);
-      }
-
-      // Allocations CASCADE on bill_payments delete.
-      const { error: deleteError } = await supabase
-        .from("bill_payments")
-        .delete()
-        .eq("id", options.billPaymentId);
-
-      if (deleteError) throw deleteError;
 
       logAction({
         action: "voided",
         entityType: "bill_payment",
         entityId: options.billPaymentId,
-        entityName: `BP-${billLabel}`,
+        entityName: payment.reference ?? `BP-${options.billPaymentId.slice(0, 8)}`,
         changesSummary: `Bill payment voided. Reason: ${options.reason}. Amount: ${payment.amount}`,
       });
 
-      toast({ title: "Bill Payment Voided", description: `Bill payment has been voided and GL entries reversed` });
+      toast({ title: "Bill Payment Voided", description: "Bill payment voided and GL entries reversed" });
       return true;
     } catch (error: any) {
       console.error("Error voiding bill payment:", error);
@@ -930,6 +802,7 @@ export function useTransactionReversal() {
       return false;
     }
   };
+
 
   /**
    * ADR 0012 — Unapply a payment from its invoice, leaving the cash on the

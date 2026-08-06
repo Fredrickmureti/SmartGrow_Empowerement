@@ -145,9 +145,12 @@ export function useDashboardAnalytics() {
         supabase.from("bills").select("*, vendor:contacts(name)")
       );
 
+      // ADR 0126: voided supplier payments are retained as history but are
+      // not cash out — exclude them from analytics.
       const billPaymentsQuery = applyScope(
         supabase.from("bill_payments").select("*")
-      );
+      ).neq("status", "voided");
+
 
       const bankAccountsQuery = applyScope(
         supabase.from("bank_accounts").select("*")
