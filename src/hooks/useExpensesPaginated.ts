@@ -331,18 +331,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     if (isPayableExpense) {
       // AP expense: create a linked vendor bill + post GL via the expense GL engine
       if (expense.status === "approved" || expense.status === "paid") {
-        await postExpenseGL({
-          id: data.id,
-          expense_date: expense.expense_date,
-          amount: expense.amount,
-          tax_amount: expense.tax_amount || 0,
-          description: expense.description,
-          reference: expense.reference,
-          payment_method: expense.payment_method,
-          account_id: expense.account_id,
-          payment_account_id: expense.payment_account_id,
-          category_id: expense.category_id,
-        });
+        await postExpenseGL(data.id);
       }
 
       // Auto-create the linked bill for payable lifecycle management
@@ -365,18 +354,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     } else {
       // Standard expense: post GL normally
       if (expense.status === "approved" || expense.status === "paid") {
-        await postExpenseGL({
-          id: data.id,
-          expense_date: expense.expense_date,
-          amount: expense.amount,
-          tax_amount: expense.tax_amount || 0,
-          description: expense.description,
-          reference: expense.reference,
-          payment_method: expense.payment_method,
-          account_id: expense.account_id,
-          payment_account_id: expense.payment_account_id,
-          category_id: expense.category_id,
-        });
+        await postExpenseGL(data.id);
       }
     }
 
@@ -397,18 +375,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     const shouldPostGL = statusChanged && (updates.status === "approved" || updates.status === "paid");
 
     if (shouldPostGL && currentExpense) {
-      await postExpenseGL({
-        id: currentExpense.id,
-        expense_date: updates.expense_date || currentExpense.expense_date,
-        amount: updates.amount || currentExpense.amount,
-        tax_amount: updates.tax_amount !== undefined ? updates.tax_amount : currentExpense.tax_amount || 0,
-        description: updates.description || currentExpense.description,
-        reference: updates.reference !== undefined ? updates.reference : currentExpense.reference,
-        payment_method: (updates as any).payment_method || currentExpense.payment_method || "cash",
-        account_id: updates.account_id !== undefined ? updates.account_id : currentExpense.account_id,
-        payment_account_id: updates.payment_account_id !== undefined ? updates.payment_account_id : currentExpense.payment_account_id,
-        category_id: updates.category_id !== undefined ? updates.category_id : currentExpense.category_id,
-      });
+      await postExpenseGL(currentExpense.id);
     }
 
     // Fix 4: Create linked bill when transitioning to AP account
