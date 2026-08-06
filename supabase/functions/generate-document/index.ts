@@ -3829,6 +3829,15 @@ serve(async (req) => {
       }
     }
 
+
+
+    // ─── Subscription entitlement check (now that we have orgId) ───
+    const subResult = await checkSubActive(supabase, orgId);
+    if (!subResult.allowed) {
+      return entDenied(subResult, corsHeaders);
+    }
+
+
     // ── Phase 3 (convergence, 2026-08-06): canonical-artifact short-circuit ──
     //
     // `generate-document` predates the document model. Its `fetchX`
@@ -3898,14 +3907,6 @@ serve(async (req) => {
           (err as Error).message,
         );
       }
-    }
-
-
-
-    // ─── Subscription entitlement check (now that we have orgId) ───
-    const subResult = await checkSubActive(supabase, orgId);
-    if (!subResult.allowed) {
-      return entDenied(subResult, corsHeaders);
     }
 
     // ── Milestone C.1: tabular export (CSV) short-circuit ──────────────
