@@ -67,6 +67,7 @@ export function useSalesOrderView(
 
     return {
       kind: "sales_order",
+      documentId: order?.id,
       eyebrow: "Sales Order",
       listPath: "/sales/orders",
       title: order?.contact?.name ?? "Customer",

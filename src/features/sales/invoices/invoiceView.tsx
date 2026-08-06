@@ -69,6 +69,7 @@ export function useInvoiceView(
 
     return {
       kind: "invoice",
+      documentId: invoice?.id,
       eyebrow: "Sales Invoice",
       listPath: "/sales/invoices",
       title: invoice?.contact?.name ?? "Customer",

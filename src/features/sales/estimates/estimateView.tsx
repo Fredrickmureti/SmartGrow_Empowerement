@@ -65,6 +65,7 @@ export function useEstimateView(
 
     return {
       kind: "estimate",
+      documentId: estimate?.id,
       eyebrow: "Sales Estimate",
       listPath: "/sales/estimates",
       title: estimate?.contact?.name ?? "Customer",
