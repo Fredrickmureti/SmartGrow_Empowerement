@@ -1,0 +1,203 @@
+/**
+ * PricedLineRow — the ONE priced line editor for sales documents that carry
+ * item / qty / price / tax / total (Estimate, Proforma, Sales Order, Credit
+ * Note, Return …).
+ *
+ * Phase 8 of the document-workspace consolidation. Each of these forms used
+ * to ship its own `grid-cols-12` (or `<Table>`) line editor plus, in several
+ * cases, a duplicated `sm:hidden` card stack. They drifted field by field.
+ * This row renders into the measured layout of the platform
+ * `EditableLineItemsGrid`: whichever columns the container can hold sit on
+ * the primary line, the rest are demoted onto a labelled secondary line —
+ * still editable — instead of forcing a horizontal scrollbar.
+ *
+ * The Invoice keeps its own row (`components/invoices/InvoiceLineRow`)
+ * because it additionally renders stock status, analytic tagging and
+ * lot/serial pickers. Both rows share this grid and its measurement engine.
+ *
+ * Props MUST be stable from the parent (`useCallback` the handlers) or the
+ * memo will not engage.
+ */
+
+import { memo, type ReactNode } from "react";
+import { Input } from "@/components/ui/input";
+import { NumericInput } from "@/components/ui/numeric-input";
+import { ProductCombobox } from "@/components/common/ProductCombobox";
+import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import {
+  EditableLineRowCells,
+  type EditableLineColumn,
+  type EditableRowLayout,
+} from "@/design-system/records/EditableLineItemsGrid";
+
+/** Minimum line shape every priced sales document satisfies. */
+export interface PricedLineShape {
+  product_id?: string | null;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate?: number;
+  tax_amount?: number;
+  line_total?: number;
+  // UoM provenance — `quantity` is ALWAYS base units.
+  packaging_id?: string | null;
+  display_uom_id?: string | null;
+  display_quantity?: number | null;
+}
+
+/** Column contract shared by every priced sales line editor. */
+export const PRICED_LINE_COLUMNS: EditableLineColumn[] = [
+  { id: "item", header: "Item", priority: 1, minWidth: 240 },
+  { id: "quantity", header: "Qty", priority: 2, minWidth: 110, compactLabel: "Qty" },
+  {
+    id: "unit_price",
+    header: "Price",
+    priority: 2,
+    minWidth: 110,
+    numeric: true,
+    compactLabel: "Price",
+  },
+  {
+    id: "tax_rate",
+    header: "Tax %",
+    priority: 3,
+    minWidth: 90,
+    numeric: true,
+    compactLabel: "Tax %",
+  },
+  { id: "line_total", header: "Total", priority: 1, minWidth: 110, numeric: true },
+];
+
+/** Same contract without the tax column (documents that tax at header level). */
+export const PRICED_LINE_COLUMNS_NO_TAX = PRICED_LINE_COLUMNS.filter(
+  (c) => c.id !== "tax_rate",
+);
+
+export interface PricedLineRowProduct {
+  id: string;
+  name: string;
+  unit_price: number;
+  tax_rate?: number;
+  [key: string]: unknown;
+}
+
+interface Props<T extends PricedLineShape> {
+  index: number;
+  item: T;
+  products: PricedLineRowProduct[];
+  /** Layout resolved by `EditableLineItemsGrid` for the measured container. */
+  layout: EditableRowLayout;
+  disabled?: boolean;
+  flashed?: boolean;
+  formatCurrency: (n: number) => string;
+  /** Applies a partial update to the line. */
+  onPatch: (index: number, patch: Partial<T>) => void;
+  /**
+   * Product selection. Defaults to a plain `product_id` patch — pass this
+   * when the form derives description / price / tax from the product.
+   */
+  onProductSelect?: (index: number, productId: string) => void;
+  /** Rendered full width beneath the row (analytics, tracking, reasons). */
+  extra?: ReactNode;
+  productPlaceholder?: string;
+}
+
+function PricedLineRowInner<T extends PricedLineShape>({
+  index,
+  item,
+  products,
+  layout,
+  disabled,
+  flashed,
+  formatCurrency,
+  onPatch,
+  onProductSelect,
+  extra,
+  productPlaceholder,
+}: Props<T>) {
+  const cell = (columnId: string) => {
+    switch (columnId) {
+      case "item":
+        return (
+          <div className="min-w-0 space-y-2">
+            <ProductCombobox
+              products={products as never}
+              value={item.product_id || ""}
+              onChange={(value) =>
+                onProductSelect
+                  ? onProductSelect(index, value)
+                  : onPatch(index, { product_id: value } as Partial<T>)
+              }
+              disabled={disabled}
+              formatCurrency={formatCurrency}
+              placeholder={productPlaceholder}
+              className="w-full min-w-0"
+            />
+            <Input
+              placeholder="Description"
+              value={item.description}
+              onChange={(e) =>
+                onPatch(index, { description: e.target.value } as Partial<T>)
+              }
+              className="h-8"
+              disabled={disabled}
+            />
+          </div>
+        );
+
+      case "quantity":
+        return (
+          <PackagedQtyCell
+            productId={item.product_id ?? null}
+            value={item}
+            onChange={(patch) => onPatch(index, patch as Partial<T>)}
+            disabled={disabled}
+          />
+        );
+
+      case "unit_price":
+        return (
+          <NumericInput
+            value={item.unit_price}
+            disabled={disabled}
+            onValueChange={(v) => onPatch(index, { unit_price: v ?? 0 } as Partial<T>)}
+            className="h-8"
+          />
+        );
+
+      case "tax_rate":
+        return (
+          <NumericInput
+            value={item.tax_rate ?? 0}
+            disabled={disabled}
+            onValueChange={(v) => onPatch(index, { tax_rate: v ?? 0 } as Partial<T>)}
+            className="h-8"
+          />
+        );
+
+      case "line_total":
+        return (
+          <div className="pt-2 text-right font-medium tabular-nums">
+            {formatCurrency(
+              item.line_total ??
+                item.quantity * item.unit_price * (1 + (item.tax_rate ?? 0) / 100),
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <EditableLineRowCells
+      layout={layout}
+      flashed={flashed}
+      cell={cell}
+      extra={extra}
+    />
+  );
+}
+
+export const PricedLineRow = memo(PricedLineRowInner) as typeof PricedLineRowInner;
