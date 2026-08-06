@@ -27,7 +27,11 @@
  * This module never renders bytes itself and never talks to hardware.
  */
 
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Loose client type: callers construct their own client (pinned at @2 in the
+// email function, @2.45.0 in the engine); a structural mismatch between
+// those generic parameters must not block the shared helper.
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
 
 export type CanonicalPdfSource =
   | "artifact"

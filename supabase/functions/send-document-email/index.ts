@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-import { encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { encode as encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
 import { resolvePrintPolicy } from "../_shared/printing/resolvePolicy.ts";
 import { resolveCanonicalPdf } from "../_shared/documents/canonicalPdf.ts";
 import { formatAccountingNumber as formatCurrency } from "../_shared/format/index.ts";
@@ -458,8 +458,10 @@ const handler = async (req: Request): Promise<Response> => {
 
       const safeTitle = (reportTitle || "Report").trim();
       const periodLabel = reportPeriod ? ` — ${reportPeriod}` : "";
-      const senderIdentity =
-        businessRow?.legal_name || businessRow?.name || "Your Provider";
+      // `resolveSenderIdentity` (ADR 0023) already applied the
+      // display-name → legal_name → name → org ladder above; the old
+      // `businessRow` local it used to read no longer exists on this path.
+      const senderIdentity = effectiveFromName || "Your Provider";
       const emailSubject = subject || `${safeTitle}${periodLabel}`;
       const filename = pdfFilename || `${safeTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
 
