@@ -84060,6 +84060,14 @@ export type Database = {
         }
         Returns: Json
       }
+      create_pos_credit_sale_invoice_atomic: {
+        Args: {
+          _due_days?: number
+          _pos_transaction_id: string
+          _user_id?: string
+        }
+        Returns: string
+      }
       create_procurement_contract: {
         Args: {
           p_business_id: string
