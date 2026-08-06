@@ -1,27 +1,89 @@
-# Settlement Posting Convergence — Remediation Status
+# Settlement Convergence — Verification Verdict and Remaining Work
 
-Authoritative status file. Roadmap source: `.lovable/plan/settlement-posting-convergence-audit-verdict-and-remediation-2026-08-06.md`.
+## What I verified (this turn, against the live database and codebase)
 
-## Completed and verified
-- **Phase 1 — Posting monopoly guard**: architecture test `src/test/architecture/journal-posting-monopoly.test.ts` blocks new raw journal inserts.
-- **Phase 2 — Convert offenders (100%)**: all previously raw-inserting DB functions now call `post_journal_entry_atomic` (goods receipt, opening inventory/stock, stock adjustment GL, physical count supersede, opening balance migration, payroll reclassification JE, FX revaluation, AP multi-bill payment, bill confirm). Verified via `pg_proc` scan: only the engine trio (`post_journal_entry_atomic`, its void and update counterparts) touch journal tables directly.
-- **Phase 3 — Reconciliation demoted**: `reconcile_bank_transaction_atomic` no longer creates payments; it validates and matches only.
-- **Phase 7 — ADR**: `docs/adr/0123-single-journal-posting-monopoly.md`.
-- **Phase 4 (F1–F4)**: M-Pesa webhook and loan interest accrual routed through canonical engines; migration scripts closed.
-- **Phase 4 (F5) — Expense settlement consolidation**: new `public.post_expense_gl(uuid)` + `public.resolve_expense_default_account(uuid,uuid,text)` do all account resolution, input-tax splitting, line composition, posting via the engine and `journal_entry_id` link-back server-side, idempotently. New single client entrypoint `src/lib/finance/expenseSettlement.ts`. Duplicate browser-side composers deleted from `src/hooks/useExpenses.ts` and `src/hooks/useExpensesPaginated.ts`; both now call `postExpenseGL(expenseId)`. Typecheck clean.
+**Confirmed true**
 
-## Active phase
-- **Phase 5 — POS settlement boundary** (not started). POS transactions live in client `useState` with no `pos_payment_sessions` table; settlement must move to a server-side session + canonical AR/receipt path.
+- *Posting monopoly (Phase 1/2)*: a scan of every `public` function shows only
+  `post_journal_entry_atomic`, `update_journal_entry_atomic` and
+  `void_journal_entry_atomic` contain raw inserts into `journal_entries` /
+  `journal_entry_lines`. No other DB function bypasses the engine.
+- *Edge functions*: `post-payroll-gl`, `post-loan-interest-accrual`,
+  `process-recurring-invoices` and `reverse-payroll-payment` all post through
+  `post_journal_entry_atomic`; their remaining `journal_entries` reads are
+  idempotency lookups only, which is correct.
+- *Reconciliation demoted (Phase 3)*: `reconcile_bank_transaction_atomic`
+  delegates to `record_multi_invoice_payment` and the posting engine, and does
+  not insert payments itself.
+- *Expense settlement (Phase 4/F5)*: `post_expense_gl` exists server-side and
+  `src/lib/finance/expenseSettlement.ts` is the single client entrypoint.
 
-## Pending
-- Phase 5: POS settlement boundary (server-side session table, atomic tender settlement, remove client-held payment state).
-- Phase 6 — Retire legacy writers: remaining items are `employee_advances` posting path and `record_bill_payment_atomic` review. Done already: `record_payment_atomic` reduced to a thin shim delegating to `record_multi_invoice_payment`; redundant 15-arg overload dropped.
+**Confirmed stale / wrong in the previous engineer's log**
 
-## Instructions for the next agent
-1. **Verify first, then continue.** Confirm Phase 4/F5 is enterprise-correct before new work:
-   - Re-run the `pg_proc` scan for raw `INSERT INTO journal_entries|journal_entry_lines` outside the engine trio.
-   - Exercise `post_expense_gl` on a real expense (with and without `tax_amount`, and for each `payment_method`) and confirm balanced lines, correct account resolution priority (expense override → category → `operating_expenses`), `journal_entry_id` link-back, and idempotent replay.
-   - Confirm no component still composes expense journal lines client-side (`rg "postToGL" src/hooks/useExpenses*`).
-   - Run `src/test/architecture/journal-posting-monopoly.test.ts` and `npx tsgo --noEmit`.
-2. **Then resume at Phase 5 (POS settlement boundary)** — do not jump to unrelated modules. Finish Phase 5 to a production-ready state before Phase 6's remaining items.
-3. Update this file immediately after each implementation.
+- The log says *"Phase 5 — POS settlement boundary (not started). POS
+  transactions live in client `useState` with no `pos_payment_sessions`
+  table."* This is false. `pos_payment_sessions`,
+  `pos_payment_session_tenders`, `pos_payment_session_apply_log` all exist,
+  with seven lifecycle RPCs (`open`, `record_tender`, `reverse_tender`,
+  `commit`, `cancel`, `allocated`, `sweep_abandoned`), a client
+  `src/lib/pos/paymentSessionClient.ts`, consumers in `POSTerminal.tsx` and
+  `apps/pos/terminal/tender/TenderWorkspace.tsx`, and four architecture tests.
+  Phase 5 is substantially built; the plan file was never updated.
+- The log lists `record_bill_payment_atomic` as pending review. That function
+  does not exist in the database — nothing to retire.
+
+**New findings not in the previous plan**
+
+1. `pos_payment_session_commit` is balanced and idempotent, but it hands
+   tenders to `_pos_record_payment` / `finalize_table_order` rather than to a
+   canonical settlement engine, and it does not touch the posting engine. POS
+   GL appears to arrive later via register-period statement posting
+   (`_pos_stmt_enqueue_gl_post`). Whether that aggregation path is complete and
+   idempotent is **unverified** and is the single biggest open risk.
+2. `employee_loan_apply_repayment` exists as two overloads (a ~163-char shim
+   and a ~5.2k implementation) — exactly the parallel-implementation pattern
+   the parent prompt bans.
+3. `record_payment_atomic` is a genuine thin shim over
+   `record_multi_invoice_payment` (verified), so that item is done.
+
+## Plan
+
+### Phase A — Correct the record
+Rewrite the status file so it reflects the verified state above: Phases 1–4
+complete, Phase 5 largely complete, Phase 6 scoped to the real remaining items.
+
+### Phase B — Close the POS accounting boundary (highest risk)
+- Trace `_pos_record_payment` → `finalize_table_order` → register period close
+  → `_pos_stmt_enqueue_gl_post` end to end and document the POS settlement
+  contract in an ADR.
+- Verify the statement-close GL path posts through `post_journal_entry_atomic`,
+  is idempotent per register period, and cannot leave a closed register with
+  unposted cash. If any leg mints payments or skips the engine, route it
+  through the canonical engines.
+- Confirm POS credit sales (`usePOSCreditSale`) settle AR through
+  `record_multi_invoice_payment`, not a POS-local path.
+
+### Phase C — Remove remaining duplicate settlement writers
+- Collapse the duplicated `employee_loan_apply_repayment` overloads to one
+  implementation (drop the redundant signature after checking call sites).
+- Bring the `employee_advances` posting path onto `post_journal_entry_atomic`
+  and the canonical settlement entrypoints; delete any local composer.
+
+### Phase D — Ratchet the invariants
+Extend `src/test/architecture/journal-posting-monopoly.test.ts` (or add a
+sibling) so CI also fails on: new payment-minting outside the four sanctioned
+writers (`record_multi_invoice_payment`, `record_multi_bill_payment`,
+`record_advance_payment`, POS session commit), and duplicate RPC overloads for
+settlement functions.
+
+### Phase E — Reconciliation completeness pass
+Verify `unapply_payment_atomic` and `reallocate_payment_atomic` (both currently
+post through the engine) emit compensating allocations append-only per
+ADR 0027, and that reconciliation never re-derives balances the ledger view
+already owns.
+
+## Technical notes
+- Verification method: `pg_proc` source scan for raw journal inserts,
+  `information_schema` table existence checks, and ripgrep over `src/` and
+  `supabase/functions/`.
+- No source files were modified during verification.
