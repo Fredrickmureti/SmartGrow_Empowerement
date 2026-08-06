@@ -297,8 +297,10 @@ export default function FinanceDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{outstandingInvoiceCount} outstanding</div>
-            <p className="text-xs text-muted-foreground">Outstanding receivable</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(arSummary.totalResidual)}</div>
+            <p className="text-xs text-muted-foreground">
+              {arSummary.openDocumentCount} open · Source: General Ledger
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {draftInvoiceCount > 0 && (
                 <Badge variant="outline" className="text-xs">
@@ -310,7 +312,13 @@ export default function FinanceDashboard() {
                   <AlertCircle className="h-3 w-3 mr-1" />{overdueInvoiceCount} overdue
                 </Badge>
               )}
+              {arSummary.unpostedDocumentCount > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  <AlertCircle className="h-3 w-3 mr-1" />{arSummary.unpostedDocumentCount} unposted
+                </Badge>
+              )}
             </div>
+
           </CardContent>
         </Card>
 
