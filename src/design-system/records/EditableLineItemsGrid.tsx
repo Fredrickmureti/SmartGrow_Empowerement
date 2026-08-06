@@ -21,7 +21,7 @@
  * chrome: header, separators, remove affordance, add action and footer.
  */
 
-import { type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -95,14 +95,22 @@ export function EditableLineItemsGrid<T>({
     showRemove ? DELETE_COL_WIDTH + GRID_GAP : 0,
   );
 
-  const rowLayout: EditableRowLayout = {
-    visible: layout.visible.map((c) => c.id),
-    demoted: layout.demoted.map((c) => c.id),
-    gridTemplate: layout.visible
-      .map((c) => c.width ?? `minmax(${c.minWidth ?? (c.numeric ? 88 : 160)}px, 1fr)`)
-      .join(" "),
-    column: (id) => columns.find((c) => c.id === id),
-  };
+  // Memoized so `renderRow` consumers keep their per-row memo contract:
+  // a new layout object on every parent render would re-render every row
+  // and break the O(1)-per-scan guarantee of the barcode workflow.
+  const rowLayout: EditableRowLayout = useMemo(
+    () => ({
+      visible: layout.visible.map((c) => c.id),
+      demoted: layout.demoted.map((c) => c.id),
+      gridTemplate: layout.visible
+        .map(
+          (c) => c.width ?? `minmax(${c.minWidth ?? (c.numeric ? 88 : 160)}px, 1fr)`,
+        )
+        .join(" "),
+      column: (id: string) => columns.find((c) => c.id === id),
+    }),
+    [layout, columns],
+  );
 
   const canRemove = (row: T, index: number) =>
     canRemoveRow ? canRemoveRow(row, index) : rows.length > 1;
