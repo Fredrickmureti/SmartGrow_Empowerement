@@ -8,8 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { useQueryClient } from "@tanstack/react-query";
-import { useGLPosting } from "./useGLPosting";
 import { useDefaultAccounts } from "./useDefaultAccounts";
+import { postExpenseGL } from "@/lib/finance/expenseSettlement";
 import { usePermissions } from "./usePermissions";
 import { usePaymentTerms } from "./usePaymentTerms";
 import type { Database } from "@/integrations/supabase/types";
@@ -70,8 +70,7 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
   const { toast } = useToast();
   const { logAction } = useAuditLog();
   const queryClient = useQueryClient();
-  const { postToGL, postExpenseToGL } = useGLPosting();
-  const { accounts, getExpenseAccountMappings, hasRequiredAccounts } = useDefaultAccounts();
+  const { accounts } = useDefaultAccounts();
   const { can } = usePermissions();
   const { defaultPaymentTerm } = usePaymentTerms();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
@@ -151,117 +150,9 @@ export function useExpensesPaginated(options: UseExpensesPaginatedOptions = {}) 
     fetchCategories();
   }, [currentOrg?.id, businessId]);
 
-  /**
-   * Resolves the GL expense (debit) account using priority chain:
-   * 1. expense.account_id (manual override on expense record)
-   * 2. category.account_id (category→COA mapping)
-   * 3. operating_expenses_id (system default fallback)
-   */
-  const resolveExpenseAccountId = (expense: {
-    account_id: string | null;
-    category_id: string | null;
-  }): string => {
-    // Priority 1: explicit account on the expense
-    if (expense.account_id) return expense.account_id;
-
-    // Priority 2: category's mapped account
-    if (expense.category_id) {
-      const cat = categories.find(c => c.id === expense.category_id);
-      if (cat?.account_id) return cat.account_id;
-    }
-
-    // Priority 3: system default
-    return getExpenseAccountMappings().expense_account_id;
-  };
-
-  /**
-   * Posts expense to GL when status is approved or paid.
-   * Creates: Dr Expense Account / Cr Payment Account
-   * If tax_amount > 0 and input_tax account exists:
-   *   Dr Expense Account (net = amount - tax)
-   *   Dr Input Tax Asset (tax_amount)
-   *   Cr Payment Account (amount)
-   */
-  const postExpenseGL = async (expense: {
-    id: string;
-    expense_date: string;
-    amount: number;
-    tax_amount: number;
-    description: string;
-    reference: string | null;
-    payment_method: string;
-    account_id: string | null;
-    payment_account_id: string | null;
-    category_id: string | null;
-  }) => {
-    if (!hasRequiredAccounts()) return null;
-
-    const resolvedPaymentAccountId = expense.payment_account_id
-      || getExpenseAccountMappings(expense.payment_method, expense.account_id || undefined).payment_account_id;
-
-    const expenseAccountId = resolveExpenseAccountId(expense);
-
-    if (!expenseAccountId || !resolvedPaymentAccountId) {
-      console.warn("Expense GL posting skipped: missing account mappings");
-      return null;
-    }
-
-    // Build GL entries
-    const entries: { account_id: string; debit_amount: number; credit_amount: number; description: string }[] = [];
-    const inputTaxAccountId = accounts.input_tax_account_id;
-    const hasTax = expense.tax_amount > 0 && inputTaxAccountId;
-    const netAmount = hasTax ? expense.amount - expense.tax_amount : expense.amount;
-
-    // Dr Expense Account (net amount)
-    entries.push({
-      account_id: expenseAccountId,
-      debit_amount: netAmount,
-      credit_amount: 0,
-      description: `Expense - ${expense.description}`,
-    });
-
-    // Dr Input Tax Asset (if applicable)
-    if (hasTax) {
-      entries.push({
-        account_id: inputTaxAccountId!,
-        debit_amount: expense.tax_amount,
-        credit_amount: 0,
-        description: `Expense Input Tax - ${expense.description}`,
-      });
-    }
-
-    // Cr Payment Account (total amount)
-    entries.push({
-      account_id: resolvedPaymentAccountId,
-      debit_amount: 0,
-      credit_amount: expense.amount,
-      description: `Expense payment - ${expense.description}`,
-    });
-
-    try {
-      const jeId = await postToGL({
-        source_type: "expense",
-        source_id: expense.id,
-        reference: expense.reference || `EXP-${expense.id.slice(0, 8)}`,
-        memo: `Expense: ${expense.description}`,
-        entry_date: expense.expense_date,
-        entries,
-      });
-
-      // Link journal entry back to expense
-      if (jeId) {
-        await supabase
-          .from("expenses")
-          .update({ journal_entry_id: jeId } as any)
-          .eq("id", expense.id);
-      }
-
-      return jeId;
-    } catch (glError: any) {
-      console.error("GL posting failed for expense:", glError);
-      throw new Error(`Expense saved but GL posting failed: ${glError?.message || "Unknown error"}`);
-    }
-  };
+  // GL posting for expenses is server-side only — account resolution, tax
+  // splitting and journal composition live in `public.post_expense_gl`
+  // (ADR 0123: Single Journal Posting Monopoly).
 
   /**
    * Checks if a given account ID is the Accounts Payable account.
