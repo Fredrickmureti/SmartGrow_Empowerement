@@ -840,7 +840,11 @@ export function useTransactionReversal() {
   };
 
   /**
-   * Void a bill payment — reverses linked JE atomically, deletes record, restores bill balance.
+   * ADR 0126 — Void a supplier payment. The whole operation (journal reversal,
+   * header void, per-bill recompute from the live allocation sum, audit event)
+   * belongs to `void_bill_payment_atomic` and runs in one transaction. The
+   * payment row and its allocations are preserved as history; this client owns
+   * nothing but the reason, the audit log label and error surfacing.
    */
   const voidBillPayment = async (options: VoidBillPaymentOptions): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -851,78 +855,36 @@ export function useTransactionReversal() {
     try {
       const { data: payment, error: paymentError } = await supabase
         .from("bill_payments")
-        .select("*")
+        .select("id, amount, reference")
         .eq("id", options.billPaymentId)
         .single();
 
       if (paymentError) throw paymentError;
       if (!payment) throw new Error("Bill payment not found");
 
-      // Allocation-aware (ADR 0028): a payment can settle many bills.
-      const { data: allocations, error: allocError } = await supabase
-        .from("bill_payment_allocations")
-        .select("bill_id, amount, bill:bills(id, bill_number, total, amount_paid)")
-        .eq("bill_payment_id", options.billPaymentId);
-      if (allocError) throw allocError;
+      const { data, error } = await supabase.rpc("void_bill_payment_atomic" as any, {
+        _bill_payment_id: options.billPaymentId,
+        _reason: options.reason,
+        _void_date: options.voidDate ?? null,
+        _actor: user.id,
+        _client_request_id: options.clientRequestId ?? null,
+      } as any);
+      if (error) throw error;
 
-      const allocList = (allocations || []) as Array<{
-        bill_id: string;
-        amount: number;
-        bill: { id: string; bill_number: string; total: number; amount_paid: number } | null;
-      }>;
-
-      const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
-      const billLabel = allocList.length === 1
-        ? (allocList[0].bill?.bill_number ?? "unknown")
-        : `${allocList.length} bills`;
-
-      const bpJeId = (payment as any).journal_entry_id;
-      if (bpJeId) {
-        await reverseJEAtomic(bpJeId, `Void bill payment for ${billLabel}: ${options.reason}`, user.id, voidDate);
-      } else {
-        const { data: orphanJE } = await supabase
-          .from("journal_entries")
-          .select("id")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("source_type", "bill_payment")
-          .eq("source_id", options.billPaymentId)
-          .neq("status", "voided")
-          .neq("status", "reversed")
-          .maybeSingle();
-        if (orphanJE?.id) {
-          await reverseJEAtomic(orphanJE.id, `Void bill payment for ${billLabel}: ${options.reason}`, user.id, voidDate);
-        }
+      if ((data as any)?.already_voided) {
+        toast({ title: "Already Voided", description: "This supplier payment was already voided." });
+        return true;
       }
-
-      // Restore each bill's amount_paid by its specific allocated share.
-      for (const alloc of allocList) {
-        if (!alloc.bill) continue;
-        const newAmountPaid = Math.max(0, (alloc.bill.amount_paid || 0) - alloc.amount);
-        const newStatus = newAmountPaid <= 0 ? "received" : "partial";
-        await supabase
-          .from("bills")
-          .update({ amount_paid: newAmountPaid, status: newStatus })
-          .eq("id", alloc.bill.id);
-      }
-
-      // Allocations CASCADE on bill_payments delete.
-      const { error: deleteError } = await supabase
-        .from("bill_payments")
-        .delete()
-        .eq("id", options.billPaymentId);
-
-      if (deleteError) throw deleteError;
 
       logAction({
         action: "voided",
         entityType: "bill_payment",
         entityId: options.billPaymentId,
-        entityName: `BP-${billLabel}`,
+        entityName: payment.reference ?? `BP-${options.billPaymentId.slice(0, 8)}`,
         changesSummary: `Bill payment voided. Reason: ${options.reason}. Amount: ${payment.amount}`,
       });
 
-      toast({ title: "Bill Payment Voided", description: `Bill payment has been voided and GL entries reversed` });
+      toast({ title: "Bill Payment Voided", description: "Bill payment voided and GL entries reversed" });
       return true;
     } catch (error: any) {
       console.error("Error voiding bill payment:", error);
@@ -930,6 +892,7 @@ export function useTransactionReversal() {
       return false;
     }
   };
+
 
   /**
    * ADR 0012 — Unapply a payment from its invoice, leaving the cash on the
