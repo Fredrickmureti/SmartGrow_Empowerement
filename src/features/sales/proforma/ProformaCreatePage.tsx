@@ -99,27 +99,45 @@ export default function ProformaCreatePage() {
     if (prefillContactId) form.setValue("contact_id", prefillContactId);
   }, [prefillContactId, form]);
 
-  const addLineItem = () => {
-    setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
-  };
+  const addLineItem = useCallback(() => {
+    setLineItems((prev) => [
+      ...prev,
+      { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 },
+    ]);
+  }, []);
 
-  const removeLineItem = (index: number) => {
-    if (lineItems.length > 1) setLineItems(lineItems.filter((_, i) => i !== index));
-  };
+  const removeLineItem = useCallback((index: number) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
+  }, []);
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-    setLineItems(updated);
-  };
+  const patchLineItem = useCallback((index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
+  }, []);
+
+  const selectProduct = useCallback(
+    (index: number, productId: string) => {
+      const product = products.find((p) => p.id === productId);
+      setLineItems((prev) =>
+        prev.map((line, i) =>
+          i === index
+            ? {
+                ...line,
+                product_id: productId,
+                description: product?.name ?? line.description,
+                unit_price: product?.unit_price ?? line.unit_price,
+                tax_rate: product?.tax_rate ?? 0,
+              }
+            : line,
+        ),
+      );
+    },
+    [products],
+  );
+
+  const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
+
 
   const calculateTotals = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
