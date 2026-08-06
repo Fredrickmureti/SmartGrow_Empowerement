@@ -58,6 +58,7 @@ export function VendorPriceListPeekSheet({
       />
       {entry?.vendor_id && (
         <ContactPreviewDrawer
+          open={vendorOpen}
           contactId={vendorOpen ? entry.vendor_id : null}
           onOpenChange={(o) => setVendorOpen(o)}
         />
