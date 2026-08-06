@@ -106,6 +106,29 @@ describe("Journal posting monopoly", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * ADR 0126 — AP parity. Supplier payment reversal is owned by
+   * `void_bill_payment_atomic`; the browser may not decrement bill balances
+   * nor delete the payment header (which would cascade the allocation trail
+   * away).
+   */
+  it("no application code writes bills.amount_paid directly", () => {
+    const offenders = rgFiles(
+      'from\\("bills"\\)[\\s\\S]{0,200}?amount_paid\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("no application code deletes bill_payments rows", () => {
+    const offenders = rgFiles(
+      'from\\("bill_payments"\\)[\\s\\S]{0,120}?\\.delete\\(',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
 });
+
 
 
