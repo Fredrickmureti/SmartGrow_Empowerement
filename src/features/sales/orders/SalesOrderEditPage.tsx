@@ -5,7 +5,7 @@
  * Phase-3 route replacement for the retired `EditSalesOrderDialog`.
  * Only draft sales orders can be edited (RLS + business rule).
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
@@ -14,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -24,21 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
-import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
+import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/sales/lines/PricedLineRow";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -275,6 +266,10 @@ export default function SalesOrderEditPage() {
   const itemsTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
   const grandTotal = itemsSubtotal + itemsTax;
   const currency = order?.currency || "USD"; // architecture-allow: display-only fallback
+  const formatLineCurrency = useCallback(
+    (n: number) => formatCurrency(n, currency),
+    [formatCurrency, currency],
+  );
 
   return (
     <RecordFormShell
