@@ -285,119 +285,42 @@ export default function DeliveryNoteCreatePage() {
           </FieldGroup>
 
           <FieldGroup label="Items to Deliver">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="h-4 w-4 mr-1" /> Add Item
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {lineItems.map((item, index) => {
-                const c = computeLine(item);
-                return (
-                  <div key={index} className="border rounded-md p-3 space-y-2">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-5">
-                        <label className="text-xs text-muted-foreground">Product</label>
-                        <Select
-                          value={item.product_id || ""}
-                          onValueChange={(v) => updateLineItem(index, "product_id", v)}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                          <SelectContent>
-                            {products.map((product) => (
-                              <SelectItem key={product.id} value={product.id}>{product.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="col-span-6">
-                        <label className="text-xs text-muted-foreground">Description</label>
-                        <Input
-                          value={item.description}
-                          onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                          placeholder="Description"
-                        />
-                      </div>
-                      <div className="col-span-1 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeLineItem(index)}
-                          disabled={lineItems.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-6 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Qty Ordered</label>
-                        <NumericInput value={item.quantity_ordered} onValueChange={(v) => updateLineItem(index, "quantity_ordered", v ?? 0)} />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Delivered</label>
-                        <PackagedQtyCell
-                          productId={item.product_id ?? null}
-                          value={{
-                            quantity: item.quantity_delivered,
-                            packaging_id: item.packaging_id ?? null,
-                            display_quantity: item.display_quantity ?? null,
-                            display_uom_id: item.display_uom_id ?? null,
-                          }}
-                          onChange={(patch) => {
-                            const updated = [...lineItems];
-                            const merged: LineItem = { ...updated[index] };
-                            if (patch.quantity !== undefined) merged.quantity_delivered = patch.quantity;
-                            if (patch.packaging_id !== undefined) merged.packaging_id = patch.packaging_id;
-                            if (patch.display_quantity !== undefined) merged.display_quantity = patch.display_quantity;
-                            if (patch.display_uom_id !== undefined) merged.display_uom_id = patch.display_uom_id;
-                            if (patch.quantity !== undefined && updated[index].quantity_ordered === updated[index].quantity_delivered) {
-                              merged.quantity_ordered = patch.quantity;
-                            }
-                            updated[index] = merged;
-                            setLineItems(updated);
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Unit Price</label>
-                        <NumericInput value={item.unit_price} onValueChange={(v) => updateLineItem(index, "unit_price", v ?? 0)} />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Disc %</label>
-                        <NumericInput value={item.discount_percent} onValueChange={(v) => updateLineItem(index, "discount_percent", v ?? 0)} />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Tax %</label>
-                        <NumericInput value={item.tax_rate} onValueChange={(v) => updateLineItem(index, "tax_rate", v ?? 0)} />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Line Total</label>
-                        <Input value={c.total.toFixed(2)} readOnly className="bg-muted/40" />
-                      </div>
-                    </div>
+            <EditableLineItemsGrid
+              columns={DELIVERY_LINE_COLUMNS}
+              rows={lineItems}
+              addLabel="Add Item"
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              renderRow={(item, index, layout) => (
+                <DeliveryNoteLineRow
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  lineTotal={computeLine(item).total}
+                  formatCurrency={formatLineCurrency}
+                  onPatch={patchLineItem}
+                  onDeliveredChange={applyDeliveredPatch}
+                  extra={
                     <OutboundLineTracking
                       productId={item.product_id ?? null}
                       quantity={item.quantity_delivered}
-                      onLotChange={(allocs) => {
-                        const updated = [...lineItems];
-                        updated[index] = {
-                          ...updated[index],
+                      onLotChange={(allocs) =>
+                        patchLineItem(index, {
                           lot_number: lotNumberFromAllocations(allocs),
                           lot_allocations: lotAllocationsJson(allocs),
-                        };
-                        setLineItems(updated);
-                      }}
+                        } as any)
+                      }
                       onSerialChange={(_ids, rows) =>
-                        updateLineItem(index, "serial_number", serialNumberFromRows(rows))
+                        patchLineItem(index, {
+                          serial_number: serialNumberFromRows(rows),
+                        } as any)
                       }
                     />
-                  </div>
-                );
-              })}
+                  }
+                />
+              )}
+            />
             </div>
           </FieldGroup>
 
