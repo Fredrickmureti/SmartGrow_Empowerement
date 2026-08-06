@@ -138,7 +138,8 @@ export function useDocumentActivity(
         }
       }
 
-      const entries: DocumentActivityEntry[] = [
+      type Sortable = DocumentActivityEntry & { sortKey: string };
+      const entries: Sortable[] = [
         ...auditRows.map((r) => ({
           id: `audit:${r.id}`,
           at: fmt(r.created_at),
