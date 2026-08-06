@@ -93764,6 +93764,10 @@ export type Database = {
         }
         Returns: Json
       }
+      unreconcile_payment_atomic: {
+        Args: { _actor?: string; _payment_id: string; _reason: string }
+        Returns: Json
+      }
       update_app_last_accessed: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: undefined
