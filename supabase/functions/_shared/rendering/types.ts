@@ -14,8 +14,13 @@
  * is the renderer's responsibility.
  */
 
-export type MediaClass = "a4" | "letter" | "thermal" | "label" | "email_html";
-export type RenderMedium = "pdf" | "escpos" | "zpl" | "html";
+export type MediaClass = "a4" | "letter" | "thermal" | "label" | "email_html" | "data";
+/**
+ * `csv` / `xlsx` are *dispositions of the same document*, not a separate
+ * pipeline: they render the identical frozen snapshot through the same
+ * engine so an extract can never disagree with the printed copy.
+ */
+export type RenderMedium = "pdf" | "escpos" | "zpl" | "html" | "csv" | "xlsx";
 
 /** Every AST block extends this base. */
 interface BlockBase {
