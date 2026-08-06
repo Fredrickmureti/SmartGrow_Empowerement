@@ -3,6 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { startOfMonth, endOfMonth, subMonths, format } from "date-fns";
 import { useDashboardScope } from "./useDashboardScope";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  fetchTopOpenCounterparties,
+} from "@/services/finance/openItems";
+
 
 export interface SalesSummary {
   totalSales: number;
@@ -475,81 +481,34 @@ export function useDashboardAnalytics() {
         expenseGrowth,
       };
 
-      // Calculate Receivables
-      const outstandingInvoices = invoices?.filter(i => 
-        ["sent", "viewed", "partial", "overdue", "confirmed"].includes(i.status)
-      ) || [];
-
-      const today = new Date();
-      let current = 0, overdue30 = 0, overdue60 = 0, overdue90 = 0;
-      const debtors: Record<string, { name: string; amount: number; daysOverdue: number }> = {};
-
-      outstandingInvoices.forEach(inv => {
-        const dueDate = new Date(inv.due_date);
-        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        const outstanding = inv.total - (inv.amount_paid || 0);
-
-        if (daysOverdue <= 0) {
-          current += outstanding;
-        } else if (daysOverdue <= 30) {
-          overdue30 += outstanding;
-        } else if (daysOverdue <= 60) {
-          overdue60 += outstanding;
-        } else {
-          overdue90 += outstanding;
-        }
-
-        const contactName = (inv as any).contact?.name || "Unknown";
-        if (!debtors[contactName]) {
-          debtors[contactName] = { name: contactName, amount: 0, daysOverdue: 0 };
-        }
-        debtors[contactName].amount += outstanding;
-        debtors[contactName].daysOverdue = Math.max(debtors[contactName].daysOverdue, daysOverdue);
-      });
-
-      const topDebtors = Object.values(debtors)
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 5);
+      // Receivables & Payables — GL-anchored. These come from the same
+      // open-item projections that drive the AR/AP workspaces, ageing report
+      // and control-account reconciliation. Invoice/bill document status is
+      // deliberately NOT used here: a document without a posted journal entry
+      // is an integrity exception, not a receivable.
+      const [arSummary, apSummary, topDebtors] = await Promise.all([
+        fetchARSummary(orgId, businessId, branchEq),
+        fetchAPSummary(orgId, businessId, branchEq),
+        fetchTopOpenCounterparties("ar", orgId, businessId, branchEq, 5),
+      ]);
 
       const receivables: ReceivablesData = {
-        totalReceivables: current + overdue30 + overdue60 + overdue90,
-        current,
-        overdue30,
-        overdue60,
-        overdue90,
+        totalReceivables: arSummary.totalResidual,
+        current: arSummary.notDue + arSummary.current,
+        overdue30: arSummary.days30,
+        overdue60: arSummary.days60,
+        overdue90: arSummary.days90,
         topDebtors,
       };
 
-      // Calculate Payables
-      const outstandingBills = bills?.filter(b => 
-        ["pending", "partial", "overdue"].includes(b.status)
-      ) || [];
-
-      let payablesCurrent = 0, payablesOverdue30 = 0, payablesOverdue60 = 0, payablesOverdue90 = 0;
-
-      outstandingBills.forEach(bill => {
-        const dueDate = new Date(bill.due_date);
-        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-        const outstanding = bill.total - (bill.amount_paid || 0);
-
-        if (daysOverdue <= 0) {
-          payablesCurrent += outstanding;
-        } else if (daysOverdue <= 30) {
-          payablesOverdue30 += outstanding;
-        } else if (daysOverdue <= 60) {
-          payablesOverdue60 += outstanding;
-        } else {
-          payablesOverdue90 += outstanding;
-        }
-      });
-
       const payables: PayablesData = {
-        totalPayables: payablesCurrent + payablesOverdue30 + payablesOverdue60 + payablesOverdue90,
-        current: payablesCurrent,
-        overdue30: payablesOverdue30,
-        overdue60: payablesOverdue60,
-        overdue90: payablesOverdue90,
+        totalPayables: apSummary.totalResidual,
+        current: apSummary.notDue + apSummary.current,
+        overdue30: apSummary.days30,
+        overdue60: apSummary.days60,
+        overdue90: apSummary.days90,
       };
+
 
       setAnalytics({
         salesSummary,

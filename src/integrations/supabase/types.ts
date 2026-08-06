@@ -83654,18 +83654,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      confirm_invoice_and_release_stock_atomic: {
+      confirm_invoice_and_release_stock_atomic:
+        | {
+            Args: {
+              p_invoice_id: string
+              p_main_lines: Json
+              p_release_stock?: boolean
+              p_user_id: string
+              p_warehouse_id?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_final_status?: string
+              p_invoice_id: string
+              p_main_lines: Json
+              p_release_stock?: boolean
+              p_user_id: string
+              p_warehouse_id?: string
+            }
+            Returns: Json
+          }
+      confirm_invoice_atomic: {
         Args: {
+          p_final_status?: string
           p_invoice_id: string
           p_main_lines: Json
-          p_release_stock?: boolean
           p_user_id: string
-          p_warehouse_id?: string
         }
-        Returns: Json
-      }
-      confirm_invoice_atomic: {
-        Args: { p_invoice_id: string; p_main_lines: Json; p_user_id: string }
         Returns: Json
       }
       confirm_sales_order_atomic: {
@@ -86192,6 +86209,26 @@ export type Database = {
         }
         Returns: Json
       }
+      get_ap_summary: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          current_bucket: number
+          days30: number
+          days60: number
+          days90: number
+          not_due: number
+          open_document_count: number
+          overdue_count: number
+          total_residual: number
+          unposted_amount: number
+          unposted_document_count: number
+        }[]
+      }
       get_ar_ap_aging_from_ledger: {
         Args: {
           _as_of_date: string
@@ -86215,6 +86252,26 @@ export type Database = {
           email: string
           journal_entry_id: string
           residual_amount: number
+        }[]
+      }
+      get_ar_summary: {
+        Args: {
+          _as_of?: string
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+        }
+        Returns: {
+          current_bucket: number
+          days30: number
+          days60: number
+          days90: number
+          not_due: number
+          open_document_count: number
+          overdue_count: number
+          total_residual: number
+          unposted_amount: number
+          unposted_document_count: number
         }[]
       }
       get_available_pos_stock: {
@@ -86320,40 +86377,23 @@ export type Database = {
           plan_id: string
         }[]
       }
-      get_control_account_reconciliation:
-        | {
-            Args: {
-              _business_id?: string
-              _org_id: string
-              _report_type?: string
-            }
-            Returns: {
-              control_account_id: string
-              drift: number
-              gl_closing: number
-              has_drift: boolean
-              has_migration_je: boolean
-              opening_balance: number
-              sub_ledger_total: number
-            }[]
-          }
-        | {
-            Args: {
-              _branch_id?: string
-              _business_id?: string
-              _org_id: string
-              _report_type?: string
-            }
-            Returns: {
-              control_account_id: string
-              drift: number
-              gl_closing: number
-              has_drift: boolean
-              has_migration_je: boolean
-              opening_balance: number
-              sub_ledger_total: number
-            }[]
-          }
+      get_control_account_reconciliation: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _org_id: string
+          _report_type?: string
+        }
+        Returns: {
+          control_account_id: string
+          drift: number
+          gl_closing: number
+          has_drift: boolean
+          has_migration_je: boolean
+          opening_balance: number
+          sub_ledger_total: number
+        }[]
+      }
       get_count_command_center: {
         Args: { p_business_id: string; p_warehouse_id?: string }
         Returns: Json
@@ -87581,6 +87621,26 @@ export type Database = {
           p_status?: string
         }
         Returns: Json[]
+      }
+      list_invoices_missing_journals: {
+        Args: {
+          _branch_id?: string
+          _business_id?: string
+          _limit?: number
+          _offset?: number
+          _org_id: string
+        }
+        Returns: {
+          amount_paid: number
+          contact_id: string
+          contact_name: string
+          invoice_id: string
+          invoice_number: string
+          issue_date: string
+          residual: number
+          status: string
+          total: number
+        }[]
       }
       list_org_storage_paths: { Args: { org_id: string }; Returns: Json }
       list_persona_conflicts: {
@@ -90539,6 +90599,15 @@ export type Database = {
         Returns: undefined
       }
       post_landed_cost_bill: { Args: { p_bill_id: string }; Returns: string }
+      post_missing_invoice_journals: {
+        Args: {
+          _branch_id?: string
+          _business_id: string
+          _limit?: number
+          _org_id: string
+        }
+        Returns: Json
+      }
       post_pos_close_variance_gl: {
         Args: { _shift_id: string }
         Returns: string

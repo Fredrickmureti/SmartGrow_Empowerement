@@ -4,6 +4,11 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { startOfMonth, subMonths, differenceInDays, format } from "date-fns";
 import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  fetchTopOpenCounterparties,
+} from "@/services/finance/openItems";
 import { queryKeys } from "@/lib/queryKeys";
 import { useDashboardScope } from "./useDashboardScope";
 
@@ -211,14 +216,21 @@ export function useExecutiveStats() {
       // not honoured by fetchGLTotals today — flagged as follow-up).
       const glTotals = await fetchGLTotals(orgId, allTimeFrom, allTimeTo);
 
-      const outstandingInvoices = invoices.filter(i => ["sent", "viewed", "partial", "overdue"].includes(i.status));
+      // Document-pipeline list — used ONLY for the collection-rate document
+      // metric, never for receivable amounts.
+      const outstandingInvoices = invoices.filter(i => ["sent", "viewed", "partial", "overdue", "confirmed"].includes(i.status));
 
-      // Headline numbers come from the scope-enforced RPC. We retain
-      // the client-side outstanding list because we still need it to
-      // build per-debtor breakdowns and DSO.
+      // Receivables/payables are GL-anchored: same open-item projection as the
+      // AR/AP workspaces, ageing and control-account reconciliation.
+      const [arSummary, apSummary] = await Promise.all([
+        fetchARSummary(orgId, scope.businessId, branchEq),
+        fetchAPSummary(orgId, scope.businessId, branchEq),
+      ]);
+
       const cashPosition = Number(rpc.cash_position ?? 0);
-      const totalReceivables = Number(rpc.receivables ?? 0);
-      const totalPayables = Number(rpc.payables ?? 0);
+      const totalReceivables = arSummary.totalResidual;
+      const totalPayables = apSummary.totalResidual;
+
       const totalRevenue = glTotals.revenue;
       const dso = totalRevenue > 0 ? (totalReceivables / totalRevenue) * 365 : 0;
 
@@ -229,29 +241,16 @@ export function useExecutiveStats() {
       const employeeCount = Number(rpc.employee_count ?? employees.length);
       const revenuePerEmployee = employeeCount > 0 ? totalRevenue / employeeCount : 0;
 
-      // Top debtors
-      const debtorMap = new Map<string, { name: string; bizName: string; amount: number; maxOverdue: number }>();
-      for (const inv of outstandingInvoices) {
-        const contact = contacts.find(c => c.id === inv.contact_id);
-        const biz = businesses.find(b => b.id === inv.business_id);
-        const key = inv.contact_id || inv.id;
-        const outstanding = inv.total - (inv.amount_paid || 0);
-        const daysOverdue = inv.due_date ? Math.max(0, differenceInDays(now, new Date(inv.due_date))) : 0;
-        const existing = debtorMap.get(key);
-        if (existing) {
-          existing.amount += outstanding;
-          existing.maxOverdue = Math.max(existing.maxOverdue, daysOverdue);
-        } else {
-          debtorMap.set(key, {
-            name: contact?.parent_contact?.name || contact?.name || "Unknown",
-            bizName: biz?.name || "",
-            amount: outstanding, maxOverdue: daysOverdue,
-          });
-        }
-      }
-      const topDebtors: TopDebtor[] = [...debtorMap.values()]
-        .sort((a, b) => b.amount - a.amount).slice(0, 5)
-        .map(d => ({ contactName: d.name, businessName: d.bizName, amount: d.amount, daysOverdue: d.maxOverdue }));
+      // Top debtors — GL-gated open items, not document status.
+      const topDebtors: TopDebtor[] = (
+        await fetchTopOpenCounterparties("ar", orgId, scope.businessId, branchEq, 5)
+      ).map((d) => ({
+        contactName: d.name,
+        businessName: businesses.find((b) => b.id === scope.businessId)?.name || "",
+        amount: d.amount,
+        daysOverdue: Math.max(0, d.daysOverdue),
+      }));
+
 
       // Expenses by category
       const catMap = new Map<string, number>();
@@ -268,7 +267,8 @@ export function useExecutiveStats() {
         const rev = paidInvoices.filter(i => i.business_id === biz.id).reduce((s, i) => s + i.total, 0);
         const exp = expenses.filter(e => e.business_id === biz.id).reduce((s, e) => s + e.amount, 0);
         const profit = rev - exp;
-        const ar = outstandingInvoices.filter(i => i.business_id === biz.id).reduce((s, i) => s + (i.total - (i.amount_paid || 0)), 0);
+        // AR per scorecard is GL-anchored; scope is single-business today.
+        const ar = biz.id === scope.businessId ? totalReceivables : 0;
         const custs = contacts.filter(c => c.business_id === biz.id).length;
         return {
           businessId: biz.id, businessName: biz.name,

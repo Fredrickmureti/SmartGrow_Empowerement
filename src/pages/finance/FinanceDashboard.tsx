@@ -21,6 +21,12 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
 import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
 import { fetchGLTotals, type GLTotals } from "@/services/gl/fetchGLTotals";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  EMPTY_OPEN_ITEMS_SUMMARY,
+} from "@/services/finance/openItems";
+import { arSummaryKey, apSummaryKey } from "@/hooks/finance/useOpenItemsSummary";
 import { queryKeys } from "@/lib/queryKeys";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from "date-fns";
@@ -141,7 +147,23 @@ export default function FinanceDashboard() {
     staleTime: 30_000,
   });
 
-  const isLoading = invLoading || billsLoading || bankLoading || jeLoading || glLoading;
+  // Canonical AR/AP — GL-gated open items (same engine as the AR/AP
+  // workspaces, ageing report and control-account reconciliation).
+  const { data: arSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: arLoading } = useQuery({
+    queryKey: arSummaryKey(orgId, businessId, branchId),
+    queryFn: () => fetchARSummary(orgId, businessId, branchId),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
+  const { data: apSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: apLoading } = useQuery({
+    queryKey: apSummaryKey(orgId, businessId, branchId),
+    queryFn: () => fetchAPSummary(orgId, businessId, branchId),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
+
+  const isLoading = invLoading || billsLoading || bankLoading || jeLoading || glLoading || arLoading || apLoading;
+
 
   // Query keys for RefreshButton (branch-scoped)
   const refreshKeys = useMemo(() => [
@@ -150,6 +172,8 @@ export default function FinanceDashboard() {
     ["bill-status-counts", orgId, businessId, branchId] as const,
     ["je-status-counts", orgId, businessId, branchId] as const,
     ['bank-accounts', orgId] as const,
+    arSummaryKey(orgId, businessId, branchId),
+    apSummaryKey(orgId, businessId, branchId),
   ], [orgId, businessId, branchId, dateFrom, dateTo]);
 
   const periodRevenue = glData.revenue;
@@ -160,15 +184,12 @@ export default function FinanceDashboard() {
   const getCount = (counts: StatusCount[], ...statuses: string[]) =>
     counts.filter(c => statuses.includes(c.status)).reduce((s, c) => s + c.count, 0);
 
-  // Invoice stats from counts RPC
+  // Document-pipeline counts (operational, NOT accounting).
   const draftInvoiceCount = getCount(invoiceCounts, "draft");
   const overdueInvoiceCount = getCount(invoiceCounts, "overdue");
-  const outstandingInvoiceCount = getCount(invoiceCounts, "sent", "viewed", "partial", "overdue", "confirmed");
-
-  // Bill stats from counts RPC
   const draftBillCount = getCount(billCounts, "draft");
   const overdueBillCount = getCount(billCounts, "overdue");
-  const outstandingBillCount = getCount(billCounts, "received", "partial", "overdue");
+
 
   // Bank stats
   const totalBankBalance = bankAccountsList.reduce((s, a) => s + (a.current_balance || 0), 0);
@@ -278,8 +299,10 @@ export default function FinanceDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{outstandingInvoiceCount} outstanding</div>
-            <p className="text-xs text-muted-foreground">Outstanding receivable</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(arSummary.totalResidual)}</div>
+            <p className="text-xs text-muted-foreground">
+              {arSummary.openDocumentCount} open · Source: General Ledger
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {draftInvoiceCount > 0 && (
                 <Badge variant="outline" className="text-xs">
@@ -291,7 +314,13 @@ export default function FinanceDashboard() {
                   <AlertCircle className="h-3 w-3 mr-1" />{overdueInvoiceCount} overdue
                 </Badge>
               )}
+              {arSummary.unpostedDocumentCount > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  <AlertCircle className="h-3 w-3 mr-1" />{arSummary.unpostedDocumentCount} unposted
+                </Badge>
+              )}
             </div>
+
           </CardContent>
         </Card>
 
@@ -304,8 +333,11 @@ export default function FinanceDashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{outstandingBillCount} outstanding</div>
-            <p className="text-xs text-muted-foreground">Outstanding payable</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(apSummary.totalResidual)}</div>
+            <p className="text-xs text-muted-foreground">
+              {apSummary.openDocumentCount} open · Source: General Ledger
+            </p>
+
             <div className="flex flex-wrap gap-1.5">
               {draftBillCount > 0 && (
                 <Badge variant="outline" className="text-xs">
