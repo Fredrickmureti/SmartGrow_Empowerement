@@ -346,25 +346,38 @@ async function handleConfirmation(req: Request): Promise<Response> {
       console.log("C2B transaction stored:", insertedTx?.id);
 
       if (matchedInvoiceId) {
-        const { error: paymentError } = await supabase.from("payments").insert({
-          organization_id: organizationId,
-          contact_id: matchedContactId,
-          amount: parseFloat(TransAmount),
-          payment_date: transTime.toISOString().split("T")[0],
-          payment_method: "mpesa",
-          reference: TransID,
-          notes: `M-Pesa C2B payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`,
-        });
-        if (paymentError) console.error("Error recording payment:", paymentError);
+        // Inbound C2B settlement goes through the single canonical AR
+        // settlement engine (record_multi_invoice_payment), which writes
+        // payments + payment_allocations and posts the GL leg atomically.
+        // A webhook must never write settlement tables directly.
+        const { data: inv } = await supabase
+          .from("invoices")
+          .select("id, business_id, branch_id, total_amount, amount_paid")
+          .eq("id", matchedInvoiceId)
+          .single();
 
-        await supabase.from("invoice_payments").insert({
-          invoice_id: matchedInvoiceId,
-          amount: parseFloat(TransAmount),
-          payment_date: transTime.toISOString().split("T")[0],
-          payment_method: "mpesa",
-          reference: TransID,
-          notes: `Auto-matched M-Pesa payment`,
-        });
+        const amount = parseFloat(TransAmount);
+        const outstanding = Math.max(
+          0,
+          Number(inv?.total_amount || 0) - Number(inv?.amount_paid || 0),
+        );
+        const applied = Math.min(amount, outstanding);
+
+        const { error: settleError } = await supabase.rpc("record_multi_invoice_payment", {
+          _org_id: organizationId,
+          _business_id: inv?.business_id ?? null,
+          _branch_id: inv?.branch_id ?? null,
+          _contact_id: matchedContactId,
+          _allocations: applied > 0
+            ? [{ invoice_id: matchedInvoiceId, amount: applied }]
+            : [],
+          _total_amount: amount,
+          _payment_date: transTime.toISOString().split("T")[0],
+          _payment_method: "mpesa",
+          _reference: TransID,
+          _notes: `M-Pesa C2B payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`,
+        } as any);
+        if (settleError) console.error("Error recording C2B settlement:", settleError);
       }
 
       if (matchedPosTransactionId) {
