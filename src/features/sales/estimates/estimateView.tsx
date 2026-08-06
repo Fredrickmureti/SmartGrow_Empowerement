@@ -129,14 +129,8 @@ export function useEstimateView(
           <DocumentVersionsSection documentType="estimate" documentId={estimate.id} />
         </>
       ) : undefined,
-      activity: estimate
+      activityExtra: estimate
         ? [
-            {
-              id: "created",
-              at: fmt(estimate.created_at),
-              actor: "System",
-              title: `Estimate ${estimate.estimate_number} created`,
-            },
             ...(estimate.signed_at
               ? [
                   {

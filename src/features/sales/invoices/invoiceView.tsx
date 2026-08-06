@@ -135,26 +135,6 @@ export function useInvoiceView(
           <DocumentVersionsSection documentType="invoice" documentId={invoice.id} />
         </>
       ) : undefined,
-      activity: invoice
-        ? [
-            {
-              id: "created",
-              at: fmtDate(invoice.created_at),
-              actor: "System",
-              title: `Invoice ${invoice.invoice_number} created`,
-            },
-            ...(invoice.confirmed_by
-              ? [
-                  {
-                    id: "confirmed",
-                    at: fmtDate(invoice.updated_at),
-                    title: "Invoice confirmed",
-                    tone: "info" as const,
-                  },
-                ]
-              : []),
-          ]
-        : undefined,
     };
   }, [invoice, loading, error, formatCurrency]);
 

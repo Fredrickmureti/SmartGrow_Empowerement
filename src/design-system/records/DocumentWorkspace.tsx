@@ -11,6 +11,7 @@
 import { SummaryPanel } from "@/design-system";
 import { RecordBody } from "./RecordBody";
 import { DocumentActivityPanel, DocumentTotalsPanel } from "./panels";
+import type { DocumentActivityEntry } from "./panels";
 import { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
 import { buildTotalsRows } from "./money";
 import { DocumentStatusBadge } from "./documentStatus";
@@ -88,14 +89,16 @@ export function DocumentWorkspaceBody({
 function AuditActivityPanel({
   kind,
   documentId,
+  extra,
 }: {
   kind: DocumentKind;
   documentId: string;
+  extra?: DocumentActivityEntry[];
 }) {
   const { entries, loading } = useDocumentActivity(kind, documentId);
   return (
     <DocumentActivityPanel
-      entries={entries}
+      entries={extra?.length ? [...extra, ...entries] : entries}
       empty={loading ? "Loading activity…" : "No recorded activity yet."}
     />
   );
@@ -110,7 +113,11 @@ export function DocumentWorkspaceAside({ view }: { view: DocumentRecordView }) {
       {view.activity ? (
         <DocumentActivityPanel entries={view.activity} />
       ) : view.documentId ? (
-        <AuditActivityPanel kind={view.kind} documentId={view.documentId} />
+        <AuditActivityPanel
+          kind={view.kind}
+          documentId={view.documentId}
+          extra={view.activityExtra}
+        />
       ) : null}
       {view.extraAside}
     </SummaryPanel>
