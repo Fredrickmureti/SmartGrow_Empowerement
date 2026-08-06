@@ -94287,6 +94287,17 @@ export type Database = {
         }
         Returns: Json
       }
+      void_invoice_atomic: {
+        Args: {
+          _actor?: string
+          _cascade_payments?: boolean
+          _client_request_id?: string
+          _invoice_id: string
+          _reason: string
+          _void_date?: string
+        }
+        Returns: Json
+      }
       void_journal_entry_atomic: {
         Args: {
           _entry_id: string
