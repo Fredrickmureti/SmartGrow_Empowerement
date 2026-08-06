@@ -261,238 +261,68 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
       <Section
         title="Lines"
         description="Each line posts to one GL account. AR/AP control accounts require a customer or vendor."
-        actions={
-          <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add Line
-          </Button>
-        }
       >
-        {/* Mobile card layout */}
-        <div className="flex flex-col gap-3 sm:hidden">
-          {formData.lines.map((line, index) => (
-            <div key={index} className="rounded-lg border p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Line {index + 1}
+        <EditableLineItemsGrid
+          columns={JOURNAL_LINE_COLUMNS}
+          rows={formData.lines}
+          onAddRow={handleAddLine}
+          onRemoveRow={handleRemoveLine}
+          canRemoveRow={() => formData.lines.length > 2}
+          addLabel="Add line"
+          empty="No lines yet — a journal entry needs at least two."
+          renderRow={(line, index, layout) => (
+            <JournalLineRow
+              index={index}
+              item={line}
+              accounts={accounts}
+              contacts={contacts}
+              controlRole={controlRoleFor(line.account_id)}
+              layout={layout}
+              onPatch={handlePatchLine}
+            />
+          )}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {formData.lines.length}{" "}
+                {formData.lines.length === 1 ? "line" : "lines"}
+              </span>
+              <div className="flex items-center gap-6">
+                <span className="text-right">
+                  <span className="block text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Total debit
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {formatCurrency(totalDebit)}
+                  </span>
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => handleRemoveLine(index)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Account *</Label>
-                <AccountCombobox
-                  accounts={accounts}
-                  value={line.account_id}
-                  onValueChange={(v) => handleLineChange(index, "account_id", v)}
-                  placeholder="Search account..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Description</Label>
-                <Input
-                  value={line.description}
-                  onChange={(e) =>
-                    handleLineChange(index, "description", e.target.value)
-                  }
-                  placeholder="Line description"
-                />
-              </div>
-              {controlRoleFor(line.account_id) && (
-                <div className="space-y-1">
-                  <Label className="text-xs">
-                    {controlRoleFor(line.account_id) === "ar"
-                      ? "Customer"
-                      : "Vendor"}{" "}
-                    *
-                  </Label>
-                  <ContactCombobox
-                    contacts={contacts}
-                    role={
-                      controlRoleFor(line.account_id) === "ar"
-                        ? "customer"
-                        : "supplier"
+                <span className="text-right">
+                  <span className="block text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Total credit
+                  </span>
+                  <span className="font-semibold tabular-nums">
+                    {formatCurrency(totalCredit)}
+                  </span>
+                </span>
+                <span className="text-right">
+                  <span className="block text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Difference
+                  </span>
+                  <span
+                    className={
+                      isBalanced
+                        ? "font-semibold tabular-nums text-muted-foreground"
+                        : "font-semibold tabular-nums text-destructive"
                     }
-                    value={line.contact_id}
-                    onValueChange={(v) =>
-                      handleLineChange(index, "contact_id", v ?? "")
-                    }
-                    invalid={!line.contact_id}
-                    placeholder="Required for control account"
-                  />
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Debit</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={line.debit || ""}
-                    onChange={(e) =>
-                      handleLineChange(
-                        index,
-                        "debit",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                    disabled={line.credit > 0}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Credit</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={line.credit || ""}
-                    onChange={(e) =>
-                      handleLineChange(
-                        index,
-                        "credit",
-                        parseFloat(e.target.value) || 0,
-                      )
-                    }
-                    disabled={line.debit > 0}
-                  />
-                </div>
+                  >
+                    {formatCurrency(Math.abs(totalDebit - totalCredit))}
+                  </span>
+                </span>
               </div>
             </div>
-          ))}
-          <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-3 font-bold text-sm">
-            <span>Totals:</span>
-            <div className="flex gap-4">
-              <span className={!isBalanced ? "text-destructive" : ""}>
-                {formatCurrency(totalDebit)}
-              </span>
-              <span className={!isBalanced ? "text-destructive" : ""}>
-                {formatCurrency(totalCredit)}
-              </span>
-            </div>
-          </div>
-        </div>
+          }
+        />
 
-        {/* Desktop table layout */}
-        <div className="hidden sm:block overflow-x-auto">
-          <Table className="min-w-[600px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Account *</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-44">Customer / Vendor</TableHead>
-                <TableHead className="w-32">Debit</TableHead>
-                <TableHead className="w-32">Credit</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {formData.lines.map((line, index) => {
-                const role = controlRoleFor(line.account_id);
-                return (
-                  <TableRow key={index}>
-                    <TableCell className="min-w-[200px]">
-                      <AccountCombobox
-                        accounts={accounts}
-                        value={line.account_id}
-                        onValueChange={(v) =>
-                          handleLineChange(index, "account_id", v)
-                        }
-                        placeholder="Search account..."
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        value={line.description}
-                        onChange={(e) =>
-                          handleLineChange(index, "description", e.target.value)
-                        }
-                        placeholder="Line description"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {role ? (
-                        <ContactCombobox
-                          contacts={contacts}
-                          role={role === "ar" ? "customer" : "supplier"}
-                          value={line.contact_id}
-                          onValueChange={(v) =>
-                            handleLineChange(index, "contact_id", v ?? "")
-                          }
-                          invalid={!line.contact_id}
-                          placeholder={role === "ar" ? "Customer *" : "Vendor *"}
-                        />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.debit || ""}
-                        onChange={(e) =>
-                          handleLineChange(
-                            index,
-                            "debit",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        disabled={line.credit > 0}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.credit || ""}
-                        onChange={(e) =>
-                          handleLineChange(
-                            index,
-                            "credit",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        disabled={line.debit > 0}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveLine(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              <TableRow className="font-bold">
-                <TableCell colSpan={3} className="text-right">
-                  Totals:
-                </TableCell>
-                <TableCell className={!isBalanced ? "text-destructive" : ""}>
-                  {formatCurrency(totalDebit)}
-                </TableCell>
-                <TableCell className={!isBalanced ? "text-destructive" : ""}>
-                  {formatCurrency(totalCredit)}
-                </TableCell>
-                <TableCell></TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
 
         {!isBalanced && (
           <p className="text-sm text-destructive mt-2">
