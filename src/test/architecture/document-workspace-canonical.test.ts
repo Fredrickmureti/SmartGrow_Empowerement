@@ -92,12 +92,40 @@ describe("document workspace — line items adapt to their container", () => {
     ).toEqual([]);
   });
 
-  it("the grid derives its layout from measurement, not a fixed floor", () => {
-    const src = read("src/design-system/records/LineItemsGrid.tsx");
-    expect(src).toContain("ResizeObserver");
-    // The only remaining floor is the last-resort scroll fallback, and it is
-    // conditional on a measurement — never applied unconditionally.
-    expect(src).toContain("needsScroll");
-    expect(src).not.toMatch(/className=\{?"[^"]*min-w-\[\d{3,}px\]/);
+  it("both grids derive layout from one measurement engine", () => {
+    const engine = read("src/design-system/records/adaptiveColumns.ts");
+    expect(engine).toContain("ResizeObserver");
+
+    for (const grid of [
+      "src/design-system/records/LineItemsGrid.tsx",
+      "src/design-system/records/EditableLineItemsGrid.tsx",
+    ]) {
+      const src = read(grid);
+      expect(src, `${grid} must use the shared engine`).toContain(
+        "useAdaptiveLayout",
+      );
+      // The only remaining floor is the last-resort scroll fallback, and it
+      // is conditional on a measurement — never applied unconditionally.
+      expect(src).not.toMatch(/className=\{?"[^"]*min-w-\[\d{3,}px\]/);
+    }
+  });
+
+  it("document create/edit forms use the editable grid, not a hand-rolled table", () => {
+    const FORMS = SALES_FILES.filter((f) => /(CreatePage|EditPage)\.tsx$/.test(f));
+    const migrated = FORMS.filter((f) =>
+      /EditableLineItemsGrid/.test(read(f)),
+    );
+    // Phase 8 migrates document forms module by module; every migrated form
+    // must be free of the legacy <Table> line editor and its width floor.
+    for (const f of migrated) {
+      const src = read(f);
+      expect(src, `${f} still ships the legacy line table`).not.toMatch(
+        /<TableHead\b/,
+      );
+      expect(src, `${f} still forces a horizontal floor`).not.toMatch(
+        /min-w-\[\d{3,}px\]/,
+      );
+    }
+    expect(migrated.length, "no form is on the editable grid yet").toBeGreaterThan(0);
   });
 });
