@@ -84052,6 +84052,7 @@ export type Database = {
       create_pos_credit_sale_invoice_atomic: {
         Args: {
           _due_days?: number
+          _mode?: string
           _pos_transaction_id: string
           _user_id?: string
         }
