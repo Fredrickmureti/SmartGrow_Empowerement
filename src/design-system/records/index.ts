@@ -1,54 +1,60 @@
 /**
- * Design System — Records surface.
+ * Design System — Document Workspace.
  *
- * Cross-application public entry point for the record-interaction
- * scaffolds (peek sheet, object page, document body, line-items grid,
- * document panels, peek param hook, document-record hook).
+ * The canonical, domain-agnostic record-interaction layer. Every
+ * transactional module (Sales, Purchases, Finance, Inventory, Warehouse,
+ * Payroll) composes its list → peek → object-page experience from these
+ * primitives. There is exactly one implementation of each concern:
  *
- * These primitives were originally extracted while migrating Sales
- * and still physically live under `src/features/sales/record/`. This
- * barrel promotes them into the design system with generic names so
- * Purchases / Inventory / Finance code depends on `@/design-system`
- * only, never on a sibling feature module.
+ *   DocumentWorkspace   one renderer, two presentations (page | peek)
+ *   RecordScaffold      full-page projection of a DocumentRecordView
+ *   PeekScaffold        drawer projection of the same descriptor
+ *   RecordBody          the shared section stack both projections use
+ *   LineItemsGrid       the only line-item renderer (container-adaptive)
+ *   panels              totals / activity / attachments right-rail blocks
+ *   documentStatus      the single status label + tone vocabulary
+ *   DocumentLifecycleStrip  the order-to-cash / procure-to-pay traversal
  *
- * The `Sales*` prefixed names are kept as aliases for the Sales code
- * that already imports them, so no page has to move in the same pass.
- * New code SHOULD import the generic names (`RecordScaffold`,
- * `RecordBody`, `PeekScaffold`, `useDocumentRecord`).
+ * Do not fork any of these inside a feature module.
  */
 
-export {
-  RecordScaffold as RecordScaffold,
-  RecordScaffold,
-} from "@/features/sales/record/RecordScaffold";
-export {
-  RecordBody as RecordBody,
-  RecordBody,
-} from "@/features/sales/record/RecordBody";
-export type { DetailField } from "@/features/sales/record/RecordBody";
-export {
-  PeekScaffold as PeekScaffold,
-  PeekScaffold,
-} from "@/features/sales/record/PeekScaffold";
-export { DocumentPeekShell } from "@/design-system/records/DocumentPeekShell";
-export { LineItemsGrid } from "@/design-system/records/LineItemsGrid";
+export { RecordScaffold } from "./RecordScaffold";
+export type { DetailField } from "./RecordBody";
+export { RecordBody } from "./RecordBody";
+export { PeekScaffold } from "./PeekScaffold";
+export { DocumentPeekShell } from "./DocumentPeekShell";
+export { LineItemsGrid } from "./LineItemsGrid";
 export type {
   LineItemColumn,
   LineItemRow,
   LineItemRowCell,
-} from "@/design-system/records/LineItemsGrid";
+} from "./LineItemsGrid";
 export {
   DocumentTotalsPanel,
   DocumentActivityPanel,
   DocumentAttachmentsPanel,
-} from "@/design-system/records/panels";
+} from "./panels";
 export type {
   DocumentTotalsRow,
   DocumentActivityEntry,
   DocumentAttachment,
-} from "@/design-system/records/panels";
-export { usePeekParam } from "@/design-system/records/usePeekParam";
+} from "./panels";
+export { usePeekParam } from "./usePeekParam";
+export { useDocumentRecord } from "./useDocumentRecord";
+
+// Status vocabulary — one registry for every document type.
 export {
-  useDocumentRecord as useDocumentRecord,
-  useDocumentRecord,
-} from "@/features/sales/record/useDocumentRecord";
+  DocumentStatusBadge,
+  documentStatusMeta,
+  documentStatusLabel,
+  documentStatusTone,
+} from "./documentStatus";
+export type { DocumentStatusTone, DocumentKind } from "./documentStatus";
+
+// Money summary derivation — one implementation.
+export { buildTotalsRows, deriveMoney } from "./money";
+export type { DocumentMoney } from "./money";
+
+// Lifecycle traversal.
+export { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
+export type { LifecycleDocType } from "./DocumentLifecycleStrip";
