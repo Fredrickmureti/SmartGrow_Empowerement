@@ -14,6 +14,12 @@ import { memo, useCallback, useState } from "react";
 vi.mock("@/components/projects/LineAnalyticsCell", () => ({
   LineAnalyticsCell: () => null,
 }));
+vi.mock("@/components/products/PackagingSelect", () => ({
+  PackagingSelect: () => null,
+}));
+vi.mock("@/components/inventory/OutboundLineTracking", () => ({
+  OutboundLineTracking: () => null,
+}));
 vi.mock("@/components/inventory/StockAvailabilityIndicator", () => ({
   StockBadge: () => null,
   StockLineStatus: () => null,
