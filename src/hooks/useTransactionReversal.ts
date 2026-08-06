@@ -280,67 +280,23 @@ export function useTransactionReversal() {
 
       const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
 
-      // 1. GL REVERSAL FIRST via canonical RPC
-      const paymentJeId = (payment as any).journal_entry_id;
-      if (paymentJeId) {
-        await reverseJEAtomic(paymentJeId, `Void payment ${payment.receipt_number}: ${options.reason}`, user.id, voidDate);
-      } else {
-        // No linked JE — try to find one by source linkage
-        const { data: orphanJE } = await supabase
-          .from("journal_entries")
-          .select("id")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("source_type", "payment")
-          .eq("source_id", payment.id)
-          .neq("status", "voided")
-          .neq("status", "reversed")
-          .maybeSingle();
-        if (orphanJE?.id) {
-          await reverseJEAtomic(orphanJE.id, `Void payment ${payment.receipt_number}: ${options.reason}`, user.id, voidDate);
-        }
-      }
-
-      // 2. GL succeeded → update payment status
-      const { error: updatePaymentError } = await supabase
-        .from("payments")
-        .update({
-          status: "voided" as any,
-          voided_at: new Date().toISOString(),
-          voided_by: user.id,
-          void_reason: options.reason,
-        } as any)
-        .eq("id", options.paymentId);
-
-      if (updatePaymentError) throw updatePaymentError;
-
-      // 3. Reverse invoice paid amounts via the allocation ledger.
-      //    ADR 0027: walk payment_allocations instead of the legacy FK.
-      //    payment.status is already 'voided' (set above), so the deferred
-      //    sum-invariant trigger ignores this payment for the rest of the
-      //    transaction.
+      // Labels only. `void_payment_atomic` owns the whole operation: JE
+      // reversal, status flip, per-invoice recompute and the reason-coded
+      // event, in one transaction. Never re-split this into client steps —
+      // a failure mid-sequence used to leave the GL reversed while invoices
+      // still counted the cash.
       const allocations = await fetchLiveAllocations(options.paymentId);
-      for (const alloc of allocations) {
-        await decrementInvoicePaid(alloc.invoice_id, alloc.amount);
-      }
 
-      // ADR 0012 — record the reason-coded event so the audit log captures
-      // intent. Failure is non-fatal (event is supplementary).
-      try {
-        await supabase.rpc("record_payment_reversal_event" as any, {
-          _payment_id: options.paymentId,
-          _op: "void",
-          _reason_code: reasonCode,
-          _reason_text: options.reason,
-          _client_request_id: options.clientRequestId ?? null,
-          _amount_before_outstanding: (payment as any).outstanding_amount ?? null,
-          _amount_before_applied: (payment as any).applied_amount ?? null,
-          _amount_after_outstanding: 0,
-          _amount_after_applied: 0,
-        } as any);
-      } catch (e) {
-        console.warn("[ADR 0012] record_payment_reversal_event failed (non-fatal):", e);
-      }
+      const { error: voidError } = await supabase.rpc("void_payment_atomic" as any, {
+        _payment_id: options.paymentId,
+        _reason: options.reason,
+        _reason_code: reasonCode,
+        _void_date: voidDate,
+        _actor: user.id,
+        _client_request_id: options.clientRequestId ?? null,
+      } as any);
+      if (voidError) throw voidError;
+
 
       logAction({
         action: "voided",
