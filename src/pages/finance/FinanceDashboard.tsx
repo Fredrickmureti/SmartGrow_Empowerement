@@ -160,15 +160,12 @@ export default function FinanceDashboard() {
   const getCount = (counts: StatusCount[], ...statuses: string[]) =>
     counts.filter(c => statuses.includes(c.status)).reduce((s, c) => s + c.count, 0);
 
-  // Invoice stats from counts RPC
+  // Document-pipeline counts (operational, NOT accounting).
   const draftInvoiceCount = getCount(invoiceCounts, "draft");
   const overdueInvoiceCount = getCount(invoiceCounts, "overdue");
-  const outstandingInvoiceCount = getCount(invoiceCounts, "sent", "viewed", "partial", "overdue", "confirmed");
-
-  // Bill stats from counts RPC
   const draftBillCount = getCount(billCounts, "draft");
   const overdueBillCount = getCount(billCounts, "overdue");
-  const outstandingBillCount = getCount(billCounts, "received", "partial", "overdue");
+
 
   // Bank stats
   const totalBankBalance = bankAccountsList.reduce((s, a) => s + (a.current_balance || 0), 0);
