@@ -11,7 +11,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMigrationSession } from "@/hooks/useMigrationSession";
 import { useMigrationFileUpload } from "@/hooks/useMigrationFileUpload";
 import { useMigrationImportLoop } from "@/hooks/useMigrationImportLoop";
-import { useGLPosting } from "@/hooks/useGLPosting";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { findBestMatch } from "@/lib/migration/fuzzyMatch";
 import { useToast } from "@/hooks/use-toast";
@@ -42,7 +41,6 @@ export function MigrationStepPayments({ onComplete, onSkip }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const migration = useMigrationSession();
-  const { postPaymentToGL } = useGLPosting();
   const { getPaymentAccountMappings, hasRequiredAccounts } = useDefaultAccounts();
   const [parsedRows, setParsedRows] = useState<PaymentRow[]>([]);
 
@@ -144,75 +142,44 @@ export function MigrationStepPayments({ onComplete, onSkip }: Props) {
       importRow: async (row, i) => {
         const receiptNumber = row.reference || `MIG-PMT-${Date.now()}-${i}`;
 
-        const { data: payment, error: pmtError } = await supabase
-          .from("payments")
-          .insert({
-            organization_id: currentOrg.id,
-            business_id: currentBusiness?.id || null,
-            contact_id: row.matchedContactId!,
-            // ADR 0027: the canonical payment→invoice link is written into
-            // payment_allocations below; no single-FK column is populated.
-            amount: row.amount,
-            payment_date: row.paymentDate,
-            payment_method: row.paymentMethod as any,
-            receipt_number: receiptNumber,
-            reference: row.reference || null,
-            notes: "Migration: Imported payment",
-            status: "completed",
-            created_by: user.id,
-            migration_session_id: migration.session?.id || null,
-          })
-          .select("id, receipt_number, payment_date, amount")
-          .single();
+        // Settlement — including migrated/backfilled settlement — is written
+        // ONLY by the canonical AR engine. The importer no longer inserts
+        // payments, payment_allocations, invoice balances or journal entries
+        // itself; record_multi_invoice_payment owns all of that atomically.
+        const accountMappings = getPaymentAccountMappings(row.paymentMethod);
 
-        if (pmtError) throw pmtError;
+        const { data: result, error: rpcError } = await supabase.rpc(
+          "record_multi_invoice_payment",
+          {
+            _org_id: currentOrg.id,
+            _business_id: currentBusiness?.id || null,
+            _contact_id: row.matchedContactId!,
+            _allocations: [
+              { invoice_id: row.matchedInvoiceId!, amount: row.amount },
+            ] as any,
+            _total_amount: row.amount,
+            _payment_date: row.paymentDate,
+            _payment_method: row.paymentMethod,
+            _reference: row.reference || null,
+            _notes: "Migration: Imported payment",
+            _receipt_number: receiptNumber,
+            _created_by: user.id,
+            _deposit_account_id: accountMappings.cash_account_id || null,
+            _receivable_account_id: accountMappings.receivable_account_id || null,
+            _customer_credit_account_id: null,
+            _branch_id: null,
+          } as any,
+        );
 
-        if (payment) {
-          // Canonical link: write the allocation row tagged source='backfill'
-          // so it is distinguishable from runtime allocations in audits.
-          const { error: allocError } = await supabase
-            .from("payment_allocations")
-            .insert({
-              organization_id: currentOrg.id,
-              payment_id: payment.id,
-              invoice_id: row.matchedInvoiceId!,
-              amount: row.amount,
-              source: "backfill",
-            } as any);
-          if (allocError) throw allocError;
+        if (rpcError) throw rpcError;
 
-          const accountMappings = getPaymentAccountMappings(row.paymentMethod);
-          if (accountMappings.cash_account_id && accountMappings.receivable_account_id) {
-            const jeId = await postPaymentToGL(
-              {
-                id: payment.id,
-                receipt_number: payment.receipt_number || receiptNumber,
-                payment_date: payment.payment_date,
-                amount: payment.amount,
-                invoice_id: row.matchedInvoiceId!,
-              },
-              accountMappings as { cash_account_id: string; receivable_account_id: string }
-            );
-            if (jeId) {
-              await supabase.from("payments").update({ journal_entry_id: jeId }).eq("id", payment.id);
-            }
-          }
-
-
-          const { data: invoice } = await supabase
-            .from("invoices")
-            .select("total, amount_paid")
-            .eq("id", row.matchedInvoiceId!)
-            .single();
-
-          if (invoice) {
-            const newPaid = (invoice.amount_paid || 0) + row.amount;
-            const newStatus = newPaid >= invoice.total - 0.01 ? "paid" : "partial";
-            await supabase
-              .from("invoices")
-              .update({ amount_paid: newPaid, status: newStatus })
-              .eq("id", row.matchedInvoiceId!);
-          }
+        // Tag the engine-created payment as migration-sourced for audits.
+        const paymentId = (result as any)?.payment_id;
+        if (paymentId && migration.session?.id) {
+          await supabase
+            .from("payments")
+            .update({ migration_session_id: migration.session.id })
+            .eq("id", paymentId);
         }
       },
       getRowLabel: (row) => `${row.customerName} / ${row.invoiceNumber}`,

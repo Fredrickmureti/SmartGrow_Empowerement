@@ -81,49 +81,45 @@ Deno.serve(async (req) => {
     const entryDate = body.entry_date || new Date().toISOString().slice(0, 10);
     const description = `Loan interest accrual — ${loan.loan_number} (${body.period_key})`;
 
-    const { data: je, error: jeErr } = await admin
-      .from("journal_entries")
-      .insert({
-        organization_id: loan.organization_id,
-        business_id: loan.business_id,
-        branch_id: loan.branch_id,
-        entry_date: entryDate,
-        description,
-        reference: body.period_key,
-        status: "posted",
-        posted_at: new Date().toISOString(),
-        posted_by: who.user.id,
-        source_type: "loan_interest_accrual",
-        source_id: loan.id,
-        total_debit: amount,
-        total_credit: amount,
-        created_by: who.user.id,
-      })
-      .select("id")
-      .single();
-    if (jeErr) return json({ error: jeErr.message }, 500);
+    // Journal posting goes through the single canonical posting engine
+    // (post_journal_entry_atomic). No edge function may insert into
+    // journal_entries directly — the RPC owns balancing, journal-book
+    // assignment, period locks and scope stamping in one transaction.
+    const { data: jeNumberData } = await admin.rpc("get_next_journal_entry_number", {
+      _org_id: loan.organization_id,
+    });
+    const entryNumber = String(jeNumberData || `JE-LIA-${Date.now()}`);
 
-    const { error: linesErr } = await admin.from("journal_entry_lines").insert([
-      {
-        journal_entry_id: je.id,
-        account_id: lt.gl_receivable_account_id,
-        debit: amount, credit: 0,
-        description, sort_order: 1,
-        business_id: loan.business_id, branch_id: loan.branch_id,
-      },
-      {
-        journal_entry_id: je.id,
-        account_id: lt.interest_income_account_id,
-        debit: 0, credit: amount,
-        description: `Interest income — ${loan.loan_number} (${body.period_key})`,
-        sort_order: 2,
-        business_id: loan.business_id, branch_id: loan.branch_id,
-      },
-    ]);
-    if (linesErr) {
-      await admin.from("journal_entries").delete().eq("id", je.id);
-      return json({ error: linesErr.message }, 500);
-    }
+    const { data: jeId, error: jeErr } = await admin.rpc("post_journal_entry_atomic", {
+      _org_id: loan.organization_id,
+      _business_id: loan.business_id,
+      _branch_id: loan.branch_id,
+      _entry_number: entryNumber,
+      _entry_date: entryDate,
+      _reference: body.period_key,
+      _description: description,
+      _source_type: "loan_interest_accrual",
+      _source_id: loan.id,
+      _created_by: who.user.id,
+      _is_closing: false,
+      _is_adjusting: false,
+      _lines: [
+        {
+          account_id: lt.gl_receivable_account_id,
+          debit: amount,
+          credit: 0,
+          description,
+        },
+        {
+          account_id: lt.interest_income_account_id,
+          debit: 0,
+          credit: amount,
+          description: `Interest income — ${loan.loan_number} (${body.period_key})`,
+        },
+      ],
+    } as any);
+    if (jeErr) return json({ error: jeErr.message }, 500);
+    const je = { id: jeId as unknown as string };
 
     // Capitalise the interest into outstanding balance (default true) so the
     // next period's amortisation / recovery reflects the accrued charge.
