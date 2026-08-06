@@ -1,8 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { encodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
 import { resolvePrintPolicy } from "../_shared/printing/resolvePolicy.ts";
+import { resolveCanonicalPdf } from "../_shared/documents/canonicalPdf.ts";
 import { formatAccountingNumber as formatCurrency } from "../_shared/format/index.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -757,7 +760,10 @@ const handler = async (req: Request): Promise<Response> => {
 
           const pdfArrayBuffer = await pdfResponse.arrayBuffer();
           const pdfBytes = new Uint8Array(pdfArrayBuffer);
-          const pdfBase64Content = btoa(String.fromCharCode(...pdfBytes));
+          // `btoa(String.fromCharCode(...bytes))` overflows the argument
+          // limit on multi-page PDFs; the std encoder streams instead.
+          const pdfBase64Content = encodeBase64(pdfBytes);
+
 
           const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
           const autoFilename = `payslip-${safeDocNumber}.pdf`;
