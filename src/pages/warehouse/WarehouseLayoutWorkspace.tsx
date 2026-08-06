@@ -37,7 +37,7 @@ import { useWarehouseLocations } from "@/features/warehouse/locations/useWarehou
 import { useResolveLocationIdentity } from "@/features/warehouse/locations/useResolveLocationIdentity";
 import { LocationStructureTree } from "@/features/warehouse/locations/LocationStructureTree";
 import { LocationMap } from "@/features/warehouse/locations/LocationMap";
-import { LocationInspector } from "@/features/warehouse/locations/LocationInspector";
+import { LocationPreview } from "@/features/warehouse/locations/LocationPreview";
 import { MoveLocationDialog } from "@/features/warehouse/locations/MoveLocationDialog";
 
 
@@ -51,6 +51,7 @@ import {
 import { useLocationMutations } from "@/features/warehouse/locations/useLocationMutations";
 import type { LocationNode } from "@/features/warehouse/locations/types";
 import { useWmsScanIntent } from "@/features/warehouse/scanning/wmsScanIntent";
+import { useEntitySelection } from "@/features/warehouse/entity/useEntitySelection";
 
 /** Deep-link into the full-page structure builder (no modal, no lost work). */
 function buildHref(warehouseId: string | null, parentId: string | null) {
@@ -73,7 +74,7 @@ export default function WarehouseLayoutWorkspace() {
     useWarehouseLocations(activeWarehouseId);
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useEntitySelection();
   const [focusId, setFocusId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [labelTargets, setLabelTargets] = useState<LocationNode[] | null>(null);
@@ -403,7 +404,7 @@ export default function WarehouseLayoutWorkspace() {
           </Card>
 
           <Card className="h-[calc(100vh-20rem)] min-h-[28rem] overflow-hidden">
-            <LocationInspector
+            <LocationPreview
               node={selected}
               warehouseId={activeWarehouseId}
               onPrintLabel={setLabelTargets}
