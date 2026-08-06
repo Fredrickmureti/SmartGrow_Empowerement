@@ -15,8 +15,8 @@
 import { normalizeError } from "@/services/resilience";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { InvoiceLineRow } from "@/components/invoices/InvoiceLineRow";
-import { ProductCombobox } from "@/components/common/ProductCombobox";
+import { InvoiceLineRow, INVOICE_LINE_COLUMNS } from "@/components/invoices/InvoiceLineRow";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { InvoiceItem, useInvoicesPaginated } from "@/hooks/useInvoicesPaginated";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
@@ -36,7 +36,6 @@ import { AITextAssist } from "@/components/shared/AITextAssist";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -47,26 +46,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Plus, Trash2, AlertCircle, AlertTriangle } from "lucide-react";
+import { AlertCircle, AlertTriangle } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  StockBadge,
-  StockLineStatus,
   evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
-import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
 import { applyScanToLines } from "@/services/scanner";
@@ -511,104 +499,43 @@ export default function InvoiceCreatePage() {
           </FieldGroup>
         </CapabilityGate>
 
-        {/* Line Items */}
+        {/* Line Items — one container-adaptive editor for every viewport. */}
         <FieldGroup label="Line Items">
-          <div className="flex items-center justify-between mb-1">
-            <span />
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="mr-2 h-4 w-4" />Add Item
-            </Button>
-          </div>
-
-          <InvoiceLineScanner
-            businessId={currentBusiness?.id}
-            branchId={currentBranch?.id ?? null}
-            onResolved={handleScanResolved}
-            linesTableRef={linesTableRef}
+          <EditableLineItemsGrid
+            columns={INVOICE_LINE_COLUMNS}
+            rows={lineItems}
+            containerRef={linesTableRef}
             disabled={isSubmitting}
+            addLabel="Add Item"
+            onAddRow={addLineItem}
+            onRemoveRow={removeLineItem}
+            toolbar={
+              <InvoiceLineScanner
+                businessId={currentBusiness?.id}
+                branchId={currentBranch?.id ?? null}
+                onResolved={handleScanResolved}
+                linesTableRef={linesTableRef}
+                disabled={isSubmitting}
+              />
+            }
+            renderRow={(item, index, layout) => (
+              <InvoiceLineRow
+                index={index}
+                item={item}
+                products={products}
+                layout={layout}
+                flashed={flashIndex === index}
+                isSubmitting={isSubmitting}
+                stockEval={lineStockEvals[index] ?? null}
+                headerProjectId={formData.project_id}
+                customerId={formData.contact_id || null}
+                formatCurrency={formatCurrency}
+                onProductSelect={handleProductSelect}
+                onUpdate={updateLineItem}
+              />
+            )}
           />
 
-          {/* Desktop table */}
-          <div ref={linesTableRef} className="hidden sm:block max-w-full rounded-lg border overflow-x-auto">
-            <Table className="min-w-[600px] table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[300px]">Description</TableHead>
-                  <TableHead className="w-24">Qty</TableHead>
-                  <TableHead className="w-28">Price</TableHead>
-                  <TableHead className="w-20">Tax %</TableHead>
-                  <TableHead className="w-28 text-right">Total</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lineItems.map((item, index) => (
-                  <InvoiceLineRow
-                    key={index}
-                    index={index}
-                    item={item}
-                    products={products}
-                    linesCount={lineItems.length}
-                    flashed={flashIndex === index}
-                    isSubmitting={isSubmitting}
-                    stockEval={lineStockEvals[index] ?? null}
-                    headerProjectId={formData.project_id}
-                    customerId={formData.contact_id || null}
-                    variant="rich"
-                    formatCurrency={formatCurrency}
-                    onProductSelect={handleProductSelect}
-                    onUpdate={updateLineItem}
-                    onRemove={removeLineItem}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="sm:hidden space-y-3 min-w-0">
-            {lineItems.map((item, index) => (
-              <div key={index} className="min-w-0 rounded-lg border p-3 space-y-3 bg-card">
-                <div className="flex items-start justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Item {index + 1}</span>
-                  <Button type="button" variant="ghost" size="icon" className="h-7 w-7 -mt-1 -mr-1" onClick={() => removeLineItem(index)} disabled={lineItems.length === 1}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </div>
-                <ProductCombobox
-                  products={products}
-                  value={item.product_id}
-                  onChange={(value) => handleProductSelect(index, value)}
-                  formatCurrency={formatCurrency}
-                  renderItemRight={(p) => (
-                    <StockBadge
-                      trackInventory={p.track_inventory}
-                      productType={p.type}
-                      onHand={(p as any).available ?? p.stock_quantity}
-                      reorderLevel={p.reorder_level}
-                    />
-                  )}
-                />
-                <Input placeholder="Description" value={item.description} onChange={(e) => updateLineItem(index, { description: e.target.value })} className="h-9" />
-                {lineStockEvals[index] && (
-                  <StockLineStatus
-                    trackInventory={lineStockEvals[index]!.product.track_inventory}
-                    productType={lineStockEvals[index]!.product.type}
-                    onHand={(lineStockEvals[index]!.product as any).available ?? lineStockEvals[index]!.product.stock_quantity}
-                    reorderLevel={lineStockEvals[index]!.product.reorder_level}
-                    requestedQty={item.quantity}
-                  />
-                )}
-                <div className="grid grid-cols-3 gap-2 min-w-0">
-                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Qty</Label><NumericInput value={item.quantity} onValueChange={(v) => updateLineItem(index, { quantity: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
-                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Price</Label><NumericInput value={item.unit_price} onValueChange={(v) => updateLineItem(index, { unit_price: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
-                  <div className="space-y-1 min-w-0"><Label className="text-xs text-muted-foreground">Tax %</Label><NumericInput value={item.tax_rate} onValueChange={(v) => updateLineItem(index, { tax_rate: v ?? 0 })} className="h-9 w-full min-w-0" /></div>
-                </div>
-                <div className="flex justify-between items-center pt-1 border-t">
-                  <span className="text-xs text-muted-foreground">Line Total</span>
-                  <span className="text-sm font-semibold">{formatCurrency(item.line_total)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
 
           {/* Totals */}
           <div className="flex justify-end">

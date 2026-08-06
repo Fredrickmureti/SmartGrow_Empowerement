@@ -23,29 +23,20 @@
  * Presentational only; the parent form owns mutation.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  useAdaptiveLayout,
+  useContainerWidth,
+  DELETE_COL_WIDTH,
+  GRID_GAP,
+  type AdaptiveColumn,
+} from "./adaptiveColumns";
 
-export interface LineItemColumn {
-  id: string;
-  header: ReactNode;
-  /** Column width. Any CSS grid track syntax. Defaults to `minmax(0,1fr)`. */
-  width?: string;
-  /** Right-align numeric cells and apply tabular figures. */
-  numeric?: boolean;
-  /**
-   * Retention rank. 1 = always visible (identity, amount), 2 = important
-   * (qty, unit price), 3 = supporting (discount, tax, UoM). Higher numbers
-   * are demoted into the row's secondary line first. Defaults to 2.
-   */
-  priority?: 1 | 2 | 3;
-  /** Minimum comfortable width in px, used by the fit calculation. */
-  minWidth?: number;
-  /** Short label used when the value is demoted into the secondary line. */
-  compactLabel?: string;
-}
+/** Column descriptor — see `adaptiveColumns.ts` for the ranking contract. */
+export type LineItemColumn = AdaptiveColumn;
 
 export interface LineItemRowCell {
   columnId: string;
@@ -72,36 +63,6 @@ interface LineItemsGridProps {
   empty?: ReactNode;
 }
 
-const DELETE_COL_WIDTH = 44;
-const GAP = 8;
-
-/** Fallback minimum width for a column that declares none. */
-function minWidthOf(col: LineItemColumn): number {
-  if (col.minWidth) return col.minWidth;
-  if (col.numeric) return 88;
-  return 160;
-}
-
-/** Observe the rendered width of an element. */
-function useContainerWidth<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [width, setWidth] = useState<number | null>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w) setWidth(w);
-    });
-    ro.observe(el);
-    setWidth(el.getBoundingClientRect().width);
-    return () => ro.disconnect();
-  }, []);
-
-  return [ref, width] as const;
-}
-
 export function LineItemsGrid({
   columns,
   rows,
@@ -116,57 +77,10 @@ export function LineItemsGrid({
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const showDelete = !readOnly && !!onRemoveRow;
 
-  /**
-   * Decide which columns survive at the measured width. Columns are dropped
-   * from the lowest priority (3) upwards, and within a priority from the
-   * right, mirroring how ERP grids shed supporting detail.
-   */
-  const { visible, demoted, needsScroll } = useMemo(() => {
-    const reserved = showDelete ? DELETE_COL_WIDTH + GAP : 0;
-    const available = (containerWidth ?? 0) - reserved;
-
-    // Before measurement, render the full set: SSR and the first paint keep
-    // every column so nothing flashes in and out on a wide screen.
-    if (!containerWidth) {
-      return { visible: columns, demoted: [] as LineItemColumn[], needsScroll: false };
-    }
-
-    const fits = (cols: LineItemColumn[]) =>
-      cols.reduce((sum, c) => sum + minWidthOf(c), 0) + GAP * Math.max(0, cols.length - 1) <=
-      available;
-
-    // Identity (first) and amount (last) are load-bearing: a line item is
-    // meaningless without what it is and what it costs.
-    const ranked = columns.map((c, i) => ({
-      ...c,
-      priority: c.priority ?? (i === 0 || i === columns.length - 1 ? 1 : 2),
-    }));
-
-    let kept = [...ranked];
-    const dropped: LineItemColumn[] = [];
-
-    for (const priority of [3, 2] as const) {
-      // Drop right-to-left within the priority band until the set fits.
-      for (let i = kept.length - 1; i >= 0 && !fits(kept); i--) {
-        if (kept[i].priority !== priority) continue;
-        dropped.unshift(kept[i]);
-        kept = kept.filter((_, idx) => idx !== i);
-      }
-      if (fits(kept)) break;
-    }
-
-    return { visible: kept, demoted: dropped, needsScroll: !fits(kept) };
-  }, [columns, containerWidth, showDelete]);
-
-  const gridTemplate = useMemo(
-    () =>
-      [
-        ...visible.map((c) => c.width ?? `minmax(${minWidthOf(c)}px, 1fr)`),
-        showDelete ? `${DELETE_COL_WIDTH}px` : null,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    [visible, showDelete],
+  const { visible, demoted, needsScroll, gridTemplate } = useAdaptiveLayout(
+    columns,
+    containerWidth,
+    showDelete ? DELETE_COL_WIDTH + GRID_GAP : 0,
   );
 
   /** The column a demoted value hangs beneath — the first visible column. */

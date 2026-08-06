@@ -10,7 +10,8 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { InvoiceLineRow } from "@/components/invoices/InvoiceLineRow";
+import { InvoiceLineRow, INVOICE_LINE_COLUMNS } from "@/components/invoices/InvoiceLineRow";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts as useProducts } from "@/hooks/useBranchScopedProducts";
@@ -22,7 +23,6 @@ import { useToast } from "@/hooks/use-toast";
 import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -32,27 +32,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Loader2, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  StockBadge,
-  StockLineStatus,
   evaluateStock,
 } from "@/components/inventory/StockAvailabilityIndicator";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
-import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
 import { applyScanToLines } from "@/services/scanner";
@@ -484,57 +473,41 @@ export default function InvoiceEditPage() {
           />
 
           <FieldGroup label="Line Items">
-            <div className="flex items-center justify-between mb-1">
-              <span />
-              <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Item
-              </Button>
-            </div>
-
-            <InvoiceLineScanner
-              businessId={currentBusiness?.id}
-              branchId={currentBranch?.id ?? null}
-              onResolved={handleScanResolved}
-              linesTableRef={linesTableRef}
+            <EditableLineItemsGrid
+              columns={INVOICE_LINE_COLUMNS}
+              rows={lineItems}
+              containerRef={linesTableRef}
               disabled={isSubmitting}
+              addLabel="Add Item"
+              onAddRow={addLineItem}
+              onRemoveRow={removeLineItem}
+              toolbar={
+                <InvoiceLineScanner
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  linesTableRef={linesTableRef}
+                  disabled={isSubmitting}
+                />
+              }
+              renderRow={(item, index, layout) => (
+                <InvoiceLineRow
+                  index={index}
+                  item={item}
+                  products={products}
+                  layout={layout}
+                  flashed={flashIndex === index}
+                  isSubmitting={isSubmitting}
+                  stockEval={lineStockEvals[index] ?? null}
+                  headerProjectId={formData.project_id}
+                  customerId={formData.contact_id || null}
+                  formatCurrency={formatCurrency}
+                  onProductSelect={handleProductSelect}
+                  onUpdate={updateLineItem}
+                />
+              )}
             />
 
-            <div ref={linesTableRef} className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">Description</TableHead>
-                    <TableHead className="w-24">Qty</TableHead>
-                    <TableHead className="w-28">Price</TableHead>
-                    <TableHead className="w-20">Tax %</TableHead>
-                    <TableHead className="w-28 text-right">Total</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lineItems.map((item, index) => (
-                    <InvoiceLineRow
-                      key={index}
-                      index={index}
-                      item={item}
-                      products={products}
-                      linesCount={lineItems.length}
-                      flashed={flashIndex === index}
-                      isSubmitting={isSubmitting}
-                      stockEval={lineStockEvals[index] ?? null}
-                      headerProjectId={formData.project_id}
-                      customerId={formData.contact_id || null}
-                      variant="compact"
-                      formatCurrency={formatCurrency}
-                      onProductSelect={handleProductSelect}
-                      onUpdate={updateLineItem}
-                      onRemove={removeLineItem}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
 
             <div className="flex justify-end">
               <div className="w-64 space-y-2">

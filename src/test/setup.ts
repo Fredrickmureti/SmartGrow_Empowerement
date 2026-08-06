@@ -34,12 +34,14 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver
-(globalThis as any).ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// Mock ResizeObserver — must be constructible (`new ResizeObserver(cb)`),
+// which the container-adaptive line-item grids rely on.
+(globalThis as any).ResizeObserver = class {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+};
+
 
 // Mock IntersectionObserver
 (globalThis as any).IntersectionObserver = vi.fn().mockImplementation(() => ({

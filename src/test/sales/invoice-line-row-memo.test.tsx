@@ -14,14 +14,21 @@ import { memo, useCallback, useState } from "react";
 vi.mock("@/components/projects/LineAnalyticsCell", () => ({
   LineAnalyticsCell: () => null,
 }));
+vi.mock("@/components/products/PackagingSelect", () => ({
+  PackagingSelect: () => null,
+}));
+vi.mock("@/components/inventory/OutboundLineTracking", () => ({
+  OutboundLineTracking: () => null,
+}));
 vi.mock("@/components/inventory/StockAvailabilityIndicator", () => ({
   StockBadge: () => null,
   StockLineStatus: () => null,
 }));
 
-import { Table, TableBody } from "@/components/ui/table";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import {
   InvoiceLineRow,
+  INVOICE_LINE_COLUMNS,
   type InvoiceLineItemShape,
 } from "@/components/invoices/InvoiceLineRow";
 
@@ -73,24 +80,23 @@ function Harness() {
       <span data-testid="hn">{headerNote}</span>
       <button data-testid="bump-header" onClick={() => setHeaderNote((s) => s + "!")} />
       <button data-testid="bump-row-1" onClick={() => onUpdate(1, { quantity: 2, line_total: 20 })} />
-      <Table>
-        <TableBody>
-          {items.map((it, i) => (
-            <CountingRow
-              key={i}
-              index={i}
-              item={it}
-              products={PRODUCTS}
-              linesCount={items.length}
-              flashed={false}
-              formatCurrency={formatCurrency}
-              onProductSelect={onProductSelect}
-              onUpdate={onUpdate}
-              onRemove={onRemove}
-            />
-          ))}
-        </TableBody>
-      </Table>
+      <EditableLineItemsGrid
+        columns={INVOICE_LINE_COLUMNS}
+        rows={items}
+        onRemoveRow={onRemove}
+        renderRow={(it, i, layout) => (
+          <CountingRow
+            index={i}
+            item={it}
+            products={PRODUCTS}
+            layout={layout}
+            flashed={false}
+            formatCurrency={formatCurrency}
+            onProductSelect={onProductSelect}
+            onUpdate={onUpdate}
+          />
+        )}
+      />
     </div>
   );
 }
