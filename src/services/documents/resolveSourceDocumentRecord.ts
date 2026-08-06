@@ -63,6 +63,13 @@ interface BuiltSnapshot {
   branchId: string | null;
   currency: string | null;
   partyId: string | null;
+  /**
+   * Optional identity override. Used when one legacy document type can be
+   * anchored on more than one row (a receipt viewed from a payment vs from
+   * an invoice), so each anchor freezes its own record instead of colliding.
+   */
+  sourceDocType?: string;
+  sourceDocId?: string;
 }
 
 interface RegistryEntry {
@@ -72,6 +79,7 @@ interface RegistryEntry {
   partyKind: "customer" | "supplier" | "employee" | null;
   build: (documentId: string) => Promise<BuiltSnapshot>;
 }
+
 
 /** Builders expose party ids under domain-specific names; normalise them. */
 function normalise(built: Record<string, unknown>): BuiltSnapshot {
