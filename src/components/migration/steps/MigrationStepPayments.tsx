@@ -41,7 +41,6 @@ export function MigrationStepPayments({ onComplete, onSkip }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const migration = useMigrationSession();
-  const { postPaymentToGL } = useGLPosting();
   const { getPaymentAccountMappings, hasRequiredAccounts } = useDefaultAccounts();
   const [parsedRows, setParsedRows] = useState<PaymentRow[]>([]);
 
