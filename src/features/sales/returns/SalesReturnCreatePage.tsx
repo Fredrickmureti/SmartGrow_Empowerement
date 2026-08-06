@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
-import { SalesReturnLineRow, RETURN_LINE_COLUMNS } from "@/components/sales/lines/SalesReturnLineRow";
+import { SalesReturnLineRow, RETURN_LINE_COLUMNS } from "@/components/documents/lines/SalesReturnLineRow";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";

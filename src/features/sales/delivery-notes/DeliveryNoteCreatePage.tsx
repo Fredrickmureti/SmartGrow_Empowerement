@@ -44,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
-import { DeliveryNoteLineRow, DELIVERY_LINE_COLUMNS } from "@/components/sales/lines/DeliveryNoteLineRow";
+import { DeliveryNoteLineRow, DELIVERY_LINE_COLUMNS } from "@/components/documents/lines/DeliveryNoteLineRow";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
