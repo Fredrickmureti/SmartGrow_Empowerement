@@ -94208,6 +94208,17 @@ export type Database = {
         }
         Returns: string
       }
+      void_payment_atomic: {
+        Args: {
+          _actor?: string
+          _client_request_id?: string
+          _payment_id: string
+          _reason: string
+          _reason_code?: string
+          _void_date?: string
+        }
+        Returns: Json
+      }
       waive_product_identification: {
         Args: {
           p_business_id: string
