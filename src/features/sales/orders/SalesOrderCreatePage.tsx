@@ -144,19 +144,6 @@ export default function SalesOrderCreatePage() {
 
   const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
 
-  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
-    const updated = [...lineItems];
-    updated[index] = { ...updated[index], [field]: value };
-    if (field === "product_id" && value) {
-      const product = products.find((p) => p.id === value);
-      if (product) {
-        updated[index].description = product.name;
-        updated[index].unit_price = product.unit_price;
-        updated[index].tax_rate = product.tax_rate || 0;
-      }
-    }
-    setLineItems(updated);
-  };
 
   const calculateTotals = () => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
