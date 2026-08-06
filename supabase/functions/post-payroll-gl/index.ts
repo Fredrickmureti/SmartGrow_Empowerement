@@ -302,6 +302,14 @@ Deno.serve(async (req) => {
     // `payroll_loan_repayment_gl_targets` below.
     let loanRepaymentTotal = 0;
 
+    // Same reasoning for employee advance recovery: the advance was booked as
+    // a receivable at disbursement (`disburse_employee_advance`, ADR 0124), so
+    // recovering it through payroll relieves that asset. Crediting
+    // `advance_recovery_payable` would double-count the money as a liability
+    // and leave the receivable outstanding forever.
+    let advanceRecoveryTotal = 0;
+
+
 
     // Phase C — split labour cost by accounting_tag when the compute layer
     // stamped one. `null` bucket is the legacy "post to generic
@@ -438,6 +446,13 @@ Deno.serve(async (req) => {
         loanRepaymentTotal += empAmt;
         continue;
       }
+
+      // ─── Advance recovery lines: relieve the advance receivable ───
+      if (key === "advance_recovery" && empAmt > 0) {
+        advanceRecoveryTotal += empAmt;
+        continue;
+      }
+
 
       if (!key) continue;
 
@@ -739,6 +754,65 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ─── CR: Advance recoveries — relieve the advance receivable (ADR 0124) ───
+    // Targets come from `payroll_advance_recovery_gl_targets`, which reads the
+    // schedule rows this run wrote and resolves the same account
+    // `disburse_employee_advance` debited. Any rounding residual between the
+    // payslip total and the schedule total lands on the first target so the
+    // journal stays balanced against the payslip lines.
+    if (advanceRecoveryTotal > 0.005) {
+      const { data: advTargets, error: advTargetError } = await supabaseAdmin.rpc(
+        "payroll_advance_recovery_gl_targets",
+        { p_run_id: payroll_run_id },
+      );
+      if (advTargetError) {
+        return new Response(JSON.stringify({
+          error: `Could not resolve advance recovery GL accounts: ${advTargetError.message}`,
+        }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const advRows = (advTargets || []) as Array<{
+        advance_id: string;
+        employee_name: string | null;
+        receivable_account_id: string | null;
+        amount: number | null;
+      }>;
+
+      if (advRows.length === 0 || advRows.some((t) => !t.receivable_account_id)) {
+        return new Response(JSON.stringify({
+          error: "missing_mappings",
+          message: advRows.length === 0
+            ? "This run recovers employee advances but no recovery records were found for it. Re-run payroll computation before posting."
+            : "Employee Advance Receivable account is not mapped. Map it (or Loan Receivable as the fallback) under Finance → Default Accounts before posting a run with advance recoveries.",
+          missing: [{
+            setting_key: "employee_advance_receivable",
+            label: "Employee Advance Receivable",
+            rule_code: null,
+            kind: "core",
+          }],
+          action: { label: "Open GL Account Mapping", to: "/hr/payroll/configuration/accounts" },
+        }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const advSplitTotal = advRows.reduce((s, t) => s + Number(t.amount || 0), 0);
+      const advResidual = Math.round((advanceRecoveryTotal - advSplitTotal) * 100) / 100;
+
+      advRows.forEach((t, idx) => {
+        const amount =
+          Math.round((Number(t.amount || 0) + (idx === 0 ? advResidual : 0)) * 100) / 100;
+        if (amount <= 0.005) return;
+        lines.push({
+          account_id: t.receivable_account_id!,
+          debit: 0,
+          credit: amount,
+          description: `${runLabel} - Advance recovery${t.employee_name ? ` (${t.employee_name})` : ""}`,
+          contact_id: null,
+        });
+      });
+    }
 
 
     // CR: Garnishment Payable (one line per order — payee tracked via liability row).

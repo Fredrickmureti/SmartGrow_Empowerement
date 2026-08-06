@@ -88371,6 +88371,15 @@ export type Database = {
           run_id: string
         }[]
       }
+      payroll_advance_recovery_gl_targets: {
+        Args: { p_run_id: string }
+        Returns: {
+          advance_id: string
+          amount: number
+          employee_name: string
+          receivable_account_id: string
+        }[]
+      }
       payroll_apply_proposed_mappings: {
         Args: {
           _accept: Json
@@ -90714,6 +90723,16 @@ export type Database = {
         Returns: number
       }
       process_leave_accruals: { Args: { p_org_id?: string }; Returns: Json }
+      process_payroll_advance_recoveries: {
+        Args: {
+          _payroll_number: string
+          _payroll_run_id: string
+          _period_end: string
+          _period_start: string
+          _recoveries: Json
+        }
+        Returns: undefined
+      }
       process_payroll_loan_deductions: {
         Args: {
           _deductions: Json
