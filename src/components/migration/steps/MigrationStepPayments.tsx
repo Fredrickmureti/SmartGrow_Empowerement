@@ -11,7 +11,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useMigrationSession } from "@/hooks/useMigrationSession";
 import { useMigrationFileUpload } from "@/hooks/useMigrationFileUpload";
 import { useMigrationImportLoop } from "@/hooks/useMigrationImportLoop";
-import { useGLPosting } from "@/hooks/useGLPosting";
 import { useDefaultAccounts } from "@/hooks/useDefaultAccounts";
 import { findBestMatch } from "@/lib/migration/fuzzyMatch";
 import { useToast } from "@/hooks/use-toast";
