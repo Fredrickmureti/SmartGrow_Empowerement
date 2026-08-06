@@ -38,7 +38,6 @@ import {
   dwellMinutes,
   formatDwell,
   gateEventLabel,
-  VISIT_STATUS_LABEL,
   YARD_MOVE_LABEL,
   LOAD_READINESS_LABEL,
   LOAD_READINESS_TONE,

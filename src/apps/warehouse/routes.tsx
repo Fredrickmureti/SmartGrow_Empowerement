@@ -46,6 +46,7 @@ const QCQueue = lazy(() => import("@/pages/warehouse/QCQueue"));
 const QCInspectionDetail = lazy(() => import("@/pages/warehouse/QCInspectionDetail"));
 const Replenishment = lazy(() => import("@/pages/warehouse/Replenishment"));
 const Slotting = lazy(() => import("@/pages/warehouse/Slotting"));
+const TrailerVisitWorkspace = lazy(() => import("@/pages/warehouse/TrailerVisitWorkspace"));
 const YardControlTower = lazy(() => import("@/pages/warehouse/YardControlTower"));
 const GateConsole = lazy(() => import("@/pages/warehouse/GateConsole"));
 const TrailerRegister = lazy(() => import("@/pages/warehouse/TrailerRegister"));
@@ -299,6 +300,8 @@ export function WarehouseApp() {
         <Route path="replenishment" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Replenishment"><Replenishment /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="slotting" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Slotting"><Slotting /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard & Trailers"><YardControlTower /></LazyRoute></SubscriptionProtectedRoute>} />
+        {/* Yard visit object page (ADR 0122) — boards preview, workspace acts. */}
+        <Route path="yard/visit/:id" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer visit"><TrailerVisitWorkspace /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/gate" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Gate Console"><GateConsole /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/marshal" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Yard Marshal"><YardMarshal /></LazyRoute></SubscriptionProtectedRoute>} />
         <Route path="yard/trailers" element={<SubscriptionProtectedRoute allowReadOnly><LazyRoute module="Trailer Register"><TrailerRegister /></LazyRoute></SubscriptionProtectedRoute>} />

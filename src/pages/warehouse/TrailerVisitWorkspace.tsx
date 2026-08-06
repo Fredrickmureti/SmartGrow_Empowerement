@@ -13,8 +13,8 @@ import { ErrorState, LoadingState, Section, StatusBadge } from "@/design-system"
 import { EntityWorkspaceShell } from "@/features/warehouse/entity/EntityWorkspaceShell";
 import { TrailerVisitBody } from "@/features/warehouse/yard/TrailerVisitBody";
 import {
-  useDockDoors,
-  useOpenYardMoveTasks,
+  useYardDocks,
+  useYardMoveTasks,
   useYardSlots,
   useYardVisits,
 } from "@/features/warehouse/yard/useYard";
@@ -30,17 +30,17 @@ export default function TrailerVisitWorkspace() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const visits = useYardVisits(null);
+  const visits = useYardVisits(null, { includeClosed: true });
   const visit = useMemo(
     () => (visits.data ?? []).find((v) => v.id === id) ?? null,
     [visits.data, id],
   );
 
   const slots = useYardSlots(visit?.warehouse_id ?? null);
-  const docks = useDockDoors(visit?.warehouse_id ?? null);
-  const openTasks = useOpenYardMoveTasks(visit?.warehouse_id ?? null);
+  const docks = useYardDocks(visit?.warehouse_id ?? null);
+  const openTasks = useYardMoveTasks(visit?.warehouse_id ?? null);
   const openMoveTask = useMemo(
-    () => (openTasks.data ?? []).find((t) => t.visit_id === id) ?? null,
+    () => (openTasks.data ?? []).find((t) => t.payload?.visit_id === id) ?? null,
     [openTasks.data, id],
   );
 
