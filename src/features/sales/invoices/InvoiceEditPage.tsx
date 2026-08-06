@@ -10,7 +10,8 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { InvoiceLineRow } from "@/components/invoices/InvoiceLineRow";
+import { InvoiceLineRow, INVOICE_LINE_COLUMNS } from "@/components/invoices/InvoiceLineRow";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { Invoice, InvoiceItem } from "@/hooks/useInvoices";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts as useProducts } from "@/hooks/useBranchScopedProducts";

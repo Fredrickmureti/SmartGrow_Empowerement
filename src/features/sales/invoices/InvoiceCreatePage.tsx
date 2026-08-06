@@ -15,7 +15,8 @@
 import { normalizeError } from "@/services/resilience";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
-import { InvoiceLineRow } from "@/components/invoices/InvoiceLineRow";
+import { InvoiceLineRow, INVOICE_LINE_COLUMNS } from "@/components/invoices/InvoiceLineRow";
+import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { ProductCombobox } from "@/components/common/ProductCombobox";
 import { InvoiceItem, useInvoicesPaginated } from "@/hooks/useInvoicesPaginated";
 import { useContacts } from "@/hooks/useContacts";
