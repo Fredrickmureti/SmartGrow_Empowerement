@@ -18,6 +18,15 @@ It is not only the shell. The vendor-statement pair is the last place where the 
 - Status is decided inline (`sent_at ? "Sent" : "Draft"`) in both files instead of going through the shared `vendor_statement` status vocabulary.
 - Both files repeat the dispatch handler and the `SendDocumentDialog` wiring.
 
+## Two broken files the handover did not mention
+
+Typecheck is **not** clean — the previous engineer's Purchases pass left two compile errors:
+
+- `ExpensePeekSheet.tsx:23` compares an expense status against `"voided"`, which is not in the status union. The void guard is dead code as written; it should test the field that actually records a void (or the union must include it).
+- `VendorPriceListPeekSheet.tsx:60` renders `ContactPreviewDrawer` without the required `open` prop, passing openness through `contactId` instead. It needs `open={vendorOpen}`.
+
+Both get fixed first, since the ratchet run is only meaningful on a compiling tree.
+
 ## The work
 
 1. **Add `vendorStatementView.tsx`** next to the existing pair, mirroring `billView.tsx`: a `useVendorStatementView(id, formatCurrency)` hook returning `{ statement, loading, error, view }` where `view` is a `DocumentRecordView` with
