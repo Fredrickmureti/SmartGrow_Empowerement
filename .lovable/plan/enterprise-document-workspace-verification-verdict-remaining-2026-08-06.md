@@ -1,79 +1,81 @@
 # Enterprise Document Workspace — Verification Verdict & Remaining Phases
 
-## Verification of the previous engineer's claims
+## Phase 1 — Verification of the previous engineer's handover
 
-I re-checked each "Done, verified" claim directly against the code, not the log.
+I checked the claims directly against the code rather than the log.
 
 | Claim | Verdict |
 |---|---|
-| Phase 1 descriptor (`DocumentRecordView`) | Confirmed — `src/design-system/records/types.ts`; `RecordScaffold` and `PeekScaffold` both project the same descriptor via `DocumentWorkspace.tsx`. |
-| Phase 2 status + money registries | Confirmed — `documentStatus.tsx`, `money.ts`; no local status maps remain in Sales (ratchet test enforces it). |
-| Phase 3 container-adaptive read grid | Confirmed — `LineItemsGrid` + `adaptiveColumns.ts`, no `min-w-[720px]` floor. |
-| Phase 4 outliers migrated | Confirmed — `InvoiceRecordPage`, `EstimateRecordPage`, `SalesOrderRecordPage` are now ~30 lines each on the scaffold. |
-| Phase 5 lifecycle + audit activity | Confirmed — `DocumentLifecycleStrip.tsx`, `useDocumentActivity.ts` (audit_logs + document_emails). |
-| Phase 6 promotion to design system | Confirmed — layer lives in `src/design-system/records/`; only `useRecordPrint` remains under `features/sales/record` (correct — that is print, not layout). |
-| Phase 7 ratchets | Confirmed — `document-workspace-canonical.test.ts`, 7 tests, passing. |
-| Phase 8 (Invoice only) | Confirmed — `EditableLineItemsGrid` + `InvoiceLineRow` + `INVOICE_LINE_COLUMNS`; Invoice create/edit migrated, memo test passes. |
+| One descriptor (`DocumentRecordView`) with two projections | Confirmed — `src/design-system/records/{types.ts,RecordScaffold,PeekScaffold,DocumentWorkspace}`. |
+| Status + money vocabularies centralised | Confirmed — `documentStatus.tsx`, `money.ts`; no local status maps in Sales/Purchases/Finance/Inventory record surfaces. |
+| Container-adaptive line grids, no width floors | Confirmed — `LineItemsGrid` + `EditableLineItemsGrid` both on `adaptiveColumns.ts` (`ResizeObserver`), no unconditional `min-w-[…px]`. |
+| Sales + Purchases + Finance + Inventory line editors migrated | Confirmed — 20 create/edit pages consume `EditableLineItemsGrid`; no Sales form retains `grid-cols-12` or `<TableHead>` line editors. |
+| "Only VendorStatementRecordPage remains off-protocol" | **Stale — already fixed.** It now renders `RecordScaffold` from a shared `vendorStatementView` descriptor, and the peek consumes the same hook. |
+| Ratchet suite green | Confirmed — `document-workspace-canonical.test.ts` 10/10. |
+| Typecheck clean | Confirmed — `tsgo --noEmit -p tsconfig.app.json` reports nothing. |
 
-Also run: `tsgo --noEmit -p tsconfig.app.json` clean; ratchet + memo suites pass.
-No inflated claims found. The log is accurate.
+No inflated claims found. The handover's one outstanding item is closed.
 
-Confirmed still pending (verified by reading the files):
-`EditableLineItemsGrid` has exactly two consumers — the Invoice create and
-edit pages. Estimate, Sales Order, Credit Note, Delivery Note and Sales
-Return forms still hand-roll `grid-cols-12` line editors with `sm:`-keyed
-mobile card variants (the exact duplication Phase 8 exists to remove).
+Genuinely still open (verified by reading the files, not the log):
 
-## Remaining work
+1. **Downstream lifecycle traversal is missing.** `DocumentLifecycleStrip`
+   stops at Invoice: its `STEPS` array is quotation → proforma → sales order →
+   delivery → invoice, and `get_document_lineage` resolves only those five.
+   The parent prompt requires a controller to walk Invoice → Payment →
+   Journal Entry → Reconciliation → Credit Note → Return → Collections. The
+   data to do it exists (`payment_allocations.invoice_id`,
+   `journal_entries.source_type/source_id`, `bank_reconciliation_matches`,
+   `credit_notes.invoice_id`, `sales_returns.invoice_id`); nothing surfaces it.
+2. **The ratchet does not close the form gap.** It asserts that *migrated*
+   forms are clean, but a brand-new create page with an inline `grid-cols-12`
+   line editor or a `<Table>` of line rows would pass CI today.
+3. **Collections has no backing table** (no `collections`/`dunning` tables in
+   the schema), so lifecycle must express it as a derived state on the
+   invoice — a receivable position — not as a fake linked document.
 
-### Phase 8 (finish) — migrate the last Sales line editors
+## Phase 10 — Downstream lifecycle (the settlement half)
 
-One memoized row component + one `*_LINE_COLUMNS` contract per document,
-mirroring `InvoiceLineRow`, then delete the bespoke grid/card markup:
+Extend the chain so the strip covers the full order-to-cash spine.
 
-1. Estimate — `EstimateCreatePage`, `EstimateEditPage` (edit still uses `<Table>`)
-2. Sales Order — `SalesOrderCreatePage`, `SalesOrderEditPage` (`<Table>`)
-3. Credit Note — `CreditNoteCreatePage`, `CreditNoteEditPage`
-4. Delivery Note — `DeliveryNoteCreatePage` (qty/packaging/tracking columns)
-5. Sales Return — `SalesReturnCreatePage` (return qty, reason, condition)
+- New migration adding `get_document_settlement_lineage(p_doc_type, p_doc_id)`:
+  same tenant guard as the existing RPC (`user_can_access_business`), read-only,
+  `STABLE SECURITY DEFINER`, `GRANT EXECUTE … TO authenticated`. Returns, for an
+  invoice anchor: `payments[]` (via `payment_allocations`, excluding voided),
+  `journal_entry` (`source_type='invoice'`), `reconciliation` state for the
+  matched bank lines, `credit_notes[]`, `returns[]`, plus a derived
+  `collections` position (overdue bucket + balance) rather than a document.
+- `DocumentLifecycleStrip` gains a second row — the settlement segment — fed by
+  the new RPC. Upstream steps stay single-instance; downstream steps are
+  cardinal (many payments, many credit notes), so they render as a count-badged
+  node that expands into a linked list rather than one chevron per row.
+- Unrealised downstream steps stay visible and dimmed: "no payment yet" is the
+  single most useful fact on an unpaid invoice.
+- Existing RPC untouched; the strip composes the two so no upstream regression
+  is possible.
 
-Rules applied to each: base quantity stays the stored value with packaging/UoM
-provenance preserved; lot/serial pickers stay mounted where they exist today;
-handlers wrapped in `useCallback` so the row memo engages; no `sm:`-keyed
-duplicate mobile stack survives.
+## Phase 11 — Close the ratchet gap
 
-### Phase 8b — extend the ratchet
+Extend `document-workspace-canonical.test.ts` so it fails when:
 
-Extend `document-workspace-canonical.test.ts` so a Sales create/edit page
-containing an inline `grid-cols-12` line editor or a `<Table>` of line items
-fails CI. Without this, the next form regresses silently.
+- any Sales/Purchases/Finance create/edit page renders line rows through an
+  inline `grid-cols-12` block or a `<TableHead>` instead of
+  `EditableLineItemsGrid` (allowlist only genuinely non-line tables);
+- a record surface renders a lifecycle chain of its own instead of
+  `DocumentLifecycleStrip`;
+- a settlement-linked document (payment, credit note, return) record page ships
+  a bespoke "related documents" list rather than the shared relationship panel.
 
-### Phase 9 — extend the layer beyond Sales
+## Phase 12 — Verification
 
-In order, module by module:
-- Purchases: bill and purchase-order record surfaces onto the descriptor +
-  scaffolds; bill/PO line editors onto `EditableLineItemsGrid`.
-- Finance: payments and journal-entry record surfaces.
-Each module ends with its bespoke shells deleted, not left alongside.
-
-### Phase 10 — lifecycle completeness (new, from this review)
-
-`DocumentLifecycleStrip` covers estimate → proforma → sales order → delivery
-note → invoice. The parent prompt requires traversal through Payment →
-Journal Entry → Reconciliation → Credit Note → Return → Collections. I will
-verify what `get_document_lineage` returns today and extend the downstream
-half so a controller can walk from an invoice to its posting and settlement.
-
-## Verification at the end
-
-- `tsgo --noEmit`, the canonical ratchet suite, memo tests.
-- Playwright pass over each migrated form at drawer width and desktop width,
-  screenshotting the line editor to confirm columns demote rather than scroll.
-- Confirm no orphaned line-editor components remain in Sales.
+- `tsgo --noEmit -p tsconfig.app.json` clean.
+- `document-workspace-canonical.test.ts` plus the new guards green.
+- Playwright pass on an invoice with payments, a credit note and a return, at
+  drawer width and desktop width: the settlement row renders, links resolve,
+  and no horizontal scroll appears in the peek.
 
 ## Technical notes
 
-Shared API is `EditableLineItemsGrid` (`columns`, `rows`, `renderRow(row, i,
-layout)`, `onAddRow`, `onRemoveRow`, `footer`, `toolbar`) with rows drawn
-through `EditableLineRowCells`, sharing the measurement engine in
-`adaptiveColumns.ts` with the read-only grid. No new dependencies.
+No new dependencies. One additive migration (a read-only RPC + grant); no schema
+changes, no writes. All new UI composes existing design-system record
+primitives; the lifecycle strip stays the single lifecycle renderer for every
+module that inherits the workspace.
