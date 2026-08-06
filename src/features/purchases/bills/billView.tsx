@@ -84,7 +84,6 @@ export function useBillView(
           </span>
         </>
       ) : undefined,
-      lifecycle: bill ? { docType: "bill", docId: bill.id } : undefined,
       money: bill
         ? {
             subtotal: bill.subtotal ?? 0,
