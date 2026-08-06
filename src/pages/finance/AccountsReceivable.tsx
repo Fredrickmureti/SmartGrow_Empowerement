@@ -77,7 +77,7 @@ export default function AccountsReceivable() {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("rollup") === "1";
   });
-  const { data: agingData, isLoading: agingLoading } = useAgingReport({ reportType: "ar", rollupToCommercialPartner: rollup });
+  const { data: agingData, isLoading: agingLoading, error: agingError } = useAgingReport({ reportType: "ar", rollupToCommercialPartner: rollup });
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const navigate = useNavigate();
@@ -232,8 +232,19 @@ export default function AccountsReceivable() {
         </div>
       </div>
 
+      {/* A failed ageing query must never masquerade as "zero receivables". */}
+      {agingError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 inline mr-2" />
+          Receivables could not be loaded, so the totals below are not reliable.
+          {" "}
+          {(agingError as Error).message}
+        </div>
+      )}
+
       {/* Summary Cards with Aging - Fluid layout that wraps and shows full values */}
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Receivable</CardTitle>
