@@ -12,8 +12,19 @@ const SRC = readFileSync(
   resolve(__dirname, "../../../supabase/functions/generate-document/index.ts"),
   "utf8",
 );
+const CANONICAL_SNAPSHOT = readFileSync(
+  resolve(__dirname, "../../services/documents/snapshots/salesPaymentReceipt.ts"),
+  "utf8",
+);
 
 describe("fetchReceipt discriminators", () => {
+  it("does not project the removed payments.currency column", () => {
+    const paymentSelect = CANONICAL_SNAPSHOT.match(
+      /\.from\(["']payments["']\)[\s\S]*?\.select\(([\s\S]*?)\)\s*\.eq\(["']id["']/,
+    )?.[1] ?? "";
+    expect(paymentSelect).not.toMatch(/\bcurrency\b/);
+  });
+
   for (const disc of ["id", "invoice_id", "invoice_allocation", "receipt_number"]) {
     it(`includes "${disc}" in the tried list`, () => {
       expect(SRC).toContain(`tried.push("${disc}")`);

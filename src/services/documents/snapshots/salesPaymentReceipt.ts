@@ -1,10 +1,9 @@
 /**
  * Wave 7.2 · Step 5 — Customer payment receipt snapshot builder.
  *
- * Mirrors `supabase/functions/generate-document/index.ts::fetchReceipt`
- * (`document_kinds.code = 'sales.payment_receipt'`). Implements the same
- * items-as-truth allocation contract so a client-built snapshot and the
- * legacy server-side fetcher produce byte-equivalent renderer input.
+ * Canonical projection for `document_kinds.code = 'sales.payment_receipt'`.
+ * Payment rows do not carry a currency; currency belongs to the allocated
+ * invoice or, for an on-account payment, the payment's business.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SnapshotBlob } from "./index";
@@ -58,7 +57,6 @@ export interface PaymentHeaderRow {
   payment_date: string;
   amount: number;
   status: string | null;
-  currency: string | null;
   notes: string | null;
   payment_method: string | null;
   reference: string | null;
@@ -125,7 +123,7 @@ export function buildPaymentReceiptSnapshot(
       invoice_total: total,
       amount_applied: applied,
       balance_after: balance,
-      currency: inv.currency || payment.currency || "USD",
+      currency: inv.currency || payment.business?.base_currency || "",
     };
   });
 
@@ -135,11 +133,17 @@ export function buildPaymentReceiptSnapshot(
   const uniformAlloc = allocCurrencies.size === 1
     ? [...allocCurrencies][0]
     : null;
-  const displayCurrency =
-    uniformAlloc ??
-    payment.currency ??
-    payment.business?.base_currency ??
-    "USD";
+  if (allocCurrencies.size > 1) {
+    throw new Error(
+      "buildPaymentReceiptSnapshot: allocations contain multiple currencies",
+    );
+  }
+  const displayCurrency = uniformAlloc ?? payment.business?.base_currency;
+  if (!displayCurrency) {
+    throw new Error(
+      "buildPaymentReceiptSnapshot: currency is missing from both allocations and business",
+    );
+  }
 
   const paymentAmount = Number(payment.amount) || 0;
   const totalApplied = allocations.reduce((s, a) => s + a.amount_applied, 0);
@@ -245,7 +249,7 @@ export async function fetchAndBuildPaymentReceiptSnapshot(
     .from("payments")
     .select(
       `
-      id, receipt_number, payment_date, amount, status, currency, notes,
+       id, receipt_number, payment_date, amount, status, notes,
       payment_method, reference,
       organization_id, business_id, branch_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code),
@@ -253,7 +257,7 @@ export async function fetchAndBuildPaymentReceiptSnapshot(
       `,
     )
     .eq("id", paymentId)
-    .single();
+    .maybeSingle();
 
   if (pErr || !payment) {
     throw new Error(

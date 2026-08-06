@@ -115,3 +115,24 @@ code.
 - Phase 3 is the only destructive step and runs after 1 and 2 have removed
   every caller, verified by grep and the Phase 5 guards.
 - Each phase ends green on typecheck and the existing architecture suite.
+
+## Verified follow-up concerns — 2026-08-06
+
+- **Receipt schema drift reached production preview.** The canonical payment
+  receipt snapshot projected `payments.currency`, although that column does not
+  exist. The immediate correction removes that projection and derives currency
+  only from invoice allocations or `businesses.base_currency`; missing or mixed
+  currency is now surfaced as an integrity error instead of being masked with
+  `USD`. A ratchet test protects the removed-column contract.
+- **Receipt generation is still duplicated until Phase 3.** The client snapshot
+  builder and `generate-document::fetchReceipt` both implement allocation,
+  currency and totals rules. The latter still contains dead references to
+  dropped legacy fields such as `payment.currency` / `payment.invoice`. Do not
+  patch those branches independently; remove the fetcher when email/export have
+  moved to the canonical artifact as already planned.
+- **The `receipt` compatibility discriminator is architectural debt.** Invoice
+  actions pass an invoice id while payment actions pass a payment id, forcing
+  runtime anchor guessing and a synthetic `payment_receipt_invoice` record
+  identity. A follow-up must make the action resolve an explicit payment/allocation
+  identity before invoking the single `payment_receipt` document kind, then
+  delete the compatibility registry entry rather than preserving both names.
