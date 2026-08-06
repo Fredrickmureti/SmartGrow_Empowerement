@@ -32,6 +32,7 @@ import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/pur
 import { buildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
 import { buildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { buildHrLetterSnapshot } from "@/services/documents/snapshots/hrLetter";
+import { buildReturnDocumentSnapshot } from "@/services/documents/snapshots/wmsReturn";
 
 
 
@@ -434,6 +435,34 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
         organization: { id: "o", name: "Acme" },
         employee: { id: "e-1", first_name: "A", last_name: "B" },
       }),
+  },
+  {
+    file: "wmsReturn.ts",
+    run: () =>
+      buildReturnDocumentSnapshot(
+        {
+          id: "ro-1",
+          code: "RMA-1",
+          rma_reference: null,
+          return_kind: "customer",
+          state: "received",
+          organization_id: "o",
+          business_id: "b",
+          branch_id: null,
+          warehouse_id: "w-1",
+          customer_id: "c-1",
+          vendor_id: null,
+          tracking_reference: null,
+          notes: null,
+          expected_at: "2026-07-27",
+          received_at: "2026-07-28",
+          created_at: "2026-07-27T00:00:00Z",
+          customer: { name: "Acme Retail" },
+          vendor: null,
+          lines: [],
+        },
+        "wms.return_receipt",
+      ),
   },
 ];
 

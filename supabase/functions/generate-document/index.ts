@@ -3829,10 +3829,84 @@ serve(async (req) => {
       }
     }
 
+
+
     // ─── Subscription entitlement check (now that we have orgId) ───
     const subResult = await checkSubActive(supabase, orgId);
     if (!subResult.allowed) {
       return entDenied(subResult, corsHeaders);
+    }
+
+
+    // ── Phase 3 (convergence, 2026-08-06): canonical-artifact short-circuit ──
+    //
+    // `generate-document` predates the document model. Its `fetchX`
+    // projections read LIVE rows, so a reprint issued after an edit could
+    // disagree with the copy that was printed, archived and emailed.
+    //
+    // For every document kind that has been onboarded onto the document
+    // model (i.e. an un-superseded `document_records` row exists for the
+    // source pair), the canonical bytes now win: an archived artifact if
+    // one exists, otherwise a fresh render of the FROZEN snapshot through
+    // `render-document`. Kinds with no record fall through to the legacy
+    // fetcher below, unchanged — that is the retirement ramp: as snapshot
+    // builders land, the legacy projections stop being reachable.
+    //
+    // Deliberately NOT short-circuited:
+    //   • non-PDF formats (escpos / zpl / csv) — routed by their own branches
+    //   • thermal-width PDF previews — a disposition-specific rendition
+    //   • `force_refresh_settings` reprints — an explicit "re-read live" ask
+    const wantsCanonicalPdf =
+      (!format || format === "pdf") &&
+      !previewAtThermalWidth &&
+      renderMode !== "thermal" &&
+      !forceRefreshSettings;
+
+    if (wantsCanonicalPdf) {
+      try {
+        const { resolveCanonicalPdf } = await import(
+          "../_shared/documents/canonicalPdf.ts"
+        );
+        const canonical = await resolveCanonicalPdf({
+          supabase,
+          documentType,
+          documentId,
+          paperFormat: typeof paperFormat === "string" ? paperFormat : null,
+          authorization: authHeader,
+        });
+        if (canonical) {
+          console.log(
+            `[canonical] ${documentType}/${documentId} served via ${canonical.source}` +
+              ` (record ${canonical.documentRecordId})`,
+          );
+          return new Response(canonical.bytes as unknown as BodyInit, {
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/pdf",
+              "Content-Disposition": buildContentDisposition(
+                documentType,
+                (documentData as any)?.document_number ?? documentId,
+                "pdf",
+              ),
+              "X-Document-Canonical-Source": canonical.source,
+              "X-Document-Record-Id": canonical.documentRecordId ?? "",
+              ...(canonical.artifactId
+                ? { "X-Document-Artifact-Id": canonical.artifactId }
+                : {}),
+              "Access-Control-Expose-Headers":
+                "X-Document-Canonical-Source, X-Document-Record-Id, X-Document-Artifact-Id",
+            },
+          });
+        }
+      } catch (err) {
+        // Never fail a print because the canonical path is unavailable —
+        // the legacy renderer below is still a correct (if live-read)
+        // representation of the same document.
+        console.error(
+          `[canonical] falling back to legacy projection for ${documentType}/${documentId}:`,
+          (err as Error).message,
+        );
+      }
     }
 
     // ── Milestone C.1: tabular export (CSV) short-circuit ──────────────
