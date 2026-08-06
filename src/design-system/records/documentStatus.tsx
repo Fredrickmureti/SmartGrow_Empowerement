@@ -37,7 +37,11 @@ export type DocumentKind =
   | "customer"
   | "bill"
   | "purchase_order"
+  | "journal_entry"
+  | "stock_adjustment"
+  | "stock_transfer"
   | "generic";
+
 
 interface StatusMeta {
   label: string;
