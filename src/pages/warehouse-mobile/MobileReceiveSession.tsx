@@ -20,6 +20,7 @@ import { useActiveLpn, tryResolvePlateScan } from "@/features/warehouse/receivin
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

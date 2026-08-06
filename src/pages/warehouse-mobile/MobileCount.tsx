@@ -24,6 +24,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { MobileWarehouseLayout } from "@/apps/warehouse-mobile/MobileWarehouseLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScanTextField } from "@/components/scanner/ScanTextField";
 import { Label } from "@/components/ui/label";
 import { enqueue } from "@/apps/warehouse-mobile/offlineQueue";
 import { useCountLines, countLineProductLabel } from "@/features/warehouse/counts/useCountLines";
