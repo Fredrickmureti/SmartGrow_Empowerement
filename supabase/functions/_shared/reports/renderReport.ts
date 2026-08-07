@@ -153,14 +153,32 @@ export async function renderReport(
     }
   }
 
-  // Branding: caller > DB lookup
+  // Branding: caller > DB lookup. The lookup MUST carry the business and
+  // branch the report was run for — in a multi-entity tenant the masthead
+  // legal name and logo belong to the reporting entity, not to whichever
+  // business happens to be the organization's first.
   let organization = options.organization;
-  if (!organization && options.organizationId) {
-    organization = (await getOrganizationBranding(supabase, options.organizationId)) ?? undefined;
+  if (!organization && (options.organizationId || options.businessId)) {
+    organization =
+      (await getOrganizationBranding(
+        supabase,
+        options.organizationId ?? "",
+        options.businessId ?? null,
+        options.branchId ?? null,
+      )) ?? undefined;
   }
+
+  // Reporting scope line ("<Business> · <Branch>") — derived ONCE here so
+  // every report states its scope identically. Callers never compose it.
+  const scope = await resolveReportScope(supabase, {
+    businessName: organization?.name,
+    businessId: options.businessId,
+    branchId: options.branchId,
+  });
 
   // Currency default: caller > org base_currency
   const currency = options.currency ?? organization?.base_currency ?? undefined;
+
 
   // Stage 4: compute a short run-hash (sha1 prefix) over the call shape so
   // the printed footer can be tied back to the exact run row.
