@@ -1,18 +1,17 @@
 /**
  * Partner Ledger Page
- * 
- * Shows all transactions by customer or vendor with opening/closing balances.
+ *
+ * Shows all transactions by customer or vendor with opening/closing
+ * balances. Rendered by the canonical reporting engine as a single
+ * virtualized register — a section per partner, a subtotal row per
+ * partner, and a grand total at the foot.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -23,11 +22,20 @@ import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterC
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { format, startOfYear, endOfMonth } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { Button } from "@/components/ui/button";
 import { Banknote } from "lucide-react";
 import { useCustomerUnappliedDeposits } from "@/hooks/useCustomerUnappliedDeposits";
 import { ApplyCustomerDepositDialog } from "@/components/payments/ApplyCustomerDepositDialog";
+import {
+  ReportSurface,
+  ReportTable,
+  blankIfZero,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 
@@ -95,12 +103,11 @@ function PartnerLedgerInner() {
   const [partnerType, setPartnerType] = useState<"customer" | "supplier">("customer");
   const [dateFrom, setDateFrom] = useState(filters.dateFrom || format(startOfYear(now), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
 
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
+  const { baseCurrency, isReady: currencyReady } = useCurrency();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["partner-ledger", currentOrg?.id, currentBusiness?.id, filters.branchId, partnerType, dateFrom, dateTo],
@@ -233,39 +240,145 @@ function PartnerLedgerInner() {
     enabled: !!currentOrg?.id && !!currentBusiness?.id,
   });
 
-  const togglePartner = (id: string) => {
-    const n = new Set(expanded);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    setExpanded(n);
-  };
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn<ReportRow>[]>(
+    () => [
+      { key: "date", header: "Date", format: "date", width: "w-[110px]" },
+      { key: "entry", header: "Entry #", width: "w-[130px]" },
+      { key: "description", header: "Description" },
+      {
+        key: "debit",
+        header: "Debit",
+        format: "currency",
+        width: "w-[140px]",
+        render: (row) => {
+          const v = row.values;
+          const amount = v?.debit as number | null | undefined;
+          const partnerName = v?._partnerName as string | undefined;
+          const entryDate = v?.date as string | undefined;
+          if (!amount) return "—";
+          return (
+            <button
+              className="hover:underline hover:text-primary cursor-pointer tabular-nums"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDrillDown({
+                  open: true,
+                  config: { title: `${partnerName} — Debit`, startDate: entryDate, endDate: entryDate },
+                });
+              }}
+            >
+              {formatDebitCredit(amount, baseCurrency)}
+            </button>
+          );
+        },
+      },
+      {
+        key: "credit",
+        header: "Credit",
+        format: "currency",
+        width: "w-[140px]",
+        render: (row) => {
+          const v = row.values;
+          const amount = v?.credit as number | null | undefined;
+          const partnerName = v?._partnerName as string | undefined;
+          const entryDate = v?.date as string | undefined;
+          if (!amount) return "—";
+          return (
+            <button
+              className="hover:underline hover:text-primary cursor-pointer tabular-nums"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDrillDown({
+                  open: true,
+                  config: { title: `${partnerName} — Credit`, startDate: entryDate, endDate: entryDate },
+                });
+              }}
+            >
+              {formatDebitCredit(amount, baseCurrency)}
+            </button>
+          );
+        },
+      },
+      { key: "balance", header: "Balance", format: "currency", width: "w-[140px]" },
+      {
+        key: "_actions",
+        header: "",
+        width: "w-[160px]",
+        exportExclude: true,
+        render: (row) => {
+          const v = row.values;
+          if (row.kind !== "section" && !v?._depositContactId) return null;
+          const contactId = v?._depositContactId as string | undefined;
+          if (!contactId) return null;
+          return <PartnerLedgerDepositAction contactId={contactId} partnerType={partnerType} />;
+        },
+      },
+    ],
+    [baseCurrency, partnerType],
+  );
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = [];
+  const rows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    const grand = { debit: 0, credit: 0 };
     for (const p of data || []) {
-      rows.push({ partner: p.contact_name, date: "", entry: "", desc: "", debit: null, credit: null, balance: null, _isHeader: true });
+      out.push({
+        id: `sec-${p.contact_id}`,
+        kind: "section",
+        label: p.contact_name,
+        values: { _depositContactId: p.contact_id },
+      });
+      out.push({
+        id: `open-${p.contact_id}`,
+        values: { description: "Opening Balance", balance: p.opening_balance },
+      });
       for (const t of p.transactions) {
-        rows.push({ partner: "", date: t.entry_date, entry: t.entry_number, desc: t.description, debit: t.debit || null, credit: t.credit || null, balance: t.running_balance });
+        out.push({
+          id: t.id,
+          values: {
+            date: t.entry_date,
+            entry: t.entry_number,
+            description: t.description,
+            debit: blankIfZero(t.debit),
+            credit: blankIfZero(t.credit),
+            balance: t.running_balance,
+            _partnerName: p.contact_name,
+          },
+        });
       }
-      rows.push({ partner: "", date: "", entry: "", desc: "Total", debit: p.total_debit, credit: p.total_credit, balance: p.closing_balance, _isSubtotal: true });
+      out.push({
+        id: `sub-${p.contact_id}`,
+        kind: "subtotal",
+        label: "Total",
+        values: { debit: p.total_debit, credit: p.total_credit, balance: p.closing_balance },
+      });
+      grand.debit += p.total_debit;
+      grand.credit += p.total_credit;
     }
-    return {
+    if (out.length > 0) {
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "GRAND TOTAL",
+        values: { debit: grand.debit, credit: grand.credit },
+      });
+    }
+    return out;
+  }, [data]);
+
+  const getExportConfig = useCallback(
+    (): ExportConfig => ({
       title: `${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`,
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      columns: [
-        { key: "partner", header: "Partner", width: 20 },
-        { key: "date", header: "Date", width: 12 },
-        { key: "entry", header: "Entry #", width: 12 },
-        { key: "desc", header: "Description", width: 25 },
-        { key: "debit", header: "Debit", width: 16, format: "currency", align: "right" },
-        { key: "credit", header: "Credit", width: 16, format: "currency", align: "right" },
-        { key: "balance", header: "Balance", width: 16, format: "currency", align: "right" },
-      ],
-      rows,
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
       sheetName: "Partner Ledger",
-    };
-  }, [data, partnerType, dateFrom, dateTo, currentOrg]);
+      currency: baseCurrency,
+    }),
+    [columns, rows, partnerType, dateFrom, dateTo, currentOrg, baseCurrency],
+  );
 
   return (
     <ReportPageLayout
@@ -302,78 +415,21 @@ function PartnerLedgerInner() {
         </ReportFilters>
       }
     >
-      <div className="space-y-4">
-        {data?.map((partner) => {
-          const isOpen = expanded.has(partner.contact_id);
-          return (
-            <Card key={partner.contact_id}>
-              <Collapsible open={isOpen} onOpenChange={() => togglePartner(partner.contact_id)}>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {isOpen ? <ChevronDown className="h-5 w-5 text-muted-foreground" /> : <ChevronRight className="h-5 w-5 text-muted-foreground" />}
-                        <div>
-                          <CardTitle className="text-base">{partner.contact_name}</CardTitle>
-                          <CardDescription>{partner.transactions.length} transactions</CardDescription>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <PartnerLedgerDepositAction
-                          contactId={partner.contact_id}
-                          partnerType={partnerType}
-                        />
-                        <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Balance</p>
-                          <p className="font-bold">{formatCurrency(partner.closing_balance, baseCurrency)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Entry #</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead className="text-right">Debit</TableHead>
-                          <TableHead className="text-right">Credit</TableHead>
-                          <TableHead className="text-right">Balance</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {partner.transactions.map((txn) => (
-                          <TableRow key={txn.id}>
-                            <TableCell>{format(new Date(txn.entry_date), "MMM d, yyyy")}</TableCell>
-                            <TableCell className="font-mono text-sm">{txn.entry_number}</TableCell>
-                            <TableCell>{txn.description}</TableCell>
-                            <TableCell className="text-right">{txn.debit > 0 ? (
-                              <button className="hover:underline hover:text-primary cursor-pointer" onClick={() => setDrillDown({ open: true, config: { title: `${partner.contact_name} — Debit`, startDate: txn.entry_date, endDate: txn.entry_date } })}>{formatCurrency(txn.debit, baseCurrency)}</button>
-                            ) : "—"}</TableCell>
-                            <TableCell className="text-right">{txn.credit > 0 ? (
-                              <button className="hover:underline hover:text-primary cursor-pointer" onClick={() => setDrillDown({ open: true, config: { title: `${partner.contact_name} — Credit`, startDate: txn.entry_date, endDate: txn.entry_date } })}>{formatCurrency(txn.credit, baseCurrency)}</button>
-                            ) : "—"}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(txn.running_balance, baseCurrency)}</TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="bg-muted/30 font-medium">
-                          <TableCell colSpan={3}>Total</TableCell>
-                          <TableCell className="text-right">{formatCurrency(partner.total_debit, baseCurrency)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(partner.total_credit, baseCurrency)}</TableCell>
-                          <TableCell className="text-right font-bold">{formatCurrency(partner.closing_balance, baseCurrency)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </Card>
-          );
-        })}
-      </div>
+      <ReportSurface
+        companyName={currentOrg?.name || ""}
+        title={`${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`}
+        dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+        profile="operational"
+      >
+        <ReportTable
+          columns={columns}
+          rows={rows}
+          currency={baseCurrency}
+          caption="Partner ledger — transaction detail and running balance by partner"
+          emptyMessage={`No transactions found for ${partnerType}s`}
+        />
+      </ReportSurface>
+
       <DrillDownDialog
         open={drillDown.open}
         onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}
@@ -383,14 +439,16 @@ function PartnerLedgerInner() {
   );
 }
 
+function formatDebitCredit(amount: number, currency: string | null): string {
+  return amount.toLocaleString("en-US", { style: "currency", currency: currency || "USD" });
+}
 
 export default function PartnerLedger() {
   return (
-    
     <ReportFilterProvider>
       <CompanyScopeGate reportName="Partner Ledger">
-      <PartnerLedgerInner />
-    </CompanyScopeGate>
+        <PartnerLedgerInner />
+      </CompanyScopeGate>
     </ReportFilterProvider>
   );
 }
