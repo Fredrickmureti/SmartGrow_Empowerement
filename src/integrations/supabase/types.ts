@@ -11349,6 +11349,137 @@ export type Database = {
           },
         ]
       }
+      customer_credit_balances: {
+        Row: {
+          applied_total: number
+          balance: number
+          business_id: string
+          contact_id: string
+          created_at: string
+          credited_total: number
+          currency: string
+          expired_total: number
+          id: string
+          organization_id: string
+          refunded_total: number
+          updated_at: string
+        }
+        Insert: {
+          applied_total?: number
+          balance?: number
+          business_id: string
+          contact_id: string
+          created_at?: string
+          credited_total?: number
+          currency?: string
+          expired_total?: number
+          id?: string
+          organization_id: string
+          refunded_total?: number
+          updated_at?: string
+        }
+        Update: {
+          applied_total?: number
+          balance?: number
+          business_id?: string
+          contact_id?: string
+          created_at?: string
+          credited_total?: number
+          currency?: string
+          expired_total?: number
+          id?: string
+          organization_id?: string
+          refunded_total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_credit_movements: {
+        Row: {
+          amount: number
+          balance_id: string
+          branch_id: string | null
+          business_id: string
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          credit_note_id: string | null
+          currency: string
+          id: string
+          invoice_id: string | null
+          journal_entry_id: string | null
+          kind: string
+          notes: string | null
+          organization_id: string
+          refund_id: string | null
+        }
+        Insert: {
+          amount: number
+          balance_id: string
+          branch_id?: string | null
+          business_id: string
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          journal_entry_id?: string | null
+          kind: string
+          notes?: string | null
+          organization_id: string
+          refund_id?: string | null
+        }
+        Update: {
+          amount?: number
+          balance_id?: string
+          branch_id?: string | null
+          business_id?: string
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          credit_note_id?: string | null
+          currency?: string
+          id?: string
+          invoice_id?: string | null
+          journal_entry_id?: string | null
+          kind?: string
+          notes?: string | null
+          organization_id?: string
+          refund_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_credit_movements_balance_id_fkey"
+            columns: ["balance_id"]
+            isOneToOne: false
+            referencedRelation: "customer_credit_balances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_movements_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_movements_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_credit_movements_refund_id_fkey"
+            columns: ["refund_id"]
+            isOneToOne: false
+            referencedRelation: "customer_refunds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_groups: {
         Row: {
           business_id: string
@@ -83777,6 +83908,10 @@ export type Database = {
         }
       }
       close_sourcing_event: { Args: { p_event_id: string }; Returns: undefined }
+      compensation_account: {
+        Args: { _business_id: string; _key: string }
+        Returns: string
+      }
       complete_business_event: {
         Args: { p_error?: string; p_id: string; p_success: boolean }
         Returns: undefined
@@ -84170,6 +84305,22 @@ export type Database = {
         }
         Returns: string
       }
+      create_credit_note_atomic: {
+        Args: {
+          _branch_id: string
+          _business_id: string
+          _contact_id: string
+          _invoice_id: string
+          _issue?: boolean
+          _issue_date: string
+          _items: Json
+          _notes: string
+          _org_id: string
+          _reason: string
+          _source_return_id?: string
+        }
+        Returns: Json
+      }
       create_employee_with_identifiers: {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
@@ -84367,6 +84518,15 @@ export type Database = {
         Returns: string
       }
       current_user_country_codes: { Args: never; Returns: string[] }
+      customer_credit_balance_id: {
+        Args: {
+          _business_id: string
+          _contact_id: string
+          _currency: string
+          _org_id: string
+        }
+        Returns: string
+      }
       default_journal_book_for_source: {
         Args: {
           _bank_account_id?: string
@@ -87618,6 +87778,10 @@ export type Database = {
         Returns: boolean
       }
       is_vendor_portal_user: { Args: { _user_id: string }; Returns: boolean }
+      issue_credit_note_atomic: {
+        Args: { _credit_note_id: string }
+        Returns: Json
+      }
       issue_credit_note_for_payment_atomic: {
         Args: {
           _client_request_id: string
@@ -91127,18 +91291,6 @@ export type Database = {
           p_void_note?: string
           p_void_reason_id: string
           p_voided_by: string
-        }
-        Returns: Json
-      }
-      process_refund_atomic: {
-        Args: {
-          p_amount: number
-          p_cn_id: string
-          p_main_lines: Json
-          p_method: string
-          p_notes: string
-          p_payment_account_id: string
-          p_user_id: string
         }
         Returns: Json
       }
