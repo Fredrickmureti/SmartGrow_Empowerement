@@ -105,8 +105,11 @@ export function PayrollReportContextHeader({
     );
   }
 
+  // Readiness says approved but the identity lookup found nothing (e.g. the
+  // run sits outside this business scope) — show no anchor rather than crash.
+  if (!run) return null;
+
   const label = run.run_number
-    ? `Run ${run.run_number}`
     ? `Run ${run.run_number}`
     : `${format(new Date(run.pay_period_start), "MMM yyyy")} payroll`;
 
