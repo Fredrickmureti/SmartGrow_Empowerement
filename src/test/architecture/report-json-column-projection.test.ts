@@ -54,9 +54,14 @@ describe("architecture: report column projection", () => {
   });
 
   it("the JSON branch attaches a resolved columns array", () => {
-    const json = indexSrc.slice(indexSrc.indexOf('if (format === "json")'));
+    const start = indexSrc.indexOf('if (format === "json")');
+    // Scope to the JSON branch itself — it ends where the tabular export
+    // branch begins — rather than an arbitrary character window, which broke
+    // the moment run logging was added ahead of the response.
+    const end = indexSrc.indexOf('if (format === "csv"', start);
+    const json = indexSrc.slice(start, end > start ? end : undefined);
     expect(json).toMatch(/resolveReportColumns\(/);
-    expect(json.slice(0, 1200)).toMatch(/\bcolumns,/);
+    expect(json).toMatch(/\bcolumns,/);
   });
 
   it("prebuilt CSV/XLSX/PDF exports also go through the resolver", () => {
