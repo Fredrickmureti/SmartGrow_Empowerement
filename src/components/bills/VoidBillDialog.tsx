@@ -80,7 +80,9 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
-  const { voidBill, resolveReversalIntent } = useTransactionReversal();
+  const { voidBill, resolveReversalIntent, unmatchBankLinesForReversal } =
+    useTransactionReversal();
+  const [isUnmatching, setIsUnmatching] = useState(false);
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
 
@@ -117,7 +119,27 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
     consequences,
     isLoading: isPreviewLoading,
     isError: isPreviewError,
+    refetch: refetchPreview,
   } = useReversalConsequences("bill", bill?.id, open && canVoid);
+
+  // Phase 4 — same guided resolution as the AR side: un-match the supplier
+  // payment's statement line, then re-resolve policy and preview.
+  const handleUnmatchBankLines = async () => {
+    if (!bill) return;
+    setIsUnmatching(true);
+    try {
+      const ok = await unmatchBankLinesForReversal(
+        "bill",
+        bill.id,
+        `Un-matched to void bill ${bill.bill_number ?? bill.id}`,
+      );
+      if (!ok) return;
+      setIntent(await resolveReversalIntent("bill", bill.id));
+      refetchPreview();
+    } finally {
+      setIsUnmatching(false);
+    }
+  };
 
   const handleVoid = async () => {
     if (!bill || !reason.trim() || !canVoid) return;
@@ -256,6 +278,8 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
                   isLoading={isPreviewLoading}
                   isError={isPreviewError}
                   currency={bill.currency}
+                  onUnmatchBankLines={handleUnmatchBankLines}
+                  isUnmatchingBankLines={isUnmatching}
                 />
 
                 <div className="space-y-2">
