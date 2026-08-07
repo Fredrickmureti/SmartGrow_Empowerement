@@ -294,24 +294,28 @@ export async function generateDocumentPdf(
   options: DocumentRenderOptions = {},
 ): Promise<Uint8Array> {
   // Wave 13 architecture guard (self-defending renderer). The A4
-  // coordinate renderer must NEVER be reached for a thermal document.
-  // Historically the guard only inspected `options.paperFormat`, which
-  // is populated from `document_print_policies` — a tenant with no
-  // policy row resolves to "a4" and the guard would stay silent even
-  // for a POS receipt (whose real width lives in
-  // `pos_receipt_settings.paper_size`). We now interrogate the document
-  // itself so the invariant is enforced regardless of caller discipline.
+  // coordinate renderer must NEVER be reached for a document whose
+  // RESOLVED geometry is thermal.
+  //
+  // The guard interrogates geometry, not document kind: an explicit
+  // `options.paperFormat` is the operator's/policy's decision and always
+  // wins, and only in its absence do the document's own defaults
+  // (`pos_receipt_settings.paper_size`, receipt kinds) imply thermal.
+  // That is what allows a payment receipt to be previewed or archived on
+  // A4 while the same document still prints at 80 mm on the counter.
   const gpg_paper = String(options.paperFormat ?? "").toLowerCase();
   const gpg_docType = String((data as any)?.document_type ?? "").toLowerCase();
   const gpg_rsPaper = String(
     (data as any)?.pos_receipt_settings?.paper_size ?? "",
   ).toLowerCase();
   const thermalTokens = new Set(["40mm", "58mm", "80mm"]);
-  const gpg_isThermal =
-    thermalTokens.has(gpg_paper)
-    || thermalTokens.has(gpg_rsPaper)
+  const gpg_impliesThermal =
+    thermalTokens.has(gpg_rsPaper)
     || gpg_docType === "pos_receipt"
     || gpg_docType === "receipt";
+  const gpg_isThermal = gpg_paper
+    ? thermalTokens.has(gpg_paper)
+    : gpg_impliesThermal;
   if (gpg_isThermal) {
     throw new Error(
       `generateDocumentPdf refused: document is thermal ` +
