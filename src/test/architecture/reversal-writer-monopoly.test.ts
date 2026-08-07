@@ -42,7 +42,7 @@ describe("Phase 4 reversal writer monopoly", () => {
     // task to `cancelled`, so a document void and its task cleanup stay in one
     // transaction.
     const offenders = rg(
-      String.raw`\.from\(\s*["'`]wms_tasks["'`]\s*\)[\s\S]{0,200}?state:\s*["'`]cancelled["'`]`,
+      '\\.from\\(\\s*[\'"\x60]wms_tasks[\'"\x60]\\s*\\)[\\s\\S]{0,200}?state:\\s*[\'"\x60]cancelled[\'"\x60]' ,
       APP_GLOBS,
     );
     expect(
@@ -57,11 +57,11 @@ describe("Phase 4 reversal writer monopoly", () => {
     // lines and voids the reconciliation journal in one transaction.
     const offenders = [
       ...rg(
-        String.raw`\.from\(\s*["'`]bank_reconciliation_matches["'`]\s*\)\s*\.\s*(delete|update|insert|upsert)`,
+        '\\.from\\(\\s*[\'"\x60]bank_reconciliation_matches[\'"\x60]\\s*\\)\\s*\\.\\s*(delete|update|insert|upsert)' ,
         APP_GLOBS,
       ),
       ...rg(
-        String.raw`\.from\(\s*["'`]bank_transactions["'`]\s*\)[\s\S]{0,200}?(is_reconciled|reconciled_type|reconciled_id)\s*:`,
+        '\\.from\\(\\s*[\'"\x60]bank_transactions[\'"\x60]\\s*\\)[\\s\\S]{0,200}?(is_reconciled|reconciled_type|reconciled_id)\\s*:' ,
         APP_GLOBS,
       ),
     ];
