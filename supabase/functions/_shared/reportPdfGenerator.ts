@@ -100,6 +100,8 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     title,
     subtitle,
     dateRange,
+    asOf,
+    scope,
     columns,
     rows,
     currency,
@@ -131,10 +133,11 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     bottomMargin: typography.bottomMargin,
   });
 
-  // Embed the logo once; reused on every page header.
-  // Financial masthead omits the logo by design (legal-entity-first layout).
-  const needsLogo = formatProfile !== "financial";
-  const logoBytes = needsLogo && organization?.logo_url
+  // Embed the logo once; reused on every page header. The legal entity's
+  // logo is part of document identity, so BOTH mastheads carry it — the
+  // financial masthead centers it above the legal name. Missing or
+  // un-embeddable logos degrade to a text-only masthead.
+  const logoBytes = organization?.logo_url
     ? await fetchLogoBytes(organization.logo_url)
     : null;
   const logo = await embedLogo(builder, logoBytes);
@@ -146,7 +149,11 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     const drawn = drawBrandedHeader(builder, page, {
       title,
       subtitle,
-      dateRange,
+      // Operational header has a single date slot; feed it whichever the
+      // report supplied. The financial masthead distinguishes the two.
+      dateRange: dateRange ?? asOf,
+      asOf,
+      scope,
       organization: organization ?? null,
       companyName,
       logo,
@@ -156,6 +163,7 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     lastSeparatorY = drawn.separatorY;
     return drawn.bodyY;
   };
+
 
   builder.newPage();
 
