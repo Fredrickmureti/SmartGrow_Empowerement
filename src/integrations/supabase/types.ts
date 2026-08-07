@@ -84555,6 +84555,10 @@ export type Database = {
             Returns: Json
           }
         | { Args: { "": Json }; Returns: Json }
+      create_credit_note_request_atomic: {
+        Args: { _payload: Json }
+        Returns: Json
+      }
       create_employee_with_identifiers: {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
