@@ -6,9 +6,14 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { Clock, AlertTriangle, Package } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -146,6 +151,50 @@ function StockAgingReportInner() {
     productIds: agingData.rows.map((r) => r.id),
   });
 
+  const agingColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "product", header: "Product" },
+      { key: "sku", header: "SKU" },
+      {
+        key: "qty",
+        header: "Qty",
+        align: "right",
+        render: (row) => qtyFormatter.format(row.id, Number(row.values?.qty ?? 0)),
+      },
+      { key: "value", header: "Value", format: "currency" },
+      { key: "lastInbound", header: "Last Inbound", format: "date" },
+      { key: "daysAge", header: "Days", format: "number" },
+      {
+        key: "ageBucket",
+        header: "Bucket",
+        render: (row) => (
+          <Badge className={getBucketColor(String(row.values?.ageBucket ?? ""))} variant="outline">
+            {String(row.values?.ageBucket ?? "")}
+          </Badge>
+        ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [qtyFormatter],
+  );
+
+  const agingRows = useMemo<ReportRow[]>(
+    () =>
+      agingData.rows.slice(0, 100).map((row) => ({
+        id: row.id,
+        values: {
+          product: row.name,
+          sku: row.sku || null,
+          qty: row.qty,
+          value: row.value,
+          lastInbound: row.lastInbound,
+          daysAge: row.daysAge,
+          ageBucket: row.ageBucket,
+        },
+      })),
+    [agingData.rows],
+  );
+
   const getExportConfig = useCallback((): ExportConfig => {
     const exportRows: ExportRow[] = agingData.rows.map((r) => ({
       product: r.name,
@@ -253,48 +302,15 @@ function StockAgingReportInner() {
         </Card>
 
         {/* Detail table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Stock Details</CardTitle>
-            <CardDescription>Sorted by age (oldest first)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="table-container">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                    <TableHead>Last Inbound</TableHead>
-                    <TableHead className="text-right">Days</TableHead>
-                    <TableHead>Bucket</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agingData.rows.slice(0, 100).map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.sku || "—"}</TableCell>
-                      <TableCell className="text-right">{qtyFormatter.format(row.id, row.qty)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(row.value, baseCurrency)}</TableCell>
-                      <TableCell>
-                        {row.lastInbound ? format(new Date(row.lastInbound), "MMM d, yyyy") : "—"}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {row.daysAge ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getBucketColor(row.ageBucket)} variant="outline">{row.ageBucket}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <ReportSurface title="Stock Details" subtitle="Sorted by age (oldest first)" profile="operational">
+          <ReportTable
+            columns={agingColumns}
+            rows={agingRows}
+            currency={baseCurrency}
+            caption="Stock aging detail"
+            emptyMessage="No products with stock found"
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );

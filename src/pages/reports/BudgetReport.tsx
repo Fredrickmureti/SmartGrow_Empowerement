@@ -3,11 +3,12 @@
  * 
  * Side-by-side comparison of budget amounts vs actual journal entry totals
  * with variance calculation by account and period.
+ *
+ * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +21,18 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { cn } from "@/lib/utils";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import {
   BarChart,
   Bar,
@@ -34,11 +43,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 function BudgetReportInner() {
   const [selectedBudgetId, setSelectedBudgetId] = useState<string>("");
@@ -61,7 +65,6 @@ function BudgetReportInner() {
     calculateActuals,
     getVarianceReport,
     getChartData,
-    months,
   } = useBudgetVsActual(selectedBudgetId || undefined);
 
   const varianceReport = selectedBudget ? getVarianceReport(selectedBudget) : null;
@@ -85,7 +88,7 @@ function BudgetReportInner() {
   };
 
   // Build a per-account summary from variance report
-  const accountSummaries = (() => {
+  const accountSummaries = useMemo(() => {
     if (!varianceReport) return [];
     const map = new Map<string, { accountId: string; accountCode: string; accountName: string; budgeted: number; actual: number; variance: number; variancePercent: number; status: "under" | "over" | "on_track" }>();
     varianceReport.itemsByAccount.forEach((items, accountId) => {
@@ -104,48 +107,81 @@ function BudgetReportInner() {
       });
     });
     return Array.from(map.values()).sort((a, b) => a.accountCode.localeCompare(b.accountCode));
-  })();
+  }, [varianceReport]);
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = accountSummaries.map((a) => ({
-      code: a.accountCode,
-      name: a.accountName,
-      budgeted: a.budgeted,
-      actual: a.actual,
-      variance: a.variance,
-      variance_pct: `${a.variancePercent.toFixed(1)}%`,
-      status: a.status === "over" ? "Over" : a.status === "under" ? "Under" : "On Track",
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "code", header: "Code", width: "w-[90px]" },
+      { key: "name", header: "Account" },
+      { key: "budgeted", header: "Budgeted", format: "currency", width: "w-[140px]" },
+      { key: "actual", header: "Actual", format: "currency", width: "w-[140px]" },
+      { key: "variance", header: "Variance", format: "currency", width: "w-[140px]" },
+      { key: "variance_pct", header: "Var %", format: "percent", width: "w-[90px]" },
+      {
+        key: "status",
+        header: "Status",
+        align: "center",
+        width: "w-[130px]",
+        exportExclude: true,
+        render: (row) => {
+          const status = row.values?.status as "under" | "over" | "on_track" | undefined;
+          return status ? getStatusBadge(status) : null;
+        },
+      },
+    ],
+    [],
+  );
+
+  const rows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = accountSummaries.map((a) => ({
+      id: a.accountId,
+      onClick: selectedBudget
+        ? () => setDrillDown({
+            title: `${a.accountCode} - ${a.accountName}`,
+            accountId: a.accountId,
+            startDate: `${selectedBudget.fiscal_year}-01-01`,
+            endDate: `${selectedBudget.fiscal_year}-12-31`,
+          })
+        : undefined,
+      values: {
+        code: a.accountCode,
+        name: a.accountName,
+        budgeted: a.budgeted,
+        actual: a.actual,
+        variance: a.variance,
+        variance_pct: a.variancePercent,
+        status: a.status,
+      },
     }));
+
     if (varianceReport) {
-      rows.push({
-        code: "", name: "TOTAL",
-        budgeted: varianceReport.totalBudgeted,
-        actual: varianceReport.totalActual,
-        variance: varianceReport.totalVariance,
-        variance_pct: `${varianceReport.variancePercent.toFixed(1)}%`,
-        status: "",
-        _isGrandTotal: true,
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL",
+        values: {
+          budgeted: varianceReport.totalBudgeted,
+          actual: varianceReport.totalActual,
+          variance: varianceReport.totalVariance,
+          variance_pct: varianceReport.variancePercent,
+        },
       });
     }
-    return {
-      title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
-      companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
-      dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,
-      columns: [
-        { key: "code", header: "Code", width: 10 },
-        { key: "name", header: "Account", width: 25 },
-        { key: "budgeted", header: "Budgeted", width: 16, format: "currency", align: "right" },
-        { key: "actual", header: "Actual", width: 16, format: "currency", align: "right" },
-        { key: "variance", header: "Variance", width: 16, format: "currency", align: "right" },
-        { key: "variance_pct", header: "Var %", width: 10, align: "right" },
-        { key: "status", header: "Status", width: 12 },
-      ],
-      rows,
-      sheetName: "Budget vs Actual",
-      currency: baseCurrency,
-    };
-  }, [accountSummaries, varianceReport, selectedBudget, currentOrg, baseCurrency]);
+
+    return out;
+  }, [accountSummaries, varianceReport, selectedBudget]);
+
+  const getExportConfig = useCallback((): ExportConfig => ({
+    title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
+    companyName: currentOrg?.name || "",
+    organizationId: currentOrg?.id,
+    dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,
+    columns: toExportColumns(columns),
+    rows: toExportRows(rows, columns),
+    sheetName: "Budget vs Actual",
+    currency: baseCurrency,
+  }), [columns, rows, selectedBudget, currentOrg, baseCurrency]);
 
   return (
     <ReportPageLayout
@@ -265,67 +301,21 @@ function BudgetReportInner() {
             </Card>
           )}
 
-          {/* Account Detail Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Variance by Account</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[80px]">Code</TableHead>
-                    <TableHead>Account</TableHead>
-                    <TableHead className="text-right">Budgeted</TableHead>
-                    <TableHead className="text-right">Actual</TableHead>
-                    <TableHead className="text-right">Variance</TableHead>
-                    <TableHead className="text-right">Var %</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accountSummaries.map((a) => (
-                    <TableRow
-                      key={a.accountCode}
-                      className="cursor-pointer hover:bg-accent/50"
-                      onClick={() => {
-                        if (selectedBudget) {
-                          setDrillDown({
-                            title: `${a.accountCode} - ${a.accountName}`,
-                            accountId: a.accountId,
-                            startDate: `${selectedBudget.fiscal_year}-01-01`,
-                            endDate: `${selectedBudget.fiscal_year}-12-31`,
-                          });
-                        }
-                      }}
-                    >
-                      <TableCell className="font-mono text-sm text-muted-foreground">{a.accountCode}</TableCell>
-                      <TableCell>{a.accountName}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(a.budgeted, baseCurrency)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(a.actual, baseCurrency)}</TableCell>
-                      <TableCell className={cn("text-right font-medium", a.variance >= 0 ? "text-green-600" : "text-destructive")}>
-                        {formatCurrency(a.variance, baseCurrency)}
-                      </TableCell>
-                      <TableCell className="text-right">{a.variancePercent.toFixed(1)}%</TableCell>
-                      <TableCell className="text-center">{getStatusBadge(a.status)}</TableCell>
-                    </TableRow>
-                  ))}
-                  {/* Grand Total */}
-                  <TableRow className="font-bold bg-muted border-t-2">
-                    <TableCell />
-                    <TableCell>TOTAL</TableCell>
-                    <TableCell className="text-right">{formatCurrency(varianceReport.totalBudgeted, baseCurrency)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(varianceReport.totalActual, baseCurrency)}</TableCell>
-                    <TableCell className={cn("text-right", varianceReport.totalVariance >= 0 ? "text-green-600" : "text-destructive")}>
-                      {formatCurrency(varianceReport.totalVariance, baseCurrency)}
-                    </TableCell>
-                    <TableCell className="text-right">{varianceReport.variancePercent.toFixed(1)}%</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          {/* Account Detail Table, rendered by the shared reporting engine */}
+          <ReportSurface
+            companyName={currentOrg?.name || ""}
+            title="Budget vs Actual"
+            subtitle={selectedBudget ? `${selectedBudget.name} — FY ${selectedBudget.fiscal_year}` : undefined}
+            profile="financial"
+          >
+            <ReportTable
+              columns={columns}
+              rows={rows}
+              currency={baseCurrency}
+              caption="Variance by account"
+              emptyMessage="No budget lines for this budget"
+            />
+          </ReportSurface>
         </div>
       )}
 

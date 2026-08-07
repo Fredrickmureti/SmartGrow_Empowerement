@@ -22,10 +22,13 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
@@ -151,6 +154,57 @@ export default function StockAdjustmentsReport() {
     };
   }, [rows]);
 
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "adjustment_date", header: "Date", format: "date" },
+      { key: "adjustment_number", header: "Adjustment #" },
+      { key: "reason", header: "Reason" },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <Badge variant={STATUS_VARIANT[String(row.values?.status ?? "")] ?? "outline"}>
+            {String(row.values?.status ?? "")}
+          </Badge>
+        ),
+      },
+      { key: "line_count", header: "Lines", format: "number" },
+      { key: "abs_qty", header: "|Δ Qty|", format: "number" },
+      { key: "cost_impact", header: "Cost Impact", format: "currency" },
+      {
+        key: "actions",
+        header: "",
+        exportExclude: true,
+        render: (row) => (
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/inventory/adjustments/${row.id}`}>
+              Open <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const tableRows = useMemo<ReportRow[]>(
+    () =>
+      rows.map((r) => ({
+        id: r.id,
+        tone: r.status === "reversed" ? "warning" : "default",
+        values: {
+          adjustment_date: r.adjustment_date,
+          adjustment_number: r.adjustment_number,
+          reason: r.reason,
+          status: r.status,
+          line_count: r.line_count,
+          abs_qty: Number(r.abs_qty.toFixed(2)),
+          cost_impact: r.cost_impact,
+        },
+      })),
+    [rows],
+  );
+
   const getExportConfig = useCallback((): ExportConfig => {
     const columns: ExportColumn[] = [
       { key: "adjustment_date", header: "Date", width: 14 },
@@ -233,50 +287,15 @@ export default function StockAdjustmentsReport() {
           <KpiCard label="Σ posted cost impact" value={fmtMoney(kpis.cost, baseCurrency)} />
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Adjustment #</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Lines</TableHead>
-                  <TableHead className="text-right">|Δ Qty|</TableHead>
-                  <TableHead className="text-right">Cost Impact</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.id} className={r.status === "reversed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
-                    <TableCell className="font-mono text-xs">
-                      {r.adjustment_date ? format(new Date(r.adjustment_date), "yyyy-MM-dd") : "—"}
-                    </TableCell>
-                    <TableCell className="font-medium">{r.adjustment_number}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.reason ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[r.status] ?? "outline"}>{r.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.line_count}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.abs_qty.toFixed(2)}</TableCell>
-                    <TableCell className={`text-right tabular-nums ${r.cost_impact < 0 ? "text-rose-700" : ""}`}>
-                      {fmtMoney(r.cost_impact, baseCurrency)}
-                    </TableCell>
-                    <TableCell>
-                      <Button asChild variant="outline" size="sm">
-                        <Link to={`/inventory/adjustments/${r.id}`}>
-                          Open <ArrowRight className="h-3 w-3 ml-1" />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ReportSurface title="Stock Adjustments" profile="operational">
+          <ReportTable
+            columns={columns}
+            rows={tableRows}
+            currency={baseCurrency}
+            caption="Stock adjustments"
+            emptyMessage="No stock adjustments match the selected filters."
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );

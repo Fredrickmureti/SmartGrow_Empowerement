@@ -5,8 +5,15 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { Users, ShoppingCart, TrendingUp, Receipt } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from "date-fns";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -88,6 +95,51 @@ function SalesReportsInner() {
       monthlyBreakdown: Object.entries(monthlyBreakdown).map(([month, total]) => ({ month, total })),
     };
   }, [invoices, start, end]);
+
+  const topCustomerColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "customer", header: "Customer" },
+      { key: "count", header: "Invoices", format: "number", align: "center" },
+      { key: "total", header: "Total", format: "currency" },
+    ],
+    [],
+  );
+
+  const topCustomerRows = useMemo<ReportRow[]>(
+    () =>
+      salesData.topCustomers.map((customer, index) => ({
+        id: `customer-${index}`,
+        onClick: () =>
+          setDrillDown({
+            open: true,
+            config: {
+              title: `Sales — ${customer.name}`,
+              startDate: format(start, "yyyy-MM-dd"),
+              endDate: format(end, "yyyy-MM-dd"),
+              sourceType: "invoice",
+            },
+          }),
+        values: { customer: customer.name, count: customer.count, total: customer.total },
+      })),
+    [salesData.topCustomers, start, end],
+  );
+
+  const monthlyColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "month", header: "Month" },
+      { key: "total", header: "Sales", format: "currency" },
+    ],
+    [],
+  );
+
+  const monthlyRows = useMemo<ReportRow[]>(
+    () =>
+      salesData.monthlyBreakdown.map((item, index) => ({
+        id: `month-${index}`,
+        values: { month: item.month, total: item.total },
+      })),
+    [salesData.monthlyBreakdown],
+  );
 
   const getExportConfig = useCallback((): ExportConfig => {
     const rows: ExportRow[] = [];
@@ -220,77 +272,25 @@ function SalesReportsInner() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Customers</CardTitle>
-              <CardDescription>By revenue generated</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-center">Invoices</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {salesData.topCustomers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                        No sales data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    salesData.topCustomers.map((customer, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{customer.name}</TableCell>
-                        <TableCell className="text-center">{customer.count}</TableCell>
-                        <TableCell className="text-right">
-                          <button className="hover:underline hover:text-primary cursor-pointer" onClick={() => setDrillDown({ open: true, config: { title: `Sales — ${customer.name}`, startDate: format(start, "yyyy-MM-dd"), endDate: format(end, "yyyy-MM-dd"), sourceType: "invoice" } })}>
-                            {formatCurrency(customer.total, baseCurrency)}
-                          </button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Top Customers" subtitle="By revenue generated" profile="operational">
+            <ReportTable
+              columns={topCustomerColumns}
+              rows={topCustomerRows}
+              currency={baseCurrency}
+              caption="Top customers by revenue"
+              emptyMessage="No sales data available"
+            />
+          </ReportSurface>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Monthly Sales</CardTitle>
-              <CardDescription>Sales breakdown by month</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Month</TableHead>
-                    <TableHead className="text-right">Sales</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {salesData.monthlyBreakdown.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
-                        No sales data available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    salesData.monthlyBreakdown.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{item.month}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(item.total, baseCurrency)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Monthly Sales" subtitle="Sales breakdown by month" profile="operational">
+            <ReportTable
+              columns={monthlyColumns}
+              rows={monthlyRows}
+              currency={baseCurrency}
+              caption="Monthly sales breakdown"
+              emptyMessage="No sales data available"
+            />
+          </ReportSurface>
         </div>
       </div>
       <DrillDownDialog

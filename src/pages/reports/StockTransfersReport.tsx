@@ -24,10 +24,13 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
@@ -144,6 +147,75 @@ export default function StockTransfersReport() {
     };
   }, [rows]);
 
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "transfer_date", header: "Date", format: "date" },
+      { key: "transfer_number", header: "Transfer #" },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <Badge variant={STATUS_VARIANT[String(row.values?.status ?? "")] ?? "outline"}>
+            {String(row.values?.status ?? "")}
+          </Badge>
+        ),
+      },
+      { key: "line_count", header: "Lines", format: "number" },
+      { key: "qty_requested", header: "Requested", format: "number" },
+      { key: "qty_sent", header: "Sent", format: "number" },
+      { key: "qty_received", header: "Received", format: "number" },
+      {
+        key: "variance",
+        header: "Variance",
+        align: "right",
+        render: (row) => {
+          const variance = Number(row.values?.variance ?? 0);
+          const hasVar = Math.abs(variance) > 0.0001;
+          return (
+            <span className={hasVar ? "text-amber-700 font-medium" : "text-muted-foreground"}>
+              {variance.toFixed(2)}
+            </span>
+          );
+        },
+      },
+      {
+        key: "actions",
+        header: "",
+        exportExclude: true,
+        render: (row) => (
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/inventory/transfers/${row.id}`}>
+              Open <ArrowRight className="h-3 w-3 ml-1" />
+            </Link>
+          </Button>
+        ),
+      },
+    ],
+    [],
+  );
+
+  const tableRows = useMemo<ReportRow[]>(
+    () =>
+      rows.map((r) => {
+        const hasVar = Math.abs(r.variance) > 0.0001;
+        return {
+          id: r.id,
+          tone: hasVar ? "warning" : "default",
+          values: {
+            transfer_date: r.transfer_date,
+            transfer_number: r.transfer_number,
+            status: r.status,
+            line_count: r.line_count,
+            qty_requested: Number(r.qty_requested.toFixed(2)),
+            qty_sent: Number(r.qty_sent.toFixed(2)),
+            qty_received: Number(r.qty_received.toFixed(2)),
+            variance: r.variance,
+          },
+        };
+      }),
+    [rows],
+  );
+
   const getExportConfig = useCallback((): ExportConfig => {
     const columns: ExportColumn[] = [
       { key: "transfer_date", header: "Date", width: 14 },
@@ -216,55 +288,14 @@ export default function StockTransfersReport() {
           <KpiCard label="Σ |variance| qty" value={kpis.variance.toFixed(2)} />
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Transfer #</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Lines</TableHead>
-                  <TableHead className="text-right">Requested</TableHead>
-                  <TableHead className="text-right">Sent</TableHead>
-                  <TableHead className="text-right">Received</TableHead>
-                  <TableHead className="text-right">Variance</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => {
-                  const hasVar = Math.abs(r.variance) > 0.0001;
-                  return (
-                    <TableRow key={r.id} className={hasVar ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
-                      <TableCell className="font-mono text-xs">
-                        {r.transfer_date ? format(new Date(r.transfer_date), "yyyy-MM-dd") : "—"}
-                      </TableCell>
-                      <TableCell className="font-medium">{r.transfer_number}</TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANT[r.status] ?? "outline"}>{r.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{r.line_count}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.qty_requested.toFixed(2)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.qty_sent.toFixed(2)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.qty_received.toFixed(2)}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${hasVar ? "text-amber-700 font-medium" : "text-muted-foreground"}`}>
-                        {r.variance.toFixed(2)}
-                      </TableCell>
-                      <TableCell>
-                        <Button asChild variant="outline" size="sm">
-                          <Link to={`/inventory/transfers/${r.id}`}>
-                            Open <ArrowRight className="h-3 w-3 ml-1" />
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ReportSurface title="Stock Transfers" profile="operational">
+          <ReportTable
+            columns={columns}
+            rows={tableRows}
+            caption="Stock transfers"
+            emptyMessage="No stock transfers match the selected filters."
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );

@@ -8,17 +8,20 @@
  * Implements IAS 1 / IFRS compliant presentation:
  * - Balance Sheet: Current/Non-Current sub-classification
  * - P&L: Multi-step format (Revenue → COGS → Gross Profit → OpEx → Net Income)
+ *
+ * Rendered by the canonical reporting engine (`@/design-system/reports`):
+ * each statement declares columns + typed rows, the engine owns alignment,
+ * hierarchy, sticky headers, formatting and PDF parity.
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DollarSign, TrendingUp, TrendingDown, PiggyBank, ArrowUpRight, ArrowDownRight, AlertTriangle, ExternalLink } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, AlertTriangle, ExternalLink } from "lucide-react";
 import { format, startOfYear, endOfMonth, subYears, startOfMonth, startOfQuarter, endOfQuarter, endOfYear } from "date-fns";
 import { useFinancialReport, type FinancialReportAccount } from "@/hooks/useFinancialReport";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -30,11 +33,9 @@ import { ReportFilters } from "@/components/reports/ReportFilters";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { PeriodLockBanner } from "@/components/reports/PeriodLockBanner";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import { FinancialReportHeader } from "@/components/reports/FinancialReportHeader";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { useNavigate } from "react-router-dom";
-import { ACCOUNT_TYPE_LABELS } from "@/services/reports/ReportCalculationEngine";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import {
   classifyAccount,
@@ -42,12 +43,18 @@ import {
   SUB_TYPE_LABELS,
   BS_ASSET_ORDER,
   BS_LIABILITY_ORDER,
-  PNL_INCOME_ORDER,
-  PNL_EXPENSE_ORDER,
   type AccountSubType,
   type ClassifiedAccount,
 } from "@/services/reports/AccountClassification";
-import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { cn } from "@/lib/utils";
 
 type ComparisonMode = "none" | "previous_period" | "same_period_last_year";
@@ -259,258 +266,187 @@ function FinancialReportsInner() {
   const netIncomeBeforeTax = operatingProfit + totalOtherIncome - totalOtherExpense;
   const netIncome = netIncomeBeforeTax - totalTaxExpense;
 
+  // ─── P&L columns + rows (single declaration drives screen + export) ───
+  const pnlColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "name", header: "Account" },
+      { key: "amount", header: "Amount", format: "currency", width: "w-[160px]" },
+      ...(showComparison
+        ? ([
+            { key: "comparison", header: comparison.label || "Previous", format: "currency", width: "w-[140px]" },
+            { key: "variance", header: "Variance", format: "currency", width: "w-[120px]" },
+            { key: "variance_pct", header: "%", format: "percent", width: "w-[80px]" },
+          ] as ReportColumn[])
+        : []),
+    ],
+    [showComparison, comparison.label],
+  );
+
+  const pnlRows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    const grouped = groupBySubType(classifiedPnlAccounts);
+
+    const pushSubSection = (subType: AccountSubType) => {
+      const accts = grouped.get(subType) || [];
+      if (accts.length === 0) return;
+      out.push({ id: `sec-${subType}`, kind: "section", label: SUB_TYPE_LABELS[subType] });
+      for (const acct of accts) {
+        out.push({
+          id: acct.id,
+          onClick: () => handleDrillDown(acct),
+          values: {
+            name: acct.name,
+            amount: acct.display_amount,
+            comparison: acct.comparison_amount ?? null,
+            variance: acct.variance ?? null,
+            variance_pct: acct.variance_percent ?? null,
+          },
+        });
+      }
+      const subTotal = accts.reduce((s, a) => s + a.display_amount, 0);
+      out.push({
+        id: `sub-${subType}`,
+        kind: "subtotal",
+        label: `Total ${SUB_TYPE_LABELS[subType]}`,
+        values: { amount: subTotal },
+      });
+    };
+
+    pushSubSection("revenue");
+    pushSubSection("cost_of_sales");
+    out.push({ id: "gross-profit", kind: "grandTotal", label: "GROSS PROFIT", values: { amount: grossProfit } });
+
+    pushSubSection("operating_expense");
+    out.push({ id: "operating-profit", kind: "grandTotal", label: "OPERATING PROFIT", values: { amount: operatingProfit } });
+
+    pushSubSection("other_income");
+    pushSubSection("other_expense");
+
+    if (totalOtherIncome > 0 || totalOtherExpense > 0) {
+      out.push({ id: "nibt", kind: "subtotal", label: "NET INCOME BEFORE TAX", values: { amount: netIncomeBeforeTax } });
+    }
+
+    pushSubSection("tax_expense");
+    out.push({ id: "net-income", kind: "grandTotal", label: "NET INCOME", values: { amount: netIncome } });
+
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classifiedPnlAccounts, grossProfit, operatingProfit, netIncomeBeforeTax, netIncome, totalOtherIncome, totalOtherExpense]);
+
+  // ─── Balance Sheet columns + rows ───
+  const bsColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "name", header: "Account" },
+      { key: "balance", header: "Balance", format: "currency", width: "w-[180px]" },
+    ],
+    [],
+  );
+
+  const bsRows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    const grouped = groupBySubType(classifiedBsAccounts);
+
+    const pushSubSection = (subType: AccountSubType) => {
+      const accts = grouped.get(subType) || [];
+      if (accts.length === 0) return;
+      out.push({ id: `sec-${subType}`, kind: "section", label: SUB_TYPE_LABELS[subType] });
+      for (const acct of accts) {
+        out.push({
+          id: acct.id,
+          depth: 1,
+          onClick: () => handleDrillDown(acct),
+          values: { name: acct.name, balance: acct.closing_balance },
+        });
+      }
+      const subTotal = accts.reduce((s, a) => s + a.closing_balance, 0);
+      out.push({
+        id: `sub-${subType}`,
+        kind: "subtotal",
+        label: `Total ${SUB_TYPE_LABELS[subType]}`,
+        values: { balance: subTotal },
+      });
+    };
+
+    out.push({ id: "sec-assets", kind: "section", label: "ASSETS" });
+    for (const subType of BS_ASSET_ORDER) pushSubSection(subType);
+    out.push({
+      id: "total-assets",
+      kind: "grandTotal",
+      label: "TOTAL ASSETS",
+      values: { balance: bsData?.balanceSheetTotals?.totalAssets || 0 },
+    });
+
+    out.push({ id: "sec-liabilities", kind: "section", label: "LIABILITIES" });
+    for (const subType of BS_LIABILITY_ORDER) pushSubSection(subType);
+    out.push({
+      id: "total-liabilities",
+      kind: "subtotal",
+      label: "TOTAL LIABILITIES",
+      values: { balance: bsData?.sectionTotals["liability"] || 0 },
+    });
+
+    out.push({ id: "sec-equity", kind: "section", label: "EQUITY" });
+    for (const acct of classifiedBsAccounts.filter(a => a.account_type === "equity")) {
+      out.push({
+        id: acct.id,
+        depth: 1,
+        onClick: () => handleDrillDown(acct),
+        values: { name: acct.name, balance: acct.closing_balance },
+      });
+    }
+    if (bsData?.balanceSheetTotals?.retainedEarnings !== undefined && bsData.balanceSheetTotals.retainedEarnings !== 0) {
+      out.push({
+        id: "retained-earnings",
+        depth: 1,
+        values: { name: "Current Year Earnings", balance: bsData.balanceSheetTotals.retainedEarnings },
+      });
+    }
+    out.push({
+      id: "total-equity",
+      kind: "subtotal",
+      label: "TOTAL EQUITY",
+      values: { balance: bsData?.balanceSheetTotals?.totalEquity || 0 },
+    });
+
+    out.push({
+      id: "total-liab-equity",
+      kind: "grandTotal",
+      label: "TOTAL LIABILITIES & EQUITY",
+      values: { balance: (bsData?.sectionTotals["liability"] || 0) + (bsData?.balanceSheetTotals?.totalEquity || 0) },
+    });
+
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classifiedBsAccounts, bsData]);
+
   const totalIncome = pnlData?.sectionTotals["income"] || 0;
   const totalExpenses = pnlData?.sectionTotals["expense"] || 0;
   const totalAssets = bsData?.balanceSheetTotals?.totalAssets || 0;
 
-  // ─── Export configs ───
-  const getPnlExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "name", header: "Account", width: 35 },
-      { key: "amount", header: "Amount", width: 18, format: "currency", align: "right" },
-      ...(showComparison ? [
-        { key: "comparison", header: comparison.label || "Previous", width: 18, format: "currency" as const, align: "right" as const },
-        { key: "variance", header: "Variance", width: 14, format: "currency" as const, align: "right" as const },
-        { key: "variance_pct", header: "Var %", width: 10, align: "right" as const },
-      ] : []),
-    ];
+  // ─── Export configs — same row model that drives the screen ───
+  const getPnlExportConfig = useCallback((): ExportConfig => ({
+    title: "Profit & Loss Statement",
+    companyName: currentOrg?.name || "",
+    organizationId: currentOrg?.id,
+    dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+    columns: toExportColumns(pnlColumns),
+    rows: toExportRows(pnlRows, pnlColumns),
+    sheetName: "Profit & Loss",
+    currency: baseCurrency,
+  }), [pnlColumns, pnlRows, dateFrom, dateTo, currentOrg, baseCurrency]);
 
-    const rows: ExportRow[] = [];
-    const pnlGrouped = groupBySubType(classifiedPnlAccounts);
-
-    // Revenue
-    rows.push({ name: "REVENUE", amount: null, _isHeader: true });
-    for (const acct of pnlGrouped.get("revenue") || []) {
-      rows.push({ name: acct.name, amount: acct.display_amount, _depth: 1 });
-    }
-    rows.push({ name: "Total Revenue", amount: totalRevenue, _isSubtotal: true });
-
-    // COGS
-    const cogsAccts = pnlGrouped.get("cost_of_sales") || [];
-    if (cogsAccts.length > 0) {
-      rows.push({ name: "COST OF SALES", amount: null, _isHeader: true });
-      for (const acct of cogsAccts) {
-        rows.push({ name: acct.name, amount: acct.display_amount, _depth: 1 });
-      }
-      rows.push({ name: "Total Cost of Sales", amount: totalCOGS, _isSubtotal: true });
-    }
-    rows.push({ name: "GROSS PROFIT", amount: grossProfit, _isGrandTotal: true });
-
-    // OpEx
-    rows.push({ name: "OPERATING EXPENSES", amount: null, _isHeader: true });
-    for (const acct of pnlGrouped.get("operating_expense") || []) {
-      rows.push({ name: acct.name, amount: acct.display_amount, _depth: 1 });
-    }
-    rows.push({ name: "Total Operating Expenses", amount: totalOpEx, _isSubtotal: true });
-    rows.push({ name: "OPERATING PROFIT", amount: operatingProfit, _isGrandTotal: true });
-    rows.push({ name: "NET INCOME", amount: netIncome, _isGrandTotal: true });
-
-    return {
-      title: "Profit & Loss Statement",
-      companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
-      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      columns, rows, sheetName: "Profit & Loss", currency: baseCurrency,
-    };
-  }, [classifiedPnlAccounts, dateFrom, dateTo, currentOrg, baseCurrency, showComparison, comparison.label, totalRevenue, totalCOGS, grossProfit, totalOpEx, operatingProfit, netIncome]);
-
-  const getBsExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "name", header: "Account", width: 35 },
-      { key: "balance", header: "Balance", width: 18, format: "currency", align: "right" },
-    ];
-    const rows: ExportRow[] = [];
-    if (bsData) {
-      const bsGrouped = groupBySubType(classifiedBsAccounts);
-      
-      // Assets
-      rows.push({ name: "ASSETS", balance: null, _isHeader: true });
-      for (const subType of BS_ASSET_ORDER) {
-        const accts = bsGrouped.get(subType) || [];
-        if (accts.length === 0) continue;
-        rows.push({ name: SUB_TYPE_LABELS[subType], balance: null, _isHeader: true });
-        for (const acct of accts) {
-          rows.push({ name: acct.name, balance: acct.closing_balance, _depth: 2 });
-        }
-        const subTotal = accts.reduce((s, a) => s + a.closing_balance, 0);
-        rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _isSubtotal: true });
-      }
-      rows.push({ name: "TOTAL ASSETS", balance: bsData.balanceSheetTotals?.totalAssets || 0, _isGrandTotal: true });
-
-      // Liabilities
-      rows.push({ name: "LIABILITIES", balance: null, _isHeader: true });
-      for (const subType of BS_LIABILITY_ORDER) {
-        const accts = bsGrouped.get(subType) || [];
-        if (accts.length === 0) continue;
-        rows.push({ name: SUB_TYPE_LABELS[subType], balance: null, _isHeader: true });
-        for (const acct of accts) {
-          rows.push({ name: acct.name, balance: acct.closing_balance, _depth: 2 });
-        }
-        const subTotal = accts.reduce((s, a) => s + a.closing_balance, 0);
-        rows.push({ name: `Total ${SUB_TYPE_LABELS[subType]}`, balance: subTotal, _isSubtotal: true });
-      }
-      rows.push({ name: "TOTAL LIABILITIES", balance: bsData.sectionTotals["liability"] || 0, _isSubtotal: true });
-
-      // Equity
-      rows.push({ name: "EQUITY", balance: null, _isHeader: true });
-      for (const acct of (bsGrouped.get("share_capital") || [])) {
-        rows.push({ name: acct.name, balance: acct.closing_balance, _depth: 1 });
-      }
-      if (bsData.balanceSheetTotals?.retainedEarnings) {
-        rows.push({ name: "Current Year Earnings", balance: bsData.balanceSheetTotals.retainedEarnings, _depth: 1 });
-      }
-      rows.push({ name: "TOTAL EQUITY", balance: bsData.balanceSheetTotals?.totalEquity || 0, _isSubtotal: true });
-
-      rows.push({
-        name: "TOTAL LIABILITIES & EQUITY",
-        balance: (bsData.sectionTotals["liability"] || 0) + (bsData.balanceSheetTotals?.totalEquity || 0),
-        _isGrandTotal: true,
-      });
-    }
-    return {
-      title: "Balance Sheet", companyName: currentOrg?.name || "", organizationId: currentOrg?.id,
-      dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")}`,
-      columns, rows, sheetName: "Balance Sheet", currency: baseCurrency,
-    };
-  }, [bsData, classifiedBsAccounts, dateTo, currentOrg, baseCurrency]);
+  const getBsExportConfig = useCallback((): ExportConfig => ({
+    title: "Balance Sheet",
+    companyName: currentOrg?.name || "",
+    organizationId: currentOrg?.id,
+    dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")}`,
+    columns: toExportColumns(bsColumns),
+    rows: toExportRows(bsRows, bsColumns),
+    sheetName: "Balance Sheet",
+    currency: baseCurrency,
+  }), [bsColumns, bsRows, dateTo, currentOrg, baseCurrency]);
 
   const getExportConfig = activeTab === "pnl" ? getPnlExportConfig : getBsExportConfig;
-
-  // ─── Render helpers ───
-
-  /** Renders a sub-section of accounts (e.g., Current Assets) */
-  const renderSubSection = (
-    accounts: ClassifiedAccount[],
-    subType: AccountSubType,
-    showSubHeader: boolean = true
-  ) => {
-    const filtered = accounts.filter(a => a.sub_type === subType);
-    if (filtered.length === 0) return null;
-    const subTotal = filtered.reduce((s, a) => s + a.closing_balance, 0);
-
-    return (
-      <>
-        {showSubHeader && (
-          <TableRow className="bg-muted/30">
-            <TableCell className="pl-8 font-medium text-sm text-muted-foreground" colSpan={2}>
-              {SUB_TYPE_LABELS[subType]}
-            </TableCell>
-          </TableRow>
-        )}
-        {filtered.map(acct => (
-          <TableRow
-            key={acct.id}
-            className="cursor-pointer hover:bg-muted/20 group"
-            onClick={() => handleDrillDown(acct)}
-          >
-            <TableCell className="pl-12 text-sm">
-              <span className="flex items-center gap-1.5">
-                {acct.name}
-                <button
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                  title="View in General Ledger"
-                  onClick={(e) => { e.stopPropagation(); handleViewInGL(acct); }}
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-              </span>
-            </TableCell>
-            <TableCell className="text-right font-medium text-sm tabular-nums">
-              {fmt(acct.closing_balance)}
-            </TableCell>
-          </TableRow>
-        ))}
-        {showSubHeader && (
-          <TableRow className="font-semibold">
-            <TableCell className="pl-8 text-sm">Total {SUB_TYPE_LABELS[subType]}</TableCell>
-            <TableCell className="text-right text-sm tabular-nums">{fmt(subTotal)}</TableCell>
-          </TableRow>
-        )}
-      </>
-    );
-  };
-
-  /** Renders P&L account rows for a sub-type */
-  const renderPnlSubSection = (
-    accounts: ClassifiedAccount[],
-    subType: AccountSubType,
-    showHeader: boolean = true
-  ) => {
-    const filtered = accounts.filter(a => a.sub_type === subType);
-    if (filtered.length === 0) return null;
-    const subTotal = filtered.reduce((s, a) => s + a.display_amount, 0);
-
-    return (
-      <>
-        {showHeader && (
-          <TableRow className="bg-muted/30">
-            <TableCell className="font-medium text-sm text-muted-foreground" colSpan={showComparison ? 5 : 2}>
-              {SUB_TYPE_LABELS[subType]}
-            </TableCell>
-          </TableRow>
-        )}
-        {filtered.map(acct => (
-          <TableRow
-            key={acct.id}
-            className="cursor-pointer hover:bg-muted/20 group"
-            onClick={() => handleDrillDown(acct)}
-          >
-            <TableCell className="pl-8 text-sm">
-              <span className="flex items-center gap-1.5">
-                {acct.name}
-                <button
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
-                  title="View in General Ledger"
-                  onClick={(e) => { e.stopPropagation(); handleViewInGL(acct); }}
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </button>
-              </span>
-            </TableCell>
-            <TableCell className="text-right font-medium text-sm tabular-nums">{fmt(acct.display_amount)}</TableCell>
-            {showComparison && (
-              <>
-                <TableCell className="text-right text-muted-foreground text-sm tabular-nums">
-                  {acct.comparison_amount != null ? fmt(acct.comparison_amount) : "—"}
-                </TableCell>
-                <TableCell className={cn("text-right text-sm font-medium tabular-nums", (acct.variance || 0) > 0 ? "text-success" : (acct.variance || 0) < 0 ? "text-destructive" : "")}>
-                  {acct.variance != null ? `${acct.variance > 0 ? "+" : ""}${fmt(acct.variance)}` : "—"}
-                </TableCell>
-                <TableCell className={cn("text-right text-sm tabular-nums", (acct.variance_percent || 0) > 0 ? "text-success" : (acct.variance_percent || 0) < 0 ? "text-destructive" : "text-muted-foreground")}>
-                  {acct.variance_percent != null ? `${acct.variance_percent > 0 ? "+" : ""}${acct.variance_percent.toFixed(1)}%` : "—"}
-                </TableCell>
-              </>
-            )}
-          </TableRow>
-        ))}
-        {showHeader && (
-          <TableRow className="font-semibold">
-            <TableCell className="text-sm">Total {SUB_TYPE_LABELS[subType]}</TableCell>
-            <TableCell className="text-right text-sm tabular-nums">{fmt(subTotal)}</TableCell>
-            {showComparison && <TableCell colSpan={3} />}
-          </TableRow>
-        )}
-      </>
-    );
-  };
-
-  /** Grand total / separator row */
-  const renderTotalRow = (label: string, amount: number, variant: "major" | "section" | "highlight" = "section") => {
-    const styles = {
-      major: "font-bold text-base bg-muted border-t-2 border-b-2",
-      section: "font-semibold border-t",
-      highlight: "font-bold text-base border-t-2 border-double",
-    };
-    return (
-      <TableRow className={styles[variant]}>
-        <TableCell className={variant === "major" ? "text-base" : "text-sm"}>{label}</TableCell>
-        <TableCell className={cn("text-right tabular-nums", variant === "major" ? "text-base" : "text-sm")}>
-          {fmt(amount)}
-        </TableCell>
-        {showComparison && activeTab === "pnl" && <TableCell colSpan={3} />}
-      </TableRow>
-    );
-  };
 
   return (
     <ReportPageLayout
@@ -617,20 +553,20 @@ function FinancialReportsInner() {
           {/* KPI Cards */}
           <div className="stats-grid">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-success" />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <span className="text-sm font-medium">Total Revenue</span>
+                  <DollarSign className="h-4 w-4 text-success" />
+                </div>
                 <div className="text-2xl font-bold text-success">{fmt(totalRevenue)}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
-                <TrendingUp className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <span className="text-sm font-medium">Gross Profit</span>
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </div>
                 <div className={cn("text-2xl font-bold", grossProfit >= 0 ? "text-primary" : "text-destructive")}>{fmt(grossProfit)}</div>
                 {totalRevenue > 0 && (
                   <p className="text-xs text-muted-foreground">{((grossProfit / totalRevenue) * 100).toFixed(1)}% margin</p>
@@ -638,84 +574,41 @@ function FinancialReportsInner() {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Operating Profit</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <span className="text-sm font-medium">Operating Profit</span>
+                  <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </div>
                 <div className={cn("text-2xl font-bold", operatingProfit >= 0 ? "text-success" : "text-destructive")}>{fmt(operatingProfit)}</div>
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Net Income</CardTitle>
-                {netIncome >= 0 ? <ArrowUpRight className="h-4 w-4 text-success" /> : <ArrowDownRight className="h-4 w-4 text-destructive" />}
-              </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
+                <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <span className="text-sm font-medium">Net Income</span>
+                  {netIncome >= 0 ? <ArrowUpRight className="h-4 w-4 text-success" /> : <ArrowDownRight className="h-4 w-4 text-destructive" />}
+                </div>
                 <div className={cn("text-2xl font-bold", netIncome >= 0 ? "text-success" : "text-destructive")}>{fmt(netIncome)}</div>
               </CardContent>
             </Card>
           </div>
 
-          {/* P&L Table — Multi-Step Format */}
-          <Card>
-            <CardContent className="pt-6">
-              <FinancialReportHeader
-                companyName={currentOrg?.name || ""}
-                reportTitle="Profit & Loss Statement"
-                dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
-                subtitle="Accrual Basis"
-              />
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account</TableHead>
-                      <TableHead className="text-right w-[160px]">Amount</TableHead>
-                      {showComparison && (
-                        <>
-                          <TableHead className="text-right w-[140px]">Previous</TableHead>
-                          <TableHead className="text-right w-[120px]">Variance</TableHead>
-                          <TableHead className="text-right w-[80px]">%</TableHead>
-                        </>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* Revenue */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "revenue")}
-
-                    {/* Cost of Sales */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "cost_of_sales")}
-
-                    {/* Gross Profit */}
-                    {renderTotalRow("GROSS PROFIT", grossProfit, "highlight")}
-
-                    {/* Operating Expenses */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "operating_expense")}
-
-                    {/* Operating Profit */}
-                    {renderTotalRow("OPERATING PROFIT", operatingProfit, "highlight")}
-
-                    {/* Other Income */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "other_income")}
-
-                    {/* Other Expenses */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "other_expense")}
-
-                    {/* Net Income Before Tax */}
-                    {(totalOtherIncome > 0 || totalOtherExpense > 0) && renderTotalRow("NET INCOME BEFORE TAX", netIncomeBeforeTax, "section")}
-
-                    {/* Tax Expense */}
-                    {renderPnlSubSection(classifiedPnlAccounts, "tax_expense")}
-
-                    {/* Net Income */}
-                    {renderTotalRow("NET INCOME", netIncome, "major")}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* P&L Table — Multi-Step Format, rendered by the shared reporting engine */}
+          <ReportSurface
+            companyName={currentOrg?.name || ""}
+            title="Profit & Loss Statement"
+            dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+            subtitle="Accrual Basis"
+            profile="financial"
+          >
+            <ReportTable
+              columns={pnlColumns}
+              rows={pnlRows}
+              currency={baseCurrency}
+              caption="Profit & Loss — multi-step statement"
+              emptyMessage="No income or expense activity for this period"
+            />
+          </ReportSurface>
         </TabsContent>
 
         {/* ═══════════════════ BALANCE SHEET ═══════════════════ */}
@@ -739,84 +632,21 @@ function FinancialReportsInner() {
             </Card>
           )}
 
-          <Card>
-            <CardContent className="pt-6">
-              <FinancialReportHeader
-                companyName={currentOrg?.name || ""}
-                reportTitle="Balance Sheet"
-                asOfDate={`As of ${format(new Date(dateTo), "MMMM d, yyyy")}`}
-                subtitle="Accrual Basis"
-              />
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account</TableHead>
-                      <TableHead className="text-right w-[180px]">Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {/* ─── ASSETS ─── */}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell colSpan={2} className="text-base">ASSETS</TableCell>
-                    </TableRow>
-                    {BS_ASSET_ORDER.map(subType => renderSubSection(classifiedBsAccounts, subType))}
-                    {renderTotalRow("TOTAL ASSETS", bsData?.balanceSheetTotals?.totalAssets || 0, "major")}
-
-                    {/* ─── Visual separator ─── */}
-                    <TableRow>
-                      <TableCell colSpan={2} className="h-2 p-0 border-b-2 border-border" />
-                    </TableRow>
-
-                    {/* ─── LIABILITIES ─── */}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell colSpan={2} className="text-base">LIABILITIES</TableCell>
-                    </TableRow>
-                    {BS_LIABILITY_ORDER.map(subType => renderSubSection(classifiedBsAccounts, subType))}
-                    {renderTotalRow("TOTAL LIABILITIES", bsData?.sectionTotals["liability"] || 0, "section")}
-
-                    {/* ─── EQUITY ─── */}
-                    <TableRow className="bg-muted/50 font-bold">
-                      <TableCell colSpan={2} className="text-base">EQUITY</TableCell>
-                    </TableRow>
-                    {classifiedBsAccounts
-                      .filter(a => a.account_type === "equity")
-                      .map(acct => (
-                        <TableRow
-                          key={acct.id}
-                          className="cursor-pointer hover:bg-muted/20"
-                          onClick={() => handleDrillDown(acct)}
-                        >
-                          <TableCell className="pl-8 text-sm">{acct.name}</TableCell>
-                          <TableCell className="text-right font-medium text-sm tabular-nums">
-                            {fmt(acct.closing_balance)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    {bsData?.balanceSheetTotals?.retainedEarnings !== undefined &&
-                      bsData.balanceSheetTotals.retainedEarnings !== 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8 text-sm italic text-muted-foreground">
-                            Current Year Earnings
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-sm tabular-nums">
-                            {fmt(bsData.balanceSheetTotals.retainedEarnings)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    {renderTotalRow("TOTAL EQUITY", bsData?.balanceSheetTotals?.totalEquity || 0, "section")}
-
-                    {/* ─── TOTAL L + E ─── */}
-                    {renderTotalRow(
-                      "TOTAL LIABILITIES & EQUITY",
-                      (bsData?.sectionTotals["liability"] || 0) + (bsData?.balanceSheetTotals?.totalEquity || 0),
-                      "major"
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <ReportSurface
+            companyName={currentOrg?.name || ""}
+            title="Balance Sheet"
+            asOfDate={`As of ${format(new Date(dateTo), "MMMM d, yyyy")}`}
+            subtitle="Accrual Basis"
+            profile="financial"
+          >
+            <ReportTable
+              columns={bsColumns}
+              rows={bsRows}
+              currency={baseCurrency}
+              caption="Balance sheet — assets, liabilities and equity"
+              emptyMessage="No account balances as of this date"
+            />
+          </ReportSurface>
 
           {/* Balance check */}
           {bsData && (
