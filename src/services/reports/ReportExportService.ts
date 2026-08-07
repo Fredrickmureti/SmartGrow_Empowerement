@@ -46,10 +46,18 @@ export interface ExportRow {
 export interface ExportConfig {
   title: string;
   subtitle?: string;
+  /** Range reports: "1 Jan 2026 to 31 Mar 2026". */
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet). Renders
+   * "As of <asOf>" in the masthead instead of "For the period …".
+   * Mutually exclusive with `dateRange`.
+   */
+  asOf?: string;
   columns: ExportColumn[];
   rows: ExportRow[];
   sheetName?: string;
+
   /**
    * Multi-currency override. Leave undefined to use the organization's
    * base_currency (resolved server-side from `getOrganizationBranding`).
