@@ -1,41 +1,126 @@
-# Business Reversal & Compensation Convergence — Status
+# Business Reversal Convergence — Verification Verdict and Remaining Phases
 
-Authoritative status file. Update it after every implementation step.
+## Phase 1 — Independent verification (done this turn, against the live database and code)
 
-## Active phase
+### Claims confirmed true
 
-**Phase 4 — Warehouse tasks & bank reconciliation participation: implemented (server complete, UI mostly complete).**
+- **Phase 0/1/2 exist.** `resolve_reversal_intent` (single legality authority),
+  `preview_reversal_consequences` + `preview_reversal_consequences_core`, and
+  `resolve_reversal_bank_block` are all present in the database, with the GRN
+  branch already in the intent policy.
+- **Phase 3 (Purchases/AP) is real.** `void_bill_atomic` and
+  `void_bill_payment_atomic` exist; `useBills.voidBill` is now a thin call to
+  `void_bill_atomic` with only permission, optimistic update and audit label —
+  no client-side saga.
+- **Phase 4 server side is real.** `wms_open_tasks_for_document`,
+  `wms_cancel_tasks_for_document`, `reversal_bank_lines` exist;
+  `void_invoice_atomic` does call `wms_cancel_tasks_for_document`;
+  `unreconcile_bank_transaction` does handle the AP (`bill_payment`) side;
+  `preview_reversal_consequences` does compose the bank section.
+- **Client is out of the ledger.** Every AR/AP reversal path in
+  `src/hooks/useTransactionReversal.ts` delegates to one atomic RPC. The 14
+  ratchets in `journal-posting-monopoly.test.ts` pass.
 
-## Completed and verified
+### Defects and gaps found
 
-- **Phase 0 — Reversal capability restored.** `organization_id` stamping fixed; invoice void works.
-- **Phase 1 — Reversal intent policy.** `resolve_reversal_intent` is the single authority (settlement, bank reconciliation, period state, blockers, recommended operation). No client-side legality derivation.
-- **Phase 2 — Consequence preview.** `preview_reversal_consequences` + `useReversalConsequences` (fetch) + `ReversalConsequencePreview` (pure projection), mounted in the invoice void sheet and the payment reversal wizard. Guarded by `src/test/architecture/reversal-consequence-preview.test.ts`.
-- **Phase 3 — Purchases / AP / GRN.** `void_bill_atomic` canonical writer (GL reversal, three-way-match unwind, void metadata, blockers for draft/settled/closed period); intent + preview branches for `bill`, `bill_payment`, `goods_receipt`; `VoidBillDialog`; reversal preview in `BillPaymentHistoryDialog`; client sagas removed; posting-monopoly guard extended.
-- **Phase 4 — Warehouse & bank participation.**
-  - `wms_open_tasks_for_document` (read) and `wms_cancel_tasks_for_document` (canonical writer, cancels open tasks with a reason).
-  - `void_invoice_atomic` now cancels the invoice's open warehouse tasks in the same transaction and reports `cancelled_warehouse_task_count`.
-  - `reversal_bank_lines` lists the reconciled statement lines matched to a document's payments (AR and AP).
-  - `unreconcile_bank_transaction` extended: releases AR payments matched as `reconciled_type='payment'` and reverses AP (`bill_payment`) reconciliation matches, so the `bank_reconciled` blocker can actually be cleared for purchases.
-  - `resolve_reversal_bank_block` — guided, permission-gated resolution that un-matches exactly the blocking lines.
-  - `preview_reversal_consequences` split into `_core` + wrapper; wrapper adds `warehouse` and `bank` sections plus `warehouse_tasks_cancelled` / `bank_lines_matched` warnings.
-  - Frontend: `ReversalWarehouseTask` / `ReversalBankLine` types, `unmatchBankLinesForReversal` hook wrapper, warehouse + bank sections in `ReversalConsequencePreview`, `refetch` in `useReversalConsequences`, and the guided un-match action wired into `VoidInvoiceDialog` and `VoidBillDialog`.
-  - Verified: `tsgo` clean; `reversal-consequence-preview` and `journal-posting-monopoly` guards green.
+1. **Regression shipped in Phase 2 — Rules-of-Hooks violation.**
+   `src/components/payments/ReversePaymentWizard.tsx` calls
+   `useReversalConsequences(...)` at line 258, **below** the
+   `if (!payment) return null` guard at line 228. The existing ratchet
+   `src/test/architecture/payment-reversal-intent-contract.test.ts` **is failing**
+   on this, and the file's own comment at line 199 warns against exactly this.
+   This re-introduces the previously fixed conditional-hooks crash on
+   `/sales/payments`. Highest-priority fix.
+2. **Phase 4 item 1 is genuinely unfinished** (as claimed): the guided
+   bank un-match action is wired only into `VoidInvoiceDialog` and
+   `VoidBillDialog`; `ReversePaymentWizard` and `BillPaymentHistoryDialog`
+   render the bank section without the action, so the `bank_reconciled`
+   blocker cannot be cleared from those surfaces.
+3. **No architecture guard for the Phase 4 writers.** Nothing bans client
+   writes to `wms_tasks.state = 'cancelled'` or to `bank_transactions` /
+   `bank_reconciliation_matches` for reversal purposes, so the new canonical
+   writers can be bypassed silently.
+4. **`void_goods_receipt_atomic` does not exist.** Intent and preview both have
+   a `goods_receipt` branch, so the GRN reversal path is a read-only promise the
+   platform cannot keep — an operator is told the operation is legal with no
+   writer behind it.
+5. **No behavioural coverage for Phase 1–4.** `supabase/tests/` has no
+   `reversal_intent_*`, `reversal_preview_*`, `void_bill_*` or
+   `warehouse task cancellation` test. Only `payment_reversal_test.sql`,
+   `bill_payment_reversal_test.sql` and `journal_reversal_scope_test.sql` exist.
+6. **Payroll and POS have not converged** (as claimed). Payroll runs its own
+   stack (`payroll_run_can_reverse`, `payroll_run_reversal_preview`,
+   `payroll_reverse_run_atomic`, `payroll_batch_reverse`) and POS its own saga
+   (`pos_reversal_workflow_*`), neither routed through `resolve_reversal_intent`
+   or `preview_reversal_consequences`.
 
-## Pending
+Verdict: the previous engineer's status file is broadly honest, but it omits a
+shipped regression and understates that a whole advertised operation (GRN void)
+has no writer.
 
-1. **Phase 4 finish (small):** wire `onUnmatchBankLines` into `ReversePaymentWizard` (document type `payment`) and `BillPaymentHistoryDialog` (document type `bill_payment`) — both already render the bank section but not the action. Add an architecture guard asserting (a) no application code writes `wms_tasks.state = 'cancelled'` outside `wms_cancel_tasks_for_document`, and (b) no client code writes `bank_transactions` / `bank_reconciliation_matches` to unblock a reversal.
-2. **Phase 4 remainder:** `void_goods_receipt_atomic` canonical writer (stock `return_out`, GL reversal, blocker when a bill exists) + a GRN reversal surface. Intent and preview branches already exist, so the GRN path is currently read-only.
-3. **Phase 5 — Governance:** reversal audit trail / approval thresholds, reason-code taxonomy, reporting of reversals per period.
-4. **Phase 6 — Payroll & POS convergence:** payroll run reversal and POS sale/shift void onto `resolve_reversal_intent` + `preview_reversal_consequences` + a canonical atomic writer per domain.
+## Phase 2 — Plan (revised)
 
-## Next milestone
+### Phase 4a — Fix the regression and finish the surfaces
+- Move the `useReversalConsequences` call in `ReversePaymentWizard` above the
+  `if (!payment) return null` guard (pass `payment?.id`), restoring the failing
+  ratchet to green.
+- Wire `onUnmatchBankLines` into `ReversePaymentWizard` (`payment`) and
+  `BillPaymentHistoryDialog` (`bill_payment`), refetching intent + preview after
+  a successful un-match, matching the invoice/bill dialogs.
+- New guard `src/test/architecture/reversal-writer-monopoly.test.ts`: no client
+  write of `wms_tasks.state = 'cancelled'`, no client write to
+  `bank_transactions` / `bank_reconciliation_matches` on a reversal path, and
+  every surface rendering `ReversalConsequencePreview` passes an un-match
+  handler when it can be blocked by reconciliation.
 
-Finish Phase 4 item 1 (two surfaces + guard test), then Phase 4 item 2 (`void_goods_receipt_atomic` and its surface). Do not start Phase 5 or 6 before the goods-receipt path is production-ready.
+### Phase 4b — Goods receipt reversal writer
+`public.void_goods_receipt_atomic(_grn_id, _reason, _void_date, _actor,
+_client_request_id)` in one transaction: refuse when a supplier bill exists,
+when the period is closed, or when already voided (idempotent
+`already_voided`); reverse the GRNI posting through `void_journal_entry_atomic`;
+emit `return_out` stock movements through the existing canonical stock writer
+(never raw movement inserts); release the three-way match rows; cancel open
+putaway tasks via `wms_cancel_tasks_for_document`; stamp void metadata.
+Surface: a `VoidGoodsReceiptDialog` mirroring `VoidBillDialog` (intent →
+consequence preview → reason → execute). Extend the posting-monopoly ratchet to
+ban client-side GRN status/void writes.
 
-## Instructions for the next agent
+### Phase 4c — Behavioural coverage
+pgTAP under `supabase/tests/`: `reversal_intent_policy_test.sql` (blockers for
+settled / reconciled / closed period / already reversed per document type),
+`reversal_preview_test.sql` (sections and warning codes are stable contracts),
+`void_bill_test.sql`, `goods_receipt_reversal_test.sql`, and a warehouse-task
+cancellation assertion inside the invoice void test.
 
-1. **Verify before extending.** Confirm in the database that `wms_cancel_tasks_for_document`, `reversal_bank_lines`, `resolve_reversal_bank_block`, `preview_reversal_consequences_core` and the updated `void_invoice_atomic` / `unreconcile_bank_transaction` exist and behave as described. Run `bunx vitest run src/test/architecture` and `bunx tsgo --noEmit`.
-2. **Then resume at the next milestone above** — no unrelated work, no partially implemented features, no orphaned RPCs without a surface.
-3. **Rules that must hold:** one canonical server-side writer per reversal; the client never derives legality or writes ledger/stock/task/reconciliation state; every reversal surface renders the consequence preview; `ReversalConsequencePreview` stays purely presentational.
-4. **Update this file** as each item lands.
+### Phase 5 — Governance
+One reversal authorization policy instead of per-RPC gates:
+`assert_can_reverse(_document_type, _document_id, _operation, _actor)` used by
+every canonical writer; reason-code taxonomy unified across AR/AP/GRN/POS;
+approval thresholds for high-value or prior-period reversals through the
+existing approval engine; a per-period reversal report.
+
+### Phase 6 — Payroll and POS convergence
+Keep both domain sagas (they are correct per-document orchestrators) but make
+them speak the platform contract: `resolve_reversal_intent` gains `payroll_run`
+and `pos_sale` branches delegating to `payroll_run_can_reverse` and the POS
+eligibility matrix; `preview_reversal_consequences` gains payroll and POS
+sections; the payroll and POS reversal surfaces render the shared
+`ReversalConsequencePreview`. No new engine, no duplicated legality logic.
+
+### Deferred, needs a business decision
+Retiring `_cascade_payments` on `void_invoice_atomic` in favour of forcing a
+credit note / refund on settled invoices (the mature-ERP behaviour recorded in
+memory). This changes operator-visible policy and should be agreed, not
+silently switched.
+
+## Technical notes
+- Verification method: `pg_proc` inspection for existence, overload counts and
+  body markers (`wms_cancel_tasks_for_document` inside `void_invoice_atomic`,
+  `bill_payment` inside `unreconcile_bank_transaction`); `vitest run` on the
+  four reversal architecture guards (3 passed, `payment-reversal-intent-contract`
+  failed); source reads of `useTransactionReversal.ts`, `useBills.ts`,
+  `ReversePaymentWizard.tsx` and the reversal component barrel.
+- Each phase ends with `bunx tsgo --noEmit`, the reversal + posting-monopoly
+  guards green, and an ADR (`0128-goods-receipt-reversal.md`,
+  `0129-reversal-authorization-policy.md`).
+- No source files were modified during verification.
