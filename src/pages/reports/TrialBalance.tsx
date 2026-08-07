@@ -295,7 +295,8 @@ function TrialBalanceInner() {
       <ReportSurface
         title="Trial Balance"
         asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
-        subtitle="Accrual basis
+        subtitle="Accrual basis"
+
 
         profile="financial"
       >
