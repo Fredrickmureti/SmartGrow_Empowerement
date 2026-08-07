@@ -656,97 +656,63 @@ export function useBills() {
   };
 
   /**
-   * Void a confirmed bill.
-   * - Only "received" or "partial" bills can be voided (not draft, paid, or already void)
-   * - Bills with payments must have payments reversed first
-   * - Creates a reversing journal entry (Dr AP / Cr Expense) to undo the original GL posting
-   * - Marks the bill as "void"
+   * Phase 3 — void a confirmed bill through the canonical writer.
+   *
+   * `void_bill_atomic` owns every rule and every write: it refuses drafts,
+   * settled bills and closed periods, reverses the postings through
+   * `void_journal_entry_atomic`, releases the three-way match and stamps the
+   * void metadata — all in one transaction.
+   *
+   * This hook keeps only the permission gate, the optimistic list update and the
+   * audit label. Do not re-add the previous client-side sequence (status guard →
+   * payment lookup → JE reversal → status write): the guards drifted from the AP
+   * rules in `useTransactionReversal`, and a mid-sequence failure left the
+   * ledger reversed with the bill still open.
    */
-  const voidBill = async (id: string) => {
+  const voidBill = async (id: string, reason = "Voided from bills list") => {
     if (!can("managePurchases")) {
       toast({ title: "Permission denied", description: "You don't have permission to void bills", variant: "destructive" });
       throw new Error("Permission denied");
     }
 
     const bill = bills.find((b) => b.id === id);
-    if (!bill) throw new Error("Bill not found");
 
-    // Guard: only received or partial can be voided
-    if (!["received", "partial"].includes(bill.status)) {
-      toast({
-        title: "Cannot void",
-        description: `Only confirmed (received/partial) bills can be voided. Current status: ${bill.status}`,
-        variant: "destructive",
-      });
-      throw new Error(`Cannot void bill with status: ${bill.status}`);
+    const { data, error } = await supabase.rpc("void_bill_atomic" as any, {
+      _bill_id: id,
+      _reason: reason,
+      _void_date: null,
+      _actor: user?.id ?? null,
+      _client_request_id: null,
+    } as any);
+
+    if (error) {
+      toast({ title: "Cannot void bill", description: error.message, variant: "destructive" });
+      throw error;
     }
 
-    // Guard: block if any payments exist
-    const payments = await getBillPayments(id);
-    if (payments.length > 0) {
-      toast({
-        title: "Cannot void",
-        description: "This bill has recorded payments. Reverse all payments before voiding.",
-        variant: "destructive",
-      });
-      throw new Error("Cannot void bill with existing payments. Reverse payments first.");
-    }
+    const result = (data ?? {}) as { result?: string; bill_number?: string | null };
+    const label = result.bill_number ?? bill?.bill_number ?? id;
 
-    // Reverse the original JE atomically via the canonical RPC.
-    // The RPC posts a proper reversal sub-entry (source_subtype='reversal'),
-    // flips dr/cr, marks original as 'reversed', and is idempotent on double-clicks.
-    const billJournalEntryId = (bill as any).journal_entry_id;
-    if (billJournalEntryId) {
-      const { error: voidErr } = await supabase.rpc("void_journal_entry_atomic", {
-        _entry_id: billJournalEntryId,
-        _reason: `Void bill ${bill.bill_number}`,
-        _user_id: undefined,
-        _entry_number: null,
-        _reversal_date: null,
-      } as any);
-      if (voidErr) {
-        console.error("Reversing JE failed for bill void:", voidErr);
-        toast({
-          title: "GL Reversal Failed",
-          description: `Could not reverse the bill's journal entry: ${voidErr.message}. Bill not voided.`,
-          variant: "destructive",
-        });
-        throw voidErr;
-      }
-    }
-    // NOTE: bills confirmed before journal_entry_id linking cannot be auto-reversed
-    // here because we have no source-of-truth lines. They must be reversed via a
-    // manual journal entry — surface a warning so the user knows.
-    else {
-      toast({
-        title: "Manual reversal needed",
-        description: `Bill ${bill.bill_number} has no linked journal entry. Create a manual reversing journal entry.`,
-      });
-    }
-
-    // Update bill status to void
-    const { error } = await supabase
-      .from("bills")
-      .update({ status: "void" })
-      .eq("id", id);
-
-    if (error) throw error;
-
-    // Optimistic update
     setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "void" as const } : b)));
 
     logAction({
       action: "voided",
       entityType: "bill",
       entityId: id,
-      entityName: bill.bill_number,
-      oldValues: { status: bill.status },
+      entityName: label,
+      oldValues: { status: bill?.status },
       newValues: { status: "void" },
-      changesSummary: `Voided bill ${bill.bill_number} — reversing GL entry created`,
+      changesSummary: `Voided bill ${label}. Reason: ${reason}`,
     });
 
-    toast({ title: "Bill voided", description: `${bill.bill_number} has been voided and GL entries reversed.` });
+    if (result.result === "already_voided") {
+      toast({ title: "Already voided", description: `${label} was already voided.` });
+      return;
+    }
+
+    toast({ title: "Bill voided", description: `${label} has been voided and its postings reversed.` });
   };
+
 
   // NOTE: reverseBillPayment was removed — its fabricated source_id pattern
   // bypassed the uniq_je_per_source guard and didn't mark the original JE
