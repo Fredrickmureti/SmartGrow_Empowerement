@@ -26,7 +26,9 @@ Rules:
   `generate-statutory-return`, `generate-payroll-document`) are unchanged.
 - Only `_shared/reports/renderReport.ts` selects a profile: from
   `ReportSpec.presentationProfile`, else `inferPresentationProfile(formatProfile, columnCount)`
-  (financial → statement; >=7 columns → ledger; otherwise operational).
+  (financial + <6 cols → statement; any report with >=6 cols → ledger;
+  otherwise operational). Wide "financial" reports are schedules, not
+  statements — 10pt across 8 columns costs a page and buys no legibility.
 - Density is handled by reclaiming page gutter FIRST; shrinking numerals
   is the last resort and is floored per profile, never at 6pt for reports.
 - On-screen `ReportTable` (14px body / 11px headers) is already legible
