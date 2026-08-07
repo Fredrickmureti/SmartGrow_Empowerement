@@ -592,7 +592,9 @@ export function useTransactionReversal() {
       // 3. AUDIT FIX (B2): post a fresh payment JE with the NEW contact on the
       //    AR line. unreconcilePayment already reversed the original JE.
       const mappings = getInvoiceAccountMappings();
-      const cashAccountId = (accounts as any).cash_account_id || (accounts as any).bank_account_id;
+      // The debit side follows the tender the customer actually paid with
+      // (cash / bank / M-Pesa / card clearing), not a hardcoded cash account.
+      const cashAccountId = getPaymentAccountForMethod((payment as any).payment_method);
       if (mappings.receivable_account_id && cashAccountId) {
         const newJeId = await postPaymentToGL(
           {
