@@ -107,7 +107,7 @@ function PartnerLedgerInner() {
 
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
-  const { baseCurrency, isReady: currencyReady } = useCurrency();
+  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["partner-ledger", currentOrg?.id, currentBusiness?.id, filters.branchId, partnerType, dateFrom, dateTo],
@@ -268,7 +268,7 @@ function PartnerLedgerInner() {
                 });
               }}
             >
-              {formatDebitCredit(amount, baseCurrency)}
+              {formatCurrency(amount, baseCurrency)}
             </button>
           );
         },
@@ -295,7 +295,7 @@ function PartnerLedgerInner() {
                 });
               }}
             >
-              {formatDebitCredit(amount, baseCurrency)}
+              {formatCurrency(amount, baseCurrency)}
             </button>
           );
         },
@@ -437,10 +437,6 @@ function PartnerLedgerInner() {
       />
     </ReportPageLayout>
   );
-}
-
-function formatDebitCredit(amount: number, currency: string | null): string {
-  return amount.toLocaleString("en-US", { style: "currency", currency: currency || "USD" });
 }
 
 export default function PartnerLedger() {

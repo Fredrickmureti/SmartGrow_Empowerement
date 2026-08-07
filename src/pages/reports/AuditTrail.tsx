@@ -142,7 +142,7 @@ function AuditTrailInner() {
         width: "w-[56px]",
         exportExclude: true,
         render: (row) => {
-          const raw = row.values?.__raw as unknown as UnifiedAuditRow | undefined;
+          const raw = rawById.get(row.id);
           if (!raw) return null;
           return (
             <Button
@@ -161,8 +161,15 @@ function AuditTrailInner() {
         },
       },
     ],
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data],
   );
+
+  const rawById = useMemo(() => {
+    const m = new Map<string, UnifiedAuditRow>();
+    for (const r of data || []) m.set(`${r.source_table}:${r.id}`, r);
+    return m;
+  }, [data]);
 
   const rows = useMemo<ReportRow[]>(
     () =>
@@ -177,7 +184,6 @@ function AuditTrailInner() {
             ? `${r.entity_type}${r.entity_id ? ` · ${r.entity_id.slice(0, 8)}…` : ""}`
             : null,
           summary: r.summary || null,
-          __raw: r as unknown as string,
         },
       })),
     [data],
