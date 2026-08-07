@@ -260,8 +260,8 @@ export default function HRReports() {
               {upcomingBirthdays.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None in the next 30 days.</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {upcomingBirthdays.slice(0, 8).map((x) => (
+                <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {upcomingBirthdays.map((x) => (
                     <li key={x.e.id} className="flex justify-between text-sm">
                       <span>{x.e.first_name} {x.e.last_name}</span>
                       <span className="text-muted-foreground">{format(x.when, "MMM d")} · in {x.days}d</span>
@@ -278,8 +278,8 @@ export default function HRReports() {
               {upcomingAnniversaries.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None in the next 30 days.</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {upcomingAnniversaries.slice(0, 8).map((x) => (
+                <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {upcomingAnniversaries.map((x) => (
                     <li key={x.e.id} className="flex justify-between text-sm">
                       <span>{x.e.first_name} {x.e.last_name}</span>
                       <span className="text-muted-foreground">{x.years}y · {format(x.when, "MMM d")}</span>
