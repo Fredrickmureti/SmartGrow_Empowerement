@@ -66,11 +66,12 @@ export async function renderAstToPdf(args: {
   const explicitPaper = String(
     opts["paper_format"] ?? opts["paperFormat"] ?? "",
   ).toLowerCase();
-  const docType = String(snap["document_type"] ?? "").toLowerCase();
-  const impliesThermal =
-    args.template.media_class === "thermal" ||
-    docType === "pos_receipt" ||
-    docType === "receipt";
+  // `media_class` is the ONLY source of the native medium — never the
+  // document kind. `sales.payment_receipt` is an A4 document that happens
+  // to be called a receipt; `pos.receipt_customer` is thermal_80.
+  const impliesThermal = String(args.template.media_class ?? "")
+    .toLowerCase()
+    .startsWith("thermal");
   const defaultPaper = impliesThermal
     ? String(rs?.["paper_size"] ?? "80mm").toLowerCase()
     : String(rs?.["paper_size"] ?? "").toLowerCase();
