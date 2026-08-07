@@ -118,8 +118,50 @@ export function BillPaymentHistoryDialog({
     }
   };
 
+  // Intent is resolved per payment, on demand — never cached across payments,
+  // since reconciliation state moves underneath the dialog.
+  useEffect(() => {
+    if (!confirmReversePayment) {
+      setPaymentIntent(null);
+      return;
+    }
+    let cancelled = false;
+    setIsResolvingPaymentIntent(true);
+    resolveReversalIntent("bill_payment", confirmReversePayment.id)
+      .then((result) => {
+        if (!cancelled) setPaymentIntent(result);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingPaymentIntent(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmReversePayment?.id]);
+
+  const reverseOption = paymentIntent?.operations.find(
+    (op) => op.operation === "reverse_payment" || op.operation === "void"
+  );
+  const reversalBlockedReason =
+    paymentIntent && reverseOption && !reverseOption.allowed
+      ? reverseOption.blocked_reason ??
+        "This payment's accounting state does not allow a reversal."
+      : null;
+
+  const {
+    consequences: paymentConsequences,
+    isLoading: isPaymentPreviewLoading,
+    isError: isPaymentPreviewError,
+  } = useReversalConsequences(
+    "bill_payment",
+    confirmReversePayment?.id,
+    Boolean(confirmReversePayment) && !reversalBlockedReason
+  );
+
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = bill ? bill.total - totalPaid : 0;
+
 
   return (
     <>
