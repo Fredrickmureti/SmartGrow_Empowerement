@@ -90769,6 +90769,10 @@ export type Database = {
         Returns: Json
       }
       preview_organization_reset: { Args: { org_id: string }; Returns: Json }
+      preview_reversal_consequences: {
+        Args: { _document_id: string; _document_type: string }
+        Returns: Json
+      }
       print_job_insert: {
         Args: {
           p_branch_id: string
