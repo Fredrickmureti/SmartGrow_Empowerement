@@ -50,6 +50,8 @@ import { PayrollReportContextHeader } from "./PayrollReportContextHeader";
 import { PayrollReportKpiBand } from "./PayrollReportKpiBand";
 import { PayrollReportHistoryStrip } from "./PayrollReportHistoryStrip";
 import { usePayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
+import { DEPENDENCY_LABEL } from "@/hooks/payroll/usePayrollReportReadiness";
+import type { ReportEmptyStateDescriptor } from "@/components/reports/ReportEmptyState";
 import type {
   ExportConfig,
   ExportRow,
@@ -190,6 +192,41 @@ function ViewerInner() {
   const rows: any[] = data?.data ?? [];
   const columns = data?.columns ?? [];
 
+  // Phase 9 — name the reason there is no table. Ordered by precedence:
+  // a computation that never ran (missing prerequisite) outranks "no data",
+  // and rows-without-columns is surfaced as a defect rather than as silence.
+  const pendingDependencies = (definition?.dependencies ?? []).filter(
+    (d) => readiness?.[d] === "pending",
+  );
+  const emptyState: ReportEmptyStateDescriptor | undefined = (() => {
+    if (isPackArtifact || isLoading) return undefined;
+    if (rows.length > 0 && columns.length === 0) {
+      return {
+        kind: "missing_presentation",
+        message: `The report returned ${rows.length} row${
+          rows.length === 1 ? "" : "s"
+        } but no column layout resolved for "${reportKey}", so nothing can be rendered. This is a report-definition defect, not an empty period.`,
+      };
+    }
+    if (rows.length > 0) return undefined;
+    if (!readinessLoading && pendingDependencies.length > 0) {
+      const names = pendingDependencies
+        .map((d) => DEPENDENCY_LABEL[d] ?? d)
+        .join(", ");
+      return {
+        kind: "missing_prerequisite",
+        title: "This report is waiting on an earlier step",
+        message: `${names} — not yet complete for ${dateFrom} to ${dateTo}. The report is empty because the work it reports on has not happened, not because the data is missing.`,
+      };
+    }
+    return {
+      kind: "no_data",
+      message: `No rows for ${dateFrom} to ${dateTo}${
+        filters.branchId ? " on the selected branch" : ""
+      }. Widen the period or clear the branch filter.`,
+    };
+  })();
+
   const isMoneyCol = (col: { format?: string; key: string }) =>
     col.format === "currency" || /amount|total|gross|net|pay|cost/i.test(col.key);
 
@@ -279,7 +316,12 @@ function ViewerInner() {
       description={definition.description ?? undefined}
       isLoading={isPackArtifact ? false : isLoading}
       error={isPackArtifact ? null : (error as Error | null)}
-      isEmpty={isPackArtifact ? false : !isLoading && rows.length === 0}
+      isEmpty={
+        isPackArtifact
+          ? false
+          : !isLoading && (rows.length === 0 || columns.length === 0)
+      }
+      emptyState={emptyState}
       getExportConfig={isPackArtifact ? undefined : getExportConfig}
       headerActions={
         <div className="flex items-center gap-2">
