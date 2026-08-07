@@ -174,17 +174,7 @@ async function fetchReportTabularBlob(
     wireFormat === "csv"
       ? "text/csv;charset=utf-8;"
       : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  const payload = {
-    title: config.title,
-    subtitle: config.subtitle,
-    dateRange: config.dateRange,
-    columns: config.columns,
-    rows: config.rows,
-    organizationId: config.organizationId,
-    reportType: config.reportType,
-    currency: config.currency,
-    format: wireFormat,
-  };
+  const payload = buildRenderPayload(config, wireFormat);
   const { data, error } = await supabase.functions.invoke("render-report", {
     body: payload,
     headers: { "Content-Type": "application/json" },
@@ -244,19 +234,9 @@ async function fetchReportPdfBlob(config: ExportConfig): Promise<Blob> {
 
   // Wire payload: strict, no deprecated fields. The edge function pulls
   // company name / currency / branding from the organization row.
-  const payload = {
-    title: config.title,
-    subtitle: config.subtitle,
-    dateRange: config.dateRange,
-    columns: config.columns,
-    rows: config.rows,
-    orientation: "landscape" as const,
-    organizationId: config.organizationId,
-    reportType: config.reportType,
-    // Currency is still allowed as an explicit override (multi-currency
-    // reports). Org base_currency is the fallback when omitted.
-    currency: config.currency,
-  };
+  // Currency stays an allowed explicit override (multi-currency reports);
+  // org base_currency is the fallback when omitted.
+  const payload = buildRenderPayload(config, "pdf");
 
   const cached = getCachedPdf(payload);
   if (cached) return cached;
