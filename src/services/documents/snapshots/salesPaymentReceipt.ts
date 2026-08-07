@@ -287,7 +287,7 @@ export async function fetchAndBuildPaymentReceiptSnapshot(
       payment_method, reference,
       organization_id, business_id, branch_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code),
-      business:businesses(id, name, legal_name, base_currency, logo_url, address, email, phone)
+      business:businesses(id, name, legal_name, base_currency, logo_url, address, email, phone, receipt_settings)
       `,
     )
     .eq("id", paymentId)
