@@ -338,6 +338,8 @@ export function BillPaymentHistoryDialog({
             isLoading={isPaymentPreviewLoading}
             isError={isPaymentPreviewError}
             currency={bill?.currency}
+            onUnmatchBankLines={handleUnmatchBankLines}
+            isUnmatchingBankLines={isUnmatching}
           />
 
           <AlertDialogFooter>
