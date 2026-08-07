@@ -42,3 +42,6 @@ Any writer inserting `journal_entry_lines` MUST stamp organization_id, business_
 - [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
 - [Warehouse nav IA](mem://features/warehouse-nav-ia) — ADR 0121 domain groups, execution vs configuration split, depth/size caps, WMS terminology
 - [Warehouse preview vs workspace](mem://features/warehouse-preview-vs-workspace) — ADR 0122 EntityPreview/EntityWorkspaceShell contract, which entities get workspace routes, ?sel/?tab conventions
+- [Business reversal architecture](mem://features/business-reversal-architecture) — canonical reversal writers, journal line scope invariant, paid-invoice policy, per-domain gaps
+- [Payment reversal](mem://features/payment-reversal) — ADR 0012 intent model, ReversePaymentWizard, atomic reversal RPCs, customer deposits
+
