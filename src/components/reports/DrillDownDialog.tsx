@@ -213,7 +213,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
               </>
             )}
             <span className="ml-4">
-              {rowsToShow.length} transaction{transactions.length !== 1 ? "s" : ""}
+              {rowsToShow.length} transaction{rowsToShow.length !== 1 ? "s" : ""}
             </span>
           </DialogDescription>
         </DialogHeader>
