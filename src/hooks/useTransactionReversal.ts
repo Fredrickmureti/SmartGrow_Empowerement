@@ -80,11 +80,24 @@ export interface RefundCustomerOptions {
  * its settlement state, bank-reconciliation state and accounting period state.
  * Surfaces render what it returns; they never compute legality themselves.
  */
-export type ReversalDocumentType = "invoice" | "payment";
+/**
+ * Every document type the intent policy and the consequence preview understand.
+ * Sales: invoice, payment. Purchases (Phase 3): bill, bill_payment,
+ * goods_receipt. Keep in step with `resolve_reversal_intent`'s branches — the
+ * function raises for anything it does not know.
+ */
+export type ReversalDocumentType =
+  | "invoice"
+  | "payment"
+  | "bill"
+  | "bill_payment"
+  | "goods_receipt";
 
 export type ReversalOperation =
   | "void"
   | "credit_note"
+  | "vendor_credit_note"
+  | "goods_return"
   | "refund"
   | "customer_credit"
   | "reverse_payment"
@@ -93,8 +106,11 @@ export type ReversalOperation =
 export type ReversalBlocker =
   | "already_reversed"
   | "settled"
+  /** goods receipt already turned into a supplier bill */
+  | "billed"
   | "bank_reconciled"
   | "period_closed";
+
 
 export interface ReversalOperationOption {
   operation: ReversalOperation;
