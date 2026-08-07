@@ -279,8 +279,9 @@ export function useCustomerStatements() {
     const { data: advancePayments } = await advPayQ;
 
     let unappliedCredit =
-      (openCreditNotes?.reduce((s, c: any) => s + cnResidual(c), 0) || 0) +
+      (creditBalances?.reduce((s, c: any) => s + Math.max(0, Number(c.balance) || 0), 0) || 0) +
       (advancePayments?.reduce((s, p: any) => s + (Number(p.outstanding_amount) || 0), 0) || 0);
+
 
     const agingBuckets = {
       current: 0,
