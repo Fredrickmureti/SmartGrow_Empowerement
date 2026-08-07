@@ -211,7 +211,10 @@ export function VoidInvoiceDialog({
               <Button
                 variant="destructive"
                 onClick={handleVoid}
-                disabled={isSubmitting || !reason.trim()}
+                disabled={
+                  isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError
+                }
+
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Invoice
