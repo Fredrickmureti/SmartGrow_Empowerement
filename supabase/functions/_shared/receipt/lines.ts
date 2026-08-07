@@ -567,13 +567,15 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
 
   // ── Totals ──────────────────────────────────────────────────────────
-  if (rs.show_subtotal !== false && t.subtotal != null) {
+  // Payment receipts already stated their arithmetic in the ledger block
+  // above; the sale's subtotal/tax belongs to the invoice.
+  if (!isPaymentDoc && rs.show_subtotal !== false && t.subtotal != null) {
     left(padLR("Subtotal", fmtCur(t.subtotal), cw));
   }
-  if (rs.show_discount_total !== false && Number(t.discount_amount ?? 0) > 0) {
+  if (!isPaymentDoc && rs.show_discount_total !== false && Number(t.discount_amount ?? 0) > 0) {
     left(padLR(rs.show_savings ? "You saved" : "Discount", `-${fmtCur(t.discount_amount ?? 0)}`, cw));
   }
-  if (rs.show_tax_breakdown !== false && Number(t.tax_amount ?? 0) > 0) {
+  if (!isPaymentDoc && rs.show_tax_breakdown !== false && Number(t.tax_amount ?? 0) > 0) {
     // Per-rate tax buckets (Wave 6b.2) — when items expose `tax_rate` +
     // `tax_amount`, roll them into buckets so the customer sees each
     // rate individually (e.g. "VAT 16%    120.00"). Fall back to the
@@ -598,11 +600,13 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
     }
   }
 
-  push(padLR("TOTAL", fmtCur(t.total_amount), cw), {
-    align: "left",
-    bold: true,
-    large: rs.font_size === "large",
-  });
+  if (!isPaymentDoc) {
+    push(padLR("TOTAL", fmtCur(t.total_amount), cw), {
+      align: "left",
+      bold: true,
+      large: rs.font_size === "large",
+    });
+  }
 
   // ── Payments + change ───────────────────────────────────────────────
   if (rs.show_payment_method !== false && (t.payments?.length ?? 0) > 0) {
@@ -623,6 +627,17 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   if (rs.show_change_due && t.change_due != null && t.change_due > 0) {
     left(padLR("Change", fmtCur(t.change_due), cw));
+  }
+  if (isPaymentDoc) {
+    if (t.amount_in_words && String(t.amount_in_words).trim()) {
+      blank();
+      left("Amount in words:");
+      for (const l of wordWrap(String(t.amount_in_words).trim(), cw - 2)) {
+        left("  " + l);
+      }
+    }
+    blank();
+    left("Received by: " + "_".repeat(Math.max(4, cw - 13)));
   }
   rule();
 
