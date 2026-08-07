@@ -40,6 +40,12 @@ interface ReversalConsequencePreviewProps {
   isError: boolean;
   /** Currency of the document being reversed, for display only. */
   currency?: string;
+  /**
+   * Phase 4 — hands the `bank_reconciled` blocker back to the surface, which
+   * calls `unmatchBankLinesForReversal`. The preview never writes itself.
+   */
+  onUnmatchBankLines?: () => void;
+  isUnmatchingBankLines?: boolean;
 }
 
 const SEVERITY_ORDER: Record<ReversalWarningSeverity, number> = {
