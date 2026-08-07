@@ -36,21 +36,76 @@ export interface PrintPolicy {
   copies?: number | null;
 }
 
-export const DOCUMENT_TYPES: { value: string; label: string }[] = [
-  { value: "invoice", label: "Invoices" },
-  { value: "estimate", label: "Estimates / Quotes" },
-  { value: "proforma", label: "Proforma Invoices" },
-  { value: "credit_note", label: "Credit Notes" },
-  { value: "purchase_order", label: "Purchase Orders" },
-  { value: "receipt", label: "Receipts (payments)" },
-  { value: "pos_receipt", label: "POS Receipts" },
-  { value: "sales_order", label: "Sales Orders" },
-  { value: "delivery_note", label: "Delivery Notes" },
-  { value: "sales_return", label: "Sales Returns" },
-  { value: "customer_statement", label: "Customer Statements" },
-  { value: "vendor_statement", label: "Vendor Statements" },
-  { value: "bill", label: "Bills" },
+export interface PolicyDocumentType {
+  value: string;
+  label: string;
+  /** Module the document belongs to — drives grouping in the editor. */
+  module: "Sales" | "Purchasing" | "Point of Sale";
+  /** One-line description so operators can tell near-identical kinds apart. */
+  hint?: string;
+}
+
+/**
+ * Output policy catalogue.
+ *
+ * Every entry MUST be a document type the render pipeline can actually
+ * produce (`templateRenderer.DocumentType`) — a policy row for a kind no
+ * renderer serves resolves to nothing and silently never prints. The list is
+ * grouped by module because a flat list of thirteen near-identical nouns is
+ * why operators could not find the sales payment receipt.
+ */
+export const DOCUMENT_TYPE_CATALOGUE: PolicyDocumentType[] = [
+  { value: "invoice", label: "Invoice", module: "Sales" },
+  { value: "proforma", label: "Proforma invoice", module: "Sales" },
+  { value: "estimate", label: "Quotation / estimate", module: "Sales" },
+  { value: "sales_order", label: "Sales order", module: "Sales" },
+  { value: "delivery_note", label: "Delivery note", module: "Sales" },
+  {
+    value: "receipt",
+    label: "Payment receipt (customer)",
+    module: "Sales",
+    hint: "Issued when a customer pays. Shows which invoices the money was applied to — not a POS sale.",
+  },
+  { value: "credit_note", label: "Credit note", module: "Sales" },
+  { value: "sales_return", label: "Sales return", module: "Sales" },
+  {
+    value: "customer_statement",
+    label: "Customer statement",
+    module: "Sales",
+    hint: "Multi-page ledger — sheet paper only.",
+  },
+  { value: "purchase_order", label: "Purchase order", module: "Purchasing" },
+  { value: "bill", label: "Vendor bill", module: "Purchasing" },
+  {
+    value: "vendor_statement",
+    label: "Vendor statement",
+    module: "Purchasing",
+    hint: "Multi-page ledger — sheet paper only.",
+  },
+  {
+    value: "pos_receipt",
+    label: "POS sale receipt",
+    module: "Point of Sale",
+    hint: "Customer copy printed at the register when a sale is committed.",
+  },
+  {
+    value: "kitchen_ticket",
+    label: "Kitchen ticket",
+    module: "Point of Sale",
+    hint: "Preparation ticket — no totals, no tax, routed to the kitchen printer.",
+  },
 ];
+
+/** Module order used by the editor. */
+export const DOCUMENT_TYPE_MODULES: PolicyDocumentType["module"][] = [
+  "Sales",
+  "Purchasing",
+  "Point of Sale",
+];
+
+/** Flat view kept for existing callers. */
+export const DOCUMENT_TYPES: { value: string; label: string }[] =
+  DOCUMENT_TYPE_CATALOGUE.map((d) => ({ value: d.value, label: d.label }));
 
 export function useDocumentPrintPolicies(businessId: string | null | undefined) {
   const { toast } = useToast();

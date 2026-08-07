@@ -397,29 +397,40 @@ export async function generateDocumentPdf(
   // line-items grid so the document properly explains which invoices
   // were settled and what balance remains on each.
   const allocs = (data as any).payment_allocations as Array<any> | undefined;
-  const isReceiptWithAllocs = data.document_type === "receipt" && Array.isArray(allocs) && allocs.length > 0;
+  // A payment receipt NEVER renders a product grid — even a pure on-account
+  // payment (no allocations) is a cash-application document. Its body is the
+  // ledger; the sale's lines belong to the invoice.
+  const isPaymentReceipt = data.document_type === "receipt";
 
-  if (isReceiptWithAllocs) {
+  if (isPaymentReceipt) {
+    const list = Array.isArray(allocs) ? allocs : [];
     const unapplied = Number((data as any).unapplied_amount || 0);
-    const totalApplied = allocs!.reduce((s, a) => s + (Number(a.amount_applied) || 0), 0);
-    const rows: any[] = allocs!.map((a) => ({
+    const totalApplied = (data as any).total_applied != null
+      ? Number((data as any).total_applied)
+      : list.reduce((s, a) => s + (Number(a.amount_applied) || 0), 0);
+    const received = (data as any).amount_received != null
+      ? Number((data as any).amount_received)
+      : Number(data.total || 0);
+    const rows: any[] = list.map((a) => ({
       invoice: a.invoice_number,
       date: a.invoice_date ? formatDate(a.invoice_date) : "—",
       invoice_total: Number(a.invoice_total) || 0,
       amount_applied: Number(a.amount_applied) || 0,
       balance: Number(a.balance_after) || 0,
     }));
-    rows.push({
-      invoice: "Total Applied",
-      date: "",
-      invoice_total: "",
-      amount_applied: totalApplied,
-      balance: "",
-      _isGrandTotal: true,
-    });
+    if (list.length > 0) {
+      rows.push({
+        invoice: "Total applied",
+        date: "",
+        invoice_total: "",
+        amount_applied: totalApplied,
+        balance: "",
+        _isSubtotal: true,
+      });
+    }
     if (unapplied > 0) {
       rows.push({
-        invoice: "Unapplied advance (on account)",
+        invoice: "On account (unapplied)",
         date: "",
         invoice_total: "",
         amount_applied: unapplied,
@@ -427,13 +438,21 @@ export async function generateDocumentPdf(
         _isSubtotal: true,
       });
     }
+    rows.push({
+      invoice: "Amount received",
+      date: "",
+      invoice_total: "",
+      amount_applied: received,
+      balance: "",
+      _isGrandTotal: true,
+    });
     drawDataTable(builder, {
       currency,
       columns: [
-        { key: "invoice", header: "Invoice #", align: "left" },
+        { key: "invoice", header: "Document", align: "left" },
         { key: "date", header: "Date", align: "left" },
         { key: "invoice_total", header: "Invoice Total", align: "right", format: "currency" },
-        { key: "amount_applied", header: "Amount Applied", align: "right", format: "currency" },
+        { key: "amount_applied", header: "Applied", align: "right", format: "currency" },
         { key: "balance", header: "Balance", align: "right", format: "currency" },
       ],
       rows,
@@ -504,8 +523,18 @@ export async function generateDocumentPdf(
     }
   }
 
-  // Totals (skip for delivery notes that hide amounts)
-  if (!data.hide_amounts) {
+  // Amount in words — an official receipt states the sum received in words.
+  if (data.document_type === "receipt" && (data as any).amount_in_words) {
+    drawNotesBlock(builder, builder.page, {
+      title: "Amount in words",
+      body: String((data as any).amount_in_words),
+    });
+  }
+
+  // Totals (skip for delivery notes that hide amounts, and for payment
+  // receipts whose ledger already grand-totals the money received —
+  // a second Subtotal/Total block would double-state it).
+  if (!data.hide_amounts && data.document_type !== "receipt") {
     const isPOS = data.document_type === "pos_receipt";
     const amountPaid = data.amount_paid && data.amount_paid > 0 ? data.amount_paid : undefined;
     const balanceDue = amountPaid !== undefined

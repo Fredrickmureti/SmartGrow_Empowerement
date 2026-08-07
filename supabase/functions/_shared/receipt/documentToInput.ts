@@ -37,10 +37,18 @@ export interface DocToInputOverrides {
   }>;
 }
 
+/**
+ * True POS sale receipts. `receipt` (a customer PAYMENT receipt) is NOT one
+ * of them: it is a cash-application document with a recipient block, an
+ * allocation ledger and no product grid. Treating it as POS is what stripped
+ * its branding, its "Received From" block and its tender line.
+ */
 const POS_TYPES: ReadonlySet<DocumentType> = new Set([
   "pos_receipt",
-  "receipt",
 ]);
+
+/** Cash-application documents (customer payment receipts). */
+const PAYMENT_TYPES: ReadonlySet<string> = new Set(["receipt"]);
 
 const TITLE_BY_TYPE: Record<string, string> = {
   invoice: "TAX INVOICE",
@@ -125,6 +133,7 @@ export function documentToReceiptInput(
   overrides: DocToInputOverrides = {},
 ): BuildReceiptLinesInput {
   const isPos = POS_TYPES.has(doc.document_type);
+  const isPayment = PAYMENT_TYPES.has(doc.document_type as string);
 
   // Presentation-profile resolution (layered, never replace-by-presence):
   //   business/document defaults  →  stored document settings  →  caller
@@ -147,6 +156,18 @@ export function documentToReceiptInput(
   // Currency: ensure the engine always has a symbol to render.
   // Priority: caller-set currency_symbol_override > ISO currency code on the doc.
   const rs: Record<string, unknown> = { ...baseRs };
+  if (isPayment) {
+    // Document-class invariants. The tenant's stored profile supplies
+    // branding + formatting; the CLASS decides which blocks exist.
+    rs.show_payment_method = true;
+    rs.show_customer_name = false;   // structured "Received From" block instead
+    rs.show_cashier_name = false;
+    rs.show_register_id = false;
+    rs.show_amount_tendered = false;
+    rs.show_change_due = false;
+    rs.show_etims_qr = false;
+    rs.show_etims_info = false;
+  }
   if (
     !rs.currency_symbol_override
     && typeof doc.currency === "string"
@@ -176,11 +197,27 @@ export function documentToReceiptInput(
       (i as unknown as { tax_rate_name?: string | null }).tax_rate_name ?? null,
   }));
 
+  // deno-lint-ignore no-explicit-any
+  const anyDoc = doc as any;
+
   const payments: ReceiptPaymentLike[] = (doc.pos_payments ?? []).map((p) => ({
     payment_method: p.payment_method,
     amount: Number(p.amount ?? 0),
     reference: p.reference ?? null,
   }));
+
+  // A payment receipt carries its tender as scalars on the snapshot, not as
+  // a POS payment array. Project it so the engine can print the instrument
+  // (M-Pesa code / cheque no / bank ref) — the field the customer checks.
+  const paymentDocTender: ReceiptPaymentLike[] = isPayment
+    ? [{
+        payment_method: String(
+          anyDoc.payment_method ?? anyDoc.payment_method_code ?? "Payment",
+        ),
+        amount: Number(anyDoc.amount_received ?? doc.total ?? 0),
+        reference: anyDoc.payment_reference ?? null,
+      }]
+    : [];
 
   const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
   const change = Math.max(0, totalPaid - Number(doc.total ?? 0));
@@ -188,6 +225,7 @@ export function documentToReceiptInput(
   // Recipient labelling: invoices bill, POs vendor, delivery notes ship, etc.
   const recipientLabel =
     doc.document_type === "purchase_order" ? "Vendor"
+    : isPayment ? "Received From"
     : doc.document_type === "delivery_note" ? "Deliver To"
     : doc.document_type === "estimate" || doc.document_type === "proforma"
       ? "Quote For"
@@ -213,9 +251,6 @@ export function documentToReceiptInput(
   //  * `fiscal_block` — provider-agnostic KRA/TRA/URA fiscal receipt
   //  * `payment_allocations` — customer-payment receipts (invoice ledger)
   //  * `barcode` — optional trailing Code128 for scan-driven reprints
-  // deno-lint-ignore no-explicit-any
-  const anyDoc = doc as any;
-
   const transaction: ReceiptTransactionLike = {
     id: doc.document_number,
     transaction_number: doc.document_number,
@@ -232,7 +267,7 @@ export function documentToReceiptInput(
     cashier_name: doc.cashier_name ?? null,
     register_id: doc.register_name ?? doc.register_id ?? null,
     items,
-    payments: isPos ? payments : [],
+    payments: isPos ? payments : paymentDocTender,
     etims_cu_number: isPos ? (doc.etims_cu_number ?? null) : null,
     etims_qr_data: isPos ? (doc.etims_qr_data ?? null) : null,
     title: resolvedTitle,
@@ -244,10 +279,19 @@ export function documentToReceiptInput(
     terms: !isPos ? (doc.terms ?? null) : null,
     currency_code: typeof doc.currency === "string" ? doc.currency : null,
     fiscal_block: anyDoc.fiscal_block ?? null,
-    payment_allocations: doc.document_type === "receipt"
+    is_payment_document: isPayment || undefined,
+    amount_received: isPayment
+      ? Number(anyDoc.amount_received ?? doc.total ?? 0)
+      : null,
+    total_applied: isPayment ? Number(anyDoc.total_applied ?? 0) : null,
+    customer_balance_after: isPayment && anyDoc.customer_balance_after != null
+      ? Number(anyDoc.customer_balance_after)
+      : null,
+    amount_in_words: isPayment ? (anyDoc.amount_in_words ?? null) : null,
+    payment_allocations: isPayment
       ? (anyDoc.payment_allocations ?? null)
       : null,
-    unapplied_amount: doc.document_type === "receipt"
+    unapplied_amount: isPayment
       ? Number(anyDoc.unapplied_amount ?? 0) || null
       : null,
     // Auto-attach a Code128 barcode for the document number when receipt

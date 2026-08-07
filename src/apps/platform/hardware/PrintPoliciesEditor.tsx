@@ -26,7 +26,8 @@ import { useBranch } from "@/contexts/BranchContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   useDocumentPrintPolicies,
-  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_CATALOGUE,
+  DOCUMENT_TYPE_MODULES,
   type PaperFormat,
   type RenderMode,
   type OutputTrigger,
@@ -295,7 +296,12 @@ export default function PrintPoliciesEditor() {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="space-y-3">
-            {DOCUMENT_TYPES.map((dt) => {
+            {DOCUMENT_TYPE_MODULES.map((mod) => (
+              <div key={mod} className="space-y-3">
+                <div className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {mod}
+                </div>
+                {DOCUMENT_TYPE_CATALOGUE.filter((d) => d.module === mod).map((dt) => {
               const draft = getDraft(branchScope, dt.value);
               const branchId = branchScope === "business" ? null : branchScope;
               const existing = findPolicy(branchId, dt.value);
@@ -357,6 +363,11 @@ export default function PrintPoliciesEditor() {
                 >
                   <div>
                     <Label className="text-xs text-muted-foreground">{dt.label}</Label>
+                    {dt.hint && (
+                      <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground/80">
+                        {dt.hint}
+                      </p>
+                    )}
                     {existing && !dirty && (
                       <Badge variant="secondary" className="ml-2 text-[10px] h-4">configured</Badge>
                     )}
@@ -492,7 +503,9 @@ export default function PrintPoliciesEditor() {
                   </div>
                 </div>
               );
-            })}
+                })}
+              </div>
+            ))}
           </CardContent>
         </CollapsibleContent>
       </Card>
