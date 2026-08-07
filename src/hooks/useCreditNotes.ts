@@ -296,11 +296,6 @@ export function useCreditNotes() {
   ) => {
     if (!user || !currentOrg) throw new Error("Not authenticated");
 
-    // Resolve mappings so we post the GL leg server-side. Without these
-    // accounts the RPC silently skips JE creation, leaving the AR card
-    // out of sync with the GL.
-    const mappings = getCreditNoteAccountMappings();
-
     const { data, error } = await (supabase.rpc as any)("apply_credit_to_invoice_atomic", {
       _org_id: currentOrg.id,
       _business_id: currentBusiness?.id || null,
@@ -309,10 +304,8 @@ export function useCreditNotes() {
       _amount: amount,
       _applied_by: user.id,
       _notes: notes || null,
-      _customer_deposits_account_id: mappings?.customer_deposits_account_id ?? null,
-      _receivable_account_id: mappings?.receivable_account_id ?? null,
-      // Phase 4: explicit branch context. The RPC also derives the branch
-      // from the invoice when present; this is a fallback for orphaned rows.
+      // Accounts are resolved server-side (ADR 0131); branch is a fallback for
+      // orphaned rows — the RPC prefers the invoice's branch.
       _branch_id: branchId ?? currentBranch?.id ?? null,
     });
 
@@ -350,46 +343,22 @@ export function useCreditNotes() {
     const cn = creditNotes.find((c) => c.id === creditNoteId);
     if (!cn) throw new Error("Credit note not found");
 
-    const mappings = getCreditNoteAccountMappings();
-    if (!mappings.receivable_account_id) {
-      throw new Error("Missing AR account. Configure in Settings → Default Accounts.");
-    }
-
-    // Check invoice payment status to reverse the correct account
-    const { is_fully_paid } = await checkInvoicePaymentStatus(cn.invoice_id);
-    if (is_fully_paid && !mappings.customer_deposits_account_id) {
-      throw new Error(
-        "Refund failed: invoice is fully paid but Customer Deposits account is not configured. " +
-        "Configure it in Settings → Default Accounts."
-      );
-    }
-
-    // Sales audit Phase F: build JE client-side, post via atomic RPC.
-    // The RPC validates available residual + balance + business scope and
-    // updates refund_amount/status in one transaction. No more orphan refunds.
-    const lines = buildRefundJELines({
-      credit_note_number: cn.credit_note_number,
-      amount,
-      contact_id: cn.contact_id,
-      is_fully_paid: !!is_fully_paid,
-      receivable_account_id: mappings.receivable_account_id,
-      payment_account_id: paymentAccountId,
-      customer_deposits_account_id: mappings.customer_deposits_account_id,
-    });
-
-    const { data, error } = await supabase.rpc("process_refund_atomic" as any, {
-      p_cn_id: creditNoteId,
-      p_user_id: user.id,
-      p_amount: amount,
-      p_method: method,
-      p_payment_account_id: paymentAccountId,
-      p_notes: notes || null,
-      p_main_lines: lines as any,
+    // ADR 0131: one refund engine for payments and credit notes. It drains the
+    // customer-credit liability, records a credit movement, writes the
+    // `customer_refunds` row and posts the cash-out JE in one transaction.
+    const { error } = await (supabase.rpc as any)("refund_customer_atomic", {
+      _source: "credit_note",
+      _source_id: creditNoteId,
+      _bank_account_id: paymentAccountId,
+      _amount: amount,
+      _refund_date: new Date().toISOString().split("T")[0],
+      _reason_code: "customer_refund_requested",
+      _reason_text: notes || `Refund of credit note ${cn.credit_note_number}`,
+      _payment_method: method,
+      _reference: cn.credit_note_number,
+      _client_request_id: `cn-refund-${creditNoteId}-${amount}-${Date.now()}`,
     });
     if (error) throw new Error(`Refund failed: ${error.message}`);
-    const result = data as { success: boolean };
-    if (!result?.success) throw new Error("Refund failed: server returned no success flag");
-
     await fetchCreditNotes();
   };
 
