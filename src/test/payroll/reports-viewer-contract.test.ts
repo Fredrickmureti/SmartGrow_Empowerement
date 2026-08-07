@@ -44,3 +44,43 @@ describe("PayrollReportViewer ExportConfig contract", () => {
     expect(src).not.toMatch(/companyName:\s*currentOrg/);
   });
 });
+
+/**
+ * Phase 7 — the hints above are worthless if only the PDF path uses them.
+ * CSV and XLSX must go through the SAME payload builder as the PDF, and
+ * that builder must omit client rows/columns in server-build mode (sending
+ * them would trip `render-report`'s prebuilt branch and re-introduce the
+ * browser's truncated slice).
+ */
+describe("tabular exports share the PDF's server-build path", () => {
+  const service = readFileSync(
+    resolve(__dirname, "../../services/reports/ReportExportService.ts"),
+    "utf8",
+  );
+
+  it("builds the CSV/XLSX payload with the shared builder", () => {
+    expect(service).toMatch(
+      /fetchReportTabularBlob[\s\S]*?buildRenderPayload\(config, wireFormat\)/,
+    );
+  });
+
+  it("builds the PDF payload with the same shared builder", () => {
+    expect(service).toMatch(/buildRenderPayload\(config, "pdf"\)/);
+  });
+
+  it("omits client rows and columns when the server can rebuild the report", () => {
+    const serverBranch = service.slice(
+      service.indexOf("if (canServerBuild(config))"),
+      service.indexOf("return {\n    ...base,\n    columns: config.columns"),
+    );
+    expect(serverBranch).not.toContain("rows: config.rows");
+    expect(serverBranch).not.toContain("columns: config.columns");
+    expect(serverBranch).toContain("dateFrom: config.dateFrom");
+  });
+
+  it("requires reportType + org + period before taking the server-build path", () => {
+    expect(service).toMatch(
+      /c\.reportType && c\.organizationId && c\.dateFrom && c\.dateTo/,
+    );
+  });
+});
