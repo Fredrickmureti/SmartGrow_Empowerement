@@ -90,6 +90,44 @@ describe("Phase 4 reversal writer monopoly", () => {
     ).toEqual([]);
   });
 
+  it("no application code unwinds a goods receipt from the client", () => {
+    // ADR 0128 — stock compensation, purchase-order restoration, journal
+    // reversal, task cancellation and match release move together inside
+    // `void_goods_receipt_atomic` or not at all. A client-side receipt status
+    // flip or a hand-written `return_out` movement re-creates exactly the
+    // partial-reversal class the ADR eliminated.
+    const offenders = [
+      ...rg(
+        '\\.from\\(\\s*[\'"\x60]goods_receipts[\'"\x60]\\s*\\)[\\s\\S]{0,200}?status:\\s*[\'"\x60]reversed[\'"\x60]',
+        APP_GLOBS,
+      ),
+      ...rg(
+        '\\.from\\(\\s*[\'"\x60]bill_grn_matches[\'"\x60]\\s*\\)\\s*\\.\\s*delete',
+        APP_GLOBS,
+      ),
+    ];
+    expect(
+      offenders,
+      "Reverse a goods receipt through `reverseGoodsReceipt` (→ `void_goods_receipt_atomic`); never write receipt or match state from the client.",
+    ).toEqual([]);
+  });
+
+  it("goods receipt reversal is only entered through intent + preview", () => {
+    // Same rule as every other reversal: the writer is reachable from one
+    // surface that resolves intent and shows consequences first.
+    const callers = rg("reverseGoodsReceipt\\(", [
+      ...APP_GLOBS,
+      "!src/hooks/useTransactionReversal.ts",
+    ]);
+    const unexpected = callers.filter(
+      (line) => !line.startsWith("src/components/purchases/ReverseGoodsReceiptDialog.tsx"),
+    );
+    expect(
+      unexpected,
+      "Call `reverseGoodsReceipt` only from ReverseGoodsReceiptDialog, which gates on `resolve_reversal_intent` and the consequence preview.",
+    ).toEqual([]);
+  });
+
   it("every reversal surface can resolve the bank blocker it displays", () => {
     // A surface that renders the consequence preview but withholds the
     // un-match action shows the operator a blocker they cannot clear.
@@ -98,6 +136,7 @@ describe("Phase 4 reversal writer monopoly", () => {
       "src/components/bills/VoidBillDialog.tsx",
       "src/components/payments/ReversePaymentWizard.tsx",
       "src/components/bills/BillPaymentHistoryDialog.tsx",
+      "src/components/purchases/ReverseGoodsReceiptDialog.tsx",
     ];
     const missing = surfaces.filter((file) => {
       const src = readFileSync(file, "utf8");
@@ -112,3 +151,4 @@ describe("Phase 4 reversal writer monopoly", () => {
     ).toEqual([]);
   });
 });
+
