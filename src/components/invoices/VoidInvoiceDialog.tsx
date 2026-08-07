@@ -283,6 +283,14 @@ export function VoidInvoiceDialog({
                   </AlertDescription>
                 </Alert>
 
+                <ReversalConsequencePreview
+                  consequences={consequences}
+                  isLoading={isPreviewLoading}
+                  isError={isPreviewError}
+                  currency={invoice.currency}
+                />
+
+
                 <div className="space-y-2">
                   <Label htmlFor="reason">
                     Reason for voiding <span className="text-destructive">*</span>
