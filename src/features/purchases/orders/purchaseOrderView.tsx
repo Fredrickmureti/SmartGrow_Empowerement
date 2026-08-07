@@ -127,9 +127,16 @@ export function usePurchaseOrderView(
               <p className="whitespace-pre-wrap text-sm">{po.notes}</p>
             </Section>
           )}
+          {/*
+            ADR 0128 — the receipts this order produced, and the only operator
+            entry point to reverse one. Reversal itself is server-side
+            (`void_goods_receipt_atomic`); this only surfaces it.
+          */}
+          <PurchaseOrderReceiptsSection purchaseOrderId={po.id} currency={po.currency} />
           <DocumentVersionsSection documentType="purchase_order" documentId={po.id} />
         </>
       ) : undefined,
+
       activityExtra:
         po && po.converted_at
           ? [
