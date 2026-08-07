@@ -82064,6 +82064,16 @@ export type Database = {
         Args: { _business_id: string }
         Returns: undefined
       }
+      assert_can_reverse: {
+        Args: {
+          _actor?: string
+          _document_id: string
+          _document_type: string
+          _effective_date?: string
+          _operation: string
+        }
+        Returns: Json
+      }
       assert_can_reverse_payroll: {
         Args: { _caller: string; _organization_id: string }
         Returns: undefined
