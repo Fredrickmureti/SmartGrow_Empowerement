@@ -77,8 +77,9 @@ export interface VoidInvoiceOptions {
   invoiceId: string;
   reason: string;
   voidDate?: string;
-  createCreditNote?: boolean;
+  clientRequestId?: string;
 }
+
 
 export interface VoidBillOptions {
   billId: string;
