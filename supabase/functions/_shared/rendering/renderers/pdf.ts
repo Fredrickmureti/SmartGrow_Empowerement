@@ -74,7 +74,7 @@ export async function renderAstToPdf(args: {
     .startsWith("thermal");
   const defaultPaper = impliesThermal
     ? String(rs?.["paper_size"] ?? "80mm").toLowerCase()
-    : String(rs?.["paper_size"] ?? "").toLowerCase();
+    : "";
   const paperToken = explicitPaper || defaultPaper;
   if (THERMAL.has(paperToken)) {
     const [{ documentToReceiptLines }, { renderThermalPdf }] = await Promise.all([
