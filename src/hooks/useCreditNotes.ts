@@ -78,35 +78,12 @@ export interface CreditNoteApplication {
   invoice?: { invoice_number: string };
 }
 
-/**
- * Checks if an invoice is fully paid by querying its status and amounts.
- * Returns { is_fully_paid, invoice_number } for GL posting context.
- */
-async function checkInvoicePaymentStatus(invoiceId: string | null): Promise<{
-  is_fully_paid: boolean;
-  invoice_number?: string;
-}> {
-  if (!invoiceId) return { is_fully_paid: false };
-
-  const { data, error } = await supabase
-    .from("invoices")
-    .select("status, total, amount_paid, invoice_number")
-    .eq("id", invoiceId)
-    .single();
-
-  if (error || !data) return { is_fully_paid: false };
-
-  const isFullyPaid = data.status === "paid" || (data.amount_paid ?? 0) >= (data.total ?? 0);
-  return { is_fully_paid: isFullyPaid, invoice_number: data.invoice_number };
-}
-
 export function useCreditNotes() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { getCreditNoteAccountMappings, accounts: defaultAccounts } = useDefaultAccounts();
   const [creditNotes, setCreditNotes] = useState<CreditNote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
