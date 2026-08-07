@@ -387,7 +387,13 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
       : t.due_date;
     left(padLR("Due:", dueLabel, cw));
   }
-  if (t.status && rs.show_status !== false) {
+  const isPaymentDoc =
+    t.is_payment_document === true ||
+    (Array.isArray(t.payment_allocations) && t.payment_allocations.length > 0);
+
+  // Internal workflow states ("APPLIED", "COMPLETED") are ledger vocabulary,
+  // not customer-facing paper. A receipt IS the proof; it has no status row.
+  if (t.status && rs.show_status !== false && !isPaymentDoc) {
     left(padLR("Status:", String(t.status).toUpperCase(), cw));
   }
   if (rs.show_cashier_name && t.cashier_name) {
@@ -427,32 +433,102 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
   }
   rule();
 
-  // ── Items OR payment allocations (customer-payment receipts) ────────
+  // ── Body: allocation ledger (payment receipt) OR product grid ───────
   const allocs = t.payment_allocations;
-  if (Array.isArray(allocs) && allocs.length > 0) {
-    // Wave 6b Phase 2 — customer-payment receipts render an allocation
-    // table INSTEAD of a product grid so the receipt tells the customer
-    // which invoices this payment settled and what remains outstanding.
-    push("Applied To Invoices", { align: "left", bold: true });
-    rule();
-    let totalApplied = 0;
-    for (const a of allocs) {
-      const applied = Number(a.amount_applied ?? 0);
-      totalApplied += applied;
-      left(padLR(String(a.invoice_number ?? ""), fmtCur(applied), cw));
-      if (a.invoice_date) left("  date: " + a.invoice_date);
-      if (a.balance_after != null) {
-        left(padLR("  bal:", fmtCur(Number(a.balance_after)), cw));
+  if (isPaymentDoc) {
+    // A payment receipt's body is the cash-application ledger. Typeset with
+    // width-aware column plans so 80 / 58 / 40 mm all stay legible, mirroring
+    // how the item grid degrades through `pickFittingLayout`.
+    const list = Array.isArray(allocs) ? allocs : [];
+    const dateOf = (v?: string | null): string => {
+      if (!v) return "";
+      return /^\d{4}-\d{2}-\d{2}/.test(v)
+        ? fmtDateTime(v, rs.date_format ?? "dmy", "none")
+        : String(v);
+    };
+    const totalApplied = t.total_applied != null
+      ? Number(t.total_applied)
+      : list.reduce((s, a) => s + Number(a.amount_applied ?? 0), 0);
+    const unapplied = Number(t.unapplied_amount ?? 0);
+    const received = t.amount_received != null
+      ? Number(t.amount_received)
+      : Number(t.total_amount ?? totalApplied + unapplied);
+
+    if (list.length > 0) {
+      push("APPLIED TO", { align: "left", bold: true });
+      const amtW = Math.max(
+        7,
+        ...list.map((a) => fmtMoney(Number(a.amount_applied ?? 0)).length),
+      );
+      const balW = Math.max(
+        7,
+        ...list.map((a) => fmtMoney(Number(a.balance_after ?? 0)).length),
+      );
+      const dateW = Math.max(
+        4,
+        ...list.map((a) => dateOf(a.invoice_date).length),
+      );
+      const wide = cw >= 12 + 1 + dateW + 1 + amtW + 1 + balW;
+      const medium = !wide && cw >= 10 + 1 + amtW;
+
+      if (wide) {
+        const docW = cw - dateW - amtW - balW - 3;
+        const row = (d: string, dt: string, ap: string, bal: string) =>
+          truncate(d, docW).padEnd(docW) + " " +
+          truncate(dt, dateW).padEnd(dateW) + " " +
+          ap.padStart(amtW) + " " + bal.padStart(balW);
+        push(row("Document", "Date", "Applied", "Balance"), {
+          align: "left",
+          bold: true,
+        });
+        rule();
+        for (const a of list) {
+          left(row(
+            String(a.invoice_number ?? ""),
+            dateOf(a.invoice_date),
+            fmtMoney(Number(a.amount_applied ?? 0)),
+            a.balance_after != null ? fmtMoney(Number(a.balance_after)) : "-",
+          ));
+        }
+      } else if (medium) {
+        push(padLR("Document", "Applied", cw), { align: "left", bold: true });
+        rule();
+        for (const a of list) {
+          left(padLR(
+            truncate(String(a.invoice_number ?? ""), cw - amtW - 1),
+            fmtMoney(Number(a.amount_applied ?? 0)),
+            cw,
+          ));
+          const d = dateOf(a.invoice_date);
+          const bal = a.balance_after != null
+            ? "Bal " + fmtMoney(Number(a.balance_after))
+            : "";
+          if (d || bal) left(padLR("  " + d, bal, cw));
+        }
+      } else {
+        rule();
+        for (const a of list) {
+          left(truncate(String(a.invoice_number ?? ""), cw));
+          left(padLR("  " + dateOf(a.invoice_date), fmtMoney(Number(a.amount_applied ?? 0)), cw));
+          if (a.balance_after != null) {
+            left(padLR("  Balance", fmtMoney(Number(a.balance_after)), cw));
+          }
+        }
       }
+      rule();
+      left(padLR("Total applied", fmtCur(totalApplied), cw));
     }
-    rule();
-    push(padLR("Total Applied", fmtCur(totalApplied), cw), {
+
+    if (unapplied > 0) {
+      left(padLR("On account (unapplied)", fmtCur(unapplied), cw));
+    }
+    push(padLR("AMOUNT RECEIVED", fmtCur(received), cw), {
       align: "left",
       bold: true,
+      large: rs.font_size === "large",
     });
-    const unapplied = Number(t.unapplied_amount ?? 0);
-    if (unapplied > 0) {
-      left(padLR("Unapplied advance", fmtCur(unapplied), cw));
+    if (t.customer_balance_after != null) {
+      left(padLR("Balance after", fmtCur(Number(t.customer_balance_after)), cw));
     }
     rule();
   } else {
