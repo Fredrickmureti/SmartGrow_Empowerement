@@ -398,7 +398,13 @@ export function ReversePaymentWizard({
                 <Button
                   variant="destructive"
                   onClick={handleSubmit}
-                  disabled={submitting || !reasonText.trim()}
+                  disabled={
+                    submitting ||
+                    !reasonText.trim() ||
+                    isPreviewLoading ||
+                    isPreviewError
+                  }
+
                 >
                   {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Confirm reversal
