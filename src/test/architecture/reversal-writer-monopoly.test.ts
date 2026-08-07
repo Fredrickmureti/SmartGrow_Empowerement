@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 /**
@@ -17,16 +17,29 @@ import { readFileSync } from "node:fs";
  */
 
 const rg = (pattern: string, globs: string[]): string[] => {
-  const args = globs.map((g) => `--glob '${g}'`).join(" ");
+  // execFileSync, not a shell string: these patterns contain backticks and
+  // quotes, which a shell would mangle into a silently-empty match set.
+  const args = [
+    "--no-heading",
+    "--line-number",
+    "--multiline",
+    "-e",
+    pattern,
+    ...globs.flatMap((g) => ["--glob", g]),
+    "src",
+    "supabase/functions",
+  ];
   try {
-    const out = execSync(
-      `rg --no-heading --line-number -e ${JSON.stringify(pattern)} ${args} src supabase/functions`,
-      { encoding: "utf8" },
-    );
-    return out.trim().split("\n").filter(Boolean);
-  } catch {
-    // rg exits 1 when there are no matches.
-    return [];
+    return execFileSync("rg", args, { encoding: "utf8" })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+  } catch (err) {
+    const e = err as { status?: number; stdout?: string };
+    // rg exits 1 for "no matches"; anything else is a broken invocation and
+    // must fail loudly rather than pass as "no offenders".
+    if (e.status === 1) return [];
+    throw err;
   }
 };
 
