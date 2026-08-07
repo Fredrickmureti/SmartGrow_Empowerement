@@ -429,7 +429,7 @@ function FinancialReportsInner() {
   // ─── Export configs — same row model that drives the screen ───
   const getPnlExportConfig = useCallback((): ExportConfig => ({
     title: "Profit & Loss Statement",
-    companyName: currentOrg?.name || "",
+    reportType: "profit_and_loss",
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(pnlColumns),
     rows: toExportRows(pnlRows, pnlColumns),
@@ -439,8 +439,9 @@ function FinancialReportsInner() {
 
   const getBsExportConfig = useCallback((): ExportConfig => ({
     title: "Balance Sheet",
-    companyName: currentOrg?.name || "",
-    dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")}`,
+    reportType: "balance_sheet",
+    // Point-in-time statement: the masthead states "As of …".
+    asOf: format(new Date(dateTo), "MMMM d, yyyy"),
     columns: toExportColumns(bsColumns),
     rows: toExportRows(bsRows, bsColumns),
     sheetName: "Balance Sheet",

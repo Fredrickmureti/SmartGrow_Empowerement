@@ -211,6 +211,7 @@ function TrialBalanceInner() {
       reportType: "trial_balance",
       // Point-in-time report: "As of …", never "For the period …".
       asOf: format(new Date(asOfDate), "MMMM d, yyyy"),
+      subtitle: "Accrual basis",
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
       sheetName: "Trial Balance",
