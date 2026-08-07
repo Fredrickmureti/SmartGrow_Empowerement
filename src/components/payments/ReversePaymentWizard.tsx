@@ -590,6 +590,12 @@ export function ReversePaymentWizard({
                 It cannot be undone from the UI — only counter-posted.
               </AlertDescription>
             </Alert>
+            <ReversalConsequencePreview
+              consequences={consequences}
+              isLoading={isPreviewLoading}
+              isError={isPreviewError}
+            />
+
           </div>
         )}
 
