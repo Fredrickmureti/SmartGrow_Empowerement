@@ -231,6 +231,14 @@ export function BillPaymentHistoryDialog({
         </DialogContent>
       </Dialog>
 
+      {/*
+        Phase 3 — a supplier payment reversal is authorised the same way a
+        customer one is: the server's intent policy says whether it is legal
+        (bank-reconciled payments and closed periods are refused) and the
+        consequence preview shows the GL and cash impact first. The confirm
+        button stays disabled until both have landed. `void_bill_payment_atomic`
+        remains the only writer.
+      */}
       <AlertDialog open={!!confirmReversePayment} onOpenChange={(open) => { if (!open) setConfirmReversePayment(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -240,10 +248,32 @@ export function BillPaymentHistoryDialog({
               create a reversing journal entry. The bill balance will be restored. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {reversalBlockedReason && (
+            <Alert>
+              <Lock className="h-4 w-4" />
+              <AlertDescription>{reversalBlockedReason}</AlertDescription>
+            </Alert>
+          )}
+
+          <ReversalConsequencePreview
+            consequences={paymentConsequences}
+            isLoading={isPaymentPreviewLoading}
+            isError={isPaymentPreviewError}
+            currency={bill?.currency}
+          />
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={
+                Boolean(reversalBlockedReason) ||
+                isResolvingPaymentIntent ||
+                isPaymentPreviewLoading ||
+                isPaymentPreviewError ||
+                Boolean(reversingId)
+              }
               onClick={() => confirmReversePayment && handleReversePayment(confirmReversePayment)}
             >
               Reverse Payment
@@ -251,6 +281,7 @@ export function BillPaymentHistoryDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </>
   );
 }
