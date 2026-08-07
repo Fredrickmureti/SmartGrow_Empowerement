@@ -236,7 +236,7 @@ export default function Reports() {
     }
     rows.push({ item: "Total Revenue", amount: pnl.revenue, _isSubtotal: true });
     rows.push({ item: "Expenses", amount: null, _isHeader: true });
-    for (const cat of expensesByCategory.slice(0, 10)) {
+    for (const cat of expensesByCategory) {
       rows.push({ item: `  ${cat.name}`, amount: cat.amount });
     }
     rows.push({ item: "Total Expenses", amount: pnl.expenses, _isSubtotal: true });
