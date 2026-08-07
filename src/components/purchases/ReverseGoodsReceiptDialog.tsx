@@ -163,7 +163,7 @@ export function ReverseGoodsReceiptDialog({
               <Button
                 variant="destructive"
                 onClick={handleReverse}
-                disabled={isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError}
+                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reverse Receipt
