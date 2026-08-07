@@ -209,7 +209,12 @@ function AuditTrailInner() {
         isLoading={isLoading}
         error={error as Error | null}
         isEmpty={!data || data.length === 0}
-        emptyMessage="No audit events found for the selected period"
+        emptyState={{
+          kind: "no_data",
+          title: "No audit events for the selected period",
+          message:
+            "Nothing was recorded across accounting, settings, commercial, timesheets or localization for this scope and date range.",
+        }}
         getExportConfig={getExportConfig}
         headerActions={
           <>

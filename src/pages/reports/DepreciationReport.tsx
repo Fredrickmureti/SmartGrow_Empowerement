@@ -208,7 +208,12 @@ function DepreciationReportInner() {
       isLoading={isLoading || !currencyReady}
       error={error as Error | null}
       isEmpty={!assets || assets.length === 0}
-      emptyMessage="No fixed assets found"
+      emptyState={{
+        kind: "missing_prerequisite",
+        title: "No fixed assets in scope",
+        message:
+          "Depreciation is derived from registered fixed assets. Register assets and their depreciation schedules before this report can produce figures.",
+      }}
       getExportConfig={getExportConfig}
       headerActions={
         <>

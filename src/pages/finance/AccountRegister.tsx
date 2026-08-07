@@ -194,7 +194,12 @@ function AccountRegisterInner() {
       isLoading={isLoading}
       error={error as Error | null}
       isEmpty={!isLoading && transactionsWithBalance.length === 0}
-      emptyMessage="No transactions found for this account in the selected period"
+      emptyState={{
+        kind: "no_data",
+        title: "No activity on this account",
+        message:
+          "The account has no posted journal lines in the selected period. Widen the date range or check whether the entries are still in draft.",
+      }}
       getExportConfig={getExportConfig}
       headerActions={
         <div className="flex flex-wrap items-center gap-2">

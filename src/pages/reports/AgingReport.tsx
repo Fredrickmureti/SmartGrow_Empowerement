@@ -215,7 +215,12 @@ function AgingReportInner() {
       isLoading={isLoading || !currencyReady}
       error={error as Error | null}
       isEmpty={!data || data.contacts.length === 0}
-      emptyMessage={`No outstanding ${reportType === "ar" ? "receivables" : "payables"}`}
+      emptyState={{
+        kind: "no_data",
+        title: `No outstanding ${reportType === "ar" ? "receivables" : "payables"}`,
+        message:
+          "Every document in scope is settled as at the selected date, or no documents exist yet for this business and branch.",
+      }}
       getExportConfig={getExportConfig}
       headerActions={
         <>
