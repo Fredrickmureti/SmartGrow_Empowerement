@@ -133,7 +133,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
       if (!currentOrg?.id || !config?.contactId || !partnerKind) return [];
       const table = partnerKind === "invoice" ? "invoices" : "bills";
       const dateColumn = partnerKind === "invoice" ? "issue_date" : "bill_date";
-      let query = supabase
+      // `invoices` links the partner via `contact_id`, `bills` via
+      // `vendor_id`; the generated table types are disjoint, so the builder
+      // is assembled untyped and the rows are narrowed on read below.
+      let query = (supabase as any)
         .from(table)
         .select(
           partnerKind === "invoice"
