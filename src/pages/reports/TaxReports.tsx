@@ -7,7 +7,6 @@ import { useBills } from "@/hooks/useBills";
 import { useTaxRates } from "@/hooks/useTaxRates";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Receipt, TrendingUp, TrendingDown, Calculator } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, isWithinInterval } from "date-fns";
@@ -15,6 +14,12 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
@@ -76,7 +81,7 @@ function TaxReportsInner() {
     const netTaxLiability = salesTaxCollected - purchaseTaxPaid - expenseTax;
 
     const taxBreakdown: Record<string, { rate: number; salesTax: number; purchaseTax: number }> = {};
-    
+
     filteredInvoices.forEach((inv) => {
       const rate = inv.subtotal > 0 ? (inv.tax_amount / inv.subtotal * 100) : 0;
       const rateKey = rate.toFixed(0);
@@ -115,6 +120,78 @@ function TaxReportsInner() {
     last_quarter: `Q${Math.ceil((start.getMonth() + 1) / 3)} ${format(start, "yyyy")}`,
     this_year: format(start, "yyyy"),
   }[period];
+
+  // ── Tax Summary: one column + row declaration drives the screen table AND the export ──
+  const summaryColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "label", header: "Description", width: "w-[280px]" },
+      { key: "amount", header: "Amount", format: "currency", width: "w-[160px]" },
+    ],
+    [],
+  );
+
+  const summaryRows = useMemo<ReportRow[]>(
+    () => [
+      { id: "output-header", kind: "section", label: "Output Tax (Collected)" },
+      { id: "total-sales", depth: 1, values: { label: "Total Sales (excl. tax)", amount: taxData.totalSales } },
+      {
+        id: "sales-tax",
+        depth: 1,
+        tone: "success",
+        onClick: () => setDrillDown({
+          open: true,
+          config: {
+            title: "Sales Tax Collected",
+            startDate: format(start, "yyyy-MM-dd"),
+            endDate: format(end, "yyyy-MM-dd"),
+            sourceType: "invoice",
+          },
+        }),
+        values: { label: "Sales Tax Collected", amount: taxData.salesTaxCollected },
+      },
+      { id: "input-header", kind: "section", label: "Input Tax (Paid)" },
+      { id: "total-purchases", depth: 1, values: { label: "Total Purchases (excl. tax)", amount: taxData.totalPurchases } },
+      { id: "purchase-tax", depth: 1, values: { label: "Purchase Tax Paid", amount: taxData.purchaseTaxPaid } },
+      { id: "expense-tax", depth: 1, values: { label: "Expense Tax Paid", amount: taxData.expenseTax } },
+      {
+        id: "net-tax",
+        kind: "grandTotal",
+        label: `Net Tax ${taxData.netTaxLiability >= 0 ? "Payable" : "Refund"}`,
+        tone: taxData.netTaxLiability >= 0 ? "danger" : "success",
+        values: { amount: Math.abs(taxData.netTaxLiability) },
+      },
+    ],
+    [taxData, start, end],
+  );
+
+  // ── Tax Breakdown by Rate ──
+  const breakdownColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "rate", header: "Tax Rate", width: "w-[110px]" },
+      { key: "salesTax", header: "Sales Tax", format: "currency", width: "w-[150px]" },
+      { key: "purchaseTax", header: "Purchase Tax", format: "currency", width: "w-[150px]" },
+      { key: "net", header: "Net", format: "currency", width: "w-[150px] " },
+    ],
+    [],
+  );
+
+  const breakdownRows = useMemo<ReportRow[]>(
+    () =>
+      taxData.taxBreakdown.map((item) => {
+        const net = item.salesTax - item.purchaseTax;
+        return {
+          id: item.rateKey,
+          tone: net >= 0 ? "danger" : "success",
+          values: {
+            rate: `${item.rate.toFixed(0)}%`,
+            salesTax: item.salesTax,
+            purchaseTax: item.purchaseTax,
+            net,
+          },
+        };
+      }),
+    [taxData],
+  );
 
   const getExportConfig = useCallback((): ExportConfig => {
     const rows: ExportRow[] = [];
@@ -253,93 +330,24 @@ function TaxReportsInner() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tax Summary</CardTitle>
-              <CardDescription>{periodLabel}</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table className="min-w-[400px]">
-                <TableBody>
-                  <TableRow className="font-medium bg-muted/50">
-                    <TableCell colSpan={2}>Output Tax (Collected)</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="pl-8">Total Sales (excl. tax)</TableCell>
-                    <TableCell className="text-right">{formatCurrency(taxData.totalSales, baseCurrency)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="pl-8">Sales Tax Collected</TableCell>
-                    <TableCell className="text-right text-green-600">
-                      <button className="hover:underline cursor-pointer" onClick={() => setDrillDown({ open: true, config: { title: "Sales Tax Collected", startDate: format(start, "yyyy-MM-dd"), endDate: format(end, "yyyy-MM-dd"), sourceType: "invoice" } })}>
-                        {formatCurrency(taxData.salesTaxCollected, baseCurrency)}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="font-medium bg-muted/50">
-                    <TableCell colSpan={2}>Input Tax (Paid)</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="pl-8">Total Purchases (excl. tax)</TableCell>
-                    <TableCell className="text-right">{formatCurrency(taxData.totalPurchases, baseCurrency)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="pl-8">Purchase Tax Paid</TableCell>
-                    <TableCell className="text-right text-blue-600">{formatCurrency(taxData.purchaseTaxPaid, baseCurrency)}</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="pl-8">Expense Tax Paid</TableCell>
-                    <TableCell className="text-right text-purple-600">{formatCurrency(taxData.expenseTax, baseCurrency)}</TableCell>
-                  </TableRow>
-                  <TableRow className="font-bold text-lg border-t-2">
-                    <TableCell>Net Tax {taxData.netTaxLiability >= 0 ? "Payable" : "Refund"}</TableCell>
-                    <TableCell className={`text-right ${taxData.netTaxLiability >= 0 ? "text-red-600" : "text-green-600"}`}>
-                      {formatCurrency(Math.abs(taxData.netTaxLiability), baseCurrency)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Tax Summary" subtitle={periodLabel} profile="operational">
+            <ReportTable
+              columns={summaryColumns}
+              rows={summaryRows}
+              currency={baseCurrency}
+              caption="Output and input tax summary with net liability"
+            />
+          </ReportSurface>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Tax Breakdown by Rate</CardTitle>
-              <CardDescription>Tax collected and paid by tax rate</CardDescription>
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <Table className="min-w-[500px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tax Rate</TableHead>
-                    <TableHead className="text-right">Sales Tax</TableHead>
-                    <TableHead className="text-right">Purchase Tax</TableHead>
-                    <TableHead className="text-right">Net</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {taxData.taxBreakdown.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        No tax data available for this period
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    taxData.taxBreakdown.map((item) => (
-                      <TableRow key={item.rateKey}>
-                        <TableCell className="font-medium">{item.rate.toFixed(0)}%</TableCell>
-                        <TableCell className="text-right text-green-600">{formatCurrency(item.salesTax, baseCurrency)}</TableCell>
-                        <TableCell className="text-right text-blue-600">{formatCurrency(item.purchaseTax, baseCurrency)}</TableCell>
-                        <TableCell className={`text-right font-medium ${item.salesTax - item.purchaseTax >= 0 ? "text-red-600" : "text-green-600"}`}>
-                          {formatCurrency(item.salesTax - item.purchaseTax, baseCurrency)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Tax Breakdown by Rate" subtitle="Tax collected and paid by tax rate" profile="operational">
+            <ReportTable
+              columns={breakdownColumns}
+              rows={breakdownRows}
+              currency={baseCurrency}
+              caption="Sales and purchase tax by tax rate"
+              emptyMessage="No tax data available for this period"
+            />
+          </ReportSurface>
         </div>
       </div>
       <DrillDownDialog

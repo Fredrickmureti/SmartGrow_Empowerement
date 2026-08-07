@@ -2,14 +2,14 @@
  * Depreciation Report Page
  * 
  * Shows fixed asset depreciation schedules with cost, accumulated depreciation,
- * and net book value.
+ * and net book value. Rendered by the canonical reporting engine
+ * (`@/design-system/reports`).
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Building2, TrendingDown, DollarSign } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -24,8 +24,15 @@ import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { useBranch } from "@/contexts/BranchContext";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { format, endOfMonth, startOfYear } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
-import { cn } from "@/lib/utils";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 interface AssetDepreciation {
@@ -113,39 +120,85 @@ function DepreciationReportInner() {
     return map[m] || m;
   };
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = (assets || []).map((a) => ({
-      code: a.asset_number, name: a.name, category: a.category_name,
-      date: a.purchase_date, cost: a.purchase_price,
-      method: methodLabel(a.depreciation_method), life: a.useful_life_years,
-      acc_dep: a.accumulated_depreciation, nbv: a.book_value, status: a.status,
+  // ── One column + row declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "code", header: "Code", width: "w-[100px]", sticky: true },
+      { key: "name", header: "Asset", width: "w-[220px]", sticky: true, groupEnd: true },
+      { key: "category", header: "Category", width: "w-[140px]" },
+      { key: "date", header: "Acquired", format: "date", width: "w-[110px]" },
+      { key: "cost", header: "Cost", format: "currency", width: "w-[130px]" },
+      { key: "method", header: "Method", width: "w-[150px]" },
+      { key: "life", header: "Life", format: "number", width: "w-[80px]" },
+      { key: "acc_dep", header: "Accum. Dep.", format: "currency", width: "w-[130px]" },
+      { key: "nbv", header: "Net Book Value", format: "currency", width: "w-[140px]" },
+      {
+        key: "status",
+        header: "Status",
+        align: "center",
+        width: "w-[100px]",
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          const status = String(r.values?.status ?? "");
+          if (!status) return null;
+          return (
+            <Badge variant={status === "active" ? "default" : "secondary"} className="text-xs">
+              {status}
+            </Badge>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const rows = useMemo<ReportRow[]>(() => {
+    const list = assets || [];
+    const out: ReportRow[] = list.map((asset) => ({
+      id: asset.id,
+      onClick: () => setDrillDown({
+        title: `Depreciation — ${asset.name}`,
+        accountType: "depreciation_expense",
+        startDate: format(startOfYear(new Date(dateTo)), "yyyy-MM-dd"),
+        endDate: dateTo,
+        sourceType: "depreciation",
+      }),
+      values: {
+        code: asset.asset_number,
+        name: asset.name,
+        category: asset.category_name,
+        date: asset.purchase_date,
+        cost: asset.purchase_price,
+        method: methodLabel(asset.depreciation_method),
+        life: asset.useful_life_years,
+        acc_dep: asset.accumulated_depreciation,
+        nbv: asset.book_value,
+        status: asset.status,
+      },
     }));
-    rows.push({
-      code: "", name: "TOTAL", category: "", date: "", cost: totalCost,
-      method: "", life: null, acc_dep: totalAccDep, nbv: totalNBV, status: "",
-      _isGrandTotal: true,
-    });
-    return {
-      title: "Depreciation Report",
-      companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
-      dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")} · ${branchLabel}`,
-      columns: [
-        { key: "code", header: "Asset Code", width: 12 },
-        { key: "name", header: "Asset Name", width: 22 },
-        { key: "category", header: "Category", width: 14 },
-        { key: "date", header: "Acquired", width: 12 },
-        { key: "cost", header: "Cost", width: 14, format: "currency", align: "right" },
-        { key: "method", header: "Method", width: 14 },
-        { key: "life", header: "Life (Yrs)", width: 8, align: "right" },
-        { key: "acc_dep", header: "Accum. Dep.", width: 14, format: "currency", align: "right" },
-        { key: "nbv", header: "Net Book Value", width: 14, format: "currency", align: "right" },
-      ],
-      rows,
-      sheetName: "Depreciation",
-      currency: baseCurrency,
-    };
-  }, [assets, totalCost, totalAccDep, totalNBV, dateTo, currentOrg, baseCurrency, branchLabel]);
+
+    if (out.length > 0) {
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL",
+        values: { cost: totalCost, acc_dep: totalAccDep, nbv: totalNBV },
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets, dateTo, totalCost, totalAccDep, totalNBV]);
+
+  const getExportConfig = useCallback((): ExportConfig => ({
+    title: "Depreciation Report",
+    companyName: currentOrg?.name || "",
+    organizationId: currentOrg?.id,
+    dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")} · ${branchLabel}`,
+    columns: toExportColumns(columns),
+    rows: toExportRows(rows, columns),
+    sheetName: "Depreciation",
+    currency: baseCurrency,
+  }), [columns, rows, dateTo, currentOrg, baseCurrency, branchLabel]);
 
   return (
     <ReportPageLayout
@@ -207,74 +260,22 @@ function DepreciationReportInner() {
           </Card>
         </div>
 
-        {/* Asset Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Asset Depreciation Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Asset</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Acquired</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead className="text-right">Life</TableHead>
-                  <TableHead className="text-right">Accum. Dep.</TableHead>
-                  <TableHead className="text-right">Net Book Value</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {assets?.map((asset) => (
-                  <TableRow key={asset.id}>
-                    <TableCell className="font-mono text-sm text-muted-foreground">{asset.asset_number}</TableCell>
-                    <TableCell className="font-medium">{asset.name}</TableCell>
-                    <TableCell className="text-sm">{asset.category_name}</TableCell>
-                    <TableCell className="text-sm">{asset.purchase_date ? format(new Date(asset.purchase_date), "MMM d, yyyy") : "—"}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(asset.purchase_price, baseCurrency)}</TableCell>
-                    <TableCell className="text-sm">{methodLabel(asset.depreciation_method)}</TableCell>
-                    <TableCell className="text-right">{asset.useful_life_years} yrs</TableCell>
-                    <TableCell
-                      className="text-right text-destructive cursor-pointer hover:underline"
-                      onClick={() => setDrillDown({
-                        title: `Depreciation — ${asset.name}`,
-                        accountType: "depreciation_expense",
-                        startDate: format(startOfYear(new Date(dateTo)), "yyyy-MM-dd"),
-                        endDate: dateTo,
-                        sourceType: "depreciation",
-                      })}
-                    >
-                      {formatCurrency(asset.accumulated_depreciation, baseCurrency)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(asset.book_value, baseCurrency)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={asset.status === "active" ? "default" : "secondary"} className="text-xs">
-                        {asset.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {/* Grand Total */}
-                <TableRow className="font-bold bg-muted border-t-2">
-                  <TableCell />
-                  <TableCell>TOTAL</TableCell>
-                  <TableCell />
-                  <TableCell />
-                  <TableCell className="text-right">{formatCurrency(totalCost, baseCurrency)}</TableCell>
-                  <TableCell />
-                  <TableCell />
-                  <TableCell className="text-right text-destructive">{formatCurrency(totalAccDep, baseCurrency)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalNBV, baseCurrency)}</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Asset schedule, rendered by the shared reporting engine */}
+        <ReportSurface
+          companyName={currentOrg?.name || ""}
+          title="Depreciation Report"
+          asOfDate={`As of ${format(new Date(dateTo), "MMMM d, yyyy")}`}
+          subtitle={branchLabel}
+          profile="operational"
+        >
+          <ReportTable
+            columns={columns}
+            rows={rows}
+            currency={baseCurrency}
+            caption="Asset depreciation schedule"
+            emptyMessage="No fixed assets found"
+          />
+        </ReportSurface>
       </div>
 
       <DrillDownDialog

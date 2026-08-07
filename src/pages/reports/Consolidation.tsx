@@ -23,13 +23,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -164,6 +162,58 @@ export default function Consolidation() {
     [rows],
   );
   const mixedCurrency = currencies.length > 1;
+
+  const comparisonColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "businessName", header: "Company" },
+      {
+        key: "currency",
+        header: "Currency",
+        render: (row) => <Badge variant="outline">{(row.values as any)?.currency as string}</Badge>,
+      },
+      {
+        key: "income",
+        header: "Income",
+        align: "right",
+        render: (row) => formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
+      },
+      {
+        key: "expense",
+        header: "Expenses",
+        align: "right",
+        render: (row) => formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
+      },
+      {
+        key: "netIncome",
+        header: "Net Income",
+        align: "right",
+        render: (row) => {
+          const net = (row.values as any)?.netIncome as number;
+          return (
+            <span className={`font-semibold ${net >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+              {formatMoney(net, (row.values as any)?.currency as string)}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const comparisonRows = useMemo<ReportRow[]>(
+    () =>
+      (rows ?? []).map((r) => ({
+        id: r.businessId,
+        values: {
+          businessName: r.businessName,
+          currency: r.currency,
+          income: r.income,
+          expense: r.expense,
+          netIncome: r.netIncome,
+        },
+      })),
+    [rows],
+  );
 
   if (!canViewConsolidation) {
     return (
@@ -301,40 +351,14 @@ export default function Consolidation() {
                   <Skeleton className="h-8 w-full" />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Currency</TableHead>
-                      <TableHead className="text-right">Income</TableHead>
-                      <TableHead className="text-right">Expenses</TableHead>
-                      <TableHead className="text-right">Net Income</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(rows ?? []).map((r) => (
-                      <TableRow key={r.businessId}>
-                        <TableCell className="font-medium">{r.businessName}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{r.currency}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(r.income, r.currency)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(r.expense, r.currency)}
-                        </TableCell>
-                        <TableCell
-                          className={`text-right tabular-nums font-semibold ${
-                            r.netIncome >= 0 ? "text-emerald-600" : "text-destructive"
-                          }`}
-                        >
-                          {formatMoney(r.netIncome, r.currency)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <ReportSurface title="Profit & Loss — by company" profile="financial">
+                  <ReportTable
+                    columns={comparisonColumns}
+                    rows={comparisonRows}
+                    caption="Per-company profit and loss, native currency"
+                    emptyMessage="No companies to compare"
+                  />
+                </ReportSurface>
               )}
             </CardContent>
           </Card>

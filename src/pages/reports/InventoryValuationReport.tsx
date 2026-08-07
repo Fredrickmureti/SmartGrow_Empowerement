@@ -6,10 +6,14 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { Label } from "@/components/ui/label";
 import { DollarSign, TrendingUp, Package, ArrowUp, ArrowDown } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -169,6 +173,60 @@ function InventoryValuationReportInner() {
     return { rows: rows.sort((a, b) => b.closingValue - a.closingValue), totalClosing, totalIn, totalOut };
   }, [physicalProducts, periodMovements, stockByProduct]);
 
+  const valuationColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "product", header: "Product" },
+      { key: "sku", header: "SKU" },
+      { key: "qty", header: "Qty", format: "number" },
+      {
+        key: "packRollup",
+        header: "Pack rollup",
+        render: (row) => (
+          <span className="text-muted-foreground text-xs">{String(row.values?.packRollup ?? "")}</span>
+        ),
+      },
+      { key: "cost", header: "Unit Cost", format: "currency" },
+      { key: "closing_value", header: "Closing Value", format: "currency" },
+      {
+        key: "inQty",
+        header: "In",
+        align: "right",
+        render: (row) => {
+          const qty = Number(row.values?.inQty ?? 0);
+          return <span className="text-success">{qty > 0 ? `+${qty}` : "—"}</span>;
+        },
+      },
+      {
+        key: "outQty",
+        header: "Out",
+        align: "right",
+        render: (row) => {
+          const qty = Number(row.values?.outQty ?? 0);
+          return <span className="text-destructive">{qty > 0 ? `-${qty}` : "—"}</span>;
+        },
+      },
+    ],
+    [],
+  );
+
+  const valuationRows = useMemo<ReportRow[]>(
+    () =>
+      valuationData.rows.slice(0, 100).map((row) => ({
+        id: row.id,
+        values: {
+          product: row.name,
+          sku: row.sku || null,
+          qty: row.currentQty,
+          packRollup: formatBaseQtyAsPacks(row.currentQty, packsByProduct.get(row.id) ?? [], "ea"),
+          cost: row.costPrice,
+          closing_value: row.closingValue,
+          inQty: row.inQty,
+          outQty: row.outQty,
+        },
+      })),
+    [valuationData.rows, packsByProduct],
+  );
+
   const getExportConfig = useCallback((): ExportConfig => {
     const exportRows: ExportRow[] = valuationData.rows.map((r) => ({
       product: r.name,
@@ -268,50 +326,15 @@ function InventoryValuationReportInner() {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Valuation</CardTitle>
-            <CardDescription>Current stock value by product</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="table-container">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Pack rollup</TableHead>
-                    <TableHead className="text-right">Unit Cost</TableHead>
-                    <TableHead className="text-right">Closing Value</TableHead>
-                    <TableHead className="text-right">In</TableHead>
-                    <TableHead className="text-right">Out</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {valuationData.rows.slice(0, 100).map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{row.sku || "—"}</TableCell>
-                      <TableCell className="text-right">{row.currentQty}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {formatBaseQtyAsPacks(row.currentQty, packsByProduct.get(row.id) ?? [], "ea")}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(row.costPrice, baseCurrency)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(row.closingValue, baseCurrency)}</TableCell>
-                      <TableCell className="text-right text-green-600">
-                        {row.inQty > 0 ? `+${row.inQty}` : "—"}
-                      </TableCell>
-                      <TableCell className="text-right text-red-600">
-                        {row.outQty > 0 ? `-${row.outQty}` : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <ReportSurface title="Product Valuation" subtitle="Current stock value by product" profile="operational">
+          <ReportTable
+            columns={valuationColumns}
+            rows={valuationRows}
+            currency={baseCurrency}
+            caption="Product valuation"
+            emptyMessage="No products found"
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );

@@ -6,14 +6,15 @@
  * - Investing activities (fixed asset changes)
  * - Financing activities (loans + equity)
  * - Opening/closing cash reconciliation
+ *
+ * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Building2, TrendingUp, CreditCard, ArrowUpRight, ArrowDownRight, Banknote, Wallet } from "lucide-react";
-import { format, startOfYear, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { useCashFlowReport, type CashFlowSection } from "@/hooks/useCashFlowReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -22,10 +23,19 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { cn } from "@/lib/utils";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+import {
+  ReportSurface,
+  ReportTable,
+  formatAccountingNumber,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 function CashFlowReportInner() {
@@ -38,107 +48,89 @@ function CashFlowReportInner() {
   useEffect(() => { setSharedDateFrom(dateFrom); }, [dateFrom]);
   useEffect(() => { setSharedDateTo(dateTo); }, [dateTo]);
 
-  const { formatCurrency, baseCurrency, isReady } = useCurrency();
+  const { baseCurrency, isReady } = useCurrency();
   const { currentOrg } = useOrganization();
 
   const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
 
-  const fmt = (amount: number) => formatCurrency(amount, baseCurrency);
+  // Standalone figures (KPI cards, banners) use the same accounting
+  // policy as the table cells and the exported PDF.
+  const fmt = (amount: number) => formatAccountingNumber(amount, baseCurrency);
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "item", header: "Item", width: 40 },
-      { key: "amount", header: "Amount", width: 20, format: "currency", align: "right" },
-    ];
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "item", header: "Item" },
+      { key: "amount", header: "Amount", format: "currency", width: "w-[180px]" },
+    ],
+    [],
+  );
 
-    const rows: ExportRow[] = [];
-    if (data) {
-      for (const section of [data.operating, data.investing, data.financing]) {
-        rows.push({ item: section.label, amount: null, _isHeader: true });
-        // For operating section, add "Adjustments for non-cash items:" sub-header
-        // after the first item (Net Income) per accounting convention
-        if (section === data.operating && section.items.length > 1) {
-          rows.push({ item: section.items[0].label, amount: section.items[0].amount, _depth: 1 });
-          rows.push({ item: "Adjustments for non-cash items:", amount: null, _depth: 1 });
-          for (let i = 1; i < section.items.length; i++) {
-            rows.push({ item: section.items[i].label, amount: section.items[i].amount, _depth: 2 });
-          }
-        } else {
-          for (const item of section.items) {
-            rows.push({ item: item.label, amount: item.amount, _depth: 1 });
-          }
+  const rows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    if (!data) return out;
+
+    for (const section of [data.operating, data.investing, data.financing]) {
+      out.push({ id: `sec-${section.label}`, kind: "section", label: section.label });
+
+      if (section === data.operating && section.items.length > 1) {
+        out.push({
+          id: `${section.label}-0`,
+          onClick: section.items[0].accountIds?.length
+            ? () => setDrillDown({ title: section.items[0].label, accountId: section.items[0].accountIds![0], startDate: dateFrom, endDate: dateTo })
+            : undefined,
+          values: { item: section.items[0].label, amount: section.items[0].amount },
+        });
+        out.push({ id: `${section.label}-adj-header`, values: { item: "Adjustments for non-cash items:", amount: null }, depth: 1 });
+        for (let i = 1; i < section.items.length; i++) {
+          const item = section.items[i];
+          out.push({
+            id: `${section.label}-${i}`,
+            depth: 2,
+            onClick: item.accountIds?.length
+              ? () => setDrillDown({ title: item.label, accountId: item.accountIds![0], startDate: dateFrom, endDate: dateTo })
+              : undefined,
+            values: { item: item.label, amount: item.amount },
+          });
         }
-        rows.push({ item: `Net ${section.label.replace("Cash Flows from ", "")}`, amount: section.total, _isSubtotal: true });
-        rows.push({ item: "", amount: null });
+      } else {
+        section.items.forEach((item, i) => {
+          out.push({
+            id: `${section.label}-${i}`,
+            depth: 1,
+            onClick: item.accountIds?.length
+              ? () => setDrillDown({ title: item.label, accountId: item.accountIds![0], startDate: dateFrom, endDate: dateTo })
+              : undefined,
+            values: { item: item.label, amount: item.amount },
+          });
+        });
       }
-      rows.push({ item: "Net Increase/(Decrease) in Cash", amount: data.netCashFlow, _isGrandTotal: true });
-      rows.push({ item: "Opening Cash Balance", amount: data.openingCash });
-      rows.push({ item: "Closing Cash Balance", amount: data.closingCash, _isGrandTotal: true });
+
+      out.push({
+        id: `sub-${section.label}`,
+        kind: "subtotal",
+        label: `Net ${section.label.replace("Cash Flows from ", "")}`,
+        values: { amount: section.total },
+      });
     }
 
-    return {
-      title: "Cash Flow Statement",
-      companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
-      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      columns,
-      rows,
-      sheetName: "Cash Flow",
-      currency: baseCurrency,
-    };
-  }, [data, dateFrom, dateTo, currentOrg, baseCurrency]);
+    out.push({ id: "net-change", kind: "grandTotal", label: "Net Increase/(Decrease) in Cash", values: { amount: data.netCashFlow } });
+    out.push({ id: "opening-cash", values: { item: "Opening Cash Balance", amount: data.openingCash } });
+    out.push({ id: "closing-cash", kind: "grandTotal", label: "Closing Cash Balance", values: { amount: data.closingCash } });
 
-  const renderSection = (section: CashFlowSection, icon: React.ReactNode, iconColor: string) => (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          {icon}
-          <CardTitle className="text-base">{section.label}</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {section.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground italic py-2">
-            No activity recorded for this period
-          </p>
-        ) : (
-          section.items.map((item, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex justify-between py-1.5 pl-4",
-                item.accountIds?.length ? "cursor-pointer hover:bg-accent/50 rounded-md transition-colors" : ""
-              )}
-              onClick={() => {
-                if (item.accountIds?.length) {
-                  setDrillDown({
-                    title: item.label,
-                    accountId: item.accountIds[0],
-                    startDate: dateFrom,
-                    endDate: dateTo,
-                  });
-                }
-              }}
-            >
-              <span className="text-sm text-muted-foreground">{item.label}</span>
-              <span className={cn("text-sm font-medium", item.amount < 0 ? "text-destructive" : "text-foreground")}>
-                {item.amount < 0 ? `(${fmt(Math.abs(item.amount))})` : fmt(item.amount)}
-              </span>
-            </div>
-          ))
-        )}
-        <Separator className="my-2" />
-        <div className="flex justify-between py-2">
-          <span className="font-semibold text-sm">
-            Net {section.label.replace("Cash Flows from ", "")}
-          </span>
-          <span className={cn("font-semibold", section.total >= 0 ? "text-success" : "text-destructive")}>
-            {fmt(section.total)}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
+    return out;
+  }, [data, dateFrom, dateTo]);
+
+  const getExportConfig = useCallback((): ExportConfig => ({
+    title: "Cash Flow Statement",
+    companyName: currentOrg?.name || "",
+    organizationId: currentOrg?.id,
+    dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+    columns: toExportColumns(columns),
+    rows: toExportRows(rows, columns),
+    sheetName: "Cash Flow",
+    currency: baseCurrency,
+  }), [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency]);
 
   return (
     <ReportPageLayout
@@ -223,33 +215,22 @@ function CashFlowReportInner() {
             </Card>
           </div>
 
-          {/* Sections */}
-          {renderSection(data.operating, <Building2 className="h-4 w-4 text-primary" />, "text-primary")}
-          {renderSection(data.investing, <TrendingUp className="h-4 w-4 text-chart-4" />, "text-chart-4")}
-          {renderSection(data.financing, <CreditCard className="h-4 w-4 text-chart-5" />, "text-chart-5")}
-
-          {/* Net Cash Summary */}
-          <Card className="border-2 border-primary/20 bg-primary/5">
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold">Net Increase/(Decrease) in Cash</span>
-                  <span className={cn("text-xl font-bold", data.netCashFlow >= 0 ? "text-success" : "text-destructive")}>
-                    {fmt(data.netCashFlow)}
-                  </span>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Opening Cash Balance</span>
-                  <span className="font-medium">{fmt(data.openingCash)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-lg">Closing Cash Balance</span>
-                  <span className="font-bold text-lg text-primary">{fmt(data.closingCash)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Statement, rendered by the shared reporting engine */}
+          <ReportSurface
+            companyName={currentOrg?.name || ""}
+            title="Cash Flow Statement"
+            dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+            subtitle="Indirect method"
+            profile="financial"
+          >
+            <ReportTable
+              columns={columns}
+              rows={rows}
+              currency={baseCurrency}
+              caption="Cash flow statement — operating, investing and financing activities"
+              emptyMessage="No cash flow activity for this period"
+            />
+          </ReportSurface>
         </div>
       )}
 

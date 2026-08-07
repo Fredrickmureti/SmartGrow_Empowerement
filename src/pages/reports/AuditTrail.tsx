@@ -11,17 +11,25 @@
  *
  * The view is `security_invoker = on`, so RLS on every underlying table is
  * still enforced as the caller.
+ *
+ * Rendered by the canonical reporting engine. The old row-expansion UX for
+ * inspecting the raw payload now lives in a detail dialog opened from an
+ * action button, since the engine's row model has no expandable-row kind.
  */
 
 import { useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Eye } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -31,7 +39,15 @@ import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 interface UnifiedAuditRow {
   id: string;
@@ -69,7 +85,7 @@ function AuditTrailInner() {
   const [dateTo, setDateTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [detailRow, setDetailRow] = useState<UnifiedAuditRow | null>(null);
 
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
@@ -113,40 +129,76 @@ function AuditTrailInner() {
     return Array.from(s).sort();
   }, [data]);
 
-  const toggle = (id: string) => {
-    const n = new Set(expanded);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    setExpanded(n);
-  };
+  const rawById = useMemo(() => {
+    const m = new Map<string, UnifiedAuditRow>();
+    for (const r of data || []) m.set(`${r.source_table}:${r.id}`, r);
+    return m;
+  }, [data]);
+
+  const columns = useMemo<ReportColumn<UnifiedAuditRow>[]>(
+    () => [
+      { key: "when", header: "When", width: "w-[160px]" },
+      { key: "source", header: "Source", width: "w-[160px]" },
+      { key: "action", header: "Action", width: "w-[120px]" },
+      { key: "entity", header: "Entity", width: "w-[220px]" },
+      { key: "summary", header: "Summary" },
+      {
+        key: "detail",
+        header: "",
+        width: "w-[56px]",
+        exportExclude: true,
+        render: (row) => {
+          const raw = rawById.get(row.id);
+          if (!raw) return null;
+          return (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDetailRow(raw);
+              }}
+              aria-label="View audit event details"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          );
+        },
+      },
+    ],
+    [rawById],
+  );
+
+  const rows = useMemo<ReportRow[]>(
+    () =>
+      (data || []).map((r) => ({
+        id: `${r.source_table}:${r.id}`,
+        onClick: () => setDetailRow(r),
+        values: {
+          when: format(new Date(r.occurred_at), "MMM d, yyyy HH:mm"),
+          source: sourceLabel(r.source_table),
+          action: r.action || null,
+          entity: r.entity_type
+            ? `${r.entity_type}${r.entity_id ? ` · ${r.entity_id.slice(0, 8)}…` : ""}`
+            : null,
+          summary: r.summary || null,
+        },
+      })),
+    [data],
+  );
 
   const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = (data || []).map((r) => ({
-      when: format(new Date(r.occurred_at), "yyyy-MM-dd HH:mm"),
-      source: sourceLabel(r.source_table),
-      action: r.action || "",
-      entity_type: r.entity_type || "",
-      entity_id: r.entity_id || "",
-      summary: r.summary || "",
-      actor: r.actor_id || "",
-    }));
     return {
       title: "Audit Trail",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      columns: [
-        { key: "when", header: "When", width: 16 },
-        { key: "source", header: "Source", width: 18 },
-        { key: "action", header: "Action", width: 14 },
-        { key: "entity_type", header: "Entity", width: 16 },
-        { key: "entity_id", header: "Entity ID", width: 20 },
-        { key: "summary", header: "Summary", width: 36 },
-        { key: "actor", header: "Actor", width: 20 },
-      ],
-      rows,
+      columns: toExportColumns(columns as ReportColumn<never>[]),
+      rows: toExportRows(rows, columns as ReportColumn<never>[]),
       sheetName: "Audit Trail",
     };
-  }, [data, dateFrom, dateTo, currentOrg]);
+  }, [columns, rows, dateFrom, dateTo, currentOrg]);
 
   return (
     <CompanyScopeGate reportName="Audit Trail">
@@ -200,75 +252,58 @@ function AuditTrailInner() {
           </ReportFilters>
         }
       >
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{data?.length || 0} audit events (capped at 1,000)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead>When</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Entity</TableHead>
-                  <TableHead>Summary</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data?.map((r) => {
-                  const isOpen = expanded.has(r.id);
-                  return (
-                    <Collapsible key={`${r.source_table}:${r.id}`} open={isOpen} onOpenChange={() => toggle(r.id)} asChild>
-                      <>
-                        <CollapsibleTrigger asChild>
-                          <TableRow className="cursor-pointer hover:bg-muted/50">
-                            <TableCell>
-                              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </TableCell>
-                            <TableCell className="font-mono text-xs whitespace-nowrap">
-                              {format(new Date(r.occurred_at), "MMM d, yyyy HH:mm")}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">{sourceLabel(r.source_table)}</Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">{r.action || "—"}</TableCell>
-                            <TableCell className="text-sm">
-                              {r.entity_type ? <span className="text-muted-foreground">{r.entity_type}</span> : "—"}
-                              {r.entity_id && <span className="ml-1 font-mono text-xs">{r.entity_id.slice(0, 8)}…</span>}
-                            </TableCell>
-                            <TableCell className="text-sm max-w-[420px] truncate">{r.summary || "—"}</TableCell>
-                          </TableRow>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent asChild>
-                          <TableRow className="bg-muted/20">
-                            <TableCell />
-                            <TableCell colSpan={5}>
-                              <div className="space-y-2 py-2 text-xs">
-                                {r.actor_id && (
-                                  <div><span className="text-muted-foreground">Actor:</span> <span className="font-mono">{r.actor_id}</span></div>
-                                )}
-                                {r.entity_id && (
-                                  <div><span className="text-muted-foreground">Entity ID:</span> <span className="font-mono">{r.entity_id}</span></div>
-                                )}
-                                {r.payload && (
-                                  <pre className="bg-background border rounded p-2 overflow-x-auto max-h-64">
-                                    {JSON.stringify(r.payload, null, 2)}
-                                  </pre>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        </CollapsibleContent>
-                      </>
-                    </Collapsible>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ReportSurface
+          companyName={currentOrg?.name || ""}
+          title="Audit Trail"
+          dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+          subtitle={`${data?.length || 0} audit events (capped at 1,000)`}
+          profile="operational"
+        >
+          <ReportTable
+            columns={columns as ReportColumn<never>[]}
+            rows={rows}
+            caption="Unified audit trail across all modules"
+            emptyMessage="No audit events found for the selected period"
+          />
+        </ReportSurface>
+
+        <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Audit event details</DialogTitle>
+            </DialogHeader>
+            {detailRow && (
+              <div className="space-y-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground">When:</span>{" "}
+                  {format(new Date(detailRow.occurred_at), "MMM d, yyyy HH:mm")}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Source:</span>{" "}
+                  <Badge variant="outline" className="text-xs">{sourceLabel(detailRow.source_table)}</Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Action:</span>{" "}
+                  <span className="font-mono">{detailRow.action || "—"}</span>
+                </div>
+                {detailRow.actor_id && (
+                  <div><span className="text-muted-foreground">Actor:</span> <span className="font-mono">{detailRow.actor_id}</span></div>
+                )}
+                {detailRow.entity_id && (
+                  <div><span className="text-muted-foreground">Entity ID:</span> <span className="font-mono">{detailRow.entity_id}</span></div>
+                )}
+                {detailRow.summary && (
+                  <div><span className="text-muted-foreground">Summary:</span> {detailRow.summary}</div>
+                )}
+                {detailRow.payload && (
+                  <pre className="bg-background border rounded p-2 overflow-x-auto max-h-64">
+                    {JSON.stringify(detailRow.payload, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </ReportPageLayout>
     </CompanyScopeGate>
   );

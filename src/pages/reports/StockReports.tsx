@@ -7,9 +7,14 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 import { Package, AlertTriangle, TrendingUp, DollarSign } from "lucide-react";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
@@ -97,6 +102,64 @@ function StockReportsInner() {
       avgMargin,
     };
   }, [products, totals.totalStockValue, stockByProduct]);
+
+  const topValueColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "product", header: "Product" },
+      { key: "type", header: "Type", render: (row) => <Badge variant="outline">{String(row.values?.type ?? "")}</Badge> },
+      { key: "cost", header: "Cost", format: "currency" },
+      { key: "price", header: "Price", format: "currency" },
+      {
+        key: "margin",
+        header: "Margin",
+        align: "right",
+        render: (row) => {
+          const margin = row.values?.margin as number | null;
+          if (margin === null || margin === undefined) return "—";
+          return <span className={margin >= 30 ? "text-success" : "text-warning"}>{margin.toFixed(0)}%</span>;
+        },
+      },
+    ],
+    [],
+  );
+
+  const topValueRows = useMemo<ReportRow[]>(
+    () =>
+      stockData.productsByValue.map((product) => {
+        const margin = product.cost_price
+          ? ((product.unit_price - product.cost_price) / product.unit_price) * 100
+          : null;
+        return {
+          id: product.id,
+          values: {
+            product: product.name,
+            type: product.type,
+            cost: product.cost_price || null,
+            price: product.unit_price,
+            margin,
+          },
+        };
+      }),
+    [stockData.productsByValue],
+  );
+
+  const missingCostColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "product", header: "Product" },
+      { key: "sku", header: "SKU" },
+      { key: "price", header: "Sale Price", format: "currency" },
+    ],
+    [],
+  );
+
+  const missingCostRows = useMemo<ReportRow[]>(
+    () =>
+      stockData.noCostPrice.slice(0, 10).map((product) => ({
+        id: product.id,
+        values: { product: product.name, sku: product.sku || null, price: product.unit_price },
+      })),
+    [stockData.noCostPrice],
+  );
 
   const getExportConfig = useCallback((): ExportConfig => {
     const rows: ExportRow[] = [];
@@ -217,96 +280,25 @@ function StockReportsInner() {
         </div>
 
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Top Products by Value</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">Highest value items in inventory</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="table-container">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
-                      <TableHead className="text-right">Price</TableHead>
-                      <TableHead className="text-right">Margin</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockData.productsByValue.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          No products found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      stockData.productsByValue.map((product) => {
-                        const margin = product.cost_price 
-                          ? ((product.unit_price - product.cost_price) / product.unit_price * 100)
-                          : null;
-                        return (
-                          <TableRow key={product.id}>
-                            <TableCell className="font-medium">{product.name}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{product.type}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {product.cost_price ? formatCurrency(product.cost_price, baseCurrency) : "—"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(product.unit_price, baseCurrency)}
-                            </TableCell>
-                            <TableCell className={`text-right ${margin && margin >= 30 ? "text-green-600" : margin ? "text-orange-600" : ""}`}>
-                              {margin ? `${margin.toFixed(0)}%` : "—"}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Top Products by Value" subtitle="Highest value items in inventory" profile="operational">
+            <ReportTable
+              columns={topValueColumns}
+              rows={topValueRows}
+              currency={baseCurrency}
+              caption="Top products by value"
+              emptyMessage="No products found"
+            />
+          </ReportSurface>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Products Missing Cost Price</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">Update these for accurate margin calculations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="table-container">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead className="text-right">Sale Price</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockData.noCostPrice.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center py-8 text-green-600">
-                          ✓ All products have cost prices set
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      stockData.noCostPrice.slice(0, 10).map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{product.sku || "—"}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(product.unit_price, baseCurrency)}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+          <ReportSurface title="Products Missing Cost Price" subtitle="Update these for accurate margin calculations" profile="operational">
+            <ReportTable
+              columns={missingCostColumns}
+              rows={missingCostRows}
+              currency={baseCurrency}
+              caption="Products missing cost price"
+              emptyMessage="✓ All products have cost prices set"
+            />
+          </ReportSurface>
         </div>
       </div>
     </ReportPageLayout>

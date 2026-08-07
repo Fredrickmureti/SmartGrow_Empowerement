@@ -2,18 +2,17 @@
  * Aging Report Page
  * 
  * Track overdue receivables and payables with export functionality.
+ * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, AlertTriangle, Mail } from "lucide-react";
 import { useAgingReport } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -28,9 +27,18 @@ import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { PeriodLockBanner } from "@/components/reports/PeriodLockBanner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+
 function AgingReportInner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -80,49 +88,125 @@ function AgingReportInner() {
 
   const totalAmount = data?.summary.total || 0;
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "contact", header: reportType === "ar" ? "Customer" : "Supplier", width: 25 },
-      { key: "current", header: "Current", width: 16, format: "currency", align: "right" },
-      { key: "days30", header: "31-60 Days", width: 16, format: "currency", align: "right" },
-      { key: "days60", header: "61-90 Days", width: 16, format: "currency", align: "right" },
-      { key: "days90", header: "90+ Days", width: 16, format: "currency", align: "right" },
-      { key: "total", header: "Total", width: 16, format: "currency", align: "right" },
-    ];
+  // ── One column + row declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      {
+        key: "contact",
+        header: reportType === "ar" ? "Customer" : "Supplier",
+        width: "w-[280px]",
+        sticky: true,
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          const isExpanded = expandedContacts.has(r.id);
+          return (
+            <div className="flex items-center gap-2">
+              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+              <span
+                className="font-medium text-primary hover:underline cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); navigate(`/contacts-app/profile?id=${r.id}`); }}
+              >
+                {r.label}
+              </span>
+              {r.tone === "danger" && <Badge variant="destructive" className="ml-1">90+ days</Badge>}
+            </div>
+          );
+        },
+      },
+      { key: "current", header: "Current", format: "currency", width: "w-[130px]" },
+      { key: "days30", header: "31-60 Days", format: "currency", width: "w-[130px]" },
+      { key: "days60", header: "61-90 Days", format: "currency", width: "w-[130px]" },
+      { key: "days90", header: "90+ Days", format: "currency", width: "w-[130px]" },
+      { key: "total", header: "Total", format: "currency", width: "w-[140px]" },
+    ],
+    [reportType, expandedContacts, navigate],
+  );
 
-    const rows: ExportRow[] = [];
-    for (const contact of data?.contacts || []) {
-      rows.push({
-        contact: contact.contact_name,
+  const rows = useMemo<ReportRow[]>(() => {
+    const contacts = data?.contacts || [];
+    const out: ReportRow[] = contacts.map((contact) => ({
+      id: contact.contact_id,
+      label: contact.contact_name,
+      tone: contact.buckets.days90 > 0 ? "danger" : "default",
+      onClick: () => toggleContact(contact.contact_id),
+      values: {
         current: contact.buckets.current || null,
         days30: contact.buckets.days30 || null,
         days60: contact.buckets.days60 || null,
         days90: contact.buckets.days90 || null,
         total: contact.buckets.total,
+      },
+    }));
+
+    if (out.length > 0) {
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL",
+        values: {
+          current: data?.summary.current || 0,
+          days30: data?.summary.days30 || 0,
+          days60: data?.summary.days60 || 0,
+          days90: data?.summary.days90 || 0,
+          total: data?.summary.total || 0,
+        },
       });
     }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, expandedContacts]);
 
-    rows.push({
-      contact: "TOTAL",
-      current: data?.summary.current || 0,
-      days30: data?.summary.days30 || 0,
-      days60: data?.summary.days60 || 0,
-      days90: data?.summary.days90 || 0,
-      total: data?.summary.total || 0,
-      _isGrandTotal: true,
-    });
+  const documentColumns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "document_number", header: reportType === "ar" ? "Invoice #" : "Bill #", width: "w-[140px]" },
+      { key: "document_date", header: "Date", format: "date", width: "w-[110px]" },
+      { key: "due_date", header: "Due Date", format: "date", width: "w-[110px]" },
+      { key: "total", header: "Amount", format: "currency", width: "w-[130px]" },
+      { key: "amount_paid", header: "Paid", format: "currency", width: "w-[130px]" },
+      { key: "balance_due", header: "Balance", format: "currency", width: "w-[130px]" },
+      {
+        key: "bucket",
+        header: "Days Overdue",
+        align: "center",
+        width: "w-[130px]",
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          const bucket = String(r.values?.bucket ?? "");
+          const daysOverdue = Number(r.values?.days_overdue ?? 0);
+          return (
+            <Badge variant="outline" className={cn("text-white", getBucketColor(bucket))}>
+              {daysOverdue > 0 ? `${daysOverdue} days` : "Current"}
+            </Badge>
+          );
+        },
+      },
+      {
+        key: "actions",
+        header: "",
+        exportExclude: true,
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          const hasEmail = !!r.values?.hasEmail;
+          if (reportType !== "ar" || !hasEmail) return null;
+          return <Button variant="ghost" size="icon" title="Send reminder"><Mail className="h-4 w-4" /></Button>;
+        },
+      },
+    ],
+    [reportType],
+  );
 
+  const getExportConfig = useCallback((): ExportConfig => {
     return {
       title: reportType === "ar" ? "Accounts Receivable Aging" : "Accounts Payable Aging",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
-      columns,
-      rows,
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
       sheetName: reportType === "ar" ? "AR Aging" : "AP Aging",
       currency: baseCurrency,
     };
-  }, [data, reportType, asOfDate, currentOrg, baseCurrency]);
+  }, [columns, rows, reportType, asOfDate, currentOrg, baseCurrency]);
 
   return (
     <ReportPageLayout
@@ -232,125 +316,72 @@ function AgingReportInner() {
         </Card>
       </div>
 
-      {/* Detailed Aging by Contact */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{reportType === "ar" ? "Customer" : "Supplier"} Aging Detail</CardTitle>
-          <CardDescription>Click to expand and see individual {reportType === "ar" ? "invoices" : "bills"}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {data?.contacts.map((contact) => {
-              const isExpanded = expandedContacts.has(contact.contact_id);
-              return (
-                <Collapsible key={contact.contact_id} open={isExpanded} onOpenChange={() => toggleContact(contact.contact_id)}>
-                  <CollapsibleTrigger asChild>
-                    <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? <ChevronDown className="h-5 w-5 text-muted-foreground" /> : <ChevronRight className="h-5 w-5 text-muted-foreground" />}
-                        <div>
-                          <p
-                            className="font-medium text-primary hover:underline cursor-pointer"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/contacts-app/profile?id=${contact.contact_id}`); }}
-                          >
-                            {contact.contact_name}
-                          </p>
-                          {contact.company && <p className="text-sm text-muted-foreground">{contact.company}</p>}
-                        </div>
-                        {contact.buckets.days90 > 0 && <Badge variant="destructive" className="ml-2">90+ days overdue</Badge>}
-                      </div>
-                      <div className="flex items-center gap-6 text-sm">
-                        <div className="text-right min-w-[80px]">
-                          <p className="text-muted-foreground">Current</p>
-                          <p className="font-medium text-green-600">{formatCurrency(contact.buckets.current, baseCurrency)}</p>
-                        </div>
-                        <div className="text-right min-w-[80px]">
-                          <p className="text-muted-foreground">31-60</p>
-                          <p className="font-medium text-yellow-600">{formatCurrency(contact.buckets.days30, baseCurrency)}</p>
-                        </div>
-                        <div className="text-right min-w-[80px]">
-                          <p className="text-muted-foreground">61-90</p>
-                          <p className="font-medium text-orange-600">{formatCurrency(contact.buckets.days60, baseCurrency)}</p>
-                        </div>
-                        <div className="text-right min-w-[80px]">
-                          <p className="text-muted-foreground">90+</p>
-                          <p className="font-medium text-destructive">{formatCurrency(contact.buckets.days90, baseCurrency)}</p>
-                        </div>
-                        <div className="text-right min-w-[100px]">
-                          <p className="text-muted-foreground">Total</p>
-                          <p className="font-bold">{formatCurrency(contact.buckets.total, baseCurrency)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="ml-8 mt-2 mb-4 border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>{reportType === "ar" ? "Invoice" : "Bill"} #</TableHead>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Due Date</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                            <TableHead className="text-right">Paid</TableHead>
-                            <TableHead className="text-right">Balance</TableHead>
-                            <TableHead className="text-center">Days Overdue</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {contact.documents.map((doc) => (
-                            <TableRow key={doc.id}>
-                              <TableCell className="font-mono">{doc.document_number}</TableCell>
-                              <TableCell>{format(new Date(doc.document_date), "MMM d, yyyy")}</TableCell>
-                              <TableCell>{format(new Date(doc.due_date), "MMM d, yyyy")}</TableCell>
-                              <TableCell className="text-right">{formatCurrency(doc.total, baseCurrency)}</TableCell>
-                              <TableCell className="text-right">{formatCurrency(doc.amount_paid, baseCurrency)}</TableCell>
-                              <TableCell className="text-right font-medium">
-                                <button
-                                  className="hover:underline hover:text-primary cursor-pointer disabled:opacity-50 disabled:no-underline disabled:cursor-not-allowed"
-                                  disabled={!controlAccountId}
-                                  title={!controlAccountId ? `Configure ${reportType === "ar" ? "Accounts Receivable" : "Accounts Payable"} default account in Finance Settings to enable drill-down` : undefined}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!controlAccountId) return;
-                                    setDrillDown({
-                                      open: true,
-                                      config: {
-                                        title: `${contact.contact_name} — ${doc.document_number}`,
-                                        accountId: controlAccountId,
-                                        startDate: doc.document_date,
-                                        endDate: asOfDate,
-                                        sourceType: reportType === "ar" ? "invoice" : "bill",
-                                      },
-                                    });
-                                  }}
-                                >
-                                  {formatCurrency(doc.balance_due, baseCurrency)}
-                                </button>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="outline" className={cn("text-white", getBucketColor(doc.bucket))}>
-                                  {doc.days_overdue > 0 ? `${doc.days_overdue} days` : "Current"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {reportType === "ar" && contact.email && (
-                                  <Button variant="ghost" size="icon" title="Send reminder"><Mail className="h-4 w-4" /></Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Aging by contact, driven by the shared reporting engine. Click a row to expand documents. */}
+      <ReportSurface
+        companyName={currentOrg?.name || ""}
+        title={reportType === "ar" ? "Accounts Receivable Aging" : "Accounts Payable Aging"}
+        asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
+        subtitle={filters.branchId ? "Branch scoped" : undefined}
+        profile="operational"
+      >
+        <ReportTable
+          columns={columns}
+          rows={rows}
+          currency={baseCurrency}
+          caption={`${reportType === "ar" ? "Customer" : "Supplier"} aging detail`}
+          emptyMessage={`No outstanding ${reportType === "ar" ? "receivables" : "payables"}`}
+        />
+      </ReportSurface>
+
+      {/* Expanded contact document detail */}
+      {(data?.contacts || [])
+        .filter((c) => expandedContacts.has(c.contact_id))
+        .map((contact) => {
+          const docRows: ReportRow[] = contact.documents.map((doc) => ({
+            id: doc.id,
+            onClick: () => {
+              if (!controlAccountId) return;
+              setDrillDown({
+                open: true,
+                config: {
+                  title: `${contact.contact_name} — ${doc.document_number}`,
+                  accountId: controlAccountId,
+                  startDate: doc.document_date,
+                  endDate: asOfDate,
+                  sourceType: reportType === "ar" ? "invoice" : "bill",
+                },
+              });
+            },
+            values: {
+              document_number: doc.document_number,
+              document_date: doc.document_date,
+              due_date: doc.due_date,
+              total: doc.total,
+              amount_paid: doc.amount_paid,
+              balance_due: doc.balance_due,
+              bucket: doc.bucket,
+              days_overdue: doc.days_overdue,
+              hasEmail: !!contact.email,
+            },
+          }));
+          return (
+            <Card key={contact.contact_id}>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">{contact.contact_name} — {reportType === "ar" ? "Invoices" : "Bills"}</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <ReportTable
+                  columns={documentColumns}
+                  rows={docRows}
+                  currency={baseCurrency}
+                  caption={`${contact.contact_name} document detail`}
+                  emptyMessage="No documents"
+                />
+              </CardContent>
+            </Card>
+          );
+        })}
+
       <DrillDownDialog
         open={drillDown.open}
         onOpenChange={(open) => setDrillDown((prev) => ({ ...prev, open }))}

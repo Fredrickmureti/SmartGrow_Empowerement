@@ -1,15 +1,16 @@
 /**
  * Journal Report Page
- * 
+ *
  * Lists journal entries grouped by source type with filtering.
+ * Rendered by the canonical reporting engine — each journal entry becomes
+ * a `section` row, its lines the details beneath, and a `subtotal` row
+ * carries the entry's debit/credit totals.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -19,9 +20,18 @@ import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
+import {
+  ReportSurface,
+  ReportTable,
+  blankIfZero,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 interface JournalEntry {
@@ -102,32 +112,6 @@ function JournalReportInner() {
     enabled: !!currentOrg?.id,
   });
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const rows: ExportRow[] = [];
-    for (const je of data || []) {
-      rows.push({ date: je.entry_date, entry: je.entry_number, account: "", desc: je.description || "", debit: je.total_debit, credit: je.total_credit, _isHeader: true });
-      for (const l of je.lines) {
-        rows.push({ date: "", entry: "", account: `${l.account_code} - ${l.account_name}`, desc: l.description || "", debit: l.debit || null, credit: l.credit || null });
-      }
-    }
-    return {
-      title: "Journal Report",
-      companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
-      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
-      columns: [
-        { key: "date", header: "Date", width: 12 },
-        { key: "entry", header: "Entry #", width: 14 },
-        { key: "account", header: "Account", width: 25 },
-        { key: "desc", header: "Description", width: 25 },
-        { key: "debit", header: "Debit", width: 16, format: "currency", align: "right" },
-        { key: "credit", header: "Credit", width: 16, format: "currency", align: "right" },
-      ],
-      rows,
-      sheetName: "Journal Report",
-    };
-  }, [data, dateFrom, dateTo, currentOrg]);
-
   const sourceLabels: Record<string, string> = {
     invoice: "Invoice", bill: "Bill", expense: "Expense", payment: "Payment", manual: "Manual",
     bill_payment: "Bill Payment", pos_sale: "POS Sale", payroll: "Payroll", credit_note: "Credit Note",
@@ -137,6 +121,66 @@ function JournalReportInner() {
     owner_investment: "Owner Investment", owner_drawing: "Owner Drawing", bank_transfer: "Bank Transfer",
     loan_received: "Loan Received", loan_payment: "Loan Payment",
   };
+
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "account", header: "Account", width: "w-[220px]" },
+      { key: "description", header: "Description", width: "w-[260px]" },
+      { key: "source", header: "Source", width: "w-[140px]" },
+      { key: "debit", header: "Debit", format: "currency", width: "w-[130px]" },
+      { key: "credit", header: "Credit", format: "currency", width: "w-[130px]" },
+    ],
+    [],
+  );
+
+  const rows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    for (const je of data || []) {
+      out.push({
+        id: `sec-${je.id}`,
+        kind: "section",
+        label: `${format(new Date(je.entry_date), "MMM d, yyyy")} · ${je.entry_number} — ${je.description || ""}`,
+      });
+
+      for (const [idx, line] of je.lines.entries()) {
+        out.push({
+          id: `${je.id}-${idx}`,
+          onClick: () => openEntryDrawer(je),
+          values: {
+            account: `${line.account_code} - ${line.account_name}`,
+            description: line.description || je.description,
+            source: sourceLabels[je.source_type || "manual"] || je.source_type || "Manual",
+            debit: blankIfZero(line.debit),
+            credit: blankIfZero(line.credit),
+          },
+        });
+      }
+
+      out.push({
+        id: `sub-${je.id}`,
+        kind: "subtotal",
+        label: "Entry total",
+        values: { debit: je.total_debit, credit: je.total_credit },
+      });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
+  const getExportConfig = useCallback(
+    (): ExportConfig => ({
+      title: "Journal Report",
+      companyName: currentOrg?.name || "",
+      organizationId: currentOrg?.id,
+      dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
+      sheetName: "Journal Report",
+      currency: baseCurrency,
+    }),
+    [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency],
+  );
 
   return (
     <ReportPageLayout
@@ -165,61 +209,21 @@ function JournalReportInner() {
         </ReportFilters>
       }
     >
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-sm text-muted-foreground mb-4">{data?.length || 0} journal entries</div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Entry #</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead className="text-right">Debit</TableHead>
-                <TableHead className="text-right">Credit</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data?.map((je) => (
-                <>
-                  {je.lines.map((line, idx) => (
-                    <TableRow key={`${je.id}-${idx}`}>
-                      {idx === 0 ? (
-                        <>
-                          <TableCell rowSpan={je.lines.length} className="align-top font-medium">
-                            {format(new Date(je.entry_date), "MMM d, yyyy")}
-                          </TableCell>
-                          <TableCell rowSpan={je.lines.length} className="align-top font-mono text-sm">
-                            {je.entry_number}
-                          </TableCell>
-                        </>
-                      ) : null}
-                      <TableCell className="font-mono text-sm">{line.account_code} - {line.account_name}</TableCell>
-                      <TableCell className="text-sm">{line.description || je.description}</TableCell>
-                      {idx === 0 ? (
-                        <TableCell rowSpan={je.lines.length} className="align-top">
-                          <Badge variant="outline">{sourceLabels[je.source_type || "manual"] || je.source_type || "Manual"}</Badge>
-                        </TableCell>
-                      ) : null}
-                      <TableCell className="text-right">
-                        <button className="hover:underline hover:text-primary cursor-pointer" onClick={() => openEntryDrawer(je)}>
-                          {line.debit > 0 ? formatCurrency(line.debit, baseCurrency) : "—"}
-                        </button>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <button className="hover:underline hover:text-primary cursor-pointer" onClick={() => openEntryDrawer(je)}>
-                          {line.credit > 0 ? formatCurrency(line.credit, baseCurrency) : "—"}
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <ReportSurface
+        companyName={currentOrg?.name || ""}
+        title="Journal Report"
+        dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
+        subtitle={`${data?.length || 0} journal entries`}
+        profile="operational"
+      >
+        <ReportTable
+          columns={columns}
+          rows={rows}
+          currency={baseCurrency}
+          caption="Journal report — posted entries grouped by journal entry"
+          emptyMessage="No posted journal entries for the selected criteria"
+        />
+      </ReportSurface>
       <TransactionPreviewDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}

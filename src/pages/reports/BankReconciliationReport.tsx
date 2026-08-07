@@ -2,19 +2,10 @@
  * Bank Reconciliation Report
  *
  * Phase B3 — read-only report over `bank_reconciliation_sessions` joined
- * to `bank_accounts`. Surfaces the matched/unmatched/drift picture across
- * every reconciliation session for finance review and audit. The actual
- * reconciliation workflow lives at `/finance/reconciliation` and remains
- * the only place to mutate session state — this page is observation only.
- *
- * Scoping: org + business are always applied; branch follows the active
- * finance scope (sessions inherit branch_id from the parent bank account
- * at start time, so the branch filter is meaningful here — registered in
- * `branchScopability.ts` as `bank_reconciliation`).
- *
- * Data source: `bank_reconciliation_sessions` is itself a ledger of
- * reconciliation events, not an operational table, so this page does not
- * need to be in the financial data-source contract whitelist.
+ * to `bank_accounts`. Rendered by the canonical reporting engine
+ * (`@/design-system/reports`). The actual reconciliation workflow lives
+ * at `/finance/reconciliation` and remains the only place to mutate
+ * session state — this page is observation only.
  */
 
 import { useCallback, useMemo, useState } from "react";
@@ -24,9 +15,6 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -39,9 +27,15 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useCurrency } from "@/hooks/useCurrency";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
-import type {
-  ExportConfig, ExportColumn, ExportRow,
-} from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 type StatusFilter = "all" | "in_progress" | "completed" | "cancelled";
 
@@ -71,19 +65,6 @@ const STATUS_LABEL: Record<SessionRow["status"], string> = {
   completed: "Completed",
   cancelled: "Cancelled",
 };
-
-function fmtMoney(n: number | null | undefined, ccy: string) {
-  const v = typeof n === "number" ? n : 0;
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: ccy,
-      maximumFractionDigits: 2,
-    }).format(v);
-  } catch {
-    return v.toFixed(2);
-  }
-}
 
 export default function BankReconciliationReport() {
   const { currentOrg } = useOrganization();
@@ -173,35 +154,74 @@ export default function BankReconciliationReport() {
     return { open, drift, reconciledTotal, total: rows.length };
   }, [rows]);
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "statement_date", header: "Statement Date", width: 16 },
-      { key: "bank_account_name", header: "Bank Account", width: 32 },
-      { key: "status", header: "Status", width: 14 },
-      { key: "opening_balance", header: "Opening", width: 18, format: "currency", align: "right" },
-      { key: "closing_balance", header: "Statement Close", width: 20, format: "currency", align: "right" },
-      { key: "reconciled_balance", header: "Reconciled", width: 18, format: "currency", align: "right" },
-      { key: "difference", header: "Difference", width: 18, format: "currency", align: "right" },
-      { key: "completed_at", header: "Completed", width: 18 },
-    ];
-    const exportRows: ExportRow[] = rows.map((r) => ({
-      statement_date: r.statement_date,
-      bank_account_name: r.bank_account_name,
-      status: STATUS_LABEL[r.status],
-      opening_balance: r.opening_balance,
-      closing_balance: r.closing_balance,
-      reconciled_balance: r.reconciled_balance,
-      difference: r.difference ?? 0,
-      completed_at: r.completed_at ? format(new Date(r.completed_at), "yyyy-MM-dd") : "",
-    }));
-    return {
-      title: "Bank Reconciliation Report",
-      subtitle: "All reconciliation sessions with matched/unmatched picture",
-      columns,
-      rows: exportRows,
-      currency: baseCurrency,
-    };
-  }, [rows, baseCurrency]);
+  // ── One column + row declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "statement_date", header: "Statement Date", format: "date", width: "w-[130px]" },
+      { key: "bank_account_name", header: "Bank Account", width: "w-[220px]" },
+      {
+        key: "status",
+        header: "Status",
+        width: "w-[120px]",
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          const s = r.values?.status as SessionRow["status"] | undefined;
+          if (!s) return null;
+          return <Badge variant={STATUS_VARIANT[s]}>{STATUS_LABEL[s]}</Badge>;
+        },
+      },
+      { key: "opening_balance", header: "Opening", format: "currency", width: "w-[140px]" },
+      { key: "closing_balance", header: "Statement Close", format: "currency", width: "w-[150px]" },
+      { key: "reconciled_balance", header: "Reconciled", format: "currency", width: "w-[140px]" },
+      { key: "difference", header: "Difference", format: "currency", width: "w-[130px]" },
+      {
+        key: "actions",
+        header: "",
+        exportExclude: true,
+        width: "w-[120px]",
+        render: (row) => {
+          const r = row as unknown as ReportRow;
+          return (
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/finance/reconciliation?session=${r.id}`}>
+                Open <ArrowRight className="h-3 w-3 ml-1" />
+              </Link>
+            </Button>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  const tableRows = useMemo<ReportRow[]>(
+    () => rows.map((r) => {
+      const diff = r.difference ?? 0;
+      const hasDrift = Math.abs(diff) > 0.01;
+      return {
+        id: r.id,
+        tone: hasDrift ? "warning" : "default",
+        values: {
+          statement_date: r.statement_date,
+          bank_account_name: r.bank_account_name,
+          status: r.status,
+          opening_balance: r.opening_balance,
+          closing_balance: r.closing_balance,
+          reconciled_balance: r.reconciled_balance,
+          difference: diff,
+        },
+      } satisfies ReportRow;
+    }),
+    [rows],
+  );
+
+  const getExportConfig = useCallback((): ExportConfig => ({
+    title: "Bank Reconciliation Report",
+    subtitle: "All reconciliation sessions with matched/unmatched picture",
+    columns: toExportColumns(columns),
+    rows: toExportRows(tableRows, columns),
+    currency: baseCurrency,
+  }), [columns, tableRows, baseCurrency]);
 
   return (
     <ReportPageLayout
@@ -253,57 +273,23 @@ export default function BankReconciliationReport() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard label="Sessions" value={String(kpis.total)} />
           <KpiCard label="Open" value={String(kpis.open)} />
-          <KpiCard label="Reconciled balance (completed)" value={fmtMoney(kpis.reconciledTotal, baseCurrency)} />
-          <KpiCard label="Σ |difference|" value={fmtMoney(kpis.drift, baseCurrency)} tone={kpis.drift > 0.01 ? "warn" : "ok"} />
+          <KpiCard label="Reconciled balance (completed)" value={kpis.reconciledTotal.toFixed(2)} />
+          <KpiCard label="Σ |difference|" value={kpis.drift.toFixed(2)} tone={kpis.drift > 0.01 ? "warn" : "ok"} />
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Statement Date</TableHead>
-                  <TableHead>Bank Account</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Opening</TableHead>
-                  <TableHead className="text-right">Statement Close</TableHead>
-                  <TableHead className="text-right">Reconciled</TableHead>
-                  <TableHead className="text-right">Difference</TableHead>
-                  <TableHead className="w-[120px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => {
-                  const ccy = r.bank_account_currency || baseCurrency;
-                  const diff = r.difference ?? 0;
-                  const hasDrift = Math.abs(diff) > 0.01;
-                  return (
-                    <TableRow key={r.id} className={hasDrift ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
-                      <TableCell className="font-mono text-xs">{r.statement_date}</TableCell>
-                      <TableCell>{r.bank_account_name}</TableCell>
-                      <TableCell>
-                        <Badge variant={STATUS_VARIANT[r.status]}>{STATUS_LABEL[r.status]}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtMoney(r.opening_balance, ccy)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtMoney(r.closing_balance, ccy)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{fmtMoney(r.reconciled_balance, ccy)}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${hasDrift ? "text-amber-700 font-medium" : "text-muted-foreground"}`}>
-                        {fmtMoney(diff, ccy)}
-                      </TableCell>
-                      <TableCell>
-                        <Button asChild variant="outline" size="sm">
-                          <Link to={`/finance/reconciliation?session=${r.id}`}>
-                            Open <ArrowRight className="h-3 w-3 ml-1" />
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ReportSurface
+          title="Bank Reconciliation Sessions"
+          subtitle="Matched / unmatched picture across every reconciliation session"
+          profile="operational"
+        >
+          <ReportTable
+            columns={columns}
+            rows={tableRows}
+            currency={baseCurrency}
+            caption="Bank reconciliation sessions"
+            emptyMessage="No reconciliation sessions found for the selected filters."
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
   );
