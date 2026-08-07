@@ -36,8 +36,38 @@ export async function buildContext(
     header,
     footer,
     locale: (business as Record<string, string> | null)?.country ?? "US",
-    options: req.options ?? {},
+    options: normaliseOptions(req.options),
   };
+}
+
+/**
+ * Option-key normalisation — the ONE place render knobs get canonicalised.
+ *
+ * Callers historically sent both `paper_format` (server/HTTP style) and
+ * `paperFormat` (client style); renderers read one or the other, so an
+ * explicit operator override could be silently dropped by casing alone.
+ * Every alias is mirrored onto both spellings here so no renderer has to
+ * know which side the value came from.
+ */
+const OPTION_ALIASES: Array<[snake: string, camel: string]> = [
+  ["paper_format", "paperFormat"],
+  ["render_mode", "renderMode"],
+  ["force_render_mode", "forceRenderMode"],
+  ["policy_id", "policyId"],
+  ["rendered_by", "renderedBy"],
+];
+
+export function normaliseOptions(
+  options: Record<string, unknown> | null | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...(options ?? {}) };
+  for (const [snake, camel] of OPTION_ALIASES) {
+    const value = out[snake] ?? out[camel];
+    if (value === undefined || value === null) continue;
+    out[snake] = value;
+    out[camel] = value;
+  }
+  return out;
 }
 
 async function loadDocument(supabase: SupabaseClient, id: string) {

@@ -621,6 +621,7 @@ export default function Invoices() {
                   allSelected={allFilteredSelected}
                   onViewDetails={(inv) => { setSelectedInvoice(inv); setPeek(inv.id); }}
                   onPrint={handlePrintInvoice}
+                  onPreview={(inv) => { setSelectedInvoice(inv); openDocumentPreview("invoice", inv.id, `Invoice ${inv.invoice_number}`); }}
                   onEmail={handleSendEmail}
                   onEdit={handleEditInvoice}
                   onStatusChange={handleStatusChange}

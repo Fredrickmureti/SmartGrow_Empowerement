@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  MoreHorizontal, Eye, Printer, Mail, Edit, CheckCircle2, Send, CreditCard, History, Receipt, RotateCcw, Ban, Trash2, ExternalLink,
+  MoreHorizontal, Eye, FileSearch, Printer, Mail, Edit, CheckCircle2, Send, CreditCard, History, Receipt, RotateCcw, Ban, Trash2, ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +28,8 @@ interface InvoiceListTableProps {
   allSelected: boolean;
   onViewDetails: (invoice: Invoice) => void;
   onPrint: (invoice: Invoice) => void;
+  /** Read-only preview — renders the document without dispatching a job. */
+  onPreview?: (invoice: Invoice) => void;
   onEmail: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
   onStatusChange: (invoice: Invoice, status: Invoice["status"]) => void;
@@ -62,6 +64,7 @@ export function InvoiceListTable({
   allSelected,
   onViewDetails,
   onPrint,
+  onPreview,
   onEmail,
   onEdit,
   onStatusChange,
@@ -159,6 +162,9 @@ export function InvoiceListTable({
                     <DropdownMenuItem onClick={() => onViewDetails(invoice)}><Eye className="mr-2 h-4 w-4" />View Details</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate(`/sales/invoices/${invoice.id}`)}><ExternalLink className="mr-2 h-4 w-4" />Open Full Page</DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    {onPreview && (
+                      <DropdownMenuItem onClick={() => onPreview(invoice)}><FileSearch className="mr-2 h-4 w-4" />Preview</DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => onPrint(invoice)}><Printer className="mr-2 h-4 w-4" />Print</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => onEmail(invoice)}><Mail className="mr-2 h-4 w-4" />Send via Email</DropdownMenuItem>
                     {invoice.status === "draft" && <DropdownMenuItem onClick={() => onEdit(invoice)}><Edit className="mr-2 h-4 w-4" />Edit Invoice</DropdownMenuItem>}
