@@ -45,9 +45,14 @@ export interface ReportPdfPayload {
   subtitle?: string;
   companyName?: string;
   dateRange?: string;
+  /** Point-in-time reports: renders "As of …" instead of "For the period …". */
+  asOf?: string;
+  /** Reporting scope line ("<Business> · <Branch>"), derived by renderReport. */
+  scope?: string;
   columns: ReportColumn[];
   rows: ReportRow[];
   currency?: string;
+
   orientation?: "portrait" | "landscape";
   organization?: OrganizationBranding;
   recipientInfo?: RecipientInfo;
