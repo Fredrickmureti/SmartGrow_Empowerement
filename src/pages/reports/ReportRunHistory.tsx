@@ -6,14 +6,14 @@
  * status, run hash). Until now that table had six writers and no reader: the
  * audit existed but nobody could see it. This page is that reader.
  *
- * It is deliberately a *log* view, not an analytics surface:
- *  - no aggregation or scoring, because a run log answers "who produced which
- *    figures, with which parameters, and when" — inventing KPIs on top of it
- *    would make the audit trail look like a performance dashboard;
- *  - `params_jsonb` is shown verbatim in a detail dialog, because the exact
- *    parameter set is the thing an auditor needs to reproduce the run;
- *  - `run_hash` is surfaced as-is so two renditions of the same figures can be
- *    proven identical.
+ * Presentation follows the way mature ERPs render audit logs (Odoo's mail
+ * tracking / SAP's change documents / NetSuite's system notes): the log reads
+ * as *business facts in business language* — who did what, to which data, for
+ * which period, and what came out. Machine handles (row UUIDs, actor UUIDs,
+ * the `run_hash` fingerprint, the raw `params_jsonb`) are never the primary
+ * reading surface; they live behind a "Technical details" disclosure in the
+ * row detail, where a forensic reader can still reproduce or fingerprint the
+ * run. Nothing is discarded — it is ranked.
  *
  * RLS: `report_run_log` exposes SELECT to org members only
  * (`is_org_member(auth.uid(), organization_id)`), so this page reads the table
@@ -32,13 +32,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye } from "lucide-react";
+import { Eye, ChevronDown } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -76,7 +81,11 @@ function reportLabel(reportType: string): string {
   const hit = REPORT_REGISTRY.find(
     (r) => r.reportType === reportType || r.id === reportType,
   );
-  return hit?.name ?? reportType;
+  if (hit?.name) return hit.name;
+  // Unregistered key: still render it as a sentence, never as a raw slug.
+  return reportType
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function statusTone(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -84,6 +93,104 @@ function statusTone(status: string): "default" | "secondary" | "destructive" | "
   if (s === "error" || s === "failed") return "destructive";
   if (s === "ok" || s === "success" || s === "completed") return "secondary";
   return "outline";
+}
+
+/** Business wording for the outcome — auditors read "Completed", not "ok". */
+function statusLabel(status: string): string {
+  const s = (status || "").toLowerCase();
+  if (s === "ok" || s === "success" || s === "completed") return "Completed";
+  if (s === "error" || s === "failed") return "Failed";
+  if (!s) return "Unknown";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Delivery medium in the words the user chose in the UI. */
+const OUTPUT_LABELS: Record<string, string> = {
+  pdf: "PDF document",
+  csv: "CSV export",
+  xlsx: "Excel export",
+  excel: "Excel export",
+  json: "On-screen view",
+  screen: "On-screen view",
+  print: "Printed",
+};
+
+function outputLabel(params: Record<string, unknown> | null): string {
+  const raw = params?.output_format ?? params?.format ?? params?.outputFormat;
+  const key = typeof raw === "string" ? raw.toLowerCase() : "";
+  return OUTPUT_LABELS[key] ?? (key ? key.toUpperCase() : "PDF document");
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isMachineHandle(key: string, value: unknown): boolean {
+  if (typeof value === "string" && UUID_RE.test(value)) return true;
+  return /(^|_)(id|ids|uuid|hash|token)$/i.test(key);
+}
+
+function prettyDate(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return format(d, "MMM d, yyyy");
+}
+
+/** "1 Jan 2026 – 31 Mar 2026", "As of 31 Mar 2026", or null when undated. */
+function periodLabel(params: Record<string, unknown> | null): string | null {
+  if (!params) return null;
+  const range = (params.dateRange ?? params.date_range) as
+    | Record<string, unknown>
+    | undefined;
+  const from =
+    prettyDate(params.date_from ?? params.dateFrom ?? params.from ?? range?.from);
+  const to = prettyDate(params.date_to ?? params.dateTo ?? params.to ?? range?.to);
+  const asOf = prettyDate(params.as_of_date ?? params.asOfDate ?? params.as_of);
+  if (from && to) return `${from} – ${to}`;
+  if (asOf) return `As of ${asOf}`;
+  if (from) return `From ${from}`;
+  if (to) return `Up to ${to}`;
+  return null;
+}
+
+function rowCount(params: Record<string, unknown> | null): number | null {
+  const v = params?.row_count ?? params?.rowCount;
+  return typeof v === "number" ? v : null;
+}
+
+function humanizeKey(key: string): string {
+  return key.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function humanizeValue(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return v.toLocaleString("en-US");
+  if (typeof v === "string") return prettyDate(v) && /\d{4}-\d{2}-\d{2}/.test(v)
+    ? (prettyDate(v) as string)
+    : v.replace(/[_-]+/g, " ");
+  return JSON.stringify(v);
+}
+
+/** Keys already promoted into named fields — never repeat them as "settings". */
+const PROMOTED_KEYS = new Set([
+  "output_format", "format", "outputFormat",
+  "row_count", "rowCount",
+  "date_from", "dateFrom", "from",
+  "date_to", "dateTo", "to",
+  "as_of_date", "asOfDate", "as_of",
+  "dateRange", "date_range",
+]);
+
+/** The readable remainder of `params_jsonb`: real report settings only. */
+function settingEntries(
+  params: Record<string, unknown> | null,
+): Array<[string, string]> {
+  if (!params) return [];
+  return Object.entries(params)
+    .filter(([k, v]) => !PROMOTED_KEYS.has(k) && !isMachineHandle(k, v))
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => [humanizeKey(k), humanizeValue(v)] as [string, string]);
 }
 
 function formatBytes(n: number): string {
