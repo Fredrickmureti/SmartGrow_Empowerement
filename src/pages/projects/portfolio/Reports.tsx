@@ -165,7 +165,9 @@ export default function ProjectReports() {
       buildProjectReportConfig({
         reportType: meta.reportType,
         projectId: "*",
+        organizationId: currentOrg?.id,
         businessId: currentBusiness?.id,
+
         dateFrom,
         dateTo,
         title: meta.title,
