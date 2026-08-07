@@ -626,6 +626,8 @@ export function ReversePaymentWizard({
               consequences={consequences}
               isLoading={isPreviewLoading}
               isError={isPreviewError}
+              onUnmatchBankLines={handleUnmatchBankLines}
+              isUnmatching={isUnmatching}
             />
 
           </div>
