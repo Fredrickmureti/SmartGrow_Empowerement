@@ -50,7 +50,11 @@ import { PayrollReportContextHeader } from "./PayrollReportContextHeader";
 import { PayrollReportKpiBand } from "./PayrollReportKpiBand";
 import { PayrollReportHistoryStrip } from "./PayrollReportHistoryStrip";
 import { usePayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
-import type { ExportConfig, ExportRow } from "@/services/reports/ReportExportService";
+import type {
+  ExportConfig,
+  ExportRow,
+  ServerBuildConfig,
+} from "@/services/reports/ReportExportService";
 
 function ViewerInner() {
   const { reportKey } = useParams<{ reportKey: string }>();
