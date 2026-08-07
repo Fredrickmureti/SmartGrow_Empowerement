@@ -197,6 +197,9 @@ export async function renderReport(
     title,
     subtitle,
     dateRange: options.dateRange,
+    asOf: options.asOf,
+    scope,
+
     columns,
     rows: options.rows,
     orientation,
