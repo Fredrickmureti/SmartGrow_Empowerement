@@ -73241,6 +73241,29 @@ export type Database = {
           },
         ]
       }
+      customer_credit_tieout: {
+        Row: {
+          account_code: string | null
+          account_id: string | null
+          account_name: string | null
+          business_id: string | null
+          currency: string | null
+          drift: number | null
+          gl_balance: number | null
+          organization_id: string | null
+          subledger_balance: number | null
+          system_role: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_system_role_fkey"
+            columns: ["system_role"]
+            isOneToOne: false
+            referencedRelation: "system_account_roles"
+            referencedColumns: ["role_key"]
+          },
+        ]
+      }
       customer_ledger_entries: {
         Row: {
           branch_id: string | null
@@ -84516,6 +84539,10 @@ export type Database = {
         Returns: string
       }
       current_user_country_codes: { Args: never; Returns: string[] }
+      customer_credit_account: {
+        Args: { _business_id: string }
+        Returns: string
+      }
       customer_credit_balance_id: {
         Args: {
           _business_id: string

@@ -97,4 +97,45 @@ describe("commercial compensation writer monopoly", () => {
     });
     expect(seeded, "ADR 0131 Phase B: customer_credit account role migration is missing").toBe(true);
   });
+
+  it("returns and payment conversions use business-scoped numbering with no fallback", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const files = readdirSync(dir)
+      .sort()
+      .map((f) => readFileSync(join(dir, f), "utf8"));
+
+    const latestDefinition = (fnName: string): string | null => {
+      for (let i = files.length - 1; i >= 0; i -= 1) {
+        const idx = files[i].indexOf(`FUNCTION public.${fnName}(`);
+        if (idx !== -1) return files[i].slice(idx);
+      }
+      return null;
+    };
+
+    for (const fn of ["approve_sales_return_atomic", "issue_credit_note_for_payment_atomic"]) {
+      const sql = latestDefinition(fn);
+      expect(sql, `${fn} definition not found in migrations`).not.toBeNull();
+      expect(
+        /get_next_credit_note_number\(\s*\n?\s*[a-z_.]*organization_id,/.test(sql as string),
+        `${fn} must call business-scoped credit-note numbering`,
+      ).toBe(true);
+      expect(
+        /CN-'\s*,\s*extract\(epoch/.test(sql as string),
+        `${fn} must not invent fallback document numbers`,
+      ).toBe(false);
+    }
+  });
+
+  it("approved sales returns reverse COGS in the general ledger", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const posted = readdirSync(dir).some((f) => {
+      const sql = readFileSync(join(dir, f), "utf8");
+      return (
+        sql.includes("approve_sales_return_atomic") &&
+        /cost_of_goods_sold/.test(sql) &&
+        /'sales_return'/.test(sql)
+      );
+    });
+    expect(posted, "ADR 0131 Phase C: sales return inventory/COGS reversal is missing").toBe(true);
+  });
 });

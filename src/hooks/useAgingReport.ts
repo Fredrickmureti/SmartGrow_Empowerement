@@ -219,13 +219,20 @@ function processLedgerAgingRows(
 
   for (const row of rows) {
     const residual = Number(row.residual_amount) || 0;
-    if (residual <= 0) continue;
+    // Negative residuals are unapplied customer credits (credit positions).
+    // They must reduce the contact's net position, not be dropped.
+    if (Math.abs(residual) <= 0.005) continue;
     const daysOverdue = Number(row.days_overdue) || 0;
     let bucketLabel = buckets[buckets.length - 1]?.label || "days90";
-    for (const b of buckets) {
-      if (daysOverdue >= b.minDays && (b.maxDays === null || daysOverdue <= b.maxDays)) {
-        bucketLabel = b.label;
-        break;
+    if (residual < 0) {
+      // Credits are never aged.
+      bucketLabel = "current";
+    } else {
+      for (const b of buckets) {
+        if (daysOverdue >= b.minDays && (b.maxDays === null || daysOverdue <= b.maxDays)) {
+          bucketLabel = b.label;
+          break;
+        }
       }
     }
 
@@ -258,7 +265,7 @@ function processLedgerAgingRows(
       balance_due: residual,
       days_overdue: daysOverdue,
       bucket: bucketLabel,
-      source: "ledger_residual",
+      source: residual < 0 ? "customer_credit" : "ledger_residual",
     });
   }
 
