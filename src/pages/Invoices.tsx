@@ -684,7 +684,7 @@ export default function Invoices() {
         <ConfirmDeleteDialog open={deleteConfirm.isOpen} onOpenChange={deleteConfirm.setIsOpen} title="Delete Invoice" itemName={deleteConfirm.itemToDelete?.invoice_number} onConfirm={deleteConfirm.confirmDelete} isLoading={deleteConfirm.isDeleting} />
         <BulkDeleteDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog} selectedInvoices={selectedInvoices} onConfirm={handleBulkDelete} />
         <BulkExportDialog open={showBulkExportDialog} onOpenChange={setShowBulkExportDialog} selectedInvoices={selectedInvoices} allInvoices={invoices} />
-        <VoidInvoiceDialog invoice={selectedInvoice} open={showVoidDialog} onOpenChange={setShowVoidDialog} onSuccess={() => { refreshInvoices(); setShowVoidDialog(false); }} />
+        <VoidInvoiceDialog invoice={selectedInvoice} open={showVoidDialog} onOpenChange={setShowVoidDialog} onReversePayment={() => { setShowVoidDialog(false); setShowPaymentHistory(true); }} onSuccess={() => { refreshInvoices(); setShowVoidDialog(false); }} />
         <ImportWizard open={showImportWizard} onOpenChange={setShowImportWizard} entityName="Invoice" fieldDefinitions={invoiceFieldDefinitions} onImport={handleImportInvoice} onComplete={handleImportComplete} />
         <ContactPreviewDrawer open={!!previewContactId} onOpenChange={(open) => { if (!open) setPreviewContactId(null); }} contactId={previewContactId || undefined} />
       </div>
