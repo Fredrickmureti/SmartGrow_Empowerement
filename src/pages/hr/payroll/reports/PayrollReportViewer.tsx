@@ -177,7 +177,7 @@ function ViewerInner() {
     },
   });
 
-  const { data: readiness } = usePayrollReportReadiness({
+  const { data: readiness, isLoading: readinessLoading } = usePayrollReportReadiness({
     organizationId: currentOrg?.id,
     businessId: currentBusiness?.id ?? null,
     reportKey: reportKey ?? null,
@@ -309,6 +309,8 @@ function ViewerInner() {
         businessId={currentBusiness?.id}
         dateFrom={dateFrom}
         dateTo={dateTo}
+        readiness={readiness}
+        readinessLoading={readinessLoading}
       />
       <PayrollReportMetadataBand
         definition={definition}
