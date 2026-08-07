@@ -39,15 +39,25 @@ function grossOf(e: Employee): number {
   return (e.basic_salary || 0) + (e.housing_allowance || 0) + (e.transport_allowance || 0) + other;
 }
 
+/**
+ * Renders the complete grouping. It must never truncate: the export
+ * config is built from these same arrays, so a `.slice()` here would put
+ * a different dataset on screen than the one users download.
+ */
 function GroupCard({ title, rows }: { title: string; rows: { name: string; count: number }[] }) {
   const total = rows.reduce((s, r) => s + r.count, 0) || 1;
   return (
     <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-base">{title}</CardTitle></CardHeader>
-      <CardContent className="space-y-1.5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span>{title}</span>
+          <span className="text-xs font-normal text-muted-foreground">{rows.length} groups</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1.5 max-h-72 overflow-y-auto">
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No data.</p>
-        ) : rows.slice(0, 10).map((r) => (
+        ) : rows.map((r) => (
           <div key={r.name} className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="truncate pr-2">{r.name}</span>
