@@ -26,6 +26,12 @@ import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import {
+  useReversalReasonCodes,
+  isReversalReasonComplete,
+} from "@/components/reversal/useReversalReasonCodes";
+
 
 
 /**
@@ -89,6 +95,7 @@ export function VoidInvoiceDialog({
   onReversePayment,
 }: VoidInvoiceDialogProps) {
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -97,6 +104,13 @@ export function VoidInvoiceDialog({
   const [isUnmatching, setIsUnmatching] = useState(false);
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
+
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes(
+    "invoice",
+    open,
+  );
+  const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
   // Policy is resolved on open, and re-resolved for a different invoice —
   // never cached across documents, since settlement state changes underneath.
@@ -108,6 +122,8 @@ export function VoidInvoiceDialog({
     let cancelled = false;
     setIsResolving(true);
     setReason("");
+    setReasonCode("");
+
     resolveReversalIntent("invoice", invoice.id)
       .then((result) => {
         if (!cancelled) setIntent(result);
@@ -161,20 +177,23 @@ export function VoidInvoiceDialog({
 
 
   const handleVoid = async () => {
-    if (!invoice || !reason.trim() || !canVoid) return;
+    if (!invoice || !reasonComplete || !canVoid) return;
 
     setIsSubmitting(true);
     try {
       const success = await voidInvoice({
         invoiceId: invoice.id,
         reason: reason.trim(),
+        reasonCode,
       });
 
       if (success) {
         setReason("");
+        setReasonCode("");
         onOpenChange(false);
         onSuccess?.();
       }
+
     } finally {
       setIsSubmitting(false);
     }
@@ -239,10 +258,11 @@ export function VoidInvoiceDialog({
                 variant="destructive"
                 onClick={handleVoid}
                 disabled={
-                  isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError
+                  isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError
                 }
 
               >
+
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Invoice
               </Button>
@@ -320,18 +340,18 @@ export function VoidInvoiceDialog({
                 />
 
 
-                <div className="space-y-2">
-                  <Label htmlFor="reason">
-                    Reason for voiding <span className="text-destructive">*</span>
-                  </Label>
-                  <Textarea
-                    id="reason"
-                    placeholder="e.g., Invoice created for wrong customer, duplicate entry, etc."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <ReversalReasonField
+                  documentType="invoice"
+                  idPrefix="invoice-void"
+                  code={reasonCode}
+                  comment={reason}
+                  onCodeChange={setReasonCode}
+                  onCommentChange={setReason}
+                  reasonCodes={reasonCodes}
+                  isLoading={isLoadingReasons}
+                  disabled={isSubmitting}
+                />
+
               </>
             ) : (
               <Alert>

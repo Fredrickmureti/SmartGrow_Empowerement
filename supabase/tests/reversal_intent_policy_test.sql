@@ -201,3 +201,89 @@ BEGIN
   END LOOP;
 END $$;
 
+
+-- 9) Phase 5.1: the authorization gate is the single legality entry point.
+--    Every canonical writer must call `assert_can_reverse`, and the gate itself
+--    must exist as a SECURITY DEFINER assertion.
+DO $$
+DECLARE
+  v_missing text;
+  v_gate    RECORD;
+BEGIN
+  SELECT p.prosecdef, p.provolatile INTO v_gate
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'assert_can_reverse';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'assert_can_reverse is missing — reversal legality has no single gate';
+  END IF;
+  IF NOT v_gate.prosecdef THEN
+    RAISE EXCEPTION 'assert_can_reverse must be SECURITY DEFINER so it can read the intent authority';
+  END IF;
+
+  SELECT string_agg(w, ', ') INTO v_missing
+    FROM unnest(ARRAY[
+      'void_invoice_atomic',
+      'void_payment_atomic',
+      'void_bill_atomic',
+      'void_bill_payment_atomic',
+      'void_goods_receipt_atomic'
+    ]) AS w
+   WHERE NOT EXISTS (
+     SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = w
+        AND p.prosrc LIKE '%assert_can_reverse(%'
+   );
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'canonical reversal writers bypass the authorization gate: %', v_missing;
+  END IF;
+END $$;
+
+-- 10) Phase 5.1: writers must not hand-roll the legality checks the gate owns.
+--     Only the gate may consult fiscal-period openness or org membership.
+DO $$
+DECLARE v_rogue text;
+BEGIN
+  SELECT string_agg(p.proname || ' (' || v.check_name || ')', ', ')
+    INTO v_rogue
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    CROSS JOIN LATERAL (VALUES
+      ('is_period_open',    '%is_period_open(%'),
+      ('user_belongs_to_org', '%user_belongs_to_org(%')
+    ) AS v(check_name, pattern)
+   WHERE n.nspname = 'public'
+     AND p.proname IN ('void_invoice_atomic','void_payment_atomic','void_bill_atomic',
+                       'void_bill_payment_atomic','void_goods_receipt_atomic')
+     AND p.prosrc LIKE v.pattern;
+
+  IF v_rogue IS NOT NULL THEN
+    RAISE EXCEPTION 'writers duplicate gate-owned legality checks: % — delete them and rely on assert_can_reverse', v_rogue;
+  END IF;
+END $$;
+
+-- 11) Behavioural probe: the gate refuses an operation the intent matrix does
+--     not advertise, and refuses an unknown document. Read-only.
+DO $$
+DECLARE v_id uuid;
+BEGIN
+  SELECT id INTO v_id FROM public.invoices LIMIT 1;
+  IF v_id IS NOT NULL THEN
+    BEGIN
+      PERFORM public.assert_can_reverse('invoice', v_id, 'not_a_real_operation', NULL, CURRENT_DATE);
+      RAISE EXCEPTION 'assert_can_reverse permitted an operation the intent matrix does not offer';
+    EXCEPTION
+      WHEN insufficient_privilege THEN NULL;   -- tenancy guard, not a contract failure
+      WHEN feature_not_supported THEN NULL;    -- expected refusal
+    END;
+  END IF;
+
+  BEGIN
+    PERFORM public.assert_can_reverse('invoice', '00000000-0000-0000-0000-000000000000'::uuid, 'void', NULL, CURRENT_DATE);
+    RAISE EXCEPTION 'assert_can_reverse accepted a document that does not exist';
+  EXCEPTION
+    WHEN no_data_found THEN NULL;
+    WHEN insufficient_privilege THEN NULL;
+  END;
+END $$;

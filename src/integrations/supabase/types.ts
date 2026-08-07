@@ -6342,6 +6342,7 @@ export type Database = {
           submitted_by: string | null
           updated_at: string
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -6368,6 +6369,7 @@ export type Database = {
           submitted_by?: string | null
           updated_at?: string
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -6394,6 +6396,7 @@ export type Database = {
           submitted_by?: string | null
           updated_at?: string
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -6503,6 +6506,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bill_payments_void_reason_code_fkey"
+            columns: ["void_reason_code"]
+            isOneToOne: false
+            referencedRelation: "reversal_reason_codes"
+            referencedColumns: ["code"]
+          },
         ]
       }
       bills: {
@@ -6545,6 +6555,7 @@ export type Database = {
           vendor_id: string
           vendor_invoice_number: string | null
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -6587,6 +6598,7 @@ export type Database = {
           vendor_id: string
           vendor_invoice_number?: string | null
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -6629,6 +6641,7 @@ export type Database = {
           vendor_id?: string
           vendor_invoice_number?: string | null
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -6807,6 +6820,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_void_reason_code_fkey"
+            columns: ["void_reason_code"]
+            isOneToOne: false
+            referencedRelation: "reversal_reason_codes"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "fk_bills_journal_entry_id"
@@ -21391,6 +21411,7 @@ export type Database = {
           receipt_date: string
           receipt_number: string
           received_by: string | null
+          reversal_reason_code: string | null
           status: string
           updated_at: string
           warehouse_id: string | null
@@ -21407,6 +21428,7 @@ export type Database = {
           receipt_date?: string
           receipt_number: string
           received_by?: string | null
+          reversal_reason_code?: string | null
           status?: string
           updated_at?: string
           warehouse_id?: string | null
@@ -21423,6 +21445,7 @@ export type Database = {
           receipt_date?: string
           receipt_number?: string
           received_by?: string | null
+          reversal_reason_code?: string | null
           status?: string
           updated_at?: string
           warehouse_id?: string | null
@@ -21497,6 +21520,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "purchase_orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goods_receipts_reversal_reason_code_fkey"
+            columns: ["reversal_reason_code"]
+            isOneToOne: false
+            referencedRelation: "reversal_reason_codes"
+            referencedColumns: ["code"]
           },
           {
             foreignKeyName: "goods_receipts_warehouse_id_fkey"
@@ -23158,6 +23188,7 @@ export type Database = {
           total: number
           updated_at: string
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -23218,6 +23249,7 @@ export type Database = {
           total?: number
           updated_at?: string
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -23278,6 +23310,7 @@ export type Database = {
           total?: number
           updated_at?: string
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -23533,6 +23566,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_templates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_void_reason_code_fkey"
+            columns: ["void_reason_code"]
+            isOneToOne: false
+            referencedRelation: "reversal_reason_codes"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -32846,6 +32886,7 @@ export type Database = {
           unreconciled_at: string | null
           unreconciled_by: string | null
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -32884,6 +32925,7 @@ export type Database = {
           unreconciled_at?: string | null
           unreconciled_by?: string | null
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -32922,6 +32964,7 @@ export type Database = {
           unreconciled_at?: string | null
           unreconciled_by?: string | null
           void_reason?: string | null
+          void_reason_code?: string | null
           voided_at?: string | null
           voided_by?: string | null
         }
@@ -33058,6 +33101,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_void_reason_code_fkey"
+            columns: ["void_reason_code"]
+            isOneToOne: false
+            referencedRelation: "reversal_reason_codes"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -54860,6 +54910,42 @@ export type Database = {
             referencedColumns: ["payslip_id"]
           },
         ]
+      }
+      reversal_reason_codes: {
+        Row: {
+          active: boolean
+          applies_to: string[]
+          code: string
+          created_at: string
+          description: string | null
+          label: string
+          requires_comment: boolean
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          applies_to: string[]
+          code: string
+          created_at?: string
+          description?: string | null
+          label: string
+          requires_comment?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          applies_to?: string[]
+          code?: string
+          created_at?: string
+          description?: string | null
+          label?: string
+          requires_comment?: boolean
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       review_participants: {
         Row: {
@@ -81331,6 +81417,7 @@ export type Database = {
           vendor_id: string
           vendor_invoice_number: string | null
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -81366,6 +81453,7 @@ export type Database = {
           submitted_by: string | null
           updated_at: string
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -81746,6 +81834,7 @@ export type Database = {
           unreconciled_at: string | null
           unreconciled_by: string | null
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -82156,6 +82245,14 @@ export type Database = {
       }
       assert_pos_caller_branch_access: {
         Args: { p_branch_id: string }
+        Returns: undefined
+      }
+      assert_reversal_reason: {
+        Args: {
+          _comment?: string
+          _document_type: string
+          _reason_code: string
+        }
         Returns: undefined
       }
       assert_trial_balance: {
@@ -86200,6 +86297,7 @@ export type Database = {
           total: number
           updated_at: string
           void_reason: string | null
+          void_reason_code: string | null
           voided_at: string | null
           voided_by: string | null
         }
@@ -94345,6 +94443,7 @@ export type Database = {
           _bill_id: string
           _client_request_id?: string
           _reason: string
+          _reason_code?: string
           _void_date?: string
         }
         Returns: Json
@@ -94355,6 +94454,7 @@ export type Database = {
           _bill_payment_id: string
           _client_request_id?: string
           _reason: string
+          _reason_code?: string
           _void_date?: string
         }
         Returns: Json
@@ -94365,6 +94465,7 @@ export type Database = {
           _client_request_id?: string
           _gr_id: string
           _reason: string
+          _reason_code?: string
           _void_date?: string
         }
         Returns: Json
@@ -94376,6 +94477,7 @@ export type Database = {
           _client_request_id?: string
           _invoice_id: string
           _reason: string
+          _reason_code?: string
           _void_date?: string
         }
         Returns: Json

@@ -206,7 +206,7 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
               <Button
                 variant="destructive"
                 onClick={handleVoid}
-                disabled={isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError}
+                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Bill
@@ -282,18 +282,18 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
                   isUnmatchingBankLines={isUnmatching}
                 />
 
-                <div className="space-y-2">
-                  <Label htmlFor="bill-void-reason">
-                    Reason for voiding <span className="text-destructive">*</span>
-                  </Label>
-                  <Textarea
-                    id="bill-void-reason"
-                    placeholder="e.g., Supplier invoice entered twice, wrong vendor, incorrect amounts."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <ReversalReasonField
+                  documentType="bill"
+                  idPrefix="bill-void"
+                  code={reasonCode}
+                  comment={reason}
+                  onCodeChange={setReasonCode}
+                  onCommentChange={setReason}
+                  reasonCodes={reasonCodes}
+                  isLoading={isLoadingReasons}
+                  disabled={isSubmitting}
+                />
+
               </>
             ) : (
               <Alert>
