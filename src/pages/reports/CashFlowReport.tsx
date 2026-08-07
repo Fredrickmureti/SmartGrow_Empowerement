@@ -30,6 +30,7 @@ import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import {
   ReportSurface,
   ReportTable,
+  formatAccountingNumber,
   toExportColumns,
   toExportRows,
   type ReportColumn,

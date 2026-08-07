@@ -50,6 +50,7 @@ import type { ExportConfig } from "@/services/reports/ReportExportService";
 import {
   ReportSurface,
   ReportTable,
+  formatAccountingNumber,
   toExportColumns,
   toExportRows,
   type ReportColumn,

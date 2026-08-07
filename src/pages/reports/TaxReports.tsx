@@ -133,11 +133,10 @@ function TaxReportsInner() {
   const summaryRows = useMemo<ReportRow[]>(
     () => [
       { id: "output-header", kind: "section", label: "Output Tax (Collected)" },
-      { id: "total-sales", depth: 1, label: "Total Sales (excl. tax)", values: { amount: taxData.totalSales } },
+      { id: "total-sales", depth: 1, values: { label: "Total Sales (excl. tax)", amount: taxData.totalSales } },
       {
         id: "sales-tax",
         depth: 1,
-        label: "Sales Tax Collected",
         tone: "success",
         onClick: () => setDrillDown({
           open: true,
@@ -148,12 +147,12 @@ function TaxReportsInner() {
             sourceType: "invoice",
           },
         }),
-        values: { amount: taxData.salesTaxCollected },
+        values: { label: "Sales Tax Collected", amount: taxData.salesTaxCollected },
       },
       { id: "input-header", kind: "section", label: "Input Tax (Paid)" },
-      { id: "total-purchases", depth: 1, label: "Total Purchases (excl. tax)", values: { amount: taxData.totalPurchases } },
-      { id: "purchase-tax", depth: 1, label: "Purchase Tax Paid", values: { amount: taxData.purchaseTaxPaid } },
-      { id: "expense-tax", depth: 1, label: "Expense Tax Paid", values: { amount: taxData.expenseTax } },
+      { id: "total-purchases", depth: 1, values: { label: "Total Purchases (excl. tax)", amount: taxData.totalPurchases } },
+      { id: "purchase-tax", depth: 1, values: { label: "Purchase Tax Paid", amount: taxData.purchaseTaxPaid } },
+      { id: "expense-tax", depth: 1, values: { label: "Expense Tax Paid", amount: taxData.expenseTax } },
       {
         id: "net-tax",
         kind: "grandTotal",
