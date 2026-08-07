@@ -172,7 +172,8 @@ describe("drill-down capability is declared, not implied", () => {
   it("partner drill-down carries a contact, so it cannot query all partners", () => {
     const dialog = read("src/components/reports/DrillDownDialog.tsx");
     expect(dialog).toMatch(/contactId\?: string/);
-    expect(dialog).toMatch(/\.eq\("contact_id", config\.contactId\)/);
+    // invoices link the partner via contact_id, bills via vendor_id.
+    expect(dialog).toMatch(/"contact_id" : "vendor_id", config\.contactId\)/);
     // Partner reads stay org/business scoped like every other report query.
     expect(dialog).toMatch(/\.eq\("organization_id", currentOrg\.id\)/);
   });
