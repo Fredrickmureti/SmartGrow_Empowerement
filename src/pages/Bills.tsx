@@ -284,13 +284,16 @@ export default function Bills() {
     }
   };
 
-  const handleVoidBill = async (id: string) => {
-    try {
-      await voidBill(id);
-    } catch (error: any) {
-      toast({ title: "Error voiding bill", description: normalizeError(error).message, variant: "destructive" });
-    }
+  /**
+   * Bill void is an intent decision, not a menu click: open the reversal sheet
+   * so the server's intent policy and consequence preview run before anyone
+   * confirms. `useBills.voidBill` stays only for programmatic callers.
+   */
+  const handleVoidBill = (bill: Bill) => {
+    setSelectedBillForVoid(bill);
+    setShowVoidBillSheet(true);
   };
+
 
   // Handle deep-link URL params — legacy ?id=<billId> is migrated to
   // the canonical ?peek=<billId> the moment the page mounts, so both
