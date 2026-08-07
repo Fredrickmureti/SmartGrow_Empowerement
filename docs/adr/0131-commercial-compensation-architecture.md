@@ -37,13 +37,16 @@ documents behind those recommendations had drifted:
    posts to the customer-credit liability account, never to AR. Availability for
    application or refund is read from the balance, never derived from a document
    column. Balances may not go negative.
-3. **One writer per compensation act.** `create_credit_note_atomic` (header,
-   lines, number in one transaction), `issue_credit_note_atomic` (GL lines built
-   in the database from `default_account_settings`),
-   `apply_credit_to_invoice_atomic`, `refund_customer_atomic`. Posting still goes
+3. **One writer per compensation act.** `create_credit_note_atomic(_payload jsonb)`
+   — a single named request envelope, no overloads, no adapters — creates the
+   header, lines and number in one transaction and optionally issues.
+   `issue_credit_note_atomic` (GL lines built in the database from
+   `default_account_settings`), `apply_credit_to_invoice_atomic`,
+   `refund_customer_atomic`. Posting still goes
    only through `post_journal_entry_atomic` (ADR 0123).
    `confirm_credit_note_atomic` survives as a thin shim over
    `issue_credit_note_atomic` and ignores any client-supplied lines.
+
 4. **One refund engine.** `refund_customer_atomic` serves both sources (payment
    and credit note), always writes a `customer_refunds` row plus a credit
    movement, and is idempotent by `client_request_id`.
