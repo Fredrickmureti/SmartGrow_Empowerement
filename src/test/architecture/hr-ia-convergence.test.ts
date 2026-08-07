@@ -9,9 +9,8 @@
  *      Reports). Cross-workspace nav items leave Employees, which is
  *      the ping-pong regression the audit flagged.
  *
- *   2. `src/apps/hr/routes.tsx` must consume `HR_REDIRECTS` and emit
- *      its redirects from that map. Hand-listed inline <Navigate />
- *      elements for paths already in the map are dual-maintenance.
+ *   2. There is no HR redirect/alias layer. Every surface has exactly
+ *      one canonical URL and all links point at it directly.
  *
  *   3. `src/apps/timesheets/*` must not import from `src/apps/hr/*`.
  *      Timesheets is its own installable app; cross-app coupling
@@ -32,7 +31,6 @@ import {
   CONTRACTS_APP,
 } from "@/lib/apps/registry";
 import { EMPLOYEES_NAV } from "@/apps/hr/shared/navs";
-import { HR_REDIRECTS } from "@/apps/hr/shared/redirects";
 
 const repo = process.cwd();
 const read = (p: string) => readFileSync(join(repo, p), "utf8");
@@ -86,20 +84,39 @@ describe("Phase A — HR IA convergence", () => {
     ).toEqual([]);
   });
 
-  it("routes.tsx consumes HR_REDIRECTS — no inline <Navigate /> for mapped paths", () => {
-    const src = read("src/apps/hr/routes.tsx");
-    expect(src).toMatch(/HR_REDIRECTS/);
-    // Every HR_REDIRECTS target should be referenced via the map iteration,
-    // not as a literal <Navigate to="..."> for a mapped destination.
-    for (const [from, to] of Object.entries(HR_REDIRECTS)) {
-      const literalRoute = new RegExp(
-        `<Route\\s+path="${from.replace("/hr/", "")}"\\s+element={<Navigate\\s+to="${to.replace(/[/$.]/g, "\\$&")}"`,
-      );
-      expect(
-        literalRoute.test(src),
-        `Inline <Navigate> for "${from}" → "${to}" found; redirects must flow through HR_REDIRECTS`,
-      ).toBe(false);
+  it("no HR redirect/alias layer — every surface has exactly one URL", () => {
+    const files = walk(join(repo, "src/apps/hr")).concat(walk(join(repo, "src/pages/hr")));
+    const dead = [
+      "/hr/departments",
+      "/hr/job-positions",
+      "/hr/work-locations",
+      "/hr/org-chart",
+      "/hr/org/",
+      "/hr/performance",
+      "/hr/settings",
+      "/hr/my-portal",
+      "/hr/my-profile",
+      "/hr/employee-contracts",
+      "/hr/employees/reports",
+      "/hr/configuration/competencies",
+      "/hr/configuration/public-holidays",
+    ];
+    const offenders: string[] = [];
+    for (const f of files) {
+      const content = readFileSync(f, "utf8");
+      for (const d of dead) {
+        if (content.includes(`"${d}"`)) offenders.push(`${f}: ${d}`);
+      }
     }
+    expect(
+      offenders,
+      `Dead HR URLs must not be linked or routed:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the HR redirect map is gone", () => {
+    expect(() => read("src/apps/hr/shared/redirects.ts")).toThrow();
+    expect(read("src/apps/hr/routes.tsx")).not.toMatch(/HR_REDIRECTS/);
   });
 
   it("apps/timesheets does not import from apps/hr", () => {

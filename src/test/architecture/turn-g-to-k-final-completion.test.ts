@@ -31,12 +31,12 @@ describe("Turn G–K — final HR/payroll completion", () => {
     expect(read("src/hooks/useRecruitment.ts")).toMatch(/convert_application_to_employee/);
   });
 
-  it("Turn I: performance + training hooks present; /hr/performance redirects into Talent", () => {
+  it("Turn I: performance + training hooks present; Talent owns the performance URL", () => {
     expect(exists("src/hooks/usePerformance.ts")).toBe(true);
-    // PerformanceTraining.tsx was retired during the IA convergence — the
-    // /hr/performance URL is preserved via a dispatcher redirect to
-    // /hr/talent/dashboard so legacy links continue to resolve.
-    expect(read("src/apps/hr/sub/EmployeesRoutes.tsx")).toMatch(/path="performance"/);
+    // PerformanceTraining.tsx was retired during the IA convergence —
+    // performance now lives only under /hr/talent/*; the /hr/performance
+    // alias was removed along with the rest of the redirect layer.
+    expect(read("src/apps/hr/sub/EmployeesRoutes.tsx")).not.toMatch(/path="performance"/);
     const hook = read("src/hooks/usePerformance.ts");
     for (const t of ["performance_cycles","performance_goals","training_courses","training_enrollments","competencies","employee_competencies"]) {
       expect(hook).toMatch(new RegExp(t));
