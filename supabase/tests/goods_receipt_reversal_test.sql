@@ -39,7 +39,7 @@ BEGIN
   IF v_src !~* 'resolve_reversal_intent' THEN
     RAISE EXCEPTION 'void_goods_receipt_atomic does not consult resolve_reversal_intent — legality would diverge from the preview the operator approved';
   END IF;
-  IF v_src !~* 'already_voided' THEN
+  IF v_src !~* 'already_voided|already_reversed' THEN
     RAISE EXCEPTION 'void_goods_receipt_atomic is not idempotent — a retried reversal would compensate stock twice';
   END IF;
 END $$;
