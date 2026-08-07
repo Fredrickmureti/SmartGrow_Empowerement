@@ -42,6 +42,7 @@ import {
   type ReportResult,
 } from "../_shared/reportDataEngine.ts";
 import { renderReport, getReportTitle } from "../_shared/reports/index.ts";
+import { resolveReportColumns } from "../_shared/reports/resolveColumns.ts";
 import {
   buildAttendanceReport,
   type AttendanceReportKey,
@@ -265,6 +266,15 @@ serve(async (req) => {
 
       const safeTitle = (title || reportType || "Report").replace(/[^a-zA-Z0-9_-]/g, "_");
 
+      // Safety net: a caller that ships rows with an empty column list
+      // (the exact shape that produced blank payroll exports) still gets
+      // the registry projection rather than a headerless artifact.
+      const effectiveColumns = resolveReportColumns({
+        reportType,
+        explicit: columns,
+        rows,
+      });
+
       // Tabular exports short-circuit here — never touch the PDF renderer.
       if (prebuiltFormat === "csv" || prebuiltFormat === "xlsx") {
         // Resolve the company name from the canonical branding path so
@@ -286,7 +296,7 @@ serve(async (req) => {
           dateRange,
           companyName,
           currency,
-          columns,
+          columns: effectiveColumns,
           rows,
           generatedAt: new Date().toISOString(),
         };
@@ -318,7 +328,7 @@ serve(async (req) => {
         organizationId,
         businessId,
         reportType,
-        columns,
+        columns: effectiveColumns,
         rows,
         title,
         subtitle,
@@ -361,7 +371,7 @@ serve(async (req) => {
       dateFrom: string;
       dateTo: string;
       title?: string;
-      format?: "pdf" | "json";
+      format?: "pdf" | "json" | "csv" | "xlsx";
     };
 
     if (!reportType || !organizationId || !dateFrom || !dateTo) {
@@ -465,14 +475,81 @@ serve(async (req) => {
         );
 
     if (format === "json") {
+      // Column projection belongs to the REPORT RESULT, not to the PDF
+      // renderer. Without this the screen received rows with no column
+      // spec and rendered an empty grid under a "Rows: N" band, while
+      // the PDF of the identical result was correct.
+      const columns = resolveReportColumns({
+        reportType,
+        fromResult:
+          (result as { columns?: unknown[] }).columns as
+            | Parameters<typeof resolveReportColumns>[0]["fromResult"]
+          ?? null,
+        rows: result.data as Parameters<typeof resolveReportColumns>[0]["rows"],
+      });
       return new Response(
         JSON.stringify({
           reportType,
           dateRange: { from: dateFrom, to: dateTo },
           ...result,
+          columns,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Tabular exports from a SERVER-BUILD request. CSV/XLSX must be
+    // regenerated from the same builder + period the screen used, never
+    // re-shipped from the browser's (paginated, permission-masked) rows —
+    // otherwise a 5,000-row register exports as the 50 rows on screen.
+    if (format === "csv" || format === "xlsx") {
+      const exportColumns = resolveReportColumns({
+        reportType,
+        fromResult:
+          (result as { columns?: unknown[] }).columns as
+            | Parameters<typeof resolveReportColumns>[0]["fromResult"]
+          ?? null,
+        rows: result.data as Parameters<typeof resolveReportColumns>[0]["rows"],
+      });
+
+      let companyName: string | undefined;
+      try {
+        const { getOrganizationBranding } = await import("../_shared/branding/index.ts");
+        companyName = (await getOrganizationBranding(supabase, organizationId))?.name ?? undefined;
+      } catch (err) {
+        console.warn("[render-report] branding lookup failed for export:", (err as Error).message);
+      }
+
+      const reportTitle = title || getReportTitle(reportType) || "Report";
+      const exportName = reportTitle.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const exportConfig = {
+        title: reportTitle,
+        dateRange: `${dateFrom} to ${dateTo}`,
+        companyName,
+        columns: exportColumns,
+        rows: result.data as Record<string, unknown>[],
+        generatedAt: new Date().toISOString(),
+      };
+
+      if (format === "csv") {
+        const { buildReportCsv } = await import("../_shared/exports/reportCsv.ts");
+        return new Response(buildReportCsv(exportConfig) as unknown as BodyInit, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="${exportName}.csv"`,
+          },
+        });
+      }
+
+      const { buildReportXlsx, XLSX_MIME } = await import("../_shared/exports/reportXlsx.ts");
+      return new Response(buildReportXlsx(exportConfig) as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": XLSX_MIME,
+          "Content-Disposition": `attachment; filename="${exportName}.xlsx"`,
+        },
+      });
     }
 
     const pdfBytes = await renderReport(supabase, {
