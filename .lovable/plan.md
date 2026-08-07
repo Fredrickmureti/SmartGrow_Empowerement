@@ -1,61 +1,49 @@
-# Commercial Compensation — Authoritative Project Status
+# Commercial Compensation — Verification Result and Remaining Phases
 
 Roadmap source: `.lovable/plan/commercial-compensation-verification-verdict-and-completion-2026-08-07.md` (Phases A–E).
-This file is the live status board. Keep it updated after every implementation.
 
-## Currently active phase
-**Phase C — Close the reporting loop.** Substantially complete; remaining item listed below.
+## Phase 1 — Independent verification (done, against the live database)
 
-## Fully implemented and verified
+Confirmed genuinely implemented, not merely claimed:
 
-### Phase A — Correct the shipped writers (DONE)
-- `refund_customer_atomic` resolves currency from the source credit note, not `businesses.base_currency`.
-- Legacy `get_next_vendor_credit_note_number(uuid)` overload dropped (PostgREST ambiguity removed).
-- `apply_credit_to_invoice_atomic` no longer accepts `_customer_deposits_account_id` / `_receivable_account_id`; accounts are resolved server-side. `useCreditNotes.ts` updated.
+- **Numbering.** Only one credit-note sequence exists: `get_next_credit_note_number(_org, _business, _branch)`. `approve_sales_return_atomic` and `issue_credit_note_for_payment_atomic` both call it with full business scope and contain no timestamp fallback number. Only one vendor overload remains (`p_organization_id, p_business_id`); the legacy org-only form is gone.
+- **Writer monopoly.** `create_credit_note_atomic`, `issue_credit_note_atomic`, `apply_credit_to_invoice_atomic`, `refund_customer_atomic` are the only compensation writers; `process_refund_atomic` no longer exists; `confirm_credit_note_atomic` is a 63-character shim.
+- **Dead parameters removed.** `apply_credit_to_invoice_atomic` no longer takes client-supplied account ids.
+- **Dedicated credit account.** Issue, apply, refund and payment conversion all resolve `customer_credit_account(business)`; each writes `customer_credit_movements`.
+- **Tie-out and drift.** `customer_credit_tieout` compares the GL account to `customer_credit_balances` per business and currency; `snapshot_control_account_drift()` inserts customer-credit drift alongside AR/AP.
+- **Sales return → GL.** `approve_sales_return_atomic` posts the inventory/COGS reversal and is business-scoped.
+- **Statement and ledger credit lines.** Contrary to the previous status note, `customer_ledger_entries` already unions credit notes and refunds, and both `useCustomerLedger.ts` and the statement transaction list render them as credit lines. This item is already satisfied.
+- Ratchet file `compensation-writer-monopoly.test.ts` contains 9 guards matching the shipped behaviour.
 
-### Phase B — Separate the customer-credit liability account (DONE)
-- `customer_credit` system account role registered; `2215 Customer Credits` provisioned per business and bound as a default setting.
-- `customer_credit_account(business)` resolver with a `customer_deposits` fallback for legacy data.
-- `issue_credit_note_atomic`, `apply_credit_to_invoice_atomic`, `refund_customer_atomic` all post to the dedicated account.
-- `customer_credit_tieout` view (security_invoker) compares the subledger to the GL account per business/currency.
-- `snapshot_control_account_drift()` extended with customer-credit drift, mirroring AR/AP.
-- `useDefaultAccounts.ts` exposes `customer_credit_id`.
+Newly found defect (not in the previous plan):
 
-### Phase C — Reporting loop (DONE except one item)
-- Aging: `get_ar_ap_aging_from_ledger` now returns unapplied customer credits as negative residual rows ("Unapplied credit"); `useAgingReport.ts` preserves negative residuals, buckets them as current, and folds them into contact totals so the net position is true.
-- Fiscal: `tg_credit_note_fiscal_enqueue` verified — a credit note transmits on its own document date; the refund posts no tax lines, so there is no double reporting.
-- Sales returns → credit note: `approve_sales_return_atomic` repaired.
-  - It was calling the retired org-only numbering overload, so every return approval would have failed. Now business-scoped.
-  - Stock restored on approval now posts the matching GL entry — DR Inventory / CR COGS — valued at `cost_at_shipment` from the originating delivery note, falling back to product cost. Guarded by `is_period_open`, `assert_no_existing_source_posting`, and skipped when inventory/COGS accounts are unconfigured.
-- Payment → credit note: `issue_credit_note_for_payment_atomic` repaired.
-  - Business-scoped numbering; the timestamp `CN-<epoch>` fallback number is gone (a document that cannot be numbered is not created).
-  - The converted credit is now written to `customer_credit_movements`, so it is a real, spendable balance. Previously it was an issued credit note with no ledger row.
-  - GL now lands on the dedicated Customer Credits account (both the applied-payment and unapplied-advance paths) instead of commingling with customer deposits.
-- Ratchet: two new guards in `src/test/architecture/compensation-writer-monopoly.test.ts` (business-scoped numbering with no fallback in both writers; sales-return COGS reversal present). Full file: 9 tests passing.
+- **Statement aging still derives customer credit from document columns.** `useCustomerStatements.ts` computes unapplied credit as `credit_notes.total - amount_applied - refund_amount`. ADR 0131 makes `customer_credit_balances` the authority, and `useAgingReport.ts` was already migrated. The statement therefore can disagree with the aging report and the tie-out view whenever a movement exists without matching document columns.
 
-## Pending work
+Confirmed not started: Phase D (AP parity). There is no `vendor_credit_balances` / `vendor_credit_movements`; `apply_vendor_credit_note_atomic` still contains fallback numbering and `confirm_vendor_credit_note_atomic` remains a parallel writer.
 
-### Phase C — remaining
-- Customer statements and the partner ledger (`useCustomerStatements.ts`, `useCustomerLedger.ts`) were audited but not yet extended: an outstanding customer credit should appear as a credit line on the statement and in the ledger, matching the aging treatment already shipped.
-- Confirm a credit note with no linked sales return moves no stock (expected true — no writer touches `stock_movements` — but it is unproven by test).
+## Phase 2 — Work to execute, in order
 
-### Phase D — Extend compensation architecture to AP (ADR 0132) — NOT STARTED
-- Mirror ADR 0131 for vendor credit notes: one create/issue/apply/refund writer family, a vendor credit ledger projected from append-only movements, business-scoped numbering, server-built journal lines, a vendor-credit GL role plus tie-out view and drift snapshot.
-- Retire `confirm_vendor_credit_note_atomic` / `apply_vendor_credit_note_atomic` rather than leaving fallbacks.
+### C1. Make the statement read the credit ledger (new item)
+Replace the `credit_notes` residual arithmetic in `useCustomerStatements.ts` with a read of `customer_credit_balances` for the contact's business/currency, keeping advance customer cash (`payments.outstanding_amount`) as-is. Aging math and buckets unchanged; only the source of "unapplied credit" changes, so statement, aging report and tie-out agree by construction.
+
+### C2. Prove the inventory boundary
+Add a database contract test asserting no compensation writer touches `stock_movements` unless a `sales_returns` document is linked through `credit_notes.source_return_id` — the ADR 0131 §5 invariant that is currently unproven.
+
+### D. AP parity — vendor credit notes (ADR 0132)
+Mirror the AR architecture:
+- `vendor_credit_movements` (append-only: issue / apply / refund / expire) with `vendor_credit_balances` as its projected view, RLS on, business scoped, non-negative.
+- One writer family: `create_vendor_credit_note_atomic`, `issue_vendor_credit_note_atomic`, `apply_vendor_credit_to_bill_atomic`, `refund_from_vendor_atomic` — journal lines built in the database, posted only through `post_journal_entry_atomic`.
+- A `vendor_credit` GL account role provisioned per business, plus `vendor_credit_tieout` and vendor drift in `snapshot_control_account_drift()`.
+- Retire `confirm_vendor_credit_note_atomic` and `apply_vendor_credit_note_atomic` (no fallbacks), remove the fallback numbering, and repoint `useVendorCreditNotes.ts` / `src/lib/purchases/applyVendorCredit.ts`.
+- Extend `vendor_ledger_entries` and the vendor statement to the same credit treatment as the customer side.
 - Write ADR 0132.
 
-### Phase E — Ratchet and prove — NOT STARTED
-- Extend the architecture test to cover vendor parity and the remaining invariants.
-- Run the full architecture suite plus typecheck and record the result.
+### E. Ratchet and prove
+- Extend `compensation-writer-monopoly.test.ts` with vendor parity guards (single vendor writer family, no fallback numbering, vendor credit read from the balance) and the statement-reads-ledger guard from C1.
+- Run the architecture suite and the typecheck; record the result.
 - Update `mem/features/commercial-compensation.md` and ADR 0131 consequences.
 
-## Instructions for the next agent
-
-1. **Verify before building.** Confirm against the live database, not the migration files alone:
-   - `approve_sales_return_atomic` and `issue_credit_note_for_payment_atomic` both call `get_next_credit_note_number(org, business, branch)` and contain no fallback numbering.
-   - Approving a sales return produces exactly one balanced `sales_return` journal entry (DR Inventory / CR COGS) and one `customer_credit_movements` row is created when converting a payment.
-   - `customer_credit_tieout` returns zero drift for existing data.
-   - `bunx vitest run src/test/architecture` and `tsgo` are clean.
-2. **Then finish Phase C**: customer statements and partner ledger credit lines, plus the no-stock-movement proof.
-3. **Then start Phase D** (AP parity, ADR 0132) — do not jump ahead to Phase E or to unrelated subsystems.
-4. All database changes go through the migration tool; posting stays exclusively inside `post_journal_entry_atomic` (ADR 0123); no client code builds journal lines or resolves GL accounts.
+## Technical notes
+- All database changes go through the migration tool; new public tables get GRANTs, RLS and policies in the same migration.
+- Posting stays exclusively inside `post_journal_entry_atomic` (ADR 0123). No client code builds journal lines or resolves GL accounts; hook changes are limited to argument shape and read source.
+- The vendor role and ledger are introduced additively with a deposits-style fallback only for pre-existing rows, so open balances keep reconciling during rollout.
