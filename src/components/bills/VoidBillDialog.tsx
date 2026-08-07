@@ -142,15 +142,21 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   };
 
   const handleVoid = async () => {
-    if (!bill || !reason.trim() || !canVoid) return;
+    if (!bill || !reasonComplete || !canVoid) return;
     setIsSubmitting(true);
     try {
-      const success = await voidBill({ billId: bill.id, reason: reason.trim() });
+      const success = await voidBill({
+        billId: bill.id,
+        reason: reason.trim(),
+        reasonCode,
+      });
       if (success) {
         setReason("");
+        setReasonCode("");
         onOpenChange(false);
         onSuccess?.();
       }
+
     } finally {
       setIsSubmitting(false);
     }
