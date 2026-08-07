@@ -169,29 +169,29 @@ export default function Consolidation() {
       {
         key: "currency",
         header: "Currency",
-        render: (row) => <Badge variant="outline">{row.values?.currency as string}</Badge>,
+        render: (row) => <Badge variant="outline">{(row.values as any)?.currency as string}</Badge>,
       },
       {
         key: "income",
         header: "Income",
         align: "right",
-        render: (row) => formatMoney(row.values?.income as number, row.values?.currency as string),
+        render: (row) => formatMoney((row.values as any)?.income as number, (row.values as any)?.currency as string),
       },
       {
         key: "expense",
         header: "Expenses",
         align: "right",
-        render: (row) => formatMoney(row.values?.expense as number, row.values?.currency as string),
+        render: (row) => formatMoney((row.values as any)?.expense as number, (row.values as any)?.currency as string),
       },
       {
         key: "netIncome",
         header: "Net Income",
         align: "right",
         render: (row) => {
-          const net = row.values?.netIncome as number;
+          const net = (row.values as any)?.netIncome as number;
           return (
             <span className={`font-semibold ${net >= 0 ? "text-emerald-600" : "text-destructive"}`}>
-              {formatMoney(net, row.values?.currency as string)}
+              {formatMoney(net, (row.values as any)?.currency as string)}
             </span>
           );
         },

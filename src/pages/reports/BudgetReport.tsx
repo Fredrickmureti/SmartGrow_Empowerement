@@ -125,7 +125,7 @@ function BudgetReportInner() {
         width: "w-[130px]",
         exportExclude: true,
         render: (row) => {
-          const status = row.values?.status as "under" | "over" | "on_track" | undefined;
+          const status = (row.values as any)?.status as "under" | "over" | "on_track" | undefined;
           return status ? getStatusBadge(status) : null;
         },
       },
