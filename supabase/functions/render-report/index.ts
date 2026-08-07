@@ -236,6 +236,7 @@ serve(async (req) => {
         reportType,
         title,
         dateRange,
+        asOf,
         orientation,
         currency,
         recipientInfo,
@@ -245,6 +246,7 @@ serve(async (req) => {
         subtitle,
         paperFormat,
         branchId,
+        asOf,
       } = body;
 
       // Milestone C.2 — tabular exports (CSV, XLSX). Same columns/rows
