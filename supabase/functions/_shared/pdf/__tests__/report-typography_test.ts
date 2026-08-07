@@ -64,6 +64,8 @@ Deno.test("profile inference: statutory → statement, wide → ledger", () => {
   assertEquals(inferPresentationProfile("financial", 6), "ledger");
   assertEquals(inferPresentationProfile("financial", 12), "ledger");
   assertEquals(inferPresentationProfile("operational", 4), "operational");
+  assertEquals(inferPresentationProfile("operational", 5), "operational");
+  assertEquals(inferPresentationProfile("operational", 6), "ledger");
   assertEquals(inferPresentationProfile("operational", 7), "ledger");
   assertEquals(inferPresentationProfile(undefined, 9), "ledger");
 });
