@@ -11,6 +11,8 @@
  * revaluation reprices assets/liabilities of the legal entity as a
  * whole (see `entityOnlyReason("fx_revaluation")`). The page therefore
  * does NOT consume `useFinanceScope().branchId`.
+ *
+ * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -25,9 +27,6 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -36,6 +35,12 @@ import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import type {
   ExportConfig, ExportColumn, ExportRow,
 } from "@/services/reports/ReportExportService";
+import {
+  ReportSurface,
+  ReportTable,
+  type ReportColumn,
+  type ReportRow,
+} from "@/design-system/reports";
 
 type StatusFilter = "all" | "draft" | "posted" | "reversed" | "cancelled";
 
@@ -181,8 +186,128 @@ export default function FxRevaluationReport() {
 
   const toggle = (id: string) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      {
+        key: "run_date",
+        header: "Run date",
+        width: "w-[130px]",
+        render: (row) => (
+          <button
+            type="button"
+            className="flex items-center gap-1.5 text-left"
+            onClick={(e) => { e.stopPropagation(); toggle(row.id); }}
+          >
+            {expanded[row.id] ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <span className="font-mono text-xs">
+              {row.values?.run_date ? format(new Date(String(row.values.run_date)), "yyyy-MM-dd") : "—"}
+            </span>
+          </button>
+        ),
+      },
+      {
+        key: "status",
+        header: "Status",
+        width: "w-[110px]",
+        render: (row) => (
+          <Badge variant={STATUS_VARIANT[String(row.values?.status)] ?? "outline"}>
+            {String(row.values?.status)}
+          </Badge>
+        ),
+      },
+      { key: "currencies", header: "Currencies", width: "w-[160px]" },
+      { key: "line_count", header: "Accounts", format: "number", width: "w-[100px]" },
+      { key: "gain", header: "Gain", format: "currency", width: "w-[140px]" },
+      { key: "loss", header: "Loss", format: "currency", width: "w-[140px]" },
+      {
+        key: "net",
+        header: "Net",
+        format: "currency",
+        width: "w-[140px]",
+      },
+      {
+        key: "je",
+        header: "Journal entry",
+        width: "w-[160px]",
+        exportExclude: true,
+        render: (row) => {
+          const jeId = row.values?.je as string | null;
+          return jeId ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/finance/journal-entries/${jeId}`}>
+                View JE <ArrowRight className="h-3 w-3 ml-1" />
+              </Link>
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          );
+        },
+      },
+    ],
+    [expanded],
+  );
+
+  const tableRows = useMemo<ReportRow[]>(() => {
+    const out: ReportRow[] = [];
+    rows.forEach((r) => {
+      out.push({
+        id: r.id,
+        tone: r.status === "reversed" ? "warning" : "default",
+        values: {
+          run_date: r.run_date,
+          status: r.status,
+          currencies: r.currencies.join(", ") || null,
+          line_count: r.line_count,
+          gain: r.total_unrealized_gain,
+          loss: r.total_unrealized_loss,
+          net: r.net_impact,
+          je: r.journal_entry_id,
+        },
+      });
+      if (expanded[r.id]) {
+        if (r.lines.length === 0) {
+          out.push({
+            id: `${r.id}-empty`,
+            kind: "detail",
+            values: { run_date: "No line detail." },
+          });
+        } else {
+          r.lines.forEach((l) => {
+            out.push({
+              id: `${r.id}-${l.id}`,
+              depth: 1,
+              tone: l.delta < 0 ? "danger" : "success",
+              values: {
+                run_date: l.currency,
+                status: null,
+                currencies: `Acct ${l.account_id.slice(0, 8)}…`,
+                line_count: null,
+                gain: null,
+                loss: null,
+                net: l.delta,
+                je: null,
+              },
+            });
+          });
+        }
+        if (r.notes) {
+          out.push({
+            id: `${r.id}-notes`,
+            depth: 1,
+            values: { run_date: `Notes: ${r.notes}` },
+          });
+        }
+      }
+    });
+    return out;
+  }, [rows, expanded]);
+
   const getExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
+    const exportColumns: ExportColumn[] = [
       { key: "run_date", header: "Run date", width: 14 },
       { key: "status", header: "Status", width: 12 },
       { key: "currencies", header: "Currencies", width: 22 },
@@ -205,7 +330,7 @@ export default function FxRevaluationReport() {
     return {
       title: "FX Revaluation Report",
       subtitle: "Unrealized gain/loss on foreign-currency monetary balances",
-      columns, rows: exportRows, currency: baseCurrency,
+      columns: exportColumns, rows: exportRows, currency: baseCurrency,
     };
   }, [rows, baseCurrency]);
 
@@ -269,138 +394,21 @@ export default function FxRevaluationReport() {
           />
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>Run date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Currencies</TableHead>
-                  <TableHead className="text-right">Accounts</TableHead>
-                  <TableHead className="text-right">Gain</TableHead>
-                  <TableHead className="text-right">Loss</TableHead>
-                  <TableHead className="text-right">Net</TableHead>
-                  <TableHead className="w-[160px]">Journal entry</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <FxRow
-                    key={r.id}
-                    row={r}
-                    baseCurrency={baseCurrency}
-                    expanded={!!expanded[r.id]}
-                    onToggle={() => toggle(r.id)}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <ReportSurface
+          companyName={currentOrg?.name || ""}
+          title="FX Revaluation Runs"
+          profile="operational"
+        >
+          <ReportTable
+            columns={columns}
+            rows={tableRows}
+            currency={baseCurrency}
+            caption="FX revaluation runs with currency mix and gain/loss totals"
+            emptyMessage="No FX revaluation runs match the selected filters."
+          />
+        </ReportSurface>
       </div>
     </ReportPageLayout>
-  );
-}
-
-function FxRow({
-  row, baseCurrency, expanded, onToggle,
-}: {
-  row: FxRunRow;
-  baseCurrency: string;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <TableRow className={row.status === "reversed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
-        <TableCell>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onToggle} aria-label="Toggle details">
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </TableCell>
-        <TableCell className="font-mono text-xs">
-          {row.run_date ? format(new Date(row.run_date), "yyyy-MM-dd") : "—"}
-        </TableCell>
-        <TableCell>
-          <Badge variant={STATUS_VARIANT[row.status] ?? "outline"}>{row.status}</Badge>
-        </TableCell>
-        <TableCell className="text-sm">{row.currencies.join(", ") || "—"}</TableCell>
-        <TableCell className="text-right tabular-nums">{row.line_count}</TableCell>
-        <TableCell className="text-right tabular-nums text-emerald-700">
-          {fmtMoney(row.total_unrealized_gain, baseCurrency)}
-        </TableCell>
-        <TableCell className="text-right tabular-nums text-rose-700">
-          {fmtMoney(row.total_unrealized_loss, baseCurrency)}
-        </TableCell>
-        <TableCell className={`text-right tabular-nums ${row.net_impact < 0 ? "text-rose-700" : "text-emerald-700"}`}>
-          {fmtMoney(row.net_impact, baseCurrency)}
-        </TableCell>
-        <TableCell>
-          {row.journal_entry_id ? (
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/finance/journal-entries/${row.journal_entry_id}`}>
-                View JE <ArrowRight className="h-3 w-3 ml-1" />
-              </Link>
-            </Button>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          )}
-        </TableCell>
-      </TableRow>
-      {expanded && (
-        <TableRow className="bg-muted/30">
-          <TableCell colSpan={9} className="p-3">
-            {row.lines.length === 0 ? (
-              <div className="text-xs text-muted-foreground">No line detail.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account</TableHead>
-                      <TableHead>CCY</TableHead>
-                      <TableHead className="text-right">Foreign balance</TableHead>
-                      <TableHead className="text-right">Old rate</TableHead>
-                      <TableHead className="text-right">New rate</TableHead>
-                      <TableHead className="text-right">Base (old)</TableHead>
-                      <TableHead className="text-right">Base (new)</TableHead>
-                      <TableHead className="text-right">Δ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {row.lines.map((l) => (
-                      <TableRow key={l.id}>
-                        <TableCell className="font-mono text-xs">
-                          <Link className="hover:underline" to={`/finance/accounts/${l.account_id}`}>
-                            {l.account_id.slice(0, 8)}…
-                          </Link>
-                        </TableCell>
-                        <TableCell>{l.currency}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.foreign_balance.toFixed(2)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.old_rate.toFixed(6)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{l.new_rate.toFixed(6)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtMoney(l.base_balance_old, row.base_currency)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{fmtMoney(l.base_balance_new, row.base_currency)}</TableCell>
-                        <TableCell className={`text-right tabular-nums ${l.delta < 0 ? "text-rose-700" : "text-emerald-700"}`}>
-                          {fmtMoney(l.delta, row.base_currency)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-            {row.notes && (
-              <div className="mt-2 text-xs text-muted-foreground">
-                <span className="font-medium">Notes:</span> {row.notes}
-              </div>
-            )}
-          </TableCell>
-        </TableRow>
-      )}
-    </>
   );
 }
 
