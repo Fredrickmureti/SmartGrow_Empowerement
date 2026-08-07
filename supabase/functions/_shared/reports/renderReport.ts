@@ -25,6 +25,10 @@ import { getOrganizationBranding, type OrganizationBranding } from "../branding/
 import { getReportSpec, getReportTitle } from "./columnSpecs.ts";
 import { resolveReportColumns } from "./resolveColumns.ts";
 import { resolvePrintPolicy, type PaperFormat } from "../printing/resolvePolicy.ts";
+import {
+  inferPresentationProfile,
+  type PresentationProfile,
+} from "../pdf/index.ts";
 
 export interface RenderReportOptions {
   /** If supplied, branding is loaded once via this organizationId. */
@@ -59,6 +63,11 @@ export interface RenderReportOptions {
   formatProfile?: "financial" | "operational";
   /** Stage 3: explicit subtitle (overrides registry default). */
   subtitle?: string;
+  /**
+   * Presentation profile override (typography + density only). Callers
+   * should normally leave this unset — the registry decides.
+   */
+  presentationProfile?: PresentationProfile;
   /**
    * Stage 4: who triggered the run. Used in the standard disclosure
    * footer line and persisted to `report_run_log`. Pass null/undefined
@@ -105,6 +114,15 @@ export async function renderReport(
   const orientation = options.orientation ?? spec?.orientation ?? "landscape";
   const formatProfile = options.formatProfile ?? spec?.formatProfile ?? "operational";
   const subtitle = options.subtitle ?? spec?.subtitle;
+
+  // Presentation profile: explicit override > registry pin > derivation
+  // from the format profile and the report's horizontal pressure. This is
+  // the ONLY place a report's typography is decided — individual report
+  // modules never pass sizes.
+  const presentationProfile: PresentationProfile =
+    options.presentationProfile ??
+    spec?.presentationProfile ??
+    inferPresentationProfile(formatProfile, columns.length);
 
   // ── Stage W5 (ADR-0008): resolve report paper policy ─────────────
   // Reports get their own policy namespace `report:<reportType>` so
@@ -165,6 +183,7 @@ export async function renderReport(
     summaryRows: options.summaryRows,
     footerNote: options.footerNote,
     formatProfile,
+    presentationProfile,
     paperFormat: resolvedPaper as any,
     disclosure: {
       user: options.userName ?? null,

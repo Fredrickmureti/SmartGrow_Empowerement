@@ -48,6 +48,14 @@ export interface ReportSpec {
   formatProfile?: ReportFormatProfile;
   /** Optional default subtitle (e.g. "Accrual Basis"). */
   subtitle?: string;
+  /**
+   * Optional pin for the PDF presentation profile (typography + density).
+   * Leave unset for the standard derivation: "financial" reports render as
+   * `statement`, and everything else grades to `ledger` or `operational`
+   * by column count. Pin it only when a specific report needs to defy that
+   * (e.g. a wide statutory schedule that must stay statement-sized).
+   */
+  presentationProfile?: "statement" | "ledger" | "operational";
 }
 
 /**
