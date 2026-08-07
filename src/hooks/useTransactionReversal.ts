@@ -295,6 +295,8 @@ export interface VoidInvoiceOptions {
 
   invoiceId: string;
   reason: string;
+  /** Code from `reversal_reason_codes` (ADR 0129) — validated server-side. */
+  reasonCode: string;
   voidDate?: string;
   clientRequestId?: string;
 }
@@ -303,12 +305,16 @@ export interface VoidInvoiceOptions {
 export interface VoidBillOptions {
   billId: string;
   reason: string;
+  /** Code from `reversal_reason_codes` (ADR 0129) — validated server-side. */
+  reasonCode: string;
   voidDate?: string;
 }
 
 export interface VoidBillPaymentOptions {
   billPaymentId: string;
   reason: string;
+  /** Code from `reversal_reason_codes` (ADR 0129) — validated server-side. */
+  reasonCode: string;
   voidDate?: string;
   clientRequestId?: string;
 }
@@ -642,6 +648,7 @@ export function useTransactionReversal() {
       const { data: voidResult, error: voidErr } = await supabase.rpc("void_invoice_atomic" as any, {
         _invoice_id: options.invoiceId,
         _reason: options.reason,
+        _reason_code: options.reasonCode,
         _void_date: voidDate,
         _actor: user.id,
         _client_request_id: options.clientRequestId ?? null,
@@ -924,6 +931,7 @@ export function useTransactionReversal() {
       const { data, error } = await supabase.rpc("void_bill_atomic" as any, {
         _bill_id: options.billId,
         _reason: options.reason,
+        _reason_code: options.reasonCode,
         _void_date: options.voidDate ?? null,
         _actor: user.id,
         _client_request_id: null,
@@ -972,6 +980,8 @@ export function useTransactionReversal() {
   const reverseGoodsReceipt = async (options: {
     goodsReceiptId: string;
     reason: string;
+    /** Code from `reversal_reason_codes` (ADR 0129) — validated server-side. */
+    reasonCode: string;
     voidDate?: string;
   }): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -983,6 +993,7 @@ export function useTransactionReversal() {
       const { data, error } = await supabase.rpc("void_goods_receipt_atomic" as any, {
         _gr_id: options.goodsReceiptId,
         _reason: options.reason,
+        _reason_code: options.reasonCode,
         _void_date: options.voidDate ?? null,
         _actor: user.id,
         _client_request_id: null,
@@ -1048,6 +1059,7 @@ export function useTransactionReversal() {
       const { data, error } = await supabase.rpc("void_bill_payment_atomic" as any, {
         _bill_payment_id: options.billPaymentId,
         _reason: options.reason,
+        _reason_code: options.reasonCode,
         _void_date: options.voidDate ?? null,
         _actor: user.id,
         _client_request_id: options.clientRequestId ?? null,
