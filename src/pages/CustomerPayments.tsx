@@ -333,11 +333,67 @@ export default function CustomerPayments() {
   };
 
   /**
-   * Dispatch a customer payment receipt through the Wave 7 document engine.
-   * All three legacy legs (view / download / print) collapse into one
-   * intent submission — the resolved routing plan handles disposition
-   * (screen preview, PDF download, thermal spooler, email, fiscal, …)
-   * so a "receipt" print button never bypasses fiscal / archive rules.
+   * Freeze the receipt snapshot into its document record. Shared by the
+   * Print and Download verbs; Preview never needs it (it renders from the
+   * source pair without touching the ledger).
+   */
+  const ensureReceiptRecord = useCallback(async (payment: Payment) => {
+    if (!currentOrg?.id) throw new Error("Sign in to an organization first.");
+    const built = await fetchAndBuildPaymentReceiptSnapshot(supabase, payment.id);
+    return await ensureDocumentRecord({
+      kindCode: "sales.payment_receipt",
+      organizationId: currentOrg.id,
+      sourceModule: "sales",
+      sourceDocType: "payment_receipt",
+      sourceDocId: payment.id,
+      businessId: built.businessId ?? currentBusiness?.id ?? null,
+      branchId: built.branchId ?? null,
+      partyKind: "customer",
+      currency: built.currency,
+      documentNumber: built.documentNumber,
+      documentDate: built.documentDate,
+      snapshot: built.snapshot,
+    });
+  }, [currentOrg?.id, currentBusiness?.id]);
+
+  /**
+   * View = read-only preview. No ledger row, no device dispatch, no paper.
+   * "View" firing a print job was the defect this split removes.
+   */
+  const handleViewReceipt = useCallback((payment: Payment) => {
+    const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
+    previewDocument({
+      documentType: "payment_receipt",
+      documentId: payment.id,
+      title: `Receipt ${receiptNum}`,
+      filename: receiptNum,
+    });
+  }, [previewDocument]);
+
+  /** Download = artifact distribution; renders and settles its own row. */
+  const handleDownloadReceipt = useCallback(async (payment: Payment) => {
+    const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
+    try {
+      const documentRecordId = await ensureReceiptRecord(payment);
+      await downloadDocumentRecord({
+        documentRecordId,
+        filename: receiptNum,
+        businessId: currentBusiness?.id ?? null,
+        documentType: "payment_receipt",
+        documentId: payment.id,
+      });
+    } catch (err) {
+      toast({
+        title: "Receipt download failed",
+        description: normalizeError(err).message,
+        variant: "destructive",
+      });
+    }
+  }, [ensureReceiptRecord, currentBusiness?.id, toast]);
+
+  /**
+   * Print = policy-driven dispatch through the Wave 7 document engine, so
+   * a receipt print never bypasses fiscal / archive rules.
    */
   const handleDispatchReceipt = useCallback(async (payment: Payment) => {
     if (!currentOrg?.id) {
@@ -350,21 +406,7 @@ export default function CustomerPayments() {
     }
     const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
     try {
-      const built = await fetchAndBuildPaymentReceiptSnapshot(supabase, payment.id);
-      const documentRecordId = await ensureDocumentRecord({
-        kindCode: "sales.payment_receipt",
-        organizationId: currentOrg.id,
-        sourceModule: "sales",
-        sourceDocType: "payment_receipt",
-        sourceDocId: payment.id,
-        businessId: built.businessId ?? currentBusiness?.id ?? null,
-        branchId: built.branchId ?? null,
-        partyKind: "customer",
-        currency: built.currency,
-        documentNumber: built.documentNumber,
-        documentDate: built.documentDate,
-        snapshot: built.snapshot,
-      });
+      const documentRecordId = await ensureReceiptRecord(payment);
       await acknowledgeRecordPrint(
         { documentRecordId, triggeredSource: "manual" },
         toast,
@@ -377,7 +419,7 @@ export default function CustomerPayments() {
         variant: "destructive",
       });
     }
-  }, [currentOrg?.id, currentBusiness?.id, toast]);
+  }, [currentOrg?.id, ensureReceiptRecord, toast]);
 
   const hasActiveFilters = statusFilter !== "all" || methodFilter !== "all" || dateRange !== "all" || searchQuery.length > 0;
 
