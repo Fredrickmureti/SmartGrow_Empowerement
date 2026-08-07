@@ -295,6 +295,21 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "audit-trail",
     keywords: ["audit", "trail", "log", "changes", "activity", "compliance"],
+    relatedReports: ["report-run-history"],
+  },
+  {
+    id: "report-run-history",
+    name: "Report Run History",
+    description:
+      "Every report rendition produced by the engine — actor, parameters, size and run hash",
+    category: "audit",
+    path: "/finance/reports/run-history",
+    icon: ShieldCheck,
+    requiredFeature: "reports_financial",
+    permission: "viewReports",
+    reportType: "report_run_history",
+    keywords: ["report", "run", "history", "rendition", "export", "audit", "log"],
+    relatedReports: ["audit-trail"],
   },
   {
     id: "control-account-reconciliation",
