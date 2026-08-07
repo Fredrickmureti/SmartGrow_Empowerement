@@ -39,7 +39,7 @@ function reportHref(def: ReportDefinition, scopeSearch: string) {
 
 export function ReportSwitcherStrip() {
   const { pathname } = useLocation();
-  const { hasPermission } = usePermissions();
+  const { can } = usePermissions();
   const { toReportSearch } = useReportWorkspaceState();
 
   const active = findReportByPath(pathname);
@@ -49,7 +49,7 @@ export function ReportSwitcherStrip() {
   const scopeSearch = toReportSearch();
 
   const allowed = (def: ReportDefinition) =>
-    !def.permission || hasPermission(def.permission);
+    !def.permission || can(def.permission);
 
   // Child leaves (`parentId`) are tab deep-links of another report; the strip
   // lists reports, not tabs.
