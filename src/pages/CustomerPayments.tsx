@@ -16,7 +16,7 @@ import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapsh
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
 import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
-import { downloadDocumentPdf } from "@/services/printing/PrintService";
+import { downloadDocumentRecord } from "@/services/printing/PrintService";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
 import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
