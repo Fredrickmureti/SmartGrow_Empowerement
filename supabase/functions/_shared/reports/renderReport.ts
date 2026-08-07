@@ -98,22 +98,31 @@ export interface RenderReportOptions {
 }
 
 /**
- * Derive the canonical reporting-scope line: "<Business> · <Branch>".
+ * Derive the canonical reporting-scope line.
  *
- * This is the single owner of that string. Report modules and UI pages
- * must never hand-compose a scope label, otherwise the same run reads
- * "Nairobi" on screen and "Headquarters (HQ)" on paper.
+ * This is the single owner of that string. Report modules and UI pages must
+ * never hand-compose a scope label, otherwise the same run reads "Nairobi"
+ * on screen and "Headquarters (HQ)" on paper.
  *
- * - No branch selected → "<Business> · All branches" (consolidated).
- * - Branch selected → "<Business> · <Branch name>" (HQ flagged).
- * - No business identity at all → undefined (masthead omits the line).
+ * The masthead already states the legal entity, so the scope line does NOT
+ * repeat it when it is the same name:
+ *   - branch selected → "Nairobi Branch" (HQ flagged as "… (HQ)")
+ *   - no branch, business known → "All branches"
+ *   - business differs from the masthead name → "<Business> · <Branch>"
+ *   - no identity at all → undefined (masthead omits the line)
  */
 async function resolveReportScope(
   // deno-lint-ignore no-explicit-any
   supabase: any,
-  input: { businessName?: string | null; businessId?: string | null; branchId?: string | null },
+  input: {
+    mastheadName?: string | null;
+    businessName?: string | null;
+    businessId?: string | null;
+    branchId?: string | null;
+  },
 ): Promise<string | undefined> {
   const business = input.businessName?.trim() || null;
+  const masthead = input.mastheadName?.trim() || null;
   let branch: string | null = null;
 
   if (input.branchId) {
@@ -133,9 +142,11 @@ async function resolveReportScope(
     branch = "All branches";
   }
 
-  const parts = [business, branch].filter(Boolean) as string[];
+  const label = business && business !== masthead ? business : null;
+  const parts = [label, branch].filter(Boolean) as string[];
   return parts.length ? parts.join(" · ") : undefined;
 }
+
 
 /**
  * Resolve columns + title + orientation + format-profile from the registry,
