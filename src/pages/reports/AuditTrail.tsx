@@ -129,6 +129,12 @@ function AuditTrailInner() {
     return Array.from(s).sort();
   }, [data]);
 
+  const rawById = useMemo(() => {
+    const m = new Map<string, UnifiedAuditRow>();
+    for (const r of data || []) m.set(`${r.source_table}:${r.id}`, r);
+    return m;
+  }, [data]);
+
   const columns = useMemo<ReportColumn<UnifiedAuditRow>[]>(
     () => [
       { key: "when", header: "When", width: "w-[160px]" },
@@ -161,15 +167,8 @@ function AuditTrailInner() {
         },
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data],
+    [rawById],
   );
-
-  const rawById = useMemo(() => {
-    const m = new Map<string, UnifiedAuditRow>();
-    for (const r of data || []) m.set(`${r.source_table}:${r.id}`, r);
-    return m;
-  }, [data]);
 
   const rows = useMemo<ReportRow[]>(
     () =>

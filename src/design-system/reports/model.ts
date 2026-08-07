@@ -11,7 +11,7 @@
 import type { ReportValueFormat } from "./format";
 import type { ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 
-export interface ReportColumn<Row = ReportRowData> {
+export interface ReportColumn<Row = ReportRow> {
   /** Key into the row's `values` map. */
   key: string;
   header: string;
@@ -27,7 +27,11 @@ export interface ReportColumn<Row = ReportRowData> {
   groupEnd?: boolean;
   /** Hide below the `md` breakpoint — for low-priority columns. */
   secondary?: boolean;
-  /** Custom cell renderer; bypasses formatting for this column only. */
+  /**
+   * Custom cell renderer; bypasses formatting for this column only.
+   * Receives the whole row, so a renderer can read sibling values
+   * (`row.values.status`) as well as the row's kind and tone.
+   */
   render?: (row: Row) => React.ReactNode;
   /** Exclude from exported PDF/CSV/XLSX (e.g. an actions column). */
   exportExclude?: boolean;
