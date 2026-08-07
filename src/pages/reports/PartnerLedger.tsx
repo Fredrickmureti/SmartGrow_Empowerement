@@ -315,7 +315,7 @@ function PartnerLedgerInner() {
         },
       },
     ],
-    [baseCurrency, partnerType],
+    [baseCurrency, formatCurrency, partnerType],
   );
 
   const rows = useMemo<ReportRow[]>(() => {
