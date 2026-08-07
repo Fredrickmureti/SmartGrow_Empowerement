@@ -86,11 +86,28 @@ export interface ExportConfig {
    */
   companyName?: string;
   /**
-   * Optional registry key (e.g. "attendance_daily_log"). When set,
-   * `render-report` resolves the canonical column spec + format profile
-   * + masthead from `_shared/reports/columnSpecs.ts` instead of inferring
-   * from the row shape. Pages that already have a registered key SHOULD
-   * pass it so the PDF renders identically across modules.
+   * INTERNAL ONLY — populated by `ReportContext.enrichExportConfig`.
+   * The reporting ENTITY. `render-report` resolves the masthead legal
+   * name, logo and base currency for THIS business (not the org's first
+   * business), so a multi-entity tenant cannot print one entity's logo on
+   * another entity's statement.
+   */
+  businessId?: string;
+  /**
+   * INTERNAL ONLY — populated by `ReportContext.enrichExportConfig`.
+   * The branch the report was scoped to (null = consolidated). The server
+   * derives the masthead scope line from it; pages MUST NOT compose a
+   * "Business · Branch" string themselves.
+   */
+  branchId?: string | null;
+  /**
+   * Registry key (e.g. "trial_balance"). Drives the canonical column
+   * spec, orientation, masthead format profile and typography from
+   * `_shared/reports/columnSpecs.ts`.
+   *
+   * REQUIRED for every registered report. Omitting it silently downgrades
+   * the report to the "operational" masthead — that is exactly how Trial
+   * Balance and Cash Flow drifted apart.
    */
   reportType?: string;
 }
@@ -105,9 +122,9 @@ export interface ExportConfig {
 export interface ServerBuildConfig extends ExportConfig {
   dateFrom?: string;
   dateTo?: string;
-  businessId?: string;
   filters?: Record<string, unknown>;
 }
+
 
 /**
  * True when the config carries everything `render-report`'s SERVER-BUILD
