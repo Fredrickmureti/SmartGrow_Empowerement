@@ -260,7 +260,7 @@ export function useTransactionReversal() {
   const { toast } = useToast();
   const { logAction } = useAuditLog();
   const { postPaymentToGL } = useGLPosting();
-  const { getInvoiceAccountMappings, getPaymentAccountForMethod } = useDefaultAccounts();
+  const { getInvoiceAccountMappings, getPaymentAccountMappings } = useDefaultAccounts();
 
 
   /**
