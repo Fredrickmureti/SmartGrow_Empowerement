@@ -223,6 +223,40 @@ export interface ReversalRelatedDocument {
   count: number;
 }
 
+/**
+ * Phase 4 — warehouse participation.
+ *
+ * Open floor work belonging to the document. Reversing it cancels these tasks
+ * through `wms_cancel_tasks_for_document`; the client never flips task state.
+ */
+export interface ReversalWarehouseTask {
+  task_id: string;
+  task_type: string;
+  state: string;
+  warehouse_id: string | null;
+  product_id: string | null;
+  quantity: number | null;
+  assignee_user_id: string | null;
+}
+
+/**
+ * Phase 4 — bank reconciliation participation.
+ *
+ * The reconciled statement lines matched to this document's payments. While any
+ * line is listed, the reversal is blocked: un-match it first through
+ * `resolve_reversal_bank_block`.
+ */
+export interface ReversalBankLine {
+  bank_transaction_id: string;
+  bank_account_id: string | null;
+  transaction_date: string | null;
+  description: string | null;
+  amount: number;
+  reconciled_type: string | null;
+  payment_id: string | null;
+  payment_kind: "payment" | "bill_payment";
+}
+
 export interface ReversalConsequences {
   document_type: ReversalDocumentType;
   document_id: string;
@@ -241,6 +275,15 @@ export interface ReversalConsequences {
   };
   money: {
     lines: ReversalMoneyLine[];
+    line_count: number;
+  };
+  warehouse: {
+    tasks: ReversalWarehouseTask[];
+    task_count: number;
+    in_progress_count: number;
+  };
+  bank: {
+    lines: ReversalBankLine[];
     line_count: number;
   };
   related_documents: ReversalRelatedDocument[];
@@ -515,6 +558,44 @@ export function useTransactionReversal() {
     }
     return (data as unknown as ReversalConsequences) ?? null;
   };
+
+  /**
+   * Phase 4 — clear the `bank_reconciled` blocker the legal way.
+   *
+   * `resolve_reversal_bank_block` un-matches exactly the statement lines the
+   * preview listed, through the canonical `unreconcile_bank_transaction` writer
+   * (which voids the reconciliation JE, reverses the matches and releases the
+   * customer receipt or supplier payment). Never update `bank_transactions` or
+   * `bank_reconciliation_matches` from the client to unblock a reversal.
+   */
+  const unmatchBankLinesForReversal = async (
+    documentType: ReversalDocumentType,
+    documentId: string,
+    reason: string,
+  ): Promise<boolean> => {
+    const { error } = await supabase.rpc("resolve_reversal_bank_block" as any, {
+      _document_type: documentType,
+      _document_id: documentId,
+      _reason: reason,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      console.error("Error un-matching bank lines for reversal:", error);
+      toast({
+        title: "Could not un-match the bank line",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+      return false;
+    }
+    toast({
+      title: "Bank line un-matched",
+      description: "The statement line is back for review, so the reversal can continue.",
+    });
+    return true;
+  };
+
+
 
 
 
@@ -1098,6 +1179,7 @@ export function useTransactionReversal() {
   return {
     resolveReversalIntent,
     previewReversalConsequences,
+    unmatchBankLinesForReversal,
 
     voidPayment,
     voidInvoice,

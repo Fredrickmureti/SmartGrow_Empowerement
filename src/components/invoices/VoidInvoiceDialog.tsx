@@ -66,6 +66,8 @@ interface VoidInvoiceDialogProps {
 const OPERATION_ICONS: Record<ReversalOperation, typeof Ban> = {
   void: Ban,
   credit_note: FileMinus,
+  vendor_credit_note: FileMinus,
+  goods_return: Undo2,
   refund: Wallet,
   customer_credit: Wallet,
   reverse_payment: Undo2,
@@ -90,7 +92,9 @@ export function VoidInvoiceDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
-  const { voidInvoice, resolveReversalIntent } = useTransactionReversal();
+  const { voidInvoice, resolveReversalIntent, unmatchBankLinesForReversal } =
+    useTransactionReversal();
+  const [isUnmatching, setIsUnmatching] = useState(false);
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
 
@@ -130,7 +134,30 @@ export function VoidInvoiceDialog({
     consequences,
     isLoading: isPreviewLoading,
     isError: isPreviewError,
+    refetch: refetchPreview,
   } = useReversalConsequences("invoice", invoice?.id, open && canVoid);
+
+  /**
+   * Phase 4 — resolve the bank_reconciled blocker in place. The server
+   * un-matches the statement lines, then both the policy and the preview are
+   * re-resolved so the sheet gates on fresh server truth.
+   */
+  const handleUnmatchBankLines = async () => {
+    if (!invoice) return;
+    setIsUnmatching(true);
+    try {
+      const ok = await unmatchBankLinesForReversal(
+        "invoice",
+        invoice.id,
+        `Un-matched to void invoice ${invoice.invoice_number ?? invoice.id}`,
+      );
+      if (!ok) return;
+      setIntent(await resolveReversalIntent("invoice", invoice.id));
+      refetchPreview();
+    } finally {
+      setIsUnmatching(false);
+    }
+  };
 
 
   const handleVoid = async () => {
@@ -288,6 +315,8 @@ export function VoidInvoiceDialog({
                   isLoading={isPreviewLoading}
                   isError={isPreviewError}
                   currency={invoice.currency}
+                  onUnmatchBankLines={handleUnmatchBankLines}
+                  isUnmatchingBankLines={isUnmatching}
                 />
 
 

@@ -1,6 +1,7 @@
 import {
   AlertTriangle,
   Boxes,
+  Forklift,
   Info,
   Landmark,
   Loader2,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/hooks/useCurrency";
 import type {
@@ -38,6 +40,12 @@ interface ReversalConsequencePreviewProps {
   isError: boolean;
   /** Currency of the document being reversed, for display only. */
   currency?: string;
+  /**
+   * Phase 4 — hands the `bank_reconciled` blocker back to the surface, which
+   * calls `unmatchBankLinesForReversal`. The preview never writes itself.
+   */
+  onUnmatchBankLines?: () => void;
+  isUnmatchingBankLines?: boolean;
 }
 
 const SEVERITY_ORDER: Record<ReversalWarningSeverity, number> = {
@@ -82,6 +90,8 @@ export function ReversalConsequencePreview({
   isLoading,
   isError,
   currency,
+  onUnmatchBankLines,
+  isUnmatchingBankLines,
 }: ReversalConsequencePreviewProps) {
   const { formatCurrency } = useCurrency();
 
@@ -110,7 +120,16 @@ export function ReversalConsequencePreview({
     );
   }
 
-  const { gl, stock, money, related_documents, warnings, document_type } = consequences;
+  const {
+    gl,
+    stock,
+    money,
+    warehouse,
+    bank,
+    related_documents,
+    warnings,
+    document_type,
+  } = consequences;
   const sortedWarnings = [...warnings].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3),
   );
@@ -269,6 +288,86 @@ export function ReversalConsequencePreview({
           </div>
         )}
       </div>
+
+      {/* ------------------------------------------------- warehouse (Phase 4) */}
+      {warehouse && warehouse.task_count > 0 && (
+        <div className="p-4 space-y-3">
+          <SectionHeading
+            icon={Forklift}
+            title="Warehouse"
+            hint="These open tasks are cancelled with the reversal so no one picks against a reversed document."
+          />
+          <div className="space-y-1">
+            {warehouse.tasks.map((task) => (
+              <div
+                key={task.task_id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="truncate capitalize">
+                  {task.task_type.replace(/_/g, " ")}
+                </span>
+                <span className="shrink-0 flex items-center gap-2 text-muted-foreground">
+                  {task.quantity != null && (
+                    <span className="tabular-nums">{task.quantity}</span>
+                  )}
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {task.state.replace(/_/g, " ")}
+                  </Badge>
+                </span>
+              </div>
+            ))}
+          </div>
+          {warehouse.in_progress_count > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {warehouse.in_progress_count} task(s) are already being worked on the
+              floor. Tell the team before cancelling them.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ---------------------------------------------- bank lines (Phase 4) */}
+      {bank && bank.line_count > 0 && (
+        <div className="p-4 space-y-3">
+          <SectionHeading
+            icon={Landmark}
+            title="Bank reconciliation"
+            hint="Reconciled statement lines are matched to this document's money. Un-match them first, or the bank and the ledger will disagree."
+          />
+          <div className="space-y-1">
+            {bank.lines.map((line) => (
+              <div
+                key={line.bank_transaction_id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="truncate">
+                  {line.description ?? "Statement line"}
+                  {line.transaction_date ? ` · ${line.transaction_date}` : ""}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {formatCurrency(line.amount, currency)}
+                </span>
+              </div>
+            ))}
+          </div>
+          {onUnmatchBankLines && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isUnmatchingBankLines}
+              onClick={onUnmatchBankLines}
+            >
+              {isUnmatchingBankLines && (
+                <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+              )}
+              Un-match {bank.line_count === 1 ? "this line" : "these lines"}
+            </Button>
+          )}
+        </div>
+      )}
+
+
 
       {/* --------------------------------------- derived documents & warnings */}
       {(derived.length > 0 || sortedWarnings.length > 0) && (
