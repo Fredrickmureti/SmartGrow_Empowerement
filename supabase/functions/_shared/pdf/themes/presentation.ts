@@ -36,8 +36,11 @@ export type PresentationProfile =
   | "ledger"
   | "operational";
 
+/** Theme size tokens widened from literal types to plain numbers. */
+export type TypographySizes = { [K in keyof Theme["size"]]: number };
+
 export interface Typography {
-  size: Theme["size"];
+  size: TypographySizes;
   rowHeight: number;
   tableHeaderHeight: number;
   blockGap: number;
@@ -51,7 +54,7 @@ export interface Typography {
 }
 
 function build(
-  sizeOverrides: Partial<Theme["size"]>,
+  sizeOverrides: Partial<TypographySizes>,
   layout: Partial<Omit<Typography, "size">>,
 ): Typography {
   return {
