@@ -255,7 +255,7 @@ export function ReversePaymentWizard({
       const ok = await unmatchBankLinesForReversal(
         "payment",
         payment.id,
-        `Un-matched to reverse payment ${payment.payment_number ?? payment.id}`,
+        `Un-matched to reverse payment ${payment.receipt_number ?? payment.id}`,
       );
       if (!ok) return;
       refetchPreview();
