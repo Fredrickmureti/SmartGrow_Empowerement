@@ -5,26 +5,38 @@
  * profile split the PDF column registry uses, so the report a controller
  * reads on screen and the PDF they archive are recognisably one document.
  *
- * `financial` → centered statutory masthead: COMPANY → Title → Period →
- * Basis → Prepared on. Used by Balance Sheet, P&L, Trial Balance, Cash
- * Flow and the other statutory statements.
+ * `financial` → centered statutory masthead: LOGO → COMPANY → Title →
+ * Period/As-of → Basis → Scope → Prepared on. Used by Balance Sheet, P&L,
+ * Trial Balance, Cash Flow and the other statutory statements.
  * `operational` → left-aligned title block for register-style reports.
+ *
+ * IDENTITY IS NOT A PROP. Company name, logo and scope come from
+ * `useReportExportContext()` — the same values that are sent to
+ * `render-report` as `businessId` / `branchId` — so the screen cannot
+ * state one entity while the PDF states another. Pages must not pass
+ * `companyName`; the prop remains only as an explicit override for
+ * non-report surfaces (e.g. a consolidated group header).
  */
 import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatReportDate } from "./format";
+import { useReportExportContext } from "@/contexts/ReportContext";
 
 export type ReportFormatProfile = "financial" | "operational";
 
 export interface ReportSurfaceProps {
+  /**
+   * Escape hatch only. Leave unset so the active business identity is
+   * used — that is what the PDF masthead will print.
+   */
   companyName?: string | null;
   title: string;
   /** Range reports: "1 Jan 2026 – 31 Mar 2026". */
   dateRange?: string | null;
   /** Point-in-time reports: "As of 31 March 2026". */
   asOfDate?: string | null;
-  /** Basis / scope line, e.g. "Accrual basis · Nairobi branch". */
+  /** Basis line, e.g. "Accrual basis". Scope is NOT part of this. */
   subtitle?: string | null;
   profile?: ReportFormatProfile;
   /** Rendered under the masthead, above the table (status banners, etc.). */
@@ -46,8 +58,12 @@ export function ReportSurface({
   children,
   className,
 }: ReportSurfaceProps) {
+  const identity = useReportExportContext();
   const preparedOn = formatReportDate(new Date());
   const financial = profile === "financial";
+  const entityName = companyName || identity.companyName || "";
+  const logoUrl = identity.logoUrl || null;
+  const scopeLabel = identity.scopeLabel || null;
 
   return (
     <Card className={cn("print:border-0 print:shadow-none", className)}>
@@ -58,9 +74,20 @@ export function ReportSurface({
             financial ? "text-center" : "text-left",
           )}
         >
-          {companyName && (
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={entityName ? `${entityName} logo` : "Company logo"}
+              className={cn(
+                "mb-2 h-10 w-auto object-contain",
+                financial ? "mx-auto" : "",
+              )}
+              loading="lazy"
+            />
+          )}
+          {entityName && (
             <h2 className="text-base font-bold uppercase tracking-wide text-foreground">
-              {companyName}
+              {entityName}
             </h2>
           )}
           <h3 className="mt-0.5 text-base font-semibold text-foreground">{title}</h3>
@@ -70,6 +97,9 @@ export function ReportSurface({
           {asOfDate && <p className="mt-0.5 text-sm text-muted-foreground">{asOfDate}</p>}
           {subtitle && (
             <p className="mt-0.5 text-xs italic text-muted-foreground">{subtitle}</p>
+          )}
+          {scopeLabel && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{scopeLabel}</p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">Prepared on {preparedOn}</p>
         </header>
