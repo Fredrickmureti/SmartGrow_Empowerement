@@ -31,9 +31,37 @@ export type ReportCategory =
   | "audit"
   | "intelligence";
 
+/**
+ * Reporting domains. A domain is the workspace a report belongs to — the set
+ * of reports a user moves between without leaving their reporting context.
+ */
+export type ReportDomain =
+  | "finance"
+  | "payroll"
+  | "hr"
+  | "sales"
+  | "purchases"
+  | "inventory"
+  | "pos"
+  | "projects"
+  | "crm";
+
+export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
+  finance: "Finance",
+  payroll: "Payroll",
+  hr: "People",
+  sales: "Sales",
+  purchases: "Purchases",
+  inventory: "Inventory",
+  pos: "Point of sale",
+  projects: "Projects",
+  crm: "CRM",
+};
+
 export interface ReportDefinition {
   id: string;
   name: string;
+
   description: string;
   category: ReportCategory;
   /** Full route, may include query string for deep-linking into a tab. */
