@@ -61,7 +61,8 @@ export function BillPaymentHistoryDialog({
   onOpenChange,
 }: BillPaymentHistoryDialogProps) {
   const { getBillPayments } = useBills();
-  const { voidBillPayment, resolveReversalIntent } = useTransactionReversal();
+  const { voidBillPayment, resolveReversalIntent, unmatchBankLinesForReversal } =
+    useTransactionReversal();
   const { formatCurrency: formatCurrencyHook } = useCurrency();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -72,6 +73,7 @@ export function BillPaymentHistoryDialog({
   const [confirmReversePayment, setConfirmReversePayment] = useState<BillPayment | null>(null);
   const [paymentIntent, setPaymentIntent] = useState<ReversalIntent | null>(null);
   const [isResolvingPaymentIntent, setIsResolvingPaymentIntent] = useState(false);
+  const [isUnmatching, setIsUnmatching] = useState(false);
 
   useEffect(() => {
     if (open && bill) {
@@ -154,15 +156,43 @@ export function BillPaymentHistoryDialog({
         "This payment's accounting state does not allow a reversal."
       : null;
 
+  /**
+   * Phase 4 — the preview is fetched even when the reversal is blocked: the
+   * bank section is what lets the operator clear a `bank_reconciled` blocker,
+   * so hiding it while blocked would make the blocker unresolvable here.
+   */
   const {
     consequences: paymentConsequences,
     isLoading: isPaymentPreviewLoading,
     isError: isPaymentPreviewError,
+    refetch: refetchPaymentPreview,
   } = useReversalConsequences(
     "bill_payment",
     confirmReversePayment?.id,
-    Boolean(confirmReversePayment) && !reversalBlockedReason
+    Boolean(confirmReversePayment)
   );
+
+  /**
+   * Phase 4 — guided resolution of the `bank_reconciled` blocker. The server
+   * un-matches exactly the blocking statement lines; both the intent and the
+   * preview are then re-resolved so the dialog gates on fresh server truth.
+   */
+  const handleUnmatchBankLines = async () => {
+    if (!confirmReversePayment) return;
+    setIsUnmatching(true);
+    try {
+      const ok = await unmatchBankLinesForReversal(
+        "bill_payment",
+        confirmReversePayment.id,
+        `Un-matched to reverse supplier payment ${confirmReversePayment.id}`,
+      );
+      if (!ok) return;
+      setPaymentIntent(await resolveReversalIntent("bill_payment", confirmReversePayment.id));
+      refetchPaymentPreview();
+    } finally {
+      setIsUnmatching(false);
+    }
+  };
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = bill ? bill.total - totalPaid : 0;
@@ -308,6 +338,8 @@ export function BillPaymentHistoryDialog({
             isLoading={isPaymentPreviewLoading}
             isError={isPaymentPreviewError}
             currency={bill?.currency}
+            onUnmatchBankLines={handleUnmatchBankLines}
+            isUnmatchingBankLines={isUnmatching}
           />
 
           <AlertDialogFooter>
