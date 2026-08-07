@@ -194,6 +194,21 @@ export interface ReceiptTransactionLike {
   /** Optional advance/overpayment not applied to any invoice. */
   unapplied_amount?: number | null;
   /**
+   * Cash-application document marker (customer payment receipt). When true
+   * the engine renders the allocation ledger + tender block and SUPPRESSES
+   * the sale arithmetic (subtotal / discount / tax / TOTAL), which belongs
+   * to the invoice, not to the receipt.
+   */
+  is_payment_document?: boolean;
+  /** Money actually received (applied + on account). */
+  amount_received?: number | null;
+  /** Sum applied to documents. */
+  total_applied?: number | null;
+  /** Outstanding left on the documents this receipt touched. */
+  customer_balance_after?: number | null;
+  /** Amount in words, rendered on official receipts. */
+  amount_in_words?: string | null;
+  /**
    * Wave 6b Phase 2 — generic fiscal/regulator block. When set, replaces
    * the eTIMS-specific `etims_cu_number` / `etims_qr_data` rendering with
    * a provider-agnostic heading + label/value rows + QR + optional
