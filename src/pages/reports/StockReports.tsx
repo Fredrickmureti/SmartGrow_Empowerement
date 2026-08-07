@@ -116,7 +116,7 @@ function StockReportsInner() {
         render: (row) => {
           const margin = row.values?.margin as number | null;
           if (margin === null || margin === undefined) return "—";
-          return <span className={margin >= 30 ? "text-green-600" : "text-orange-600"}>{margin.toFixed(0)}%</span>;
+          return <span className={margin >= 30 ? "text-success" : "text-warning"}>{margin.toFixed(0)}%</span>;
         },
       },
     ],

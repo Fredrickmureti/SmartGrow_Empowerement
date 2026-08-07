@@ -193,7 +193,7 @@ function InventoryValuationReportInner() {
         align: "right",
         render: (row) => {
           const qty = Number(row.values?.inQty ?? 0);
-          return <span className="text-green-600">{qty > 0 ? `+${qty}` : "—"}</span>;
+          return <span className="text-success">{qty > 0 ? `+${qty}` : "—"}</span>;
         },
       },
       {
@@ -202,7 +202,7 @@ function InventoryValuationReportInner() {
         align: "right",
         render: (row) => {
           const qty = Number(row.values?.outQty ?? 0);
-          return <span className="text-red-600">{qty > 0 ? `-${qty}` : "—"}</span>;
+          return <span className="text-destructive">{qty > 0 ? `-${qty}` : "—"}</span>;
         },
       },
     ],
