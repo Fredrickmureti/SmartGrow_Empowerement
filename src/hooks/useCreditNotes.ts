@@ -7,7 +7,7 @@ import { useToast } from "./use-toast";
 import { useBranch } from "@/contexts/BranchContext";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
-import { createCreditNoteAtomic } from "@/services/finance/createCreditNote";
+import { createCreditNoteAtomic, issueCreditNoteAtomic } from "@/services/finance/createCreditNote";
 
 /**
  * ADR 0131 — commercial compensation is a server-side service.
