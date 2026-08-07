@@ -1,0 +1,1 @@
+ALTER VIEW public.customer_credit_tieout SET (security_invoker = on);
