@@ -176,7 +176,6 @@ function BudgetReportInner() {
     title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
     reportType: "budget_vs_actual",
     companyName: currentOrg?.name || "",
-    organizationId: currentOrg?.id,
     dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
@@ -309,7 +308,6 @@ function BudgetReportInner() {
 
           {/* Account Detail Table, rendered by the shared reporting engine */}
           <ReportSurface
-            companyName={currentOrg?.name || ""}
             title="Budget vs Actual"
             subtitle={selectedBudget ? `${selectedBudget.name} — FY ${selectedBudget.fiscal_year}` : undefined}
             profile="financial"

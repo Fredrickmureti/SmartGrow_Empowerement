@@ -395,7 +395,6 @@ function FxRevaluationReportInner() {
         </div>
 
         <ReportSurface
-          companyName={currentOrg?.name || ""}
           title="FX Revaluation Runs"
           profile="operational"
         >

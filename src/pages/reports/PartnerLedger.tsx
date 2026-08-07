@@ -378,7 +378,6 @@ function PartnerLedgerInner() {
       title: `${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`,
       reportType: "partner_ledger",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
@@ -424,7 +423,6 @@ function PartnerLedgerInner() {
       }
     >
       <ReportSurface
-        companyName={currentOrg?.name || ""}
         title={`${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`}
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
         profile="operational"

@@ -197,7 +197,6 @@ function StockReportsInner() {
     return {
       title: "Stock / Inventory Report",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       columns: [
         { key: "product", header: "Product", width: 30 },
         { key: "qty", header: "Qty", width: 10, format: "number", align: "right" },

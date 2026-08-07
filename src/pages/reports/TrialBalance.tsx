@@ -206,7 +206,6 @@ function TrialBalanceInner() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: "Trial Balance",
-      organizationId: currentOrg?.id,
       dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
@@ -290,7 +289,6 @@ function TrialBalanceInner() {
 
       {/* 6-column trial balance, rendered by the shared reporting engine */}
       <ReportSurface
-        companyName={currentOrg?.name || ""}
         title="Trial Balance"
         asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
         subtitle={filters.branchId ? "Branch scoped" : undefined}

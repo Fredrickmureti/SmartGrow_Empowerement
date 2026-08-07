@@ -179,7 +179,6 @@ function JournalReportInner() {
       title: "Journal Report",
       reportType: "journal_report",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
@@ -217,7 +216,6 @@ function JournalReportInner() {
       }
     >
       <ReportSurface
-        companyName={currentOrg?.name || ""}
         title="Journal Report"
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
         subtitle={`${data?.length || 0} journal entries`}

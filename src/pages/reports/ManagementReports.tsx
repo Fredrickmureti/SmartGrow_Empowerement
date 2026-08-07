@@ -129,7 +129,6 @@ function ManagementReportsInner() {
       title: "Management Report",
       subtitle: "Key Performance Indicators",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `As of ${format(now, "MMM d, yyyy")}`,
       columns: [
         { key: "metric", header: "Metric", width: 50 },

@@ -193,7 +193,6 @@ function DepreciationReportInner() {
     title: "Depreciation Report",
     reportType: "depreciation_schedule",
     companyName: currentOrg?.name || "",
-    organizationId: currentOrg?.id,
     dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")} · ${branchLabel}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
@@ -268,7 +267,6 @@ function DepreciationReportInner() {
 
         {/* Asset schedule, rendered by the shared reporting engine */}
         <ReportSurface
-          companyName={currentOrg?.name || ""}
           title="Depreciation Report"
           asOfDate={`As of ${format(new Date(dateTo), "MMMM d, yyyy")}`}
           subtitle={branchLabel}

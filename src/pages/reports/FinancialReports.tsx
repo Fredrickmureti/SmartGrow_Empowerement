@@ -430,7 +430,6 @@ function FinancialReportsInner() {
   const getPnlExportConfig = useCallback((): ExportConfig => ({
     title: "Profit & Loss Statement",
     companyName: currentOrg?.name || "",
-    organizationId: currentOrg?.id,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(pnlColumns),
     rows: toExportRows(pnlRows, pnlColumns),
@@ -441,7 +440,6 @@ function FinancialReportsInner() {
   const getBsExportConfig = useCallback((): ExportConfig => ({
     title: "Balance Sheet",
     companyName: currentOrg?.name || "",
-    organizationId: currentOrg?.id,
     dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")}`,
     columns: toExportColumns(bsColumns),
     rows: toExportRows(bsRows, bsColumns),
@@ -598,7 +596,6 @@ function FinancialReportsInner() {
 
           {/* P&L Table — Multi-Step Format, rendered by the shared reporting engine */}
           <ReportSurface
-            companyName={currentOrg?.name || ""}
             title="Profit & Loss Statement"
             dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
             subtitle="Accrual Basis"
@@ -636,7 +633,6 @@ function FinancialReportsInner() {
           )}
 
           <ReportSurface
-            companyName={currentOrg?.name || ""}
             title="Balance Sheet"
             asOfDate={`As of ${format(new Date(dateTo), "MMMM d, yyyy")}`}
             subtitle="Accrual Basis"

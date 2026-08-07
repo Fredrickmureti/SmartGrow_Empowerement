@@ -125,7 +125,6 @@ function CashFlowReportInner() {
     title: "Cash Flow Statement",
     reportType: "cash_flow",
     companyName: currentOrg?.name || "",
-    organizationId: currentOrg?.id,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
@@ -225,7 +224,6 @@ function CashFlowReportInner() {
 
           {/* Statement, rendered by the shared reporting engine */}
           <ReportSurface
-            companyName={currentOrg?.name || ""}
             title="Cash Flow Statement"
             dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
             subtitle="Indirect method"

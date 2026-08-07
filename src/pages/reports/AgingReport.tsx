@@ -205,7 +205,6 @@ function AgingReportInner() {
     return {
       title: reportType === "ar" ? "Accounts Receivable Aging" : "Accounts Payable Aging",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
@@ -329,7 +328,6 @@ function AgingReportInner() {
 
       {/* Aging by contact, driven by the shared reporting engine. Click a row to expand documents. */}
       <ReportSurface
-        companyName={currentOrg?.name || ""}
         title={reportType === "ar" ? "Accounts Receivable Aging" : "Accounts Payable Aging"}
         asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
         subtitle={filters.branchId ? "Branch scoped" : undefined}
