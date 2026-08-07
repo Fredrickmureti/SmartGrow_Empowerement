@@ -17,6 +17,7 @@ import type {
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { PurchaseOrderReceiptsSection } from "@/features/purchases/goods-receipt/PurchaseOrderReceiptsSection";
 import { usePurchaseOrderRecord } from "./usePurchaseOrderRecord";
 
 function fmtDate(v: string | null | undefined) {
