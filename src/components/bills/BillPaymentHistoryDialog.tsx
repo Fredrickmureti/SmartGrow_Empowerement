@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bill, useBills, BillPayment } from "@/hooks/useBills";
-import { useTransactionReversal } from "@/hooks/useTransactionReversal";
+import { useTransactionReversal, type ReversalIntent } from "@/hooks/useTransactionReversal";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -31,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Undo2 } from "lucide-react";
+import { Loader2, Lock, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
@@ -58,7 +61,7 @@ export function BillPaymentHistoryDialog({
   onOpenChange,
 }: BillPaymentHistoryDialogProps) {
   const { getBillPayments } = useBills();
-  const { voidBillPayment } = useTransactionReversal();
+  const { voidBillPayment, resolveReversalIntent } = useTransactionReversal();
   const { formatCurrency: formatCurrencyHook } = useCurrency();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -67,6 +70,8 @@ export function BillPaymentHistoryDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [confirmReversePayment, setConfirmReversePayment] = useState<BillPayment | null>(null);
+  const [paymentIntent, setPaymentIntent] = useState<ReversalIntent | null>(null);
+  const [isResolvingPaymentIntent, setIsResolvingPaymentIntent] = useState(false);
 
   useEffect(() => {
     if (open && bill) {
