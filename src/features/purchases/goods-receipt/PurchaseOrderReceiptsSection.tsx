@@ -58,10 +58,10 @@ export function PurchaseOrderReceiptsSection({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono font-medium">{receipt.receipt_number}</span>
-                <StatusBadge
-                  status={receipt.status.replace(/_/g, " ")}
-                  tone={TONE[receipt.status] ?? "neutral"}
-                />
+                <StatusBadge tone={TONE[receipt.status] ?? "neutral"}>
+                  {receipt.status.replace(/_/g, " ")}
+                </StatusBadge>
+
               </div>
               <p className="text-xs text-muted-foreground">
                 Received {fmtDate(receipt.receipt_date)}
