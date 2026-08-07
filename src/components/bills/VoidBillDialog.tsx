@@ -27,6 +27,12 @@ import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import {
+  useReversalReasonCodes,
+  isReversalReasonComplete,
+} from "@/components/reversal/useReversalReasonCodes";
+
 
 /**
  * Reversal intent step for a supplier bill (Phase 3 — AP parity).
@@ -77,6 +83,7 @@ const BLOCKER_LABELS: Record<string, string> = {
 
 export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBillDialogProps) {
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -85,6 +92,10 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   const [isUnmatching, setIsUnmatching] = useState(false);
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
+
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes("bill", open);
+  const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
   // Resolved on open and re-resolved per bill — never cached across documents,
   // because payments and match state move underneath the sheet.
@@ -96,6 +107,8 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
     let cancelled = false;
     setIsResolving(true);
     setReason("");
+    setReasonCode("");
+
     resolveReversalIntent("bill", bill.id)
       .then((result) => {
         if (!cancelled) setIntent(result);
@@ -142,15 +155,21 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   };
 
   const handleVoid = async () => {
-    if (!bill || !reason.trim() || !canVoid) return;
+    if (!bill || !reasonComplete || !canVoid) return;
     setIsSubmitting(true);
     try {
-      const success = await voidBill({ billId: bill.id, reason: reason.trim() });
+      const success = await voidBill({
+        billId: bill.id,
+        reason: reason.trim(),
+        reasonCode,
+      });
       if (success) {
         setReason("");
+        setReasonCode("");
         onOpenChange(false);
         onSuccess?.();
       }
+
     } finally {
       setIsSubmitting(false);
     }
@@ -206,7 +225,7 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
               <Button
                 variant="destructive"
                 onClick={handleVoid}
-                disabled={isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError}
+                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Bill
@@ -282,18 +301,18 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
                   isUnmatchingBankLines={isUnmatching}
                 />
 
-                <div className="space-y-2">
-                  <Label htmlFor="bill-void-reason">
-                    Reason for voiding <span className="text-destructive">*</span>
-                  </Label>
-                  <Textarea
-                    id="bill-void-reason"
-                    placeholder="e.g., Supplier invoice entered twice, wrong vendor, incorrect amounts."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <ReversalReasonField
+                  documentType="bill"
+                  idPrefix="bill-void"
+                  code={reasonCode}
+                  comment={reason}
+                  onCodeChange={setReasonCode}
+                  onCommentChange={setReason}
+                  reasonCodes={reasonCodes}
+                  isLoading={isLoadingReasons}
+                  disabled={isSubmitting}
+                />
+
               </>
             ) : (
               <Alert>

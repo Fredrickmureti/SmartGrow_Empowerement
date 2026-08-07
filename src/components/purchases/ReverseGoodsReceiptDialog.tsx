@@ -24,6 +24,12 @@ import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import {
+  useReversalReasonCodes,
+  isReversalReasonComplete,
+} from "@/components/reversal/useReversalReasonCodes";
+
 import {
   useTransactionReversal,
   type ReversalIntent,
@@ -57,12 +63,20 @@ export function ReverseGoodsReceiptDialog({
   onSuccess,
 }: ReverseGoodsReceiptDialogProps) {
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isUnmatching, setIsUnmatching] = useState(false);
   const { reverseGoodsReceipt, resolveReversalIntent, unmatchBankLinesForReversal } =
     useTransactionReversal();
+
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes(
+    "goods_receipt",
+    open,
+  );
+  const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
   // Re-resolved per receipt on open: billing and period state move underneath a
   // long-lived sheet, so a cached verdict would authorise the wrong thing.
@@ -74,6 +88,8 @@ export function ReverseGoodsReceiptDialog({
     let cancelled = false;
     setIsResolving(true);
     setReason("");
+    setReasonCode("");
+
     resolveReversalIntent("goods_receipt", receipt.id)
       .then((result) => {
         if (!cancelled) setIntent(result);
@@ -115,18 +131,21 @@ export function ReverseGoodsReceiptDialog({
   };
 
   const handleReverse = async () => {
-    if (!receipt || !reason.trim() || !canReverse) return;
+    if (!receipt || !reasonComplete || !canReverse) return;
     setIsSubmitting(true);
     try {
       const success = await reverseGoodsReceipt({
         goodsReceiptId: receipt.id,
         reason: reason.trim(),
+        reasonCode,
       });
       if (success) {
         setReason("");
+        setReasonCode("");
         onOpenChange(false);
         onSuccess?.();
       }
+
     } finally {
       setIsSubmitting(false);
     }
@@ -163,7 +182,7 @@ export function ReverseGoodsReceiptDialog({
               <Button
                 variant="destructive"
                 onClick={handleReverse}
-                disabled={isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError}
+                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reverse Receipt
@@ -224,18 +243,18 @@ export function ReverseGoodsReceiptDialog({
                   isUnmatchingBankLines={isUnmatching}
                 />
 
-                <div className="space-y-2">
-                  <Label htmlFor="gr-reverse-reason">
-                    Reason for reversing <span className="text-destructive">*</span>
-                  </Label>
-                  <Textarea
-                    id="gr-reverse-reason"
-                    placeholder="e.g., Wrong goods received, damaged on arrival, receipt posted against the wrong purchase order."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <ReversalReasonField
+                  documentType="goods_receipt"
+                  idPrefix="gr-reverse"
+                  code={reasonCode}
+                  comment={reason}
+                  onCodeChange={setReasonCode}
+                  onCommentChange={setReason}
+                  reasonCodes={reasonCodes}
+                  isLoading={isLoadingReasons}
+                  disabled={isSubmitting}
+                />
+
               </>
             ) : (
               <Alert>
