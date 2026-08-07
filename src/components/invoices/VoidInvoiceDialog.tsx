@@ -123,6 +123,16 @@ export function VoidInvoiceDialog({
     (op) => op.operation !== "void" && op.operation !== "none" && op.allowed
   );
 
+  // Phase 2 — nobody authorises a reversal blind. The preview is fetched for the
+  // same document the intent was resolved for, and the confirm button stays
+  // disabled until it has landed successfully.
+  const {
+    consequences,
+    isLoading: isPreviewLoading,
+    isError: isPreviewError,
+  } = useReversalConsequences("invoice", invoice?.id, open && canVoid);
+
+
   const handleVoid = async () => {
     if (!invoice || !reason.trim() || !canVoid) return;
 
