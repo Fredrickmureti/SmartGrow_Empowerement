@@ -5,99 +5,129 @@ Inventory, Payroll) is explainable, deterministic, auditable and orchestrated by
 ONE model: `resolve_reversal_intent` (legality) → `preview_reversal_consequences`
 (projection) → one canonical atomic writer per operation → thin client wrapper.
 
-Last updated: 2026-08-07. Active phase: **Phase 4 complete → Phase 5 next.**
+Last updated: 2026-08-07 (verification pass by incoming engineer).
+Active phase: **Phase 4 verified complete → Phase 5 (Governance) is next.**
 
-## Fully implemented and verified
+## Phase 1 — verification of the previous engineer's claims
 
-- **Phase 0 — capability restored.** `void_journal_entry_atomic` stamps
-  `organization_id`/`business_id` on reversal lines. Covered by
-  `supabase/tests/journal_reversal_scope_test.sql`.
-- **Phase 1 — single legality authority.** `resolve_reversal_intent` covers
-  invoice, payment, bill, bill_payment, goods_receipt. Blocker taxonomy closed:
-  `already_reversed`, `settled`, `bank_reconciled`, `period_closed`.
-- **Phase 2 — consequence projection.** `preview_reversal_consequences(_core)`
-  projects GL / stock / money / documents / warnings for all five types; verified
-  pure (no writes) and derived from the intent authority.
-- **Phase 3 — AR/AP writers.** `void_invoice_atomic`, `void_payment_atomic`,
-  `void_bill_atomic`, `void_bill_payment_atomic`; client is out of the ledger
-  (`useTransactionReversal.ts` is a thin wrapper per operation).
-- **Phase 4a — regression + surfaces.** Rules-of-Hooks violation in
-  `ReversePaymentWizard` fixed; bank un-match action wired into all four AR/AP
-  reversal surfaces; guard `reversal-writer-monopoly.test.ts` added.
-- **Phase 4b — goods receipt reversal (was an empty promise).**
-  `void_goods_receipt_atomic` + `wms_reverse_gr_stock` (GR/NI journal reversal,
-  `return_out` compensation, PO received-qty restore, putaway task cancellation,
-  three-way-match release, period guard, idempotent). Client:
-  `reverseGoodsReceipt` → `ReverseGoodsReceiptDialog` →
-  `PurchaseOrderReceiptsSection` on the purchase order record. ADR 0128.
-- **Phase 4c — behavioural/contract coverage + one real defect fixed.**
-  New suites, all executed green against the live database:
-  `supabase/tests/reversal_intent_policy_test.sql`,
-  `reversal_preview_contract_test.sql`, `goods_receipt_reversal_test.sql`,
-  `void_bill_test.sql`.
-  Defect found and fixed while writing them: **voiding a bill left the purchase
-  order `fully_billed`** (the recompute trigger only fires on `bill_items` DML),
-  so the PO could never be re-billed. New canonical
-  `po_resync_billed_state(_po_id)` /
-  `po_resync_billed_state_for_bill(_bill_id)`; `void_bill_atomic` now calls it
-  and releases `converted_bill_id`.
-- Typecheck clean (`tsgo --noEmit`); reversal + posting-monopoly vitest guards
-  green.
+Checked directly against the live database and the codebase, not the notes.
 
-## Known gaps / still pending
+Confirmed true:
 
-1. **Server-side legality is not uniform.** `void_bill_atomic`,
-   `void_bill_payment_atomic`, `void_payment_atomic` re-derive their own checks
-   instead of consulting `resolve_reversal_intent` (invoice and goods-receipt
-   writers do). A client that skips the dialog can hit a writer whose rules
-   differ from the preview the operator saw. → Phase 5.
-2. **No unified reversal authorization / reason taxonomy / approval thresholds /
-   per-period reversal report.** → Phase 5.
-3. **Payroll and POS have not converged.** `payroll_run_can_reverse`,
-   `payroll_reverse_run_atomic`, `payroll_batch_reverse` and the POS saga
-   (`src/services/pos/reversal/`, `pos_reversal_workflow_*`) are correct per
-   document but invisible to the platform contract. → Phase 6.
-4. **Forward bank-reconciliation writes from the client**
-   (`useReconciliationItems.ts`) remain technical debt; the guard currently bans
-   only reversal-path writes.
-5. **Deferred, needs a business decision:** retiring `_cascade_payments` on
-   `void_invoice_atomic` in favour of forcing a credit note / refund on settled
-   invoices.
+- `void_journal_entry_atomic` stamps `organization_id` on reversal lines — the
+  original void failure is genuinely fixed at the engine, not patched at the
+  call site.
+- Exactly one `resolve_reversal_intent` (no overload drift);
+  `preview_reversal_consequences` + `_core` exist and `_core` derives from the
+  intent authority.
+- Canonical writers all exist: `void_invoice_atomic`, `void_payment_atomic`,
+  `void_bill_atomic`, `void_bill_payment_atomic`, `void_goods_receipt_atomic`.
+- Phase 4b real: `void_goods_receipt_atomic` calls both `wms_reverse_gr_stock`
+  and `wms_cancel_tasks_for_document`.
+- Phase 4c real: `void_bill_atomic` calls `po_resync_billed_state_for_bill`, and
+  both resync functions exist. `bill_payments.status` exists (ADR 0126 shape).
+- Client surfaces are thin wrappers: reversal RPC calls appear only in the
+  dialogs, `useTransactionReversal`, `useBills` and the guard tests.
+- SQL suites named in the log are present in `supabase/tests/`.
 
-## Next up — Phase 5 (Governance), in this order
+Confirmed still open (claims that were correctly reported as pending):
 
-1. `assert_can_reverse(_document_type, _document_id, _operation, _actor)` — one
-   security-definer gate delegating to `resolve_reversal_intent`; call it as the
-   first statement of every canonical writer (`void_invoice_atomic`,
-   `void_payment_atomic`, `void_bill_atomic`, `void_bill_payment_atomic`,
-   `void_goods_receipt_atomic`). Extend
-   `supabase/tests/reversal_intent_policy_test.sql` with a block asserting every
-   writer calls it — that block is the definition of done for step 1.
-2. Unified reason-code taxonomy across AR/AP/GRN (table or enum + `void_reason`
-   validation), surfaced as a select in every reversal dialog instead of free
-   text.
-3. Approval thresholds for high-value and prior-period reversals via the
-   existing approval engine.
-4. Per-period reversal report (who reversed what, why, with which compensating
-   entries) — the audit deliverable of the parent prompt.
-5. ADR `0129-reversal-authorization-policy.md`.
+- No `assert_can_reverse` gate exists. Only `assert_can_reverse_payroll` does,
+  and it is payroll-private.
+- `void_bill_atomic`, `void_bill_payment_atomic`, `void_payment_atomic` do **not**
+  reference `resolve_reversal_intent`; only the invoice and goods-receipt writers
+  do. Legality is therefore non-uniform server-side.
+- No reason taxonomy: `void_reason` / `reversal_reason` are free-text `text` on
+  invoices, bills, bill_payments, journal_entries, payroll_runs,
+  stock_adjustments, pos_transactions. The only typed one is
+  `payment_reversal_events.reason_code` (`payment_reversal_reason` enum).
+- Payroll and POS reversal remain outside intent/preview.
+- Forward bank-reconciliation writes from the browser remain.
 
-Then **Phase 6** (payroll + POS branches inside intent/preview, shared
-`ReversalConsequencePreview` on both surfaces — no new engine).
+Not verifiable in this environment: the vitest guards and `tsgo` could not be
+run (node_modules is not installed in the plan sandbox — `vitest` and
+`@vitejs/plugin-react-swc` unresolved). Re-run them as the first build step.
 
-## Instructions for the next agent
+## Phase 5 — Governance (this engagement's work)
 
-1. **Verify before building.** Re-run, and do not trust this file:
-   - `bunx vitest run src/test/architecture/reversal-writer-monopoly.test.ts src/test/architecture/reversal-intent-policy.test.ts src/test/architecture/payment-reversal-intent-contract.test.ts src/test/architecture/journal-posting-monopoly.test.ts`
-   - the four Phase 4c SQL suites above (they are safe read-only introspection
-     plus probes; run them through the SQL editor / `read_query`),
-   - `bunx tsgo --noEmit`.
-   - Confirm on the live DB that `po_resync_billed_state_for_bill` is called
-     inside `void_bill_atomic` and that `void_goods_receipt_atomic` still
-     contains all five fan-out steps.
-2. **Then resume at Phase 5 step 1** — do not start Phase 6, and do not open
-   unrelated modules. Finish each Phase 5 step to a production-ready state
-   (writer + guard/test + dialog wiring where operator-visible) before the next.
-3. Update this file after each completed step: move items from "pending" to
-   "implemented and verified", keep "Active phase" accurate, and keep these
-   instructions current.
+Order is deliberate: legality first, then vocabulary, then approvals, then the
+audit deliverable.
+
+### 5.1 One authorization/legality gate
+
+`assert_can_reverse(_document_type text, _document_id uuid, _operation text,
+_actor uuid)` — `SECURITY DEFINER`, delegates to `resolve_reversal_intent`,
+raises with the blocker code when the operation is not legal, and additionally
+enforces actor permission (org/business membership + reversal capability).
+Called as the **first statement** of all five canonical writers, replacing their
+hand-rolled period/settlement/reconciliation checks. Writers keep their own
+domain-specific invariants only where the intent matrix cannot express them.
+
+Definition of done: a block in `supabase/tests/reversal_intent_policy_test.sql`
+asserting each of the five writers' source contains the gate call, plus a
+negative probe per writer (closed period, already reversed).
+
+### 5.2 Unified reason taxonomy
+
+New `public.reversal_reason_codes` catalog (code, label, applies_to document
+types, requires_comment boolean, active) seeded with the AR/AP/GRN/POS/payroll
+codes in use today. Writers validate `_reason` against it for their document
+type; free-text becomes a mandatory *comment* alongside the code when
+`requires_comment`. Existing free-text columns are preserved (append a
+`reason_code` column, never rewrite history). Every reversal dialog swaps the
+free-text field for a code select + comment box, sourced from one hook so the
+vocabulary cannot fork per screen.
+
+### 5.3 Approval thresholds
+
+Route high-value and prior-period reversals through the existing approval
+engine (no new approval implementation): a reversal policy row per organization
+defining amount threshold and prior-period rule; `assert_can_reverse` returns
+`requires_approval` and the dialog raises an approval request instead of
+executing. Approval completion invokes the same canonical writer — one path.
+
+### 5.4 Per-period reversal report
+
+`reversal_register` view over the reversal event tables (payment/bill-payment
+reversal events, voided documents, reversing journal entries) exposing period,
+document, operation, reason code, actor, approver, compensating entry ids and
+amounts. Surfaced as a Finance report page with period + document-type filters.
+This is the auditability deliverable of the parent prompt.
+
+### 5.5 ADR
+
+`docs/adr/0129-reversal-authorization-policy.md` recording the gate, the reason
+taxonomy, the approval rule and the register.
+
+## Phase 6 — Payroll & POS convergence (after Phase 5)
+
+Add `payroll_run` and `pos_transaction` branches to `resolve_reversal_intent`
+and `preview_reversal_consequences_core`, delegating to the existing
+`payroll_run_can_reverse` / `payroll_run_reversal_preview` and the POS workflow
+functions. Render the shared `ReversalConsequencePreview` on both surfaces.
+Fold `assert_can_reverse_payroll` into `assert_can_reverse`. No new engine, no
+duplicated saga — POS stays the reference implementation.
+
+## Phase 7 — Remaining debt (explicitly scheduled, not dropped)
+
+1. Canonical RPC for forward bank reconciliation
+   (`useReconciliationItems.markAllReconciled` writes `bank_transactions`
+   directly), then widen the bank ratchet in `reversal-writer-monopoly.test.ts`
+   past the release direction.
+2. Business decision + implementation: retire `_cascade_payments` on
+   `void_invoice_atomic` so a settled invoice must be resolved by credit note,
+   refund or customer credit — matching SAP/Oracle/NetSuite behaviour. Requires
+   `resolve_reversal_intent` to return the substitute operation and the invoice
+   dialog to offer it.
+3. Behavioural pgTAP coverage for `void_payment_atomic` and
+   `void_bill_payment_atomic` (currently guarded only by architecture ratchets).
+
+## Working rules for this engagement
+
+- Verify before building; re-run the guards and `tsgo --noEmit` first.
+- Finish each numbered step to production quality (writer + test/guard + dialog
+  wiring) before starting the next.
+- No second reversal engine, no fallback path, no legacy writer kept "just in
+  case"; delete what the new path replaces.
+- Update this file after each step: move items into a verified section and keep
+  the active phase accurate.
