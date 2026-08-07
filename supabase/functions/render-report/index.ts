@@ -305,6 +305,16 @@ serve(async (req) => {
         if (prebuiltFormat === "csv") {
           const { buildReportCsv } = await import("../_shared/exports/reportCsv.ts");
           const csvBytes = buildReportCsv(exportConfig);
+          await logReportRun(supabase, {
+            organizationId,
+            businessId,
+            userId: caller.userId,
+            reportType,
+            outputFormat: "csv",
+            params: { dateRange, branchId: branchId ?? null, mode: "prebuilt" },
+            rowCount: Array.isArray(rows) ? rows.length : 0,
+            byteCount: csvBytes.length,
+          });
           return new Response(csvBytes as unknown as BodyInit, {
             headers: {
               ...corsHeaders,
@@ -316,6 +326,16 @@ serve(async (req) => {
 
         const { buildReportXlsx, XLSX_MIME } = await import("../_shared/exports/reportXlsx.ts");
         const xlsxBytes = buildReportXlsx(exportConfig);
+        await logReportRun(supabase, {
+          organizationId,
+          businessId,
+          userId: caller.userId,
+          reportType,
+          outputFormat: "xlsx",
+          params: { dateRange, branchId: branchId ?? null, mode: "prebuilt" },
+          rowCount: Array.isArray(rows) ? rows.length : 0,
+          byteCount: xlsxBytes.length,
+        });
         return new Response(xlsxBytes as unknown as BodyInit, {
           headers: {
             ...corsHeaders,

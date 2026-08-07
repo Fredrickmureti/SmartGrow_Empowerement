@@ -27,6 +27,10 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useReportExportContext } from "@/contexts/ReportContext";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
+import {
+  ReportEmptyState,
+  type ReportEmptyStateDescriptor,
+} from "./ReportEmptyState";
 import type { ExportConfig } from "@/services/reports/ReportExportService";
 
 interface ReportPageLayoutProps {
@@ -42,6 +46,13 @@ interface ReportPageLayoutProps {
   isEmpty?: boolean;
   /** Custom empty state message */
   emptyMessage?: string;
+  /**
+   * Typed empty state. When supplied it takes precedence over
+   * `emptyMessage` and names *why* there is nothing to show — including
+   * `missing_presentation`, which is a defect rather than an empty period.
+   * Pages still using `emptyMessage` keep the plain "no data" rendering.
+   */
+  emptyState?: ReportEmptyStateDescriptor;
   /** Export configuration getter (called at export time) */
   getExportConfig?: () => ExportConfig;
   /** Filter bar content */
@@ -59,6 +70,7 @@ export function ReportPageLayout({
   error = null,
   isEmpty = false,
   emptyMessage = "No data found for the selected criteria",
+  emptyState,
   getExportConfig,
   filters,
   children,
@@ -140,12 +152,16 @@ export function ReportPageLayout({
             </CardContent>
           </Card>
         ) : isEmpty ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileX2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">{emptyMessage}</p>
-            </CardContent>
-          </Card>
+          emptyState ? (
+            <ReportEmptyState descriptor={emptyState} />
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <FileX2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">{emptyMessage}</p>
+              </CardContent>
+            </Card>
+          )
         ) : (
           children
         )}
