@@ -8,6 +8,10 @@
 import { PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
+import {
+  DOCUMENT_TYPOGRAPHY,
+  type Typography,
+} from "../themes/presentation.ts";
 import { winansiSafe } from "../winansi.ts";
 
 export interface FooterDisclosure {
@@ -29,20 +33,27 @@ export interface FooterConfig {
    * report back to a `report_run_log` row.
    */
   disclosure?: FooterDisclosure;
+  /** Resolved presentation tokens. Omitted = document profile. */
+  typography?: Typography;
 }
 
 /**
  * Draws "Page N" on a single page. Called per-page from the BrandedHeader
  * lifecycle (onNewPage in the report generator).
  */
-export function drawPageNumber(builder: PdfBuilder, page: PDFPage): void {
+export function drawPageNumber(
+  builder: PdfBuilder,
+  page: PDFPage,
+  typography?: Typography,
+): void {
   const { state, fontRegular } = builder;
+  const t = typography ?? DOCUMENT_TYPOGRAPHY;
   const pageText = `Page ${state.pageNum}`;
-  const w = fontRegular.widthOfTextAtSize(pageText, theme.size.pageNumber);
+  const w = fontRegular.widthOfTextAtSize(pageText, t.size.pageNumber);
   page.drawText(pageText, {
     x: state.pageWidth - state.margin - w,
-    y: state.margin - 25,
-    size: theme.size.pageNumber, font: fontRegular, color: theme.color.lightGray,
+    y: Math.max(state.margin - 25, 14),
+    size: t.size.pageNumber, font: fontRegular, color: theme.color.lightGray,
   });
 }
 
@@ -52,6 +63,8 @@ export function drawPageNumber(builder: PdfBuilder, page: PDFPage): void {
  */
 export function drawFinalFooter(builder: PdfBuilder, page: PDFPage, config: FooterConfig = {}): void {
   const { state, fontRegular } = builder;
+  const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
+  const footerY = Math.max(state.margin - 25, 14);
   const ts = state.generatedStamp.replace(/^Report generated:\s*/, "");
 
   // Build the canonical disclosure line when caller supplied audit info.
@@ -69,18 +82,18 @@ export function drawFinalFooter(builder: PdfBuilder, page: PDFPage, config: Foot
   if (leftText) {
     page.drawText(leftText, {
       x: state.margin,
-      y: state.margin - 25,
-      size: theme.size.footerNote, font: fontRegular, color: theme.color.lightGray,
+      y: footerY,
+      size: t.size.footerNote, font: fontRegular, color: theme.color.lightGray,
     });
   }
 
   if (config.footerNote) {
     const safeFooterNote = winansiSafe(config.footerNote);
-    const w = fontRegular.widthOfTextAtSize(safeFooterNote, theme.size.footerNote);
+    const w = fontRegular.widthOfTextAtSize(safeFooterNote, t.size.footerNote);
     page.drawText(safeFooterNote, {
       x: state.pageWidth / 2 - w / 2,
-      y: state.margin - 25,
-      size: theme.size.footerNote, font: fontRegular, color: theme.color.lightGray,
+      y: footerY,
+      size: t.size.footerNote, font: fontRegular, color: theme.color.lightGray,
     });
   }
 }

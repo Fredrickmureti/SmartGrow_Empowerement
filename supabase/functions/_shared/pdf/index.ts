@@ -15,6 +15,13 @@ export {
   type PdfBuilderOptions,
 } from "./PdfBuilder.ts";
 export { theme, type Theme } from "./themes/accountantMono.ts";
+export {
+  resolveTypography,
+  inferPresentationProfile,
+  DOCUMENT_TYPOGRAPHY,
+  type PresentationProfile,
+  type Typography,
+} from "./themes/presentation.ts";
 
 /**
  * STATUTORY PAPER PIN — runtime guard.

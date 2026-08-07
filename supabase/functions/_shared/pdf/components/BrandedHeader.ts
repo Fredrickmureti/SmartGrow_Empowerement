@@ -20,6 +20,10 @@
 import { PDFImage, PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
+import {
+  DOCUMENT_TYPOGRAPHY,
+  type Typography,
+} from "../themes/presentation.ts";
 import { winansiSafe } from "../winansi.ts";
 import type { OrganizationBranding } from "../../branding/index.ts";
 
@@ -44,6 +48,11 @@ export interface BrandedHeaderConfig {
   formatProfile?: "operational" | "financial";
   /** Optional subtitle (financial profile only, e.g. "Accrual Basis"). */
   subtitle?: string;
+  /**
+   * Resolved presentation tokens. Omitted = document profile (unchanged
+   * transactional-document masthead).
+   */
+  typography?: Typography;
 }
 
 export interface DrawnHeader {
@@ -188,6 +197,7 @@ function drawOperationalHeader(
   const { state, fontRegular, fontBold } = builder;
   const { pageWidth, pageHeight, margin } = state;
   const { title, dateRange, organization, companyName, logo } = config;
+  const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
   const stamp = config.generatedStamp ?? state.generatedStamp;
 
   const orgName = organization?.name || companyName || "";
@@ -207,7 +217,7 @@ function drawOperationalHeader(
   if (orgName) {
     page.drawText(winansiSafe(orgName), {
       x: margin, y: infoY,
-      size: theme.size.orgName, font: fontBold, color: theme.color.text,
+      size: t.size.orgName, font: fontBold, color: theme.color.text,
     });
     infoY -= 14;
   }
@@ -225,13 +235,13 @@ function drawOperationalHeader(
   for (const detail of orgDetails) {
     page.drawText(winansiSafe(detail), {
       x: margin, y: infoY,
-      size: theme.size.orgDetail, font: fontRegular, color: theme.color.medGray,
+      size: t.size.orgDetail, font: fontRegular, color: theme.color.medGray,
     });
     infoY -= 11;
   }
 
   const safeTitle = winansiSafe(title);
-  const titleSize = safeTitle.length > 25 ? theme.size.titleSmall : theme.size.title;
+  const titleSize = safeTitle.length > 25 ? t.size.titleSmall : t.size.title;
   const titleWidth = fontBold.widthOfTextAtSize(safeTitle, titleSize);
   page.drawText(safeTitle, {
     x: pageWidth - margin - titleWidth,
@@ -241,20 +251,20 @@ function drawOperationalHeader(
 
   if (dateRange) {
     const safeDateRange = winansiSafe(dateRange);
-    const drWidth = fontRegular.widthOfTextAtSize(safeDateRange, theme.size.dateRange);
+    const drWidth = fontRegular.widthOfTextAtSize(safeDateRange, t.size.dateRange);
     page.drawText(safeDateRange, {
       x: pageWidth - margin - drWidth,
       y: topY - 20,
-      size: theme.size.dateRange, font: fontRegular, color: theme.color.medGray,
+      size: t.size.dateRange, font: fontRegular, color: theme.color.medGray,
     });
   }
 
   const safeStamp = winansiSafe(stamp);
-  const stampWidth = fontRegular.widthOfTextAtSize(safeStamp, theme.size.timestamp);
+  const stampWidth = fontRegular.widthOfTextAtSize(safeStamp, t.size.timestamp);
   page.drawText(safeStamp, {
     x: pageWidth - margin - stampWidth,
     y: topY - (dateRange ? 33 : 20),
-    size: theme.size.timestamp, font: fontRegular, color: theme.color.lightGray,
+    size: t.size.timestamp, font: fontRegular, color: theme.color.lightGray,
   });
 
   const separatorY = Math.min(infoY, topY - 48) - 8;
@@ -288,6 +298,7 @@ function drawFinancialMasthead(
   const { state, fontRegular, fontBold } = builder;
   const { pageWidth, pageHeight, margin } = state;
   const { title, dateRange, organization, companyName, subtitle } = config;
+  const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
   const stamp = config.generatedStamp ?? state.generatedStamp;
 
   const orgName = (organization?.name || companyName || "").toUpperCase();
@@ -310,24 +321,24 @@ function drawFinancialMasthead(
   let y = pageHeight - margin;
 
   if (orgName) {
-    drawCentered(orgName, y, theme.size.orgName + 1, true);
+    drawCentered(orgName, y, t.size.orgName + 1, true);
     y -= 16;
   }
 
-  drawCentered(title, y, theme.size.title, true);
+  drawCentered(title, y, t.size.title, true);
   y -= 14;
 
   if (dateRange) {
-    drawCentered(`For the period ${dateRange}`, y, theme.size.dateRange, false, theme.color.medGray);
+    drawCentered(`For the period ${dateRange}`, y, t.size.dateRange, false, theme.color.medGray);
     y -= 12;
   }
 
   if (subtitle) {
-    drawCentered(subtitle, y, theme.size.orgDetail, false, theme.color.medGray);
+    drawCentered(subtitle, y, t.size.orgDetail, false, theme.color.medGray);
     y -= 11;
   }
 
-  drawCentered(stamp, y, theme.size.timestamp, false, theme.color.lightGray);
+  drawCentered(stamp, y, t.size.timestamp, false, theme.color.lightGray);
   y -= 10;
 
   const separatorY = y - 6;
