@@ -21,9 +21,12 @@ Both sides follow the same rules — never let one drift from the other.
   `upsert_system_account()` — a direct INSERT into `accounts` is blocked.
   Tie-out views: `customer_credit_tieout`, `vendor_credit_tieout`; drift is
   recorded by `snapshot_control_account_drift()`.
-- Canonical writers (AR): `create_credit_note_atomic`,
+- Canonical writers (AR): `create_credit_note_atomic(_payload jsonb)` — the ONE
+  creation entry point, a single named jsonb envelope with no overloads and no
+  adapter RPCs (`create_credit_note_request_atomic` is retired) —
   `issue_credit_note_atomic`, `apply_credit_to_invoice_atomic`,
   `refund_customer_atomic`.
+
   (AP): `create_vendor_credit_note_atomic`, `issue_vendor_credit_note_atomic`,
   `apply_vendor_credit_to_bill_atomic`, `apply_vendor_credit_fifo_atomic`,
   `refund_from_vendor_atomic`.
