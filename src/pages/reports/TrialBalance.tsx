@@ -206,7 +206,11 @@ function TrialBalanceInner() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: "Trial Balance",
-      dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
+      // Registry key: without it the export silently falls back to the
+      // "operational" masthead and drifts from every other statement.
+      reportType: "trial_balance",
+      // Point-in-time report: "As of …", never "For the period …".
+      asOf: format(new Date(asOfDate), "MMMM d, yyyy"),
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
       sheetName: "Trial Balance",
@@ -291,7 +295,8 @@ function TrialBalanceInner() {
       <ReportSurface
         title="Trial Balance"
         asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
-        subtitle={filters.branchId ? "Branch scoped" : undefined}
+        subtitle="Accrual basis
+
         profile="financial"
       >
         <ReportTable

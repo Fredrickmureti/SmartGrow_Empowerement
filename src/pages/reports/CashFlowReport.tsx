@@ -124,10 +124,10 @@ function CashFlowReportInner() {
   const getExportConfig = useCallback((): ExportConfig => ({
     title: "Cash Flow Statement",
     reportType: "cash_flow",
-    companyName: currentOrg?.name || "",
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
     columns: toExportColumns(columns),
     rows: toExportRows(rows, columns),
+    subtitle: "Indirect method",
     sheetName: "Cash Flow",
     currency: baseCurrency,
   }), [columns, rows, dateFrom, dateTo, currentOrg, baseCurrency]);
