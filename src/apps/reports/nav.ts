@@ -39,6 +39,7 @@ export const REPORTS_NAV: WorkspaceNav = {
         { to: "/reports/depreciation", label: "Depreciation", icon: Building2 },
         { to: "/reports/cash-flow", label: "Cash flow", icon: Wallet },
         { to: "/reports/audit-trail", label: "Audit trail", icon: History },
+        { to: "/finance/reports/run-history", label: "Report run history", icon: History },
       ],
     },
     {

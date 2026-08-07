@@ -87,6 +87,7 @@ const BudgetReport = lazy(() => import("@/pages/reports/BudgetReport"));
 const DepreciationReport = lazy(() => import("@/pages/reports/DepreciationReport"));
 const CashFlowReport = lazy(() => import("@/pages/reports/CashFlowReport"));
 const AuditTrailReport = lazy(() => import("@/pages/reports/AuditTrail"));
+const ReportRunHistory = lazy(() => import("@/pages/reports/ReportRunHistory"));
 const InventoryGLReconciliation = lazy(() => import("@/pages/reports/InventoryGLReconciliation"));
 const ControlAccountReconciliation = lazy(() => import("@/pages/reports/ControlAccountReconciliation"));
 const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconciliationReport"));
@@ -748,6 +749,18 @@ export function FinanceApp() {
           }
         />
         
+        {/* Report Run History — reader for report_run_log (Phase G) */}
+        <Route
+          path="reports/run-history"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Report Run History">
+                <ReportRunHistory />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Inventory ⇄ GL Reconciliation (Phase B1) */}
         <Route
           path="reports/inventory-gl-reconciliation"

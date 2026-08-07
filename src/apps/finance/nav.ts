@@ -76,6 +76,7 @@ export const FINANCE_NAV: WorkspaceNav = {
             { to: "/finance/reports/tax", label: "Tax", icon: ShieldCheck },
             { to: "/finance/reports/management", label: "Management", icon: PieChart },
             { to: "/finance/reports/audit-trail", label: "Audit trail", icon: History },
+            { to: "/finance/reports/run-history", label: "Report run history", icon: History },
             { to: "/finance/reports/intelligence", label: "Business intelligence", icon: BarChart3 },
           ],
         },
