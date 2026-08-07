@@ -147,7 +147,13 @@ export function ReversePaymentWizard({
   onSuccess,
   initialReasonCode,
 }: ReversePaymentWizardProps) {
-  const { voidPayment, unapplyPayment, refundCustomer, issueCreditNoteForPayment } = useTransactionReversal();
+  const {
+    voidPayment,
+    unapplyPayment,
+    refundCustomer,
+    issueCreditNoteForPayment,
+    unmatchBankLinesForReversal,
+  } = useTransactionReversal();
   const { formatCurrency } = useCurrency();
   const { accounts: bankAccounts } = useBankAccounts();
   const { currentBusiness } = useBusinesses();
@@ -163,6 +169,7 @@ export function ReversePaymentWizard({
   // until this is checked, preventing silent invoice-rebalancing.
   const [allowUnapplyForRefund, setAllowUnapplyForRefund] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isUnmatching, setIsUnmatching] = useState(false);
 
   // Pre-seed the reason code (and skip step 1) when the wizard is opened
   // from a flow that already knows the intent — e.g. the legacy
