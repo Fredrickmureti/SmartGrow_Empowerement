@@ -54911,6 +54911,45 @@ export type Database = {
           },
         ]
       }
+      reversal_approval_policies: {
+        Row: {
+          amount_threshold: number | null
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          document_type: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          require_for_prior_period: boolean
+          updated_at: string
+        }
+        Insert: {
+          amount_threshold?: number | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_type: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          require_for_prior_period?: boolean
+          updated_at?: string
+        }
+        Update: {
+          amount_threshold?: number | null
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_type?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          require_for_prior_period?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reversal_reason_codes: {
         Row: {
           active: boolean
@@ -92125,6 +92164,17 @@ export type Database = {
         }
         Returns: string
       }
+      request_reversal_approval: {
+        Args: {
+          _comment?: string
+          _document_id: string
+          _document_type: string
+          _effective_date?: string
+          _operation: string
+          _reason_code: string
+        }
+        Returns: Json
+      }
       request_yard_move: {
         Args: {
           p_notes?: string
@@ -92820,6 +92870,15 @@ export type Database = {
           _unrealized_gain_account: string
           _unrealized_loss_account: string
           _user_id?: string
+        }
+        Returns: Json
+      }
+      reversal_approval_requirement: {
+        Args: {
+          _document_id: string
+          _document_type: string
+          _effective_date?: string
+          _operation?: string
         }
         Returns: Json
       }
