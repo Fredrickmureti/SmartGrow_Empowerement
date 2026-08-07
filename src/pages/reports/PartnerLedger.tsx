@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,9 +101,15 @@ interface PartnerData {
 function PartnerLedgerInner() {
   const now = new Date();
   const { filters } = useReportFilters();
-  const [partnerType, setPartnerType] = useState<"customer" | "supplier">("customer");
-  const [dateFrom, setDateFrom] = useState(filters.dateFrom || format(startOfYear(now), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
+  // Partner side + period are URL-owned reporting scope.
+  const workspace = useReportWorkspaceState();
+  const partnerType: "customer" | "supplier" =
+    workspace.scope.basis === "supplier" ? "supplier" : "customer";
+  const setPartnerType = (value: "customer" | "supplier") => workspace.set({ basis: value });
+  const dateFrom = workspace.get("from", filters.dateFrom || format(startOfYear(now), "yyyy-MM-dd"));
+  const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
+  const setDateFrom = (value: string) => workspace.set({ from: value });
+  const setDateTo = (value: string) => workspace.set({ to: value });
   const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
 
   const { currentOrg } = useOrganization();

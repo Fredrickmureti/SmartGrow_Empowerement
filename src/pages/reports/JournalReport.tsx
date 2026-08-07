@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { TransactionPreviewDrawer } from "@/components/finance/TransactionPreviewDrawer";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,8 +51,13 @@ interface JournalEntry {
 function JournalReportInner() {
   const now = new Date();
   const { filters } = useReportFilters();
-  const [dateFrom, setDateFrom] = useState(filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
+  // Period lives in the URL so drill-through into a source document and Back
+  // return to the same journal window.
+  const workspace = useReportWorkspaceState();
+  const dateFrom = workspace.get("from", filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"));
+  const dateTo = workspace.get("to", filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
+  const setDateFrom = (value: string) => workspace.set({ from: value });
+  const setDateTo = (value: string) => workspace.set({ to: value });
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();

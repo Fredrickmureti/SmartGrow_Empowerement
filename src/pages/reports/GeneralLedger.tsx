@@ -8,9 +8,10 @@
  * grand total at the foot — rather than N collapsible tables.
  */
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,17 +45,28 @@ function GeneralLedgerInner() {
   const navigate = useNavigate();
   const now = new Date();
   const { filters } = useReportFilters();
-  const [dateFrom, setDateFrom] = useState(searchParams.get("date_from") || filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(searchParams.get("date_to") || filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"));
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(searchParams.get("account_id") || "all");
+  // Scope (period + account) is URL-owned, so the ledger a user drilled into
+  // is still there after Back, refresh or a switch to the Journal report.
+  const workspace = useReportWorkspaceState();
+  const dateFrom = workspace.get(
+    "from",
+    searchParams.get("date_from") || filters.dateFrom || format(startOfMonth(now), "yyyy-MM-dd"),
+  );
+  const dateTo = workspace.get(
+    "to",
+    searchParams.get("date_to") || filters.dateTo || format(endOfMonth(now), "yyyy-MM-dd"),
+  );
+  const setDateFrom = (value: string) => workspace.set({ from: value });
+  const setDateTo = (value: string) => workspace.set({ to: value });
+  // Legacy `account_id` deep links (Chart of Accounts "View Register") keep
+  // working: they seed the scope, the workspace param then owns it.
+  const selectedAccountId = workspace.get(
+    "contact",
+    searchParams.get("account_id") || "all",
+  );
+  const setSelectedAccountId = (value: string) => workspace.set({ contact: value });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSource, setDrawerSource] = useState<{ type: string | null; id: string | null }>({ type: null, id: null });
-
-  // Auto-select account from URL params (e.g., from CoA "View Register" action)
-  useEffect(() => {
-    const accountId = searchParams.get("account_id");
-    if (accountId) setSelectedAccountId(accountId);
-  }, [searchParams]);
 
   const { accounts: allAccounts } = useAccounts();
   const { data, isLoading, error } = useGeneralLedger({
