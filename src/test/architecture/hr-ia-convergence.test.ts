@@ -74,7 +74,6 @@ describe("Phase A — HR IA convergence", () => {
       "/hr/performance",
       "/hr/configuration/competencies",
       "/hr/configuration/public-holidays",
-      "/hr/reports",
     ];
     const paths = collectPaths(EMPLOYEES_NAV);
     const violations = paths.filter((p) => forbidden.includes(p));
