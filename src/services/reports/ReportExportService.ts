@@ -154,10 +154,15 @@ function buildRenderPayload(
     title: config.title,
     subtitle: config.subtitle,
     dateRange: config.dateRange,
+    asOf: config.asOf,
     organizationId: config.organizationId,
+    // Identity: the reporting entity + scope the masthead must state.
+    businessId: config.businessId,
+    branchId: config.branchId ?? null,
     reportType: config.reportType,
     currency: config.currency,
   };
+
   if (canServerBuild(config)) {
     return {
       ...base,
