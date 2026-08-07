@@ -285,111 +285,24 @@ function TrialBalanceInner() {
         </CardContent>
       </Card>
 
-      {/* 6-Column Trial Balance Table */}
-      <Card>
-        <CardContent className="pt-6">
-          <FinancialReportHeader
-            companyName={currentOrg?.name || ""}
-            reportTitle="Trial Balance"
-            asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
-          />
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead rowSpan={2} className="w-[80px] align-bottom border-r">Code</TableHead>
-                  <TableHead rowSpan={2} className="align-bottom border-r">Account Name</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b border-r">Opening Balance</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b border-r">Movement</TableHead>
-                  <TableHead colSpan={2} className="text-center border-b">Closing Balance</TableHead>
-                </TableRow>
-                <TableRow>
-                  <TableHead className="text-right text-xs w-[110px]">Debit</TableHead>
-                  <TableHead className="text-right text-xs w-[110px] border-r">Credit</TableHead>
-                  <TableHead className="text-right text-xs w-[110px]">Debit</TableHead>
-                  <TableHead className="text-right text-xs w-[110px] border-r">Credit</TableHead>
-                  <TableHead className="text-right text-xs w-[110px]">Debit</TableHead>
-                  <TableHead className="text-right text-xs w-[110px]">Credit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {typeOrder.map((type) => {
-                  const accounts = accountsByType[type] || [];
-                  if (accounts.length === 0) return null;
+      {/* 6-column trial balance, rendered by the shared reporting engine */}
+      <ReportSurface
+        companyName={currentOrg?.name || ""}
+        title="Trial Balance"
+        asOfDate={`As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`}
+        subtitle={filters.branchId ? "Branch scoped" : undefined}
+        profile="financial"
+      >
+        <ReportTable
+          columns={columns}
+          columnGroups={columnGroups}
+          rows={rows}
+          currency={baseCurrency}
+          caption="Trial balance — opening, movement and closing balances by account"
+          emptyMessage="No account activity as of this date"
+        />
+      </ReportSurface>
 
-                  const typeTotal = accounts.reduce(
-                    (acc, a) => {
-                      const openSplit = splitBalance(a.opening_balance, a.account_type);
-                      const closeSplit = splitBalance(a.closing_balance, a.account_type);
-                      acc.openDebit += openSplit.debit;
-                      acc.openCredit += openSplit.credit;
-                      acc.movDebit += a.debit_total;
-                      acc.movCredit += a.credit_total;
-                      acc.closeDebit += closeSplit.debit;
-                      acc.closeCredit += closeSplit.credit;
-                      return acc;
-                    },
-                    { openDebit: 0, openCredit: 0, movDebit: 0, movCredit: 0, closeDebit: 0, closeCredit: 0 }
-                  );
-
-                  return (
-                    <> 
-                      <TableRow key={type} className="bg-muted/50 font-medium">
-                        <TableCell colSpan={8}>{ACCOUNT_TYPE_LABELS[type]}</TableCell>
-                      </TableRow>
-                      {accounts.map((account) => {
-                        const openSplit = splitBalance(account.opening_balance, account.account_type);
-                        const closeSplit = splitBalance(account.closing_balance, account.account_type);
-
-                        return (
-                          <TableRow
-                            key={account.id}
-                            className="cursor-pointer hover:bg-muted/20"
-                            onClick={() => handleDrillDown(account)}
-                          >
-                            <TableCell className="font-mono text-xs border-r">{account.code}</TableCell>
-                            <TableCell className="text-sm border-r" style={{ paddingLeft: `${(account.depth + 1) * 12}px` }}>
-                              {account.name}
-                            </TableCell>
-                            <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(openSplit.debit)}</TableCell>
-                            <TableCell className="text-right text-sm tabular-nums border-r">{fmtOrDash(openSplit.credit)}</TableCell>
-                            <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(account.debit_total)}</TableCell>
-                            <TableCell className="text-right text-sm tabular-nums border-r">{fmtOrDash(account.credit_total)}</TableCell>
-                            <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(closeSplit.debit)}</TableCell>
-                            <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(closeSplit.credit)}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                      <TableRow className="font-medium border-t">
-                        <TableCell colSpan={2} className="text-right text-sm border-r">
-                          {ACCOUNT_TYPE_LABELS[type]} Total
-                        </TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(typeTotal.openDebit)}</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums border-r">{fmtOrDash(typeTotal.openCredit)}</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(typeTotal.movDebit)}</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums border-r">{fmtOrDash(typeTotal.movCredit)}</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(typeTotal.closeDebit)}</TableCell>
-                        <TableCell className="text-right text-sm tabular-nums">{fmtOrDash(typeTotal.closeCredit)}</TableCell>
-                      </TableRow>
-                    </>
-                  );
-                })}
-
-                {/* Grand Total */}
-                <TableRow className="font-bold text-base bg-muted border-t-2">
-                  <TableCell colSpan={2} className="border-r">TOTAL</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(grandTotals.openDebit)}</TableCell>
-                  <TableCell className="text-right tabular-nums border-r">{fmt(grandTotals.openCredit)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(grandTotals.movDebit)}</TableCell>
-                  <TableCell className="text-right tabular-nums border-r">{fmt(grandTotals.movCredit)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(grandTotals.closeDebit)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(grandTotals.closeCredit)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
 
       <DrillDownDialog
         open={!!drillDown}
