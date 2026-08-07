@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+
 
 /**
  * Reversal intent step for a sales invoice (Phase 1 reversal intent policy).
