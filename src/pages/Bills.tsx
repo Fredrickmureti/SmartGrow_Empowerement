@@ -213,6 +213,9 @@ export default function Bills() {
   const [peekId, setPeekId] = usePeekParam();
   const [showBillPaymentHistory, setShowBillPaymentHistory] = useState(false);
   const [selectedBillForHistory, setSelectedBillForHistory] = useState<Bill | null>(null);
+  const [showVoidBillSheet, setShowVoidBillSheet] = useState(false);
+  const [selectedBillForVoid, setSelectedBillForVoid] = useState<Bill | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(() => {
     const urlStatus = new URLSearchParams(window.location.search).get("status");
