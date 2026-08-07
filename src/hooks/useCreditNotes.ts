@@ -154,13 +154,16 @@ export function useCreditNotes() {
 
   const getNextCreditNoteNumber = async (): Promise<string> => {
     if (!currentOrg) throw new Error("No organization selected");
+    if (!currentBusiness) throw new Error("No company selected");
 
     const { data, error } = await supabase.rpc("get_next_credit_note_number", {
       _org_id: currentOrg.id,
-    });
+      _business_id: currentBusiness.id,
+      _branch_id: currentBranch?.id ?? null,
+    } as any);
 
     if (error) throw error;
-    return data;
+    return data as unknown as string;
   };
 
   const createCreditNote = async (
@@ -169,130 +172,46 @@ export function useCreditNotes() {
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
-    const subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
-    const taxAmount = items.reduce((sum, item) => sum + item.tax_amount, 0);
-    const total = subtotal + taxAmount;
+    // ADR 0131: header, lines, number, GL post and customer-credit movement
+    // all happen inside one server transaction. The client never computes
+    // totals-of-record and never picks accounts.
+    const { data, error } = await (supabase.rpc as any)("create_credit_note_atomic", {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _branch_id: (creditNote as any).branch_id ?? currentBranch?.id ?? null,
+      _contact_id: creditNote.contact_id,
+      _invoice_id: creditNote.invoice_id ?? null,
+      _issue_date: creditNote.issue_date ?? new Date().toISOString().split("T")[0],
+      _reason: creditNote.reason ?? null,
+      _notes: creditNote.notes ?? null,
+      _items: items.map((item, index) => ({ ...item, sort_order: item.sort_order ?? index })),
+      _source_return_id: creditNote.source_return_id ?? null,
+      _issue: creditNote.status === "issued",
+    });
 
-    const { data: created, error: cnError } = await supabase
-      .from("credit_notes")
-      .insert({
-        ...creditNote,
-        organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
-        // Sales audit Phase A (finding #4): stamp branch_id explicitly so
-        // standalone credit notes (no invoice_id) carry branch context.
-        // The cascade_branch_from_invoice trigger overrides this when an
-        // invoice_id is set.
-        branch_id: (creditNote as any).branch_id ?? currentBranch?.id ?? null,
-        created_by: user.id,
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-      })
-      .select()
-      .single();
-
-    if (cnError) throw cnError;
-
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, index) => ({
-        ...item,
-        credit_note_id: created.id,
-        sort_order: index,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("credit_note_items")
-        .insert(itemsToInsert);
-
-      if (itemsError) throw itemsError;
-    }
-
-    // Sales audit Phase F: if the caller wanted the CN created in 'issued' state,
-    // route through the atomic RPC so insert + GL post happen as one. Without
-    // this, a network drop after the insert leaves a CN with status='issued'
-    // but no journal entry — books out of sync with AR ledger.
-    if (creditNote.status === "issued") {
-      // Re-fetch the inserted CN as 'draft' first via a status reset, then
-      // call the atomic issue RPC. Simpler path: just call the issue RPC now,
-      // which expects status='draft' — so the row is currently 'issued' from
-      // the insert, which would fail the RPC's status check.
-      // Easiest correct path: persist as 'draft', then issue.
-      await supabase.from("credit_notes").update({ status: "draft" }).eq("id", created.id);
-      await issueCreditNoteInternal(created.id, creditNote.invoice_id);
-    }
+    if (error) throw error;
 
     await fetchCreditNotes();
-    return created;
+    const result = data as { credit_note_id: string; credit_note_number: string };
+    return { id: result.credit_note_id, credit_note_number: result.credit_note_number };
   };
 
   /**
-   * Internal helper: issue a draft credit note via the atomic RPC.
-   * Resolves accounts client-side for fast UX errors, then calls
-   * confirm_credit_note_atomic which validates the JE and posts in one txn.
-   */
-  const issueCreditNoteInternal = async (cnId: string, invoiceId: string | null) => {
-    if (!user) throw new Error("Not authenticated");
-    const mappings = getCreditNoteAccountMappings();
-    if (!mappings.receivable_account_id || !mappings.revenue_account_id) {
-      throw new Error(
-        "Credit Note GL posting failed: missing account mappings (AR or Revenue). Configure in Settings → Default Accounts."
-      );
-    }
-
-    // Need totals/number/contact_id of the CN
-    const { data: cn, error: cnErr } = await supabase
-      .from("credit_notes")
-      .select("id, credit_note_number, subtotal, tax_amount, total, contact_id, status")
-      .eq("id", cnId)
-      .single();
-    if (cnErr) throw cnErr;
-    if (cn.status !== "draft") {
-      throw new Error(`Cannot issue credit note: status is "${cn.status}".`);
-    }
-
-    const { is_fully_paid, invoice_number } = await checkInvoicePaymentStatus(invoiceId);
-    if (is_fully_paid && !mappings.customer_deposits_account_id) {
-      throw new Error(
-        "Credit Note GL posting failed: Invoice is fully paid but Customer Deposits account is not configured. " +
-        "Configure it in Settings → Default Accounts."
-      );
-    }
-
-    const lines = buildCreditNoteJELines({
-      credit_note_number: cn.credit_note_number,
-      invoice_number,
-      subtotal: Number(cn.subtotal),
-      tax_amount: Number(cn.tax_amount),
-      total: Number(cn.total),
-      contact_id: cn.contact_id,
-      is_fully_paid,
-      receivable_account_id: mappings.receivable_account_id,
-      revenue_account_id: mappings.revenue_account_id,
-      tax_liability_account_id: mappings.tax_liability_account_id,
-      customer_deposits_account_id: mappings.customer_deposits_account_id,
-    });
-
-    const { data, error } = await supabase.rpc("confirm_credit_note_atomic" as any, {
-      p_cn_id: cnId,
-      p_user_id: user.id,
-      p_main_lines: lines as any,
-    });
-    if (error) throw new Error(`Credit note issue failed: ${error.message}`);
-    const result = data as { success: boolean; journal_entry_id: string };
-    if (!result?.success) throw new Error("Credit note issue failed: server returned no success flag");
-    return result.journal_entry_id;
-  };
-
-  /**
-   * Public API: issue a draft credit note (atomic).
-   * Call this instead of updateCreditNote({status: 'issued'}).
+   * Issue a draft credit note. The server decides whether the credit reduces
+   * the receivable (invoice still open) or becomes customer credit (invoice
+   * settled, or no invoice at all).
    */
   const issueCreditNote = async (cnId: string) => {
-    const cn = creditNotes.find((c) => c.id === cnId);
-    if (!cn) throw new Error("Credit note not found");
-    await issueCreditNoteInternal(cnId, cn.invoice_id);
+    const { data, error } = await (supabase.rpc as any)("issue_credit_note_atomic", {
+      _credit_note_id: cnId,
+    });
+    if (error) throw new Error(`Credit note issue failed: ${error.message}`);
     await fetchCreditNotes();
+    return data as {
+      journal_entry_id: string;
+      applied_to_invoice: number;
+      customer_credit_created: number;
+    };
   };
 
   const updateCreditNote = async (id: string, updates: Partial<CreditNote>) => {
