@@ -227,7 +227,7 @@ function CashFlowReportInner() {
             title="Cash Flow Statement"
             dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
             subtitle="Indirect method"
-            profile="financial"
+            profile="operational"
           >
             <ReportTable
               columns={columns}

@@ -76,7 +76,7 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
   trial_balance: {
     title: "Trial Balance",
     orientation: "landscape",
-    formatProfile: "financial",
+    formatProfile: "operational",
     columns: [
       { key: "code", header: "Code", width: 10, align: "left", format: "text" },
       { key: "name", header: "Account Name", width: 22, align: "left", format: "text" },
@@ -111,7 +111,7 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
   cash_flow: {
     title: "Cash Flow Statement",
     orientation: "portrait",
-    formatProfile: "financial",
+    formatProfile: "operational",
     subtitle: "Indirect Method",
     columns: [
       { key: "section", header: "Section", width: 30, align: "left", format: "text" },
