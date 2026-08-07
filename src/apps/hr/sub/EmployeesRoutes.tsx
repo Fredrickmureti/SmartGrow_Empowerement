@@ -116,6 +116,12 @@ export function EmployeesApp() {
           }
         />
 
+        {/* Legacy `/hr/employees/reports` — HR reporting is owned by the HR
+            Reports workspace at `/hr/reports`. Declared as a static segment so
+            it outranks `employees/:id` and never leaks "reports" as an
+            employee UUID. */}
+        <Route path="employees/reports/*" element={<Navigate to="/hr/reports" replace />} />
+
         <Route
           path="employees/:id"
           element={
