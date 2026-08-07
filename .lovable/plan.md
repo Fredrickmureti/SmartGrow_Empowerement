@@ -1,64 +1,40 @@
-# Commercial Compensation — Authoritative Project Status
+# Credit Note 404 — End-to-End Resolution Plan
 
-Roadmap source: `.lovable/plan/commercial-compensation-verification-verdict-and-completion-2026-08-07.md` (Phases A–E).
-This file is the live status board. Keep it updated after every implementation.
+## Verified current state
 
-## Currently active phase
-**Phase E — Ratchet and prove.** Phases A–D are complete.
+- The live database has exactly one creation RPC: `public.create_credit_note_atomic(_payload jsonb)`.
+- It is executable by `anon`, `authenticated`, and `service_role`.
+- The current frontend source calls that RPC with the named `_payload` envelope.
+- Supabase gateway logs confirm the browser is still receiving repeated HTTP 404 responses on that exact route.
+- Invoice `INV-00001` exists, is paid, totals KES 9,000, and belongs to contact `54709d33-f976-4c42-8f2e-f27cca6a85fd`.
+- The available logs do not expose the POST body or 404 response body, so the precise mismatch is not yet proven.
 
-## Fully implemented and verified
+## Resolution sequence
 
-### Phase A — Correct the shipped writers (DONE)
-- `refund_customer_atomic` resolves currency from the source credit note.
-- Legacy `get_next_vendor_credit_note_number(uuid)` overload dropped.
-- `apply_credit_to_invoice_atomic` no longer accepts client-supplied account ids.
+1. **Capture the exact failing exchange**
+   - Reproduce submission from the authenticated preview.
+   - Intercept and record the RPC request’s JSON key names and the complete PostgREST error payload (`code`, `message`, `details`, `hint`).
+   - Confirm which loaded JavaScript module initiated the request, rather than inferring it from repository source.
 
-### Phase B — Separate the customer-credit liability account (DONE)
-- `customer_credit` role, `2215 Customer Credits` per business, bound as a default setting.
-- `customer_credit_tieout` view; `snapshot_control_account_drift()` extended.
+2. **Fix the proven divergence only**
+   - If the loaded client sends the wrong body, converge the actual runtime call path on `{ _payload: ... }` and remove any obsolete registration/cache mechanism keeping old code active.
+   - If the loaded client sends the correct body but PostgREST rejects it, compare the captured error against the live function metadata and repair the catalog/signature/grant issue with one migration.
+   - Do not add adapters, overloads, duplicate RPCs, or fallback writers.
 
-### Phase C — Reporting loop (DONE)
-- Aging returns unapplied customer credits as negative residual rows.
-- `useCustomerStatements.ts` now reads unapplied credit from
-  `customer_credit_balances`, not `credit_notes.total - amount_applied`.
-- Fiscal: the credit note transmits on its own date; the refund posts no tax lines.
-- `approve_sales_return_atomic` and `issue_credit_note_for_payment_atomic`
-  repaired: business-scoped numbering, no fallback numbers, sales-return
-  inventory/COGS reversal, real `customer_credit_movements` rows.
-- Inventory boundary proven by
-  `supabase/tests/compensation_inventory_boundary_test.sql` — no compensation
-  writer touches `stock_movements`.
+3. **Perform the requested authenticated transaction**
+   - Create a KES 9,000 credit note for Fredrick Mureti against `INV-00001` through the same UI/runtime path the operator uses.
+   - Use one valid KES 9,000 line and create it as a draft first, avoiding an unintended accounting post while proving creation.
 
-### Phase D — AP parity (ADR 0132) (DONE)
-- `vendor_credit` system account role registered and `1215 Vendor Credits`
-  provisioned per business through `upsert_system_account()` (direct inserts
-  into `accounts` are blocked by `enforce_system_account_helper`).
-- `vendor_credit_movements` (append-only) → `vendor_credit_balances` projection,
-  plus `vendor_credit_tieout` and drift snapshot coverage.
-- Writers: `create_vendor_credit_note_atomic`,
-  `issue_vendor_credit_note_atomic`, `apply_vendor_credit_to_bill_atomic`,
-  `apply_vendor_credit_fifo_atomic`, `refund_from_vendor_atomic`.
-- Legacy `confirm_vendor_credit_note_atomic` and
-  `apply_vendor_credit_note_atomic` dropped — no fallback path.
-- Client repointed: `useVendorCreditNotes.ts`, `src/lib/purchases/applyVendorCredit.ts`,
-  `usePurchaseReturns.ts` (client-side `postPurchaseReturnGL` deleted).
-- ADR written: `docs/adr/0132-vendor-compensation-parity.md`.
-- Verified live: 0 rows of drift in both `customer_credit_tieout` and
-  `vendor_credit_tieout`; legacy vendor writers absent from `pg_proc`.
+4. **Verify database and browser outcomes**
+   - Require HTTP success and a returned `credit_note_id`/number.
+   - Query the created header and line to prove customer, invoice, currency, and KES 9,000 total.
+   - Confirm exactly one credit note was created and no partial or duplicate record remains from the test.
+   - Reload the page and confirm the created credit note is visible without another 404.
 
-## Pending work
+5. **Lock the regression down**
+   - Add a focused contract test for the exact serialized RPC body, not merely a source-text assertion.
+   - Keep the architectural rule: one canonical `_payload jsonb` writer and no client-side accounting logic.
 
-### Phase E — remaining
-- Extend `compensation-writer-monopoly.test.ts` further if new invariants appear
-  (currently 13 tests, including the four ADR 0132 guards).
-- Consider a vendor-side statement/ledger credit line audit equivalent to the
-  customer statement fix (`useVendorStatements.ts` currently reads
-  `vendor_ledger_entries`, which already carries `vendor_credit_note` rows).
+## Completion criterion
 
-## Instructions for the next agent
-
-1. All database changes go through the migration tool; posting stays exclusively
-   inside `post_journal_entry_atomic` (ADR 0123).
-2. No client code builds journal lines, allocates document numbers, or resolves
-   GL accounts.
-3. System accounts are created only via `upsert_system_account()`.
+This is complete only when the authenticated browser flow creates and reloads the KES 9,000 credit note for Fredrick Mureti against `INV-00001`. A 401 probe, schema lookup, cache reload, or unit test alone does not count.
