@@ -51,16 +51,27 @@ export async function renderAstToPdf(args: {
   // maintains a second, divergent line-item layout. `generateDocumentPdf`
   // hard-refuses thermal input, so this gate is also what keeps the
   // snapshot path from throwing for POS receipts.
+  //
+  // Geometry is a property of the MEDIUM, never of the document kind. An
+  // explicit `paper_format` from the caller (preview paper picker, print
+  // policy override) always wins; only in its absence do the template's
+  // `media_class` and the stored POS receipt settings supply the default.
+  // This is what lets an operator read a payment receipt on A4 while the
+  // branch still prints it at 80 mm.
   const opts = (args.context.options ?? {}) as Record<string, unknown>;
   const rs = (snap["pos_receipt_settings"] ?? null) as
     | Record<string, unknown>
     | null;
-  const paperToken = String(
-    opts["paperFormat"] ?? rs?.["paper_size"] ?? "",
-  ).toLowerCase();
-  const docType = String(snap["document_type"] ?? "").toLowerCase();
   const THERMAL = new Set(["40mm", "58mm", "80mm"]);
-  if (THERMAL.has(paperToken) || docType === "pos_receipt" || docType === "receipt") {
+  const explicitPaper = String(
+    opts["paper_format"] ?? opts["paperFormat"] ?? "",
+  ).toLowerCase();
+  const defaultPaper =
+    args.template.media_class === "thermal"
+      ? String(rs?.["paper_size"] ?? "80mm").toLowerCase()
+      : String(rs?.["paper_size"] ?? "").toLowerCase();
+  const paperToken = explicitPaper || defaultPaper;
+  if (THERMAL.has(paperToken)) {
     const [{ documentToReceiptLines }, { renderThermalPdf }] = await Promise.all([
       import("../../receipt/documentToLines.ts"),
       import("../../receipt/pdf/renderThermalPdf.ts"),
