@@ -61,7 +61,8 @@ export function BillPaymentHistoryDialog({
   onOpenChange,
 }: BillPaymentHistoryDialogProps) {
   const { getBillPayments } = useBills();
-  const { voidBillPayment, resolveReversalIntent } = useTransactionReversal();
+  const { voidBillPayment, resolveReversalIntent, unmatchBankLinesForReversal } =
+    useTransactionReversal();
   const { formatCurrency: formatCurrencyHook } = useCurrency();
   const { toast } = useToast();
   const navigate = useNavigate();
