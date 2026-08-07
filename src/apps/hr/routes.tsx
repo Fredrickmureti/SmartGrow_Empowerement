@@ -23,7 +23,7 @@
  */
 
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 import { HRCatchAllRedirect } from "./shared/guards";
 import { AppInstalledGate } from "@/components/apps/AppInstalledGate";

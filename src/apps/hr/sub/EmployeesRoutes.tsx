@@ -21,7 +21,7 @@
  */
 
 import { lazy } from "react";
-import { Routes, Route, Navigate, useSearchParams } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { SubscriptionProtectedRoute } from "@/components/subscription/SubscriptionProtectedRoute";
 import { PermissionProtectedRoute } from "@/components/auth/PermissionProtectedRoute";
 import { OwnProfileOrPermissionRoute } from "@/components/auth/OwnProfileOrPermissionRoute";
@@ -116,12 +116,6 @@ export function EmployeesApp() {
           }
         />
 
-        {/* Legacy `/hr/employees/reports` — HR reporting is owned by the HR
-            Reports workspace at `/hr/reports`. Declared as a static segment so
-            it outranks `employees/:id` and never leaks "reports" as an
-            employee UUID. */}
-        <Route path="employees/reports/*" element={<Navigate to="/hr/reports" replace />} />
-
         <Route
           path="employees/:id"
           element={
@@ -141,10 +135,9 @@ export function EmployeesApp() {
             no separate "Org" workspace.
 
             IMPORTANT: these MUST be mounted under `employees/...`, not at
-            the sub-app root. The dispatcher's HR_REDIRECTS sends legacy
-            `/hr/departments` etc. to `/hr/employees/departments`, and the
-            sibling `employees/:id` route would otherwise capture the
-            segment as an employee UUID — producing spurious
+            the sub-app root, and every `employees/<segment>` surface must be
+            declared here. Any undeclared segment is captured by the sibling
+            `employees/:id` route as an employee UUID — producing spurious
             `v_employees_safe?id=eq.departments` lookups and the
             "Employee Not Found" placeholder. React Router v6 ranks
             static segments above dynamic, so these win over `:id`. */}
@@ -241,9 +234,6 @@ export function EmployeesApp() {
           }
         />
 
-        {/* Legacy flat `/hr/contracts` — Contracts is now its own workspace. */}
-        <Route path="contracts" element={<Navigate to="/hr/contracts" replace />} />
-
         <Route
           path="configuration/*"
           element={
@@ -258,9 +248,6 @@ export function EmployeesApp() {
         {/* `/hr/reports` is owned by the HR Reports workspace (dispatcher mounts
             HrReportsApp at `reports/*`). No in-shell route here. */}
 
-        {/* Legacy /hr/settings — old tab params mapped to the new Configuration sub-routes. */}
-        <Route path="settings" element={<LegacySettingsRedirect />} />
-
         <Route
           path="benefit-windows"
           element={
@@ -271,13 +258,6 @@ export function EmployeesApp() {
             </PermissionProtectedRoute>
           }
         />
-
-        {/* Wave-1 IA: Performance / Training are owned by the Talent workspace.
-            Kept here as a redirect so legacy bookmarks resolve. Test guard
-            `turn-g-to-k-final-completion.test.ts` asserts `path="performance"`. */}
-        <Route path="performance" element={<Navigate to="/hr/talent/dashboard" replace />} />
-
-
 
         <Route
           path="onboarding-issues"
@@ -297,21 +277,3 @@ export function EmployeesApp() {
 }
 
 export default EmployeesApp;
-
-/**
- * Resolves legacy `/hr/settings?tab=onboarding|statutory|salary|benefits` deep
- * links to the new Configuration sub-routes. Prior implementation dropped
- * the `?tab=` query and bounced users back to the Configuration root —
- * the source of the redirect loop reported on Onboarding & Statutory.
- */
-function LegacySettingsRedirect() {
-  const [params] = useSearchParams();
-  const tab = params.get("tab");
-  const map: Record<string, string> = {
-    onboarding: "/hr/configuration/onboarding-templates",
-    statutory: "/hr/configuration/statutory-fields",
-    salary: "/hr/payroll/configuration",
-    benefits: "/hr/payroll/configuration",
-  };
-  return <Navigate to={(tab && map[tab]) || "/hr/configuration"} replace />;
-}
