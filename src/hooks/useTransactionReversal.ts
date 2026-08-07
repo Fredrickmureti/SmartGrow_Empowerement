@@ -594,7 +594,8 @@ export function useTransactionReversal() {
       const mappings = getInvoiceAccountMappings();
       // The debit side follows the tender the customer actually paid with
       // (cash / bank / M-Pesa / card clearing), not a hardcoded cash account.
-      const cashAccountId = getPaymentAccountForMethod((payment as any).payment_method);
+      const cashAccountId = getPaymentAccountMappings((payment as any).payment_method)
+        .cash_account_id;
       if (mappings.receivable_account_id && cashAccountId) {
         const newJeId = await postPaymentToGL(
           {
