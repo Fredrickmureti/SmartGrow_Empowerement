@@ -23,6 +23,7 @@ import {
 } from "../reportPdfGenerator.ts";
 import { getOrganizationBranding, type OrganizationBranding } from "../branding/index.ts";
 import { getReportSpec, getReportTitle } from "./columnSpecs.ts";
+import { resolveReportColumns } from "./resolveColumns.ts";
 import { resolvePrintPolicy, type PaperFormat } from "../printing/resolvePolicy.ts";
 
 export interface RenderReportOptions {
@@ -92,10 +93,11 @@ export async function renderReport(
 ): Promise<Uint8Array> {
   const spec = options.reportType ? getReportSpec(options.reportType) : null;
 
-  let columns = options.columns ?? spec?.columns ?? [];
-  if (columns.length === 0 && options.rows.length > 0) {
-    columns = inferColumns(options.rows[0]);
-  }
+  const columns = resolveReportColumns({
+    reportType: options.reportType ?? null,
+    explicit: options.columns ?? null,
+    rows: options.rows,
+  });
 
   const title =
     options.title ??
@@ -189,34 +191,6 @@ export async function renderReport(
   }
 
   return pdfBytes;
-}
-
-/** Last-resort inference for legacy callers — drops internal _* keys. */
-function inferColumns(sample: ReportRow): ReportColumn[] {
-  const internal = new Set([
-    "_isHeader",
-    "_isSubtotal",
-    "_isGrandTotal",
-    "_depth",
-    "_bold",
-    "_meta",
-  ]);
-  return Object.keys(sample)
-    .filter((k) => !internal.has(k))
-    .map((key) => {
-      const v = sample[key];
-      const isNumber = typeof v === "number";
-      return {
-        key,
-        header: humanize(key),
-        align: isNumber ? "right" : "left",
-        format: isNumber ? "currency" : "text",
-      } as ReportColumn;
-    });
-}
-
-function humanize(key: string): string {
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**

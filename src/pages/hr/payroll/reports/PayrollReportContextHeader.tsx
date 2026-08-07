@@ -2,9 +2,15 @@
  * PayrollReportContextHeader — anchors a payroll report to the payroll
  * run that produced its data. Shows the latest approved run whose period
  * intersects [dateFrom, dateTo] for the current tenant, with a link back
- * to the run. When no approved run exists in range and the report is
- * gated on `payroll_approved`, renders a neutral banner explaining the
- * empty state instead of letting the table look broken.
+ * to the run.
+ *
+ * Readiness is NOT decided here. Whether the `payroll_approved`
+ * dependency is satisfied comes from `payroll_report_readiness` (the same
+ * server function that drives the readiness chips and the library cards),
+ * so the banner and the chips can never contradict each other — the old
+ * local `payroll_runs` query was a second, drifting source of truth.
+ * This component's own query resolves only the run's IDENTITY (number,
+ * period, link target) for display.
  */
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -13,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ExternalLink, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { PayrollReportDefinition } from "@/hooks/payroll/usePayrollReportDefinitions";
+import type { PayrollReportReadiness } from "@/hooks/payroll/usePayrollReportReadiness";
 
 interface Props {
   definition: PayrollReportDefinition;
@@ -20,6 +27,10 @@ interface Props {
   businessId: string | undefined;
   dateFrom: string;
   dateTo: string;
+  /** Canonical dependency states from `usePayrollReportReadiness`. */
+  readiness: PayrollReportReadiness | undefined;
+  /** True while the readiness probe is still resolving. */
+  readinessLoading?: boolean;
 }
 
 interface RunRow {
@@ -37,10 +48,13 @@ export function PayrollReportContextHeader({
   businessId,
   dateFrom,
   dateTo,
+  readiness,
+  readinessLoading,
 }: Props) {
   const dependsOnApproval = (definition.dependencies ?? []).includes(
     "payroll_approved",
   );
+  const approvalState = readiness?.payroll_approved;
 
   const { data: run, isLoading } = useQuery<RunRow | null>({
     queryKey: [
@@ -69,9 +83,12 @@ export function PayrollReportContextHeader({
 
   if (!dependsOnApproval) return null;
 
-  if (isLoading) return null;
+  // Never flash a "nothing approved" banner while either probe is in flight.
+  if (isLoading || readinessLoading) return null;
 
-  if (!run) {
+  // The banner is driven by the canonical readiness verdict; the run query
+  // is only a display lookup and must not veto it.
+  if (approvalState === "pending" || (approvalState !== "ready" && !run)) {
     return (
       <Card className="mb-4 border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
         <CardContent className="flex items-start gap-3 py-3 text-sm">
@@ -87,6 +104,10 @@ export function PayrollReportContextHeader({
       </Card>
     );
   }
+
+  // Readiness says approved but the identity lookup found nothing (e.g. the
+  // run sits outside this business scope) — show no anchor rather than crash.
+  if (!run) return null;
 
   const label = run.run_number
     ? `Run ${run.run_number}`

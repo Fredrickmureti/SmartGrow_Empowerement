@@ -9,3 +9,8 @@ export {
   renderReport,
   type RenderReportOptions,
 } from "./renderReport.ts";
+
+export {
+  resolveReportColumns,
+  inferColumns,
+} from "./resolveColumns.ts";
