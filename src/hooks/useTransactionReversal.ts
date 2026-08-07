@@ -559,6 +559,44 @@ export function useTransactionReversal() {
     return (data as unknown as ReversalConsequences) ?? null;
   };
 
+  /**
+   * Phase 4 — clear the `bank_reconciled` blocker the legal way.
+   *
+   * `resolve_reversal_bank_block` un-matches exactly the statement lines the
+   * preview listed, through the canonical `unreconcile_bank_transaction` writer
+   * (which voids the reconciliation JE, reverses the matches and releases the
+   * customer receipt or supplier payment). Never update `bank_transactions` or
+   * `bank_reconciliation_matches` from the client to unblock a reversal.
+   */
+  const unmatchBankLinesForReversal = async (
+    documentType: ReversalDocumentType,
+    documentId: string,
+    reason: string,
+  ): Promise<boolean> => {
+    const { error } = await supabase.rpc("resolve_reversal_bank_block" as any, {
+      _document_type: documentType,
+      _document_id: documentId,
+      _reason: reason,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      console.error("Error un-matching bank lines for reversal:", error);
+      toast({
+        title: "Could not un-match the bank line",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+      return false;
+    }
+    toast({
+      title: "Bank line un-matched",
+      description: "The statement line is back for review, so the reversal can continue.",
+    });
+    return true;
+  };
+
+
+
 
 
   /**
