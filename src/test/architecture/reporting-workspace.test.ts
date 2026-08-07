@@ -126,3 +126,55 @@ describe("report library retains its state in the URL", () => {
     expect(src).not.toMatch(/useState\(["']all["']\)/);
   });
 });
+
+describe("report scope is URL-owned (drill-down and Back must not lose it)", () => {
+  const MIGRATED = [
+    "src/pages/reports/TrialBalance.tsx",
+    "src/pages/reports/GeneralLedger.tsx",
+    "src/pages/reports/JournalReport.tsx",
+    "src/pages/reports/PartnerLedger.tsx",
+    "src/pages/reports/AgingReport.tsx",
+    "src/pages/reports/SalesReports.tsx",
+  ];
+
+  it("reads and writes scope through useReportWorkspaceState", () => {
+    for (const page of MIGRATED) {
+      const src = read(page);
+      expect(src, `${page} does not use the workspace state hook`).toContain(
+        "useReportWorkspaceState",
+      );
+      expect(src, `${page} never writes scope back to the URL`).toMatch(
+        /workspace\.set\(/,
+      );
+    }
+  });
+
+  it("keeps period/date scope out of component state", () => {
+    const FORBIDDEN = /useState[^\n]*\b(dateFrom|dateTo|asOfDate|dateRange|partnerType|reportType)\b/;
+    for (const page of MIGRATED) {
+      const src = read(page);
+      expect(FORBIDDEN.test(src), `${page} reverted scope to useState`).toBe(false);
+    }
+  });
+});
+
+describe("drill-down capability is declared, not implied", () => {
+  it("advertises dialog drill-down for reports that have it", () => {
+    const withDrill = ["trial-balance", "sales-reports"];
+    for (const id of withDrill) {
+      const def = REPORT_REGISTRY.find((r) => r.id === id);
+      expect(def, `${id} missing from registry`).toBeTruthy();
+    }
+    const sales = REPORT_REGISTRY.find((r) => r.id === "sales-reports")!;
+    expect(sales.drillDown).toBe("dialog");
+  });
+
+  it("partner drill-down carries a contact, so it cannot query all partners", () => {
+    const dialog = read("src/components/reports/DrillDownDialog.tsx");
+    expect(dialog).toMatch(/contactId\?: string/);
+    expect(dialog).toMatch(/\.eq\("contact_id", config\.contactId\)/);
+    // Partner reads stay org/business scoped like every other report query.
+    expect(dialog).toMatch(/\.eq\("organization_id", currentOrg\.id\)/);
+  });
+});
+

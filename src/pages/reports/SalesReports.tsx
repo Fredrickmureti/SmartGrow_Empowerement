@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useInvoices } from "@/hooks/useInvoices";
@@ -28,7 +29,11 @@ function SalesReportsInner() {
   const { invoices, isLoading: invoicesLoading } = useInvoices();
   const { contacts } = useContacts();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
-  const [dateRange, setDateRange] = useState("this_month");
+  // Period is URL-owned so a drill-down into a customer's invoices and Back
+  // return to the same sales window.
+  const workspace = useReportWorkspaceState({ period: "this_month" });
+  const dateRange = workspace.get("period", "this_month");
+  const setDateRange = (value: string) => workspace.set({ period: value });
   const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
 
   const isLoading = invoicesLoading || !currencyReady;
@@ -63,12 +68,12 @@ function SalesReportsInner() {
     const paidSales = filteredInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.total, 0);
     const pendingSales = filteredInvoices.filter((i) => ["sent", "viewed", "partial", "overdue"].includes(i.status)).reduce((sum, i) => sum + (i.total - i.amount_paid), 0);
 
-    const customerSales: Record<string, { name: string; total: number; count: number }> = {};
+    const customerSales: Record<string, { id: string; name: string; total: number; count: number }> = {};
     filteredInvoices.forEach((inv) => {
       const customerId = inv.contact_id || "unknown";
       const customerName = inv.contact?.name || "Unknown Customer";
       if (!customerSales[customerId]) {
-        customerSales[customerId] = { name: customerName, total: 0, count: 0 };
+        customerSales[customerId] = { id: customerId, name: customerName, total: 0, count: 0 };
       }
       customerSales[customerId].total += inv.total;
       customerSales[customerId].count += 1;
@@ -114,6 +119,9 @@ function SalesReportsInner() {
             open: true,
             config: {
               title: `Sales — ${customer.name}`,
+              // Customer → their invoices for the period. Only offered when the
+              // customer is identified; "Unknown Customer" rows stay inert.
+              contactId: customer.id !== "unknown" ? customer.id : undefined,
               startDate: format(start, "yyyy-MM-dd"),
               endDate: format(end, "yyyy-MM-dd"),
               sourceType: "invoice",

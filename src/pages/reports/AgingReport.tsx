@@ -5,8 +5,9 @@
  * Rendered by the canonical reporting engine (`@/design-system/reports`).
  */
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,25 +43,30 @@ import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 function AgingReportInner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialType = ((): "ar" | "ap" => {
-    const raw = (searchParams.get("type") || "").toLowerCase();
-    if (raw === "payable" || raw === "ap") return "ap";
-    return "ar";
-  })();
-  const [reportType, setReportType] = useState<"ar" | "ap">(initialType);
-  const [asOfDate, setAsOfDate] = useState(() => {
-    const v = searchParams.get("as_of") || searchParams.get("asOf") || searchParams.get("date_to") || searchParams.get("dateTo");
-    return v || format(new Date(), "yyyy-MM-dd");
-  });
+  // Reporting scope (AR/AP side + as-of date) is URL-owned so drill-down and
+  // Back preserve the exact ageing view the user was investigating.
+  const workspace = useReportWorkspaceState();
+  const legacyType = (searchParams.get("type") || "").toLowerCase();
+  const legacyTypeSide: "ar" | "ap" | null =
+    legacyType === "payable" || legacyType === "ap"
+      ? "ap"
+      : legacyType === "receivable" || legacyType === "ar"
+        ? "ar"
+        : null;
+  const reportType: "ar" | "ap" =
+    workspace.scope.basis === "ap" ? "ap" : legacyTypeSide ?? "ar";
+  const setReportType = (value: "ar" | "ap") => workspace.set({ basis: value });
+  const legacyAsOf =
+    searchParams.get("as_of") ||
+    searchParams.get("date_to") ||
+    searchParams.get("dateTo");
+  const asOfDate = workspace.get(
+    "asOf",
+    legacyAsOf || format(new Date(), "yyyy-MM-dd"),
+  );
+  const setAsOfDate = (value: string) => workspace.set({ asOf: value });
   const [expandedContacts, setExpandedContacts] = useState<Set<string>>(new Set());
   const [drillDown, setDrillDown] = useState<{ open: boolean; config: DrillDownConfig | null }>({ open: false, config: null });
-
-  // React to URL changes from palette navigation.
-  useEffect(() => {
-    const raw = (searchParams.get("type") || "").toLowerCase();
-    if (raw === "payable" || raw === "ap") setReportType("ap");
-    else if (raw === "receivable" || raw === "ar") setReportType("ar");
-  }, [searchParams]);
 
   const { filters } = useReportFilters();
   const { data, isLoading, error } = useAgingReport({ reportType, asOfDate, branchId: filters.branchId });

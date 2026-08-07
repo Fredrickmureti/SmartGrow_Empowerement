@@ -22,6 +22,7 @@ import { ReportFilters } from "@/components/reports/ReportFilters";
 import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterContext";
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { useReportWorkspaceState } from "@/hooks/reports/useReportWorkspaceState";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
 import {
   ReportSurface,
@@ -53,15 +54,17 @@ function splitBalance(balance: number, accountType: string): { debit: number; cr
 }
 
 function TrialBalanceInner() {
-  const [asOfDate, setAsOfDate] = useState(() => {
-    if (typeof window !== "undefined") {
-      const sp = new URLSearchParams(window.location.search);
-      const v = sp.get("as_of") || sp.get("asOf") || sp.get("date_to") || sp.get("dateTo");
-      if (v) return v;
-    }
-    return format(new Date(), "yyyy-MM-dd");
+  // Reporting scope lives in the URL (`useReportWorkspaceState`) so a
+  // drill-down, a switch to General Ledger and the Back button all return the
+  // user to the exact as-of date they were investigating.
+  const workspace = useReportWorkspaceState({
+    asOf: format(new Date(), "yyyy-MM-dd"),
   });
-  const [includeZeroBalances, setIncludeZeroBalances] = useState(false);
+  const asOfDate = workspace.get("asOf", format(new Date(), "yyyy-MM-dd"));
+  const setAsOfDate = (value: string) => workspace.set({ asOf: value });
+  const includeZeroBalances = workspace.get("status", "") === "include_zero";
+  const setIncludeZeroBalances = (value: boolean) =>
+    workspace.set({ status: value ? "include_zero" : "" });
   const [drillDown, setDrillDown] = useState<DrillDownConfig | null>(null);
   const { filters } = useReportFilters();
 

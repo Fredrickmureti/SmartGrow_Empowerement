@@ -267,6 +267,8 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "sales",
     keywords: ["sales", "revenue", "top customers", "top products"],
+    // Customer → their invoices for the period, in place (context preserved).
+    drillDown: "dialog",
   },
 
   // ─── Tax & Compliance ───
