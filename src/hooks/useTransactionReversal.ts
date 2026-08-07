@@ -917,8 +917,10 @@ export function useTransactionReversal() {
   };
 
   return {
+    resolveReversalIntent,
     voidPayment,
     voidInvoice,
+
     voidBill,
     voidBillPayment,
     // unreconcilePayment intentionally NOT exposed — ADR 0012 Wave R2.
