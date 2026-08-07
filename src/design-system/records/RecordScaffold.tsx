@@ -9,7 +9,7 @@
 
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Pencil, Printer } from "lucide-react";
+import { ArrowLeft, FileSearch, Pencil, Printer } from "lucide-react";
 
 import {
   ActionBar,
@@ -41,6 +41,8 @@ interface RecordScaffoldProps extends DocumentRecordView {
   onEdit?: () => void;
   /** Called by the default Print action; disabled if not supplied. */
   onPrint?: () => void;
+  /** Called by the default Preview action; hidden if not supplied. */
+  onPreview?: () => void;
   /** Copy for the "new" placeholder. */
   newLabel?: string;
   newDescription?: ReactNode;
@@ -134,6 +136,11 @@ export function RecordScaffold(props: RecordScaffoldProps) {
       <Button variant="outline" size="sm" onClick={() => navigate(listPath)}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back
       </Button>
+      {onPreview ? (
+        <Button variant="outline" size="sm" onClick={onPreview}>
+          <FileSearch className="mr-2 h-4 w-4" /> Preview
+        </Button>
+      ) : null}
       <Button
         variant="outline"
         size="sm"
