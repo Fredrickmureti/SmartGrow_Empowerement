@@ -143,10 +143,17 @@ BEGIN
      AND p.proname ~* '(can_reverse|reversal_allowed|is_reversible|can_void)'
      AND p.proname NOT IN (
        'resolve_reversal_intent',
+       -- `assert_*` helpers ENFORCE a decision inside a writer; they do not
+       -- advertise availability to the UI, so they are not competing
+       -- authorities. They must stay assertions — if one starts returning an
+       -- availability answer to callers, it belongs behind the intent resolver.
+       'assert_can_void_je',
+       'assert_can_reverse_payroll',
        -- Phase 6 convergence targets: they remain the domain experts, and will
        -- be reached THROUGH resolve_reversal_intent rather than replaced.
        'payroll_run_can_reverse'
      );
+
   IF v_rogue IS NOT NULL THEN
     RAISE EXCEPTION 'competing reversal legality authorities found: % — route them through resolve_reversal_intent (Phase 6)', v_rogue;
   END IF;
