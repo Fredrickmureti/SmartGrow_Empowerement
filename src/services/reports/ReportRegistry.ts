@@ -31,9 +31,37 @@ export type ReportCategory =
   | "audit"
   | "intelligence";
 
+/**
+ * Reporting domains. A domain is the workspace a report belongs to — the set
+ * of reports a user moves between without leaving their reporting context.
+ */
+export type ReportDomain =
+  | "finance"
+  | "payroll"
+  | "hr"
+  | "sales"
+  | "purchases"
+  | "inventory"
+  | "pos"
+  | "projects"
+  | "crm";
+
+export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
+  finance: "Finance",
+  payroll: "Payroll",
+  hr: "People",
+  sales: "Sales",
+  purchases: "Purchases",
+  inventory: "Inventory",
+  pos: "Point of sale",
+  projects: "Projects",
+  crm: "CRM",
+};
+
 export interface ReportDefinition {
   id: string;
   name: string;
+
   description: string;
   category: ReportCategory;
   /** Full route, may include query string for deep-linking into a tab. */
@@ -49,7 +77,28 @@ export interface ReportDefinition {
   reportType: string;
   /** Optional: groups child leaves under a parent hub for UI rendering. */
   parentId?: string;
+  /**
+   * Reporting domain. Drives the in-report switcher strip: a report can only
+   * switch to siblings inside its own domain. Derived from `path` when omitted
+   * (see `getReportDomain`) so existing entries need no per-entry annotation.
+   */
+  domain?: ReportDomain;
+  /**
+   * Cross-domain relationships that are semantically meaningful (Trial Balance
+   * ⇄ General Ledger, Payroll Summary ⇄ Statutory). Ids only; never invent a
+   * relationship that does not exist in the business model.
+   */
+  relatedReports?: string[];
+  /**
+   * Drill-down capability of this report, for classification and for the UI
+   * to decide whether to advertise investigation affordances.
+   *  - `none`   : aggregate has no legitimate underlying detail (D0/D4)
+   *  - `dialog` : detail opens in place, preserving report context (D1)
+   *  - `route`  : detail is a separate route carrying scope params forward
+   */
+  drillDown?: "none" | "dialog" | "route";
 }
+
 
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   statutory: "Financial Statements",
@@ -497,4 +546,110 @@ export function getReportsByCategory(): Map<ReportCategory, ReportDefinition[]> 
 /** Lookup by reportType (used for favorites mapping). */
 export function getReportsByType(reportType: string): ReportDefinition[] {
   return REPORT_REGISTRY.filter(r => r.reportType === reportType);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workspace spine — domain resolution, report switching and relationships.
+// One owner: no page may hard-code its sibling or related-report list.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Path-prefix → domain. Longest prefix wins. */
+const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
+  ["/hr/payroll/reports", "payroll"],
+  ["/hr/attendance/reports", "hr"],
+  ["/hr/employees/reports", "hr"],
+  ["/pos/reports", "pos"],
+  ["/projects-app/reports", "projects"],
+  ["/timesheets/reports", "projects"],
+  ["/crm/reports", "crm"],
+  ["/finance/reports", "finance"],
+  ["/reports", "finance"],
+];
+
+/** Category → domain, used when the path is not decisive. */
+const DOMAIN_BY_CATEGORY: Partial<Record<ReportCategory, ReportDomain>> = {
+  inventory: "inventory",
+  receivables: "sales",
+  payables: "purchases",
+};
+
+/**
+ * The domain a report belongs to. Explicit `domain` wins; then a
+ * category override for inventory / receivables / payables (those live under
+ * the finance routes but belong to their own reporting workspace); then the
+ * path prefix; finance is the fallback.
+ */
+export function getReportDomain(def: ReportDefinition): ReportDomain {
+  if (def.domain) return def.domain;
+  const byCategory = DOMAIN_BY_CATEGORY[def.category];
+  if (byCategory) return byCategory;
+  const prefix = DOMAIN_BY_PATH_PREFIX
+    .filter(([p]) => def.path.startsWith(p))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  return prefix?.[1] ?? "finance";
+}
+
+/** Every report inside one reporting workspace, registry order preserved. */
+export function getReportsByDomain(domain: ReportDomain): ReportDefinition[] {
+  return REPORT_REGISTRY.filter((r) => getReportDomain(r) === domain);
+}
+
+/**
+ * Semantic cross-domain relationships. Declared symmetrically — a pair listed
+ * here is related in both directions. Derived from domain semantics only:
+ * a report is related to another when an accountant / payroll officer would
+ * routinely open the second to explain the first.
+ */
+const REPORT_RELATION_PAIRS: Array<[string, string]> = [
+  ["trial-balance", "general-ledger"],
+  ["trial-balance", "journal-report"],
+  ["general-ledger", "journal-report"],
+  ["general-ledger", "partner-ledger"],
+  ["financial-statements", "trial-balance"],
+  ["financial-statements", "cash-flow"],
+  ["aged-receivables", "partner-ledger"],
+  ["aged-receivables", "sales-reports"],
+  ["aged-payables", "partner-ledger"],
+  ["budget-report", "financial-statements"],
+  ["depreciation-report", "financial-statements"],
+  ["stock-reports", "inventory-gl-reconciliation"],
+  ["stock-adjustments-report", "stock-reports"],
+  ["stock-transfers-report", "stock-reports"],
+  ["control-account-reconciliation", "partner-ledger"],
+  ["bank-reconciliation-report", "cash-flow"],
+  ["payroll-reports", "hr-reports"],
+  ["payroll-reports", "attendance-reports"],
+  ["timesheet-reports", "project-reports"],
+  ["pos-reports", "sales-reports"],
+];
+
+/**
+ * Reports related to `id`: the declared pairs above plus any explicit
+ * `relatedReports` on the definition. Unknown ids are dropped, so a stale
+ * relation can never render a dead link.
+ */
+export function getRelatedReports(id: string): ReportDefinition[] {
+  const def = REPORT_REGISTRY.find((r) => r.id === id);
+  const ids = new Set<string>(def?.relatedReports ?? []);
+  for (const [a, b] of REPORT_RELATION_PAIRS) {
+    if (a === id) ids.add(b);
+    if (b === id) ids.add(a);
+  }
+  ids.delete(id);
+  return REPORT_REGISTRY.filter((r) => ids.has(r.id));
+}
+
+/**
+ * Resolve the registry entry for a pathname (ignoring query string). Prefers
+ * the longest matching registered path so `/finance/reports/stock-transfers`
+ * does not resolve to `/finance/reports/stock`.
+ */
+export function findReportByPath(pathname: string): ReportDefinition | undefined {
+  const candidates = REPORT_REGISTRY.filter((r) => {
+    const base = r.path.split("?")[0];
+    return pathname === base || pathname.startsWith(`${base}/`);
+  });
+  return candidates.sort(
+    (a, b) => b.path.split("?")[0].length - a.path.split("?")[0].length,
+  )[0];
 }

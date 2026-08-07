@@ -190,7 +190,12 @@ function BudgetReportInner() {
       description="Compare budgeted amounts against actual journal entry totals"
       isLoading={isLoading || !currencyReady}
       isEmpty={!selectedBudgetId}
-      emptyMessage="Select a budget to view the variance analysis"
+      emptyState={{
+        kind: "missing_prerequisite",
+        title: "Select a budget",
+        message:
+          "Budget vs Actual compares one budget against posted journal activity. Choose a budget above to run the variance analysis.",
+      }}
       getExportConfig={selectedBudgetId && varianceReport ? getExportConfig : undefined}
       headerActions={
         <div className="flex items-center gap-2">

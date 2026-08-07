@@ -23,6 +23,7 @@ import { Loader2, AlertCircle, FileX2 } from "lucide-react";
 import { ReportsLayout } from "@/apps/reports/ReportsLayout";
 import { ReportExportButtons } from "./ReportExportButtons";
 import { ReportBranchFilter } from "./ReportBranchFilter";
+import { ReportSwitcherStrip } from "./ReportSwitcherStrip";
 import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { useReportExportContext } from "@/contexts/ReportContext";
@@ -125,6 +126,11 @@ export function ReportPageLayout({
             )}
           </div>
         </div>
+
+        {/* Report switching — siblings in this reporting domain plus the
+            semantically related reports, carrying the current scope forward.
+            Self-hides when the active route has no registered siblings. */}
+        <ReportSwitcherStrip />
 
         {/* Filters — branch filter is always available; page-supplied
             filters render below it. ReportBranchFilter self-hides for

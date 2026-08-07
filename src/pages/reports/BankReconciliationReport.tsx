@@ -230,7 +230,12 @@ export default function BankReconciliationReport() {
       isLoading={isLoading}
       error={(error as Error) ?? null}
       isEmpty={!isLoading && rows.length === 0}
-      emptyMessage="No reconciliation sessions found for the selected filters."
+      emptyState={{
+        kind: "no_data",
+        title: "No reconciliation sessions in scope",
+        message:
+          "No bank reconciliation session matches the selected bank accounts, statuses and date range.",
+      }}
       getExportConfig={getExportConfig}
       filters={
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
