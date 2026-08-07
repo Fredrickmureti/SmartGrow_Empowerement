@@ -151,7 +151,42 @@ describe("Journal posting monopoly", () => {
     expect(offenders).toEqual([]);
   });
 
+  /**
+   * Phase 3 — bill void is one server transaction (`void_bill_atomic`).
+   *
+   * Two client-side sagas used to own this (`useBills.voidBill` and
+   * `useTransactionReversal.voidBill`), each with its own guards and its own
+   * ordering. The browser may not flip `bills.status` to void itself, and may
+   * not release the three-way match, because a failure between those writes and
+   * the journal reversal leaves the ledger and the purchase document
+   * disagreeing.
+   */
+  it("no application code flips bills to void directly", () => {
+    const offenders = rgFiles(
+      'from\\("bills"\\)[\\s\\S]{0,200}?status:\\s*"void"',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("no application code stamps bill void metadata directly", () => {
+    const offenders = rgFiles(
+      'from\\("bills"\\)[\\s\\S]{0,300}?(voided_at|void_reason)\\s*:',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("three-way-match release is only driven from inside void_bill_atomic", () => {
+    const offenders = rgFiles(
+      'from\\("bill_match_results"\\)[\\s\\S]{0,120}?\\.delete\\(',
+      APP_PATHS,
+    );
+    expect(offenders).toEqual([]);
+  });
+
 });
+
 
 
 
