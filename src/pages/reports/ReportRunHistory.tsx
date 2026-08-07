@@ -434,7 +434,7 @@ function ReportRunHistoryInner() {
                 <SelectItem value="all">All statuses</SelectItem>
                 {statusOptions.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {s}
+                    {statusLabel(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -460,57 +460,105 @@ function ReportRunHistoryInner() {
         <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Report run details</DialogTitle>
+              <DialogTitle>
+                {detailRow ? reportLabel(detailRow.report_type) : "Report run"}
+              </DialogTitle>
             </DialogHeader>
             {detailRow && (
-              <div className="space-y-2 text-xs">
-                <div>
-                  <span className="text-muted-foreground">When:</span>{" "}
-                  {format(new Date(detailRow.created_at), "MMM d, yyyy HH:mm:ss")}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Report:</span>{" "}
-                  {reportLabel(detailRow.report_type)}{" "}
-                  <span className="font-mono text-muted-foreground">
-                    ({detailRow.report_type})
+              <div className="space-y-4 text-sm">
+                {/* The one-sentence account of the event, as a system note. */}
+                <p className="text-muted-foreground">
+                  {actorLabel(detailRow.user_id)} produced a{" "}
+                  {outputLabel(detailRow.params_jsonb).toLowerCase()} of{" "}
+                  <span className="text-foreground">
+                    {reportLabel(detailRow.report_type)}
                   </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  <Badge variant={statusTone(detailRow.status)} className="text-xs">
-                    {detailRow.status}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Output size:</span>{" "}
-                  {formatBytes(detailRow.byte_count)}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Run hash:</span>{" "}
-                  <span className="font-mono break-all">{detailRow.run_hash}</span>
-                </div>
-                {detailRow.user_id && (
+                  {periodLabel(detailRow.params_jsonb)
+                    ? ` for ${periodLabel(detailRow.params_jsonb)}`
+                    : ""}
+                  {companyLabel(detailRow.business_id)
+                    ? ` (${companyLabel(detailRow.business_id)})`
+                    : ""}{" "}
+                  on {format(new Date(detailRow.created_at), "MMMM d, yyyy 'at' HH:mm")}.
+                </p>
+
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <Field label="Run by" value={actorLabel(detailRow.user_id)} />
+                  <Field
+                    label="Date & time"
+                    value={format(new Date(detailRow.created_at), "MMMM d, yyyy HH:mm:ss")}
+                  />
+                  <Field
+                    label="Period covered"
+                    value={periodLabel(detailRow.params_jsonb) ?? "Not period-bound"}
+                  />
+                  <Field
+                    label="Company"
+                    value={companyLabel(detailRow.business_id) ?? "All companies"}
+                  />
+                  <Field label="Output" value={outputLabel(detailRow.params_jsonb)} />
+                  <Field
+                    label="Lines produced"
+                    value={
+                      rowCount(detailRow.params_jsonb) !== null
+                        ? rowCount(detailRow.params_jsonb)!.toLocaleString("en-US")
+                        : "—"
+                    }
+                  />
+                  <Field label="File size" value={formatBytes(detailRow.byte_count)} />
                   <div>
-                    <span className="text-muted-foreground">Actor:</span>{" "}
-                    <span className="font-mono">{detailRow.user_id}</span>
+                    <dt className="text-xs text-muted-foreground">Result</dt>
+                    <dd className="mt-0.5">
+                      <Badge variant={statusTone(detailRow.status)} className="font-normal">
+                        {statusLabel(detailRow.status)}
+                      </Badge>
+                    </dd>
                   </div>
-                )}
-                {detailRow.business_id && (
+                </dl>
+
+                {settingEntries(detailRow.params_jsonb).length > 0 && (
                   <div>
-                    <span className="text-muted-foreground">Business:</span>{" "}
-                    <span className="font-mono">{detailRow.business_id}</span>
+                    <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Report settings used
+                    </h4>
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+                      {settingEntries(detailRow.params_jsonb).map(([k, v]) => (
+                        <Field key={k} label={k} value={v} />
+                      ))}
+                    </dl>
                   </div>
                 )}
-                {detailRow.params_jsonb && (
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">
-                      Parameters (exact set the rendition was built from):
-                    </div>
-                    <pre className="bg-background border rounded p-2 overflow-x-auto max-h-64">
-                      {JSON.stringify(detailRow.params_jsonb, null, 2)}
-                    </pre>
-                  </div>
-                )}
+
+                {/* Machine handles stay available for forensics, but ranked last. */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Technical details
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 space-y-2 text-xs">
+                    <Field label="Report key" value={detailRow.report_type} mono />
+                    <Field
+                      label="Run fingerprint"
+                      value={detailRow.run_hash || "—"}
+                      mono
+                      hint="Two runs with the same fingerprint produced identical figures."
+                    />
+                    {detailRow.user_id && (
+                      <Field label="User ID" value={detailRow.user_id} mono />
+                    )}
+                    {detailRow.business_id && (
+                      <Field label="Company ID" value={detailRow.business_id} mono />
+                    )}
+                    {detailRow.params_jsonb && (
+                      <div>
+                        <dt className="text-muted-foreground">Raw parameters</dt>
+                        <pre className="mt-1 max-h-64 overflow-x-auto rounded border bg-muted/40 p-2">
+                          {JSON.stringify(detailRow.params_jsonb, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )}
           </DialogContent>
