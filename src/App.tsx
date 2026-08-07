@@ -37,6 +37,7 @@ import { ReadOnlyModeProvider } from "@/contexts/ReadOnlyModeContext";
 import { AuthenticatedShell } from "@/components/auth/AuthenticatedShell";
 import { OnboardingGate } from "@/components/auth/OnboardingGate";
 import { CommandPaletteProvider } from "@/providers/CommandPaletteProvider";
+import { DocumentPreviewProvider } from "@/components/documents/DocumentPreviewProvider";
 import { ConnectivityProvider } from "@/contexts/ConnectivityContext";
 import { ElectronHydratorMount } from "@/components/hardware/ElectronHydratorMount";
 import { EdgeRelayMount } from "@/components/hardware/EdgeRelayMount";
@@ -292,6 +293,7 @@ const App = () => (
                             <AuthExpiryBridge />
                             <AuthenticatedShell>
                             <CommandPaletteProvider>
+                            <DocumentPreviewProvider>
                             <OnboardingGate>
                             <Routes>
                             {/* ============================================== */}
@@ -881,6 +883,7 @@ const App = () => (
                             <Route path="*" element={<NotFound />} />
                           </Routes>
                           </OnboardingGate>
+                          </DocumentPreviewProvider>
                           </CommandPaletteProvider>
                           </AuthenticatedShell>
                           <GlobalAIAssistant />
