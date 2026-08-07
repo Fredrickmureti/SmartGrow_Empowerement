@@ -70,4 +70,31 @@ describe("commercial compensation writer monopoly", () => {
     const src = readFileSync(join(SRC, "hooks/useCustomerCredits.ts"), "utf8");
     expect(src).toContain("customer_credit_balances");
   });
+
+  it("no caller hands compensation account ids to apply_credit_to_invoice_atomic", () => {
+    const offenders = appFiles.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return (
+        src.includes("apply_credit_to_invoice_atomic") &&
+        /_customer_deposits_account_id|_receivable_account_id/.test(src)
+      );
+    });
+    expect(
+      offenders.map(rel),
+      "the database resolves compensation accounts; clients must not pass them",
+    ).toEqual([]);
+  });
+
+  it("customer credit has its own GL account role, separate from customer deposits", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const seeded = readdirSync(dir).some((f) => {
+      const sql = readFileSync(join(dir, f), "utf8");
+      return (
+        /system_account_roles/.test(sql) &&
+        /'customer_credit'/.test(sql) &&
+        /customer_credit_account/.test(sql)
+      );
+    });
+    expect(seeded, "ADR 0131 Phase B: customer_credit account role migration is missing").toBe(true);
+  });
 });

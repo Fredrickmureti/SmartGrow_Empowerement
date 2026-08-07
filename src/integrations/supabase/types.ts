@@ -81428,14 +81428,12 @@ export type Database = {
         Args: {
           _amount: number
           _applied_by: string
-          _branch_id?: string
+          _branch_id: string
           _business_id: string
           _credit_note_id: string
-          _customer_deposits_account_id?: string
           _invoice_id: string
-          _notes?: string
+          _notes: string
           _org_id: string
-          _receivable_account_id?: string
         }
         Returns: Json
       }
@@ -87175,12 +87173,10 @@ export type Database = {
       }
       get_next_task_number: { Args: { p_project_id: string }; Returns: string }
       get_next_transfer_number: { Args: { _org_id: string }; Returns: string }
-      get_next_vendor_credit_note_number:
-        | { Args: { p_organization_id: string }; Returns: string }
-        | {
-            Args: { p_business_id?: string; p_organization_id: string }
-            Returns: string
-          }
+      get_next_vendor_credit_note_number: {
+        Args: { p_business_id?: string; p_organization_id: string }
+        Returns: string
+      }
       get_or_create_in_transit_warehouse: {
         Args: { p_business_id: string }
         Returns: string

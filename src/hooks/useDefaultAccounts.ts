@@ -18,6 +18,8 @@ export interface DefaultAccountMappings {
   accounts_payable_id?: string;
   output_tax_account_id?: string;
   customer_deposits_id?: string;
+  /** ADR 0131: unapplied customer credit from credit notes — distinct from prepayments. */
+  customer_credit_id?: string;
   
   // Income Accounts
   sales_revenue_id?: string;
@@ -51,6 +53,7 @@ const MAPPING_KEY_MAP: Record<string, keyof DefaultAccountMappings> = {
   accounts_payable: "accounts_payable_id",
   output_tax: "output_tax_account_id",
   customer_deposits: "customer_deposits_id",
+  customer_credit: "customer_credit_id",
   sales_revenue: "sales_revenue_id",
   other_income: "other_income_id",
   cogs: "cost_of_goods_sold_id",
