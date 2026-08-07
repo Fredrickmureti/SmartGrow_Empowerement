@@ -43,10 +43,16 @@ export interface RenderReportOptions {
   columns?: ReportColumn[];
   /** Optional explicit title (otherwise registry default). */
   title?: string;
-  /** Optional date range string for the masthead. */
+  /** Optional date range string for the masthead ("For the period …"). */
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet): the masthead
+   * renders "As of <asOf>" instead of "For the period <dateRange>".
+   */
+  asOf?: string;
   /** Page orientation override. */
   orientation?: "portrait" | "landscape";
+
   /** Body rows. */
   rows: ReportRow[];
   /** Currency code for accountant-grade number formatting. */
