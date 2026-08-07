@@ -43,6 +43,7 @@ import {
 } from "../_shared/reportDataEngine.ts";
 import { renderReport, getReportTitle } from "../_shared/reports/index.ts";
 import { resolveReportColumns } from "../_shared/reports/resolveColumns.ts";
+import { logReportRun } from "../_shared/reports/logReportRun.ts";
 import {
   buildAttendanceReport,
   type AttendanceReportKey,
@@ -487,6 +488,17 @@ serve(async (req) => {
           ?? null,
         rows: result.data as Parameters<typeof resolveReportColumns>[0]["rows"],
       });
+      // Viewing a report IS a report run. Without this the audit trail only
+      // knew about PDFs, so "who saw these payroll figures?" was unanswerable.
+      await logReportRun(supabase, {
+        organizationId,
+        businessId,
+        userId: caller.userId,
+        reportType,
+        outputFormat: "json",
+        params: { dateFrom, dateTo, filters: body?.filters ?? null },
+        rowCount: Array.isArray(result.data) ? result.data.length : 0,
+      });
       return new Response(
         JSON.stringify({
           reportType,
@@ -533,7 +545,18 @@ serve(async (req) => {
 
       if (format === "csv") {
         const { buildReportCsv } = await import("../_shared/exports/reportCsv.ts");
-        return new Response(buildReportCsv(exportConfig) as unknown as BodyInit, {
+        const csvBytes = buildReportCsv(exportConfig);
+        await logReportRun(supabase, {
+          organizationId,
+          businessId,
+          userId: caller.userId,
+          reportType,
+          outputFormat: "csv",
+          params: { dateFrom, dateTo, filters: body?.filters ?? null },
+          rowCount: Array.isArray(result.data) ? result.data.length : 0,
+          byteCount: csvBytes.length,
+        });
+        return new Response(csvBytes as unknown as BodyInit, {
           headers: {
             ...corsHeaders,
             "Content-Type": "text/csv; charset=utf-8",
@@ -543,7 +566,18 @@ serve(async (req) => {
       }
 
       const { buildReportXlsx, XLSX_MIME } = await import("../_shared/exports/reportXlsx.ts");
-      return new Response(buildReportXlsx(exportConfig) as unknown as BodyInit, {
+      const xlsxBytes = buildReportXlsx(exportConfig);
+      await logReportRun(supabase, {
+        organizationId,
+        businessId,
+        userId: caller.userId,
+        reportType,
+        outputFormat: "xlsx",
+        params: { dateFrom, dateTo, filters: body?.filters ?? null },
+        rowCount: Array.isArray(result.data) ? result.data.length : 0,
+        byteCount: xlsxBytes.length,
+      });
+      return new Response(xlsxBytes as unknown as BodyInit, {
         headers: {
           ...corsHeaders,
           "Content-Type": XLSX_MIME,
