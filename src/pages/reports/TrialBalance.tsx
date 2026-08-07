@@ -299,7 +299,7 @@ function TrialBalanceInner() {
         subtitle="Accrual basis"
 
 
-        profile="financial"
+        profile="operational"
       >
         <ReportTable
           columns={columns}
