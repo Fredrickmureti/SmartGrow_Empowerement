@@ -86,80 +86,133 @@ function TrialBalanceInner() {
     });
   };
 
-  const fmt = (amount: number) => formatCurrency(amount, baseCurrency);
-  const fmtOrDash = (amount: number) => amount !== 0 ? fmt(amount) : "—";
-
-  // Group accounts by type
-  const accountsByType = (data?.accounts || []).reduce((acc, account) => {
-    if (account.is_group) return acc;
-    const type = account.account_type;
-    if (!acc[type]) acc[type] = [];
-    acc[type].push(account);
-    return acc;
-  }, {} as Record<string, FinancialReportAccount[]>);
-
-  const typeOrder = ["asset", "liability", "equity", "income", "expense"];
-
-  // Grand totals for 6-column
-  const grandTotals = (data?.accounts || []).filter(a => !a.is_group).reduce(
-    (acc, acct) => {
-      const openSplit = splitBalance(acct.opening_balance, acct.account_type);
-      const closeSplit = splitBalance(acct.closing_balance, acct.account_type);
-      acc.openDebit += openSplit.debit;
-      acc.openCredit += openSplit.credit;
-      acc.movDebit += acct.debit_total;
-      acc.movCredit += acct.credit_total;
-      acc.closeDebit += closeSplit.debit;
-      acc.closeCredit += closeSplit.credit;
-      return acc;
-    },
-    { openDebit: 0, openCredit: 0, movDebit: 0, movCredit: 0, closeDebit: 0, closeCredit: 0 }
+  const fmt = useCallback(
+    (amount: number) => formatAccountingNumber(amount, baseCurrency),
+    [baseCurrency],
   );
 
-  const getExportConfig = useCallback((): ExportConfig => {
-    const columns: ExportColumn[] = [
-      { key: "code", header: "Code", width: 10 },
-      { key: "name", header: "Account Name", width: 25 },
-      { key: "open_dr", header: "Opening DR", width: 14, format: "currency", align: "right" },
-      { key: "open_cr", header: "Opening CR", width: 14, format: "currency", align: "right" },
-      { key: "mov_dr", header: "Movement DR", width: 14, format: "currency", align: "right" },
-      { key: "mov_cr", header: "Movement CR", width: 14, format: "currency", align: "right" },
-      { key: "close_dr", header: "Closing DR", width: 14, format: "currency", align: "right" },
-      { key: "close_cr", header: "Closing CR", width: 14, format: "currency", align: "right" },
-    ];
+  // ── One column declaration drives the screen table AND the export ──
+  const columns = useMemo<ReportColumn[]>(
+    () => [
+      { key: "code", header: "Code", width: "w-[90px]", sticky: true },
+      { key: "name", header: "Account name", width: "w-[280px]", sticky: true, groupEnd: true },
+      { key: "open_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+      { key: "open_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
+      { key: "mov_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+      { key: "mov_cr", header: "Credit", format: "currency", width: "w-[130px]", groupEnd: true },
+      { key: "close_dr", header: "Debit", format: "currency", width: "w-[130px]" },
+      { key: "close_cr", header: "Credit", format: "currency", width: "w-[130px]" },
+    ],
+    [],
+  );
 
-    const rows: ExportRow[] = [];
+  const columnGroups = useMemo<ReportColumnGroup[]>(
+    () => [
+      { label: "Account", span: 2, align: "left" },
+      { label: "Opening balance", span: 2 },
+      { label: "Movement", span: 2 },
+      { label: "Closing balance", span: 2 },
+    ],
+    [],
+  );
+
+  // Grouping, splitting and totalling happen once — not on every render pass.
+  const { rows, grandTotals } = useMemo(() => {
+    const accounts = (data?.accounts || []).filter((a) => !a.is_group);
+    const byType = accounts.reduce<Record<string, FinancialReportAccount[]>>((acc, account) => {
+      (acc[account.account_type] ||= []).push(account);
+      return acc;
+    }, {});
+
+    const typeOrder = ["asset", "liability", "equity", "income", "expense"];
+    const out: ReportRow[] = [];
+    const grand = {
+      openDebit: 0, openCredit: 0, movDebit: 0, movCredit: 0, closeDebit: 0, closeCredit: 0,
+    };
+
     for (const type of typeOrder) {
-      const accounts = accountsByType[type] || [];
-      if (accounts.length === 0) continue;
-      rows.push({ code: "", name: ACCOUNT_TYPE_LABELS[type], _isHeader: true });
-      for (const acct of accounts) {
-        const openSplit = splitBalance(acct.opening_balance, acct.account_type);
-        const closeSplit = splitBalance(acct.closing_balance, acct.account_type);
-        rows.push({
-          code: acct.code, name: acct.name,
-          open_dr: openSplit.debit || null, open_cr: openSplit.credit || null,
-          mov_dr: acct.debit_total || null, mov_cr: acct.credit_total || null,
-          close_dr: closeSplit.debit || null, close_cr: closeSplit.credit || null,
+      const list = byType[type] || [];
+      if (list.length === 0) continue;
+
+      out.push({ id: `sec-${type}`, kind: "section", label: ACCOUNT_TYPE_LABELS[type] });
+      const sub = { openDebit: 0, openCredit: 0, movDebit: 0, movCredit: 0, closeDebit: 0, closeCredit: 0 };
+
+      for (const acct of list) {
+        const open = splitBalance(acct.opening_balance, acct.account_type);
+        const close = splitBalance(acct.closing_balance, acct.account_type);
+        sub.openDebit += open.debit;
+        sub.openCredit += open.credit;
+        sub.movDebit += acct.debit_total;
+        sub.movCredit += acct.credit_total;
+        sub.closeDebit += close.debit;
+        sub.closeCredit += close.credit;
+
+        out.push({
+          id: acct.id,
+          depth: acct.depth,
+          onClick: () => handleDrillDown(acct),
+          values: {
+            code: acct.code,
+            name: acct.name,
+            open_dr: blankIfZero(open.debit),
+            open_cr: blankIfZero(open.credit),
+            mov_dr: blankIfZero(acct.debit_total),
+            mov_cr: blankIfZero(acct.credit_total),
+            close_dr: blankIfZero(close.debit),
+            close_cr: blankIfZero(close.credit),
+          },
         });
       }
+
+      out.push({
+        id: `sub-${type}`,
+        kind: "subtotal",
+        label: `${ACCOUNT_TYPE_LABELS[type]} total`,
+        values: {
+          open_dr: sub.openDebit, open_cr: sub.openCredit,
+          mov_dr: sub.movDebit, mov_cr: sub.movCredit,
+          close_dr: sub.closeDebit, close_cr: sub.closeCredit,
+        },
+      });
+
+      grand.openDebit += sub.openDebit;
+      grand.openCredit += sub.openCredit;
+      grand.movDebit += sub.movDebit;
+      grand.movCredit += sub.movCredit;
+      grand.closeDebit += sub.closeDebit;
+      grand.closeCredit += sub.closeCredit;
     }
 
-    rows.push({
-      code: "", name: "TOTAL", _isGrandTotal: true,
-      open_dr: grandTotals.openDebit, open_cr: grandTotals.openCredit,
-      mov_dr: grandTotals.movDebit, mov_cr: grandTotals.movCredit,
-      close_dr: grandTotals.closeDebit, close_cr: grandTotals.closeCredit,
-    });
+    if (out.length > 0) {
+      out.push({
+        id: "grand-total",
+        kind: "grandTotal",
+        label: "TOTAL",
+        values: {
+          open_dr: grand.openDebit, open_cr: grand.openCredit,
+          mov_dr: grand.movDebit, mov_cr: grand.movCredit,
+          close_dr: grand.closeDebit, close_cr: grand.closeCredit,
+        },
+      });
+    }
 
-    return {
+    return { rows: out, grandTotals: grand };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, asOfDate]);
+
+  const getExportConfig = useCallback(
+    (): ExportConfig => ({
       title: "Trial Balance",
-      companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
-      columns, rows, sheetName: "Trial Balance", currency: baseCurrency,
-    };
-  }, [data, accountsByType, asOfDate, currentOrg, baseCurrency, grandTotals]);
+      columns: toExportColumns(columns),
+      rows: toExportRows(rows, columns),
+      sheetName: "Trial Balance",
+      currency: baseCurrency,
+    }),
+    [columns, rows, asOfDate, currentOrg, baseCurrency],
+  );
+
 
   return (
     <ReportPageLayout
