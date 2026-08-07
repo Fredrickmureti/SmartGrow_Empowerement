@@ -30,6 +30,18 @@ export async function logReportRun(
   audit: ReportRunAudit,
 ): Promise<void> {
   try {
+    // `run_hash` is NOT NULL on the table: derive the same style of short,
+    // stable handle the PDF path writes so screen/export runs are queryable
+    // alongside PDF runs.
+    const runHash = await shortHash({
+      reportType: audit.reportType ?? "ad_hoc",
+      org: audit.organizationId ?? null,
+      business: audit.businessId ?? null,
+      user: audit.userId ?? null,
+      format: audit.outputFormat,
+      params: audit.params ?? null,
+      ts: Date.now(),
+    });
     await supabase.from("report_run_log").insert({
       organization_id: audit.organizationId ?? null,
       business_id: audit.businessId ?? null,
@@ -42,11 +54,25 @@ export async function logReportRun(
         output_format: audit.outputFormat,
         row_count: audit.rowCount ?? null,
       },
-      run_hash: null,
+      run_hash: runHash,
       byte_count: audit.byteCount ?? 0,
       status: audit.status ?? "ok",
     });
   } catch (e) {
     console.warn("[logReportRun] audit write skipped:", (e as Error).message);
+  }
+}
+
+/** 8-char SHA-1 prefix — mirrors `renderReport`'s `computeRunHash`. */
+async function shortHash(input: Record<string, unknown>): Promise<string> {
+  try {
+    const buf = new TextEncoder().encode(JSON.stringify(input));
+    const digest = await crypto.subtle.digest("SHA-1", buf);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("")
+      .slice(0, 8);
+  } catch {
+    return "00000000";
   }
 }
