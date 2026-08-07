@@ -185,7 +185,7 @@ export default function Bills() {
   // Custom field filtering
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("bill");
 
-  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, voidBill, recordBillPayment, getDefaultDueDate } = useBills();
+  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, recordBillPayment, getDefaultDueDate } = useBills();
   const navigate = useNavigate();
   const { contacts } = useContacts();
 
