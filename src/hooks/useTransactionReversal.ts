@@ -819,7 +819,19 @@ export function useTransactionReversal() {
   };
 
   /**
-   * Void a bill — reverses the linked JE atomically and updates bill status.
+   * Phase 3 — void a supplier bill.
+   *
+   * The whole operation belongs to `void_bill_atomic` and runs in one
+   * transaction: journal reversal through `void_journal_entry_atomic`, the
+   * three-way-match release, the status flip and the void metadata. The bill row
+   * is never deleted.
+   *
+   * This client owns nothing but the reason, the audit label and error
+   * surfacing. Do not reintroduce the previous saga (read bill → check
+   * payments → reverse JE → update status): each step was its own transaction,
+   * so a failure in the middle left the ledger reversed with the bill still
+   * open. Settlement, draft and closed-period refusals are the RPC's, so the
+   * rules cannot drift between call sites.
    */
   const voidBill = async (options: VoidBillOptions): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -828,73 +840,35 @@ export function useTransactionReversal() {
     }
 
     try {
-      const { data: bill, error: billError } = await supabase
-        .from("bills")
-        .select("*")
-        .eq("id", options.billId)
-        .single();
+      const { data, error } = await supabase.rpc("void_bill_atomic" as any, {
+        _bill_id: options.billId,
+        _reason: options.reason,
+        _void_date: options.voidDate ?? null,
+        _actor: user.id,
+        _client_request_id: null,
+      } as any);
+      if (error) throw error;
 
-      if (billError) throw billError;
-      if (!bill) throw new Error("Bill not found");
+      const result = (data ?? {}) as { result?: string; bill_number?: string | null };
+      const label = result.bill_number ?? options.billId;
 
-      if (bill.status === "void") {
-        toast({ title: "Already Voided", description: "This bill has already been voided", variant: "destructive" });
-        return false;
+      if (result.result === "already_voided") {
+        toast({ title: "Already Voided", description: `Bill ${label} has already been voided.` });
+        return true;
       }
-
-      // Allocation-aware (ADR 0028): bill_payments no longer has bill_id;
-      // detect attached payments through bill_payment_allocations.
-      const { data: payments } = await supabase
-        .from("bill_payment_allocations")
-        .select("id")
-        .eq("bill_id", options.billId);
-
-      if (payments && payments.length > 0) {
-        toast({
-          title: "Has Active Payments",
-          description: `This bill has ${payments.length} payment(s). Void payments first before voiding the bill.`,
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
-
-      const billJeId = (bill as any).journal_entry_id;
-      if (billJeId) {
-        await reverseJEAtomic(billJeId, `Void bill ${bill.bill_number}: ${options.reason}`, user.id, voidDate);
-      } else {
-        const { data: orphanJE } = await supabase
-          .from("journal_entries")
-          .select("id")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("source_type", "bill")
-          .eq("source_id", options.billId)
-          .neq("status", "voided")
-          .neq("status", "reversed")
-          .maybeSingle();
-        if (orphanJE?.id) {
-          await reverseJEAtomic(orphanJE.id, `Void bill ${bill.bill_number}: ${options.reason}`, user.id, voidDate);
-        }
-      }
-
-      const { error: updateError } = await supabase
-        .from("bills")
-        .update({ status: "void" as any })
-        .eq("id", options.billId);
-
-      if (updateError) throw updateError;
 
       logAction({
         action: "voided",
         entityType: "bill",
         entityId: options.billId,
-        entityName: bill.bill_number,
-        changesSummary: `Bill voided. Reason: ${options.reason}. Total: ${bill.total}`,
+        entityName: result.bill_number ?? undefined,
+        changesSummary: `Bill voided. Reason: ${options.reason}`,
       });
 
-      toast({ title: "Bill Voided", description: `Bill ${bill.bill_number} has been voided and GL entries reversed` });
+      toast({
+        title: "Bill Voided",
+        description: `Bill ${label} has been voided and its postings reversed.`,
+      });
       return true;
     } catch (error: any) {
       console.error("Error voiding bill:", error);
@@ -902,6 +876,7 @@ export function useTransactionReversal() {
       return false;
     }
   };
+
 
   /**
    * ADR 0126 — Void a supplier payment. The whole operation (journal reversal,
