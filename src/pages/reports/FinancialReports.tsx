@@ -175,7 +175,7 @@ function FinancialReportsInner() {
   useEffect(() => { setSharedDateTo(dateTo); }, [dateTo]);
   useEffect(() => { setSharedComparisonMode(comparisonMode); }, [comparisonMode]);
 
-  const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
+  const { baseCurrency, isReady: currencyReady } = useCurrency();
   const { currentOrg } = useOrganization();
   const { data: integrityReport } = useInvoiceIntegrityCheck();
 

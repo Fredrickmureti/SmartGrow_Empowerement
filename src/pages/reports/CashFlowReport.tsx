@@ -47,7 +47,7 @@ function CashFlowReportInner() {
   useEffect(() => { setSharedDateFrom(dateFrom); }, [dateFrom]);
   useEffect(() => { setSharedDateTo(dateTo); }, [dateTo]);
 
-  const { formatCurrency, baseCurrency, isReady } = useCurrency();
+  const { baseCurrency, isReady } = useCurrency();
   const { currentOrg } = useOrganization();
 
   const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
