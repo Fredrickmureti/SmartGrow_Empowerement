@@ -123,6 +123,7 @@ export default function CustomerPayments() {
   const { contacts } = useContacts();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
+  const { preview: previewDocument } = useDocumentPreview();
   const { accounts: defaultAcctMappings } = useDefaultAccounts();
 
   // Studio integration
@@ -692,8 +693,8 @@ export default function CustomerPayments() {
                 isLoading={isLoading}
                 bulkSelection={bulkSelection}
                 onViewDetail={(payment) => { setSelectedPayment(payment); setPeekId(payment.id); }}
-                onViewReceipt={handleDispatchReceipt}
-                onDownloadReceipt={handleDispatchReceipt}
+                onViewReceipt={handleViewReceipt}
+                onDownloadReceipt={handleDownloadReceipt}
                 onPrintReceipt={handleDispatchReceipt}
                 onEmailReceipt={(payment) => {
                   const receiptNum = payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
