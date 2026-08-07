@@ -24,6 +24,8 @@ import {
   type RecipientInfo,
   type PaperPreset,
   type PaperSpec,
+  resolveTypography,
+  type PresentationProfile,
 } from "./pdf/index.ts";
 import { fetchLogoBytes, type OrganizationBranding } from "./branding/index.ts";
 
@@ -66,6 +68,13 @@ export interface ReportPdfPayload {
    */
   formatProfile?: "financial" | "operational";
   /**
+   * Presentation profile — drives typography and density only (never data,
+   * never semantics). Resolved centrally by the report registry; callers
+   * should normally leave it unset. Omitted = derived from `formatProfile`
+   * and the column count, which is what `renderReport` does.
+   */
+  presentationProfile?: PresentationProfile;
+  /**
    * Stage 4: standard disclosure line drawn on the last page footer.
    * Format: `Generated {timestamp} by {user} • {org} • Run {short-hash}`.
    * If omitted, falls back to the legacy generated-stamp footer.
@@ -95,11 +104,23 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     amountDue,
     footerNote,
     formatProfile = "operational",
+    presentationProfile,
     disclosure,
     paperFormat,
   } = payload;
 
-  const builder = await PdfBuilder.create({ orientation, paperFormat });
+  // Reports resolve a presentation profile; when a caller omits it we fall
+  // back to the statement/operational split implied by `formatProfile`.
+  const typography = resolveTypography(
+    presentationProfile ?? (formatProfile === "financial" ? "statement" : "operational"),
+  );
+
+  const builder = await PdfBuilder.create({
+    orientation,
+    paperFormat,
+    margin: typography.pageMargin,
+    bottomMargin: typography.bottomMargin,
+  });
 
   // Embed the logo once; reused on every page header.
   // Financial masthead omits the logo by design (legal-entity-first layout).
@@ -112,7 +133,7 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
   let lastSeparatorY = 0;
 
   builder.onNewPage = (page) => {
-    drawPageNumber(builder, page);
+    drawPageNumber(builder, page, typography);
     const drawn = drawBrandedHeader(builder, page, {
       title,
       subtitle,
@@ -121,6 +142,7 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
       companyName,
       logo,
       formatProfile,
+      typography,
     });
     lastSeparatorY = drawn.separatorY;
     return drawn.bodyY;
@@ -136,7 +158,7 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     });
   }
 
-  drawDataTable(builder, { columns, rows, currency });
+  drawDataTable(builder, { columns, rows, currency, typography });
 
   if (summaryRows && summaryRows.length > 0) {
     drawSummaryBlock(builder, builder.page, summaryRows);
@@ -147,6 +169,7 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     footerNote,
     includeGeneratedStamp: true,
     disclosure,
+    typography,
   });
 
   return await builder.save();
