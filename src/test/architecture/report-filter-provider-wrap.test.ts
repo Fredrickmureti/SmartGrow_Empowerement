@@ -34,7 +34,9 @@ describe("ReportFilterProvider wrap guard", () => {
     const src = readFileSync(file, "utf8");
     const usesFilters =
       /useReportFilters\s*\(/.test(src) ||
-      /<\s*ReportBranchFilter\b/.test(src);
+      /<\s*ReportBranchFilter\b/.test(src) ||
+      // ReportPageLayout always renders <ReportBranchFilter /> internally.
+      /<\s*ReportPageLayout\b/.test(src);
     if (!usesFilters) continue;
 
     it(`${file} wraps its default export in <ReportFilterProvider>`, () => {
