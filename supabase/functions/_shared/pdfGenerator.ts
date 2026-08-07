@@ -308,11 +308,12 @@ export async function generateDocumentPdf(
   const gpg_rsPaper = String(
     (data as any)?.pos_receipt_settings?.paper_size ?? "",
   ).toLowerCase();
+  // Geometry is a property of the MEDIUM, never of the document kind.
+  // Only stored POS receipt settings may imply thermal in the absence of
+  // an explicit resolved paper; `document_type === "receipt"` must not,
+  // or a payment receipt could never be read/archived on A4.
   const thermalTokens = new Set(["40mm", "58mm", "80mm"]);
-  const gpg_impliesThermal =
-    thermalTokens.has(gpg_rsPaper)
-    || gpg_docType === "pos_receipt"
-    || gpg_docType === "receipt";
+  const gpg_impliesThermal = thermalTokens.has(gpg_rsPaper);
   const gpg_isThermal = gpg_paper
     ? thermalTokens.has(gpg_paper)
     : gpg_impliesThermal;
