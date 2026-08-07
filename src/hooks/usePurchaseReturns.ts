@@ -329,10 +329,15 @@ export function usePurchaseReturns() {
       // Now: any failure aborts the whole transition and the caller sees it.
       const { data: nextNum, error: numErr } = await supabase.rpc(
         "get_next_vendor_credit_note_number",
-        { p_organization_id: currentOrg!.id }
+        {
+          p_organization_id: currentOrg!.id,
+          // ADR 0131: numbering is business-scoped.
+          p_business_id: currentBusiness?.id || pr.business_id,
+        } as any
       );
       if (numErr) throw new Error(`Failed to allocate debit-note number: ${numErr.message}`);
-      const dnNumber = nextNum || `DN-${Date.now()}`;
+      if (!nextNum) throw new Error("Failed to allocate debit-note number");
+      const dnNumber = nextNum as unknown as string;
 
       const { error: vcnError } = await supabase.from("vendor_credit_notes").insert({
         organization_id: currentOrg!.id,

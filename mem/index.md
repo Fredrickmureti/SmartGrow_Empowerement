@@ -31,6 +31,8 @@ Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/W
 
 Any writer inserting `journal_entry_lines` MUST stamp organization_id, business_id and branch_id from the parent entry — they are NOT NULL and validated, not backfilled by the match trigger. Only the three posting-engine functions may insert journal lines (ADR 0123).
 
+Credit notes, customer credit and refunds are server-side services (ADR 0131): no client-built JE lines, customer credit lives in `customer_credit_balances`/`_movements`, one refund engine (`refund_customer_atomic`), business-scoped locked numbering.
+
 
 
 ## Memories
@@ -44,4 +46,5 @@ Any writer inserting `journal_entry_lines` MUST stamp organization_id, business_
 - [Warehouse preview vs workspace](mem://features/warehouse-preview-vs-workspace) — ADR 0122 EntityPreview/EntityWorkspaceShell contract, which entities get workspace routes, ?sel/?tab conventions
 - [Business reversal architecture](mem://features/business-reversal-architecture) — canonical reversal writers, journal line scope invariant, paid-invoice policy, per-domain gaps
 - [Payment reversal](mem://features/payment-reversal) — ADR 0012 intent model, ReversePaymentWizard, atomic reversal RPCs, customer deposits
+- [Commercial compensation](mem://features/commercial-compensation) — ADR 0131 credit notes, customer credit ledger, single refund engine, credit-note numbering rules
 

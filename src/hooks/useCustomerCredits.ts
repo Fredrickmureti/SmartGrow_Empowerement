@@ -14,8 +14,12 @@ export interface AvailableCredit {
 }
 
 /**
- * Hook to get available (unapplied) credits for a specific customer.
- * Queries credit_notes with status = 'issued' and amount_applied < total.
+ * Customer credit for a contact (ADR 0131).
+ *
+ * The spendable amount comes from `customer_credit_balances` — a GL-anchored
+ * liability projection of `customer_credit_movements` — NOT from a derived
+ * `total - amount_applied` on credit notes. The credit-note list is kept only
+ * as the document-level provenance shown next to the balance.
  */
 export function useCustomerCredits(contactId?: string | null) {
   const { currentOrg } = useOrganization();
@@ -52,7 +56,22 @@ export function useCustomerCredits(contactId?: string | null) {
     enabled: !!contactId && !!currentOrg?.id,
   });
 
-  const totalAvailableCredit = credits.reduce((sum, c) => sum + c.available, 0);
+  const { data: balance = 0, refetch: refetchBalance } = useQuery({
+    queryKey: ["customer-credit-balance", contactId, currentBusiness?.id],
+    queryFn: async (): Promise<number> => {
+      if (!contactId || !currentBusiness?.id) return 0;
+      const { data, error } = await supabase
+        .from("customer_credit_balances")
+        .select("balance")
+        .eq("business_id", currentBusiness.id)
+        .eq("contact_id", contactId);
+      if (error) throw error;
+      return (data || []).reduce((sum, row: { balance: number | null }) => sum + Number(row.balance ?? 0), 0);
+    },
+    enabled: !!contactId && !!currentBusiness?.id,
+  });
+
+  const totalAvailableCredit = balance;
 
   return {
     credits,
