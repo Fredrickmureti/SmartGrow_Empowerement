@@ -1249,6 +1249,7 @@ export function useTransactionReversal() {
 
     voidBill,
     voidBillPayment,
+    reverseGoodsReceipt,
     // unreconcilePayment intentionally NOT exposed — ADR 0012 Wave R2.
     // The wizard's wrong_invoice_applied → unapplyPayment path is the only
     // supported way to detach a payment. Re-introducing this on the public
