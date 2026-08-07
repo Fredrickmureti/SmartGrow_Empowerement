@@ -62,7 +62,7 @@ export function SubscriptionProtectedRoute({
   // Portal users can ONLY access self-service routes, never business routes.
   if (userType === "portal") {
     const PORTAL_SAFE_PREFIXES = [
-      "/hr/my-portal", "/hr/leave", "/hr/timesheets", "/hr/documents",
+      "/me",
       "/settings", "/settings/profile", "/select-organization", "/notifications", "/upgrade",
     ];
     const isPortalSafe = PORTAL_SAFE_PREFIXES.some(

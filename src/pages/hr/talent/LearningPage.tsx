@@ -23,7 +23,7 @@ export default function LearningPage() {
           competency assessments when training is completed.
         </p>
         <Button asChild variant="outline">
-          <Link to="/hr/performance">
+          <Link to="/hr/talent/dashboard">
             Open legacy courses & enrollments <ArrowRight className="h-4 w-4 ml-1" />
           </Link>
         </Button>

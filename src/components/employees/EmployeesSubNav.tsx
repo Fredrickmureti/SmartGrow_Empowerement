@@ -51,14 +51,14 @@ export function EmployeesSubNav() {
       items: [
         { to: "/hr/dashboard", label: "Overview" },
         { to: "/hr/employees", label: "Directory", end: true },
-        { to: "/hr/org-chart", label: "Org chart" },
+        { to: "/hr/employees/org-chart", label: "Org chart" },
       ],
     },
     {
       label: "Insights",
       items: [
         { to: "/hr/reports", label: "Reports" },
-        { to: "/hr/performance", label: "Performance" },
+        { to: "/hr/talent/dashboard", label: "Performance" },
       ],
     },
   ];

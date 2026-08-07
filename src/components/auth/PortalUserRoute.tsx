@@ -32,7 +32,6 @@ interface PortalUserRouteProps {
 //   - /dashboard, /home                       → business landing
 const PORTAL_ALWAYS_ALLOWED = [
   "/me",
-  "/hr/my-portal",
   "/select-organization",
   "/settings/profile",
   "/settings/notifications",
@@ -43,8 +42,6 @@ const PORTAL_ALWAYS_ALLOWED = [
 // IMPORTANT: Only self-service modules are listed here. Business modules (contacts,
 // projects, sales, finance, etc.) are INTERNAL-ONLY and must never appear here.
 // This enforces Odoo's hard boundary: portal users never access backend apps.
-// Both `/me/*` and the legacy `/hr/*` self-service paths are listed so direct
-// hits and old bookmarks both pass the gate before the legacy redirect fires.
 const PORTAL_PERMISSION_PATHS: Array<{ path: string; permission: string }> = [
   { path: "/me/leave", permission: "viewLeave" },
   { path: "/me/timesheets", permission: "viewTimesheets" },
@@ -52,17 +49,13 @@ const PORTAL_PERMISSION_PATHS: Array<{ path: string; permission: string }> = [
   { path: "/me/tax-certificates", permission: "viewEmployees" },
   { path: "/me/profile", permission: "viewEmployees" },
   { path: "/me/attendance", permission: "viewAttendance" },
-  // Legacy `/hr/*` self-service paths — kept until all bookmarks expire.
-  { path: "/hr/leave", permission: "viewLeave" },
-  { path: "/hr/timesheets", permission: "viewTimesheets" },
-  { path: "/hr/documents", permission: "viewEmployees" },
 ];
 
 /**
  * PortalUserRoute — Blocks portal (employee self-service) users from
  * accessing business routes like Sales, Finance, Dashboard, etc.
  * 
- * Portal users are redirected to /hr/my-portal (their self-service hub).
+ * Portal users are redirected to /me (their self-service hub).
  * Allowed paths are derived DYNAMICALLY from the user's effective permissions
  * (base role + Access Group grants), matching Odoo's additive portal model.
  */
