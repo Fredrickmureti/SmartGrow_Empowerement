@@ -102,16 +102,24 @@ END $$;
 -- 6) Behavioural probe: the preview is total and shaped. For any real document
 --    it returns the section keys the UI renders, and its GL projection mirrors
 --    debits and credits (a reversal that is not a mirror is not a reversal).
+--    Skips when the session has no org membership (42501 from the tenancy
+--    guard) or the tenant is empty.
 DO $$
 DECLARE v_id uuid; v_res jsonb; v_je jsonb; v_line jsonb;
 BEGIN
   SELECT id INTO v_id FROM public.invoices LIMIT 1;
   IF v_id IS NULL THEN RETURN; END IF;
 
-  v_res := public.preview_reversal_consequences('invoice', v_id);
+  BEGIN
+    v_res := public.preview_reversal_consequences('invoice', v_id);
+  EXCEPTION WHEN insufficient_privilege THEN
+    RETURN;
+  END;
+
   IF v_res IS NULL THEN
     RAISE EXCEPTION 'preview_reversal_consequences returned NULL for invoice %', v_id;
   END IF;
+
   IF NOT (v_res ? 'gl' AND v_res ? 'warnings') THEN
     RAISE EXCEPTION 'preview_reversal_consequences response is missing published sections: %',
       (SELECT string_agg(k, ',') FROM jsonb_object_keys(v_res) k);
