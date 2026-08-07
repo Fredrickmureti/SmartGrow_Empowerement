@@ -523,8 +523,18 @@ export async function generateDocumentPdf(
     }
   }
 
-  // Totals (skip for delivery notes that hide amounts)
-  if (!data.hide_amounts) {
+  // Amount in words — an official receipt states the sum received in words.
+  if (data.document_type === "receipt" && (data as any).amount_in_words) {
+    drawNotesBlock(builder, builder.page, {
+      title: "Amount in words",
+      body: String((data as any).amount_in_words),
+    });
+  }
+
+  // Totals (skip for delivery notes that hide amounts, and for payment
+  // receipts whose ledger already grand-totals the money received —
+  // a second Subtotal/Total block would double-state it).
+  if (!data.hide_amounts && data.document_type !== "receipt") {
     const isPOS = data.document_type === "pos_receipt";
     const amountPaid = data.amount_paid && data.amount_paid > 0 ? data.amount_paid : undefined;
     const balanceDue = amountPaid !== undefined
