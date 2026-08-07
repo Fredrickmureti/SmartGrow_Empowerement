@@ -107,6 +107,7 @@ export function PayrollReportContextHeader({
 
   const label = run.run_number
     ? `Run ${run.run_number}`
+    ? `Run ${run.run_number}`
     : `${format(new Date(run.pay_period_start), "MMM yyyy")} payroll`;
 
   return (
