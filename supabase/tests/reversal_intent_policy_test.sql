@@ -287,3 +287,62 @@ BEGIN
     WHEN insufficient_privilege THEN NULL;
   END;
 END $$;
+
+-- ============================================================================
+-- Phase 5.3 — approval thresholds
+-- ============================================================================
+
+-- 12) The policy surface exists and is tenant-scoped.
+DO $$
+BEGIN
+  IF to_regclass('public.reversal_approval_policies') IS NULL THEN
+    RAISE EXCEPTION 'reversal_approval_policies is missing — Phase 5.3 threshold storage';
+  END IF;
+  IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = 'public.reversal_approval_policies'::regclass) THEN
+    RAISE EXCEPTION 'reversal_approval_policies has RLS disabled — thresholds would leak across tenants';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = 'public.reversal_approval_policies'::regclass) THEN
+    RAISE EXCEPTION 'reversal_approval_policies has no RLS policies';
+  END IF;
+END $$;
+
+-- 13) The requirement resolver and the request entrypoint both exist, and the
+--     shared gate consults the resolver rather than re-deriving thresholds.
+DO $$
+DECLARE v_gate text;
+BEGIN
+  IF to_regprocedure('public.reversal_approval_requirement(text,uuid,text)') IS NULL THEN
+    RAISE EXCEPTION 'reversal_approval_requirement is missing';
+  END IF;
+  IF to_regprocedure('public.request_reversal_approval(text,uuid,text,text,text)') IS NULL THEN
+    RAISE EXCEPTION 'request_reversal_approval is missing';
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid) INTO v_gate
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.proname = 'assert_can_reverse';
+
+  IF v_gate !~ 'reversal_approval_requirement' THEN
+    RAISE EXCEPTION 'assert_can_reverse does not consult reversal_approval_requirement — approval thresholds are unenforced';
+  END IF;
+END $$;
+
+-- 14) Every reversal action key is registered with the governance registry, so
+--     approvers can be routed by the one approval engine.
+DO $$
+DECLARE v_missing text;
+BEGIN
+  SELECT string_agg(k, ', ')
+  INTO v_missing
+  FROM unnest(ARRAY[
+    'reversal.invoice','reversal.payment','reversal.bill',
+    'reversal.bill_payment','reversal.goods_receipt'
+  ]) AS k
+  WHERE NOT EXISTS (
+    SELECT 1 FROM public.governance_action_registry g WHERE g.action_key = k
+  );
+
+  IF v_missing IS NOT NULL THEN
+    RAISE EXCEPTION 'reversal actions absent from governance_action_registry: %', v_missing;
+  END IF;
+END $$;
