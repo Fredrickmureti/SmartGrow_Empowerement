@@ -6,14 +6,14 @@
  * status, run hash). Until now that table had six writers and no reader: the
  * audit existed but nobody could see it. This page is that reader.
  *
- * It is deliberately a *log* view, not an analytics surface:
- *  - no aggregation or scoring, because a run log answers "who produced which
- *    figures, with which parameters, and when" — inventing KPIs on top of it
- *    would make the audit trail look like a performance dashboard;
- *  - `params_jsonb` is shown verbatim in a detail dialog, because the exact
- *    parameter set is the thing an auditor needs to reproduce the run;
- *  - `run_hash` is surfaced as-is so two renditions of the same figures can be
- *    proven identical.
+ * Presentation follows the way mature ERPs render audit logs (Odoo's mail
+ * tracking / SAP's change documents / NetSuite's system notes): the log reads
+ * as *business facts in business language* — who did what, to which data, for
+ * which period, and what came out. Machine handles (row UUIDs, actor UUIDs,
+ * the `run_hash` fingerprint, the raw `params_jsonb`) are never the primary
+ * reading surface; they live behind a "Technical details" disclosure in the
+ * row detail, where a forensic reader can still reproduce or fingerprint the
+ * run. Nothing is discarded — it is ranked.
  *
  * RLS: `report_run_log` exposes SELECT to org members only
  * (`is_org_member(auth.uid(), organization_id)`), so this page reads the table
@@ -32,13 +32,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eye } from "lucide-react";
+import { Eye, ChevronDown } from "lucide-react";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
@@ -76,7 +81,11 @@ function reportLabel(reportType: string): string {
   const hit = REPORT_REGISTRY.find(
     (r) => r.reportType === reportType || r.id === reportType,
   );
-  return hit?.name ?? reportType;
+  if (hit?.name) return hit.name;
+  // Unregistered key: still render it as a sentence, never as a raw slug.
+  return reportType
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function statusTone(status: string): "default" | "secondary" | "destructive" | "outline" {
@@ -86,11 +95,130 @@ function statusTone(status: string): "default" | "secondary" | "destructive" | "
   return "outline";
 }
 
+/** Business wording for the outcome — auditors read "Completed", not "ok". */
+function statusLabel(status: string): string {
+  const s = (status || "").toLowerCase();
+  if (s === "ok" || s === "success" || s === "completed") return "Completed";
+  if (s === "error" || s === "failed") return "Failed";
+  if (!s) return "Unknown";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Delivery medium in the words the user chose in the UI. */
+const OUTPUT_LABELS: Record<string, string> = {
+  pdf: "PDF document",
+  csv: "CSV export",
+  xlsx: "Excel export",
+  excel: "Excel export",
+  json: "On-screen view",
+  screen: "On-screen view",
+  print: "Printed",
+};
+
+function outputLabel(params: Record<string, unknown> | null): string {
+  const raw = params?.output_format ?? params?.format ?? params?.outputFormat;
+  const key = typeof raw === "string" ? raw.toLowerCase() : "";
+  return OUTPUT_LABELS[key] ?? (key ? key.toUpperCase() : "PDF document");
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isMachineHandle(key: string, value: unknown): boolean {
+  if (typeof value === "string" && UUID_RE.test(value)) return true;
+  return /(^|_)(id|ids|uuid|hash|token)$/i.test(key);
+}
+
+function prettyDate(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return format(d, "MMM d, yyyy");
+}
+
+/** "1 Jan 2026 – 31 Mar 2026", "As of 31 Mar 2026", or null when undated. */
+function periodLabel(params: Record<string, unknown> | null): string | null {
+  if (!params) return null;
+  const range = (params.dateRange ?? params.date_range) as
+    | Record<string, unknown>
+    | undefined;
+  const from =
+    prettyDate(params.date_from ?? params.dateFrom ?? params.from ?? range?.from);
+  const to = prettyDate(params.date_to ?? params.dateTo ?? params.to ?? range?.to);
+  const asOf = prettyDate(params.as_of_date ?? params.asOfDate ?? params.as_of);
+  if (from && to) return `${from} – ${to}`;
+  if (asOf) return `As of ${asOf}`;
+  if (from) return `From ${from}`;
+  if (to) return `Up to ${to}`;
+  return null;
+}
+
+function rowCount(params: Record<string, unknown> | null): number | null {
+  const v = params?.row_count ?? params?.rowCount;
+  return typeof v === "number" ? v : null;
+}
+
+function humanizeKey(key: string): string {
+  return key.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function humanizeValue(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return v.toLocaleString("en-US");
+  if (typeof v === "string") return prettyDate(v) && /\d{4}-\d{2}-\d{2}/.test(v)
+    ? (prettyDate(v) as string)
+    : v.replace(/[_-]+/g, " ");
+  return JSON.stringify(v);
+}
+
+/** Keys already promoted into named fields — never repeat them as "settings". */
+const PROMOTED_KEYS = new Set([
+  "output_format", "format", "outputFormat",
+  "row_count", "rowCount",
+  "date_from", "dateFrom", "from",
+  "date_to", "dateTo", "to",
+  "as_of_date", "asOfDate", "as_of",
+  "dateRange", "date_range",
+]);
+
+/** The readable remainder of `params_jsonb`: real report settings only. */
+function settingEntries(
+  params: Record<string, unknown> | null,
+): Array<[string, string]> {
+  if (!params) return [];
+  return Object.entries(params)
+    .filter(([k, v]) => !PROMOTED_KEYS.has(k) && !isMachineHandle(k, v))
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => [humanizeKey(k), humanizeValue(v)] as [string, string]);
+}
+
 function formatBytes(n: number): string {
   if (!n) return "—";
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Label-over-value pair — the detail dialog's only layout primitive. */
+function Field({
+  label,
+  value,
+  mono,
+  hint,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={mono ? "mt-0.5 break-all font-mono text-xs" : "mt-0.5"}>{value}</dd>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
 }
 
 function ReportRunHistoryInner() {
@@ -102,7 +230,7 @@ function ReportRunHistoryInner() {
   const [detailRow, setDetailRow] = useState<ReportRunRow | null>(null);
 
   const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
+  const { currentBusiness, businesses } = useBusinesses();
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -150,6 +278,45 @@ function ReportRunHistoryInner() {
     return Array.from(s).sort();
   }, [data]);
 
+  // Actor names: a run log that says "who ran it" must say a person's name.
+  const actorIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of data || []) if (r.user_id) s.add(r.user_id);
+    return Array.from(s).sort();
+  }, [data]);
+
+  const { data: actorNames } = useQuery({
+    queryKey: ["report-run-actors", actorIds],
+    enabled: actorIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data: rows, error: e } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", actorIds);
+      if (e) throw e;
+      const map: Record<string, string> = {};
+      for (const p of rows || []) {
+        map[p.user_id] = p.full_name || p.email || "";
+      }
+      return map;
+    },
+  });
+
+  const actorLabel = useCallback(
+    (userId: string | null): string =>
+      (userId && actorNames?.[userId]) || (userId ? "Unknown user" : "System"),
+    [actorNames],
+  );
+
+  const companyLabel = useCallback(
+    (businessId: string | null): string | null =>
+      businessId
+        ? businesses.find((b) => b.id === businessId)?.name ?? "Other company"
+        : null,
+    [businesses],
+  );
+
   const rawById = useMemo(() => {
     const m = new Map<string, ReportRunRow>();
     for (const r of data || []) m.set(r.id, r);
@@ -158,11 +325,27 @@ function ReportRunHistoryInner() {
 
   const columns = useMemo<ReportColumn<ReportRunRow>[]>(
     () => [
-      { key: "when", header: "When", width: "w-[160px]" },
+      { key: "when", header: "Date & time", width: "w-[150px]" },
       { key: "report", header: "Report" },
-      { key: "status", header: "Status", width: "w-[110px]" },
-      { key: "size", header: "Size", width: "w-[100px]", align: "right" },
-      { key: "hash", header: "Run hash", width: "w-[140px]" },
+      { key: "period", header: "Period covered", width: "w-[190px]" },
+      { key: "company", header: "Company", width: "w-[160px]" },
+      { key: "output", header: "Output", width: "w-[130px]" },
+      { key: "lines", header: "Lines", width: "w-[80px]", align: "right" },
+      { key: "actor", header: "Run by", width: "w-[170px]" },
+      {
+        key: "result",
+        header: "Result",
+        width: "w-[110px]",
+        render: (row) => {
+          const raw = rawById.get(String(row.id));
+          if (!raw) return null;
+          return (
+            <Badge variant={statusTone(raw.status)} className="font-normal">
+              {statusLabel(raw.status)}
+            </Badge>
+          );
+        },
+      },
       {
         key: "detail",
         header: "",
@@ -180,7 +363,7 @@ function ReportRunHistoryInner() {
                 e.stopPropagation();
                 setDetailRow(raw);
               }}
-              aria-label="View report run parameters"
+              aria-label="View run details"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -199,12 +382,15 @@ function ReportRunHistoryInner() {
         values: {
           when: format(new Date(r.created_at), "MMM d, yyyy HH:mm"),
           report: reportLabel(r.report_type),
-          status: r.status || null,
-          size: formatBytes(r.byte_count),
-          hash: r.run_hash ? `${r.run_hash.slice(0, 12)}…` : null,
+          period: periodLabel(r.params_jsonb),
+          company: companyLabel(r.business_id) ?? "All companies",
+          output: outputLabel(r.params_jsonb),
+          lines: rowCount(r.params_jsonb),
+          actor: actorLabel(r.user_id),
+          result: statusLabel(r.status),
         },
       })),
-    [data],
+    [data, actorLabel, companyLabel],
   );
 
   const getExportConfig = useCallback((): ExportConfig => {
@@ -224,7 +410,7 @@ function ReportRunHistoryInner() {
     <CompanyScopeGate reportName="Report Run History">
       <ReportPageLayout
         title="Report Run History"
-        description="Every report rendition produced by the reporting engine — who ran it, with which parameters, and what it produced"
+        description="Who ran which report, for which period and company, and what it produced"
         isLoading={isLoading}
         error={error as Error | null}
         isEmpty={!data || data.length === 0}
@@ -269,7 +455,7 @@ function ReportRunHistoryInner() {
                 <SelectItem value="all">All statuses</SelectItem>
                 {statusOptions.map((s) => (
                   <SelectItem key={s} value={s}>
-                    {s}
+                    {statusLabel(s)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -281,13 +467,13 @@ function ReportRunHistoryInner() {
           companyName={currentOrg?.name || ""}
           title="Report Run History"
           dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
-          subtitle={`${data?.length || 0} renditions (capped at 1,000)`}
+          subtitle={`${(data?.length || 0).toLocaleString("en-US")} runs shown (most recent 1,000)`}
           profile="operational"
         >
           <ReportTable
             columns={columns as ReportColumn<never>[]}
             rows={rows}
-            caption="Report renditions logged by the reporting engine"
+            caption="Report runs recorded for this organization"
             emptyMessage="No report runs found for the selected period"
           />
         </ReportSurface>
@@ -295,57 +481,105 @@ function ReportRunHistoryInner() {
         <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Report run details</DialogTitle>
+              <DialogTitle>
+                {detailRow ? reportLabel(detailRow.report_type) : "Report run"}
+              </DialogTitle>
             </DialogHeader>
             {detailRow && (
-              <div className="space-y-2 text-xs">
-                <div>
-                  <span className="text-muted-foreground">When:</span>{" "}
-                  {format(new Date(detailRow.created_at), "MMM d, yyyy HH:mm:ss")}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Report:</span>{" "}
-                  {reportLabel(detailRow.report_type)}{" "}
-                  <span className="font-mono text-muted-foreground">
-                    ({detailRow.report_type})
+              <div className="space-y-4 text-sm">
+                {/* The one-sentence account of the event, as a system note. */}
+                <p className="text-muted-foreground">
+                  {actorLabel(detailRow.user_id)} produced a{" "}
+                  {outputLabel(detailRow.params_jsonb).toLowerCase()} of{" "}
+                  <span className="text-foreground">
+                    {reportLabel(detailRow.report_type)}
                   </span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  <Badge variant={statusTone(detailRow.status)} className="text-xs">
-                    {detailRow.status}
-                  </Badge>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Output size:</span>{" "}
-                  {formatBytes(detailRow.byte_count)}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Run hash:</span>{" "}
-                  <span className="font-mono break-all">{detailRow.run_hash}</span>
-                </div>
-                {detailRow.user_id && (
+                  {periodLabel(detailRow.params_jsonb)
+                    ? ` for ${periodLabel(detailRow.params_jsonb)}`
+                    : ""}
+                  {companyLabel(detailRow.business_id)
+                    ? ` (${companyLabel(detailRow.business_id)})`
+                    : ""}{" "}
+                  on {format(new Date(detailRow.created_at), "MMMM d, yyyy 'at' HH:mm")}.
+                </p>
+
+                <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <Field label="Run by" value={actorLabel(detailRow.user_id)} />
+                  <Field
+                    label="Date & time"
+                    value={format(new Date(detailRow.created_at), "MMMM d, yyyy HH:mm:ss")}
+                  />
+                  <Field
+                    label="Period covered"
+                    value={periodLabel(detailRow.params_jsonb) ?? "Not period-bound"}
+                  />
+                  <Field
+                    label="Company"
+                    value={companyLabel(detailRow.business_id) ?? "All companies"}
+                  />
+                  <Field label="Output" value={outputLabel(detailRow.params_jsonb)} />
+                  <Field
+                    label="Lines produced"
+                    value={
+                      rowCount(detailRow.params_jsonb) !== null
+                        ? rowCount(detailRow.params_jsonb)!.toLocaleString("en-US")
+                        : "—"
+                    }
+                  />
+                  <Field label="File size" value={formatBytes(detailRow.byte_count)} />
                   <div>
-                    <span className="text-muted-foreground">Actor:</span>{" "}
-                    <span className="font-mono">{detailRow.user_id}</span>
+                    <dt className="text-xs text-muted-foreground">Result</dt>
+                    <dd className="mt-0.5">
+                      <Badge variant={statusTone(detailRow.status)} className="font-normal">
+                        {statusLabel(detailRow.status)}
+                      </Badge>
+                    </dd>
                   </div>
-                )}
-                {detailRow.business_id && (
+                </dl>
+
+                {settingEntries(detailRow.params_jsonb).length > 0 && (
                   <div>
-                    <span className="text-muted-foreground">Business:</span>{" "}
-                    <span className="font-mono">{detailRow.business_id}</span>
+                    <h4 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Report settings used
+                    </h4>
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-2">
+                      {settingEntries(detailRow.params_jsonb).map(([k, v]) => (
+                        <Field key={k} label={k} value={v} />
+                      ))}
+                    </dl>
                   </div>
                 )}
-                {detailRow.params_jsonb && (
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">
-                      Parameters (exact set the rendition was built from):
-                    </div>
-                    <pre className="bg-background border rounded p-2 overflow-x-auto max-h-64">
-                      {JSON.stringify(detailRow.params_jsonb, null, 2)}
-                    </pre>
-                  </div>
-                )}
+
+                {/* Machine handles stay available for forensics, but ranked last. */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Technical details
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 space-y-2 text-xs">
+                    <Field label="Report key" value={detailRow.report_type} mono />
+                    <Field
+                      label="Run fingerprint"
+                      value={detailRow.run_hash || "—"}
+                      mono
+                      hint="Two runs with the same fingerprint produced identical figures."
+                    />
+                    {detailRow.user_id && (
+                      <Field label="User ID" value={detailRow.user_id} mono />
+                    )}
+                    {detailRow.business_id && (
+                      <Field label="Company ID" value={detailRow.business_id} mono />
+                    )}
+                    {detailRow.params_jsonb && (
+                      <div>
+                        <dt className="text-muted-foreground">Raw parameters</dt>
+                        <pre className="mt-1 max-h-64 overflow-x-auto rounded border bg-muted/40 p-2">
+                          {JSON.stringify(detailRow.params_jsonb, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )}
           </DialogContent>
