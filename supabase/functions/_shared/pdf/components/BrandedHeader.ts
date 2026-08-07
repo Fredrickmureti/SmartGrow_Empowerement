@@ -30,6 +30,18 @@ import type { OrganizationBranding } from "../../branding/index.ts";
 export interface BrandedHeaderConfig {
   title: string;
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet). Mutually
+   * exclusive with `dateRange`: the masthead renders "As of <asOf>"
+   * instead of "For the period <dateRange>".
+   */
+  asOf?: string;
+  /**
+   * Reporting scope line — "<Business> · <Branch>". Derived ONCE from the
+   * resolved business identity by `renderReport`; reports never compose
+   * their own scope string.
+   */
+  scope?: string;
   organization?: OrganizationBranding | null;
   /** Fallback when organization is missing. */
   companyName?: string;
@@ -41,9 +53,10 @@ export interface BrandedHeaderConfig {
    * Stage 3: layout style.
    *   - "operational" (default): logo left, title right (existing layout).
    *   - "financial": centered statutory masthead in the order
-   *       COMPANY NAME → Title → Period/As-of → Subtitle → Prepared on.
-   *     Logo is omitted from the masthead in this profile (statutory
-   *     reports lead with the legal entity name, not branding).
+   *       LOGO → COMPANY NAME → Title → Period/As-of → Basis → Scope →
+   *       Prepared on.
+   *     The logo is part of the legal entity's document identity, so it is
+   *     rendered in BOTH profiles (centered here, left-aligned there).
    */
   formatProfile?: "operational" | "financial";
   /** Optional subtitle (financial profile only, e.g. "Accrual Basis"). */
@@ -54,6 +67,7 @@ export interface BrandedHeaderConfig {
    */
   typography?: Typography;
 }
+
 
 export interface DrawnHeader {
   /** Y position below the separator line — body starts here. */
