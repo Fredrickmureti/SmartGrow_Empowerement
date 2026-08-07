@@ -79,6 +79,7 @@ export const FINANCE_NAV: WorkspaceNav = {
             { to: "/finance/reports/intelligence", label: "Business intelligence", icon: BarChart3 },
           ],
         },
+        { to: "/finance/reversal-register", label: "Reversal register", icon: History },
         { to: "/finance/integrity", label: "Integrity", icon: ShieldCheck },
       ],
     },

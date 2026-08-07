@@ -1649,6 +1649,13 @@ export type Database = {
             referencedRelation: "approval_requests"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "approval_history_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
+          },
         ]
       }
       approval_request_approvers: {
@@ -1692,6 +1699,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "approval_requests"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_request_approvers_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
           },
         ]
       }
@@ -1739,6 +1753,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "approval_requests"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_request_steps_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
           },
         ]
       }
@@ -74787,6 +74808,29 @@ export type Database = {
         }
         Relationships: []
       }
+      reversal_register: {
+        Row: {
+          action_key: string | null
+          amount: number | null
+          approval_request_id: string | null
+          approval_status: string | null
+          branch_id: string | null
+          business_id: string | null
+          currency: string | null
+          document_date: string | null
+          document_id: string | null
+          document_number: string | null
+          document_type: string | null
+          module: string | null
+          organization_id: string | null
+          reason_code: string | null
+          reason_comment: string | null
+          reversal_date: string | null
+          reversal_kind: string | null
+          reversed_by: string | null
+        }
+        Relationships: []
+      }
       scrap_document_facts: {
         Row: {
           adjustment_date: string | null
@@ -92711,6 +92755,18 @@ export type Database = {
       }
       resolve_reversal_intent: {
         Args: { _document_id: string; _document_type: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_finance: {
+        Args: { _document_id: string; _document_type: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_payroll: {
+        Args: { _document_id: string }
+        Returns: Json
+      }
+      resolve_reversal_intent_pos: {
+        Args: { _document_id: string }
         Returns: Json
       }
       resolve_rule_recipients: {
