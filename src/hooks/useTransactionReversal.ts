@@ -1179,6 +1179,7 @@ export function useTransactionReversal() {
   return {
     resolveReversalIntent,
     previewReversalConsequences,
+    unmatchBankLinesForReversal,
 
     voidPayment,
     voidInvoice,
