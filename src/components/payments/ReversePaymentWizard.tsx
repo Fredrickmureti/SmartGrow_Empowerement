@@ -25,6 +25,8 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalApprovalNotice } from "@/components/reversal/ReversalApprovalNotice";
+import { useReversalApproval } from "@/components/reversal/useReversalApproval";
 
 
 /**
@@ -243,6 +245,21 @@ export function ReversePaymentWizard({
     refetch: refetchPreview,
   } = useReversalConsequences("payment", payment?.id, open && step === 3);
 
+  // Phase 5.3 — high-value / prior-period reversals are gated by the approval
+  // engine; the server refuses the writer until the request is approved.
+  const {
+    approval,
+    isBlockedPendingApproval,
+    isLoading: isLoadingApproval,
+    requestApproval,
+    isRequesting: isRequestingApproval,
+  } = useReversalApproval(
+    "payment",
+    payment?.id,
+    selected?.op ?? "void",
+    open && step === 3 && Boolean(selected),
+  );
+
   /**
    * Phase 4 — resolve the `bank_reconciled` blocker in place. The server
    * un-matches exactly the blocking statement lines, then the preview is
@@ -291,7 +308,7 @@ export function ReversePaymentWizard({
 
 
   const handleSubmit = async () => {
-    if (!selected || !reasonText.trim()) return;
+    if (!selected || !reasonText.trim() || isBlockedPendingApproval) return;
     setSubmitting(true);
     try {
       let ok = false;
@@ -434,7 +451,8 @@ export function ReversePaymentWizard({
                     submitting ||
                     !reasonText.trim() ||
                     isPreviewLoading ||
-                    isPreviewError
+                    isPreviewError ||
+                    isBlockedPendingApproval
                   }
 
                 >
@@ -615,6 +633,13 @@ export function ReversePaymentWizard({
                 placeholder="Explain what happened for the audit trail."
               />
             </div>
+            <ReversalApprovalNotice
+              approval={approval}
+              isLoading={isLoadingApproval}
+              isRequesting={isRequestingApproval}
+              canRequest={Boolean(reasonCode) && Boolean(reasonText.trim())}
+              onRequestApproval={() => requestApproval(reasonCode, reasonText.trim())}
+            />
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-xs">
