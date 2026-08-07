@@ -88,6 +88,11 @@ export interface PdfBuilderOptions {
   pageSize?: PageSize;
   /** Override the default page margin (in points). Auto-shrinks for thermal. */
   margin?: number;
+  /**
+   * Override the bottom margin (in points). Report presentation profiles
+   * reclaim gutter space here; omitted keeps the theme default.
+   */
+  bottomMargin?: number;
   /** Override the auto-derived density. */
   density?: Density;
 }
@@ -176,7 +181,9 @@ export class PdfBuilder {
     // margin (50 pt) on an 80 mm receipt would consume more than half the
     // paper. Pick 6 pt for narrow, theme.pageMargin for wide.
     const margin = options.margin ?? (density === "narrow" ? 6 : theme.pageMargin);
-    const bottomMargin = density === "narrow" ? 6 : theme.bottomMargin;
+    const bottomMargin = density === "narrow"
+      ? 6
+      : (options.bottomMargin ?? theme.bottomMargin);
 
     const doc = await PDFDocument.create();
     const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
