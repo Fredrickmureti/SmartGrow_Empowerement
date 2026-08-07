@@ -1106,6 +1106,8 @@ export function useTransactionReversal() {
 
   return {
     resolveReversalIntent,
+    previewReversalConsequences,
+
     voidPayment,
     voidInvoice,
 
