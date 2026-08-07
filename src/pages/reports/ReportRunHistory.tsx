@@ -410,7 +410,7 @@ function ReportRunHistoryInner() {
     <CompanyScopeGate reportName="Report Run History">
       <ReportPageLayout
         title="Report Run History"
-        description="Every report rendition produced by the reporting engine — who ran it, with which parameters, and what it produced"
+        description="Who ran which report, for which period and company, and what it produced"
         isLoading={isLoading}
         error={error as Error | null}
         isEmpty={!data || data.length === 0}
@@ -467,13 +467,13 @@ function ReportRunHistoryInner() {
           companyName={currentOrg?.name || ""}
           title="Report Run History"
           dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
-          subtitle={`${data?.length || 0} renditions (capped at 1,000)`}
+          subtitle={`${(data?.length || 0).toLocaleString("en-US")} runs shown (most recent 1,000)`}
           profile="operational"
         >
           <ReportTable
             columns={columns as ReportColumn<never>[]}
             rows={rows}
-            caption="Report renditions logged by the reporting engine"
+            caption="Report runs recorded for this organization"
             emptyMessage="No report runs found for the selected period"
           />
         </ReportSurface>
