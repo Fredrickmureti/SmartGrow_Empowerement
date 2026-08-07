@@ -32,6 +32,14 @@ export interface DrillDownConfig {
   startDate: string;
   endDate: string;
   sourceType?: string;
+  /**
+   * Partner-scoped drill-down (Sales / Purchases reports). When set, the dialog
+   * lists that partner's documents for the period instead of GL lines. The
+   * document kind is taken from `sourceType` ("invoice" | "bill"); anything
+   * else is refused rather than guessed, so no report can drill into a
+   * relationship that does not exist in the business model.
+   */
+  contactId?: string;
 }
 
 interface DrillDownTransaction {
@@ -97,7 +105,68 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
           new Date(b.date).getTime() - new Date(a.date).getTime()
         );
     },
-    enabled: open && !!currentOrg?.id && !!config?.accountId,
+    enabled: open && !!currentOrg?.id && !!config?.accountId && !config?.contactId,
+    staleTime: 15_000,
+  });
+
+  // Partner drill-down: the documents that make up a customer's or supplier's
+  // figure in a Sales / Purchases report. Read through the same RLS-scoped
+  // client as every other report query — no privileged path.
+  const partnerKind: "invoice" | "bill" | null =
+    config?.sourceType === "invoice"
+      ? "invoice"
+      : config?.sourceType === "bill"
+        ? "bill"
+        : null;
+
+  const { data: partnerDocs = [], isLoading: partnerLoading } = useQuery({
+    queryKey: [
+      "drilldown-partner",
+      currentOrg?.id,
+      currentBusiness?.id,
+      config?.contactId,
+      partnerKind,
+      config?.startDate,
+      config?.endDate,
+    ],
+    queryFn: async (): Promise<DrillDownTransaction[]> => {
+      if (!currentOrg?.id || !config?.contactId || !partnerKind) return [];
+      const table = partnerKind === "invoice" ? "invoices" : "bills";
+      const dateColumn = partnerKind === "invoice" ? "issue_date" : "bill_date";
+      let query = supabase
+        .from(table)
+        .select(
+          partnerKind === "invoice"
+            ? "id, invoice_number, issue_date, total, amount_paid, status"
+            : "id, bill_number, bill_date, total, amount_paid, status",
+        )
+        .eq("organization_id", currentOrg.id)
+        .eq("contact_id", config.contactId)
+        .gte(dateColumn, config.startDate)
+        .lte(dateColumn, config.endDate);
+      if (currentBusiness?.id) query = query.eq("business_id", currentBusiness.id);
+
+      const { data: rows, error } = await query;
+      if (error) throw error;
+
+      return (rows || []).map((row: any) => {
+        const total = Number(row.total || 0);
+        const paid = Number(row.amount_paid || 0);
+        return {
+          id: row.id as string,
+          date: (partnerKind === "invoice" ? row.issue_date : row.bill_date) as string,
+          reference: (partnerKind === "invoice" ? row.invoice_number : row.bill_number) || "",
+          description: `${row.status ?? ""} · ${formatCurrency(paid)} settled`,
+          // Presented on the side the document naturally sits on: a sales
+          // invoice is a receivable (debit), a purchase bill a payable (credit).
+          debit: partnerKind === "invoice" ? total : 0,
+          credit: partnerKind === "bill" ? total : 0,
+          source_type: partnerKind,
+          source_id: row.id as string,
+        } satisfies DrillDownTransaction;
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    },
+    enabled: open && !!currentOrg?.id && !!config?.contactId && !!partnerKind,
     staleTime: 15_000,
   });
 
@@ -126,8 +195,10 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
     return <Badge className={styles[sourceType] || styles.manual}>{labels[sourceType] || sourceType}</Badge>;
   };
 
-  const totalDebit = transactions.reduce((sum, t) => sum + t.debit, 0);
-  const totalCredit = transactions.reduce((sum, t) => sum + t.credit, 0);
+  const rowsToShow = config?.contactId ? partnerDocs : transactions;
+  const busy = config?.contactId ? partnerLoading : isLoading;
+  const totalDebit = rowsToShow.reduce((sum, t) => sum + t.debit, 0);
+  const totalCredit = rowsToShow.reduce((sum, t) => sum + t.credit, 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -142,17 +213,17 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
               </>
             )}
             <span className="ml-4">
-              {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+              {rowsToShow.length} transaction{transactions.length !== 1 ? "s" : ""}
             </span>
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto">
-          {isLoading ? (
+          {busy ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : transactions.length === 0 ? (
+          ) : rowsToShow.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               No transactions found for this period.
             </div>
@@ -170,7 +241,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((txn) => (
+                {rowsToShow.map((txn) => (
                   <TableRow key={txn.id}>
                     <TableCell className="whitespace-nowrap">
                       {format(new Date(txn.date), "MMM d, yyyy")}
