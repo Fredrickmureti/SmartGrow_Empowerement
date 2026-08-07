@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useTransactionReversal,
   type ReversalConsequences,
@@ -26,6 +26,13 @@ export function useReversalConsequences(
   const [consequences, setConsequences] = useState<ReversalConsequences | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
+  /**
+   * Phase 4: the preview must be re-projected after a blocker is resolved
+   * (e.g. a bank statement line was un-matched), otherwise the surface would
+   * keep gating on stale server truth.
+   */
+  const [nonce, setNonce] = useState(0);
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     if (!enabled || !documentId) {
@@ -50,7 +57,7 @@ export function useReversalConsequences(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, documentType, documentId]);
+  }, [enabled, documentType, documentId, nonce]);
 
-  return { consequences, isLoading, isError };
+  return { consequences, isLoading, isError, refetch };
 }
