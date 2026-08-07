@@ -10,15 +10,21 @@
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  BS_ASSET_ORDER,
+  BS_EQUITY_ORDER,
+  BS_LIABILITY_ORDER,
+  PNL_EXPENSE_ORDER,
+  PNL_INCOME_ORDER,
+  SUB_TYPE_LABELS,
+  classifyAccount,
+  isDebitNormal,
+  type AccountSubType,
+} from "./reports/accountingKernel.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
-export type AccountSubType =
-  | "current_asset" | "non_current_asset"
-  | "current_liability" | "non_current_liability"
-  | "share_capital" | "retained_earnings" | "reserves"
-  | "revenue" | "other_income"
-  | "cost_of_sales" | "operating_expense" | "other_expense" | "tax_expense";
+export type { AccountSubType };
 
 export interface AccountWithBalance {
   id: string;
@@ -52,7 +58,7 @@ export interface ReportResult {
 
 // ── Classification Maps (mirrored from accountDetailTypeClassification.ts) ──
 
-const DETAIL_TYPE_TO_SUB_TYPE: Record<string, AccountSubType> = {
+export const DETAIL_TYPE_TO_SUB_TYPE: Record<string, AccountSubType> = {
   // Assets: Current
   accounts_receivable: "current_asset", cash_and_cash_equivalents: "current_asset",
   cash_on_hand: "current_asset", checking: "current_asset", savings: "current_asset",
@@ -147,41 +153,26 @@ const DETAIL_TYPE_TO_SUB_TYPE: Record<string, AccountSubType> = {
   loss_on_asset_sales: "other_expense", other_expense: "other_expense",
 };
 
-export const SUB_TYPE_LABELS: Record<AccountSubType, string> = {
-  current_asset: "Current Assets", non_current_asset: "Non-Current Assets",
-  current_liability: "Current Liabilities", non_current_liability: "Non-Current Liabilities",
-  share_capital: "Equity", retained_earnings: "Retained Earnings", reserves: "Reserves",
-  revenue: "Revenue", other_income: "Other Income",
-  cost_of_sales: "Cost of Sales", operating_expense: "Operating Expenses",
-  other_expense: "Other Expenses", tax_expense: "Tax Expense",
-};
+export { SUB_TYPE_LABELS, isDebitNormal };
 
 // ── Core Functions ─────────────────────────────────────────────────────
 
-export function isDebitNormal(accountType: string): boolean {
-  return ["asset", "expense"].includes(accountType);
-}
-
-export function classifyAccountSubType(accountType: string, code: string, detailType: string | null): AccountSubType {
-  if (detailType && DETAIL_TYPE_TO_SUB_TYPE[detailType]) {
-    return DETAIL_TYPE_TO_SUB_TYPE[detailType];
-  }
-  const codeNum = parseInt((code.match(/^(\d+)/) || ["0"])[1], 10);
-  switch (accountType) {
-    case "asset": return codeNum >= 1500 && codeNum < 2000 ? "non_current_asset" : "current_asset";
-    case "liability": return codeNum >= 2500 && codeNum < 3000 ? "non_current_liability" : "current_liability";
-    case "equity":
-      if (codeNum >= 3100 && codeNum < 3200) return "retained_earnings";
-      if (codeNum >= 3200) return "reserves";
-      return "share_capital";
-    case "income": return (codeNum >= 4500 && codeNum < 5000) || (codeNum >= 8000 && codeNum < 9000) ? "other_income" : "revenue";
-    case "expense":
-      if (codeNum >= 5000 && codeNum < 5500) return "cost_of_sales";
-      if (codeNum >= 7500 && codeNum < 8000) return "tax_expense";
-      if ((codeNum >= 7000 && codeNum < 7500) || (codeNum >= 8000 && codeNum < 9000)) return "other_expense";
-      return "operating_expense";
-    default: return "current_asset";
-  }
+/**
+ * Detail type first (authoritative), code range second. Both halves of the
+ * rule now come from the shared kernel, so the server can no longer drift
+ * from the browser engine.
+ */
+export function classifyAccountSubType(
+  accountType: string,
+  code: string,
+  detailType: string | null,
+): AccountSubType {
+  return classifyAccount(
+    accountType,
+    code,
+    detailType,
+    (dt) => DETAIL_TYPE_TO_SUB_TYPE[dt],
+  );
 }
 
 // ── GL Account Balance Aggregation ─────────────────────────────────────
@@ -296,9 +287,6 @@ export async function getGLAccountBalances(
 
 // ── Report Builders ────────────────────────────────────────────────────
 
-const BS_ASSET_ORDER: AccountSubType[] = ["current_asset", "non_current_asset"];
-const BS_LIABILITY_ORDER: AccountSubType[] = ["current_liability", "non_current_liability"];
-const BS_EQUITY_ORDER: AccountSubType[] = ["share_capital", "retained_earnings", "reserves"];
 
 export async function buildBalanceSheet(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string
@@ -439,8 +427,6 @@ export async function buildTrialBalance(
   };
 }
 
-const PNL_INCOME_ORDER: AccountSubType[] = ["revenue", "other_income"];
-const PNL_EXPENSE_ORDER: AccountSubType[] = ["cost_of_sales", "operating_expense", "other_expense", "tax_expense"];
 
 export async function buildIncomeStatement(
   supabase: SupabaseClient, organizationId: string, businessId: string | undefined, startStr: string, endStr: string

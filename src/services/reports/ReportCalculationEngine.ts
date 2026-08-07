@@ -6,30 +6,28 @@
  * fetching here — that lives in `useFinancialReport`, `useGeneralLedger`,
  * etc. (which talk to RPCs).
  *
- * Server counterpart: `supabase/functions/_shared/reportDataEngine.ts`
- * does the equivalent computation server-side for scheduled / programmatic
- * reports. The two engines MUST agree on:
- *   - isDebitNormal(account_type)
- *   - calculateBalance(opening, debits, credits)
- *   - classification of detail_type → sub_type (Balance Sheet sectioning)
+ * Phase 3 of the reporting convergence roadmap removed the duplicated
+ * accounting math: `isDebitNormal`, `calculateBalance`, the account-type
+ * ordering and labels now come from the shared kernel at
+ * `supabase/functions/_shared/reports/accountingKernel.ts`, which the
+ * server engine (`_shared/reportDataEngine.ts`) binds to as well. This file
+ * keeps only what is genuinely client-shaped: hierarchy building for React
+ * rendering, variance calculation and balance-sheet validation.
  *
- * Drift detection: the snapshot test
- *   supabase/functions/_shared/__tests__/reportPdfGenerator.snapshot.test.ts
- * pins the server-side rendering output. Any divergence in client vs server
- * accounting math will surface as on-screen-vs-PDF mismatch, which the
- * accounting integrity checks (`useInvoiceIntegrityCheck`,
- * `useBalanceIntegrityCheck`) will then flag.
- *
- * Phase E / Stage 4: the previous design considered making this file a
- * thin wrapper over the server engine. Rejected because:
- *   - Vite cannot import Deno-style URL imports.
- *   - The two engines have different concerns (client = tree-shaping for
- *     React rendering; server = DB query + flat result for PDF tabulation).
- * Consolidation is achieved instead by:
- *   1. Snapshot tests on the server engine.
- *   2. Cross-engine reconciliation tests (`validateBalanceSheet` runs on
- *      both client-rendered and server-rendered outputs and must agree).
+ * Parity is enforced by
+ * `src/test/architecture/accounting-kernel-parity.test.ts` (one kernel, no
+ * re-declared primitives, detail-type tables pinned together) and by the
+ * server snapshot test
+ * `supabase/functions/_shared/__tests__/reportPdfGenerator.snapshot.test.ts`.
  */
+
+export {
+  ACCOUNT_TYPE_LABELS,
+  ACCOUNT_TYPE_ORDER,
+  calculateBalance,
+  isDebitNormal,
+} from "../../../supabase/functions/_shared/reports/accountingKernel";
+
 
 export interface AccountNode {
   id: string;
@@ -63,28 +61,6 @@ export interface PeriodComparison {
   previous: number;
   variance: number;
   variancePercent: number | null;
-}
-
-/**
- * Determines if an account type has a natural debit balance
- */
-export function isDebitNormal(accountType: string): boolean {
-  return ["asset", "expense"].includes(accountType);
-}
-
-/**
- * Calculates the balance for an account given its type and debit/credit movements
- */
-export function calculateBalance(
-  accountType: string,
-  openingBalance: number,
-  debits: number,
-  credits: number
-): number {
-  if (isDebitNormal(accountType)) {
-    return openingBalance + debits - credits;
-  }
-  return openingBalance + credits - debits;
 }
 
 /**
@@ -198,19 +174,6 @@ export function calculateVariance(current: number, previous: number): PeriodComp
 
   return { current, previous, variance, variancePercent };
 }
-
-/**
- * Standard account type ordering for financial reports
- */
-export const ACCOUNT_TYPE_ORDER = ["asset", "liability", "equity", "income", "expense"] as const;
-
-export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  asset: "Assets",
-  liability: "Liabilities",
-  equity: "Equity",
-  income: "Income",
-  expense: "Expenses",
-};
 
 /**
  * Balance Sheet section ordering
