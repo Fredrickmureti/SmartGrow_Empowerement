@@ -6544,6 +6544,9 @@ export type Database = {
           updated_at: string
           vendor_id: string
           vendor_invoice_number: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           account_id?: string | null
@@ -6583,6 +6586,9 @@ export type Database = {
           updated_at?: string
           vendor_id: string
           vendor_invoice_number?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           account_id?: string | null
@@ -6622,6 +6628,9 @@ export type Database = {
           updated_at?: string
           vendor_id?: string
           vendor_invoice_number?: string | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -81321,6 +81330,9 @@ export type Database = {
           updated_at: string
           vendor_id: string
           vendor_invoice_number: string | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         SetofOptions: {
           from: "*"
@@ -82611,6 +82623,10 @@ export type Database = {
         Returns: Json
       }
       backfill_opening_inventory_gl: { Args: { p_org: string }; Returns: Json }
+      bill_payment_is_bank_reconciled: {
+        Args: { _bill_payment_id: string }
+        Returns: boolean
+      }
       bind_goods_receipt_appointment: {
         Args: { p_appointment_id: string; p_receipt_id: string }
         Returns: undefined
@@ -94289,6 +94305,16 @@ export type Database = {
       }
       verify_tenant_ownership_transfer: {
         Args: { p_token: string }
+        Returns: Json
+      }
+      void_bill_atomic: {
+        Args: {
+          _actor?: string
+          _bill_id: string
+          _client_request_id?: string
+          _reason: string
+          _void_date?: string
+        }
         Returns: Json
       }
       void_bill_payment_atomic: {
