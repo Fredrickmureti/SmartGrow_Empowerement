@@ -120,44 +120,37 @@ export function useVendorCreditNotes() {
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
 
-    const { data, error } = await supabase
-      .from("vendor_credit_notes")
-      .insert({
-        ...creditNote,
-        organization_id: currentOrg.id,
-        business_id: currentBusiness.id,
-        branch_id: currentBranch?.id ?? null,
-        created_by: user.id,
-      } as any)
-      .select()
-      .single();
+    // ADR 0132: one writer creates the header, its lines and its number in a
+    // single transaction. The browser never inserts into vendor_credit_notes
+    // and never allocates the number itself.
+    const { data, error } = await supabase.rpc("create_vendor_credit_note_atomic" as any, {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _branch_id: currentBranch?.id ?? null,
+      _vendor_id: creditNote.vendor_id,
+      _bill_id: (creditNote as any).bill_id ?? null,
+      _credit_date: creditNote.credit_date,
+      _notes: creditNote.notes ?? null,
+      _items: items,
+      _issue: false,
+    });
 
     if (error) throw error;
-
-    if (items.length > 0) {
-      const itemsToInsert = items.map((item, i) => ({
-        ...item,
-        credit_note_id: data.id,
-        sort_order: i,
-      }));
-      const { error: itemsError } = await supabase
-        .from("vendor_credit_note_items")
-        .insert(itemsToInsert);
-      if (itemsError) throw itemsError;
-    }
+    const result = (data ?? {}) as { id: string; credit_note_number: string };
 
     logAction({
       action: "created",
       entityType: "credit_note",
-      entityId: data.id,
-      entityName: creditNote.credit_note_number,
-      changesSummary: `Created vendor credit note ${creditNote.credit_note_number}`,
+      entityId: result.id,
+      entityName: result.credit_note_number,
+      changesSummary: `Created vendor credit note ${result.credit_note_number}`,
     });
 
-    toast({ title: "Vendor credit note created", description: creditNote.credit_note_number });
+    toast({ title: "Vendor credit note created", description: result.credit_note_number });
     await fetchCreditNotes();
-    return data;
+    return result as any;
   };
+
 
   /**
    * Edit a draft vendor credit note (header + items). Only draft VCNs
@@ -218,14 +211,14 @@ export function useVendorCreditNotes() {
 
 
   /**
-   * Confirm a draft VCN atomically.
-   * Single RPC call:
-   *  - locks the VCN row
-   *  - resolves AP + expense default accounts (raises a typed exception if missing)
-   *  - posts a balanced JE (Dr AP, Cr Expense)
-   *  - flips status='confirmed' + links journal_entry_id
-   * Eliminates the previous client-side gap where GL was posted before
-   * status update — that gap could double-credit AP on retry.
+   * Issue a draft VCN (ADR 0132 — mirrors `issue_credit_note_atomic`).
+   * `issue_vendor_credit_note_atomic`:
+   *  - locks the VCN row and resolves GL accounts server-side
+   *  - reduces AP only up to the linked bill's still-open balance; the
+   *    remainder becomes vendor credit on the dedicated Vendor Credits
+   *    account, recorded as an append-only `vendor_credit_movements` row
+   *  - posts through `post_journal_entry_atomic` only
+   *  - flips status and links journal_entry_id in the same transaction
    */
   const confirmVendorCreditNote = async (id: string) => {
     if (!user) throw new Error("Not authenticated");
@@ -233,10 +226,10 @@ export function useVendorCreditNotes() {
     if (!cn) throw new Error("Credit note not found");
     if (cn.status !== "draft") throw new Error("Only draft credit notes can be confirmed");
 
-    const { data, error } = await supabase.rpc("confirm_vendor_credit_note_atomic" as any, {
+    const { data, error } = await supabase.rpc("issue_vendor_credit_note_atomic" as any, {
       _vcn_id: id,
-      _user_id: user.id,
     });
+
 
     if (error) throw new Error(`Credit note confirmation failed: ${error.message}`);
     const result = (data ?? {}) as { success?: boolean };
@@ -269,30 +262,31 @@ export function useVendorCreditNotes() {
   };
 
   /**
-   * Apply a confirmed vendor credit note FIFO across one or many bills.
-   * Calls apply_vendor_credit_note_atomic RPC (Batch I-Deferred):
-   *  - locks VCN + eligible bills (FOR UPDATE)
-   *  - allocates FIFO by bills.due_date (NULLS LAST), then created_at
-   *  - inserts one vendor_credit_note_applications row per allocation
-   *  - updates bill amount_paid + status per allocation
-   *  - updates VCN amount_applied + status
-   *  - emits procurement.credit.applied outbox event
-   * GL was already posted at VCN confirmation — no double-posting here.
+   * Apply an issued vendor credit FIFO across one or many bills (ADR 0132).
+   * `apply_vendor_credit_fifo_atomic` reads availability from
+   * `vendor_credit_balances` (never from document columns), allocates FIFO by
+   * `bills.due_date` then `created_at`, and delegates each allocation to
+   * `apply_vendor_credit_to_bill_atomic`, which writes the application row,
+   * the credit movement and the journal entry. The browser chooses nothing.
    * Pass `billIds` to restrict allocation to a specific set; omit for
    * "any open bill for this vendor + currency".
    */
   const applyCreditFifo = async (creditNoteId: string, billIds?: string[]) => {
-    if (!currentOrg || !user) throw new Error("No organization selected");
+    if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
 
     const cn = creditNotes.find((c) => c.id === creditNoteId);
     if (!cn) throw new Error("Credit note not found");
     if (cn.status !== "confirmed") throw new Error("Only confirmed credit notes can be applied");
 
-    const { data, error } = await supabase.rpc("apply_vendor_credit_note_atomic" as any, {
-      p_credit_note_id: creditNoteId,
-      p_bill_ids: billIds ?? null,
-      p_user_id: user.id,
+    const { data, error } = await supabase.rpc("apply_vendor_credit_fifo_atomic" as any, {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _vendor_credit_note_id: creditNoteId,
+      _bill_ids: billIds ?? null,
+      _applied_by: user.id,
+      _branch_id: cn.branch_id ?? currentBranch?.id ?? null,
     });
+
 
     if (error) throw error;
     const result = data as any;

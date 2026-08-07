@@ -1,54 +1,56 @@
 /**
- * Vendor credit application helper — FIFO multi-bill (Batch I-Deferred).
+ * Vendor credit application helper — FIFO multi-bill (ADR 0132).
  *
- * Thin wrapper around `apply_vendor_credit_note_atomic`. The RPC:
- *  1. Locks the VCN + eligible bills (FOR UPDATE) — race-safe.
- *  2. Allocates the confirmed VCN's remaining balance across one or many
- *     open bills, FIFO by `bills.due_date` (NULLS LAST), then created_at.
- *  3. Inserts one `vendor_credit_note_applications` row per allocation.
- *  4. Updates each touched bill's `amount_paid` and status.
- *  5. Updates the VCN's `amount_applied` and status.
- *  6. Emits a `procurement.credit.applied` outbox event for Finance / Audit.
+ * Thin wrapper around `apply_vendor_credit_fifo_atomic`. The RPC:
+ *  1. Locks the VCN and reads availability from `vendor_credit_balances`,
+ *     the projection of append-only `vendor_credit_movements` — never from
+ *     `vendor_credit_notes.total - amount_applied`.
+ *  2. Allocates the available credit across open bills, FIFO by
+ *     `bills.due_date` (NULLS LAST), then created_at.
+ *  3. Delegates each allocation to `apply_vendor_credit_to_bill_atomic`,
+ *     which writes the application row, the `apply` credit movement and the
+ *     journal entry (through `post_journal_entry_atomic` only).
  *
- * GL was already posted at VCN confirmation (Dr AP, Cr Expense); this RPC
- * does not touch the ledger to avoid double-counting the AP reduction.
- *
- * SoD: the user who confirmed the VCN cannot also apply it. Enforced in RPC.
+ * No client code resolves GL accounts, builds journal lines, or decides which
+ * bills a credit lands on.
  */
 import { supabase } from "@/integrations/supabase/client";
 
 export interface CreditAllocation {
   bill_id: string;
   amount: number;
-  new_balance: number;
 }
 
 export interface ApplyCreditResult {
   success: boolean;
-  idempotent?: boolean;
   total_applied?: number;
   credit_remaining?: number;
   allocations?: CreditAllocation[];
-  outbox_event_id?: string;
   error?: string;
 }
 
 /**
- * Apply a confirmed vendor credit note FIFO across one or many bills.
+ * Apply an issued vendor credit note FIFO across one or many bills.
  * Pass `billIds` to restrict allocation to a specific set; omit for
  * "any open bill for this vendor + currency".
  */
 export async function applyVendorCreditNote(args: {
+  organizationId: string;
+  businessId: string;
   creditNoteId: string;
   billIds?: string[];
   userId: string;
+  branchId?: string | null;
 }): Promise<ApplyCreditResult> {
   const { data, error } = await supabase.rpc(
-    "apply_vendor_credit_note_atomic" as any,
+    "apply_vendor_credit_fifo_atomic" as any,
     {
-      p_credit_note_id: args.creditNoteId,
-      p_bill_ids: args.billIds ?? null,
-      p_user_id: args.userId,
+      _org_id: args.organizationId,
+      _business_id: args.businessId,
+      _vendor_credit_note_id: args.creditNoteId,
+      _bill_ids: args.billIds ?? null,
+      _applied_by: args.userId,
+      _branch_id: args.branchId ?? null,
     },
   );
 

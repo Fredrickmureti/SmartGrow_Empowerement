@@ -168,59 +168,13 @@ export function usePurchaseReturns() {
     return created;
   };
 
-  /**
-   * Post purchase return to GL when processed.
-   * Dr Accounts Payable (vendor owes us less)
-   * Cr Expense / Inventory (reversing original charge)
-   */
-  /**
-   * Post purchase return to GL when processed.
-   * HARD BLOCK: If GL accounts are missing, this throws an error and prevents processing.
-   * Dr Accounts Payable (vendor owes us less)
-   * Cr Expense / Inventory (reversing original charge)
-   */
-  const postPurchaseReturnGL = async (pr: PurchaseReturn, debitNoteNumber: string) => {
-    if (!hasRequiredAccounts()) {
-      throw new Error("Cannot process purchase return: default account mappings (Accounts Payable, Expense, Cash) are not configured. Go to Settings > Default Accounts.");
-    }
+  // The purchase-return GL posting used to be built here, in the browser.
+  // ADR 0132 removed it: `create_vendor_credit_note_atomic` /
+  // `issue_vendor_credit_note_atomic` resolve the accounts and build the
+  // journal lines server-side, and post only through
+  // `post_journal_entry_atomic`. Do not reintroduce a client-side builder.
 
-    const apAccountId = accounts.accounts_payable_id;
-    const expenseAccountId = accounts.operating_expenses_id || accounts.cost_of_goods_sold_id;
 
-    if (!apAccountId || !expenseAccountId) {
-      throw new Error("Cannot process purchase return: Accounts Payable and Expense accounts must be mapped. Go to Settings > Default Accounts.");
-    }
-
-    try {
-      const jeId = await postToGL({
-        source_type: "purchase_return",
-        source_id: pr.id,
-        reference: debitNoteNumber,
-        memo: `Purchase return ${pr.return_number} — vendor debit note ${debitNoteNumber}`,
-        entry_date: pr.return_date,
-        entries: [
-          {
-            account_id: apAccountId,
-            debit_amount: pr.total,
-            credit_amount: 0,
-            description: `Purchase return ${pr.return_number} — Dr AP`,
-            contact_id: pr.vendor_id || undefined,
-          },
-          {
-            account_id: expenseAccountId,
-            debit_amount: 0,
-            credit_amount: pr.total,
-            description: `Purchase return ${pr.return_number} — Cr Expense`,
-          },
-        ],
-      });
-
-      return jeId;
-    } catch (glError: any) {
-      console.error("GL posting failed for purchase return:", glError);
-      throw new Error(`Purchase return GL posting failed: ${glError?.message || "Unknown error"}. Check your account mappings in Settings > Default Accounts.`);
-    }
-  };
 
   /**
    * Update a purchase return status, with side effects:
@@ -323,59 +277,54 @@ export function usePurchaseReturns() {
     }
 
     if (updates.status === "processed" && pr) {
-      // Create vendor debit note + post to GL atomically (Phase A.3 audit fix).
-      // Previously, debit-note insert errors were swallowed and the return
-      // was still flipped to "processed" + GL posted — books and AR drifted.
-      // Now: any failure aborts the whole transition and the caller sees it.
-      const { data: nextNum, error: numErr } = await supabase.rpc(
-        "get_next_vendor_credit_note_number",
+      // ADR 0132: the vendor credit note for a processed return is created and
+      // issued by the canonical writer in one transaction — header, lines,
+      // business-scoped number, GL (AP up to the bill's open balance, remainder
+      // to Vendor Credits) and the credit movement. No client-side insert, no
+      // client-side journal lines, no fallback number. Any failure throws and
+      // aborts the status flip.
+      const { data: created, error: vcnError } = await supabase.rpc(
+        "create_vendor_credit_note_atomic" as any,
         {
-          p_organization_id: currentOrg!.id,
-          // ADR 0131: numbering is business-scoped.
-          p_business_id: currentBusiness?.id || pr.business_id,
-        } as any
+          _org_id: currentOrg!.id,
+          _business_id: currentBusiness?.id || pr.business_id,
+          // Inherit branch from the parent purchase return — NOT active context.
+          // A HQ user processing a Branch A return must produce a Branch A credit.
+          _branch_id: pr.branch_id ?? currentBranch?.id ?? null,
+          _vendor_id: pr.vendor_id,
+          _bill_id: (pr as any).bill_id ?? null,
+          _credit_date: new Date().toISOString().split("T")[0],
+          _notes: `Vendor debit note for purchase return ${pr.return_number}: ${pr.reason}`,
+          _items: [
+            {
+              description: `Purchase return ${pr.return_number}`,
+              quantity: 1,
+              unit_price: pr.total,
+              tax_rate: 0,
+              tax_amount: 0,
+              line_total: pr.total,
+              sort_order: 0,
+            },
+          ],
+          _issue: true,
+        }
       );
-      if (numErr) throw new Error(`Failed to allocate debit-note number: ${numErr.message}`);
-      if (!nextNum) throw new Error("Failed to allocate debit-note number");
-      const dnNumber = nextNum as unknown as string;
-
-      const { error: vcnError } = await supabase.from("vendor_credit_notes").insert({
-        organization_id: currentOrg!.id,
-        business_id: currentBusiness?.id || pr.business_id || null,
-        // Inherit branch from the parent purchase return — NOT active context.
-        // A HQ user processing a Branch A return must produce a Branch A credit.
-        branch_id: pr.branch_id ?? currentBranch?.id ?? null,
-        vendor_id: pr.vendor_id,
-        credit_note_number: dnNumber,
-        credit_date: new Date().toISOString().split("T")[0],
-        status: "confirmed",
-        subtotal: pr.total,
-        tax_amount: 0,
-        total: pr.total,
-        amount_applied: 0,
-        // Phase A.3: use the company base currency, not hardcoded "USD".
-        currency: currentBusiness?.base_currency || "USD",
-        notes: `Vendor debit note for purchase return ${pr.return_number}: ${pr.reason}`,
-        created_by: user!.id,
-      } as any);
       if (vcnError) {
         throw new Error(
           `Failed to create vendor debit note for return ${pr.return_number}: ${vcnError.message}`
         );
       }
+      const dnNumber = (created as any)?.credit_note_number ?? "";
 
       logAction({
         action: "created",
         entityType: "purchase_return",
         entityId: id,
         entityName: pr.return_number,
-        changesSummary: `Processed return ${pr.return_number} — debit note ${dnNumber} created`,
+        changesSummary: `Processed return ${pr.return_number} — debit note ${dnNumber} created and posted`,
       });
-
-      // Post to General Ledger (Dr AP / Cr Expense). Throws on failure,
-      // which aborts the status flip via the outer caller's try/catch.
-      await postPurchaseReturnGL(pr, dnNumber);
     }
+
     
     // Optimistic update
     setPurchaseReturns((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
