@@ -68,10 +68,12 @@ export interface ReportPdfPayload {
   paperFormat?: PaperPreset | PaperSpec;
   /**
    * Stage 3: drives header style.
-   *   "financial" → centered statutory masthead, no logo.
+   *   "financial" → centered statutory masthead (logo, legal name, title,
+   *                 period/as-of, basis, scope, prepared on).
    *   "operational" (default) → existing logo-left / title-right layout.
    */
   formatProfile?: "financial" | "operational";
+
   /**
    * Presentation profile — drives typography and density only (never data,
    * never semantics). Resolved centrally by the report registry; callers
