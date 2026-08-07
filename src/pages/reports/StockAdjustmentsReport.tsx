@@ -73,7 +73,7 @@ function fmtMoney(n: number, ccy: string) {
   }
 }
 
-export default function StockAdjustmentsReport() {
+function StockAdjustmentsReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const scope = useFinanceScope();
@@ -309,5 +309,15 @@ function KpiCard({ label, value }: { label: string; value: string }) {
         <div className="text-xl font-semibold tabular-nums">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function StockAdjustmentsReport() {
+  return (
+    <ReportFilterProvider>
+      <StockAdjustmentsReportInner />
+    </ReportFilterProvider>
   );
 }

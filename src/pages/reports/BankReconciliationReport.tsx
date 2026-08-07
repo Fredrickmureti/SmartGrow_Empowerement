@@ -66,7 +66,7 @@ const STATUS_LABEL: Record<SessionRow["status"], string> = {
   cancelled: "Cancelled",
 };
 
-export default function BankReconciliationReport() {
+function BankReconciliationReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const scope = useFinanceScope();
@@ -310,5 +310,15 @@ function KpiCard({ label, value, tone }: { label: string; value: string; tone?: 
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function BankReconciliationReport() {
+  return (
+    <ReportFilterProvider>
+      <BankReconciliationReportInner />
+    </ReportFilterProvider>
   );
 }

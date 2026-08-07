@@ -28,7 +28,7 @@ const TYPE_LABEL: Record<ReconType, string> = {
   ap: "Accounts Payable",
 };
 
-export default function ControlAccountReconciliation() {
+function ControlAccountReconciliationInner() {
   const [active, setActive] = useState<ReconType>("ar");
   const recon = useControlAccountReconciliation(active);
   const { baseCurrency } = useCurrency();
@@ -73,5 +73,15 @@ export default function ControlAccountReconciliation() {
         </TabsContent>
       </Tabs>
     </ReportPageLayout>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function ControlAccountReconciliation() {
+  return (
+    <ReportFilterProvider>
+      <ControlAccountReconciliationInner />
+    </ReportFilterProvider>
   );
 }
