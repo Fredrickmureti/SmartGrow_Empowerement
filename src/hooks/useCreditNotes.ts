@@ -182,17 +182,11 @@ export function useCreditNotes() {
    * settled, or no invoice at all).
    */
   const issueCreditNote = async (cnId: string) => {
-    const { data, error } = await (supabase.rpc as any)("issue_credit_note_atomic", {
-      _credit_note_id: cnId,
-    });
-    if (error) throw new Error(`Credit note issue failed: ${error.message}`);
+    const data = await issueCreditNoteAtomic(cnId);
     await fetchCreditNotes();
-    return data as {
-      journal_entry_id: string;
-      applied_to_invoice: number;
-      customer_credit_created: number;
-    };
+    return data;
   };
+
 
   const updateCreditNote = async (id: string, updates: Partial<CreditNote>) => {
     // Sales audit Phase F: GL-affecting status transitions are NOT allowed
