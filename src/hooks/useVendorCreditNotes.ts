@@ -102,17 +102,16 @@ export function useVendorCreditNotes() {
   }, [fetchCreditNotes]);
 
   const getNextCreditNoteNumber = async (): Promise<string> => {
-    if (!currentOrg) return "VCN-001";
-    try {
-      const { data, error } = await supabase.rpc("get_next_vendor_credit_note_number", {
-        p_organization_id: currentOrg.id,
-      });
-      if (error) throw error;
-      return data || "VCN-001";
-    } catch (err) {
-      console.error("Error getting next VCN number via RPC, falling back:", err);
-      return "VCN-001";
-    }
+    if (!currentOrg) throw new Error("No organization selected");
+    if (!currentBusiness) throw new Error("No company selected");
+    // ADR 0131: numbering is business-scoped and advisory-locked server-side.
+    // No client-side fallback — a silent "VCN-001" would collide.
+    const { data, error } = await supabase.rpc("get_next_vendor_credit_note_number", {
+      p_organization_id: currentOrg.id,
+      p_business_id: currentBusiness.id,
+    } as any);
+    if (error) throw error;
+    return data as unknown as string;
   };
 
   const createVendorCreditNote = async (
