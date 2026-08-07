@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bill, useBills, BillPayment } from "@/hooks/useBills";
-import { useTransactionReversal } from "@/hooks/useTransactionReversal";
+import { useTransactionReversal, type ReversalIntent } from "@/hooks/useTransactionReversal";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -31,7 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Undo2 } from "lucide-react";
+import { Loader2, Lock, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
@@ -58,7 +61,7 @@ export function BillPaymentHistoryDialog({
   onOpenChange,
 }: BillPaymentHistoryDialogProps) {
   const { getBillPayments } = useBills();
-  const { voidBillPayment } = useTransactionReversal();
+  const { voidBillPayment, resolveReversalIntent } = useTransactionReversal();
   const { formatCurrency: formatCurrencyHook } = useCurrency();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -67,6 +70,8 @@ export function BillPaymentHistoryDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [confirmReversePayment, setConfirmReversePayment] = useState<BillPayment | null>(null);
+  const [paymentIntent, setPaymentIntent] = useState<ReversalIntent | null>(null);
+  const [isResolvingPaymentIntent, setIsResolvingPaymentIntent] = useState(false);
 
   useEffect(() => {
     if (open && bill) {
@@ -118,8 +123,50 @@ export function BillPaymentHistoryDialog({
     }
   };
 
+  // Intent is resolved per payment, on demand — never cached across payments,
+  // since reconciliation state moves underneath the dialog.
+  useEffect(() => {
+    if (!confirmReversePayment) {
+      setPaymentIntent(null);
+      return;
+    }
+    let cancelled = false;
+    setIsResolvingPaymentIntent(true);
+    resolveReversalIntent("bill_payment", confirmReversePayment.id)
+      .then((result) => {
+        if (!cancelled) setPaymentIntent(result);
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingPaymentIntent(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmReversePayment?.id]);
+
+  const reverseOption = paymentIntent?.operations.find(
+    (op) => op.operation === "reverse_payment" || op.operation === "void"
+  );
+  const reversalBlockedReason =
+    paymentIntent && reverseOption && !reverseOption.allowed
+      ? reverseOption.blocked_reason ??
+        "This payment's accounting state does not allow a reversal."
+      : null;
+
+  const {
+    consequences: paymentConsequences,
+    isLoading: isPaymentPreviewLoading,
+    isError: isPaymentPreviewError,
+  } = useReversalConsequences(
+    "bill_payment",
+    confirmReversePayment?.id,
+    Boolean(confirmReversePayment) && !reversalBlockedReason
+  );
+
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = bill ? bill.total - totalPaid : 0;
+
 
   return (
     <>
@@ -231,6 +278,14 @@ export function BillPaymentHistoryDialog({
         </DialogContent>
       </Dialog>
 
+      {/*
+        Phase 3 — a supplier payment reversal is authorised the same way a
+        customer one is: the server's intent policy says whether it is legal
+        (bank-reconciled payments and closed periods are refused) and the
+        consequence preview shows the GL and cash impact first. The confirm
+        button stays disabled until both have landed. `void_bill_payment_atomic`
+        remains the only writer.
+      */}
       <AlertDialog open={!!confirmReversePayment} onOpenChange={(open) => { if (!open) setConfirmReversePayment(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -240,10 +295,32 @@ export function BillPaymentHistoryDialog({
               create a reversing journal entry. The bill balance will be restored. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {reversalBlockedReason && (
+            <Alert>
+              <Lock className="h-4 w-4" />
+              <AlertDescription>{reversalBlockedReason}</AlertDescription>
+            </Alert>
+          )}
+
+          <ReversalConsequencePreview
+            consequences={paymentConsequences}
+            isLoading={isPaymentPreviewLoading}
+            isError={isPaymentPreviewError}
+            currency={bill?.currency}
+          />
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={
+                Boolean(reversalBlockedReason) ||
+                isResolvingPaymentIntent ||
+                isPaymentPreviewLoading ||
+                isPaymentPreviewError ||
+                Boolean(reversingId)
+              }
               onClick={() => confirmReversePayment && handleReversePayment(confirmReversePayment)}
             >
               Reverse Payment
@@ -251,6 +328,7 @@ export function BillPaymentHistoryDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </>
   );
 }

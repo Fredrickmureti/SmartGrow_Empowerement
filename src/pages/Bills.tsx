@@ -98,6 +98,7 @@ import { usePeekParam } from "@/design-system";
 // /purchases/bills/:id/edit. See src/features/purchases/bills/BillEditPage.tsx.
 import { RecordBillPaymentDialog } from "@/components/bills/RecordBillPaymentDialog";
 import { BillPaymentHistoryDialog } from "@/components/bills/BillPaymentHistoryDialog";
+import { VoidBillDialog } from "@/components/bills/VoidBillDialog";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
@@ -184,7 +185,7 @@ export default function Bills() {
   // Custom field filtering
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("bill");
 
-  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, voidBill, recordBillPayment, getDefaultDueDate } = useBills();
+  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, recordBillPayment, getDefaultDueDate } = useBills();
   const navigate = useNavigate();
   const { contacts } = useContacts();
 
@@ -213,6 +214,9 @@ export default function Bills() {
   const [peekId, setPeekId] = usePeekParam();
   const [showBillPaymentHistory, setShowBillPaymentHistory] = useState(false);
   const [selectedBillForHistory, setSelectedBillForHistory] = useState<Bill | null>(null);
+  const [showVoidBillSheet, setShowVoidBillSheet] = useState(false);
+  const [selectedBillForVoid, setSelectedBillForVoid] = useState<Bill | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(() => {
     const urlStatus = new URLSearchParams(window.location.search).get("status");
@@ -284,13 +288,16 @@ export default function Bills() {
     }
   };
 
-  const handleVoidBill = async (id: string) => {
-    try {
-      await voidBill(id);
-    } catch (error: any) {
-      toast({ title: "Error voiding bill", description: normalizeError(error).message, variant: "destructive" });
-    }
+  /**
+   * Bill void is an intent decision, not a menu click: open the reversal sheet
+   * so the server's intent policy and consequence preview run before anyone
+   * confirms. `useBills.voidBill` stays only for programmatic callers.
+   */
+  const handleVoidBill = (bill: Bill) => {
+    setSelectedBillForVoid(bill);
+    setShowVoidBillSheet(true);
   };
+
 
   // Handle deep-link URL params — legacy ?id=<billId> is migrated to
   // the canonical ?peek=<billId> the moment the page mounts, so both
@@ -850,7 +857,7 @@ export default function Bills() {
                           )}
                           {(bill.status === "received" || bill.status === "partial") && (
                             <>
-                            <DropdownMenuItem onClick={() => handleVoidBill(bill.id)} className="text-destructive">
+                            <DropdownMenuItem onClick={() => handleVoidBill(bill)} className="text-destructive">
                               <Ban className="mr-2 h-4 w-4" /> Void Bill
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => {
@@ -908,6 +915,13 @@ export default function Bills() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bill reversal — intent policy + consequence preview, then void_bill_atomic. */}
+      <VoidBillDialog
+        bill={selectedBillForVoid}
+        open={showVoidBillSheet}
+        onOpenChange={setShowVoidBillSheet}
+      />
 
       {/* Bill Payment History Dialog */}
       <BillPaymentHistoryDialog
