@@ -53,6 +53,52 @@ describe("commercial compensation writer monopoly", () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
+  it("there is exactly one credit note creation entry point", () => {
+    const adapters = appFiles.filter((f) =>
+      /create_credit_note_request_atomic/.test(readFileSync(f, "utf8")),
+    );
+    expect(
+      adapters.map(rel),
+      "create_credit_note_request_atomic was a duplicate adapter; call create_credit_note_atomic",
+    ).toEqual([]);
+
+    const callers = appFiles.filter((f) =>
+      /create_credit_note_atomic/.test(readFileSync(f, "utf8")),
+    );
+    expect(callers.map(rel)).toEqual(["src/hooks/useCreditNotes.ts"]);
+
+    // The single entry point is the named jsonb envelope; positional/named
+    // column arguments reintroduce PostgREST signature drift.
+    const hook = readFileSync(join(SRC, "hooks/useCreditNotes.ts"), "utf8");
+    const call = hook.slice(hook.indexOf('rpc as any)("create_credit_note_atomic"'));
+    expect(call.slice(0, 200).includes("_payload"), "creation must use the _payload envelope").toBe(
+      true,
+    );
+
+  });
+
+  it("new migrations that define public functions refresh the PostgREST schema cache", () => {
+    // Root cause of the credit-note HTTP 404: the writer existed, but the
+    // migration that created it never issued NOTIFY pgrst, so the API kept
+    // answering PGRST202 for a function with a matching signature.
+    const MIGRATIONS = join(ROOT, "supabase/migrations");
+    const CUTOFF = "20260807170000"; // forward-looking: applies to new work only
+    const offenders = readdirSync(MIGRATIONS)
+      .filter((f) => f.endsWith(".sql") && f.slice(0, 14) >= CUTOFF)
+      .filter((f) => {
+        const sql = readFileSync(join(MIGRATIONS, f), "utf8");
+        return (
+          /CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+public\./i.test(sql) &&
+          !/NOTIFY\s+pgrst/i.test(sql)
+        );
+      });
+    expect(
+      offenders,
+      "a migration that adds or changes a public function must end with NOTIFY pgrst, 'reload schema'",
+    ).toEqual([]);
+  });
+
+
   it("credit note numbering always passes business scope", () => {
     for (const file of appFiles) {
       const src = readFileSync(file, "utf8");
