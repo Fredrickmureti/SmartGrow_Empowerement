@@ -11,6 +11,10 @@
 import { PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
+import {
+  DOCUMENT_TYPOGRAPHY,
+  type Typography,
+} from "../themes/presentation.ts";
 import { formatAccountingNumber } from "../../format/index.ts";
 import { winansiSafe } from "../winansi.ts";
 
@@ -50,6 +54,12 @@ export interface DataTableConfig {
   columns: TableColumn[];
   rows: TableRow[];
   currency?: string;
+  /**
+   * Resolved presentation tokens (see `themes/presentation.ts`). Omitted =
+   * the document profile, i.e. exactly the pre-profile behaviour. Report
+   * callers pass the profile resolved by the report registry.
+   */
+  typography?: Typography;
 }
 
 /**
@@ -61,8 +71,13 @@ export interface DataTableConfig {
  */
 const NUMERIC_FORMATS = new Set(["currency", "number", "percent"]);
 
-/** Minimum legible font size for a numeric cell before we give up shrinking. */
+/**
+ * Absolute legibility floor for a numeric cell. Presentation profiles raise
+ * this (ledgers to 7.5pt, statements to 8.5pt) via `Typography`; this
+ * constant is the document-profile value and the hard backstop.
+ */
 const MIN_NUMERIC_FONT_SIZE = 6;
+void MIN_NUMERIC_FONT_SIZE;
 
 /**
  * Word-wrap a single text string to fit within `maxWidth`. Splits on
@@ -175,6 +190,7 @@ function computeColWidths(
   fontRegular: import("https://esm.sh/pdf-lib@1.17.1").PDFFont,
   fontBold: import("https://esm.sh/pdf-lib@1.17.1").PDFFont,
   currency: string | undefined,
+  t: Typography,
 ): number[] {
   const CELL_PAD = 8; // 4pt left + 4pt right inside each cell
   const widths = new Array<number>(columns.length).fill(0);
@@ -186,7 +202,7 @@ function computeColWidths(
     const col = columns[i];
     if (isNumericColumn(col)) {
       // Header width (bold)
-      let maxW = fontBold.widthOfTextAtSize(winansiSafe(col.header), theme.size.tableHeader);
+      let maxW = fontBold.widthOfTextAtSize(winansiSafe(col.header), t.size.tableHeader);
       // Each row's formatted value (use the larger of regular / bold sizes
       // since subtotal / grand-total rows render in bold + emphasis size).
       for (const row of rows) {
@@ -194,7 +210,7 @@ function computeColWidths(
         if (!text) continue;
         const isEmph = row._isSubtotal || row._isGrandTotal || row._isHeader;
         const font = isEmph ? fontBold : fontRegular;
-        const size = isEmph ? theme.size.tableCellEmphasis : theme.size.tableCell;
+        const size = isEmph ? t.size.tableCellEmphasis : t.size.tableCell;
         const w = font.widthOfTextAtSize(text, size);
         if (w > maxW) maxW = w;
       }
@@ -224,13 +240,13 @@ function computeColWidths(
   for (let i = 0; i < columns.length; i++) {
     const col = columns[i];
     if (isNumericColumn(col)) continue;
-    let minW = fontBold.widthOfTextAtSize(winansiSafe(col.header), theme.size.tableHeader);
+    let minW = fontBold.widthOfTextAtSize(winansiSafe(col.header), t.size.tableHeader);
     for (const row of rows) {
       const text = formatCellValue(col, row[col.key], !!row._isHeader, currency);
       if (!text) continue;
       const isEmph = row._isSubtotal || row._isGrandTotal || row._isHeader;
       const font = isEmph ? fontBold : fontRegular;
-      const size = isEmph ? theme.size.tableCellEmphasis : theme.size.tableCell;
+      const size = isEmph ? t.size.tableCellEmphasis : t.size.tableCell;
       // Widest single whitespace-delimited token — that's the smallest the
       // column can shrink to without forcing per-character hard-breaks.
       for (const token of String(text).split(/\s+/)) {
@@ -307,6 +323,7 @@ function drawTableHeader(
   columns: TableColumn[],
   colWidths: number[],
   y: number,
+  t: Typography,
 ): number {
   const { state, fontBold } = builder;
   const { margin, contentWidth } = state;
@@ -318,11 +335,11 @@ function drawTableHeader(
   let maxLines = 1;
   for (let i = 0; i < columns.length; i++) {
     const maxW = Math.max(colWidths[i] - 8, 1);
-    const lines = wrapText(columns[i].header, fontBold, theme.size.tableHeader, maxW);
+    const lines = wrapText(columns[i].header, fontBold, t.size.tableHeader, maxW);
     headerLines.push(lines);
     if (lines.length > maxLines) maxLines = lines.length;
   }
-  const lineStep = theme.size.tableHeader + 1.5;
+  const lineStep = t.size.tableHeader + 1.5;
 
   let x = margin;
   for (let i = 0; i < columns.length; i++) {
@@ -333,7 +350,7 @@ function drawTableHeader(
     const offset = maxLines - lines.length;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li];
-      const tw = fontBold.widthOfTextAtSize(line, theme.size.tableHeader);
+      const tw = fontBold.widthOfTextAtSize(line, t.size.tableHeader);
       const cellX = col.align === "right"
         ? x + colWidths[i] - tw - 4
         : col.align === "center"
@@ -342,7 +359,7 @@ function drawTableHeader(
       page.drawText(line, {
         x: cellX,
         y: y - 10 - (offset + li) * lineStep,
-        size: theme.size.tableHeader,
+        size: t.size.tableHeader,
         font: fontBold,
         color: theme.color.text,
       });
@@ -378,13 +395,16 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
     return;
   }
   const { columns, rows, currency } = config;
+  const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
   const { state, fontRegular, fontBold } = builder;
   const { margin, contentWidth } = state;
 
-  const colWidths = computeColWidths(columns, rows, contentWidth, fontRegular, fontBold, currency);
+  const colWidths = computeColWidths(
+    columns, rows, contentWidth, fontRegular, fontBold, currency, t,
+  );
 
   // Initial header
-  builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y);
+  builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y, t);
 
   const LINE_GAP = 1.5; // extra leading between wrapped lines within a cell
   const ROW_VPAD = 6;   // top+bottom padding inside each row
@@ -396,9 +416,9 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
     const depth = (row._depth as number) || 0;
 
     const font = isHeader || isSubtotal || isGrandTotal ? fontBold : fontRegular;
-    const baseFontSize = isGrandTotal ? theme.size.tableCellEmphasis
-      : isHeader ? theme.size.tableCellEmphasis
-      : theme.size.tableCell;
+    const baseFontSize = isGrandTotal ? t.size.tableCellEmphasis
+      : isHeader ? t.size.tableCellEmphasis
+      : t.size.tableCell;
 
     // ── Pre-pass: format every cell, decide font size, and word-wrap text
     //    cells. This gives us the row's true height before we draw anything,
@@ -427,7 +447,7 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
         let text = winansiSafe(display);
         while (
           font.widthOfTextAtSize(text, fontSize) > maxCellWidth &&
-          fontSize > MIN_NUMERIC_FONT_SIZE
+          fontSize > t.minNumericFontSize
         ) {
           fontSize -= 0.25;
         }
@@ -448,12 +468,12 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
     }
 
     const lineH = baseFontSize + LINE_GAP;
-    const rowHeight = Math.max(theme.rowHeight, maxLines * lineH + ROW_VPAD);
+    const rowHeight = Math.max(t.rowHeight, maxLines * lineH + ROW_VPAD);
 
     // Page-break check now uses the *actual* row height.
     if (builder.y - rowHeight < state.bottomMargin) {
       builder.newPage();
-      builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y);
+      builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y, t);
     }
 
     const page = builder.page;
