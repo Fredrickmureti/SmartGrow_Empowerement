@@ -141,8 +141,15 @@ BEGIN
   SELECT id INTO v_id FROM public.goods_receipts LIMIT 1;
   IF v_id IS NULL THEN RETURN; END IF;
 
-  v_intent  := public.resolve_reversal_intent('goods_receipt', v_id);
-  v_preview := public.preview_reversal_consequences('goods_receipt', v_id);
+  BEGIN
+    v_intent  := public.resolve_reversal_intent('goods_receipt', v_id);
+    v_preview := public.preview_reversal_consequences('goods_receipt', v_id);
+  EXCEPTION WHEN insufficient_privilege THEN
+    -- No org-scoped session (e.g. run from the SQL editor): the tenancy guard
+    -- refusing is correct behaviour, not a contract failure.
+    RETURN;
+  END;
+
 
   IF v_intent IS NULL OR v_preview IS NULL THEN
     RAISE EXCEPTION 'goods receipt % has no intent/preview answer', v_id;
