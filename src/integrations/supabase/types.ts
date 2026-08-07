@@ -88440,6 +88440,10 @@ export type Database = {
         }
         Returns: Json
       }
+      payment_is_bank_reconciled: {
+        Args: { _payment_id: string }
+        Returns: boolean
+      }
       payroll_add_employees_to_run: {
         Args: { p_employee_ids: string[]; p_run_id: string }
         Returns: {
@@ -92508,6 +92512,10 @@ export type Database = {
           p_quantity?: number
         }
         Returns: number
+      }
+      resolve_reversal_intent: {
+        Args: { _document_id: string; _document_type: string }
+        Returns: Json
       }
       resolve_rule_recipients: {
         Args: {
