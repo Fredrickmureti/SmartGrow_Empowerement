@@ -90300,6 +90300,11 @@ export type Database = {
         Args: { p_confirmation_token: string; p_org_id: string }
         Returns: Json
       }
+      po_resync_billed_state: { Args: { _po_id: string }; Returns: undefined }
+      po_resync_billed_state_for_bill: {
+        Args: { _bill_id: string }
+        Returns: undefined
+      }
       pos_add_cash_movement: {
         Args: {
           p_amount: number
