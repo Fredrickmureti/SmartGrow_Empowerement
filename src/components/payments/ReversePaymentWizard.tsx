@@ -287,14 +287,7 @@ export function ReversePaymentWizard({
     !!baseCurrency &&
     selectedBank.currency !== baseCurrency;
 
-  // Phase 2 — the confirmation step shows what the reversal would change before
-  // the operator authorises it. Fetched once the wizard reaches step 3 so the
-  // preview reflects the state at confirmation time, not at open time.
-  const {
-    consequences,
-    isLoading: isPreviewLoading,
-    isError: isPreviewError,
-  } = useReversalConsequences("payment", payment?.id, open && step === 3);
+
 
 
   const handleSubmit = async () => {
