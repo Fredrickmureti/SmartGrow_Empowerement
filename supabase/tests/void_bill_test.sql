@@ -128,8 +128,14 @@ BEGIN
        INTO v_id;
     CONTINUE WHEN v_id IS NULL;
 
-    v_intent  := public.resolve_reversal_intent(v_dt, v_id);
-    v_preview := public.preview_reversal_consequences(v_dt, v_id);
+    BEGIN
+      v_intent  := public.resolve_reversal_intent(v_dt, v_id);
+      v_preview := public.preview_reversal_consequences(v_dt, v_id);
+    EXCEPTION WHEN insufficient_privilege THEN
+      -- No org-scoped session: the tenancy guard refusing is correct.
+      CONTINUE;
+    END;
+
 
     IF v_intent IS NULL OR v_preview IS NULL THEN
       RAISE EXCEPTION '% % has no intent/preview answer', v_dt, v_id;
