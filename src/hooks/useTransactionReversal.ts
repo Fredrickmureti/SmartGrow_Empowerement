@@ -203,8 +203,9 @@ export function useTransactionReversal() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { logAction } = useAuditLog();
-  const { postCreditNoteToGL, postPaymentToGL } = useGLPosting();
-  const { getInvoiceAccountMappings, accounts } = useDefaultAccounts();
+  const { postPaymentToGL } = useGLPosting();
+  const { getInvoiceAccountMappings } = useDefaultAccounts();
+
 
   /**
    * Void a payment — reverses the linked JE atomically and updates the invoice balance.
