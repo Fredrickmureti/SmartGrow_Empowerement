@@ -32,7 +32,7 @@ interface PortalUserRouteProps {
 //   - /dashboard, /home                       → business landing
 const PORTAL_ALWAYS_ALLOWED = [
   "/me",
-  "/hr/my-portal",
+  "/me",
   "/select-organization",
   "/settings/profile",
   "/settings/notifications",

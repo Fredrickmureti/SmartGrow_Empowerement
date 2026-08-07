@@ -4,5 +4,5 @@
  * Otherwise, they land on /dashboard.
  */
 export function getPortalLandingPath(isHrInstalled: boolean): string {
-  return isHrInstalled ? "/hr/my-portal" : "/dashboard";
+  return isHrInstalled ? "/me" : "/dashboard";
 }

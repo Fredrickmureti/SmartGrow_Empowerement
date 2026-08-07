@@ -17,7 +17,7 @@ interface OwnProfileOrPermissionRouteProps {
 export function OwnProfileOrPermissionRoute({
   children,
   permission,
-  fallbackPath = "/hr/my-portal",
+  fallbackPath = "/me",
 }: OwnProfileOrPermissionRouteProps) {
   const { id } = useParams<{ id: string }>();
   const { can } = usePermissions();

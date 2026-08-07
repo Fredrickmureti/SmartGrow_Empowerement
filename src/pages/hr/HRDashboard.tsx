@@ -175,7 +175,7 @@ export default function HRDashboard() {
                       <UserPlus className="h-3.5 w-3.5" />
                       Add your first employee
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => navigate("/hr/settings")} className="gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => navigate("/hr/configuration")} className="gap-1.5">
                       <Settings className="h-3.5 w-3.5" />
                       Configure leave & payroll
                     </Button>
@@ -392,12 +392,12 @@ export default function HRDashboard() {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/hr/employees")}>Employees <ArrowRight className="h-3 w-3 ml-1" /></Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/hr/departments")}>Departments <ArrowRight className="h-3 w-3 ml-1" /></Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/hr/employees/departments")}>Departments <ArrowRight className="h-3 w-3 ml-1" /></Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/hr/leave")}>Leave <ArrowRight className="h-3 w-3 ml-1" /></Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/hr/payroll")}>Payroll <ArrowRight className="h-3 w-3 ml-1" /></Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/hr/payroll?action=create")}>Run Payroll <ArrowRight className="h-3 w-3 ml-1" /></Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/hr/attendance")}>Attendance <ArrowRight className="h-3 w-3 ml-1" /></Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/hr/settings")}>HR Settings <ArrowRight className="h-3 w-3 ml-1" /></Button>
+            <Button variant="outline" size="sm" onClick={() => navigate("/hr/configuration")}>HR Settings <ArrowRight className="h-3 w-3 ml-1" /></Button>
           </div>
         </CardContent>
       </Card>

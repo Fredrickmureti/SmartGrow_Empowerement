@@ -200,7 +200,7 @@ export default function UserProfilePage() {
                   </div>
                 </div>
                 <Button variant="outline" asChild>
-                  <Link to="/hr/my-portal">
+                  <Link to="/me">
                     View <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>

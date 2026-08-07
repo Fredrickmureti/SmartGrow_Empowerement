@@ -28,10 +28,10 @@ const GROUPS: { label: string; description?: string; items: Section[] }[] = [
     label: "Organization",
     description: "How the company is structured.",
     items: [
-      { to: "/hr/departments",                  external: true,  icon: Building2,  title: "Departments",     text: "Hierarchy of departments with managers." },
-      { to: "/hr/job-positions",                external: true,  icon: Briefcase,  title: "Job positions",   text: "Standardize job titles across the company." },
-      { to: "/hr/work-locations",               external: true,  icon: MapPin,     title: "Work locations",  text: "Office, remote and hybrid sites." },
-      { to: "/hr/configuration/public-holidays", icon: Calendar, title: "Public holidays", text: "Calendar consumed by attendance and leave." },
+      { to: "/hr/employees/departments",                  external: true,  icon: Building2,  title: "Departments",     text: "Hierarchy of departments with managers." },
+      { to: "/hr/employees/positions",                external: true,  icon: Briefcase,  title: "Job positions",   text: "Standardize job titles across the company." },
+      { to: "/hr/employees/locations",               external: true,  icon: MapPin,     title: "Work locations",  text: "Office, remote and hybrid sites." },
+      { to: "/hr/leave/holidays", icon: Calendar, title: "Public holidays", text: "Calendar consumed by attendance and leave." },
     ],
   },
   {
@@ -40,7 +40,7 @@ const GROUPS: { label: string; description?: string; items: Section[] }[] = [
     items: [
       { to: "/hr/configuration/statutory-fields",    icon: Shield,        title: "Statutory fields",    text: "Tax and social-security IDs employees must provide." },
       { to: "/hr/configuration/document-categories", icon: FileText,      title: "Document categories", text: "Taxonomy for the employee file." },
-      { to: "/hr/configuration/competencies",        icon: GraduationCap, title: "Competencies",        text: "Skills catalog assigned to employees." },
+      { to: "/hr/talent/competencies",        icon: GraduationCap, title: "Competencies",        text: "Skills catalog assigned to employees." },
     ],
   },
   {

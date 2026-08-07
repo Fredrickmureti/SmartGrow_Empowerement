@@ -979,7 +979,7 @@ export const LEGACY_ROUTE_MAPPINGS: Record<string, string> = {
   
   // HR
   "/employees": "/hr/employees",
-  "/departments": "/hr/departments",
+  "/departments": "/hr/employees/departments",
   "/leave": "/hr/leave",
   "/payroll": "/hr/payroll",
   
