@@ -152,32 +152,26 @@ export function useCreditNotes() {
     // ADR 0131: header, lines, number, GL post and customer-credit movement
     // all happen inside one server transaction. The client never computes
     // totals-of-record and never picks accounts.
-    // Every key is sent explicitly (never `undefined`): supabase-js drops
-    // undefined values from the JSON body, and PostgREST then resolves the RPC
-    // by the *provided* argument names — a dropped key yields a confusing
-    // PGRST202 "function not found" (HTTP 404) instead of a validation error.
-    const { data, error } = await (supabase.rpc as any)("create_credit_note_atomic", {
-      _org_id: currentOrg.id ?? null,
-      _business_id: currentBusiness.id ?? null,
-      _branch_id: (creditNote as any).branch_id ?? currentBranch?.id ?? null,
-      _contact_id: creditNote.contact_id ?? null,
-      _invoice_id: creditNote.invoice_id ?? null,
-      _issue_date: creditNote.issue_date ?? new Date().toISOString().split("T")[0],
-      _reason: creditNote.reason ?? null,
-      _notes: creditNote.notes ?? null,
-      _items: items.map((item, index) => ({ ...item, sort_order: item.sort_order ?? index })),
-      _source_return_id: creditNote.source_return_id ?? null,
-      _issue: creditNote.status === "issued",
+    // One stable request envelope avoids PostgREST named-argument signature
+    // matching. The adapter delegates to the canonical transactional writer;
+    // it does not duplicate any accounting or downstream event behavior.
+    const { data, error } = await (supabase.rpc as any)("create_credit_note_request_atomic", {
+      _payload: {
+        _org_id: currentOrg.id,
+        _business_id: currentBusiness.id,
+        _branch_id: (creditNote as any).branch_id ?? currentBranch?.id ?? null,
+        _contact_id: creditNote.contact_id,
+        _invoice_id: creditNote.invoice_id ?? null,
+        _issue_date: creditNote.issue_date ?? new Date().toISOString().split("T")[0],
+        _reason: creditNote.reason ?? null,
+        _notes: creditNote.notes ?? null,
+        _items: items.map((item, index) => ({ ...item, sort_order: item.sort_order ?? index })),
+        _source_return_id: creditNote.source_return_id ?? null,
+        _issue: creditNote.status === "issued",
+      },
     });
 
-    if (error) {
-      if ((error as any).code === "PGRST202") {
-        throw new Error(
-          "The credit note writer is not reachable (API schema cache out of date). Reload the page and retry; if it persists the create_credit_note_atomic migration needs to be re-applied.",
-        );
-      }
-      throw error;
-    }
+    if (error) throw error;
 
     await fetchCreditNotes();
     const result = data as { credit_note_id: string; credit_note_number: string };
