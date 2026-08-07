@@ -1,14 +1,14 @@
 /**
  * Trial Balance Page
- * 
- * Professional 6-column format: Opening (DR/CR), Movement (DR/CR), Closing (DR/CR)
- * Uses the universal financial report engine for accurate GL-based data.
+ *
+ * Professional 6-column format: Opening (DR/CR), Movement (DR/CR), Closing (DR/CR).
+ * Rendered by the canonical reporting engine (`@/design-system/reports`):
+ * the page declares columns + typed rows, the engine owns alignment,
+ * hierarchy, sticky headers, formatting, virtualization and PDF parity.
  */
 
-import { useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { useState, useCallback, useMemo } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { useFinancialReport, type FinancialReportAccount } from "@/hooks/useFinancialReport";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -23,11 +23,22 @@ import { useReportFilters, ReportFilterProvider } from "@/contexts/ReportFilterC
 import { ReportBranchFilter } from "@/components/reports/ReportBranchFilter";
 import { DrillDownDialog, type DrillDownConfig } from "@/components/reports/DrillDownDialog";
 import { SaveViewButton } from "@/components/reports/SaveViewButton";
-import { FinancialReportHeader } from "@/components/reports/FinancialReportHeader";
+import {
+  ReportSurface,
+  ReportTable,
+  blankIfZero,
+  formatAccountingNumber,
+  toExportColumns,
+  toExportRows,
+  type ReportColumn,
+  type ReportColumnGroup,
+  type ReportRow,
+} from "@/design-system/reports";
 import { format } from "date-fns";
-import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
+import type { ExportConfig } from "@/services/reports/ReportExportService";
 
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
+
 /** Splits a closing balance into debit/credit columns based on natural balance */
 function splitBalance(balance: number, accountType: string): { debit: number; credit: number } {
   const isDebit = isDebitNormal(accountType);
