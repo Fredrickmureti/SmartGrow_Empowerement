@@ -249,18 +249,21 @@ export function useCustomerStatements() {
     outstandingQ = applyBranchFilter(outstandingQ, branchId);
     const { data: outstandingInvoices } = await outstandingQ;
 
-    const cnResidual = (cn: { total: number; amount_applied?: number | null; refund_amount?: number | null }) =>
-      Math.max(0, (cn.total || 0) - (cn.amount_applied || 0) - (cn.refund_amount || 0));
-
-    let openCnQ = supabase
-      .from("credit_notes")
-      .select("total, amount_applied, refund_amount, status")
+    // Unapplied customer credit is read from the credit ledger
+    // (`customer_credit_balances`, projected from append-only
+    // `customer_credit_movements`) — the ADR 0131 authority. It is NEVER
+    // derived from `credit_notes.total - amount_applied - refund_amount`,
+    // which would let the statement disagree with the aging report and
+    // with `customer_credit_tieout`. The balance is not branch-scoped
+    // (credit belongs to the customer within a business), so no branch
+    // filter is applied here.
+    const { data: creditBalances } = await supabase
+      .from("customer_credit_balances")
+      .select("balance, currency")
       .eq("organization_id", organizationId)
       .eq("business_id", currentBusiness.id)
-      .in("contact_id", contactIds)
-      .in("status", ["issued", "applied", "refunded"] as any);
-    openCnQ = applyBranchFilter(openCnQ, branchId);
-    const { data: openCreditNotes } = await openCnQ;
+      .in("contact_id", contactIds);
+
 
     // Advance / unapplied customer cash — canonical signal under ADR 0027
     // is `payments.outstanding_amount > 0`, NOT `invoice_id IS NULL`.
