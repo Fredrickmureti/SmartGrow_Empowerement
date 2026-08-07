@@ -57,12 +57,20 @@ export function ReverseGoodsReceiptDialog({
   onSuccess,
 }: ReverseGoodsReceiptDialogProps) {
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
   const [isUnmatching, setIsUnmatching] = useState(false);
   const { reverseGoodsReceipt, resolveReversalIntent, unmatchBankLinesForReversal } =
     useTransactionReversal();
+
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes(
+    "goods_receipt",
+    open,
+  );
+  const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
   // Re-resolved per receipt on open: billing and period state move underneath a
   // long-lived sheet, so a cached verdict would authorise the wrong thing.
@@ -74,6 +82,8 @@ export function ReverseGoodsReceiptDialog({
     let cancelled = false;
     setIsResolving(true);
     setReason("");
+    setReasonCode("");
+
     resolveReversalIntent("goods_receipt", receipt.id)
       .then((result) => {
         if (!cancelled) setIntent(result);
