@@ -1,47 +1,44 @@
-# Reversal & Compensation Architecture — Authoritative Status
+# Reversal & Compensation Architecture — Phase 5.4 + 5.5
 
 Roadmap of record: `.lovable/plan/business-reversal-compensation-architecture-authoritative-st-2026-08-07.md`.
-This file tracks live status only. Phases are executed in order; no phase is left partial.
 
-## Currently active
+## Verification of the previous engineer's claims (done this turn, against the live database)
 
-**Phase 5.4 — Reversal audit register** (next to start).
+Confirmed real, not just documented:
+- `assert_can_reverse`, `assert_reversal_reason`, `reversal_approval_requirement`, `request_reversal_approval`, `resolve_reversal_intent` all exist.
+- All five canonical writers (`void_invoice_atomic`, `void_payment_atomic`, `void_bill_atomic`, `void_bill_payment_atomic`, `void_goods_receipt_atomic`) call the gate **and** the reason validator, and none of them still carries its own period check — the period check now lives only inside the gate.
+- `assert_can_reverse` consults `reversal_approval_requirement`, so approval enforcement is inherited by every writer.
+- `reversal_reason_codes` is seeded (21 codes); `reversal_approval_policies` exists with 2 RLS policies (0 rows configured yet, which is correct — no threshold means no gating).
+- All five `reversal.*` action keys are registered in the governance registry.
+- Client pieces exist and are wired: `ReversalReasonField`, `ReversalApprovalNotice`, `useReversalApproval` in the invoice, bill, bill-payment, goods-receipt and payment reversal surfaces.
 
-## Completed and verified
+Genuinely pending: Phase 5.4 (no `reversal_register` object exists anywhere in the database or code) and Phase 5.5.
 
-### Phase 5.1 — Unified authorization gate (done)
-- `public.assert_can_reverse(document_type, document_id, operation, reason, effective_date)` is the single legality gate. It delegates the legality matrix to `resolve_reversal_intent`, checks the requested operation is offered, and enforces the effective-date period check via `is_period_open`.
-- Called immediately after row lock by all five canonical writers: `void_invoice_atomic`, `void_payment_atomic`, `void_bill_atomic`, `void_bill_payment_atomic`, `void_goods_receipt_atomic`.
-- Hand-rolled `is_period_open` / `user_belongs_to_org` checks removed from those writers.
-- Verified: `supabase/tests/reversal_intent_policy_test.sql` blocks 1–11 (writers call the gate, no duplicated legality, behavioural refusal probes).
+One correction to the previous status: it treated POS and payroll as "siloed but fine for now". They are more divergent than noted — `pos_transactions` carries its own separate reversal vocabulary (`void_reason_id`, `void_override_id`, `reversal_type`) and `payroll_runs` carries `reversal_reason` free text with no code. Both are folded into the plan below.
 
-### Phase 5.2 — Reason taxonomy (done)
-- `public.reversal_reason_codes` catalog (seeded AR/AP/GRN/payroll codes, `applies_to[]`, `requires_comment`).
-- `reason_code` columns on `invoices`, `payments`, `bills`, `bill_payments`, `goods_receipts`.
-- `public.assert_reversal_reason` validates the code against the document type and enforces mandatory comments; all five writers take and validate `_reason_code`.
-- Client: `useReversalReasonCodes` + `ReversalReasonField`, wired into the invoice, bill, bill-payment, goods-receipt and payment reversal surfaces. Confirm buttons stay disabled until the reason is complete.
+## Phase 5.4 — Reversal audit register
 
-### Phase 5.3 — Approval thresholds (done)
-- `public.reversal_approval_policies` — per organization (optionally per business) money threshold per document type plus a prior-period-always-approve flag. RLS: organization members only.
-- Reversal actions registered in `governance_action_registry` (`reversal.invoice`, `.payment`, `.bill`, `.bill_payment`, `.goods_receipt`, `subject_mode = from_entity`).
-- `public.reversal_approval_requirement(document_type, document_id, operation, effective_date)` returns `{ required, satisfied, reasons[], amount, amount_threshold, action_key, request_id, request_status }`.
-- `public.request_reversal_approval(...)` validates the reason code and routes through the existing `approval_route` engine — no parallel approval mechanism.
-- `assert_can_reverse` now refuses any gated reversal until approval is granted, so every writer inherits enforcement.
-- Client: `useReversalApproval` + `ReversalApprovalNotice`, rendered in `VoidInvoiceDialog`, `VoidBillDialog`, `ReverseGoodsReceiptDialog`, `BillPaymentHistoryDialog` and `ReversePaymentWizard`. Confirm is blocked while approval is required and unsatisfied.
-- Verified: `tsgo --noEmit` clean; `supabase/tests/reversal_intent_policy_test.sql` blocks 12–14 (policy table + RLS, resolver/request functions exist, gate consults the resolver, all action keys registered) checked against the live schema.
+**What the user gets:** one finance screen that answers "everything that was reversed in this period, why, by whom, for how much, and whether it was approved" — across sales, purchases, receiving, POS and payroll, instead of five separate module screens.
 
-## Pending
+Work:
+1. Migration creating `public.reversal_register` — a view unioning one branch per reversible document:
+   - invoices, payments, bills, bill_payments, goods_receipts, pos_transactions, payroll_runs, customer_refunds.
+   - Columns: `organization_id`, `business_id`, `module`, `document_type`, `document_id`, `document_number`, `document_date`, `reversal_date`, `amount`, `currency`, `reason_code`, `reason_comment`, `reversed_by`, `approval_request_id`, `reversal_kind` (void / reversal / return / correction).
+   - Security-invoker view so existing per-table RLS applies unchanged; no new grants beyond `SELECT` to `authenticated`.
+2. Finance surface: a "Reversal register" section reading the view through a server function, filterable by period, module, reason code and business, with amount totals per module. Reuses the existing finance page shell and table primitives — no new design language.
+3. Guard test in `src/test/architecture/` asserting every module able to reverse contributes a branch to the view definition, so a new reversible document type cannot be added without appearing in the register.
 
-### Phase 5.4 — Reversal audit register (next)
-- `public.reversal_register` view unioning reversals across sales, purchases, receiving, POS and payroll with: document type, document number, original + reversal date, amount, reason code, reason comment, actor, approval request id.
-- Period-scoped reporting surface (finance page/section) reading that view, filterable by period, module and reason code.
-- Guard test asserting every module that can reverse contributes a branch to the register.
+## Phase 5.5 — POS and payroll parity
 
-### Phase 5.5 — Module parity (after 5.4)
-- Bring POS void/return and payroll correction reversals under `resolve_reversal_intent` + `assert_can_reverse` + reason taxonomy, so they stop being siloed.
+Bring the two divergent modules under the same canonical spine rather than leaving parallel vocabularies:
+1. Map POS void/return/refund and payroll reversal onto `resolve_reversal_intent` document types, so legality answers come from one matrix.
+2. Seed POS and payroll reason codes into `reversal_reason_codes`; have the POS void path and payroll reversal path validate through `assert_reversal_reason`, keeping the existing manager-override id as the approval linkage.
+3. Route both through `assert_can_reverse` so period locks and approval thresholds apply identically.
+4. Register `reversal.pos_transaction` and `reversal.payroll_run` action keys; extend `reversal_approval_policies` coverage to them.
+5. Retire the module-local reason columns in favour of the shared `reason_code` (keep the old columns readable for history; stop writing them).
 
-## Instructions for the next agent
+## Technical notes
 
-1. **Verify before you extend.** Re-run `supabase/tests/reversal_intent_policy_test.sql` checks and `tsgo --noEmit`. Confirm on the live schema that: `assert_can_reverse` still references `reversal_approval_requirement`; the five writers still call the gate and contain no local legality checks; `reversal_approval_policies` has RLS with organization-scoped policies; the five `reversal.*` action keys are registered. Fix any drift before writing new code.
-2. **Then resume at Phase 5.4** — the reversal audit register — not unrelated work.
-3. Keep the invariant: legality lives in `resolve_reversal_intent`, enforcement in `assert_can_reverse`, vocabulary in `reversal_reason_codes`, approval in the existing approval engine. Never fork any of these into a screen or a writer.
+- No new reversal engine, no new posting path: the writers, the posting monopoly (ADR 0123) and the approval engine stay as they are. 5.4 is read-only reporting; 5.5 is re-pointing two modules at existing gates.
+- Every migration follows the create/grant/RLS/policy order; the view gets `SELECT` to `authenticated` only.
+- Phases run in order and each ends with `tsgo --noEmit` plus the reversal policy SQL test suite green.
