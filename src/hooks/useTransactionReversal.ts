@@ -478,6 +478,31 @@ export function useTransactionReversal() {
   };
 
   /**
+   * Project what a reversal would do, before anyone authorises it.
+   *
+   * Phase 2 consequence preview: `preview_reversal_consequences` is read-only
+   * (STABLE) and walks the same predicates the void writers walk, so the numbers
+   * shown are the numbers that will post. Do not compute GL, stock or settlement
+   * figures in the client — a second derivation drifts from the writer.
+   */
+  const previewReversalConsequences = async (
+    documentType: ReversalDocumentType,
+    documentId: string
+  ): Promise<ReversalConsequences | null> => {
+    const { data, error } = await supabase.rpc("preview_reversal_consequences" as any, {
+      _document_type: documentType,
+      _document_id: documentId,
+    } as any);
+    if (error) {
+      console.error("Error previewing reversal consequences:", error);
+      return null;
+    }
+    return (data as unknown as ReversalConsequences) ?? null;
+  };
+
+
+
+  /**
    * Void an invoice — reverses the linked JE(s) atomically (main + COGS legs),
    * flips the header and restores stock, in one server transaction.
    *
