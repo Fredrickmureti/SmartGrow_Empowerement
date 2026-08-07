@@ -43,8 +43,9 @@ BEGIN
   END LOOP;
 END $$;
 
--- 3) The bill void owns its whole fan-out: GL reversal, payment unapplication
---    and purchase-order restoration in one transaction.
+-- 3) The bill void owns its whole fan-out: GL reversal, payment unapplication,
+--    three-way-match release and purchase-order billing restoration, all in one
+--    transaction.
 DO $$
 DECLARE v_src text;
 BEGIN
@@ -58,10 +59,46 @@ BEGIN
   IF v_src !~* 'bill_payment' THEN
     RAISE EXCEPTION 'void_bill_atomic does not address applied payments — a voided bill could keep cash applied to it';
   END IF;
-  IF v_src !~* 'purchase_order' THEN
-    RAISE EXCEPTION 'void_bill_atomic does not restore purchase-order billing state';
+  IF v_src !~* 'bill_match_results' THEN
+    RAISE EXCEPTION 'void_bill_atomic does not release the three-way match — the receipt would stay matched to a voided bill';
+  END IF;
+  IF v_src !~* 'po_resync_billed_state_for_bill' THEN
+    RAISE EXCEPTION 'void_bill_atomic does not restore purchase-order billing state — the PO would stay fully_billed and could never be re-billed';
   END IF;
 END $$;
+
+-- 3b) That restoration has a single canonical implementation, it recomputes
+--     from non-void bills only, and it releases the PO conversion pointer.
+DO $$
+DECLARE v_name text; v_count int; v_src text;
+BEGIN
+  FOREACH v_name IN ARRAY ARRAY['po_resync_billed_state','po_resync_billed_state_for_bill'] LOOP
+    SELECT count(*) INTO v_count
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = v_name;
+    IF v_count <> 1 THEN
+      RAISE EXCEPTION '% must exist with exactly one overload, found %', v_name, v_count;
+    END IF;
+  END LOOP;
+
+  SELECT p.prosrc INTO v_src
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'po_resync_billed_state';
+  IF v_src !~* 'quantity_billed' OR v_src !~* 'billing_status' THEN
+    RAISE EXCEPTION 'po_resync_billed_state no longer recomputes both quantity_billed and billing_status';
+  END IF;
+  IF v_src !~* '<>\s*''void''' THEN
+    RAISE EXCEPTION 'po_resync_billed_state counts voided bills as billed';
+  END IF;
+
+  SELECT p.prosrc INTO v_src
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = 'po_resync_billed_state_for_bill';
+  IF v_src !~* 'converted_bill_id' THEN
+    RAISE EXCEPTION 'po_resync_billed_state_for_bill leaves the PO pointing at the voided bill';
+  END IF;
+END $$;
+
 
 -- 4) The money leg reversal releases the vendor balance and never leaves the
 --    payment allocated.
