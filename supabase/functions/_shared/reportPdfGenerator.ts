@@ -109,11 +109,13 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     paperFormat,
   } = payload;
 
-  // Reports resolve a presentation profile; when a caller omits it we fall
-  // back to the statement/operational split implied by `formatProfile`.
-  const typography = resolveTypography(
-    presentationProfile ?? (formatProfile === "financial" ? "statement" : "operational"),
-  );
+  // Presentation profile is OPT-IN at this layer. Direct callers — tax
+  // certificates, statutory returns, payroll documents — are regulator- or
+  // layout-pinned and must keep byte-identical output, so the default is
+  // the document profile (i.e. the pre-profile behaviour). The analytical
+  // report funnel (`_shared/reports/renderReport.ts`) passes an explicit
+  // profile resolved from the report registry.
+  const typography = resolveTypography(presentationProfile ?? "document");
 
   const builder = await PdfBuilder.create({
     orientation,
