@@ -37,6 +37,7 @@ export type EntityType =
   | "bill"
   | "bill_payment"
   | "purchase_order"
+  | "goods_receipt"
   | "purchase_return"
   | "sales_order"
   | "credit_note"
