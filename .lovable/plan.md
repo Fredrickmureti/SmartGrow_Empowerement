@@ -1,95 +1,107 @@
-# Reporting Engine Convergence — Project Plan
+# Reporting Surface Audit — Verification Verdict and Completion Plan
 
-Authoritative status for the system-wide reporting engine audit and convergence.
+## Part 1 — Verification of the previous engineer's claims
 
-## Status summary
+Every claim in the inherited plan was checked directly against the code.
 
-| Phase | Scope | State |
+| Claim | Verdict | Evidence |
 | --- | --- | --- |
-| 1 | Finance registry-key coverage | Done, verified |
-| 2 | HR reports: no truncation, screen == export | Done, verified |
-| 4 | Architecture guards for module-native report screens | Done, verified |
-| 3 | Single accounting kernel (client + server) | **Active — core done, parity verified; live-data comparison pending** |
-| 5 | Uniform report-run auditability across all formats | Not started — next |
+| Phase 1 — finance pages pass `reportType` in ExportConfig | **True** | `CashFlowReport.tsx:126`, `GeneralLedger.tsx:205`, `PartnerLedger.tsx:372`, `JournalReport.tsx:174`, `BudgetReport.tsx:177`, `DepreciationReport.tsx:194`, `AuditTrail.tsx:194`; guard `reports-registry-key-coverage.test.ts` |
+| Phase 2 — HR reports untruncated, screen == export | **True** | no `.slice(` remains in `src/pages/hr/HRReports.tsx` outside a comment |
+| Phase 4 — module report-screen guards | **True** | `module-report-screens.test.ts` guards 10 module-native screens |
+| Phase 3 — single accounting kernel | **True (code), unverified (data)** | `accountingKernel.ts` is dependency-free and sole owner; `reportDataEngine.ts:14-23` and `AccountClassification.ts:26-33` bind to it, no re-declarations; `accounting-kernel-parity.test.ts` asserts full-space agreement |
+| Phase 3 pending — server snapshot over `buildBalanceSheet`/`buildIncomeStatement` | **Genuinely not done** | neither function is referenced by any test |
+| Phase 5 — report-run auditability | **Partly exists already** | `report_run_log` is real and written by `renderReport.ts:177-186`, so every PDF path logs; client CSV/XLSX and screen renders do not |
 
-## Phase 1 — Finance registry gap (COMPLETE)
+Verdict: the inherited work is real and sound. Nothing needs undoing. The plan's own framing, however, missed the defect the parent prompt actually asks about.
 
-Every finance report page that has a server `columnSpecs.ts` entry now passes the
-matching `reportType` in its `ExportConfig`, so exports go through the registry
-instead of the "prebuilt" inference fallback.
+## Part 2 — The real defect (found, root-caused, not previously identified)
 
-Changed: `CashFlowReport`, `GeneralLedger`, `PartnerLedger`, `JournalReport`,
-`BudgetReport`, `DepreciationReport`, `AuditTrail`.
-Guard: `src/test/architecture/reports-registry-key-coverage.test.ts`.
+Branch Payroll Cost is **not** a UI defect, not a data defect, and not a payroll defect. It is one
+missing step in the shared server report entrypoint.
 
-## Phase 2 — HR reports (COMPLETE)
+```text
+parameters -> buildPayrollReport -> { data, summary }
+                                        |
+        PDF path  -> renderReport() -> columns = getReportSpec(reportType).columns  -> correct PDF
+        JSON path -> spread verbatim -> NO columns resolved                         -> blank screen
+```
 
-`src/pages/hr/HRReports.tsx`: removed all `.slice(...)` row truncation (group
-cards, birthdays, anniversaries — replaced with scrollable containers) and
-rebuilt `exportConfig` from the full datasets rather than a hand-written 5-row
-summary. Screen and export are now the same data.
+- `render-report/index.ts:467-476` returns `{ reportType, dateRange, ...result }` for `format === "json"`.
+  It never consults the column registry.
+- No builder in `_shared/reports/payrollData.ts` returns a `columns` key (all nine cases return
+  `{ data, summary }`). The same is true of the attendance, project and finance builders.
+- The registry **does** have the right columns: `columnSpecs.ts:436-444` defines branch, headcount,
+  gross, employer cost, total cost for `branch_payroll_cost`.
+- `PayrollReportViewer.tsx:187` falls back to `columns = []`; `TablePreview` then renders zero headers
+  and, for the one real row, zero cells. `PayrollReportKpiBand.tsx:103` still counts `rows.length`,
+  hence "Rows: 1" over an empty grid.
 
-## Phase 4 — Architecture guards (COMPLETE)
+So the report is computed correctly, is identical for screen and PDF at the row level, and is lost
+only in the JSON projection. Classification: **B — presentation drift**, systemic across every
+server-build JSON report, not D and not E.
 
-`src/test/architecture/module-report-screens.test.ts` extends the guards beyond
-`src/pages/reports/`: module-native report screens must use
-`ReportExportService` (no hand-rolled CSV/XLSX writers) and may not truncate
-rows inside export config blocks. Fixed the defect it found:
-`src/pages/Reports.tsx` exported only the first 10 expense categories.
+Two knock-on findings:
+- **CSV/XLSX are worse than the PDF.** The viewer builds its export config from the client `columns`
+  state (`PayrollReportViewer.tsx:192-233`) and sends it through render-report's PREBUILT mode, which
+  does not re-resolve `columnSpecs`. PDF preview was previously patched to take the server-build path;
+  CSV/XLSX still inherit the empty column list. Screen, PDF, CSV and XLSX are therefore **not** at parity.
+- **The two payroll states are not contradictory.** `"No approved payroll run in this period"`
+  (`PayrollReportContextHeader.tsx:80`) and `"Payroll approved"` (`usePayrollReportReadiness.ts:24`,
+  backed by the `payroll_report_readiness` RPC) run the same predicate — org, optional business,
+  `approved_at IS NOT NULL`, period overlap — from two independently cached call sites. The logic
+  agrees; only the caching can disagree transiently. Fix is de-duplication, not reconciliation.
 
-## Phase 3 — Single accounting kernel (ACTIVE)
+## Part 3 — Remaining plan
 
-Original plan was to delete the client engine outright. That was downgraded:
-deleting browser-side tree-shaping costs a round trip on every filter change
-for no correctness gain. The real defect was **two copies of the accounting
-rules that had already drifted** (equity `>= 3200` server vs `3200..3999`
-client; the 8000-8999 other-income/other-expense band missing server side).
+### Phase 3c — close the accounting kernel (small, first)
+Add a server snapshot test over `buildBalanceSheet` and `buildIncomeStatement` with a fixed account
+fixture that deliberately includes 3200+ equity codes and 8000-8999 other income/expense codes, so
+the kernel's classification change is pinned as a diff. This closes Phase 3 without needing live data.
 
-Done:
-- `supabase/functions/_shared/reports/accountingKernel.ts` — dependency-free
-  single definition of `isDebitNormal`, `calculateBalance`,
-  `extractCodeNumber`, `classifyByCodeRange`, `classifyAccount`,
-  `SUB_TYPE_LABELS`, `ACCOUNT_TYPE_ORDER/LABELS` and statement section
-  ordering (`BS_*_ORDER`, `PNL_*_ORDER`).
-- `supabase/functions/_shared/reportDataEngine.ts` binds to the kernel; its
-  local primitives, labels and ordering constants are gone.
-  `DETAIL_TYPE_TO_SUB_TYPE` is now exported so parity can be asserted.
-- `src/services/reports/AccountClassification.ts` is a thin kernel binding that
-  keeps only the browser detail-type lookup and the `ClassifiedAccount` shape.
-- `src/services/reports/ReportCalculationEngine.ts` re-exports the kernel
-  primitives and keeps only hierarchy building, variance and validation.
-- Guard: `src/test/architecture/accounting-kernel-parity.test.ts` — no host
-  re-declares a kernel primitive, the server detail-type projection matches
-  `DETAIL_TYPE_CLASSIFICATION` exactly, and client/server classification agree
-  across the whole code-range space and every known detail type. 7/7 green.
-- `tsgo --noEmit` clean.
+### Phase 6 — resolve columns once, in the report result (the fix)
+Make the column projection part of the **report result**, not of the PDF renderer.
 
-Pending for Phase 3 to be closed:
-1. Live-data comparison on a real org/business and period: Trial Balance,
-   P&L and Balance Sheet on screen vs the `render-report` PDF, figure for
-   figure. The kernel change alters equity and other-income/expense placement
-   for charts of accounts using 3200+ and 8000+ codes, so this must be seen,
-   not assumed.
-2. A server snapshot test over `buildBalanceSheet` / `buildIncomeStatement`
-   with a fixed account fixture, so future kernel edits show up as a diff.
+1. In `render-report/index.ts`, resolve `columns` from `getReportSpec(reportType)` for the JSON branch,
+   preferring any `columns` a builder explicitly returns. One place, all report families.
+2. Pass the same resolved columns into `renderReport()` so PDF and JSON provably share one projection
+   rather than each resolving independently.
+3. Architecture guard: for every `reportType` handled by a server builder, the JSON response must carry
+   a non-empty `columns` array whose codes exist in `columnSpecs.ts` — fails on any future builder added
+   without a spec.
 
-## Phase 5 — Report-run auditability (NEXT)
+No UI markup is invented: the viewer already has a real table renderer for every `preview_kind`.
 
-Not started. Target: every report render, in every format (screen, PDF, XLSX,
-CSV) writes a uniform row to `report_run_log` — org, business, report type,
-period, filters, row count, format, duration, actor. Today only part of the
-finance PDF path logs, and `payroll_report_runs` is a separate shape.
+### Phase 7 — export parity for the payroll viewer
+Route the viewer's CSV/XLSX through the same server-build path the PDF preview already uses, so all four
+representations derive from one server result. Guard extends
+`src/test/payroll/reports-viewer-contract.test.ts` to cover CSV/XLSX, not just PDF.
 
-## Instructions for the next agent
+### Phase 8 — one owner for payroll report readiness
+Delete the ad hoc query in `PayrollReportContextHeader.tsx:44-63` and read the
+`payroll_report_readiness` RPC through `usePayrollReportReadiness` with a shared query key, so the
+context header and the readiness band cannot disagree even transiently.
 
-1. **Verify before continuing.** Run `tsgo --noEmit` and
-   `bunx vitest run src/test/architecture`. Two failures are pre-existing and
-   unrelated to reporting — `wms-realtime-publication-sync` and
-   `bank-export-template-metadata`; everything reporting-related must be green.
-   Then read `accountingKernel.ts` against `reportDataEngine.ts` and
-   `AccountClassification.ts` and confirm neither host has grown a private copy
-   of any accounting rule.
-2. **Close Phase 3** by doing the two pending items above, in order. Do not
-   start Phase 5 with Phase 3 half-verified.
-3. **Then Phase 5**, as scoped above. Keep execution chronological; do not open
-   unrelated areas of the system.
+### Phase 9 — empty-state semantics
+Distinguish, in the viewer, the states the parent prompt lists: no data, missing prerequisite
+(no approved run), failed computation, and missing presentation (rows present, columns absent). The last
+one currently renders as silence and is what hid this bug; after Phase 6 it becomes an assertion failure
+rather than a blank grid.
+
+### Phase 5 — uniform report-run auditability (unchanged, last)
+`report_run_log` already covers server PDF paths. Extend it to JSON/screen renders and to client CSV/XLSX
+via the canonical export service, with the same shape: org, business, report type, period, filters, row
+count, format, duration, actor. Fold `payroll_report_runs` into it or make it a view.
+
+### Out of scope, deliberately
+- HR's question-driven library (`HrReportsRoutes.tsx`) is entirely `WorkspaceComingSoon` stubs —
+  classification **F**. It is a product gap; reports will not be fabricated to fill navigation.
+- Warehouse/WMS has no reporting surface at all — also **F**.
+- The document printing architecture and the PDF renderer are healthy and will not be touched.
+
+## Technical notes
+- Single edit point for Phase 6 is the `format === "json"` branch in
+  `supabase/functions/render-report/index.ts`, plus a shared `resolveColumns(reportType, result)` helper
+  next to `columnSpecs.ts` used by both branches.
+- No client-side calculation is added; no second reporting engine is introduced; `ReportCalculationEngine`
+  stays as browser-side tree shaping only, as the previous engineer correctly decided.
