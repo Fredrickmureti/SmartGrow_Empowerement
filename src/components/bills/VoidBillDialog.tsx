@@ -77,6 +77,7 @@ const BLOCKER_LABELS: Record<string, string> = {
 
 export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBillDialogProps) {
   const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [intent, setIntent] = useState<ReversalIntent | null>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -85,6 +86,10 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   const [isUnmatching, setIsUnmatching] = useState(false);
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
+
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes("bill", open);
+  const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
   // Resolved on open and re-resolved per bill — never cached across documents,
   // because payments and match state move underneath the sheet.
@@ -96,6 +101,8 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
     let cancelled = false;
     setIsResolving(true);
     setReason("");
+    setReasonCode("");
+
     resolveReversalIntent("bill", bill.id)
       .then((result) => {
         if (!cancelled) setIntent(result);
