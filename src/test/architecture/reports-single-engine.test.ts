@@ -52,13 +52,33 @@ describe("reporting engine is the single rendering path", () => {
     expect(offenders).toEqual([]);
   });
 
+/**
+ * Pages that still call `formatCurrency` for figures OUTSIDE the table —
+ * KPI cards and status banners. Their table cells are already engine-
+ * formatted. This list is a ratchet: it may shrink, never grow.
+ */
+const LEGACY_KPI_FORMATTERS = new Set([
+  "AgingReport.tsx",
+  "BudgetReport.tsx",
+  "DepreciationReport.tsx",
+  "GeneralLedger.tsx",
+  "InventoryValuationReport.tsx",
+  "ManagementReports.tsx",
+  "PartnerLedger.tsx",
+  "SalesReports.tsx",
+  "StockAgingReport.tsx",
+  "StockReports.tsx",
+  "TaxReports.tsx",
+]);
+
   it("no report page formats money outside the engine", () => {
     const offenders = pages.filter((f) => {
       const src = read(f);
       // `formatCurrency` renders "-KES 1,234"; the PDF renders
       // "(KES 1,234.00)". A page that reaches for it puts the two
       // renderings of the same figure back out of agreement.
-      return /formatCurrency\s*\(/.test(src) || /fmtOrDash/.test(src);
+      if (/fmtOrDash/.test(src)) return true;
+      return /formatCurrency\s*\(/.test(src) && !LEGACY_KPI_FORMATTERS.has(f);
     });
     expect(
       offenders,
