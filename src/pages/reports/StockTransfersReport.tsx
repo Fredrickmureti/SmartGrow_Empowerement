@@ -68,7 +68,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   cancelled: "outline",
 };
 
-export default function StockTransfersReport() {
+function StockTransfersReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const scope = useFinanceScope();
@@ -309,5 +309,15 @@ function KpiCard({ label, value }: { label: string; value: string }) {
         <div className="text-xl font-semibold tabular-nums">{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function StockTransfersReport() {
+  return (
+    <ReportFilterProvider>
+      <StockTransfersReportInner />
+    </ReportFilterProvider>
   );
 }

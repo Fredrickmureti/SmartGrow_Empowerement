@@ -26,7 +26,7 @@ import { useInventoryReconciliation } from "@/hooks/finance/useInventoryReconcil
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ExportConfig, ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 
-export default function InventoryGLReconciliation() {
+function InventoryGLReconciliationInner() {
   const { data: rows = [], isLoading, error } = useInventoryReconciliation();
   const { baseCurrency } = useCurrency();
 
@@ -104,5 +104,15 @@ export default function InventoryGLReconciliation() {
         )}
       </div>
     </ReportPageLayout>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function InventoryGLReconciliation() {
+  return (
+    <ReportFilterProvider>
+      <InventoryGLReconciliationInner />
+    </ReportFilterProvider>
   );
 }

@@ -89,7 +89,7 @@ function fmtMoney(n: number, ccy: string) {
   }
 }
 
-export default function FxRevaluationReport() {
+function FxRevaluationReportInner() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { baseCurrency } = useCurrency();
@@ -420,5 +420,15 @@ function KpiCard({ label, value, tone = "neutral" }: { label: string; value: str
         <div className={`text-xl font-semibold tabular-nums ${tone === "negative" ? "text-rose-700" : ""}`}>{value}</div>
       </CardContent>
     </Card>
+  );
+}
+
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
+
+export default function FxRevaluationReport() {
+  return (
+    <ReportFilterProvider>
+      <FxRevaluationReportInner />
+    </ReportFilterProvider>
   );
 }
