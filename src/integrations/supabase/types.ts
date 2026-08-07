@@ -94344,6 +94344,16 @@ export type Database = {
         }
         Returns: Json
       }
+      void_goods_receipt_atomic: {
+        Args: {
+          _actor?: string
+          _client_request_id?: string
+          _gr_id: string
+          _reason: string
+          _void_date?: string
+        }
+        Returns: Json
+      }
       void_invoice_atomic: {
         Args: {
           _actor?: string
@@ -96207,6 +96217,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wms_reverse_gr_stock: {
+        Args: { _actor: string; _gr_id: string; _reason?: string }
+        Returns: Json
       }
       wms_seed_base_label_templates: {
         Args: { _actor?: string; _org_id: string }

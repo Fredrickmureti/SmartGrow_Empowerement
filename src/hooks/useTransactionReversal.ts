@@ -958,6 +958,69 @@ export function useTransactionReversal() {
     }
   };
 
+  /**
+   * Phase 4b — reverse a completed goods receipt (the `goods_return` operation
+   * `resolve_reversal_intent` advertises for a receipt).
+   *
+   * `void_goods_receipt_atomic` owns the whole operation in one transaction:
+   * GR/NI journal reversal through `void_journal_entry_atomic`, compensating
+   * stock movements, purchase-order quantity restoration, warehouse task
+   * cancellation, three-way-match release and the status flip. Do not
+   * re-implement any leg here — the receipt, its movements and its tasks must
+   * move together or not at all.
+   */
+  const reverseGoodsReceipt = async (options: {
+    goodsReceiptId: string;
+    reason: string;
+    voidDate?: string;
+  }): Promise<boolean> => {
+    if (!currentOrg || !user) {
+      toast({ title: "Error", description: "Organization or user not available", variant: "destructive" });
+      return false;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("void_goods_receipt_atomic" as any, {
+        _gr_id: options.goodsReceiptId,
+        _reason: options.reason,
+        _void_date: options.voidDate ?? null,
+        _actor: user.id,
+        _client_request_id: null,
+      } as any);
+      if (error) throw error;
+
+      const result = (data ?? {}) as { result?: string; receipt_number?: string | null };
+      const label = result.receipt_number ?? options.goodsReceiptId;
+
+      if (result.result === "already_reversed") {
+        toast({ title: "Already Reversed", description: `Goods receipt ${label} has already been reversed.` });
+        return true;
+      }
+
+      logAction({
+        action: "voided",
+        entityType: "goods_receipt",
+        entityId: options.goodsReceiptId,
+        entityName: result.receipt_number ?? undefined,
+        changesSummary: `Goods receipt reversed. Reason: ${options.reason}`,
+      });
+
+      toast({
+        title: "Goods Returned",
+        description: `Goods receipt ${label} was reversed: stock, the purchase order and its postings were all unwound.`,
+      });
+      return true;
+    } catch (error: any) {
+      console.error("Error reversing goods receipt:", error);
+      toast({
+        title: "Error Reversing Goods Receipt",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
 
   /**
    * ADR 0126 — Void a supplier payment. The whole operation (journal reversal,
@@ -1186,6 +1249,7 @@ export function useTransactionReversal() {
 
     voidBill,
     voidBillPayment,
+    reverseGoodsReceipt,
     // unreconcilePayment intentionally NOT exposed — ADR 0012 Wave R2.
     // The wizard's wrong_invoice_applied → unapplyPayment path is the only
     // supported way to detach a payment. Re-introducing this on the public
