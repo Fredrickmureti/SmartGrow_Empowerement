@@ -110,6 +110,13 @@ export interface ExportConfig {
    * Balance and Cash Flow drifted apart.
    */
   reportType?: string;
+  /**
+   * Masthead style for reports that legitimately have NO registry entry
+   * (bespoke reconciliations, FX revaluation, valuation schedules).
+   * Registered reports must NOT set this — their profile comes from
+   * `columnSpecs.ts`, which stays the single source of truth.
+   */
+  formatProfile?: "financial" | "operational";
 }
 
 /**
@@ -160,6 +167,7 @@ function buildRenderPayload(
     businessId: config.businessId,
     branchId: config.branchId ?? null,
     reportType: config.reportType,
+    formatProfile: config.formatProfile,
     currency: config.currency,
   };
 

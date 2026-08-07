@@ -246,6 +246,7 @@ serve(async (req) => {
         paperFormat,
         branchId,
         asOf,
+        formatProfile,
       } = body;
 
       // Milestone C.2 — tabular exports (CSV, XLSX). Same columns/rows
@@ -356,6 +357,7 @@ serve(async (req) => {
         subtitle,
         dateRange,
         asOf,
+        formatProfile,
         orientation,
         currency,
         recipientInfo,
