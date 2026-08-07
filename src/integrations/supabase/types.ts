@@ -64937,6 +64937,116 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_credit_balances: {
+        Row: {
+          applied_total: number
+          balance: number
+          business_id: string
+          created_at: string
+          credited_total: number
+          currency: string
+          expired_total: number
+          id: string
+          organization_id: string
+          refunded_total: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          applied_total?: number
+          balance?: number
+          business_id: string
+          created_at?: string
+          credited_total?: number
+          currency?: string
+          expired_total?: number
+          id?: string
+          organization_id: string
+          refunded_total?: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          applied_total?: number
+          balance?: number
+          business_id?: string
+          created_at?: string
+          credited_total?: number
+          currency?: string
+          expired_total?: number
+          id?: string
+          organization_id?: string
+          refunded_total?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: []
+      }
+      vendor_credit_movements: {
+        Row: {
+          amount: number
+          balance_id: string
+          bill_id: string | null
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          created_by: string | null
+          currency: string
+          id: string
+          journal_entry_id: string | null
+          kind: string
+          notes: string | null
+          organization_id: string
+          refund_id: string | null
+          vendor_credit_note_id: string | null
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          balance_id: string
+          bill_id?: string | null
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          id?: string
+          journal_entry_id?: string | null
+          kind: string
+          notes?: string | null
+          organization_id: string
+          refund_id?: string | null
+          vendor_credit_note_id?: string | null
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          balance_id?: string
+          bill_id?: string | null
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          notes?: string | null
+          organization_id?: string
+          refund_id?: string | null
+          vendor_credit_note_id?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_credit_movements_balance_id_fkey"
+            columns: ["balance_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_credit_balances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_credit_note_applications: {
         Row: {
           amount: number
@@ -65576,6 +65686,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vendor_refunds: {
+        Row: {
+          amount: number
+          bank_account_id: string
+          branch_id: string | null
+          business_id: string
+          client_request_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          id: string
+          journal_entry_id: string | null
+          organization_id: string
+          payment_method: string | null
+          reason: string | null
+          reference: string | null
+          refund_date: string
+          source_vendor_credit_note_id: string | null
+          status: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          bank_account_id: string
+          branch_id?: string | null
+          business_id: string
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id: string
+          payment_method?: string | null
+          reason?: string | null
+          reference?: string | null
+          refund_date: string
+          source_vendor_credit_note_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          bank_account_id?: string
+          branch_id?: string | null
+          business_id?: string
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          id?: string
+          journal_entry_id?: string | null
+          organization_id?: string
+          payment_method?: string | null
+          reason?: string | null
+          reference?: string | null
+          refund_date?: string
+          source_vendor_credit_note_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: []
       }
       vendor_statements: {
         Row: {
@@ -79621,6 +79797,29 @@ export type Database = {
           },
         ]
       }
+      vendor_credit_tieout: {
+        Row: {
+          account_code: string | null
+          account_id: string | null
+          account_name: string | null
+          business_id: string | null
+          currency: string | null
+          drift: number | null
+          gl_balance: number | null
+          organization_id: string | null
+          subledger_balance: number | null
+          system_role: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_system_role_fkey"
+            columns: ["system_role"]
+            isOneToOne: false
+            referencedRelation: "system_account_roles"
+            referencedColumns: ["role_key"]
+          },
+        ]
+      }
       vendor_ledger_entries: {
         Row: {
           branch_id: string | null
@@ -81508,11 +81707,27 @@ export type Database = {
         }
         Returns: undefined
       }
-      apply_vendor_credit_note_atomic: {
+      apply_vendor_credit_fifo_atomic: {
         Args: {
-          p_bill_ids?: string[]
-          p_credit_note_id: string
-          p_user_id?: string
+          _applied_by?: string
+          _bill_ids?: string[]
+          _branch_id?: string
+          _business_id: string
+          _org_id: string
+          _vendor_credit_note_id: string
+        }
+        Returns: Json
+      }
+      apply_vendor_credit_to_bill_atomic: {
+        Args: {
+          _amount: number
+          _applied_by?: string
+          _bill_id: string
+          _branch_id?: string
+          _business_id: string
+          _notes?: string
+          _org_id: string
+          _vendor_credit_note_id: string
         }
         Returns: Json
       }
@@ -84170,10 +84385,6 @@ export type Database = {
         Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
-      confirm_vendor_credit_note_atomic: {
-        Args: { _user_id: string; _vcn_id: string }
-        Returns: Json
-      }
       consume_lots_atomic: {
         Args: {
           p_allocations: Json
@@ -84530,6 +84741,20 @@ export type Database = {
           p_source_id?: string
           p_source_type: string
           p_warehouse_id: string
+        }
+        Returns: Json
+      }
+      create_vendor_credit_note_atomic: {
+        Args: {
+          _bill_id: string
+          _branch_id: string
+          _business_id: string
+          _credit_date: string
+          _issue?: boolean
+          _items: Json
+          _notes: string
+          _org_id: string
+          _vendor_id: string
         }
         Returns: Json
       }
@@ -87813,6 +88038,10 @@ export type Database = {
           _reversal_date: string
         }
         Returns: string
+      }
+      issue_vendor_credit_note_atomic: {
+        Args: { _vcn_id: string }
+        Returns: Json
       }
       label_saved_view_filter: {
         Args: { p_business_id: string; p_view_id: string }
@@ -91938,6 +92167,19 @@ export type Database = {
         }
         Returns: string
       }
+      refund_from_vendor_atomic: {
+        Args: {
+          _amount: number
+          _bank_account_id: string
+          _client_request_id?: string
+          _payment_method?: string
+          _reason_text?: string
+          _reference?: string
+          _refund_date?: string
+          _vendor_credit_note_id: string
+        }
+        Returns: string
+      }
       register_governance_module: {
         Args: {
           p_depends_on?: string[]
@@ -94695,6 +94937,16 @@ export type Database = {
       validate_task_dependency_no_cycle: {
         Args: { _depends_on_id: string; _task_id: string }
         Returns: Json
+      }
+      vendor_credit_account: { Args: { _business_id: string }; Returns: string }
+      vendor_credit_balance_id: {
+        Args: {
+          _business_id: string
+          _currency: string
+          _org_id: string
+          _vendor_id: string
+        }
+        Returns: string
       }
       verify_cashier_pin: {
         Args: { p_cashier_id: string; p_pin: string }

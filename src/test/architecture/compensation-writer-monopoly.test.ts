@@ -138,4 +138,54 @@ describe("commercial compensation writer monopoly", () => {
     });
     expect(posted, "ADR 0131 Phase C: sales return inventory/COGS reversal is missing").toBe(true);
   });
+
+  // ---- ADR 0132: AP parity -------------------------------------------------
+
+  it("the retired vendor compensation writers are gone", () => {
+    const offenders = appFiles.filter((f) =>
+      /confirm_vendor_credit_note_atomic|apply_vendor_credit_note_atomic/.test(
+        readFileSync(f, "utf8"),
+      ),
+    );
+    expect(
+      offenders.map(rel),
+      "ADR 0132 retired these; use issue_vendor_credit_note_atomic / apply_vendor_credit_to_bill_atomic",
+    ).toEqual([]);
+  });
+
+  it("no client inserts vendor credit note headers directly", () => {
+    const offenders = appFiles.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return /from\("vendor_credit_notes"\)\s*\n?\s*\.insert/.test(src);
+    });
+    expect(
+      offenders.map(rel),
+      "vendor credit notes are created only by create_vendor_credit_note_atomic",
+    ).toEqual([]);
+  });
+
+  it("no client-side purchase-return journal lines", () => {
+    const offenders = appFiles.filter((f) => readFileSync(f, "utf8").includes("postPurchaseReturnGL"));
+    expect(
+      offenders.map(rel),
+      "purchase-return GL is posted by the vendor credit writer, not the browser",
+    ).toEqual([]);
+  });
+
+  it("vendor credit has its own GL account role and ledger", () => {
+    const dir = join(ROOT, "supabase/migrations");
+    const files = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
+    expect(
+      files.some((sql) => /system_account_roles/.test(sql) && /'vendor_credit'/.test(sql)),
+      "ADR 0132: vendor_credit account role migration is missing",
+    ).toBe(true);
+    expect(
+      files.some((sql) => /vendor_credit_movements/.test(sql) && /vendor_credit_balances/.test(sql)),
+      "ADR 0132: vendor credit subledger is missing",
+    ).toBe(true);
+    expect(
+      files.some((sql) => /vendor_credit_tieout/.test(sql)),
+      "ADR 0132: vendor credit tie-out view is missing",
+    ).toBe(true);
+  });
 });
