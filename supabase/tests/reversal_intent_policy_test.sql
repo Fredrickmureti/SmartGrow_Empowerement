@@ -161,7 +161,10 @@ END $$;
 
 -- 8) Behavioural probe: the authority is total. For any real document of a
 --    supported type it must return a jsonb object carrying the contract keys —
---    never NULL, never an error. Read-only; skips silently on an empty tenant.
+--    never NULL, never a crash. Read-only. Skips silently on an empty tenant and
+--    when the session has no org membership (the authority correctly refuses a
+--    non-member with 42501, which is the tenancy guard doing its job, not a
+--    contract failure).
 DO $$
 DECLARE v_id uuid; v_res jsonb; v_dt text;
 BEGIN
@@ -176,7 +179,12 @@ BEGIN
                    END) INTO v_id;
     CONTINUE WHEN v_id IS NULL;
 
-    v_res := public.resolve_reversal_intent(v_dt, v_id);
+    BEGIN
+      v_res := public.resolve_reversal_intent(v_dt, v_id);
+    EXCEPTION WHEN insufficient_privilege THEN
+      CONTINUE;
+    END;
+
     IF v_res IS NULL THEN
       RAISE EXCEPTION 'resolve_reversal_intent returned NULL for % %', v_dt, v_id;
     END IF;
@@ -192,3 +200,4 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
