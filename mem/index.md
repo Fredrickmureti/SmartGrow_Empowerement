@@ -29,6 +29,10 @@ Warehouse side panes are read-only `EntityPreview` peeks; editing/config/history
 
 Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/Workforce/Analysis/Configuration-last); new surfaces attach inside a domain, depth<=2, group<=8. ADR 0121.
 
+Any writer inserting `journal_entry_lines` MUST stamp organization_id, business_id and branch_id from the parent entry — they are NOT NULL and validated, not backfilled by the match trigger. Only the three posting-engine functions may insert journal lines (ADR 0123).
+
+
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
@@ -38,3 +42,6 @@ Warehouse nav is domain-oriented (Work/Inbound/Inventory control/Outbound/Yard/W
 - [Workspace nav architecture](mem://features/workspace-nav-architecture) — ADR 0101 nav/app coherence rule, Employees nav composition, guard tests
 - [Warehouse nav IA](mem://features/warehouse-nav-ia) — ADR 0121 domain groups, execution vs configuration split, depth/size caps, WMS terminology
 - [Warehouse preview vs workspace](mem://features/warehouse-preview-vs-workspace) — ADR 0122 EntityPreview/EntityWorkspaceShell contract, which entities get workspace routes, ?sel/?tab conventions
+- [Business reversal architecture](mem://features/business-reversal-architecture) — canonical reversal writers, journal line scope invariant, paid-invoice policy, per-domain gaps
+- [Payment reversal](mem://features/payment-reversal) — ADR 0012 intent model, ReversePaymentWizard, atomic reversal RPCs, customer deposits
+
