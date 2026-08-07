@@ -209,7 +209,7 @@ function ReportRunHistoryInner() {
   const [detailRow, setDetailRow] = useState<ReportRunRow | null>(null);
 
   const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
+  const { currentBusiness, businesses } = useBusinesses();
 
   const { data, isLoading, error } = useQuery({
     queryKey: [
@@ -257,6 +257,45 @@ function ReportRunHistoryInner() {
     return Array.from(s).sort();
   }, [data]);
 
+  // Actor names: a run log that says "who ran it" must say a person's name.
+  const actorIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of data || []) if (r.user_id) s.add(r.user_id);
+    return Array.from(s).sort();
+  }, [data]);
+
+  const { data: actorNames } = useQuery({
+    queryKey: ["report-run-actors", actorIds],
+    enabled: actorIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data: rows, error: e } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", actorIds);
+      if (e) throw e;
+      const map: Record<string, string> = {};
+      for (const p of rows || []) {
+        map[p.user_id] = p.full_name || p.email || "";
+      }
+      return map;
+    },
+  });
+
+  const actorLabel = useCallback(
+    (userId: string | null): string =>
+      (userId && actorNames?.[userId]) || (userId ? "Unknown user" : "System"),
+    [actorNames],
+  );
+
+  const companyLabel = useCallback(
+    (businessId: string | null): string | null =>
+      businessId
+        ? businesses.find((b) => b.id === businessId)?.name ?? "Other company"
+        : null,
+    [businesses],
+  );
+
   const rawById = useMemo(() => {
     const m = new Map<string, ReportRunRow>();
     for (const r of data || []) m.set(r.id, r);
@@ -265,11 +304,27 @@ function ReportRunHistoryInner() {
 
   const columns = useMemo<ReportColumn<ReportRunRow>[]>(
     () => [
-      { key: "when", header: "When", width: "w-[160px]" },
+      { key: "when", header: "Date & time", width: "w-[150px]" },
       { key: "report", header: "Report" },
-      { key: "status", header: "Status", width: "w-[110px]" },
-      { key: "size", header: "Size", width: "w-[100px]", align: "right" },
-      { key: "hash", header: "Run hash", width: "w-[140px]" },
+      { key: "period", header: "Period covered", width: "w-[190px]" },
+      { key: "company", header: "Company", width: "w-[160px]" },
+      { key: "output", header: "Output", width: "w-[130px]" },
+      { key: "lines", header: "Lines", width: "w-[80px]", align: "right" },
+      { key: "actor", header: "Run by", width: "w-[170px]" },
+      {
+        key: "result",
+        header: "Result",
+        width: "w-[110px]",
+        render: (row) => {
+          const raw = rawById.get(String(row.id));
+          if (!raw) return null;
+          return (
+            <Badge variant={statusTone(raw.status)} className="font-normal">
+              {statusLabel(raw.status)}
+            </Badge>
+          );
+        },
+      },
       {
         key: "detail",
         header: "",
@@ -287,7 +342,7 @@ function ReportRunHistoryInner() {
                 e.stopPropagation();
                 setDetailRow(raw);
               }}
-              aria-label="View report run parameters"
+              aria-label="View run details"
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -306,12 +361,15 @@ function ReportRunHistoryInner() {
         values: {
           when: format(new Date(r.created_at), "MMM d, yyyy HH:mm"),
           report: reportLabel(r.report_type),
-          status: r.status || null,
-          size: formatBytes(r.byte_count),
-          hash: r.run_hash ? `${r.run_hash.slice(0, 12)}…` : null,
+          period: periodLabel(r.params_jsonb),
+          company: companyLabel(r.business_id) ?? "All companies",
+          output: outputLabel(r.params_jsonb),
+          lines: rowCount(r.params_jsonb),
+          actor: actorLabel(r.user_id),
+          result: statusLabel(r.status),
         },
       })),
-    [data],
+    [data, actorLabel, companyLabel],
   );
 
   const getExportConfig = useCallback((): ExportConfig => {
