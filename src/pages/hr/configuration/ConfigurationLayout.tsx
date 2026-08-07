@@ -33,11 +33,6 @@ export default function ConfigurationLayout() {
         <Route path="public-holidays" element={<PublicHolidays />} />
         <Route path="policies" element={<Policies />} />
         <Route path="maintenance" element={<Maintenance />} />
-        {/* Sections that live on dedicated pages — redirect there */}
-        <Route path="departments" element={<Navigate to="/hr/employees/departments" replace />} />
-        <Route path="job-positions" element={<Navigate to="/hr/employees/positions" replace />} />
-        <Route path="work-locations" element={<Navigate to="/hr/employees/locations" replace />} />
-        <Route path="benefit-windows" element={<Navigate to="/hr/benefit-windows" replace />} />
         <Route path="*" element={<Navigate to="." replace />} />
       </Routes>
     </Suspense>

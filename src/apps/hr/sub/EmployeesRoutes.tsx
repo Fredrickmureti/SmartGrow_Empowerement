@@ -4,18 +4,14 @@
  * Owns: dashboard, employee directory, employee profile, HR configuration,
  * and people analytics that live on the Employees overview.
  *
- * **Boundary** (post Wave-1 IA): Departments, Job positions, Work locations
- * and the Org chart are now owned by the Org workspace (`/hr/org/*`). The
- * dispatcher (`src/apps/hr/routes.tsx`) redirects the legacy URLs before
- * delegating the rest to this sub-app. Reports live under the HR Reports
- * workspace (`/hr/reports/*`). Talent (performance, goals, reviews,
- * competencies, development, learning) lives under `/hr/talent/*`.
+ * **Boundary**: Departments, Job positions, Work locations and the Org
+ * chart are built-in Employees surfaces and live under
+ * `/hr/employees/*`. Reports are owned by the HR Reports workspace
+ * (`/hr/reports/*`). Talent (performance, goals, reviews, competencies,
+ * development, learning) lives under `/hr/talent/*`.
  *
- * Routes for the moved-out pages used to be re-declared here as a safety
- * net; React Router v6 always preferred the dispatcher's higher-priority
- * mounts, so the in-shell duplicates were dead code. They have been
- * removed — adding a new redirect should be done in the dispatcher or in
- * `src/apps/hr/shared/redirects.ts`, not here.
+ * There is no redirect/alias layer: every surface has exactly one URL and
+ * every link in the app points at it directly.
  *
  * Mounted at /hr/* — the HR dispatcher delegates these path segments here.
  */
