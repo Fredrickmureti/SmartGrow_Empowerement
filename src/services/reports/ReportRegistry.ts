@@ -49,7 +49,28 @@ export interface ReportDefinition {
   reportType: string;
   /** Optional: groups child leaves under a parent hub for UI rendering. */
   parentId?: string;
+  /**
+   * Reporting domain. Drives the in-report switcher strip: a report can only
+   * switch to siblings inside its own domain. Derived from `path` when omitted
+   * (see `getReportDomain`) so existing entries need no per-entry annotation.
+   */
+  domain?: ReportDomain;
+  /**
+   * Cross-domain relationships that are semantically meaningful (Trial Balance
+   * ⇄ General Ledger, Payroll Summary ⇄ Statutory). Ids only; never invent a
+   * relationship that does not exist in the business model.
+   */
+  relatedReports?: string[];
+  /**
+   * Drill-down capability of this report, for classification and for the UI
+   * to decide whether to advertise investigation affordances.
+   *  - `none`   : aggregate has no legitimate underlying detail (D0/D4)
+   *  - `dialog` : detail opens in place, preserving report context (D1)
+   *  - `route`  : detail is a separate route carrying scope params forward
+   */
+  drillDown?: "none" | "dialog" | "route";
 }
+
 
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   statutory: "Financial Statements",
