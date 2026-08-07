@@ -7,6 +7,7 @@ import { useToast } from "./use-toast";
 import { useBranch } from "@/contexts/BranchContext";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
+import { createCreditNoteAtomic } from "@/services/finance/createCreditNote";
 
 /**
  * ADR 0131 — commercial compensation is a server-side service.
@@ -155,8 +156,7 @@ export function useCreditNotes() {
     // `create_credit_note_atomic(_payload jsonb)` is the ONLY credit note
     // creation entry point. The single named envelope keeps the PostgREST
     // signature stable as the document evolves; no adapters, no overloads.
-    const { data, error } = await (supabase.rpc as any)("create_credit_note_atomic", {
-      _payload: {
+    const data = await createCreditNoteAtomic({
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         branch_id: (creditNote as any).branch_id ?? currentBranch?.id ?? null,
@@ -168,11 +168,7 @@ export function useCreditNotes() {
         items: items.map((item, index) => ({ ...item, sort_order: item.sort_order ?? index })),
         source_return_id: creditNote.source_return_id ?? null,
         issue: creditNote.status === "issued",
-      },
     });
-
-
-    if (error) throw error;
 
     await fetchCreditNotes();
     const result = data as { credit_note_id: string; credit_note_number: string };

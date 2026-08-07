@@ -62,18 +62,22 @@ describe("commercial compensation writer monopoly", () => {
       "create_credit_note_request_atomic was a duplicate adapter; call create_credit_note_atomic",
     ).toEqual([]);
 
-    const callers = appFiles.filter((f) =>
-      /create_credit_note_atomic/.test(readFileSync(f, "utf8")),
-    );
-    expect(callers.map(rel)).toEqual(["src/hooks/useCreditNotes.ts"]);
+    const callers = appFiles.filter((f) => {
+      const source = readFileSync(f, "utf8");
+      return /rpc\([^)]*["']create_credit_note_atomic["']/.test(source)
+        || /rest\/v1\/rpc\/create_credit_note_atomic/.test(source);
+    });
+    expect(callers.map(rel)).toEqual([
+      "src/services/finance/createCreditNote.ts",
+    ]);
 
     // The single entry point is the named jsonb envelope; positional/named
     // column arguments reintroduce PostgREST signature drift.
-    const hook = readFileSync(join(SRC, "hooks/useCreditNotes.ts"), "utf8");
-    const call = hook.slice(hook.indexOf('rpc as any)("create_credit_note_atomic"'));
-    expect(call.slice(0, 200).includes("_payload"), "creation must use the _payload envelope").toBe(
-      true,
-    );
+    const transport = readFileSync(join(SRC, "services/finance/createCreditNote.ts"), "utf8");
+    expect(
+      transport.includes("JSON.stringify({ _payload: payload })"),
+      "creation must serialize exactly the _payload envelope",
+    ).toBe(true);
 
   });
 
