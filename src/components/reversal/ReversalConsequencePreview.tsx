@@ -90,6 +90,8 @@ export function ReversalConsequencePreview({
   isLoading,
   isError,
   currency,
+  onUnmatchBankLines,
+  isUnmatchingBankLines,
 }: ReversalConsequencePreviewProps) {
   const { formatCurrency } = useCurrency();
 
