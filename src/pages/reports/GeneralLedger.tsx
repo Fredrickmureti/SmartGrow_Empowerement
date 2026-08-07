@@ -202,6 +202,7 @@ function GeneralLedgerInner() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: "General Ledger",
+      reportType: "general_ledger",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,

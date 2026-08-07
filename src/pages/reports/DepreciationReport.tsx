@@ -191,6 +191,7 @@ function DepreciationReportInner() {
 
   const getExportConfig = useCallback((): ExportConfig => ({
     title: "Depreciation Report",
+    reportType: "depreciation_schedule",
     companyName: currentOrg?.name || "",
     organizationId: currentOrg?.id,
     dateRange: `As of ${format(new Date(dateTo), "MMMM d, yyyy")} · ${branchLabel}`,

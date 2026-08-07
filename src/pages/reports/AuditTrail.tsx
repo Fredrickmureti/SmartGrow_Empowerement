@@ -191,6 +191,7 @@ function AuditTrailInner() {
   const getExportConfig = useCallback((): ExportConfig => {
     return {
       title: "Audit Trail",
+      reportType: "audit_trail",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,

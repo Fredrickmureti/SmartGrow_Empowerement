@@ -39,15 +39,25 @@ function grossOf(e: Employee): number {
   return (e.basic_salary || 0) + (e.housing_allowance || 0) + (e.transport_allowance || 0) + other;
 }
 
+/**
+ * Renders the complete grouping. It must never truncate: the export
+ * config is built from these same arrays, so a `.slice()` here would put
+ * a different dataset on screen than the one users download.
+ */
 function GroupCard({ title, rows }: { title: string; rows: { name: string; count: number }[] }) {
   const total = rows.reduce((s, r) => s + r.count, 0) || 1;
   return (
     <Card>
-      <CardHeader className="pb-3"><CardTitle className="text-base">{title}</CardTitle></CardHeader>
-      <CardContent className="space-y-1.5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span>{title}</span>
+          <span className="text-xs font-normal text-muted-foreground">{rows.length} groups</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1.5 max-h-72 overflow-y-auto">
         {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No data.</p>
-        ) : rows.slice(0, 10).map((r) => (
+        ) : rows.map((r) => (
           <div key={r.name} className="space-y-1">
             <div className="flex justify-between text-sm">
               <span className="truncate pr-2">{r.name}</span>
@@ -151,14 +161,20 @@ export default function HRReports() {
   const totalGross = active.reduce((s, e) => s + grossOf(e), 0);
   const avgGross = active.length ? totalGross / active.length : 0;
 
+  /**
+   * The export is the page. Every section rendered on screen contributes
+   * its full set of rows here — previously this shipped a 5-row KPI
+   * summary while the page showed (truncated) breakdowns, so the download
+   * and the screen were two different reports.
+   */
   const exportConfig = (): ExportConfig => ({
     title: "HR Report",
     subtitle: scopeLabel,
     dateRange: `Last ${months} months · As of ${format(today, "MMM d, yyyy")}`,
     columns: [
-      { key: "section", header: "Section", width: 18 },
-      { key: "label", header: "Label", width: 28 },
-      { key: "value", header: "Value", width: 14, align: "right" },
+      { key: "section", header: "Section", width: 22 },
+      { key: "label", header: "Label", width: 34 },
+      { key: "value", header: "Value", width: 16, align: "right" },
     ],
     rows: [
       { section: "Movement", label: "Hires", value: hires.length },
@@ -166,10 +182,25 @@ export default function HRReports() {
       { section: "Movement", label: "Turnover %", value: turnover },
       { section: "Headcount", label: "Active", value: active.length },
       { section: "Headcount", label: "Inactive", value: inactive.length },
+      ...byDepartment.map((r) => ({ section: "Headcount by department", label: r.name, value: r.count })),
+      ...byPosition.map((r) => ({ section: "Headcount by job position", label: r.name, value: r.count })),
+      ...byLocation.map((r) => ({ section: "Headcount by work location", label: r.name, value: r.count })),
+      ...byBranch.map((r) => ({ section: "Headcount by branch", label: r.name, value: r.count })),
+      ...upcomingBirthdays.map((x) => ({
+        section: "Upcoming birthdays · 30 days",
+        label: `${x.e.first_name} ${x.e.last_name}`,
+        value: format(x.when, "MMM d"),
+      })),
+      ...upcomingAnniversaries.map((x) => ({
+        section: "Work anniversaries · 30 days",
+        label: `${x.e.first_name} ${x.e.last_name}`,
+        value: `${x.years}y · ${format(x.when, "MMM d")}`,
+      })),
       ...(canSeeComp
         ? [
             { section: "Compensation", label: "Total monthly gross", value: totalGross },
             { section: "Compensation", label: "Average gross", value: Math.round(avgGross) },
+            { section: "Compensation", label: "Headcount included", value: active.length },
           ]
         : []),
     ],
@@ -229,8 +260,8 @@ export default function HRReports() {
               {upcomingBirthdays.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None in the next 30 days.</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {upcomingBirthdays.slice(0, 8).map((x) => (
+                <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {upcomingBirthdays.map((x) => (
                     <li key={x.e.id} className="flex justify-between text-sm">
                       <span>{x.e.first_name} {x.e.last_name}</span>
                       <span className="text-muted-foreground">{format(x.when, "MMM d")} · in {x.days}d</span>
@@ -247,8 +278,8 @@ export default function HRReports() {
               {upcomingAnniversaries.length === 0 ? (
                 <p className="text-sm text-muted-foreground">None in the next 30 days.</p>
               ) : (
-                <ul className="space-y-1.5">
-                  {upcomingAnniversaries.slice(0, 8).map((x) => (
+                <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {upcomingAnniversaries.map((x) => (
                     <li key={x.e.id} className="flex justify-between text-sm">
                       <span>{x.e.first_name} {x.e.last_name}</span>
                       <span className="text-muted-foreground">{x.years}y · {format(x.when, "MMM d")}</span>
