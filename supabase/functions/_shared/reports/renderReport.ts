@@ -98,9 +98,50 @@ export interface RenderReportOptions {
 }
 
 /**
+ * Derive the canonical reporting-scope line: "<Business> · <Branch>".
+ *
+ * This is the single owner of that string. Report modules and UI pages
+ * must never hand-compose a scope label, otherwise the same run reads
+ * "Nairobi" on screen and "Headquarters (HQ)" on paper.
+ *
+ * - No branch selected → "<Business> · All branches" (consolidated).
+ * - Branch selected → "<Business> · <Branch name>" (HQ flagged).
+ * - No business identity at all → undefined (masthead omits the line).
+ */
+async function resolveReportScope(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: { businessName?: string | null; businessId?: string | null; branchId?: string | null },
+): Promise<string | undefined> {
+  const business = input.businessName?.trim() || null;
+  let branch: string | null = null;
+
+  if (input.branchId) {
+    try {
+      const { data } = await supabase
+        .from("branches")
+        .select("name, is_headquarters")
+        .eq("id", input.branchId)
+        .maybeSingle();
+      if (data?.name) {
+        branch = data.is_headquarters ? `${data.name} (HQ)` : data.name;
+      }
+    } catch (e) {
+      console.warn("[renderReport] branch scope lookup failed:", (e as Error).message);
+    }
+  } else if (business || input.businessId) {
+    branch = "All branches";
+  }
+
+  const parts = [business, branch].filter(Boolean) as string[];
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+/**
  * Resolve columns + title + orientation + format-profile from the registry,
  * render the PDF, and write a (best-effort) audit row.
  */
+
 export async function renderReport(
   // deno-lint-ignore no-explicit-any
   supabase: any,
