@@ -115,18 +115,21 @@ export function ReverseGoodsReceiptDialog({
   };
 
   const handleReverse = async () => {
-    if (!receipt || !reason.trim() || !canReverse) return;
+    if (!receipt || !reasonComplete || !canReverse) return;
     setIsSubmitting(true);
     try {
       const success = await reverseGoodsReceipt({
         goodsReceiptId: receipt.id,
         reason: reason.trim(),
+        reasonCode,
       });
       if (success) {
         setReason("");
+        setReasonCode("");
         onOpenChange(false);
         onSuccess?.();
       }
+
     } finally {
       setIsSubmitting(false);
     }
