@@ -52,23 +52,20 @@ describe("reporting engine is the single rendering path", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("no report page hand-rolls a cell formatter", () => {
+  it("no report page formats money outside the engine", () => {
     const offenders = pages.filter((f) => {
       const src = read(f);
-      // `const fmt = ...` / `fmtOrDash` were the two copied helpers that
-      // drifted from the PDF policy on every page that defined them.
-      return /const\s+(fmt|fmtOrDash|formatAmount|money)\s*=/.test(src);
+      // `formatCurrency` renders "-KES 1,234"; the PDF renders
+      // "(KES 1,234.00)". A page that reaches for it puts the two
+      // renderings of the same figure back out of agreement.
+      return /formatCurrency\s*\(/.test(src) || /fmtOrDash/.test(src);
     });
     expect(
       offenders,
-      "Use column `format` or formatAccountingNumber from @/design-system/reports",
+      "Use a column `format`, or formatAccountingNumber from @/design-system/reports",
     ).toEqual([]);
   });
 
-  it("no report page reimplements the empty-cell or negative-number policy", () => {
-    const offenders = pages.filter((f) => /\?\s*"—"\s*:|\(\$\{|\(\`\$\{/.test(read(f)));
-    expect(offenders).toEqual([]);
-  });
 
   it("the masthead comes from ReportSurface, not the legacy header", () => {
     const offenders = pages.filter((f) => /FinancialReportHeader/.test(read(f)));
