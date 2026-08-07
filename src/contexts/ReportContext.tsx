@@ -78,26 +78,45 @@ export function ReportContextProvider({ children }: { children: ReactNode }) {
   const { currentOrg } = useOrganization();
   const { baseCurrency } = useCurrencyContext();
   const { currentBusiness } = useBusinesses();
+  const scope = useFinanceScope();
 
   const ctx: ReportRenderContext = useMemo(
     () => ({
       organizationId: currentOrg?.id,
       businessId: currentBusiness?.id,
-      companyName: currentBusiness?.name,
+      companyName: currentBusiness?.legal_name ?? currentBusiness?.name,
       currency: currentBusiness?.base_currency ?? baseCurrency,
+      logoUrl: currentBusiness?.logo_url ?? null,
+      branchId: scope.branchId,
+      scopeLabel: scope.reportScopeLabel,
     }),
-    [currentOrg?.id, currentBusiness?.id, currentBusiness?.name, currentBusiness?.base_currency, baseCurrency],
+    [
+      currentOrg?.id,
+      currentBusiness?.id,
+      currentBusiness?.name,
+      currentBusiness?.legal_name,
+      currentBusiness?.logo_url,
+      currentBusiness?.base_currency,
+      baseCurrency,
+      scope.branchId,
+      scope.reportScopeLabel,
+    ],
   );
 
   const enrichExportConfig = useCallback(
     <T extends Partial<ExportConfig>>(config: T) => ({
       ...config,
       organizationId: ctx.organizationId ?? config.organizationId,
+      businessId: ctx.businessId ?? config.businessId,
+      // Branch is scope, not branding: an explicitly-passed branch (e.g. a
+      // report that pins one branch) wins over the ambient one.
+      branchId: config.branchId ?? ctx.branchId ?? null,
       companyName: ctx.companyName ?? config.companyName,
       currency: ctx.currency ?? config.currency,
     }),
     [ctx],
   );
+
 
   return (
     <ReportContext.Provider value={{ ...ctx, enrichExportConfig }}>
