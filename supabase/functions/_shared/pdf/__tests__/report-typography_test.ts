@@ -15,6 +15,7 @@ import {
   inferPresentationProfile,
   type PresentationProfile,
 } from "../themes/presentation.ts";
+import { PDFDocument } from "https://esm.sh/pdf-lib@1.17.1";
 import { generateReportPdf } from "../../reportPdfGenerator.ts";
 
 Deno.test("document profile is byte-for-byte the legacy theme", () => {
@@ -112,10 +113,10 @@ Deno.test("ledger profile does not blow up pagination", async () => {
   };
   const before = await generateReportPdf({ ...base, presentationProfile: "document" });
   const after = await generateReportPdf({ ...base, presentationProfile: "ledger" });
-  const pages = (bytes: Uint8Array) =>
-    (new TextDecoder("latin1").decode(bytes).match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-  const pagesBefore = pages(before);
-  const pagesAfter = pages(after);
+  const pages = async (bytes: Uint8Array) =>
+    (await PDFDocument.load(bytes)).getPageCount();
+  const pagesBefore = await pages(before);
+  const pagesAfter = await pages(after);
   assert(pagesAfter > 0);
   assert(
     pagesAfter <= pagesBefore + 1,
