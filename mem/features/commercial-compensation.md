@@ -41,3 +41,7 @@ Both sides follow the same rules — never let one drift from the other.
 - Numbering is business-scoped and advisory-locked; prefixes live on
   `businesses`, NOT on `organizations`. No client-side fallback numbers.
 - Ratchet: `src/test/architecture/compensation-writer-monopoly.test.ts`.
+- Any migration that creates or replaces a `public` function MUST end with
+  `NOTIFY pgrst, 'reload schema'`. Omitting it produces PGRST202 / HTTP 404 for
+  a function that exists — the 2026-08-07 credit-note outage. Never "fix" a
+  PGRST202 by reshaping signatures or adding wrapper RPCs.
