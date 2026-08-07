@@ -66,6 +66,8 @@ interface VoidInvoiceDialogProps {
 const OPERATION_ICONS: Record<ReversalOperation, typeof Ban> = {
   void: Ban,
   credit_note: FileMinus,
+  vendor_credit_note: FileMinus,
+  goods_return: Undo2,
   refund: Wallet,
   customer_credit: Wallet,
   reverse_payment: Undo2,
