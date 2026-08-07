@@ -52,7 +52,9 @@ function CashFlowReportInner() {
 
   const { data, isLoading, error } = useCashFlowReport({ dateFrom, dateTo, branchId: filters.branchId });
 
-  const fmt = (amount: number) => formatCurrency(amount, baseCurrency);
+  // Standalone figures (KPI cards, banners) use the same accounting
+  // policy as the table cells and the exported PDF.
+  const fmt = (amount: number) => formatAccountingNumber(amount, baseCurrency);
 
   // ── One column declaration drives the screen table AND the export ──
   const columns = useMemo<ReportColumn[]>(

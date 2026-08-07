@@ -224,7 +224,9 @@ function FinancialReportsInner() {
     navigate(`/finance/reports/general-ledger?account_id=${account.id}&date_from=${dateFrom}&date_to=${dateTo}`);
   };
 
-  const fmt = (amount: number) => formatCurrency(amount, baseCurrency);
+  // Standalone figures (KPI cards, banners) use the same accounting
+  // policy as the table cells and the exported PDF.
+  const fmt = (amount: number) => formatAccountingNumber(amount, baseCurrency);
 
   // ─── Classified accounts for sub-type grouping ───
   const classifiedBsAccounts = useMemo(() => {
