@@ -141,7 +141,7 @@ export function DrillDownDialog({ open, onOpenChange, config }: DrillDownDialogP
             : "id, bill_number, bill_date, total, amount_paid, status",
         )
         .eq("organization_id", currentOrg.id)
-        .eq("contact_id", config.contactId)
+        .eq(partnerKind === "invoice" ? "contact_id" : "vendor_id", config.contactId)
         .gte(dateColumn, config.startDate)
         .lte(dateColumn, config.endDate);
       if (currentBusiness?.id) query = query.eq("business_id", currentBusiness.id);
