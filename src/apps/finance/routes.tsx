@@ -97,6 +97,7 @@ const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationRepo
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
 const FinanceIntegrity = lazy(() => import("@/pages/finance/FinanceIntegrity"));
+const ReversalRegister = lazy(() => import("@/pages/finance/ReversalRegister"));
 // Legacy PosPostingQueue page is superseded by AccountingEventsWorkspace (B4).
 // It stays in the codebase until B7 (legacy cleanup) but is no longer routed.
 const AccountingEventsWorkspace = lazy(() => import("@/pages/finance/AccountingEventsWorkspace"));
@@ -853,6 +854,18 @@ export function FinanceApp() {
 
         {/* Accounting Events Workspace (B4) — producer-agnostic sub-ledger
             operational surface. Supersedes the POS Posting Queue. */}
+        {/* Phase 5.4: cross-module reversal register */}
+        <Route
+          path="reversal-register"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Reversal Register">
+                <ReversalRegister />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         <Route
           path="operations/accounting-events"
           element={
