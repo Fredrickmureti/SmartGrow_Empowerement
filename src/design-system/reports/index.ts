@@ -38,3 +38,6 @@ export {
   getCurrencySymbol,
 } from "./format";
 export type { ReportValueFormat } from "./format";
+export { toReportColumns, toReportRows } from "./server";
+export type { ServerReportColumn, ServerReportResult } from "./server";
+
