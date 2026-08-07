@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+
 
 /**
  * Reversal intent step for a sales invoice (Phase 1 reversal intent policy).
@@ -120,6 +123,16 @@ export function VoidInvoiceDialog({
     (op) => op.operation !== "void" && op.operation !== "none" && op.allowed
   );
 
+  // Phase 2 — nobody authorises a reversal blind. The preview is fetched for the
+  // same document the intent was resolved for, and the confirm button stays
+  // disabled until it has landed successfully.
+  const {
+    consequences,
+    isLoading: isPreviewLoading,
+    isError: isPreviewError,
+  } = useReversalConsequences("invoice", invoice?.id, open && canVoid);
+
+
   const handleVoid = async () => {
     if (!invoice || !reason.trim() || !canVoid) return;
 
@@ -198,7 +211,10 @@ export function VoidInvoiceDialog({
               <Button
                 variant="destructive"
                 onClick={handleVoid}
-                disabled={isSubmitting || !reason.trim()}
+                disabled={
+                  isSubmitting || !reason.trim() || isPreviewLoading || isPreviewError
+                }
+
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Invoice
@@ -266,6 +282,14 @@ export function VoidInvoiceDialog({
                     </p>
                   </AlertDescription>
                 </Alert>
+
+                <ReversalConsequencePreview
+                  consequences={consequences}
+                  isLoading={isPreviewLoading}
+                  isError={isPreviewError}
+                  currency={invoice.currency}
+                />
+
 
                 <div className="space-y-2">
                   <Label htmlFor="reason">

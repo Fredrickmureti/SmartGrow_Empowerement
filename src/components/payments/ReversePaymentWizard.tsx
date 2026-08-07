@@ -23,6 +23,9 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+
 
 /**
  * ADR 0012 — Guided payment reversal.
@@ -245,6 +248,16 @@ export function ReversePaymentWizard({
     !!baseCurrency &&
     selectedBank.currency !== baseCurrency;
 
+  // Phase 2 — the confirmation step shows what the reversal would change before
+  // the operator authorises it. Fetched once the wizard reaches step 3 so the
+  // preview reflects the state at confirmation time, not at open time.
+  const {
+    consequences,
+    isLoading: isPreviewLoading,
+    isError: isPreviewError,
+  } = useReversalConsequences("payment", payment?.id, open && step === 3);
+
+
   const handleSubmit = async () => {
     if (!selected || !reasonText.trim()) return;
     setSubmitting(true);
@@ -385,7 +398,13 @@ export function ReversePaymentWizard({
                 <Button
                   variant="destructive"
                   onClick={handleSubmit}
-                  disabled={submitting || !reasonText.trim()}
+                  disabled={
+                    submitting ||
+                    !reasonText.trim() ||
+                    isPreviewLoading ||
+                    isPreviewError
+                  }
+
                 >
                   {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Confirm reversal
@@ -571,6 +590,12 @@ export function ReversePaymentWizard({
                 It cannot be undone from the UI — only counter-posted.
               </AlertDescription>
             </Alert>
+            <ReversalConsequencePreview
+              consequences={consequences}
+              isLoading={isPreviewLoading}
+              isError={isPreviewError}
+            />
+
           </div>
         )}
 
