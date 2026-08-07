@@ -66,10 +66,14 @@ export async function renderAstToPdf(args: {
   const explicitPaper = String(
     opts["paper_format"] ?? opts["paperFormat"] ?? "",
   ).toLowerCase();
-  const defaultPaper =
-    args.template.media_class === "thermal"
-      ? String(rs?.["paper_size"] ?? "80mm").toLowerCase()
-      : String(rs?.["paper_size"] ?? "").toLowerCase();
+  const docType = String(snap["document_type"] ?? "").toLowerCase();
+  const impliesThermal =
+    args.template.media_class === "thermal" ||
+    docType === "pos_receipt" ||
+    docType === "receipt";
+  const defaultPaper = impliesThermal
+    ? String(rs?.["paper_size"] ?? "80mm").toLowerCase()
+    : String(rs?.["paper_size"] ?? "").toLowerCase();
   const paperToken = explicitPaper || defaultPaper;
   if (THERMAL.has(paperToken)) {
     const [{ documentToReceiptLines }, { renderThermalPdf }] = await Promise.all([
