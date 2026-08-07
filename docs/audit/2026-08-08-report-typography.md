@@ -42,8 +42,8 @@ the numeric shrink floor — resolved once and threaded through
 | Profile | Body | Header | Floor | Gutter | Used by |
 | --- | --- | --- | --- | --- | --- |
 | `document` | 7.5pt | 8pt | 6pt | 72pt | all transactional documents (unchanged) |
-| `statement` | 10pt | 10pt | 9pt | 72pt | balance sheet, P&L, trial balance, cash flow |
-| `ledger` | 8.5pt | 9pt | 7.5pt | 40pt | 7+ column registers, general ledger, aging |
+| `statement` | 10pt | 10pt | 9pt | 72pt | narrow statutory statements: balance sheet, P&L, cash flow |
+| `ledger` | 8.5pt | 9pt | 7.5pt | 40pt | 6+ column reports: general ledger, trial balance, aging, payroll registers |
 | `operational` | 9pt | 9.5pt | 8pt | 54pt | narrow registers and listings |
 
 Density is now handled by reclaiming gutter before touching type size, and
@@ -61,6 +61,27 @@ Rendered fixtures (`pdfplumber` glyph measurement, letter paper):
 
 Larger type cost no extra pages: the reclaimed 64pt of horizontal gutter
 absorbed the increase.
+
+### Inference rule
+
+`inferPresentationProfile(formatProfile, columnCount)`:
+
+- `financial` and fewer than 6 columns → `statement`
+- `financial` and 6+ columns → `ledger` (a wide trial balance is a
+  schedule, not a statement; measured at 10pt it went 2 pages → 3 with no
+  legibility gain)
+- otherwise 6+ columns → `ledger`, else `operational`
+
+### Registry-wide sweep
+
+All 44 registered reports were rendered twice (old `document` sizing vs
+the inferred profile) with a 45-row fixture and measured:
+
+- Minimum glyph size rose from 7.5pt to 8.5pt or better on every report;
+  no report renders below 8.5pt any more.
+- 41 of 44 keep their exact page count. Three add one page
+  (`journal_report`, `payroll_overtime`, `project_portfolio`) — the
+  accepted cost of 13–33% larger type on those layouts.
 
 ## Blast-radius control
 
@@ -94,6 +115,7 @@ argument and are therefore untouched.
 ## Follow-ups
 
 - Per-report overrides: `ReportSpec.presentationProfile` is wired but only
-  inference is in use; pin individual reports as feedback arrives.
+  inference is in use; pin individual reports as feedback arrives (the
+  sweep harness makes the page-count cost of a pin measurable).
 - Statement-profile reports are still letter/A4 portrait by default;
   revisit paper defaults for the widest statutory statements.

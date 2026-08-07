@@ -58,8 +58,14 @@ Deno.test("dense reports reclaim gutter instead of shrinking type", () => {
 
 Deno.test("profile inference: statutory → statement, wide → ledger", () => {
   assertEquals(inferPresentationProfile("financial", 3), "statement");
-  assertEquals(inferPresentationProfile("financial", 12), "statement");
+  // Wide "financial" reports are schedules, not statements — 10pt across
+  // eight currency columns costs a page and buys no legibility.
+  assertEquals(inferPresentationProfile("financial", 5), "statement");
+  assertEquals(inferPresentationProfile("financial", 6), "ledger");
+  assertEquals(inferPresentationProfile("financial", 12), "ledger");
   assertEquals(inferPresentationProfile("operational", 4), "operational");
+  assertEquals(inferPresentationProfile("operational", 5), "operational");
+  assertEquals(inferPresentationProfile("operational", 6), "ledger");
   assertEquals(inferPresentationProfile("operational", 7), "ledger");
   assertEquals(inferPresentationProfile(undefined, 9), "ledger");
 });

@@ -169,8 +169,13 @@ export function inferPresentationProfile(
   formatProfile: "financial" | "operational" | undefined,
   columnCount: number,
 ): PresentationProfile {
-  if (formatProfile === "financial") return "statement";
-  return columnCount >= 7 ? "ledger" : "operational";
+  // A statutory statement is narrow by nature (account + one or two value
+  // columns) and earns the 10pt statement face. A wide "financial" report
+  // — trial balance, budget vs actual — is a schedule, not a statement:
+  // measured at 10pt it grows from 2 pages to 3 without becoming easier to
+  // read, so it grades down to the ledger face instead.
+  if (formatProfile === "financial") return columnCount >= 6 ? "ledger" : "statement";
+  return columnCount >= 6 ? "ledger" : "operational";
 }
 
 export const DOCUMENT_TYPOGRAPHY = DOCUMENT;
