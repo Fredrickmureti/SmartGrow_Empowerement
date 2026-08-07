@@ -167,6 +167,7 @@ export default function ProjectReports() {
         projectId: "*",
         organizationId: currentOrg?.id,
         businessId: currentBusiness?.id,
+
         dateFrom,
         dateTo,
         title: meta.title,
@@ -293,7 +294,6 @@ export default function ProjectReports() {
 
       {/* The report */}
       <ReportSurface
-        companyName={currentBusiness?.name}
         title={meta.title}
         dateRange={`${format(new Date(dateFrom), "d MMM yyyy")} – ${format(new Date(dateTo), "d MMM yyyy")}`}
         subtitle={meta.desc}

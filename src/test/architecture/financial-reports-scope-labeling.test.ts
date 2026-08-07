@@ -10,7 +10,9 @@
  *        - renders <FinanceScopeBadge /> next to the title
  *        - renders <ReportBranchFilter /> in the filters card
  *        - wraps every export config through enrichExportConfig and
- *          appends scopeLabel to the PDF subtitle
+ *          forwards the active branchId, so `renderReport` derives the
+ *          masthead scope line server-side (one owner of scope, never
+ *          concatenated into the subtitle)
  *   2. ReportsLayout mounts ReportContextProvider so enrichExportConfig
  *      resolves the active business identity (legal entity), not the
  *      tenant.
@@ -66,9 +68,11 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(layout).toMatch(/enrichExportConfig\(/);
   });
 
-  it("ReportPageLayout appends the active scopeLabel to the PDF subtitle", () => {
-    expect(layout).toMatch(/scope\.scopeLabel/);
-    expect(layout).toMatch(/subtitle/);
+  it("ReportPageLayout forwards branchId and leaves scope to the masthead", () => {
+    expect(layout).toMatch(/branchId:\s*scope\.branchId/);
+    // Scope must NOT be spliced into the subtitle — the server masthead
+    // owns the scope line, otherwise it renders twice.
+    expect(layout).not.toMatch(/subtitle:[^\n]*scopeLabel/);
   });
 
   it("ReportPageLayout uses the wrapped export config for ReportExportButtons", () => {

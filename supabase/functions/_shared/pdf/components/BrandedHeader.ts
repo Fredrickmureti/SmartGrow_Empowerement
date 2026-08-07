@@ -30,6 +30,18 @@ import type { OrganizationBranding } from "../../branding/index.ts";
 export interface BrandedHeaderConfig {
   title: string;
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet). Mutually
+   * exclusive with `dateRange`: the masthead renders "As of <asOf>"
+   * instead of "For the period <dateRange>".
+   */
+  asOf?: string;
+  /**
+   * Reporting scope line — "<Business> · <Branch>". Derived ONCE from the
+   * resolved business identity by `renderReport`; reports never compose
+   * their own scope string.
+   */
+  scope?: string;
   organization?: OrganizationBranding | null;
   /** Fallback when organization is missing. */
   companyName?: string;
@@ -41,9 +53,10 @@ export interface BrandedHeaderConfig {
    * Stage 3: layout style.
    *   - "operational" (default): logo left, title right (existing layout).
    *   - "financial": centered statutory masthead in the order
-   *       COMPANY NAME → Title → Period/As-of → Subtitle → Prepared on.
-   *     Logo is omitted from the masthead in this profile (statutory
-   *     reports lead with the legal entity name, not branding).
+   *       LOGO → COMPANY NAME → Title → Period/As-of → Basis → Scope →
+   *       Prepared on.
+   *     The logo is part of the legal entity's document identity, so it is
+   *     rendered in BOTH profiles (centered here, left-aligned there).
    */
   formatProfile?: "operational" | "financial";
   /** Optional subtitle (financial profile only, e.g. "Accrual Basis"). */
@@ -54,6 +67,7 @@ export interface BrandedHeaderConfig {
    */
   typography?: Typography;
 }
+
 
 export interface DrawnHeader {
   /** Y position below the separator line — body starts here. */
@@ -279,16 +293,18 @@ function drawOperationalHeader(
 }
 
 /**
- * Statutory financial-statement masthead — centered, no logo, in the
- * order accountants expect:
- *   1. COMPANY NAME (uppercase, bold)
- *   2. Report title (bold)
- *   3. Period ("For the period …") OR As-of ("As of …")
- *   4. Optional subtitle (italic-style, e.g. "Accrual Basis")
- *   5. Prepared on {timestamp}
+ * Statutory financial-statement masthead — centered, in the order
+ * accountants expect:
+ *   1. Business logo (centered, when the legal entity has one)
+ *   2. COMPANY NAME (uppercase, bold)
+ *   3. Report title (bold)
+ *   4. Period ("For the period …") OR As-of ("As of …")
+ *   5. Optional basis subtitle (e.g. "Accrual Basis")
+ *   6. Reporting scope ("<Business> · <Branch>")
+ *   7. Prepared on {timestamp}
  *
- * This matches the React `FinancialReportHeader` exactly, so on-screen
- * preview and printed PDF read identically.
+ * This matches the on-screen `ReportSurface` masthead, so preview and
+ * printed PDF read identically.
  */
 function drawFinancialMasthead(
   builder: PdfBuilder,
@@ -297,7 +313,7 @@ function drawFinancialMasthead(
 ): DrawnHeader {
   const { state, fontRegular, fontBold } = builder;
   const { pageWidth, pageHeight, margin } = state;
-  const { title, dateRange, organization, companyName, subtitle } = config;
+  const { title, dateRange, asOf, scope, organization, companyName, subtitle, logo } = config;
   const t = config.typography ?? DOCUMENT_TYPOGRAPHY;
   const stamp = config.generatedStamp ?? state.generatedStamp;
 
@@ -320,6 +336,21 @@ function drawFinancialMasthead(
 
   let y = pageHeight - margin;
 
+  // Legal-entity logo: identity, not decoration. Centered above the name,
+  // capped so a tall logo can never push the statement body off the page.
+  if (logo) {
+    const maxH = Math.min(logo.height, 34);
+    const scale = maxH / logo.height;
+    const w = logo.width * scale;
+    page.drawImage(logo.image, {
+      x: center - w / 2,
+      y: y - maxH,
+      width: w,
+      height: maxH,
+    });
+    y -= maxH + 8;
+  }
+
   if (orgName) {
     drawCentered(orgName, y, t.size.orgName + 1, true);
     y -= 16;
@@ -328,8 +359,15 @@ function drawFinancialMasthead(
   drawCentered(title, y, t.size.title, true);
   y -= 14;
 
-  if (dateRange) {
-    drawCentered(`For the period ${dateRange}`, y, t.size.dateRange, false, theme.color.medGray);
+  // Point-in-time reports state an as-of date; range reports state a
+  // period. Never both — the report registry / caller decides which.
+  const periodLine = asOf
+    ? (/^as of/i.test(asOf) ? asOf : `As of ${asOf}`)
+    : dateRange
+      ? (/^as of/i.test(dateRange) ? dateRange : `For the period ${dateRange}`)
+      : "";
+  if (periodLine) {
+    drawCentered(periodLine, y, t.size.dateRange, false, theme.color.medGray);
     y -= 12;
   }
 
@@ -338,8 +376,14 @@ function drawFinancialMasthead(
     y -= 11;
   }
 
+  if (scope) {
+    drawCentered(scope, y, t.size.orgDetail, false, theme.color.medGray);
+    y -= 11;
+  }
+
   drawCentered(stamp, y, t.size.timestamp, false, theme.color.lightGray);
   y -= 10;
+
 
   const separatorY = y - 6;
   page.drawLine({

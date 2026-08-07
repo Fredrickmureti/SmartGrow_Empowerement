@@ -46,10 +46,18 @@ export interface ExportRow {
 export interface ExportConfig {
   title: string;
   subtitle?: string;
+  /** Range reports: "1 Jan 2026 to 31 Mar 2026". */
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet). Renders
+   * "As of <asOf>" in the masthead instead of "For the period …".
+   * Mutually exclusive with `dateRange`.
+   */
+  asOf?: string;
   columns: ExportColumn[];
   rows: ExportRow[];
   sheetName?: string;
+
   /**
    * Multi-currency override. Leave undefined to use the organization's
    * base_currency (resolved server-side from `getOrganizationBranding`).
@@ -78,13 +86,37 @@ export interface ExportConfig {
    */
   companyName?: string;
   /**
-   * Optional registry key (e.g. "attendance_daily_log"). When set,
-   * `render-report` resolves the canonical column spec + format profile
-   * + masthead from `_shared/reports/columnSpecs.ts` instead of inferring
-   * from the row shape. Pages that already have a registered key SHOULD
-   * pass it so the PDF renders identically across modules.
+   * INTERNAL ONLY — populated by `ReportContext.enrichExportConfig`.
+   * The reporting ENTITY. `render-report` resolves the masthead legal
+   * name, logo and base currency for THIS business (not the org's first
+   * business), so a multi-entity tenant cannot print one entity's logo on
+   * another entity's statement.
+   */
+  businessId?: string;
+  /**
+   * INTERNAL ONLY — populated by `ReportContext.enrichExportConfig`.
+   * The branch the report was scoped to (null = consolidated). The server
+   * derives the masthead scope line from it; pages MUST NOT compose a
+   * "Business · Branch" string themselves.
+   */
+  branchId?: string | null;
+  /**
+   * Registry key (e.g. "trial_balance"). Drives the canonical column
+   * spec, orientation, masthead format profile and typography from
+   * `_shared/reports/columnSpecs.ts`.
+   *
+   * REQUIRED for every registered report. Omitting it silently downgrades
+   * the report to the "operational" masthead — that is exactly how Trial
+   * Balance and Cash Flow drifted apart.
    */
   reportType?: string;
+  /**
+   * Masthead style for reports that legitimately have NO registry entry
+   * (bespoke reconciliations, FX revaluation, valuation schedules).
+   * Registered reports must NOT set this — their profile comes from
+   * `columnSpecs.ts`, which stays the single source of truth.
+   */
+  formatProfile?: "financial" | "operational";
 }
 
 /**
@@ -97,9 +129,9 @@ export interface ExportConfig {
 export interface ServerBuildConfig extends ExportConfig {
   dateFrom?: string;
   dateTo?: string;
-  businessId?: string;
   filters?: Record<string, unknown>;
 }
+
 
 /**
  * True when the config carries everything `render-report`'s SERVER-BUILD
@@ -129,10 +161,16 @@ function buildRenderPayload(
     title: config.title,
     subtitle: config.subtitle,
     dateRange: config.dateRange,
+    asOf: config.asOf,
     organizationId: config.organizationId,
+    // Identity: the reporting entity + scope the masthead must state.
+    businessId: config.businessId,
+    branchId: config.branchId ?? null,
     reportType: config.reportType,
+    formatProfile: config.formatProfile,
     currency: config.currency,
   };
+
   if (canServerBuild(config)) {
     return {
       ...base,

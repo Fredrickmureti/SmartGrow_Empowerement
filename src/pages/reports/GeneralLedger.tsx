@@ -216,7 +216,6 @@ function GeneralLedgerInner() {
       title: "General Ledger",
       reportType: "general_ledger",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
@@ -305,7 +304,6 @@ function GeneralLedgerInner() {
       </div>
 
       <ReportSurface
-        companyName={currentOrg?.name || ""}
         title="General Ledger"
         dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
         profile="operational"

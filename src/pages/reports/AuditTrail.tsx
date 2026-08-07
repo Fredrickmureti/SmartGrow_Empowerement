@@ -193,7 +193,6 @@ function AuditTrailInner() {
       title: "Audit Trail",
       reportType: "audit_trail",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns as ReportColumn<never>[]),
       rows: toExportRows(rows, columns as ReportColumn<never>[]),
@@ -259,7 +258,6 @@ function AuditTrailInner() {
         }
       >
         <ReportSurface
-          companyName={currentOrg?.name || ""}
           title="Audit Trail"
           dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
           subtitle={`${data?.length || 0} audit events (capped at 1,000)`}

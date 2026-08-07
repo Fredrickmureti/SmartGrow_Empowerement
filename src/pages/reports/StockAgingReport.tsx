@@ -209,7 +209,6 @@ function StockAgingReportInner() {
     return {
       title: "Stock Aging Report",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       columns: [
         { key: "product", header: "Product", width: 25 },
         { key: "sku", header: "SKU", width: 12 },

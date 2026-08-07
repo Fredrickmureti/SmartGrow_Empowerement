@@ -184,7 +184,6 @@ function SalesReportsInner() {
     return {
       title: "Sales Report",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(start, "MMM d, yyyy")} – ${format(end, "MMM d, yyyy")}`,
       columns: [
         { key: "item", header: "Description", width: 50 },

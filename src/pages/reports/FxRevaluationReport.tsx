@@ -330,6 +330,8 @@ function FxRevaluationReportInner() {
     return {
       title: "FX Revaluation Report",
       subtitle: "Unrealized gain/loss on foreign-currency monetary balances",
+      // No registry entry (bespoke schedule) — declare the statement masthead.
+      formatProfile: "financial",
       columns: exportColumns, rows: exportRows, currency: baseCurrency,
     };
   }, [rows, baseCurrency]);
@@ -395,7 +397,6 @@ function FxRevaluationReportInner() {
         </div>
 
         <ReportSurface
-          companyName={currentOrg?.name || ""}
           title="FX Revaluation Runs"
           profile="operational"
         >

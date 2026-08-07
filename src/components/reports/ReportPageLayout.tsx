@@ -86,24 +86,27 @@ export function ReportPageLayout({
 
 
   // Wrap the caller's export config so EVERY exported PDF/CSV/Excel:
-  //   1. Uses the active business as `companyName` (legal entity, not tenant)
+  //   1. Carries the active business identity (legal name + logo resolved
+  //      server-side from `businessId`, never the tenant's first business)
   //   2. Uses the active business currency
-  //   3. Carries the active scope label in the subtitle (Business · Branch)
-  // Pages can no longer accidentally print the wrong company name or
-  // omit the branch context — it is owned here.
+  //   3. Carries the active BRANCH as structured identity (`branchId`), from
+  //      which the server derives the masthead scope line.
+  // The scope label is deliberately NOT concatenated into the subtitle
+  // any more: the subtitle is the accounting BASIS ("Accrual basis"), and
+  // scope is its own masthead line owned by `renderReport`. Two owners of
+  // one string is how screen and PDF drifted apart.
   const wrappedGetExportConfig = useCallback((): ExportConfig => {
     if (!getExportConfig) {
       // Should never be called when undefined; satisfy types.
       return enrichExportConfig({ title }) as ExportConfig;
     }
     const raw = getExportConfig();
-    const enriched = enrichExportConfig(raw);
-    const scopeSuffix = scope.scopeLabel;
-    const subtitle = raw.subtitle
-      ? `${raw.subtitle} · ${scopeSuffix}`
-      : scopeSuffix;
-    return { ...enriched, subtitle } as ExportConfig;
-  }, [getExportConfig, enrichExportConfig, scope.scopeLabel, title]);
+    return enrichExportConfig({
+      ...raw,
+      branchId: scope.branchId ?? null,
+    }) as ExportConfig;
+  }, [getExportConfig, enrichExportConfig, scope.branchId, title]);
+
 
   return (
     <ReportsLayout>

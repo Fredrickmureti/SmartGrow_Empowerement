@@ -253,8 +253,8 @@ function InventoryValuationReportInner() {
     });
     return {
       title: "Inventory Valuation Report",
+      formatProfile: "financial",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       columns: [
         { key: "product", header: "Product", width: 25 },
         { key: "sku", header: "SKU", width: 12 },

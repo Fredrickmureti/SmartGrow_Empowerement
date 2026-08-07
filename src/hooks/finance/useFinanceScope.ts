@@ -62,6 +62,14 @@ export interface FinanceScope {
    * report PDFs so the active scope is never ambiguous.
    */
   scopeLabel: string;
+  /**
+   * Scope line used on report mastheads (screen AND PDF). It omits the
+   * business name because the masthead already states the legal entity,
+   * and it is byte-identical to the server derivation in
+   * `_shared/reports/renderReport.ts#resolveReportScope` — e.g.
+   * "All branches" or "Nairobi Branch (HQ)". Never re-compose this.
+   */
+  reportScopeLabel: string;
   /** True when org + business are both selected (queries can run). */
   isReady: boolean;
 }
@@ -100,6 +108,11 @@ export function useFinanceScope(): FinanceScope {
       isHeadquartersContext,
       isBranchScopedReadOnly,
       scopeLabel: `${businessLabel} · ${branchLabel}`,
+      reportScopeLabel: isConsolidated
+        ? "All branches"
+        : currentBranch?.is_headquarters
+          ? `${currentBranch.name} (HQ)`
+          : currentBranch?.name ?? "Branch",
       isReady: !!orgId && !!businessId,
     };
   }, [currentOrg?.id, currentBusiness?.id, currentBusiness?.name, currentBranch, hasMultipleBranches]);

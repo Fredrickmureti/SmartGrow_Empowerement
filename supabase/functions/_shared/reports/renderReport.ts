@@ -43,10 +43,16 @@ export interface RenderReportOptions {
   columns?: ReportColumn[];
   /** Optional explicit title (otherwise registry default). */
   title?: string;
-  /** Optional date range string for the masthead. */
+  /** Optional date range string for the masthead ("For the period …"). */
   dateRange?: string;
+  /**
+   * Point-in-time reports (Trial Balance, Balance Sheet): the masthead
+   * renders "As of <asOf>" instead of "For the period <dateRange>".
+   */
+  asOf?: string;
   /** Page orientation override. */
   orientation?: "portrait" | "landscape";
+
   /** Body rows. */
   rows: ReportRow[];
   /** Currency code for accountant-grade number formatting. */
@@ -92,9 +98,61 @@ export interface RenderReportOptions {
 }
 
 /**
+ * Derive the canonical reporting-scope line.
+ *
+ * This is the single owner of that string. Report modules and UI pages must
+ * never hand-compose a scope label, otherwise the same run reads "Nairobi"
+ * on screen and "Headquarters (HQ)" on paper.
+ *
+ * The masthead already states the legal entity, so the scope line does NOT
+ * repeat it when it is the same name:
+ *   - branch selected → "Nairobi Branch" (HQ flagged as "… (HQ)")
+ *   - no branch, business known → "All branches"
+ *   - business differs from the masthead name → "<Business> · <Branch>"
+ *   - no identity at all → undefined (masthead omits the line)
+ */
+async function resolveReportScope(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  input: {
+    mastheadName?: string | null;
+    businessName?: string | null;
+    businessId?: string | null;
+    branchId?: string | null;
+  },
+): Promise<string | undefined> {
+  const business = input.businessName?.trim() || null;
+  const masthead = input.mastheadName?.trim() || null;
+  let branch: string | null = null;
+
+  if (input.branchId) {
+    try {
+      const { data } = await supabase
+        .from("branches")
+        .select("name, is_headquarters")
+        .eq("id", input.branchId)
+        .maybeSingle();
+      if (data?.name) {
+        branch = data.is_headquarters ? `${data.name} (HQ)` : data.name;
+      }
+    } catch (e) {
+      console.warn("[renderReport] branch scope lookup failed:", (e as Error).message);
+    }
+  } else if (business || input.businessId) {
+    branch = "All branches";
+  }
+
+  const label = business && business !== masthead ? business : null;
+  const parts = [label, branch].filter(Boolean) as string[];
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+
+/**
  * Resolve columns + title + orientation + format-profile from the registry,
  * render the PDF, and write a (best-effort) audit row.
  */
+
 export async function renderReport(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -147,14 +205,34 @@ export async function renderReport(
     }
   }
 
-  // Branding: caller > DB lookup
+  // Branding: caller > DB lookup. The lookup MUST carry the business and
+  // branch the report was run for — in a multi-entity tenant the masthead
+  // legal name and logo belong to the reporting entity, not to whichever
+  // business happens to be the organization's first.
   let organization = options.organization;
-  if (!organization && options.organizationId) {
-    organization = (await getOrganizationBranding(supabase, options.organizationId)) ?? undefined;
+  if (!organization && (options.organizationId || options.businessId)) {
+    organization =
+      (await getOrganizationBranding(
+        supabase,
+        options.organizationId ?? "",
+        options.businessId ?? null,
+        options.branchId ?? null,
+      )) ?? undefined;
   }
+
+  // Reporting scope line ("<Business> · <Branch>") — derived ONCE here so
+  // every report states its scope identically. Callers never compose it.
+  const scope = await resolveReportScope(supabase, {
+    mastheadName: organization?.name,
+    businessName: organization?.name,
+    businessId: options.businessId,
+    branchId: options.branchId,
+  });
+
 
   // Currency default: caller > org base_currency
   const currency = options.currency ?? organization?.base_currency ?? undefined;
+
 
   // Stage 4: compute a short run-hash (sha1 prefix) over the call shape so
   // the printed footer can be tied back to the exact run row.
@@ -173,6 +251,9 @@ export async function renderReport(
     title,
     subtitle,
     dateRange: options.dateRange,
+    asOf: options.asOf,
+    scope,
+
     columns,
     rows: options.rows,
     orientation,

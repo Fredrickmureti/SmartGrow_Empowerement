@@ -398,7 +398,6 @@ function ReportRunHistoryInner() {
       title: "Report Run History",
       reportType: "report_run_history",
       companyName: currentOrg?.name || "",
-      organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
       columns: toExportColumns(columns as ReportColumn<never>[]),
       rows: toExportRows(rows, columns as ReportColumn<never>[]),
@@ -464,7 +463,6 @@ function ReportRunHistoryInner() {
         }
       >
         <ReportSurface
-          companyName={currentOrg?.name || ""}
           title="Report Run History"
           dateRange={`${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`}
           subtitle={`${(data?.length || 0).toLocaleString("en-US")} runs shown (most recent 1,000)`}
