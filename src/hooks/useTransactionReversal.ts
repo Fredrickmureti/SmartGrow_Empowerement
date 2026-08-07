@@ -128,6 +128,110 @@ export interface ReversalIntent {
   operations: ReversalOperationOption[];
 }
 
+/**
+ * Phase 2 consequence preview — mirror of
+ * `public.preview_reversal_consequences`.
+ *
+ * Read-only projection of everything a reversal would touch: the mirrored GL
+ * legs, the stock that returns to inventory, the money that changes hands, the
+ * documents already derived from this one, and the business warnings.
+ *
+ * Never re-derive any of these numbers in the client. The server walks the same
+ * predicates the void writers walk; a second client-side derivation would drift.
+ */
+export type ReversalWarningSeverity = "error" | "warning" | "info";
+
+export interface ReversalWarning {
+  code: string;
+  severity: ReversalWarningSeverity;
+  message: string;
+}
+
+export interface ReversalGlLine {
+  account_id: string | null;
+  account_code: string | null;
+  account_name: string | null;
+  /** Already inverted: the shape of the reversal, not of the original entry. */
+  reverse_debit: number;
+  reverse_credit: number;
+}
+
+export interface ReversalGlEntry {
+  journal_entry_id: string;
+  entry_number: string | null;
+  entry_date: string | null;
+  subtype: string;
+  total: number;
+  status: string;
+  lines: ReversalGlLine[];
+}
+
+export interface ReversalStockLine {
+  product_id: string;
+  product_name: string | null;
+  product_sku: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  quantity: number;
+  unit_cost: number | null;
+  direction: string;
+}
+
+/** Invoice branch: the payments currently settling this invoice. */
+export interface ReversalMoneyPaymentLine {
+  payment_id: string;
+  receipt_number: string | null;
+  payment_date: string | null;
+  payment_method: string | null;
+  allocated_amount: number;
+  payment_amount: number;
+  bank_reconciled: boolean;
+}
+
+/** Payment branch: the invoices this payment settles, before and after. */
+export interface ReversalMoneyInvoiceLine {
+  invoice_id: string;
+  invoice_number: string | null;
+  invoice_total: number;
+  allocated_amount: number;
+  amount_paid_now: number;
+  amount_paid_after: number;
+  status_now: string;
+}
+
+export type ReversalMoneyLine = ReversalMoneyPaymentLine | ReversalMoneyInvoiceLine;
+
+export interface ReversalRelatedDocument {
+  kind: string;
+  label: string;
+  count: number;
+}
+
+export interface ReversalConsequences {
+  document_type: ReversalDocumentType;
+  document_id: string;
+  document_number: string | null;
+  organization_id: string | null;
+  business_id: string | null;
+  intent: ReversalIntent;
+  gl: {
+    entries: ReversalGlEntry[];
+    entry_count: number;
+    total_reversed: number;
+  };
+  stock: {
+    lines: ReversalStockLine[];
+    line_count: number;
+  };
+  money: {
+    lines: ReversalMoneyLine[];
+    line_count: number;
+  };
+  related_documents: ReversalRelatedDocument[];
+  warnings: ReversalWarning[];
+}
+
+
 export interface VoidInvoiceOptions {
 
   invoiceId: string;
