@@ -99,6 +99,18 @@ export async function renderAstToPdf(args: {
 
 
 
+  // Non-thermal: the resolved geometry is ALWAYS explicit from here on.
+  // The coordinate renderer must never have to guess (and must never fall
+  // back to inferring thermal from the document kind — a payment receipt
+  // is an A4 archive document that happens to be called a receipt).
+  const nativePaper = mediaClassToPaper(args.template.media_class);
+  const resolvedPaper = paperToken || nativePaper;
+  const rendererOptions = {
+    ...((args.context.options as Record<string, unknown>) ?? {}),
+    paper_format: resolvedPaper,
+    paperFormat: resolvedPaper,
+  };
+
   const documentData = {
     ...snap,
     id: args.context.document.id,
@@ -116,7 +128,19 @@ export async function renderAstToPdf(args: {
   const bytes = await generateDocumentPdf(
     documentData,
     {},
-    (args.context.options as Parameters<typeof generateDocumentPdf>[2]) ?? undefined,
+    rendererOptions as Parameters<typeof generateDocumentPdf>[2],
   );
   return bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
+}
+
+/**
+ * Native archive geometry for a template's medium. `media_class` values
+ * carry orientation suffixes in the DB (`a4_portrait`, `a4_landscape`),
+ * which the paper preset does not model — orientation is a separate knob.
+ */
+function mediaClassToPaper(mediaClass: string | null | undefined): string {
+  const m = String(mediaClass ?? "").toLowerCase();
+  if (m.startsWith("letter")) return "letter";
+  if (m.startsWith("a5")) return "a5";
+  return "a4";
 }
