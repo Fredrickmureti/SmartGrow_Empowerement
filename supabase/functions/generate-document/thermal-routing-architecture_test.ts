@@ -58,10 +58,19 @@ Deno.test("send-document-email does not directly call the A4 ERP PDF renderer", 
   assertStringIncludes(emailSource, "/functions/v1/generate-document");
 });
 
-Deno.test("generateDocumentPdf self-defends against receipt-like thermal documents", async () => {
+Deno.test("generateDocumentPdf self-defends on GEOMETRY, never on document kind", async () => {
   assertStringIncludes(pdfGeneratorSource, "pos_receipt_settings?.paper_size");
-  assertStringIncludes(pdfGeneratorSource, "gpg_docType === \"pos_receipt\"");
-  assertStringIncludes(pdfGeneratorSource, "gpg_docType === \"receipt\"");
+  // Kind must never imply thermal: `sales.payment_receipt` is an A4
+  // archive document that happens to be called a receipt.
+  if (
+    pdfGeneratorSource.includes('gpg_docType === "pos_receipt"') ||
+    pdfGeneratorSource.includes('gpg_docType === "receipt"')
+  ) {
+    throw new Error(
+      "pdfGenerator infers thermal geometry from document_type — geometry " +
+        "must come from the resolved paper / media_class only.",
+    );
+  }
 
   await assertRejects(
     () => generateDocumentPdf({
