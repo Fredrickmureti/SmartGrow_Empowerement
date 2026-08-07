@@ -36,6 +36,8 @@ export interface PaymentBusinessRow {
   address?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** Company-level receipt presentation profile (`businesses.receipt_settings`). */
+  receipt_settings?: Record<string, unknown> | null;
 }
 
 export interface PaymentAllocationRow {
@@ -76,6 +78,58 @@ export interface BuildPaymentReceiptSnapshotResult {
   branchId: string | null;
   currency: string;
   sourceDocId: string;
+}
+
+const ONES = [
+  "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight",
+  "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen",
+  "Sixteen", "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = [
+  "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy",
+  "Eighty", "Ninety",
+];
+
+function under1000ToWords(n: number): string {
+  if (n < 20) return ONES[n];
+  if (n < 100) {
+    const t = TENS[Math.floor(n / 10)];
+    const r = n % 10;
+    return r ? `${t}-${ONES[r]}` : t;
+  }
+  const h = Math.floor(n / 100);
+  const r = n % 100;
+  return r ? `${ONES[h]} Hundred ${under1000ToWords(r)}` : `${ONES[h]} Hundred`;
+}
+
+/**
+ * Amount in words — required on an official receipt in most jurisdictions
+ * (and expected by auditors on cash-application documents). English only;
+ * localisation happens at the template layer when a tenant needs it.
+ */
+export function amountInWords(amount: number, currency: string): string {
+  const value = Math.abs(Number(amount) || 0);
+  const whole = Math.floor(value);
+  const cents = Math.round((value - whole) * 100);
+  const scales: Array<[number, string]> = [
+    [1_000_000_000, "Billion"],
+    [1_000_000, "Million"],
+    [1_000, "Thousand"],
+  ];
+  let rest = whole;
+  const parts: string[] = [];
+  for (const [size, name] of scales) {
+    const q = Math.floor(rest / size);
+    if (q > 0) {
+      parts.push(`${under1000ToWords(q)} ${name}`);
+      rest -= q * size;
+    }
+  }
+  if (rest > 0 || parts.length === 0) parts.push(under1000ToWords(rest));
+  const head = `${currency ? currency + " " : ""}${parts.join(" ")}`;
+  return cents > 0
+    ? `${head} and ${under1000ToWords(cents)}/100 only`
+    : `${head} only`;
 }
 
 /**
@@ -153,53 +207,24 @@ export function buildPaymentReceiptSnapshot(
       ? 0
       : Math.max(0, paymentAmount - totalApplied);
 
+  // A payment receipt is a CASH-APPLICATION document, not a sale. It has no
+  // product grid: restating the invoice lines (or synthesising fake ones from
+  // the allocations) double-states the supply and its tax. The allocation
+  // ledger below IS the body — same rule NetSuite/Odoo/SAP follow.
   const items: Array<Record<string, unknown>> = [];
-  if (allocations.length > 0) {
-    for (const a of allocations) {
-      items.push({
-        description: a.invoice_date
-          ? `Invoice ${a.invoice_number}  (${a.invoice_date})`
-          : `Invoice ${a.invoice_number}`,
-        quantity: 1,
-        unit_price: a.amount_applied,
-        tax_rate: 0,
-        tax_amount: 0,
-        line_total: a.amount_applied,
-      });
-    }
-    if (unapplied > 0) {
-      items.push({
-        description: "Unapplied advance (on account)",
-        quantity: 1,
-        unit_price: unapplied,
-        tax_rate: 0,
-        tax_amount: 0,
-        line_total: unapplied,
-      });
-    }
-  } else {
-    items.push({
-      description: "On-account payment",
-      quantity: 1,
-      unit_price: displayAmount,
-      tax_rate: 0,
-      tax_amount: 0,
-      line_total: displayAmount,
-    });
-  }
-
-  const itemsSubtotal = items.reduce(
-    (s, it) => s + (Number(it.line_total) || 0),
+  const amountReceived = displayAmount + unapplied;
+  // Outstanding left on the documents this receipt touched. A true AR
+  // balance needs the whole ledger; this is the honest, receipt-scoped number.
+  const balanceOnAppliedDocs = allocations.reduce(
+    (s, a) => s + (Number(a.balance_after) || 0),
     0,
   );
-  const itemsTax = items.reduce(
-    (s, it) => s + (Number(it.tax_amount) || 0),
-    0,
-  );
-  const itemsTotal = itemsSubtotal + itemsTax;
 
   const documentNumber =
     payment.receipt_number || `RCP-${payment.id.slice(0, 8)}`;
+  const methodLabel = payment.payment_method
+    ? PAYMENT_METHOD_LABELS[payment.payment_method] || payment.payment_method
+    : null;
 
   const snapshot: SnapshotBlob = {
     document_type: "receipt",
@@ -207,11 +232,11 @@ export function buildPaymentReceiptSnapshot(
     document_number: documentNumber,
     status: payment.status || "applied",
     issue_date: payment.payment_date,
-    subtotal: itemsSubtotal,
-    tax_amount: itemsTax,
+    subtotal: amountReceived,
+    tax_amount: 0,
     discount_amount: 0,
-    total: itemsTotal,
-    amount_paid: itemsTotal,
+    total: amountReceived,
+    amount_paid: amountReceived,
     currency: displayCurrency,
     notes: payment.notes,
     terms: null,
@@ -220,12 +245,21 @@ export function buildPaymentReceiptSnapshot(
     organization_id: payment.organization_id,
     branch_id: payment.branch_id,
     items,
-    payment_method: payment.payment_method
-      ? PAYMENT_METHOD_LABELS[payment.payment_method] || payment.payment_method
-      : null,
+    // Cash-application facts (the reason this document exists).
+    is_payment_document: true,
+    received_from: payment.contact?.name ?? null,
+    payment_method: methodLabel,
+    payment_method_code: payment.payment_method ?? null,
     payment_reference: payment.reference ?? null,
     payment_allocations: allocations,
     unapplied_amount: unapplied,
+    total_applied: totalApplied,
+    amount_received: amountReceived,
+    customer_balance_after: balanceOnAppliedDocs,
+    amount_in_words: amountInWords(amountReceived, displayCurrency),
+    // Branding/typesetting profile frozen at issue time, exactly like POS.
+    pos_receipt_settings:
+      (payment.business?.receipt_settings as Record<string, unknown> | null) ?? null,
   };
 
   return {
