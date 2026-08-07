@@ -35,6 +35,8 @@ Credit notes, customer credit and refunds are server-side services (ADR 0131): n
 
 
 
+PDF typography is profile-based: `document` (transactional, frozen = legacy theme) vs `statement`/`ledger`/`operational` (reports). Profiles are opt-in in `generateReportPdf`; only `renderReport` selects one.
+
 ## Memories
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
@@ -47,4 +49,4 @@ Credit notes, customer credit and refunds are server-side services (ADR 0131): n
 - [Business reversal architecture](mem://features/business-reversal-architecture) — canonical reversal writers, journal line scope invariant, paid-invoice policy, per-domain gaps
 - [Payment reversal](mem://features/payment-reversal) — ADR 0012 intent model, ReversePaymentWizard, atomic reversal RPCs, customer deposits
 - [Commercial compensation](mem://features/commercial-compensation) — ADR 0131 credit notes, customer credit ledger, single refund engine, credit-note numbering rules
-
+- [PDF presentation profiles](mem://features/pdf-presentation-profiles) — report vs document PDF type sizes, shrink floors, margins, opt-in rules
