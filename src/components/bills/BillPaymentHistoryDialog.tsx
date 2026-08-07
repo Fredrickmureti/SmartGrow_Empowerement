@@ -5,6 +5,8 @@ import { useTransactionReversal, type ReversalIntent } from "@/hooks/useTransact
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
 import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import { ReversalApprovalNotice } from "@/components/reversal/ReversalApprovalNotice";
+import { useReversalApproval } from "@/components/reversal/useReversalApproval";
 import {
   useReversalReasonCodes,
   isReversalReasonComplete,
@@ -122,8 +124,23 @@ export function BillPaymentHistoryDialog({
     reversalReason,
   );
 
+  // Phase 5.3 — high-value / prior-period reversals are gated by the approval
+  // engine; the server refuses the writer until the request is approved.
+  const {
+    approval,
+    isBlockedPendingApproval,
+    isLoading: isLoadingApproval,
+    requestApproval,
+    isRequesting: isRequestingApproval,
+  } = useReversalApproval(
+    "bill_payment",
+    confirmReversePayment?.id,
+    "void",
+    Boolean(confirmReversePayment),
+  );
+
   const handleReversePayment = async (payment: BillPayment) => {
-    if (!bill || !reasonComplete) return;
+    if (!bill || !reasonComplete || isBlockedPendingApproval) return;
     setReversingId(payment.id);
     try {
       const ok = await voidBillPayment({
@@ -363,6 +380,16 @@ export function BillPaymentHistoryDialog({
             isUnmatchingBankLines={isUnmatching}
           />
 
+          <ReversalApprovalNotice
+            approval={approval}
+            isLoading={isLoadingApproval}
+            isRequesting={isRequestingApproval}
+            canRequest={reasonComplete}
+            onRequestApproval={() =>
+              requestApproval(reversalReasonCode, reversalReason.trim())
+            }
+          />
+
           <ReversalReasonField
             documentType="bill_payment"
             idPrefix="bill-payment-reverse"
@@ -385,7 +412,8 @@ export function BillPaymentHistoryDialog({
                 isPaymentPreviewLoading ||
                 isPaymentPreviewError ||
                 Boolean(reversingId) ||
-                !reasonComplete
+                !reasonComplete ||
+                isBlockedPendingApproval
               }
               onClick={() => confirmReversePayment && handleReversePayment(confirmReversePayment)}
             >

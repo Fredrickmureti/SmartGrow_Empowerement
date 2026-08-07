@@ -25,6 +25,8 @@ import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
 import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import { ReversalApprovalNotice } from "@/components/reversal/ReversalApprovalNotice";
+import { useReversalApproval } from "@/components/reversal/useReversalApproval";
 import {
   useReversalReasonCodes,
   isReversalReasonComplete,
@@ -77,6 +79,16 @@ export function ReverseGoodsReceiptDialog({
     open,
   );
   const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
+
+  // Phase 5.3 — high-value / prior-period reversals are gated by the approval
+  // engine; the server refuses the writer until the request is approved.
+  const {
+    approval,
+    isBlockedPendingApproval,
+    isLoading: isLoadingApproval,
+    requestApproval,
+    isRequesting: isRequestingApproval,
+  } = useReversalApproval("goods_receipt", receipt?.id, "goods_return", open);
 
   // Re-resolved per receipt on open: billing and period state move underneath a
   // long-lived sheet, so a cached verdict would authorise the wrong thing.
@@ -131,7 +143,7 @@ export function ReverseGoodsReceiptDialog({
   };
 
   const handleReverse = async () => {
-    if (!receipt || !reasonComplete || !canReverse) return;
+    if (!receipt || !reasonComplete || !canReverse || isBlockedPendingApproval) return;
     setIsSubmitting(true);
     try {
       const success = await reverseGoodsReceipt({
@@ -182,7 +194,13 @@ export function ReverseGoodsReceiptDialog({
               <Button
                 variant="destructive"
                 onClick={handleReverse}
-                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
+                disabled={
+                  isSubmitting ||
+                  !reasonComplete ||
+                  isPreviewLoading ||
+                  isPreviewError ||
+                  isBlockedPendingApproval
+                }
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Reverse Receipt
@@ -241,6 +259,14 @@ export function ReverseGoodsReceiptDialog({
                   currency={receipt.currency}
                   onUnmatchBankLines={handleUnmatchBankLines}
                   isUnmatchingBankLines={isUnmatching}
+                />
+
+                <ReversalApprovalNotice
+                  approval={approval}
+                  isLoading={isLoadingApproval}
+                  isRequesting={isRequestingApproval}
+                  canRequest={reasonComplete}
+                  onRequestApproval={() => requestApproval(reasonCode, reason.trim())}
                 />
 
                 <ReversalReasonField

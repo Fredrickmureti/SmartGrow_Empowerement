@@ -28,6 +28,8 @@ import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
 import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import { ReversalApprovalNotice } from "@/components/reversal/ReversalApprovalNotice";
+import { useReversalApproval } from "@/components/reversal/useReversalApproval";
 import {
   useReversalReasonCodes,
   isReversalReasonComplete,
@@ -97,6 +99,16 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes("bill", open);
   const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
+  // Phase 5.3 — high-value / prior-period reversals are gated by the approval
+  // engine; the server refuses the writer until the request is approved.
+  const {
+    approval,
+    isBlockedPendingApproval,
+    isLoading: isLoadingApproval,
+    requestApproval,
+    isRequesting: isRequestingApproval,
+  } = useReversalApproval("bill", bill?.id, "void", open);
+
   // Resolved on open and re-resolved per bill — never cached across documents,
   // because payments and match state move underneath the sheet.
   useEffect(() => {
@@ -155,7 +167,7 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
   };
 
   const handleVoid = async () => {
-    if (!bill || !reasonComplete || !canVoid) return;
+    if (!bill || !reasonComplete || !canVoid || isBlockedPendingApproval) return;
     setIsSubmitting(true);
     try {
       const success = await voidBill({
@@ -225,7 +237,13 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
               <Button
                 variant="destructive"
                 onClick={handleVoid}
-                disabled={isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError}
+                disabled={
+                  isSubmitting ||
+                  !reasonComplete ||
+                  isPreviewLoading ||
+                  isPreviewError ||
+                  isBlockedPendingApproval
+                }
               >
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Void Bill
@@ -299,6 +317,14 @@ export function VoidBillDialog({ bill, open, onOpenChange, onSuccess }: VoidBill
                   currency={bill.currency}
                   onUnmatchBankLines={handleUnmatchBankLines}
                   isUnmatchingBankLines={isUnmatching}
+                />
+
+                <ReversalApprovalNotice
+                  approval={approval}
+                  isLoading={isLoadingApproval}
+                  isRequesting={isRequestingApproval}
+                  canRequest={reasonComplete}
+                  onRequestApproval={() => requestApproval(reasonCode, reason.trim())}
                 />
 
                 <ReversalReasonField

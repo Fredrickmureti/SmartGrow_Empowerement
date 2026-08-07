@@ -27,6 +27,8 @@ import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
 import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import { ReversalApprovalNotice } from "@/components/reversal/ReversalApprovalNotice";
+import { useReversalApproval } from "@/components/reversal/useReversalApproval";
 import {
   useReversalReasonCodes,
   isReversalReasonComplete,
@@ -112,6 +114,16 @@ export function VoidInvoiceDialog({
   );
   const reasonComplete = isReversalReasonComplete(reasonCodes, reasonCode, reason);
 
+  // Phase 5.3 — high-value / prior-period reversals are gated by the approval
+  // engine; the server refuses the writer until the request is approved.
+  const {
+    approval,
+    isBlockedPendingApproval,
+    isLoading: isLoadingApproval,
+    requestApproval,
+    isRequesting: isRequestingApproval,
+  } = useReversalApproval("invoice", invoice?.id, "void", open);
+
   // Policy is resolved on open, and re-resolved for a different invoice —
   // never cached across documents, since settlement state changes underneath.
   useEffect(() => {
@@ -177,7 +189,7 @@ export function VoidInvoiceDialog({
 
 
   const handleVoid = async () => {
-    if (!invoice || !reasonComplete || !canVoid) return;
+    if (!invoice || !reasonComplete || !canVoid || isBlockedPendingApproval) return;
 
     setIsSubmitting(true);
     try {
@@ -258,7 +270,11 @@ export function VoidInvoiceDialog({
                 variant="destructive"
                 onClick={handleVoid}
                 disabled={
-                  isSubmitting || !reasonComplete || isPreviewLoading || isPreviewError
+                  isSubmitting ||
+                  !reasonComplete ||
+                  isPreviewLoading ||
+                  isPreviewError ||
+                  isBlockedPendingApproval
                 }
 
               >
@@ -339,6 +355,14 @@ export function VoidInvoiceDialog({
                   isUnmatchingBankLines={isUnmatching}
                 />
 
+
+                <ReversalApprovalNotice
+                  approval={approval}
+                  isLoading={isLoadingApproval}
+                  isRequesting={isRequestingApproval}
+                  canRequest={reasonComplete}
+                  onRequestApproval={() => requestApproval(reasonCode, reason.trim())}
+                />
 
                 <ReversalReasonField
                   documentType="invoice"
