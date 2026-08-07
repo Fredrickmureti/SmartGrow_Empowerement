@@ -84539,16 +84539,16 @@ export type Database = {
       }
       create_credit_note_atomic: {
         Args: {
-          _branch_id: string
-          _business_id: string
-          _contact_id: string
-          _invoice_id: string
+          _branch_id?: string
+          _business_id?: string
+          _contact_id?: string
+          _invoice_id?: string
           _issue?: boolean
-          _issue_date: string
-          _items: Json
-          _notes: string
-          _org_id: string
-          _reason: string
+          _issue_date?: string
+          _items?: Json
+          _notes?: string
+          _org_id?: string
+          _reason?: string
           _source_return_id?: string
         }
         Returns: Json
