@@ -290,8 +290,43 @@ export function useTransactionReversal() {
   };
 
   /**
-   * Void an invoice — reverses linked JE(s) atomically (main + COGS), updates status,
-   * voids active payments, optionally creates a credit note, and restores stock.
+   * Resolve which reversal operation is LEGAL for a document.
+   *
+   * Phase 1 reversal intent policy: `resolve_reversal_intent` in the database
+   * is the only authority on this. Never re-derive "can I void this?" in the
+   * client from `amount_paid`, a status string or a period lookup — settlement,
+   * bank reconciliation and period state are server truth.
+   */
+  const resolveReversalIntent = async (
+    documentType: ReversalDocumentType,
+    documentId: string
+  ): Promise<ReversalIntent | null> => {
+    const { data, error } = await supabase.rpc("resolve_reversal_intent" as any, {
+      _document_type: documentType,
+      _document_id: documentId,
+    } as any);
+    if (error) {
+      console.error("Error resolving reversal intent:", error);
+      toast({
+        title: "Could not check this document",
+        description: normalizeError(error).message,
+        variant: "destructive",
+      });
+      return null;
+    }
+    return (data as unknown as ReversalIntent) ?? null;
+  };
+
+  /**
+   * Void an invoice — reverses the linked JE(s) atomically (main + COGS legs),
+   * flips the header and restores stock, in one server transaction.
+   *
+   * Phase 1: voiding is only legal for an UNSETTLED invoice in an open period.
+   * The server refuses anything else, and it no longer cascade-voids customer
+   * payments. A settled invoice is corrected with a credit note, a refund or a
+   * payment reversal — the operations `resolveReversalIntent` names. The old
+   * client path here voided the payments AND raised a credit note for the same
+   * amount, compensating the customer twice; never reinstate it.
    */
   const voidInvoice = async (options: VoidInvoiceOptions): Promise<boolean> => {
     if (!currentOrg || !user) {
@@ -315,48 +350,19 @@ export function useTransactionReversal() {
         return false;
       }
 
-      // ADR 0027: discover payments that touched this invoice via the
-      // allocation ledger, not the deprecated single-invoice FK (ADR 0027).
-      const { data: allocRows, error: allocErr } = await supabase
-        .from("payment_allocations")
-        .select("payment_id, amount, payments!inner(id, status, amount, receipt_number, journal_entry_id)")
-        .eq("invoice_id", options.invoiceId);
-      if (allocErr) throw allocErr;
-
-      const paymentMap = new Map<string, any>();
-      for (const row of (allocRows || []) as any[]) {
-        const p = row.payments;
-        if (!p || p.status === "voided") continue;
-        if (!paymentMap.has(p.id)) paymentMap.set(p.id, p);
-      }
-      const activePayments = Array.from(paymentMap.values());
-      const hasActivePayments = activePayments.length > 0;
-      const totalPayments = activePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
-      if (hasActivePayments && !options.createCreditNote) {
-        toast({
-          title: "Has Active Payments",
-          description: `This invoice has ${activePayments.length} payment(s) totaling ${totalPayments}. Void payments first or enable credit note creation.`,
-          variant: "destructive",
-        });
-        return false;
-      }
-
       const voidDate = options.voidDate || new Date().toISOString().split("T")[0];
-      const invoiceBusinessId = (invoice as any).business_id as string | null;
 
-      // ADR 0125/0127: the whole reversal is one server transaction —
-      // JE reversal (main + COGS), header flip, cascading payment voids
-      // through `void_payment_atomic`, and stock restoration. Never re-split
-      // this into client steps: the old sequence could leave the GL reversed
-      // while invoices and inventory still counted the sale.
+      // ADR 0125/0127 + Phase 1: the whole reversal is one server transaction —
+      // policy guards, JE reversal (main + COGS), header flip and stock
+      // restoration. Never re-split this into client steps: the old sequence
+      // could leave the GL reversed while invoices and inventory still counted
+      // the sale.
       const { data: voidResult, error: voidErr } = await supabase.rpc("void_invoice_atomic" as any, {
         _invoice_id: options.invoiceId,
         _reason: options.reason,
         _void_date: voidDate,
         _actor: user.id,
-        _cascade_payments: Boolean(options.createCreditNote),
-        _client_request_id: (options as any).clientRequestId ?? null,
+        _client_request_id: options.clientRequestId ?? null,
       } as any);
       if (voidErr) throw voidErr;
 
@@ -364,65 +370,6 @@ export function useTransactionReversal() {
         toast({ title: "Already Voided", description: "This invoice was already voided." });
         return true;
       }
-
-      // Credit note is a separate accounting document, not part of the
-      // reversal transaction: it has its own number series and posting.
-      if (hasActivePayments && options.createCreditNote) {
-        const { data: cnNumber } = await supabase.rpc("get_next_credit_note_number", { _org_id: currentOrg.id });
-        const creditNoteNumber = cnNumber || `CN-${Date.now()}`;
-
-        const { data: creditNote, error: cnError } = await supabase
-          .from("credit_notes")
-          .insert({
-            credit_note_number: creditNoteNumber,
-            organization_id: currentOrg.id,
-            business_id: invoiceBusinessId,
-            contact_id: invoice.contact_id,
-            invoice_id: options.invoiceId,
-            total: totalPayments,
-            subtotal: totalPayments,
-            tax_amount: 0,
-            reason: `Void of invoice ${invoice.invoice_number}: ${options.reason}`,
-            status: "issued",
-            issue_date: voidDate,
-            created_by: user.id,
-            currency: invoice.currency || "KES",
-          } as any)
-          .select()
-          .single();
-
-        if (cnError) {
-          console.error("Error creating credit note:", cnError);
-        } else if (creditNote) {
-          const invoiceAccountMappings = getInvoiceAccountMappings();
-          if (invoiceAccountMappings.receivable_account_id && invoiceAccountMappings.revenue_account_id) {
-            await postCreditNoteToGL({
-              id: creditNote.id,
-              credit_note_number: creditNoteNumber,
-              issue_date: voidDate,
-              subtotal: totalPayments,
-              tax_amount: 0,
-              total: totalPayments,
-              invoice_number: invoice.invoice_number,
-              is_fully_paid: invoiceStatus === "paid",
-            }, {
-              receivable_account_id: invoiceAccountMappings.receivable_account_id,
-              revenue_account_id: invoiceAccountMappings.revenue_account_id,
-              tax_liability_account_id: invoiceAccountMappings.tax_liability_account_id || undefined,
-              customer_deposits_account_id: accounts.customer_deposits_id || undefined,
-            });
-          }
-
-          logAction({
-            action: "created",
-            entityType: "credit_note",
-            entityId: creditNote.id,
-            entityName: `CN for ${invoice.invoice_number}`,
-            changesSummary: `Credit note created for voided invoice. Amount: ${totalPayments}`,
-          });
-        }
-      }
-
 
       logAction({
         action: "voided",
@@ -440,6 +387,7 @@ export function useTransactionReversal() {
       return false;
     }
   };
+
 
   /**
    * Un-reconcile a payment from its current invoice(s).
