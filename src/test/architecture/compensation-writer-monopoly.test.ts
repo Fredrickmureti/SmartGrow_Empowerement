@@ -62,9 +62,11 @@ describe("commercial compensation writer monopoly", () => {
       "create_credit_note_request_atomic was a duplicate adapter; call create_credit_note_atomic",
     ).toEqual([]);
 
-    const callers = appFiles.filter((f) =>
-      /create_credit_note_atomic/.test(readFileSync(f, "utf8")),
-    );
+    const callers = appFiles.filter((f) => {
+      const source = readFileSync(f, "utf8");
+      return /rpc\([^)]*["']create_credit_note_atomic["']/.test(source)
+        || /rest\/v1\/rpc\/create_credit_note_atomic/.test(source);
+    });
     expect(callers.map(rel)).toEqual([
       "src/services/finance/createCreditNote.ts",
     ]);
