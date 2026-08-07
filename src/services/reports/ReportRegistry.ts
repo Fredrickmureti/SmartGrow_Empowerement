@@ -487,7 +487,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     name: "HR Reports",
     description: "Headcount, turnover, employee analytics",
     category: "management",
-    path: "/hr/employees/reports",
+    path: "/hr/reports",
     icon: Users,
     permission: "viewReports",
     reportType: "hr",
@@ -574,7 +574,7 @@ export function getReportsByType(reportType: string): ReportDefinition[] {
 const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
   ["/hr/payroll/reports", "payroll"],
   ["/hr/attendance/reports", "hr"],
-  ["/hr/employees/reports", "hr"],
+  ["/hr/reports", "hr"],
   ["/pos/reports", "pos"],
   ["/projects-app/reports", "projects"],
   ["/timesheets/reports", "projects"],
