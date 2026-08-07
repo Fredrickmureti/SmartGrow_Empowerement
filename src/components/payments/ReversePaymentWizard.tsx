@@ -23,6 +23,9 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
+import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+
 
 /**
  * ADR 0012 — Guided payment reversal.
