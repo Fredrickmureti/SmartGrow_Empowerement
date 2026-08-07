@@ -120,7 +120,16 @@ export function ReversalConsequencePreview({
     );
   }
 
-  const { gl, stock, money, related_documents, warnings, document_type } = consequences;
+  const {
+    gl,
+    stock,
+    money,
+    warehouse,
+    bank,
+    related_documents,
+    warnings,
+    document_type,
+  } = consequences;
   const sortedWarnings = [...warnings].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 3) - (SEVERITY_ORDER[b.severity] ?? 3),
   );
