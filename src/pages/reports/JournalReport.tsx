@@ -171,6 +171,7 @@ function JournalReportInner() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: "Journal Report",
+      reportType: "journal_report",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,

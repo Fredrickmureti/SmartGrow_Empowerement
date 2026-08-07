@@ -123,6 +123,7 @@ function CashFlowReportInner() {
 
   const getExportConfig = useCallback((): ExportConfig => ({
     title: "Cash Flow Statement",
+    reportType: "cash_flow",
     companyName: currentOrg?.name || "",
     organizationId: currentOrg?.id,
     dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,

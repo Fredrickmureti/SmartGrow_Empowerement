@@ -174,6 +174,7 @@ function BudgetReportInner() {
 
   const getExportConfig = useCallback((): ExportConfig => ({
     title: `Budget vs Actual – ${selectedBudget?.name || ""}`,
+    reportType: "budget_vs_actual",
     companyName: currentOrg?.name || "",
     organizationId: currentOrg?.id,
     dateRange: `Fiscal Year ${selectedBudget?.fiscal_year || ""}`,

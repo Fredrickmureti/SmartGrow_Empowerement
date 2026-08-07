@@ -369,6 +369,7 @@ function PartnerLedgerInner() {
   const getExportConfig = useCallback(
     (): ExportConfig => ({
       title: `${partnerType === "customer" ? "Customer" : "Supplier"} Ledger`,
+      reportType: "partner_ledger",
       companyName: currentOrg?.name || "",
       organizationId: currentOrg?.id,
       dateRange: `${format(new Date(dateFrom), "MMM d, yyyy")} – ${format(new Date(dateTo), "MMM d, yyyy")}`,
