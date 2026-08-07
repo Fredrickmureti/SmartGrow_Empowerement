@@ -1,0 +1,158 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+/**
+ * Phase 1 — reversal intent policy.
+ *
+ * Locks the invariant that legality of a reversal is decided ONCE, on the
+ * server, by `resolve_reversal_intent`, and that voiding an invoice can never
+ * again unwind a customer payment.
+ *
+ * Background this guards against regressing: `void_invoice_atomic` used to
+ * accept `_cascade_payments`, and the invoice void dialog wired its
+ * "Create Credit Note for Refund" checkbox straight to that flag — so the
+ * platform voided the customer's payments AND raised a credit note for the same
+ * amount, compensating twice. No reference ERP (SAP, Oracle, NetSuite, D365,
+ * Odoo) unwinds a settled payment as a side effect of a document void.
+ */
+
+const PROJECT_ROOT = process.cwd();
+const MIGRATIONS_DIR = join(PROJECT_ROOT, "supabase", "migrations");
+const SRC_DIR = join(PROJECT_ROOT, "src");
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else if (/\.(ts|tsx)$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+function migrations(): { file: string; sql: string }[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .map((f) => ({ file: f, sql: readFileSync(join(MIGRATIONS_DIR, f), "utf8") }));
+}
+
+/** Latest migration text that (re)defines the given function. */
+function latestDefinitionOf(fn: string): string | undefined {
+  const re = new RegExp(`(CREATE OR REPLACE|CREATE)\\s+FUNCTION\\s+public\\.${fn}\\b`, "i");
+  const matches = migrations().filter(({ sql }) => re.test(sql));
+  return matches.length ? matches[matches.length - 1].sql : undefined;
+}
+
+describe("Phase 1 — reversal intent policy exists in the database", () => {
+  it("resolve_reversal_intent is defined", () => {
+    const sql = latestDefinitionOf("resolve_reversal_intent");
+    expect(sql, "no migration defines public.resolve_reversal_intent").toBeDefined();
+  });
+
+  it("resolves settlement, bank-reconciliation and fiscal-period state", () => {
+    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    expect(sql, "settlement is not walked through payment_allocations (ADR 0027)").toMatch(
+      /payment_allocations/
+    );
+    expect(sql, "bank reconciliation state is not consulted").toMatch(/payment_is_bank_reconciled/);
+    expect(sql, "fiscal period state is not consulted").toMatch(/is_period_open/);
+  });
+
+  it("returns a recommended operation plus the full operation matrix", () => {
+    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    expect(sql).toMatch(/'recommended'/);
+    expect(sql).toMatch(/'operations'/);
+    expect(sql).toMatch(/'blockers'/);
+    for (const op of ["void", "credit_note", "refund", "reverse_payment"]) {
+      expect(sql, `operation '${op}' missing from the matrix`).toMatch(new RegExp(`'${op}'`));
+    }
+  });
+
+  it("authorizes the caller — it is SECURITY DEFINER over tenant data", () => {
+    const sql = latestDefinitionOf("resolve_reversal_intent")!;
+    expect(sql).toMatch(/SECURITY DEFINER/i);
+    expect(sql, "no tenant membership check before returning document state").toMatch(
+      /user_belongs_to_org|is_org_member|_assert_org_member/
+    );
+  });
+});
+
+describe("Phase 1 — void_invoice_atomic refuses illegal reversals", () => {
+  const sql = latestDefinitionOf("void_invoice_atomic");
+
+  it("is defined", () => {
+    expect(sql).toBeDefined();
+  });
+
+  it("refuses a settled invoice", () => {
+    expect(sql!, "settlement guard missing").toMatch(/cannot be voided/i);
+    expect(sql!).toMatch(/payment_allocations/);
+  });
+
+  it("refuses a bank-reconciled settlement", () => {
+    expect(sql!).toMatch(/payment_is_bank_reconciled/);
+  });
+
+  it("keeps the closed-period guard (ADR 0127)", () => {
+    expect(sql!).toMatch(/is_period_open/);
+  });
+
+  it("never cascade-voids customer payments", () => {
+    // The cascade loop called void_payment_atomic from inside the invoice void.
+    expect(sql!, "invoice void still voids payments as a side effect").not.toMatch(
+      /void_payment_atomic/
+    );
+    expect(sql!, "cascading voids are not explicitly refused").toMatch(
+      /Cascading payment voids are no longer permitted/i
+    );
+  });
+});
+
+describe("Phase 1 — no client re-derives reversal legality", () => {
+  const files = walk(SRC_DIR).filter((f) => !/[\\/]test[\\/]/.test(f));
+
+  it("no call site requests a cascading payment void", () => {
+    const offenders = files.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      // Any truthy value handed to _cascade_payments is a policy bypass.
+      return /_cascade_payments\s*:\s*(?!false\b|null\b)/.test(src);
+    });
+    expect(
+      offenders.map((f) => f.replace(PROJECT_ROOT, "")),
+      "these files ask the server to cascade-void customer payments"
+    ).toEqual([]);
+  });
+
+  it("the invoice reversal surface consults the policy instead of amount_paid", () => {
+    const dialog = readFileSync(
+      join(SRC_DIR, "components", "invoices", "VoidInvoiceDialog.tsx"),
+      "utf8"
+    );
+    expect(dialog, "dialog does not resolve the reversal intent").toMatch(
+      /resolveReversalIntent\(\s*["']invoice["']/
+    );
+    expect(
+      dialog,
+      "dialog still decides legality locally from amount_paid — server policy is the authority"
+    ).not.toMatch(/amount_paid\s*>\s*0/);
+    expect(
+      dialog,
+      "the double-compensating 'create credit note' checkbox must not come back"
+    ).not.toMatch(/createCreditNote/);
+  });
+
+  it("the reversal hook exposes the policy and drops the credit-note side effect", () => {
+    const hook = readFileSync(join(SRC_DIR, "hooks", "useTransactionReversal.ts"), "utf8");
+    expect(hook).toMatch(/resolve_reversal_intent/);
+    const voidInvoiceBlock = hook.slice(
+      hook.indexOf("const voidInvoice"),
+      hook.indexOf("const unreconcilePayment")
+    );
+    expect(voidInvoiceBlock.length).toBeGreaterThan(0);
+    expect(
+      voidInvoiceBlock,
+      "voidInvoice must not raise a credit note itself — that double-compensated the customer"
+    ).not.toMatch(/postCreditNoteToGL|from\(["']credit_notes["']\)/);
+  });
+});
