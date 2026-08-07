@@ -4,6 +4,11 @@ import { Bill, useBills, BillPayment } from "@/hooks/useBills";
 import { useTransactionReversal, type ReversalIntent } from "@/hooks/useTransactionReversal";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import {
+  useReversalReasonCodes,
+  isReversalReasonComplete,
+} from "@/components/reversal/useReversalReasonCodes";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCurrency } from "@/hooks/useCurrency";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +76,8 @@ export function BillPaymentHistoryDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [confirmReversePayment, setConfirmReversePayment] = useState<BillPayment | null>(null);
+  const [reversalReasonCode, setReversalReasonCode] = useState("");
+  const [reversalReason, setReversalReason] = useState("");
   const [paymentIntent, setPaymentIntent] = useState<ReversalIntent | null>(null);
   const [isResolvingPaymentIntent, setIsResolvingPaymentIntent] = useState(false);
   const [isUnmatching, setIsUnmatching] = useState(false);
@@ -104,13 +111,25 @@ export function BillPaymentHistoryDialog({
     return formatCurrencyHook(amount, bill?.currency || "USD"); // architecture-allow: display-only fallback
   };
 
+  // One shared vocabulary (ADR 0129) — the same codes the writer validates.
+  const { reasonCodes, isLoading: isLoadingReasons } = useReversalReasonCodes(
+    "bill_payment",
+    Boolean(confirmReversePayment),
+  );
+  const reasonComplete = isReversalReasonComplete(
+    reasonCodes,
+    reversalReasonCode,
+    reversalReason,
+  );
+
   const handleReversePayment = async (payment: BillPayment) => {
-    if (!bill) return;
+    if (!bill || !reasonComplete) return;
     setReversingId(payment.id);
     try {
       const ok = await voidBillPayment({
         billPaymentId: payment.id,
-        reason: "Reversed from Bill Payment History",
+        reason: reversalReason.trim(),
+        reasonCode: reversalReasonCode,
       });
       if (ok) {
         // Refresh payments list
@@ -130,6 +149,8 @@ export function BillPaymentHistoryDialog({
   useEffect(() => {
     if (!confirmReversePayment) {
       setPaymentIntent(null);
+      setReversalReasonCode("");
+      setReversalReason("");
       return;
     }
     let cancelled = false;
@@ -342,6 +363,18 @@ export function BillPaymentHistoryDialog({
             isUnmatchingBankLines={isUnmatching}
           />
 
+          <ReversalReasonField
+            documentType="bill_payment"
+            idPrefix="bill-payment-reverse"
+            code={reversalReasonCode}
+            comment={reversalReason}
+            onCodeChange={setReversalReasonCode}
+            onCommentChange={setReversalReason}
+            reasonCodes={reasonCodes}
+            isLoading={isLoadingReasons}
+            disabled={Boolean(reversingId)}
+          />
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
@@ -351,7 +384,8 @@ export function BillPaymentHistoryDialog({
                 isResolvingPaymentIntent ||
                 isPaymentPreviewLoading ||
                 isPaymentPreviewError ||
-                Boolean(reversingId)
+                Boolean(reversingId) ||
+                !reasonComplete
               }
               onClick={() => confirmReversePayment && handleReversePayment(confirmReversePayment)}
             >
