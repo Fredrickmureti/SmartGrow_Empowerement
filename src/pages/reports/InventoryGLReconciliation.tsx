@@ -48,6 +48,7 @@ function InventoryGLReconciliationInner() {
     return {
       title: "Inventory ⇄ GL Reconciliation",
       subtitle: "Subledger (Σ warehouse_stock × cost_price) vs General Ledger closing balance",
+      formatProfile: "financial",
       columns,
       rows: exportRows,
       currency: baseCurrency,

@@ -205,7 +205,8 @@ function AgingReportInner() {
     return {
       title: reportType === "ar" ? "Accounts Receivable Aging" : "Accounts Payable Aging",
       companyName: currentOrg?.name || "",
-      dateRange: `As of ${format(new Date(asOfDate), "MMMM d, yyyy")}`,
+      reportType: reportType === "ar" ? "invoice_aging" : "aged_payables",
+      asOf: format(new Date(asOfDate), "MMMM d, yyyy"),
       columns: toExportColumns(columns),
       rows: toExportRows(rows, columns),
       sheetName: reportType === "ar" ? "AR Aging" : "AP Aging",

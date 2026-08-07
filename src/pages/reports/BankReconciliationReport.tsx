@@ -218,6 +218,7 @@ function BankReconciliationReportInner() {
   const getExportConfig = useCallback((): ExportConfig => ({
     title: "Bank Reconciliation Report",
     subtitle: "All reconciliation sessions with matched/unmatched picture",
+    formatProfile: "financial",
     columns: toExportColumns(columns),
     rows: toExportRows(tableRows, columns),
     currency: baseCurrency,
