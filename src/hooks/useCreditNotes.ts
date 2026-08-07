@@ -4,114 +4,20 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
-import { useDefaultAccounts } from "./useDefaultAccounts";
 import { useBranch } from "@/contexts/BranchContext";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
 
-interface JELine {
-  account_id: string;
-  debit: number;
-  credit: number;
-  description?: string;
-  contact_id?: string | null;
-}
-
 /**
- * Build the GL lines for issuing a credit note.
- * Mirrors the historical `postCreditNoteToGL` shape so accounts behave identically:
- *   DR Revenue (subtotal)
- *   DR Tax Liability (tax_amount, if any)
- *   CR AR or Customer Deposits (total)
- * The RPC does balance + business-scope validation server-side.
+ * ADR 0131 — commercial compensation is a server-side service.
+ *
+ * This hook builds NO journal lines and resolves NO GL accounts. Creation,
+ * issuing, application and refund all go through the canonical database
+ * writers (`create_credit_note_atomic`, `issue_credit_note_atomic`,
+ * `apply_credit_to_invoice_atomic`, `refund_customer_atomic`), which decide
+ * receivable vs customer-credit treatment, post through
+ * `post_journal_entry_atomic` and record customer-credit movements.
  */
-function buildCreditNoteJELines(args: {
-  credit_note_number: string;
-  invoice_number?: string | null;
-  subtotal: number;
-  tax_amount: number;
-  total: number;
-  contact_id?: string | null;
-  is_fully_paid: boolean;
-  receivable_account_id: string;
-  revenue_account_id: string;
-  tax_liability_account_id?: string | null;
-  customer_deposits_account_id?: string | null;
-}): JELine[] {
-  const useCustomerDeposits = args.is_fully_paid && !!args.customer_deposits_account_id;
-  const creditAccountId = useCustomerDeposits
-    ? args.customer_deposits_account_id!
-    : args.receivable_account_id;
-  const creditDescription = useCustomerDeposits
-    ? `Credit Note ${args.credit_note_number} - Customer deposit for overpayment${args.invoice_number ? ` on Invoice ${args.invoice_number}` : ""}`
-    : `Credit Note ${args.credit_note_number} - AR Reduction`;
-
-  const lines: JELine[] = [
-    {
-      account_id: args.revenue_account_id,
-      debit: args.subtotal,
-      credit: 0,
-      description: `Credit Note ${args.credit_note_number} - Revenue reversal${args.invoice_number ? ` for Invoice ${args.invoice_number}` : ""}`,
-    },
-    {
-      account_id: creditAccountId,
-      debit: 0,
-      credit: args.total,
-      description: creditDescription,
-      contact_id: args.contact_id ?? null,
-    },
-  ];
-
-  if (args.tax_amount > 0 && args.tax_liability_account_id) {
-    lines.push({
-      account_id: args.tax_liability_account_id,
-      debit: args.tax_amount,
-      credit: 0,
-      description: `Credit Note ${args.credit_note_number} - Tax reversal`,
-    });
-  }
-  return lines;
-}
-
-/**
- * Build the GL lines for refunding a credit note.
- *   DR (AR or Customer Deposits) — reverses whichever account was credited at issuance
- *   CR Payment account (cash/bank out)
- */
-function buildRefundJELines(args: {
-  credit_note_number: string;
-  amount: number;
-  contact_id?: string | null;
-  is_fully_paid: boolean;
-  receivable_account_id: string;
-  payment_account_id: string;
-  customer_deposits_account_id?: string | null;
-}): JELine[] {
-  const useCustomerDeposits = args.is_fully_paid && !!args.customer_deposits_account_id;
-  const debitAccountId = useCustomerDeposits
-    ? args.customer_deposits_account_id!
-    : args.receivable_account_id;
-  const debitDescription = useCustomerDeposits
-    ? `Refund ${args.credit_note_number} - Customer deposit reversal`
-    : `Refund ${args.credit_note_number} - AR reversal`;
-
-  return [
-    {
-      account_id: debitAccountId,
-      debit: args.amount,
-      credit: 0,
-      description: debitDescription,
-      contact_id: args.contact_id ?? null,
-    },
-    {
-      account_id: args.payment_account_id,
-      debit: 0,
-      credit: args.amount,
-      description: `Refund ${args.credit_note_number} - Cash out`,
-    },
-  ];
-}
-
 
 export interface CreditNoteItem {
   id?: string;
