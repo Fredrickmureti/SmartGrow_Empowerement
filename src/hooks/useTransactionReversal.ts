@@ -73,7 +73,63 @@ export interface RefundCustomerOptions {
   clientRequestId?: string;
 }
 
+/**
+ * Phase 1 reversal intent policy — mirror of `public.resolve_reversal_intent`.
+ *
+ * The database decides which reversal operation is legal for a document given
+ * its settlement state, bank-reconciliation state and accounting period state.
+ * Surfaces render what it returns; they never compute legality themselves.
+ */
+export type ReversalDocumentType = "invoice" | "payment";
+
+export type ReversalOperation =
+  | "void"
+  | "credit_note"
+  | "refund"
+  | "customer_credit"
+  | "reverse_payment"
+  | "none";
+
+export type ReversalBlocker =
+  | "already_reversed"
+  | "settled"
+  | "bank_reconciled"
+  | "period_closed";
+
+export interface ReversalOperationOption {
+  operation: ReversalOperation;
+  allowed: boolean;
+  label: string;
+  description?: string | null;
+  blocked_reason?: string | null;
+}
+
+export interface ReversalIntent {
+  document_type: ReversalDocumentType;
+  document_id: string;
+  document_number: string;
+  status: string;
+  organization_id: string | null;
+  business_id: string | null;
+  total: number;
+  amount_settled: number;
+  state: {
+    already_reversed: boolean;
+    is_draft: boolean;
+    is_posted: boolean;
+    is_settled: boolean;
+    live_payment_count: number;
+    live_payment_total: number;
+    is_bank_reconciled: boolean;
+    period_open: boolean;
+  };
+  blockers: ReversalBlocker[];
+  recommended: ReversalOperation;
+  operations: ReversalOperationOption[];
+}
+
 export interface VoidInvoiceOptions {
+
   invoiceId: string;
   reason: string;
   voidDate?: string;
