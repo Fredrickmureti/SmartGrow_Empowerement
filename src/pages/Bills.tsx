@@ -98,6 +98,7 @@ import { usePeekParam } from "@/design-system";
 // /purchases/bills/:id/edit. See src/features/purchases/bills/BillEditPage.tsx.
 import { RecordBillPaymentDialog } from "@/components/bills/RecordBillPaymentDialog";
 import { BillPaymentHistoryDialog } from "@/components/bills/BillPaymentHistoryDialog";
+import { VoidBillDialog } from "@/components/bills/VoidBillDialog";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
@@ -856,7 +857,7 @@ export default function Bills() {
                           )}
                           {(bill.status === "received" || bill.status === "partial") && (
                             <>
-                            <DropdownMenuItem onClick={() => handleVoidBill(bill.id)} className="text-destructive">
+                            <DropdownMenuItem onClick={() => handleVoidBill(bill)} className="text-destructive">
                               <Ban className="mr-2 h-4 w-4" /> Void Bill
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => {
@@ -914,6 +915,13 @@ export default function Bills() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bill reversal — intent policy + consequence preview, then void_bill_atomic. */}
+      <VoidBillDialog
+        bill={selectedBillForVoid}
+        open={showVoidBillSheet}
+        onOpenChange={setShowVoidBillSheet}
+      />
 
       {/* Bill Payment History Dialog */}
       <BillPaymentHistoryDialog
