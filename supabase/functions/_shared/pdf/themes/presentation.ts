@@ -175,7 +175,7 @@ export function inferPresentationProfile(
   // measured at 10pt it grows from 2 pages to 3 without becoming easier to
   // read, so it grades down to the ledger face instead.
   if (formatProfile === "financial") return columnCount >= 6 ? "ledger" : "statement";
-  return columnCount >= 7 ? "ledger" : "operational";
+  return columnCount >= 6 ? "ledger" : "operational";
 }
 
 export const DOCUMENT_TYPOGRAPHY = DOCUMENT;
