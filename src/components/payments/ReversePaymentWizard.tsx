@@ -232,6 +232,38 @@ export function ReversePaymentWizard({
     [payment?.id, selected?.code, selected?.op, refundCents, bankAccountId],
   );
 
+  // Phase 2 — the confirmation step shows what the reversal would change before
+  // the operator authorises it. Fetched once the wizard reaches step 3 so the
+  // preview reflects the state at confirmation time, not at open time.
+  // Must stay ABOVE the `if (!payment) return null` guard (Rules of Hooks).
+  const {
+    consequences,
+    isLoading: isPreviewLoading,
+    isError: isPreviewError,
+    refetch: refetchPreview,
+  } = useReversalConsequences("payment", payment?.id, open && step === 3);
+
+  /**
+   * Phase 4 — resolve the `bank_reconciled` blocker in place. The server
+   * un-matches exactly the blocking statement lines, then the preview is
+   * re-projected so the wizard gates on fresh server truth.
+   */
+  const handleUnmatchBankLines = async () => {
+    if (!payment) return;
+    setIsUnmatching(true);
+    try {
+      const ok = await unmatchBankLinesForReversal(
+        "payment",
+        payment.id,
+        `Un-matched to reverse payment ${payment.payment_number ?? payment.id}`,
+      );
+      if (!ok) return;
+      refetchPreview();
+    } finally {
+      setIsUnmatching(false);
+    }
+  };
+
   if (!payment) return null;
 
   const appliedAmount = Number(payment.applied_amount ?? payment.amount) || 0;
