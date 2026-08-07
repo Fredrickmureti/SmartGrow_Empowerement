@@ -140,6 +140,13 @@ function CashFlowReportInner() {
       isLoading={isLoading || !isReady}
       error={error as Error | null}
       isEmpty={!data}
+      emptyState={{
+        kind: "no_data",
+        title: "No cash flow activity for this period",
+        message:
+          "The indirect-method statement is derived from posted journal entries; none affected cash in the selected period and scope.",
+      }}
+
       getExportConfig={getExportConfig}
       headerActions={
         <>
