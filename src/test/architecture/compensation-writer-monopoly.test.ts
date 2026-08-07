@@ -70,10 +70,11 @@ describe("commercial compensation writer monopoly", () => {
     // The single entry point is the named jsonb envelope; positional/named
     // column arguments reintroduce PostgREST signature drift.
     const hook = readFileSync(join(SRC, "hooks/useCreditNotes.ts"), "utf8");
-    const call = hook.slice(hook.indexOf("create_credit_note_atomic"));
+    const call = hook.slice(hook.indexOf('rpc as any)("create_credit_note_atomic"'));
     expect(call.slice(0, 200).includes("_payload"), "creation must use the _payload envelope").toBe(
       true,
     );
+
   });
 
   it("new migrations that define public functions refresh the PostgREST schema cache", () => {
