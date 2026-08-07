@@ -83,15 +83,23 @@ describe("buildPaymentReceiptSnapshot", () => {
 
   it("sorts allocations by issue_date then invoice_number", () => {
     const { snapshot } = buildPaymentReceiptSnapshot(PAYMENT, ALLOCS);
-    const items = snapshot.items as Array<Record<string, unknown>>;
-    expect(items).toHaveLength(3); // 2 alloc + unapplied (1500 - 1000)
-    expect(items[0].description).toContain("INV-001");
-    expect(items[1].description).toContain("INV-002");
-    expect(items[2].description).toBe("Unapplied advance (on account)");
-    expect(items[2].line_total).toBe(500);
+    const allocs = snapshot.payment_allocations as Array<Record<string, unknown>>;
+    expect(allocs).toHaveLength(2);
+    expect(allocs[0].invoice_number).toBe("INV-001");
+    expect(allocs[1].invoice_number).toBe("INV-002");
+    expect(snapshot.unapplied_amount).toBe(500); // 1500 received - 1000 applied
   });
 
-  it("derives totals from items only (items-as-truth)", () => {
+  it("carries no product grid — the ledger is the body", () => {
+    const { snapshot } = buildPaymentReceiptSnapshot(PAYMENT, ALLOCS);
+    expect(snapshot.items).toEqual([]);
+    expect(snapshot.is_payment_document).toBe(true);
+    expect(snapshot.total_applied).toBe(1000);
+    expect(snapshot.amount_received).toBe(1500);
+    expect(snapshot.amount_in_words).toEqual(expect.any(String));
+  });
+
+  it("derives totals from the cash applied, never from line items", () => {
     const { snapshot } = buildPaymentReceiptSnapshot(PAYMENT, ALLOCS);
     expect(snapshot.subtotal).toBe(1500);
     expect(snapshot.tax_amount).toBe(0);
@@ -101,19 +109,18 @@ describe("buildPaymentReceiptSnapshot", () => {
 
   it("suppresses unapplied when restricted to a single invoice", () => {
     const { snapshot } = buildPaymentReceiptSnapshot(PAYMENT, ALLOCS, "inv-a");
-    const items = snapshot.items as Array<Record<string, unknown>>;
-    expect(items).toHaveLength(1);
-    expect(items[0].description).toContain("INV-001");
+    const allocs = snapshot.payment_allocations as Array<Record<string, unknown>>;
+    expect(allocs).toHaveLength(1);
+    expect(allocs[0].invoice_number).toBe("INV-001");
     expect(snapshot.total).toBe(400);
     expect(snapshot.unapplied_amount).toBe(0);
   });
 
-  it("emits On-account payment when no allocations exist", () => {
+  it("renders a pure on-account payment with no allocations", () => {
     const { snapshot } = buildPaymentReceiptSnapshot(PAYMENT, []);
-    const items = snapshot.items as Array<Record<string, unknown>>;
-    expect(items).toHaveLength(1);
-    expect(items[0].description).toBe("On-account payment");
-    expect(items[0].line_total).toBe(1500);
+    expect(snapshot.payment_allocations).toEqual([]);
+    expect(snapshot.items).toEqual([]);
+    expect(snapshot.amount_received).toBe(1500);
     expect(snapshot.total).toBe(1500);
   });
 
