@@ -223,10 +223,12 @@ export async function renderReport(
   // Reporting scope line ("<Business> · <Branch>") — derived ONCE here so
   // every report states its scope identically. Callers never compose it.
   const scope = await resolveReportScope(supabase, {
+    mastheadName: organization?.name,
     businessName: organization?.name,
     businessId: options.businessId,
     branchId: options.branchId,
   });
+
 
   // Currency default: caller > org base_currency
   const currency = options.currency ?? organization?.base_currency ?? undefined;
