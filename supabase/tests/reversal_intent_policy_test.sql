@@ -311,10 +311,10 @@ END $$;
 DO $$
 DECLARE v_gate text;
 BEGIN
-  IF to_regprocedure('public.reversal_approval_requirement(text,uuid,text)') IS NULL THEN
+  IF to_regprocedure('public.reversal_approval_requirement(text,uuid,text,date)') IS NULL THEN
     RAISE EXCEPTION 'reversal_approval_requirement is missing';
   END IF;
-  IF to_regprocedure('public.request_reversal_approval(text,uuid,text,text,text)') IS NULL THEN
+  IF to_regprocedure('public.request_reversal_approval(text,uuid,text,text,text,date)') IS NULL THEN
     RAISE EXCEPTION 'request_reversal_approval is missing';
   END IF;
 
