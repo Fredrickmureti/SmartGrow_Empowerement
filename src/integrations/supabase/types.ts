@@ -92533,6 +92533,15 @@ export type Database = {
         }
         Returns: number
       }
+      resolve_reversal_bank_block: {
+        Args: {
+          _actor?: string
+          _document_id: string
+          _document_type: string
+          _reason?: string
+        }
+        Returns: Json
+      }
       resolve_reversal_intent: {
         Args: { _document_id: string; _document_type: string }
         Returns: Json
@@ -92695,6 +92704,10 @@ export type Database = {
           _unrealized_loss_account: string
           _user_id?: string
         }
+        Returns: Json
+      }
+      reversal_bank_lines: {
+        Args: { _document_id: string; _document_type: string }
         Returns: Json
       }
       reverse_landed_cost_bill: {
@@ -94433,6 +94446,15 @@ export type Database = {
         Returns: Json
       }
       wms_billing_nightly_sweep: { Args: never; Returns: number }
+      wms_cancel_tasks_for_document: {
+        Args: {
+          _actor?: string
+          _reason?: string
+          _source_doc_id: string
+          _source_doc_type: string
+        }
+        Returns: number
+      }
       wms_capture_dispatch_proof: {
         Args: {
           p_driver_id_ref?: string
@@ -95715,6 +95737,10 @@ export type Database = {
           _warehouse_id: string
         }
         Returns: string
+      }
+      wms_open_tasks_for_document: {
+        Args: { _source_doc_id: string; _source_doc_type: string }
+        Returns: Json
       }
       wms_operator_can_do_task: {
         Args: { _task_id: string; _user_id: string }
