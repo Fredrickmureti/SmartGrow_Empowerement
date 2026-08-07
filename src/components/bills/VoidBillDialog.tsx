@@ -27,6 +27,12 @@ import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { ReversalConsequencePreview } from "@/components/reversal/ReversalConsequencePreview";
 import { useReversalConsequences } from "@/components/reversal/useReversalConsequences";
+import { ReversalReasonField } from "@/components/reversal/ReversalReasonField";
+import {
+  useReversalReasonCodes,
+  isReversalReasonComplete,
+} from "@/components/reversal/useReversalReasonCodes";
+
 
 /**
  * Reversal intent step for a supplier bill (Phase 3 — AP parity).
