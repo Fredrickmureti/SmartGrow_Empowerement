@@ -224,18 +224,18 @@ export function ReverseGoodsReceiptDialog({
                   isUnmatchingBankLines={isUnmatching}
                 />
 
-                <div className="space-y-2">
-                  <Label htmlFor="gr-reverse-reason">
-                    Reason for reversing <span className="text-destructive">*</span>
-                  </Label>
-                  <Textarea
-                    id="gr-reverse-reason"
-                    placeholder="e.g., Wrong goods received, damaged on arrival, receipt posted against the wrong purchase order."
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={3}
-                  />
-                </div>
+                <ReversalReasonField
+                  documentType="goods_receipt"
+                  idPrefix="gr-reverse"
+                  code={reasonCode}
+                  comment={reason}
+                  onCodeChange={setReasonCode}
+                  onCommentChange={setReason}
+                  reasonCodes={reasonCodes}
+                  isLoading={isLoadingReasons}
+                  disabled={isSubmitting}
+                />
+
               </>
             ) : (
               <Alert>
