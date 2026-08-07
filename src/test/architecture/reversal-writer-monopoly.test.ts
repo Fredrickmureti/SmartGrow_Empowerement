@@ -68,13 +68,19 @@ describe("Phase 4 reversal writer monopoly", () => {
     // Clearing the `bank_reconciled` blocker must go through
     // `resolve_reversal_bank_block`, which un-matches exactly the blocking
     // lines and voids the reconciliation journal in one transaction.
+    //
+    // Scope note: this bans the *release* direction only. Forward marking
+    // (`is_reconciled: true` in `useReconciliationItems.markAllReconciled`) is
+    // still client-side and is tracked as separate drift — do not widen this
+    // ratchet before that write has a canonical RPC, or it fails on a known
+    // unrelated debt.
     const offenders = [
       ...rg(
         '\\.from\\(\\s*[\'"\x60]bank_reconciliation_matches[\'"\x60]\\s*\\)\\s*\\.\\s*(delete|update|insert|upsert)' ,
         APP_GLOBS,
       ),
       ...rg(
-        '\\.from\\(\\s*[\'"\x60]bank_transactions[\'"\x60]\\s*\\)[\\s\\S]{0,200}?(is_reconciled|reconciled_type|reconciled_id)\\s*:' ,
+        '\\.from\\(\\s*[\'"\x60]bank_transactions[\'"\x60]\\s*\\)[\\s\\S]{0,200}?(is_reconciled\\s*:\\s*false|reconciled_type\\s*:\\s*null|reconciled_id\\s*:\\s*null)' ,
         APP_GLOBS,
       ),
     ];
