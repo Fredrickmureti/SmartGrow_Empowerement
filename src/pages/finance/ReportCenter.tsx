@@ -7,18 +7,21 @@
  * - M1: Report scheduling access
  */
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { useCallback } from "react";
 import { useReportSavedViews } from "@/hooks/useReportSavedViews";
 import { useReportViewLogger } from "@/hooks/reports/useReportViewLogger";
 import { ReportSearchPalette } from "@/components/reports/ReportSearchPalette";
 import {
   REPORT_REGISTRY,
   REPORT_CATEGORY_LABELS,
+  REPORT_DOMAIN_LABELS,
+  getReportDomain,
   getReportsByCategory,
   type ReportDefinition,
 } from "@/services/reports/ReportRegistry";
@@ -29,6 +32,8 @@ import {
   StarOff,
   CalendarClock,
   History,
+  Search,
+  Layers,
 } from "lucide-react";
 
 // Per-category icon falls back to the first report's icon in that category.
@@ -50,8 +55,31 @@ export default function ReportCenter() {
   // Phase B0 — log Report Center index visits alongside per-report opens.
   useReportViewLogger("report-center");
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  // Library state lives in the URL, not in component state: the tab, the search
+  // query and the domain filter are all part of "where the user was" and must
+  // survive opening a report and pressing Back. Replacing history on every
+  // keystroke keeps Back meaning "leave the library", not "undo one letter".
+  const [params, setParams] = useSearchParams();
+  const activeTab = params.get("tab") ?? "all";
+  const searchQuery = params.get("q") ?? "";
+  const domainFilter = params.get("domain") ?? "all";
+
+  const setLibraryState = useCallback(
+    (next: Record<string, string>, options?: { replace?: boolean }) => {
+      setParams(
+        (prev) => {
+          const merged = new URLSearchParams(prev);
+          for (const [key, value] of Object.entries(next)) {
+            if (!value || value === "all") merged.delete(key);
+            else merged.set(key, value);
+          }
+          return merged;
+        },
+        { replace: options?.replace ?? false },
+      );
+    },
+    [setParams],
+  );
 
   const {
     favorites,
@@ -75,8 +103,17 @@ export default function ReportCenter() {
   }));
 
   const query = searchQuery.toLowerCase();
+  const domainScoped = displayCategories
+    .map(cat => ({
+      ...cat,
+      reports:
+        domainFilter === "all"
+          ? cat.reports
+          : cat.reports.filter(r => getReportDomain(r) === domainFilter),
+    }))
+    .filter(cat => cat.reports.length > 0);
   const filteredCategories = searchQuery
-    ? displayCategories
+    ? domainScoped
         .map(cat => ({
           ...cat,
           reports: cat.reports.filter(
@@ -87,7 +124,7 @@ export default function ReportCenter() {
           ),
         }))
         .filter(cat => cat.reports.length > 0)
-    : displayCategories;
+    : domainScoped;
 
   const handleNavigate = (report: ReportDefinition) => {
     logReportAccess(report.reportType, report.path);
@@ -134,7 +171,7 @@ export default function ReportCenter() {
       </div>
 
       {/* Tabs: All / Favorites / Recent */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={(tab) => setLibraryState({ tab })}>
         <TabsList>
           <TabsTrigger value="all" className="gap-1.5">
             <FileText className="h-3.5 w-3.5" />
@@ -157,11 +194,43 @@ export default function ReportCenter() {
 
         {/* All Reports Tab */}
         <TabsContent value="all" className="space-y-6 mt-4">
-          {/* Search — powered by ReportSearchPalette */}
+          {/* Search — palette for jump-to, plus a persistent filter whose
+              query lives in the URL so the library state survives Back. */}
           <ReportSearchPalette onReportSelect={(report) => {
             const matchedItem = allReports.find(r => r.path === report.path);
             if (matchedItem) handleNavigate(matchedItem);
           }} />
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setLibraryState({ q: e.target.value }, { replace: true })}
+                placeholder="Filter reports by name, purpose or keyword"
+                className="pl-9"
+                aria-label="Filter reports"
+              />
+            </div>
+            <div className="flex items-center gap-1 overflow-x-auto">
+              <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {(["all", ...Object.keys(REPORT_DOMAIN_LABELS)] as string[]).map((d) => {
+                const label = d === "all" ? "All domains" : REPORT_DOMAIN_LABELS[d as keyof typeof REPORT_DOMAIN_LABELS];
+                const isActive = domainFilter === d;
+                return (
+                  <Button
+                    key={d}
+                    size="sm"
+                    variant={isActive ? "secondary" : "ghost"}
+                    className="whitespace-nowrap text-xs"
+                    onClick={() => setLibraryState({ domain: d })}
+                  >
+                    {label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Quick Access — F5: User-driven via favorites, defaults as fallback */}
           {!searchQuery && (
@@ -263,7 +332,11 @@ export default function ReportCenter() {
             <Card>
               <CardContent className="py-12 text-center">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No reports match "{searchQuery}"</p>
+                <p className="text-muted-foreground">
+                  {searchQuery
+                    ? `No reports match "${searchQuery}"`
+                    : "No reports in this domain"}
+                </p>
               </CardContent>
             </Card>
           )}
