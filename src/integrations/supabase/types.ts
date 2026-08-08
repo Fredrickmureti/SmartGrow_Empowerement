@@ -93423,6 +93423,15 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_product_account_override: {
+        Args: {
+          p_business_id: string
+          p_org_id: string
+          p_product_id: string
+          p_purpose: string
+        }
+        Returns: string
+      }
       resolve_product_gl_account: {
         Args: {
           p_business_id: string
