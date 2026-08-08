@@ -36,12 +36,29 @@ export interface ExportColumn {
 }
 
 export interface ExportRow {
-  [key: string]: string | number | boolean | null | undefined;
+  // deno-lint-ignore-next-line
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+  /**
+   * Canonical semantic kind of the line — see
+   * `src/design-system/reports/statementKinds.ts`. This is what the PDF
+   * renderer reads; the three booleans below are the legacy fallback.
+   */
+  _kind?: string;
   _isHeader?: boolean;
   _isSubtotal?: boolean;
   _isGrandTotal?: boolean;
   _depth?: number;
+  /** Serialisable drill-down provenance. Never rendered. */
+  _meta?: {
+    accountId?: string;
+    accountIds?: string[];
+    journalId?: string;
+    sourceDocType?: string;
+    sourceDocId?: string;
+  };
 }
+
 
 export interface ExportConfig {
   title: string;

@@ -9,6 +9,7 @@
  * the other so a column can never exist in the PDF but not on screen.
  */
 import type { ReportValueFormat } from "./format";
+import type { StatementLineKind } from "./statementKinds";
 import type { ExportColumn, ExportRow } from "@/services/reports/ReportExportService";
 
 export interface ReportColumn<Row = ReportRow> {
@@ -45,12 +46,33 @@ export interface ReportColumnGroup {
   align?: "left" | "center" | "right";
 }
 
+/**
+ * Semantic row kinds. This is the on-screen spelling of the canonical
+ * statement vocabulary in `statementKinds.ts` — `toExportRows` translates
+ * it to the `_kind` the PDF renderer consumes, so screen and PDF are one
+ * declaration.
+ *
+ *  detail            — an account line carrying figures
+ *  section           — top-level caption (ASSETS, REVENUE, …)
+ *  subsection        — nested caption ("Adjustments for non-cash items")
+ *  subtotal          — sums the detail lines above it
+ *  majorTotal        — sums subtotals (TOTAL LIABILITIES, Net cash from …)
+ *  calculatedResult  — a derived figure (GROSS PROFIT, NET INCREASE IN CASH)
+ *  grandTotal        — the single final figure of the statement
+ *  note              — narrative line
+ *  spacer            — vertical rhythm; preserved into the PDF
+ */
 export type ReportRowKind =
   | "detail"
   | "section"
+  | "subsection"
   | "subtotal"
+  | "majorTotal"
+  | "calculatedResult"
   | "grandTotal"
+  | "note"
   | "spacer";
+
 
 export type ReportCellValue = string | number | boolean | null | undefined;
 export type ReportRowData = Record<string, ReportCellValue>;
@@ -64,9 +86,24 @@ export interface ReportRow {
   label?: string;
   values?: ReportRowData;
   onClick?: () => void;
+  /**
+   * Serialisable drill-down provenance. Unlike `onClick`, this survives the
+   * trip to the server and into an audit pack, so the screen and an archived
+   * report agree on where a figure came from. The PDF ignores it.
+   */
+  meta?: ReportRowMeta;
   /** Flags the row as an exception (out of balance, overdue, …). */
   tone?: "default" | "warning" | "danger" | "success";
 }
+
+export interface ReportRowMeta {
+  accountId?: string;
+  accountIds?: string[];
+  journalId?: string;
+  sourceDocType?: string;
+  sourceDocId?: string;
+}
+
 
 const NUMERIC_FORMATS = new Set<ReportValueFormat>([
   "currency",
@@ -107,27 +144,49 @@ export function toExportColumns(columns: ReportColumn<never>[]): ExportColumn[] 
 }
 
 /**
- * Derive export rows from the same row model that drives the screen, so
- * section / subtotal / grand-total hierarchy survives into the PDF via the
- * `_isHeader` / `_isSubtotal` / `_isGrandTotal` flags the engine expects.
+ * On-screen kind → canonical statement kind consumed by the PDF renderer.
+ */
+export const EXPORT_KIND: Record<ReportRowKind, StatementLineKind> = {
+  detail: "detail",
+  section: "section",
+  subsection: "subsection",
+  subtotal: "subtotal",
+  majorTotal: "major_total",
+  calculatedResult: "calculated_result",
+  grandTotal: "grand_total",
+  note: "note",
+  spacer: "spacer",
+};
+
+/**
+ * Derive export rows from the same row model that drives the screen, so the
+ * full semantic hierarchy — sections, subtotals, major totals, calculated
+ * results, the single grand total, and the blank lines between them —
+ * survives into the PDF. `_kind` is the contract; the legacy
+ * `_isHeader` / `_isSubtotal` / `_isGrandTotal` flags are still emitted so
+ * an older deployed renderer degrades instead of breaking.
  */
 export function toExportRows(
   rows: ReportRow[],
   columns: ReportColumn<never>[],
 ): ExportRow[] {
   const firstKey = columns[0]?.key ?? "label";
-  return rows
-    .filter((r) => r.kind !== "spacer")
-    .map((r) => {
-      const base: ExportRow = { ...(r.values ?? {}) };
-      if (r.label != null && base[firstKey] == null) base[firstKey] = r.label;
-      if (r.kind === "section") base._isHeader = true;
-      if (r.kind === "subtotal") base._isSubtotal = true;
-      if (r.kind === "grandTotal") base._isGrandTotal = true;
-      if (r.depth) base._depth = r.depth;
-      return base;
-    });
+  return rows.map((r) => {
+    const kind = r.kind ?? "detail";
+    const base: ExportRow = { ...(r.values ?? {}) };
+    if (r.label != null && base[firstKey] == null) base[firstKey] = r.label;
+    base._kind = EXPORT_KIND[kind];
+    if (kind === "section" || kind === "subsection") base._isHeader = true;
+    if (kind === "subtotal" || kind === "majorTotal" || kind === "calculatedResult") {
+      base._isSubtotal = true;
+    }
+    if (kind === "grandTotal") base._isGrandTotal = true;
+    if (r.depth) base._depth = r.depth;
+    if (r.meta) base._meta = r.meta;
+    return base;
+  });
 }
+
 
 /** Sum a numeric column across detail rows — subtotals derived once. */
 export function sumColumn(rows: ReportRow[], key: string): number {

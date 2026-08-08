@@ -86,9 +86,11 @@ export {
 
 export {
   drawPageNumber,
+  stampPageNumbers,
   drawFinalFooter,
   type FooterConfig,
 } from "./components/BrandedFooter.ts";
+
 
 export {
   drawDataTable,

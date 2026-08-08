@@ -53,3 +53,4 @@ One report masthead for every report (PDF + screen): logo left, entity block lef
 - [Payment reversal](mem://features/payment-reversal) — ADR 0012 intent model, ReversePaymentWizard, atomic reversal RPCs, customer deposits
 - [Commercial compensation](mem://features/commercial-compensation) — ADR 0131 credit notes, customer credit ledger, single refund engine, credit-note numbering rules
 - [PDF presentation profiles](mem://features/pdf-presentation-profiles) — report vs document PDF type sizes, shrink floors, margins, opt-in rules
+- [Statement line kinds](mem://features/statement-line-kinds) — canonical row-kind vocabulary and typography for all financial statements (screen + PDF)

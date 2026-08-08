@@ -70,26 +70,52 @@ function CashFlowReportInner() {
     const out: ReportRow[] = [];
     if (!data) return out;
 
-    for (const section of [data.operating, data.investing, data.financing]) {
+    // Semantic grammar of a cash flow statement (indirect method):
+    //   section          → CASH FLOWS FROM <ACTIVITY>
+    //   subsection       → "Adjustments for non-cash items"
+    //   detail           → the movements themselves
+    //   majorTotal       → net cash from each activity
+    //   calculatedResult → net increase/(decrease) in cash (derived)
+    //   grandTotal       → closing cash, the single final figure
+    const activities = [data.operating, data.investing, data.financing];
+
+    activities.forEach((section, sectionIndex) => {
+      if (sectionIndex > 0) out.push({ id: `gap-${sectionIndex}`, kind: "spacer" });
       out.push({ id: `sec-${section.label}`, kind: "section", label: section.label });
 
+      const drill = (item: (typeof section.items)[number]) =>
+        item.accountIds?.length
+          ? () =>
+              setDrillDown({
+                title: item.label,
+                accountId: item.accountIds![0],
+                startDate: dateFrom,
+                endDate: dateTo,
+              })
+          : undefined;
+
       if (section === data.operating && section.items.length > 1) {
+        const first = section.items[0];
         out.push({
           id: `${section.label}-0`,
-          onClick: section.items[0].accountIds?.length
-            ? () => setDrillDown({ title: section.items[0].label, accountId: section.items[0].accountIds![0], startDate: dateFrom, endDate: dateTo })
-            : undefined,
-          values: { item: section.items[0].label, amount: section.items[0].amount },
+          depth: 1,
+          meta: { accountIds: first.accountIds ?? undefined },
+          onClick: drill(first),
+          values: { item: first.label, amount: first.amount },
         });
-        out.push({ id: `${section.label}-adj-header`, values: { item: "Adjustments for non-cash items:", amount: null }, depth: 1 });
+        out.push({
+          id: `${section.label}-adj-header`,
+          kind: "subsection",
+          depth: 1,
+          label: "Adjustments for non-cash items",
+        });
         for (let i = 1; i < section.items.length; i++) {
           const item = section.items[i];
           out.push({
             id: `${section.label}-${i}`,
             depth: 2,
-            onClick: item.accountIds?.length
-              ? () => setDrillDown({ title: item.label, accountId: item.accountIds![0], startDate: dateFrom, endDate: dateTo })
-              : undefined,
+            meta: { accountIds: item.accountIds ?? undefined },
+            onClick: drill(item),
             values: { item: item.label, amount: item.amount },
           });
         }
@@ -98,9 +124,8 @@ function CashFlowReportInner() {
           out.push({
             id: `${section.label}-${i}`,
             depth: 1,
-            onClick: item.accountIds?.length
-              ? () => setDrillDown({ title: item.label, accountId: item.accountIds![0], startDate: dateFrom, endDate: dateTo })
-              : undefined,
+            meta: { accountIds: item.accountIds ?? undefined },
+            onClick: drill(item),
             values: { item: item.label, amount: item.amount },
           });
         });
@@ -108,15 +133,29 @@ function CashFlowReportInner() {
 
       out.push({
         id: `sub-${section.label}`,
-        kind: "subtotal",
-        label: `Net ${section.label.replace("Cash Flows from ", "")}`,
+        kind: "majorTotal",
+        label: `Net cash from ${section.label.replace(/^Cash Flows from /i, "").toLowerCase()}`,
         values: { amount: section.total },
       });
-    }
+    });
 
-    out.push({ id: "net-change", kind: "grandTotal", label: "Net Increase/(Decrease) in Cash", values: { amount: data.netCashFlow } });
-    out.push({ id: "opening-cash", values: { item: "Opening Cash Balance", amount: data.openingCash } });
-    out.push({ id: "closing-cash", kind: "grandTotal", label: "Closing Cash Balance", values: { amount: data.closingCash } });
+    out.push({ id: "gap-net", kind: "spacer" });
+    out.push({
+      id: "net-change",
+      kind: "calculatedResult",
+      label: "Net increase/(decrease) in cash",
+      values: { amount: data.netCashFlow },
+    });
+    out.push({
+      id: "opening-cash",
+      values: { item: "Cash and cash equivalents at beginning of period", amount: data.openingCash },
+    });
+    out.push({
+      id: "closing-cash",
+      kind: "grandTotal",
+      label: "Cash and cash equivalents at end of period",
+      values: { amount: data.closingCash },
+    });
 
     return out;
   }, [data, dateFrom, dateTo]);

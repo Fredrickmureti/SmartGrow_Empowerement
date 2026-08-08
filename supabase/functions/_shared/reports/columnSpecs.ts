@@ -33,9 +33,13 @@ import type { ReportColumn } from "../reportPdfGenerator.ts";
  */
 export type ReportFormatProfile = "financial" | "operational";
 
-// Product requirement: Cash Flow must use the exact same server-rendered
-// masthead as Trial Balance. Keep this shared constant so one registry entry
-// cannot drift without changing both PDFs.
+// Product requirement: every report carries the SAME masthead. That is now
+// enforced in the renderer (`drawBrandedHeader` always draws the operational
+// masthead — see mem/features/report-masthead-single-layout.md), so
+// `formatProfile` no longer selects a header layout at all. It selects
+// wording ("As of ..." vs "For the period ...") and typography density:
+//   financial  → statutory statement face (10pt, statement presentation)
+//   operational → register / ledger face
 const TRIAL_BALANCE_PDF_PROFILE: ReportFormatProfile = "operational";
 
 export interface ReportSpec {
@@ -74,9 +78,10 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
     orientation: "portrait",
     columns: [
       { key: "name", header: "Account", width: 60, align: "left", format: "text" },
-      { key: "closing_balance", header: "Balance", width: 40, align: "right", format: "currency" },
+      { key: "balance", header: "Balance", width: 40, align: "right", format: "currency" },
     ],
     formatProfile: "financial",
+    presentationProfile: "statement",
   },
   trial_balance: {
     title: "Trial Balance",
@@ -97,31 +102,37 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
     title: "Income Statement",
     orientation: "portrait",
     formatProfile: "financial",
+    presentationProfile: "statement",
     subtitle: "Accrual Basis",
     columns: [
       { key: "name", header: "Account", width: 60, align: "left", format: "text" },
-      { key: "balance", header: "Amount", width: 40, align: "right", format: "currency" },
+      { key: "amount", header: "Amount", width: 40, align: "right", format: "currency" },
     ],
   },
   profit_and_loss: {
     title: "Profit and Loss",
     orientation: "portrait",
     formatProfile: "financial",
+    presentationProfile: "statement",
     subtitle: "Accrual Basis",
     columns: [
       { key: "name", header: "Account", width: 60, align: "left", format: "text" },
-      { key: "balance", header: "Amount", width: 40, align: "right", format: "currency" },
+      { key: "amount", header: "Amount", width: 40, align: "right", format: "currency" },
     ],
   },
   cash_flow: {
     title: "Cash Flow Statement",
     orientation: "portrait",
-    formatProfile: TRIAL_BALANCE_PDF_PROFILE,
+    // A cash flow statement is a statutory statement: sections are semantic
+    // LINES (`_kind: "section"`), never a repeated text COLUMN. The old
+    // three-column "Section | Item | Amount" grid is what made the scheduled
+    // PDF differ from the interactive one.
+    formatProfile: "financial",
+    presentationProfile: "statement",
     subtitle: "Indirect Method",
     columns: [
-      { key: "section", header: "Section", width: 30, align: "left", format: "text" },
-      { key: "item", header: "Item", width: 40, align: "left", format: "text" },
-      { key: "amount", header: "Amount", width: 25, align: "right", format: "currency" },
+      { key: "item", header: "Item", width: 70, align: "left", format: "text" },
+      { key: "amount", header: "Amount", width: 30, align: "right", format: "currency" },
     ],
   },
   general_ledger: {

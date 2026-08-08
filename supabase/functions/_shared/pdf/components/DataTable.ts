@@ -16,7 +16,13 @@ import {
   type Typography,
 } from "../themes/presentation.ts";
 import { formatAccountingNumber } from "../../format/index.ts";
+import {
+  resolveLineKind,
+  STATEMENT_LINE_TREATMENT,
+  type StatementLineKind,
+} from "../../reports/statementKinds.ts";
 import { winansiSafe } from "../winansi.ts";
+
 
 export interface TableColumn {
   key: string;
@@ -34,6 +40,7 @@ export interface TableColumn {
  */
 export interface RowMeta {
   accountId?: string;
+  accountIds?: string[];
   journalId?: string;
   sourceDocType?: string;
   sourceDocId?: string;
@@ -42,6 +49,12 @@ export interface RowMeta {
 export interface TableRow {
   // deno-lint-ignore no-explicit-any
   [key: string]: any;
+  /**
+   * Canonical semantic kind of the line (see `reports/statementKinds.ts`).
+   * When present it wins over the legacy booleans below, which are retained
+   * so pre-contract reports render exactly as before.
+   */
+  _kind?: StatementLineKind;
   _isHeader?: boolean;
   _isSubtotal?: boolean;
   _isGrandTotal?: boolean;
@@ -60,7 +73,15 @@ export interface DataTableConfig {
    * callers pass the profile resolved by the report registry.
    */
   typography?: Typography;
+  /**
+   * Statement mode. Enables the statutory presentation policy: semantic
+   * spacing around totals, upper-cased result captions, spacer lines, and
+   * zero rendered as an accounting dash. OFF for every other document so
+   * invoices / ledgers / registers stay byte-identical.
+   */
+  statement?: boolean;
 }
+
 
 /**
  * Numeric formats whose values must NEVER be truncated. Truncating
@@ -150,10 +171,17 @@ function formatCellValue(
   rawVal: unknown,
   isHeader: boolean,
   currency?: string,
+  zeroAsDash?: boolean,
 ): string {
   if (rawVal === null || rawVal === undefined || rawVal === "") {
     return winansiSafe(isHeader ? "" : "—");
   }
+  // Statutory statements print a nil figure as a dash, never as 0.00 —
+  // "0.00" asserts a measured zero, "—" asserts nothing to report.
+  if (zeroAsDash && typeof rawVal === "number" && rawVal === 0 && isNumericColumn(col)) {
+    return winansiSafe("—");
+  }
+
   if (col.format === "currency" && typeof rawVal === "number") {
     return winansiSafe(formatAccountingNumber(rawVal, currency));
   }
@@ -409,16 +437,59 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
   const LINE_GAP = 1.5; // extra leading between wrapped lines within a cell
   const ROW_VPAD = 6;   // top+bottom padding inside each row
 
+  const statement = !!config.statement;
+
+  const drawRule = (
+    page: PDFPage,
+    kindOfRule: "thin" | "single" | "double",
+    yPos: number,
+  ) => {
+    if (kindOfRule === "double") {
+      page.drawLine({
+        start: { x: margin, y: yPos + 4 },
+        end: { x: margin + contentWidth, y: yPos + 4 },
+        thickness: 1, color: theme.color.text,
+      });
+      page.drawLine({
+        start: { x: margin, y: yPos + 2 },
+        end: { x: margin + contentWidth, y: yPos + 2 },
+        thickness: 1, color: theme.color.text,
+      });
+      return;
+    }
+    page.drawLine({
+      start: { x: margin, y: yPos + 2 },
+      end: { x: margin + contentWidth, y: yPos + 2 },
+      thickness: kindOfRule === "single" ? 0.75 : 0.5,
+      color: kindOfRule === "single" ? theme.color.text : theme.color.border,
+    });
+  };
+
   for (const row of rows) {
-    const isHeader = row._isHeader;
-    const isSubtotal = row._isSubtotal;
-    const isGrandTotal = row._isGrandTotal;
+    const kind = resolveLineKind(row);
+    const treat = STATEMENT_LINE_TREATMENT[kind];
     const depth = (row._depth as number) || 0;
 
-    const font = isHeader || isSubtotal || isGrandTotal ? fontBold : fontRegular;
-    const baseFontSize = isGrandTotal ? t.size.tableCellEmphasis
-      : isHeader ? t.size.tableCellEmphasis
-      : t.size.tableCell;
+    // A spacer is vertical rhythm, not data. Under the statement profile it
+    // survives into the PDF so sections breathe exactly as they do on
+    // screen; elsewhere it is ignored (pre-contract behaviour).
+    if (kind === "spacer") {
+      if (statement) {
+        if (builder.y - t.rowHeight * 0.6 < state.bottomMargin) {
+          builder.newPage();
+          builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y, t);
+        } else {
+          builder.y -= t.rowHeight * 0.6;
+        }
+      }
+      continue;
+    }
+
+    const isCaption = treat.caption;
+    const font = treat.bold ? fontBold : fontRegular;
+    const baseFontSize = treat.emphasis ? t.size.tableCellEmphasis : t.size.tableCell;
+    const spaceAbove = statement ? treat.spaceAbove : 0;
+    const spaceBelow = statement ? treat.spaceBelow : 0;
 
     // ── Pre-pass: format every cell, decide font size, and word-wrap text
     //    cells. This gives us the row's true height before we draw anything,
@@ -435,7 +506,10 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
 
     for (let i = 0; i < columns.length; i++) {
       const col = columns[i];
-      const display = formatCellValue(col, row[col.key], !!isHeader, currency);
+      let display = formatCellValue(
+        col, row[col.key], isCaption, currency, statement,
+      );
+      if (statement && treat.uppercase && i === 0) display = display.toUpperCase();
       const indent = i === 0 && depth > 0 ? depth * 12 : 0;
       const maxCellWidth = colWidths[i] - 8 - indent;
 
@@ -470,33 +544,20 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
     const lineH = baseFontSize + LINE_GAP;
     const rowHeight = Math.max(t.rowHeight, maxLines * lineH + ROW_VPAD);
 
-    // Page-break check now uses the *actual* row height.
-    if (builder.y - rowHeight < state.bottomMargin) {
+    // Page-break check uses the *actual* row height plus its semantic
+    // spacing, so a total never lands orphaned against the footer.
+    if (builder.y - spaceAbove - rowHeight - spaceBelow < state.bottomMargin) {
       builder.newPage();
       builder.y = drawTableHeader(builder, builder.page, columns, colWidths, builder.y, t);
+    } else {
+      builder.y -= spaceAbove;
     }
 
     const page = builder.page;
     const y = builder.y;
 
-    if (isGrandTotal) {
-      page.drawLine({
-        start: { x: margin, y: y + 4 },
-        end: { x: margin + contentWidth, y: y + 4 },
-        thickness: 1, color: theme.color.text,
-      });
-      page.drawLine({
-        start: { x: margin, y: y + 2 },
-        end: { x: margin + contentWidth, y: y + 2 },
-        thickness: 1, color: theme.color.text,
-      });
-    } else if (isSubtotal) {
-      page.drawLine({
-        start: { x: margin, y: y + 2 },
-        end: { x: margin + contentWidth, y: y + 2 },
-        thickness: 0.5, color: theme.color.border,
-      });
-    }
+    if (treat.ruleAbove !== "none") drawRule(page, treat.ruleAbove, y);
+
 
     // Render cells
     let x = margin;
@@ -521,7 +582,11 @@ export function drawDataTable(builder: PdfBuilder, config: DataTableConfig): voi
     }
 
     builder.y -= rowHeight;
+
+    if (treat.ruleBelow !== "none") drawRule(page, treat.ruleBelow, builder.y + 4);
+    builder.y -= spaceBelow;
   }
+
 }
 
 /** Narrow (thermal) table: stacked label: value rows per record. */
@@ -534,13 +599,16 @@ function drawNarrowTable(builder: PdfBuilder, config: DataTableConfig): void {
   const lineH = 9;
 
   for (const row of rows) {
-    const isEmph = row._isSubtotal || row._isGrandTotal || row._isHeader;
+    const kind = resolveLineKind(row);
+    if (kind === "spacer") continue;
+    const treat = STATEMENT_LINE_TREATMENT[kind];
+    const isEmph = treat.bold;
     const font = isEmph ? fontBold : fontRegular;
     const size = isEmph ? 8 : 7;
 
     // Find primary text column for the row title (first non-numeric).
     const titleCol = columns.find((c) => !isNumericColumn(c)) ?? columns[0];
-    const title = formatCellValue(titleCol, row[titleCol.key], !!row._isHeader, currency) || "";
+    const title = formatCellValue(titleCol, row[titleCol.key], treat.caption, currency) || "";
 
     builder.ensureSpace(lineH);
     if (title) {
@@ -550,7 +618,7 @@ function drawNarrowTable(builder: PdfBuilder, config: DataTableConfig): void {
     // Then each numeric column on its own indented line.
     for (const col of columns) {
       if (col === titleCol) continue;
-      const val = formatCellValue(col, row[col.key], !!row._isHeader, currency);
+      const val = formatCellValue(col, row[col.key], treat.caption, currency);
       if (!val || val === "—") continue;
       builder.ensureSpace(lineH);
       const labelText = winansiSafe(`  ${col.header}:`);
@@ -565,13 +633,14 @@ function drawNarrowTable(builder: PdfBuilder, config: DataTableConfig): void {
     }
 
     // Subtotal/grand-total separator
-    if (row._isGrandTotal || row._isSubtotal) {
+    if (treat.ruleAbove !== "none") {
+      const heavy = treat.ruleAbove === "double" || treat.ruleAbove === "single";
       builder.ensureSpace(3);
       builder.page.drawLine({
         start: { x: leftX, y: builder.y + 2 },
         end: { x: rightX, y: builder.y + 2 },
-        thickness: row._isGrandTotal ? 0.75 : 0.4,
-        color: row._isGrandTotal ? theme.color.text : theme.color.border,
+        thickness: heavy ? 0.75 : 0.4,
+        color: heavy ? theme.color.text : theme.color.border,
       });
       builder.y -= 3;
     }

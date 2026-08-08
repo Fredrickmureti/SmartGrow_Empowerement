@@ -191,13 +191,20 @@ export function ReportTable({
               );
             }
 
-            if (kind === "section") {
+            if (kind === "section" || kind === "subsection") {
+              const nested = kind === "subsection";
               return (
-                <tr key={row.id} className="bg-muted/60">
+                <tr key={row.id} className={nested ? "" : "bg-muted/60"}>
                   <th
                     scope="rowgroup"
                     colSpan={columns.length}
-                    className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-foreground"
+                    className={cn(
+                      "px-3 text-left font-semibold text-foreground",
+                      nested
+                        ? "py-1.5 text-xs"
+                        : "py-2 text-[11px] uppercase tracking-wider",
+                    )}
+                    style={nested ? { paddingLeft: 12 + (row.depth ?? 1) * 14 } : undefined}
                   >
                     {row.label}
                   </th>
@@ -205,9 +212,24 @@ export function ReportTable({
               );
             }
 
+            if (kind === "note") {
+              return (
+                <tr key={row.id}>
+                  <td
+                    colSpan={columns.length}
+                    className="px-3 py-1.5 text-left text-xs italic text-muted-foreground"
+                  >
+                    {row.label}
+                  </td>
+                </tr>
+              );
+            }
+
             const isSubtotal = kind === "subtotal";
+            const isMajor = kind === "majorTotal";
+            const isResult = kind === "calculatedResult";
             const isGrand = kind === "grandTotal";
-            const totalRow = isSubtotal || isGrand;
+            const totalRow = isSubtotal || isMajor || isResult || isGrand;
 
             return (
               <tr
@@ -218,7 +240,11 @@ export function ReportTable({
                   !totalRow && "odd:bg-muted/[0.18]",
                   row.onClick && "cursor-pointer hover:bg-accent/40",
                   isSubtotal && "border-t border-border font-medium bg-muted/30",
-                  isGrand && "border-t-2 border-b-2 border-foreground/60 bg-muted font-semibold",
+                  isMajor && "border-t border-foreground/40 font-semibold bg-muted/40",
+                  isResult &&
+                    "border-t border-b border-foreground/50 bg-muted/50 font-semibold uppercase tracking-wide",
+                  isGrand &&
+                    "border-t-2 border-b-2 border-foreground/60 bg-muted font-semibold uppercase tracking-wide",
                   TONE_CLASS[row.tone ?? "default"],
                 )}
               >
