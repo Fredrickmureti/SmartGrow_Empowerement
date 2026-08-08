@@ -93172,6 +93172,16 @@ export type Database = {
         Args: { p_branch_id: string; p_setting_key: string }
         Returns: Json
       }
+      resolve_credit_note_revenue_lines: {
+        Args: {
+          p_business_id: string
+          p_cn_number: string
+          p_credit_note_id: string
+          p_org_id: string
+          p_subtotal: number
+        }
+        Returns: Json
+      }
       resolve_default_account:
         | {
             Args: { p_business_id: string; p_purpose: string }
@@ -93526,6 +93536,16 @@ export type Database = {
         }[]
       }
       resolve_rules_for_run: { Args: { _run_id: string }; Returns: Json[] }
+      resolve_sales_return_cogs_lines: {
+        Args: {
+          p_business_id: string
+          p_invoice_id: string
+          p_org_id: string
+          p_return_id: string
+          p_return_number: string
+        }
+        Returns: Json
+      }
       resolve_statutory_country_for_employee: {
         Args: { p_employee_id: string }
         Returns: string

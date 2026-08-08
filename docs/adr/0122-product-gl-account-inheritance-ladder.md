@@ -48,9 +48,34 @@ previews and for building JE lines client-side. Its tier order must match the
 SQL function exactly; `src/test/architecture/product-gl-account-ladder.test.ts`
 enforces that.
 
+### 4. Reversal symmetry
+
+A reversal MUST resolve accounts through the same ladder as the posting it
+reverses. Picking an account by `detail_type` (`LIMIT 1`) or reversing a
+per-product posting into a single company-level account leaves permanent
+per-account drift even when the totals net to zero.
+
+- `approve_sales_return_atomic` delegates to
+  `resolve_sales_return_cogs_lines`, the mirror of
+  `resolve_delivery_cogs_lines`: inventory/COGS lines are grouped by the
+  ladder-resolved account pair per return line.
+- `issue_credit_note_atomic` delegates to
+  `resolve_credit_note_revenue_lines`, which splits the revenue debit across
+  the revenue accounts the sale credited, weighted by line total. The header
+  subtotal is authoritative and any rounding residual lands on the last
+  bucket, so the JE always balances.
+
+Both resolvers keep a company-level fallback (`detail_type` for
+inventory/COGS, `compensation_account` for revenue) used only when no tier
+supplies an account, so orgs with no product or category mapping behave
+exactly as before.
+`src/test/architecture/posting-paths-no-direct-product-accounts.test.ts`
+guards the delegation.
+
 ## Consequences
 
 - `product_categories` carries `sales_account_id`, `purchase_account_id`,
+
   `cogs_account_id`, `inventory_account_id`, all nullable = inherit.
 - `_resolve_invoice_gl_accounts` delegates per-product revenue to the canonical
   function. Remaining SQL posting paths (delivery COGS, bill expense, POS)
