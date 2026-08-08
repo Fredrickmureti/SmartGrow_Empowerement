@@ -90,11 +90,15 @@ export function getPublicAppUrl(): string {
   const stored = normalize(readLocalOverride());
   if (stored) return stored;
 
-  // 3. Build-time env override
-  const envVal = normalize(
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_PUBLIC_APP_URL) || null,
-  );
+  // 3. Build-time env override.
+  // Bracket access on purpose: Vite statically inlines `import.meta.env.FOO`,
+  // which makes the value un-overridable at runtime (and in tests).
+  const envBag =
+    (typeof import.meta !== "undefined" ? ((import.meta as any).env as Record<string, string> | undefined) : undefined) ??
+    undefined;
+  const envVal = normalize(envBag?.["VITE_PUBLIC_APP_URL"] ?? null);
   if (envVal) return envVal;
+
 
   // 4. Canonical production host — guaranteed reachable from any phone.
   return PRODUCTION_APP_URL;
