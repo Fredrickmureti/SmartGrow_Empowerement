@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Sheet,
