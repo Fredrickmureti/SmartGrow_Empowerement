@@ -1,106 +1,86 @@
-# Product GL Account Inheritance — continuation status
+# Product accounting defaults — crash fix, verification, then POS ladder
 
-Ladder (ADR 0122, `docs/adr/0122-product-gl-account-inheritance-ladder.md`):
+## P0 — Fix the add-product crash (confirmed root cause)
 
-```text
-line override  ->  product  ->  product category (nearest ancestor)  ->  company default
-```
+Switching Type on `/inventory-app/products/new` crashes with
+`Cannot read properties of null (reading 'isServer')` from `useLinkProps`.
 
-Bill expense adds a vendor tier between category and company default.
+Cause (verified in code): `src/components/products/ProductAccountSelector.tsx`
+line 22 imports `Link` from `@tanstack/react-router` and renders
+`<Link to="/finance/settings">` in its "no default mapped" warning. That
+component renders inside the legacy react-router-dom SPA (`src/App.tsx`,
+mounted from the TanStack catch-all), where there is no TanStack router
+context — so the router hook dereferences `null`. Changing Type to Product
+reveals the inventory/COGS selectors, which is what triggers the render.
 
-## P0 — COMPLETE, verified
+Fix the category, not just the one file. Three other components in the legacy
+SPA tree import the same `Link` and will crash the same way:
 
-- `_account_is_postable(org, business, account)` — company-scoped + active check.
-- `resolve_product_account_override(org, business, product, purpose)` — product
-  then nearest ancestor category, **no** company default. For callers whose
-  final tier differs (e.g. the vendor's own expense account).
-- `resolve_product_gl_account` = override tiers + company default, so the chain
-  has exactly one implementation. `STABLE SECURITY DEFINER`, `authenticated` +
-  `service_role` only.
-- `resolve_delivery_cogs_lines` + `complete_delivery_atomic` — per-line COGS and
-  inventory through the ladder (was hardcoded to `detail_type`).
-- `generate_recurring_invoice_occurrence` — revenue through the ladder.
-- `confirm_bill_atomic` — inventory and purchase/expense resolve
-  product -> category -> vendor default -> company default.
+- `src/components/products/ProductAccountSelector.tsx`
+- `src/components/inventory/WarehouseScopeGate.tsx`
+- `src/components/payroll/CompensationSetupDialog.tsx`
+- `src/components/departments/DepartmentDetailSheet.tsx`
 
-Re-verified this session via `pg_get_functiondef`: delivery delegates through
-`resolve_delivery_cogs_lines`, recurring invoices call
-`resolve_product_gl_account`, `confirm_bill_atomic` calls
-`resolve_product_account_override`.
+All four switch to `Link` from `react-router-dom` (the router that actually
+owns these routes). Add an ESLint guard (`eslint-rules/`) forbidding
+`@tanstack/react-router` imports outside `src/routes/`, `src/router.tsx` and
+`src/main.tsx`, plus a source-level guard test, so this class of bug cannot
+return.
 
-## P1 — COMPLETE, verified (this session)
+Verification: load `/inventory-app/products/new` in a headless browser, switch
+Type service -> product, confirm no error boundary and the four account
+selectors render their effective account.
 
-Migration `20260808183816` — stock adjustments and opening stock onto the ladder:
+## P1 — Verify the previous engineer's claims before extending
 
-- `approve_stock_adjustment_atomic` — the inventory side is now resolved **per
-  line** (`resolve_product_account_override(... 'inventory')` -> company
-  inventory account). The offset accumulator is keyed on
-  `(inv_account_id, offset_account_id)`, and the journal emits one inventory
-  line per resolved account plus the offset lines aggregated per offset
-  account. Previously every line was forced onto the single company inventory
-  account, so a product or category override was silently discarded.
-- `record_opening_stock` — opening inventory debits are accumulated per
-  resolved inventory account; the opening-equity credit stays a single line for
-  the total, so the entry still balances.
-- `post_stock_adjustment_gl` (`opening` / `revaluation`) — per-line valuation
-  bucketed by resolved inventory account; counter account (Opening Balance
-  Equity / Inventory Adjustment) unchanged and still a single line.
+Independently confirm, not assume:
 
-Safety: the migration opens with a match-or-raise guard on the audited source
-of each function, so drift aborts instead of silently overwriting. No schema,
-grant, RLS or policy change; lot/FEFO handling, cost resolution, period locks
-and idempotency paths are byte-identical to the audited source.
+1. In the live DB, `pg_get_functiondef` shows `resolve_product_gl_account` and
+   `resolve_product_account_override` exist with the documented tiers, grants
+   and `STABLE SECURITY DEFINER`.
+2. The P0/P1 posting paths really delegate: delivery COGS
+   (`resolve_delivery_cogs_lines`, `complete_delivery_atomic`),
+   `generate_recurring_invoice_occurrence`, `confirm_bill_atomic`,
+   `approve_stock_adjustment_atomic`, `record_opening_stock`,
+   `post_stock_adjustment_gl`.
+3. Journals from the rewritten adjustment/opening-stock functions balance when
+   a product or category override splits inventory across accounts — check by
+   summing debits/credits for a simulated multi-account case.
+4. `src/lib/resolveProductAccounts.ts` is tier-identical with the SQL, and the
+   existing guard tests actually assert that rather than passing vacuously.
+5. Run the architecture guard suites and `tsgo --noEmit`.
 
-Guard test added: `src/test/architecture/inventory-adjustment-account-ladder.test.ts`
-— asserts all three functions call `resolve_product_account_override`, never
-resolve accounts by `detail_type`, and still post through
-`post_journal_entry_atomic`.
+Anything that fails moves back to pending and is fixed before new work.
 
-Also repaired an orphaned guard: `opening-stock-gl-trigger.test.ts` still read
-`src/pages/Products.tsx`, but the create-with-opening-stock flow now lives in
-`src/pages/inventory/ProductForm.tsx`. It was failing before this session's
-changes; it now guards the real call site.
+## P2 — POS onto the ladder (next real feature work)
 
-Verification: 7/7 guard tests green, `tsgo --noEmit` clean.
+`process_pos_transaction`, `process_pos_return` and the POS statement posting
+function still inline `COALESCE(product.x, default)`, so they silently ignore
+the category tier. Migrate them to `resolve_product_account_override` +
+company default for revenue, COGS and inventory, grouping journal lines per
+resolved account exactly as the stock-adjustment work did. Returns must
+reverse against the same resolved accounts as the original sale — resolve from
+the original transaction lines, never re-resolve from current config.
 
-## Active phase
+## P3 — Purchases-side UI parity
 
-P1 is closed. **Next: P1 item 2 — POS statement posting.**
+Bill and PO line account overrides show the same inheritance badges
+(`Inherited` / `From category "X"` / `Override`, amber when unmapped) as
+`ProductAccountSelector`.
 
-## Remaining
+## P4 — Hardening
 
-1. **P1 (next)** — POS statement posting still inlines
-   `COALESCE(product.x, default)`; bring `process_pos_transaction` /
-   `process_pos_return` / the POS statement posting function onto the ladder
-   (revenue, COGS, inventory), grouping JE lines per resolved account exactly
-   as P1 did for adjustments.
-2. **P2** — purchases-side UI parity: bill and PO line account overrides should
-   show the same inheritance badges as the product form
-   (`ProductAccountSelector`).
-3. **P3** — architecture guard that greps `pg_get_functiondef` for posting
-   functions reading `products.sales_account_id` / `cogs_account_id` /
-   `inventory_account_id` directly, or resolving accounts by `detail_type`.
+- Architecture guard grepping `pg_get_functiondef` for any posting function
+  that reads `products.sales_account_id` / `cogs_account_id` /
+  `inventory_account_id` directly, or resolves accounts by `detail_type`.
+- SQL tests under `supabase/tests/` for the ladder, including archived/inactive
+  account rejection and cycle-safe category walking.
+- ADR 0122 updated once POS is migrated (it currently states POS is pending).
 
-## Instructions for the next agent
+## Technical notes
 
-1. **Verify before continuing.** Confirm P1 actually holds in the live DB:
-
-   ```sql
-   SELECT p.proname,
-          position('resolve_product_account_override' in pg_get_functiondef(p.oid)) > 0 AS delegates
-     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public'
-      AND p.proname IN ('approve_stock_adjustment_atomic',
-                        'record_opening_stock',
-                        'post_stock_adjustment_gl');
-   ```
-
-   All three must be `true`. Also re-check the P0 set (delivery, recurring
-   invoice, bill) the same way, and run the guard suites plus `tsgo --noEmit`.
-   If any adjustment posts an unbalanced journal, the per-account grouping in
-   `approve_stock_adjustment_atomic` is the place to look.
-2. Then resume at Remaining item 1 (POS). Do not start unrelated work, and do
-   not leave a posting path half-migrated — each function must be coherent and
-   balanced before moving on.
-3. Keep `src/lib/resolveProductAccounts.ts` tier-identical with the SQL; the
-   ladder guard test exists to catch drift.
+- Historical safety is already structurally sound: postings persist the
+  resolved `account_id` on journal lines, so a later default change affects
+  future postings only. P1 item 3 confirms this holds for the rewritten paths.
+- No schema, grant or RLS change is needed for P0; it is presentation-layer
+  only.
