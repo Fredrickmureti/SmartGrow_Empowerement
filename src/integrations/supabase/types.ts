@@ -86462,6 +86462,14 @@ export type Database = {
         Args: { p_business_id: string; p_name: string; p_org_id: string }
         Returns: string
       }
+      ensure_default_account_mappings: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: {
+          account_id: string
+          role_key: string
+          status: string
+        }[]
+      }
       ensure_default_branch_for_business: {
         Args: { p_business_id: string; p_org_id: string }
         Returns: string
