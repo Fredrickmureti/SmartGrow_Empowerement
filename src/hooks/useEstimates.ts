@@ -131,7 +131,21 @@ export function useEstimates() {
   };
 
   const createEstimate = async (
-    estimate: Omit<Estimate, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "items" | "additional_costs">,
+    estimate: Omit<
+      Estimate,
+      | "id" | "organization_id" | "created_at" | "updated_at" | "created_by"
+      | "contact" | "items" | "additional_costs"
+      // Lifecycle timestamps and forward pointers are owned by the DB state
+      // machine (`set_estimate_status_atomic` / conversion RPCs), never by a
+      // creation form.
+      | "converted_sales_order_id" | "sent_at" | "viewed_at" | "accepted_at" | "rejected_at"
+    > &
+      Partial<
+        Pick<
+          Estimate,
+          "converted_sales_order_id" | "sent_at" | "viewed_at" | "accepted_at" | "rejected_at"
+        >
+      >,
     items: Omit<EstimateItem, "id" | "estimate_id">[],
     additionalCosts?: Omit<AdditionalCost, "id" | "estimate_id">[]
   ) => {
