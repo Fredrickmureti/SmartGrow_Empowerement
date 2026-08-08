@@ -38,7 +38,7 @@ interface ProductAccountSelectorProps {
   /**
    * Which company-level default backs this field when no override is set.
    * Required to name the inherited account instead of the opaque phrase
-   * "Use system default".
+   * an opaque placeholder.
    */
   defaultKey?: keyof DefaultAccountMappings;
   /**
@@ -92,7 +92,7 @@ export function ProductAccountSelector({
     ? "Loading…"
     : defaultLabel
       ? `${defaultLabel} (default)`
-      : "Use system default";
+      : "No default mapped — select an account";
 
   return (
     <div className="space-y-2">
@@ -142,7 +142,7 @@ export function ProductAccountSelector({
                 </span>
               </span>
             ) : (
-              "Use system default"
+              "No default mapped"
             )}
           </SelectItem>
           {filteredAccounts.map((account) => (
