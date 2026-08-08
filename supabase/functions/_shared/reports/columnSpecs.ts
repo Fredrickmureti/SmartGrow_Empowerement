@@ -33,6 +33,11 @@ import type { ReportColumn } from "../reportPdfGenerator.ts";
  */
 export type ReportFormatProfile = "financial" | "operational";
 
+// Product requirement: Cash Flow must use the exact same server-rendered
+// masthead as Trial Balance. Keep this shared constant so one registry entry
+// cannot drift without changing both PDFs.
+const TRIAL_BALANCE_PDF_PROFILE: ReportFormatProfile = "operational";
+
 export interface ReportSpec {
   /** Default human title (overridable per-call). */
   title: string;
@@ -76,7 +81,7 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
   trial_balance: {
     title: "Trial Balance",
     orientation: "landscape",
-    formatProfile: "operational",
+    formatProfile: TRIAL_BALANCE_PDF_PROFILE,
     columns: [
       { key: "code", header: "Code", width: 10, align: "left", format: "text" },
       { key: "name", header: "Account Name", width: 22, align: "left", format: "text" },
@@ -111,7 +116,7 @@ export const REPORT_SPECS: Record<string, ReportSpec> = {
   cash_flow: {
     title: "Cash Flow Statement",
     orientation: "portrait",
-    formatProfile: "operational",
+    formatProfile: TRIAL_BALANCE_PDF_PROFILE,
     subtitle: "Indirect Method",
     columns: [
       { key: "section", header: "Section", width: 30, align: "left", format: "text" },
