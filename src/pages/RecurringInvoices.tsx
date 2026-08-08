@@ -73,7 +73,7 @@ import {
   Download,
   FileText,
   ExternalLink,
-} from "lucide-react";
+, Ban } from "lucide-react";
 import { useExport } from "@/hooks/useExport";
 import { format } from "date-fns";
 import {
@@ -97,7 +97,7 @@ import { normalizeError } from "@/services/resilience";
 export default function RecurringInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { recurringInvoices, isLoading, createRecurringInvoice, updateRecurringInvoice, deleteRecurringInvoice, toggleActive, generateInvoiceNow } = useRecurringInvoices();
+  const { recurringInvoices, isLoading, createRecurringInvoice, updateRecurringInvoice, deleteRecurringInvoice, setRecurringStatus, generateInvoiceNow } = useRecurringInvoices();
   const { currentOrg } = useOrganization();
   const { contacts } = useContacts();
   const { products } = useProducts();
