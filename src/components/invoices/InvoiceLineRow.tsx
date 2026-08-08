@@ -218,11 +218,14 @@ function InvoiceLineRowInner({
         );
 
       case "line_total":
+        // Alignment comes from the grid (numeric columns are right-aligned on
+        // the primary line, left on the demoted line) — do not force it here.
         return (
-          <div className="pt-2 text-right font-medium tabular-nums">
+          <div className="font-medium tabular-nums">
             {formatCurrency(item.line_total)}
           </div>
         );
+
 
       default:
         return null;
