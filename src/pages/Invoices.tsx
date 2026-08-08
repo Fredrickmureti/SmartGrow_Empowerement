@@ -69,6 +69,8 @@ import { type ResolvedScan } from "@/hooks/scanner";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useSalesOpenDraftHandler, useSalesHasActiveDraft } from "@/contexts/SalesScanContext";
 import { dialogReadyBus } from "@/services/scanner/dialogReadyBus";
+import { useLocalScan } from "@/hooks/scanner/useLocalScan";
+import { ScanLine } from "lucide-react";
 
 function describeInvoicePrintError(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err ?? "");
@@ -532,12 +534,27 @@ export default function Invoices() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" />Import
                 </Button>
-                <ScannerPairingButton
-                  businessId={currentBusiness?.id}
-                  branchId={currentBranch?.id ?? null}
-                  label="Invoice creation"
-                  className="flex-1 sm:flex-none"
-                />
+                {handheldScanner ? (
+                  /* On the device the operator is holding, the camera IS the
+                     input device: go straight into a Scan Session on a fresh
+                     draft instead of offering to pair another phone. */
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigate("/sales/invoices/new", { state: { openScanSession: true } })
+                    }
+                    className="flex-1 sm:flex-none"
+                  >
+                    <ScanLine className="mr-2 h-4 w-4" />Scan to invoice
+                  </Button>
+                ) : (
+                  <ScannerPairingButton
+                    businessId={currentBusiness?.id}
+                    branchId={currentBranch?.id ?? null}
+                    label="Invoice creation"
+                    className="flex-1 sm:flex-none"
+                  />
+                )}
                 <Button onClick={() => navigate("/sales/invoices/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" />Create Invoice
                 </Button>
