@@ -16,6 +16,7 @@ import { DetailRow } from "@/components/common/DetailRow";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useScopedFrom } from "@/lib/useScopedQuery";
 import { useBusinesses } from "@/contexts/BusinessContext";
+import { fetchContactOpenItemAging, EMPTY_OPEN_ITEM_AGING } from "@/services/finance/openItems";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
   Sheet,
@@ -139,64 +140,54 @@ export function ContactPreviewDrawer({
 
         setContact(c as unknown as ContactData);
 
-        // Outstanding receivable (unpaid invoices) — scoped
+        // Recent invoices (list only — never the source of the receivable figure)
         const { data: invoices } = await (scoped("invoices") as any)
           .select("id, total, amount_paid, status, invoice_number, issue_date, due_date")
-          .eq("contact_id", contactId)
-          .in("status", ["confirmed", "sent", "partial", "overdue"])
           .order("issue_date", { ascending: false })
+          .eq("contact_id", contactId)
           .limit(20);
 
-        const totalReceivable = (invoices || []).reduce(
-          (sum: number, inv: any) => sum + ((inv.total || 0) - (inv.amount_paid || 0)),
-          0,
-        );
-        setReceivable(totalReceivable);
-
-        const now = new Date();
-        const agingBuckets: AgingBucket = { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days90plus: 0 };
-        (invoices || []).forEach((inv: any) => {
-          const bal = (inv.total || 0) - (inv.amount_paid || 0);
-          if (bal <= 0) return;
-          const dueDate = new Date(inv.due_date || inv.issue_date);
-          const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / 86400000);
-          if (daysOverdue <= 0) agingBuckets.current += bal;
-          else if (daysOverdue <= 30) agingBuckets.days1_30 += bal;
-          else if (daysOverdue <= 60) agingBuckets.days31_60 += bal;
-          else if (daysOverdue <= 90) agingBuckets.days61_90 += bal;
-          else agingBuckets.days90plus += bal;
+        // Receivable + aging come off the GL-gated AR projection: residual nets
+        // cash receipts AND applied credit notes, and status lists never drift.
+        const arAging = currentOrg?.id
+          ? await fetchContactOpenItemAging("ar", {
+              orgId: currentOrg.id,
+              contactId,
+              businessId: currentBusiness?.id ?? null,
+            })
+          : EMPTY_OPEN_ITEM_AGING;
+        setReceivable(arAging.total);
+        setAging({
+          current: arAging.current,
+          days1_30: arAging.days30,
+          days31_60: arAging.days60,
+          days61_90: arAging.days90,
+          days90plus: arAging.days120,
         });
-        setAging(agingBuckets);
 
-        // Outstanding payable (unpaid bills) — scoped
+        // Recent bills (list only)
         const { data: bills } = await (scoped("bills") as any)
           .select("id, total, amount_paid, status, bill_number, bill_date, due_date")
           .eq("vendor_id", contactId)
-          .in("status", ["received", "partial", "overdue"])
           .order("bill_date", { ascending: false })
           .limit(20);
 
-        const totalPayable = (bills || []).reduce(
-          (sum: number, b: any) => sum + ((b.total || 0) - (b.amount_paid || 0)),
-          0,
-        );
-        setPayable(totalPayable);
-
-        const apBuckets: AgingBucket = { current: 0, days1_30: 0, days31_60: 0, days61_90: 0, days90plus: 0 };
-        (bills || []).forEach((b: any) => {
-          const bal = (b.total || 0) - (b.amount_paid || 0);
-          if (bal <= 0) return;
-          const dueDate = new Date(b.due_date || b.bill_date);
-          const daysOverdue = Math.floor((now.getTime() - dueDate.getTime()) / 86400000);
-          if (daysOverdue <= 0) apBuckets.current += bal;
-          else if (daysOverdue <= 30) apBuckets.days1_30 += bal;
-          else if (daysOverdue <= 60) apBuckets.days31_60 += bal;
-          else if (daysOverdue <= 90) apBuckets.days61_90 += bal;
-          else apBuckets.days90plus += bal;
+        const apAging = currentOrg?.id
+          ? await fetchContactOpenItemAging("ap", {
+              orgId: currentOrg.id,
+              contactId,
+              businessId: currentBusiness?.id ?? null,
+            })
+          : EMPTY_OPEN_ITEM_AGING;
+        setPayable(apAging.total);
+        setApAging({
+          current: apAging.current,
+          days1_30: apAging.days30,
+          days31_60: apAging.days60,
+          days61_90: apAging.days90,
+          days90plus: apAging.days120,
         });
-        setApAging(apBuckets);
 
-        const txns: TransactionSummary[] = [];
         (invoices || []).slice(0, 3).forEach((inv: any) => {
           txns.push({
             type: "invoice",
