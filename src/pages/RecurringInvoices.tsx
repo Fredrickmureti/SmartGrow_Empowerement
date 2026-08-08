@@ -592,28 +592,48 @@ export default function RecurringInvoices() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Payment Terms (days)</Label>
+                <Label>Due after (days from period start)</Label>
                 <Input type="number" value={formData.days_before_due} onChange={(e) => setFormData({ ...formData, days_before_due: parseInt(e.target.value) || 30 })} />
+                <p className="text-xs text-muted-foreground">
+                  Each generated invoice is due this many days after the billing period begins.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Start Date *</Label>
                 <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
+                <p className="text-xs text-muted-foreground">
+                  Anchors the billing calendar — a schedule starting on the 31st keeps billing on the 31st.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>End Date (optional)</Label>
                 <Input type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} />
+                <p className="text-xs text-muted-foreground">
+                  The final period that begins on or before this date is still billed, then the schedule completes.
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-start space-x-2">
               <Switch checked={formData.auto_send} onCheckedChange={(v) => setFormData({ ...formData, auto_send: v })} />
-              <Label>Auto-send invoices when generated</Label>
+              <div>
+                <Label>Email the invoice to the customer</Label>
+                <p className="text-xs text-muted-foreground">
+                  Sent only after the invoice is posted. A failed email is retried and never changes the invoice.
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex items-start space-x-2">
               <Switch checked={formData.auto_confirm} onCheckedChange={(v) => setFormData({ ...formData, auto_confirm: v })} />
-              <Label>Auto-confirm &amp; post to GL when generated</Label>
+              <div>
+                <Label>Confirm &amp; post to the ledger automatically</Label>
+                <p className="text-xs text-muted-foreground">
+                  Off: invoices arrive as drafts for review. On: posting failures cancel the whole occurrence and it is retried.
+                </p>
+              </div>
             </div>
+
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">

@@ -92243,10 +92243,27 @@ export type Database = {
         }[]
       }
       recount_label_run: { Args: { p_run_id: string }; Returns: undefined }
-      recurring_period_end: {
-        Args: { _frequency: string; _period_start: string }
+      recurring_next_start: {
+        Args: {
+          _anchor_day?: number
+          _frequency: string
+          _period_start: string
+        }
         Returns: string
       }
+      recurring_period_end:
+        | {
+            Args: { _frequency: string; _period_start: string }
+            Returns: string
+          }
+        | {
+            Args: {
+              _anchor_day: number
+              _frequency: string
+              _period_start: string
+            }
+            Returns: string
+          }
       refresh_filing_calendar_business: {
         Args: { _business_id: string }
         Returns: number
