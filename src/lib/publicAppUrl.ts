@@ -36,6 +36,9 @@ export class PublicAppUrlUnavailableError extends Error {
 
 const NETWORK_PROTOCOLS = new Set(["http:", "https:"]);
 
+/** Canonical production host, without the `www.` prefix. */
+const PRODUCTION_HOST = "accrualflow.systems";
+
 function normalize(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
@@ -47,8 +50,14 @@ function normalize(raw: string | null | undefined): string | null {
     return null;
   }
   if (!NETWORK_PROTOCOLS.has(parsed.protocol)) return null;
+  // Any spelling of the production host canonicalises to the one origin the
+  // certificate and auth cookies are issued for (https + www). A stray
+  // `http://accrualflow.systems` in an env file must never end up in a QR.
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === PRODUCTION_HOST) return PRODUCTION_APP_URL;
   return parsed.origin;
 }
+
 
 declare global {
   interface Window {
