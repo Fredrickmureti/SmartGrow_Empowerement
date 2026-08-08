@@ -10,6 +10,15 @@ export type { ReportTableProps } from "./ReportTable";
 export { ReportSurface } from "./ReportSurface";
 export type { ReportSurfaceProps, ReportFormatProfile } from "./ReportSurface";
 export {
+  STATEMENT_LINE_KINDS,
+  STATEMENT_LINE_TREATMENT,
+  TOTAL_LINE_KINDS,
+  isTotalLineKind,
+  resolveLineKind,
+} from "./statementKinds";
+export type { StatementLineKind, LineTreatment } from "./statementKinds";
+export {
+  EXPORT_KIND,
   buildSections,
   columnAlign,
   isNumericColumn,
@@ -24,6 +33,7 @@ export type {
   ReportRow,
   ReportRowData,
   ReportRowKind,
+  ReportRowMeta,
   SectionInput,
 } from "./model";
 export {

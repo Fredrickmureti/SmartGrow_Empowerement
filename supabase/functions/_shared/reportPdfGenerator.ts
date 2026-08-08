@@ -18,6 +18,7 @@ import {
   drawRecipientBlock,
   drawSummaryBlock,
   drawPageNumber,
+  stampPageNumbers,
   drawFinalFooter,
   type TableColumn,
   type TableRow,
@@ -126,6 +127,12 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
   // profile resolved from the report registry.
   const typography = resolveTypography(presentationProfile ?? "document");
 
+  // Statement mode: the statutory presentation policy (semantic spacing
+  // around totals, nil as an accounting dash, "(continued)" mastheads,
+  // "Page i of N"). Gated on the statement profile so every other document
+  // — invoices, ledgers, registers, certificates — is byte-identical.
+  const isStatement = presentationProfile === "statement";
+
   const builder = await PdfBuilder.create({
     orientation,
     paperFormat,
@@ -145,9 +152,12 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
   let lastSeparatorY = 0;
 
   builder.onNewPage = (page) => {
-    drawPageNumber(builder, page, typography);
+    // Statements get "Page i of N" stamped after the fact, once the total
+    // is known (see stampPageNumbers below).
+    if (!isStatement) drawPageNumber(builder, page, typography);
+    const continued = isStatement && builder.state.pageNum > 1;
     const drawn = drawBrandedHeader(builder, page, {
-      title,
+      title: continued ? `${title} (continued)` : title,
       subtitle,
       // Operational header has a single date slot; feed it whichever the
       // report supplied. The financial masthead distinguishes the two.
@@ -175,11 +185,13 @@ export async function generateReportPdf(payload: ReportPdfPayload): Promise<Uint
     });
   }
 
-  drawDataTable(builder, { columns, rows, currency, typography });
+  drawDataTable(builder, { columns, rows, currency, typography, statement: isStatement });
 
   if (summaryRows && summaryRows.length > 0) {
     drawSummaryBlock(builder, builder.page, summaryRows);
   }
+
+  if (isStatement) stampPageNumbers(builder, typography);
 
   // Final footer: standard disclosure on the last page.
   drawFinalFooter(builder, builder.page, {

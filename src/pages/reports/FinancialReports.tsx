@@ -296,6 +296,8 @@ function FinancialReportsInner() {
       for (const acct of accts) {
         out.push({
           id: acct.id,
+          depth: 1,
+          meta: { accountId: acct.id },
           onClick: () => handleDrillDown(acct),
           values: {
             name: acct.name,
@@ -315,22 +317,33 @@ function FinancialReportsInner() {
       });
     };
 
+    // Semantic grammar of an income statement: sub-section SUBTOTALS sum
+    // accounts, CALCULATED RESULTS are derived figures (gross profit is not
+    // a sum of anything), and there is exactly ONE grand total — the net
+    // result. Previously every one of these was a "grand total", which is
+    // why the PDF showed three identical double-ruled bands.
     pushSubSection("revenue");
     pushSubSection("cost_of_sales");
-    out.push({ id: "gross-profit", kind: "grandTotal", label: "GROSS PROFIT", values: { amount: grossProfit } });
+    out.push({ id: "gross-profit", kind: "calculatedResult", label: "Gross profit", values: { amount: grossProfit } });
 
     pushSubSection("operating_expense");
-    out.push({ id: "operating-profit", kind: "grandTotal", label: "OPERATING PROFIT", values: { amount: operatingProfit } });
+    out.push({ id: "operating-profit", kind: "calculatedResult", label: "Operating profit", values: { amount: operatingProfit } });
 
     pushSubSection("other_income");
     pushSubSection("other_expense");
 
     if (totalOtherIncome > 0 || totalOtherExpense > 0) {
-      out.push({ id: "nibt", kind: "subtotal", label: "NET INCOME BEFORE TAX", values: { amount: netIncomeBeforeTax } });
+      out.push({
+        id: "nibt",
+        kind: "calculatedResult",
+        label: "Profit before tax",
+        values: { amount: netIncomeBeforeTax },
+      });
     }
 
     pushSubSection("tax_expense");
-    out.push({ id: "net-income", kind: "grandTotal", label: "NET INCOME", values: { amount: netIncome } });
+    out.push({ id: "pnl-gap", kind: "spacer" });
+    out.push({ id: "net-income", kind: "grandTotal", label: "Net profit for the period", values: { amount: netIncome } });
 
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -356,7 +369,8 @@ function FinancialReportsInner() {
       for (const acct of accts) {
         out.push({
           id: acct.id,
-          depth: 1,
+          depth: 2,
+          meta: { accountId: acct.id },
           onClick: () => handleDrillDown(acct),
           values: { name: acct.name, balance: acct.closing_balance },
         });
@@ -375,24 +389,27 @@ function FinancialReportsInner() {
     out.push({
       id: "total-assets",
       kind: "grandTotal",
-      label: "TOTAL ASSETS",
+      label: "Total assets",
       values: { balance: bsData?.balanceSheetTotals?.totalAssets || 0 },
     });
 
+    out.push({ id: "gap-liabilities", kind: "spacer" });
     out.push({ id: "sec-liabilities", kind: "section", label: "LIABILITIES" });
     for (const subType of BS_LIABILITY_ORDER) pushSubSection(subType);
     out.push({
       id: "total-liabilities",
-      kind: "subtotal",
-      label: "TOTAL LIABILITIES",
+      kind: "majorTotal",
+      label: "Total liabilities",
       values: { balance: bsData?.sectionTotals["liability"] || 0 },
     });
 
+    out.push({ id: "gap-equity", kind: "spacer" });
     out.push({ id: "sec-equity", kind: "section", label: "EQUITY" });
     for (const acct of classifiedBsAccounts.filter(a => a.account_type === "equity")) {
       out.push({
         id: acct.id,
-        depth: 1,
+        depth: 2,
+        meta: { accountId: acct.id },
         onClick: () => handleDrillDown(acct),
         values: { name: acct.name, balance: acct.closing_balance },
       });
@@ -400,21 +417,22 @@ function FinancialReportsInner() {
     if (bsData?.balanceSheetTotals?.retainedEarnings !== undefined && bsData.balanceSheetTotals.retainedEarnings !== 0) {
       out.push({
         id: "retained-earnings",
-        depth: 1,
+        depth: 2,
         values: { name: "Current Year Earnings", balance: bsData.balanceSheetTotals.retainedEarnings },
       });
     }
     out.push({
       id: "total-equity",
-      kind: "subtotal",
-      label: "TOTAL EQUITY",
+      kind: "majorTotal",
+      label: "Total equity",
       values: { balance: bsData?.balanceSheetTotals?.totalEquity || 0 },
     });
 
+    out.push({ id: "gap-liab-equity", kind: "spacer" });
     out.push({
       id: "total-liab-equity",
       kind: "grandTotal",
-      label: "TOTAL LIABILITIES & EQUITY",
+      label: "Total liabilities and equity",
       values: { balance: (bsData?.sectionTotals["liability"] || 0) + (bsData?.balanceSheetTotals?.totalEquity || 0) },
     });
 

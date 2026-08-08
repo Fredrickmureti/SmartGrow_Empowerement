@@ -58,6 +58,33 @@ export function drawPageNumber(
 }
 
 /**
+ * Stamps "Page i of N" on EVERY page once the document is complete.
+ *
+ * `drawPageNumber` runs while a page is being created, so it can only know
+ * the current index — never the total. Statutory statements are filed and
+ * bound, so an accountant must be able to tell a page is missing; that
+ * requires the total, which is only knowable at the end.
+ */
+export function stampPageNumbers(
+  builder: PdfBuilder,
+  typography?: Typography,
+): void {
+  const { state, fontRegular } = builder;
+  const t = typography ?? DOCUMENT_TYPOGRAPHY;
+  const pages = builder.doc.getPages();
+  const total = pages.length;
+  pages.forEach((page, i) => {
+    const text = winansiSafe(`Page ${i + 1} of ${total}`);
+    const w = fontRegular.widthOfTextAtSize(text, t.size.pageNumber);
+    page.drawText(text, {
+      x: state.pageWidth - state.margin - w,
+      y: Math.max(state.margin - 25, 14),
+      size: t.size.pageNumber, font: fontRegular, color: theme.color.lightGray,
+    });
+  });
+}
+
+/**
  * Draws the bottom-of-last-page footer (generated stamp + optional note).
  * Called once at the end of report generation.
  */

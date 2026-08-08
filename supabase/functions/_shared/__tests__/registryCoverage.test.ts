@@ -199,7 +199,7 @@ Deno.test("renderReport — audit insert failure does NOT block PDF delivery", a
 // ─── Format-profile contracts ─────────────────────────────────────────────
 
 Deno.test("Registry — centered statutory reports carry formatProfile=financial", () => {
-  const statutory = ["balance_sheet", "income_statement", "profit_and_loss"];
+  const statutory = ["balance_sheet", "income_statement", "profit_and_loss", "cash_flow"];
   for (const key of statutory) {
     const spec = getReportSpec(key);
     assertExists(spec, `${key}: missing from registry`);
@@ -211,11 +211,37 @@ Deno.test("Registry — centered statutory reports carry formatProfile=financial
   }
 });
 
-Deno.test("Registry — Cash Flow uses the exact Trial Balance PDF masthead profile", () => {
-  const trialBalance = getReportSpec("trial_balance");
-  const cashFlow = getReportSpec("cash_flow");
-  assertExists(trialBalance);
-  assertExists(cashFlow);
-  assertEquals(trialBalance!.formatProfile, "operational");
-  assertEquals(cashFlow!.formatProfile, trialBalance!.formatProfile);
+// The masthead is no longer selected by formatProfile — `drawBrandedHeader`
+// draws ONE layout for every wide report. What must hold is that every
+// financial statement resolves to the statutory `statement` presentation,
+// which is what carries the 10pt face, semantic total spacing, nil-as-dash
+// and "Page i of N".
+Deno.test("Registry — the three financial statements resolve the statement presentation", () => {
+  for (const key of ["balance_sheet", "income_statement", "profit_and_loss", "cash_flow"]) {
+    const spec = getReportSpec(key);
+    assertExists(spec, `${key}: missing from registry`);
+    assertEquals(
+      spec!.presentationProfile,
+      "statement",
+      `${key}: statutory statements must pin presentationProfile="statement"`,
+    );
+    assertEquals(
+      spec!.formatProfile,
+      "financial",
+      `${key}: statutory statements must carry formatProfile="financial"`,
+    );
+  }
+});
+
+Deno.test("Registry — statements never carry a section COLUMN", () => {
+  for (const key of ["balance_sheet", "income_statement", "profit_and_loss", "cash_flow"]) {
+    const spec = getReportSpec(key);
+    assertExists(spec);
+    const keys = spec!.columns.map((c) => c.key);
+    assertEquals(
+      keys.includes("section"),
+      false,
+      `${key}: sections are semantic LINES (_kind: "section"), not a column`,
+    );
+  }
 });
