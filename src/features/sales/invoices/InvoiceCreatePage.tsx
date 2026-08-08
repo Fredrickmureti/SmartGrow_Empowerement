@@ -304,13 +304,23 @@ export default function InvoiceCreatePage() {
                 discount_percent: 0,
                 sort_order: next.length,
               };
-              const { line_total, tax_amount } = calculateLineTotalPure(seed);
+              const { line_total, tax_amount } = computeLine({
+                quantity: seed.quantity,
+                unit_price: seed.unit_price,
+                discount_percent: seed.discount_percent,
+                tax_rate: seed.tax_rate,
+              });
               return { ...seed, line_total, tax_amount } as Omit<InvoiceItem, "id" | "invoice_id">;
             },
             // Reviewed batch → the session's quantity replaces the line's.
             incrementLine: (existing, q) => {
               const merged = { ...existing, quantity: q };
-              const { line_total, tax_amount } = calculateLineTotalPure(merged);
+              const { line_total, tax_amount } = computeLine({
+                quantity: merged.quantity,
+                unit_price: merged.unit_price,
+                discount_percent: merged.discount_percent,
+                tax_rate: merged.tax_rate,
+              });
               return { quantity: q, line_total, tax_amount } as Partial<
                 Omit<InvoiceItem, "id" | "invoice_id">
               >;
