@@ -89,6 +89,24 @@ export default function BillEditPage() {
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [primed, setPrimed] = useState(false);
+  /** Vendor tier of the purchase account ladder (ADR 0122). */
+  const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!formData.vendor_id) {
+      setVendorExpenseAccountId(null);
+      return;
+    }
+    fetchContactDefaults(formData.vendor_id)
+      .then((d) => {
+        if (!cancelled) setVendorExpenseAccountId(d.default_expense_account_id ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.vendor_id]);
 
   useEffect(() => {
     if (!bill || primed) return;
