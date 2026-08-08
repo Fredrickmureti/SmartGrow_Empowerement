@@ -154,7 +154,7 @@ export function useProformaInvoices() {
       if (!result?.success) throw new Error("Proforma creation failed");
 
       logAction({
-        action: "create",
+        action: "created",
         entityType: "proforma_invoice",
         entityId: result.id,
         entityName: result.proforma_number,
@@ -178,7 +178,7 @@ export function useProformaInvoices() {
       const { contact, items, status, ...dbUpdates } = updates as any;
       const { error } = await supabase.from("proforma_invoices").update(dbUpdates).eq("id", id);
       if (error) throw error;
-      logAction({ action: "update", entityType: "proforma_invoice", entityId: id, newValues: dbUpdates });
+      logAction({ action: "updated", entityType: "proforma_invoice", entityId: id, newValues: dbUpdates });
       toast.success("Proforma invoice updated successfully");
       invalidate();
     } catch (error) {
@@ -200,7 +200,7 @@ export function useProformaInvoices() {
       if (error) throw error;
       const result = data as { success: boolean; status: string; from_status?: string };
       logAction({
-        action: "status_change",
+        action: "status_changed",
         entityType: "proforma_invoice",
         entityId: id,
         oldValues: { status: result?.from_status },
@@ -221,7 +221,7 @@ export function useProformaInvoices() {
     try {
       const { error } = await supabase.from("proforma_invoices").delete().eq("id", id);
       if (error) throw error;
-      logAction({ action: "delete", entityType: "proforma_invoice", entityId: id });
+      logAction({ action: "deleted", entityType: "proforma_invoice", entityId: id });
       toast.success("Proforma invoice deleted successfully");
       invalidate();
     } catch (error) {
@@ -251,7 +251,7 @@ export function useProformaInvoices() {
       if (!result?.success) throw new Error("Proforma conversion failed");
 
       logAction({
-        action: "convert",
+        action: "converted",
         entityType: "proforma_invoice",
         entityId: proformaId,
         newValues: { invoice_id: result.invoice_id, invoice_number: result.invoice_number },
