@@ -1,106 +1,102 @@
-# Product GL account inheritance ladder — status
+# Product GL accounts — verification verdict and remaining phases
 
-Ladder (ADR 0122, `docs/adr/0122-product-gl-account-inheritance-ladder.md`):
+Ladder (ADR 0122): `line override -> product -> product category (nearest ancestor) -> company default`
+(bills add a vendor tier between category and company default).
 
-```text
-line override  ->  product  ->  product category (nearest ancestor)  ->  company default
-```
+## Phase 1 — verification of the previous engineer's claims
 
-Bill/purchase paths add a vendor tier between category and company default.
+Checked against the codebase and the live database, not the log.
 
-## Complete
+| Claim | Verdict | Evidence |
+| --- | --- | --- |
+| SQL resolvers exist | Confirmed | `resolve_product_gl_account`, `resolve_product_account_override`, `ensure_default_account_mappings`, `provision_default_chart_of_accounts` all present |
+| Invoice revenue on the ladder | Confirmed | `_resolve_invoice_gl_accounts` calls the resolver |
+| Delivery COGS on the ladder | Confirmed | `complete_delivery_atomic` delegates to `resolve_delivery_cogs_lines`, which resolves per line |
+| Bills on the ladder | Confirmed | `confirm_bill_atomic` uses `resolve_product_account_override` |
+| POS statement revenue + COGS/inventory | Confirmed | `post_pos_statement_gl` uses the override resolver |
+| Stock adjustments / opening stock | Confirmed | `post_stock_adjustment_gl` uses the resolver |
+| Category tier columns | Confirmed | `product_categories` carries the four nullable account columns |
+| Effective-account UI (product + bill lines) | Confirmed | `ProductAccountSelector` shows resolved account + tier badge + reset + amber unmapped warning; `LineAccountCell` does the same per bill line |
+| "Remaining item 1 — category editor parity" | **Already implemented, plan was stale** | `ProductCategoriesManager` renders all four `ProductAccountSelector` fields with parent-category inheritance via `resolveCategoryAccount`, and persists them on create/update |
 
-- **P0 — crash fix.** `ProductAccountSelector` (and three other SPA
-  components) rendered a TanStack `Link` inside the react-router-dom tree,
-  crashing the product form when Type = Product. Guard:
-  `src/test/architecture/no-tanstack-router-in-spa.test.ts`.
-- **P0 — SQL resolvers.** `resolve_product_gl_account` /
-  `resolve_product_account_override` + delivery COGS, recurring invoices and
-  `confirm_bill_atomic` on the ladder.
-- **P1 item 1 — stock adjustments / opening stock** resolved per line, journal
-  lines grouped per resolved account.
-- **P1 item 2 — POS statement posting.** `post_pos_statement_gl` now splits
-  net revenue across ladder-resolved accounts (statement totals stay
-  authoritative; residual lands on the last bucket) **and posts COGS +
-  inventory relief** per resolved account pair for stock-tracked items.
-  Previously POS recognised revenue but never reduced inventory value or
-  recognised cost, overstating both stock on hand and gross profit. Returns
-  carry a -1 multiplier; the COGS block is skipped when the company
-  `cogs`/`inventory` defaults are unmapped so existing closes cannot start
-  failing. Guard: `src/test/architecture/pos-statement-account-ladder.test.ts`.
-- **P2 — purchases-side UI parity.** New
-  `src/components/documents/lines/LineAccountCell.tsx` shows each bill line's
-  *effective* GL account plus the tier it came from (Override / From product /
-  From category "…" / From vendor / Default), with change + reset, and an amber
-  warning when nothing is mapped. Wired into `BillCreatePage` and
-  `BillEditPage` (vendor tier fed by `fetchContactDefaults`). Purchase orders
-  are out of scope: `purchase_order_items` has no account column and POs do not
-  post to the ledger. Guard:
-  `src/test/architecture/bill-line-account-visibility.test.ts`.
-- **P3 — architecture guard.**
-  `src/test/architecture/posting-paths-no-direct-product-accounts.test.ts`
-  asserts the posting functions delegate to the ladder resolver and never read
-  `products.*_account_id` directly or resolve accounts by `detail_type`.
-- **P4 — the last ladder tier actually resolves (this turn).** The product form
-  showed *"No system default mapped — postings that rely on this account will
-  fail"* for the purchase/expense account. Root cause was **architectural, not
-  UI**: `provision_missing_system_accounts` skips a role when *any* account of
-  a compatible shape exists (`status = 'already_eligible'`), so the role was
-  never stamped on an account and never written to `default_account_settings`.
-  26 non-payroll roles were unmapped, including `operating_expenses`,
-  `service_revenue`, `sales_returns`, `purchase_returns`, `discount_given/
-  received`, `bank_fees`, `rounding_gain/loss`, `clearing_pos`, `suspense`,
-  `credit_card_clearing`, `mobile_money`.
-  Fix (Odoo/Oracle chart-template parity — a template must *guarantee* every
-  property account resolves):
-  - New `public.ensure_default_account_mappings(org, business)` — for every
-    template-backed role (excluding `category = 'payroll'`, owned by the
-    country payroll packs) it reuses the role-bearing account, else adopts /
-    creates the standard account via the allowlisted `upsert_system_account`,
-    then writes the `default_account_settings` row. Idempotent.
-  - Wired into `provision_default_chart_of_accounts`, so new companies are
-    complete on day one, and back-filled across all existing businesses.
-  - Verified: all 14 previously-unmapped commerce roles now resolve;
-    `operating_expenses -> 6010-SYS Operating Expenses` (code suffixed because
-    `6010` was already taken by a legacy "Salaries and Wages" row).
-  - Guards: `src/test/architecture/default-account-role-coverage.test.ts` and
-    `supabase/tests/default_account_role_coverage_test.sql` (fails if any
-    non-payroll template-backed role is unmapped for any business).
+Not verifiable this turn: the vitest suite cannot run because dev dependencies
+are not installed in this sandbox (`Cannot find package 'vitest'`). Test files
+for every claimed guard exist. Re-running them is step 0 of implementation.
 
-Verification: `tsgo --noEmit` clean; ladder / parity / SPA / role-coverage
-guard tests green.
+### New defects found (not in the previous plan)
 
-## Currently active phase
+Both are ladder gaps on the **reversal** side, which is exactly where the
+parent brief warned that asymmetry corrupts reporting.
 
-P4 is complete. No phase is mid-flight.
+1. **P0 — sales returns bypass the ladder.** `approve_sales_return_atomic`
+   picks its inventory and COGS accounts with
+   `SELECT id FROM accounts WHERE detail_type = 'inventory' / 'cost_of_goods_sold' ... LIMIT 1`.
+   That is the "resolve by detail_type" smell the P3 guard was written to
+   forbid, and it is non-deterministic when a company has more than one
+   account of that detail type. A product whose COGS/inventory came from a
+   product override or category tier at delivery time is returned into
+   different accounts, so inventory and COGS never net back to zero.
+2. **P0 — credit notes reverse revenue to a single company account.**
+   `issue_credit_note_atomic` debits `compensation_account(business, 'sales_revenue')`
+   for the whole subtotal, while the original invoice credited revenue
+   per-product through `_resolve_invoice_gl_accounts`. Crediting a product
+   whose revenue resolves to a non-default account moves money between revenue
+   accounts. Revenue-by-account reporting drifts by exactly the credited
+   amount.
 
-## Remaining / optional follow-ups (next phase = item 1)
+Historical integrity itself is sound: every posting stores the resolved
+account id, so changing a default only affects future postings. That part of
+the architecture needs no change.
 
-1. **Next milestone — category editor parity.** The product-category form should
-   show the same inheritance badges (`Override` / `From category "…"` /
-   `Default`) as the product form, using `ProductAccountSelector` +
-   `useCategoryAccounts`.
-2. Extend the P3 guard's function list as more posting paths migrate
-   (`_resolve_invoice_gl_accounts`, `confirm_bill_atomic`,
-   `complete_delivery_atomic` still contain legacy inline `COALESCE` forms in
-   older migrations).
-3. Cosmetic: legacy account `6010 "Salaries and Wages"` collides with the
-   standard Operating Expenses code, forcing `6010-SYS`. Consider a data-hygiene
-   pass that renumbers the legacy row.
-4. Backfill consideration: POS statements closed before P1 item 2 have no
-   COGS/inventory entry. Decide whether to post a one-off catch-up journal or
-   leave history untouched (postings store resolved account ids, so history is
-   internally consistent either way).
+## Phase 2 — remaining plan
 
-## Instructions for the next agent
+### P0 — accounting correctness
 
-1. **Verify first, then continue.** Confirm P4 holds: run
-   `bunx vitest run src/test/architecture` and query
-   `default_account_settings` for any non-payroll template-backed role without
-   a mapping (the SQL test above encodes the check). Also confirm the product
-   form no longer shows the "No system default mapped" warning for the
-   purchase/expense account.
-2. Then resume at **follow-up item 1 (category editor parity)** — do not jump to
-   unrelated modules, and finish that phase to production quality (UI + guard +
-   plan update) before moving on.
+1. **Sales-return ladder.** Rewrite the inventory/COGS block of
+   `approve_sales_return_atomic` to resolve per return line via the same
+   resolver `resolve_delivery_cogs_lines` uses, and emit one JE line pair per
+   resolved account pair (mirroring the delivery COGS shape) instead of one
+   lump pair. Keep the existing "skip when unmapped / period closed" guard so
+   no currently-working flow starts failing.
+2. **Credit-note revenue ladder.** Split the revenue debit in
+   `issue_credit_note_atomic` across ladder-resolved accounts per credit-note
+   line, with the header subtotal authoritative and any rounding residual
+   landing on the last bucket — the same rule `post_pos_statement_gl` already
+   uses. Fall back to the company `sales_revenue` account when a credit note
+   has no product-linked lines.
 
+### P1 — domain architecture
+
+3. Extend `posting-paths-no-direct-product-accounts.test.ts` to cover
+   `approve_sales_return_atomic` and `issue_credit_note_atomic`, so the
+   detail-type lookup cannot come back.
+4. Sweep the remaining GL-posting functions for inline `COALESCE(product.x,
+   default)` forms and list them in the ADR as either migrated or explicitly
+   out of scope (POs do not post; `post_pos_sale_gl` is legacy).
+
+### P2 — user experience
+
+5. Category-editor parity is done; add the missing guard test asserting
+   `ProductCategoriesManager` renders all four inheritance-aware selectors and
+   persists nulls as inheritance.
+6. Vendor credit notes (`issue_vendor_credit_note_atomic`) get the same
+   effective-account treatment as bills once item 2 lands.
+
+### P3 — hardening
+
+7. Update ADR 0122 with the returns/credit-note tiers and the reversal-symmetry
+   rule: *a reversal must resolve through the same ladder as the posting it
+   reverses.*
+8. Data hygiene: legacy account `6010 "Salaries and Wages"` forces the standard
+   Operating Expenses code to `6010-SYS`; renumber the legacy row.
+9. Decide on POS statements closed before COGS posting existed — catch-up
+   journal or leave history untouched (history is internally consistent either
+   way).
+
+### Verdict on the parent brief's question
+
+The UI issue was real but secondary: it is now **B → resolved** (effective
+account plus tier is shown on products, categories, and bill lines). The
+underlying architecture is **partially correct** — the forward ladder is
+coherent and historically safe, but the reversal paths (returns, credit notes)
+are still off-ladder, which is a P0 accounting defect, not a UX one.
