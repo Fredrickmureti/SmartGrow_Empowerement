@@ -42,6 +42,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { SalesReturnLineRow, RETURN_LINE_COLUMNS } from "@/components/documents/lines/SalesReturnLineRow";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,6 +178,23 @@ export default function SalesReturnCreatePage() {
     if (!selectedInvoiceId) return null;
     return invoices.find((i) => i.id === selectedInvoiceId) || null;
   }, [invoices, selectedInvoiceId]);
+
+  // Scan-to-line parity — the Sales workspace scan transport is live on every
+  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity) => ({
+      ...emptyLine(),
+      product_id: resolved.productId,
+      description: resolved.name,
+      quantity,
+      unit_price: scanUnitPrice(resolved),
+      tax_rate: scanTaxRate(resolved),
+    }),
+  );
 
   const addLineItem = () => setLineItems([...lineItems, emptyLine()]);
 
@@ -436,6 +461,15 @@ export default function SalesReturnCreatePage() {
             <EditableLineItemsGrid
               columns={RETURN_LINE_COLUMNS}
               rows={lineItems}
+              toolbar={
+                <DocumentLineScanner
+                  documentLabel="Sales return"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                />
+              }
               addLabel="Add Item"
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
@@ -443,6 +477,7 @@ export default function SalesReturnCreatePage() {
                 <SalesReturnLineRow
                   index={index}
                   item={item}
+                  flashed={flashIndex === index}
                   products={products}
                   layout={layout}
                   fromInvoice={!!selectedInvoiceId}

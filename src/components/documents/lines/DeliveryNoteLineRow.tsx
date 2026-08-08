@@ -100,6 +100,8 @@ interface Props<T extends DeliveryLineShape> {
     },
   ) => void;
   extra?: ReactNode;
+  /** Scanner flash — highlights the line a scan just landed on. */
+  flashed?: boolean;
 }
 
 function DeliveryNoteLineRowInner<T extends DeliveryLineShape>({
@@ -113,6 +115,7 @@ function DeliveryNoteLineRowInner<T extends DeliveryLineShape>({
   onPatch,
   onDeliveredChange,
   extra,
+  flashed,
 }: Props<T>) {
   const cell = (columnId: string) => {
     switch (columnId) {
@@ -204,7 +207,7 @@ function DeliveryNoteLineRowInner<T extends DeliveryLineShape>({
     }
   };
 
-  return <EditableLineRowCells layout={layout} cell={cell} extra={extra} />;
+  return <EditableLineRowCells layout={layout} cell={cell} extra={extra} flashed={flashed} />;
 }
 
 export const DeliveryNoteLineRow = memo(

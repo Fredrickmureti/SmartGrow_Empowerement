@@ -42,8 +42,12 @@ import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
-import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
-import { applyScanToLines } from "@/services/scanner";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { cn } from "@/lib/utils";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -84,7 +88,6 @@ export default function InvoiceEditPage() {
   });
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
-  const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const linesTableRef = useRef<HTMLDivElement | null>(null);
 
   // Fetch the invoice by :id from the URL. Only drafts are editable —
@@ -235,36 +238,29 @@ export default function InvoiceEditPage() {
     }
   }, [products, updateLineItem]);
 
-  const handleScanResolved = (resolved: import("@/hooks/scanner").ResolvedScan) => {
-    setLineItems((prev) => {
-      const result = applyScanToLines<LineItem>({
-        lines: prev,
-        scanQuantity: resolved.scanQuantity,
-        matchLine: (l) => !!l.product_id && l.product_id === resolved.productId,
-        buildLine: (q) => {
-          const seed: LineItem = {
-            product_id: resolved.productId,
-            description: resolved.name,
-            quantity: q,
-            unit_price: resolved.embeddedPrice ?? resolved.sellingPrice,
-            tax_rate: resolved.taxRate ?? 0,
-            tax_amount: 0,
-            discount_percent: 0,
-            line_total: 0,
-            sort_order: prev.length,
-          };
-          const { line_total, tax_amount } = calculateLineTotal(seed);
-          return { ...seed, line_total, tax_amount };
-        },
-        incrementLine: () => ({}),
-        replaceTrailingEmpty: true,
-        isEmptyLine: (l) => !l.product_id && !l.description && (l.quantity ?? 0) <= 1 && (l.unit_price ?? 0) === 0,
-      });
-      setFlashIndex(result.affectedIndex);
-      window.setTimeout(() => setFlashIndex(null), 800);
-      return result.next;
-    });
-  };
+  /**
+   * Scan-first line entry — shared with every other Sales document via
+   * `usePricedLineScan` (doc_author: a repeat scan flashes the line rather
+   * than silently bumping its quantity).
+   */
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan<LineItem>(
+    setLineItems,
+    (resolved, quantity, lines) => {
+      const seed: LineItem = {
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price: scanUnitPrice(resolved),
+        tax_rate: scanTaxRate(resolved),
+        tax_amount: 0,
+        discount_percent: 0,
+        line_total: 0,
+        sort_order: lines.length,
+      };
+      const { line_total, tax_amount } = calculateLineTotal(seed);
+      return { ...seed, line_total, tax_amount };
+    },
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -481,7 +477,8 @@ export default function InvoiceEditPage() {
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
               toolbar={
-                <InvoiceLineScanner
+                <DocumentLineScanner
+                documentLabel="Invoice"
                   businessId={currentBusiness?.id}
                   branchId={currentBranch?.id ?? null}
                   onResolved={handleScanResolved}

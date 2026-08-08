@@ -47,6 +47,14 @@ import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -110,6 +118,22 @@ export default function SalesOrderCreatePage() {
     if (prefillContactId) form.setValue("contact_id", prefillContactId);
     if (prefillProjectId !== undefined) form.setValue("project_id", prefillProjectId ?? null);
   }, [prefillContactId, prefillProjectId, form]);
+
+  // Scan-to-line parity — the Sales workspace scan transport is live on every
+  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity) => ({
+      product_id: resolved.productId,
+      description: resolved.name,
+      quantity,
+      unit_price: scanUnitPrice(resolved),
+      tax_rate: scanTaxRate(resolved),
+    }),
+  );
 
   const addLineItem = () => {
     setLineItems([...lineItems, { product_id: null, description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
@@ -341,6 +365,15 @@ export default function SalesOrderCreatePage() {
             <EditableLineItemsGrid
               columns={PRICED_LINE_COLUMNS}
               rows={lineItems}
+              toolbar={
+                <DocumentLineScanner
+                  documentLabel="Sales order"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                />
+              }
               addLabel="Add Item"
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
@@ -348,6 +381,7 @@ export default function SalesOrderCreatePage() {
                 <PricedLineRow
                   index={index}
                   item={item}
+                  flashed={flashIndex === index}
                   products={products}
                   layout={layout}
                   formatCurrency={formatLineCurrency}

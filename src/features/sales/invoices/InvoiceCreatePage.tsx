@@ -56,8 +56,12 @@ import {
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
-import { InvoiceLineScanner } from "@/components/invoices/InvoiceLineScanner";
-import { applyScanToLines } from "@/services/scanner";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import type { ResolvedScan } from "@/hooks/scanner";
 import { cn } from "@/lib/utils";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -123,8 +127,6 @@ export default function InvoiceCreatePage() {
     { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
   ]);
 
-  // Row-flash highlight after a scan resolves to a line.
-  const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const linesTableRef = useRef<HTMLDivElement | null>(null);
   const initialScanKeyRef = useRef<string | null>(null);
 
@@ -231,116 +233,25 @@ export default function InvoiceCreatePage() {
   }, [products, updateLineItem]);
 
   /**
-   * Scan-first line entry — `doc_author` semantics (see .lovable/plan.md
-   * Pillar A). A scan that resolves to a product already on the draft
-   * does NOT auto-increment quantity (POS-style); it focuses/flashes the
-   * existing line so the operator types the intended quantity explicitly.
-   * Only a scan for a product NOT already on the draft appends a new line.
-   * Math contract (`calculateLineTotal`) is unchanged.
+   * Scan-first line entry — `doc_author` semantics, now shared with every
+   * other Sales document through `usePricedLineScan`. A scan for a product
+   * already on the draft flashes that line instead of silently bumping its
+   * quantity; a reviewed Scan Session batch is authoritative.
    */
-  const handleScanResolved = useCallback((resolved: import("@/hooks/scanner").ResolvedScan) => {
-    setLineItems((prev) => {
-      const result = applyScanToLines<Omit<InvoiceItem, "id" | "invoice_id">>({
-        lines: prev,
-        scanQuantity: resolved.scanQuantity,
-        matchLine: (l) => !!l.product_id && l.product_id === resolved.productId,
-        buildLine: (q) => {
-          const seed = {
-            product_id: resolved.productId,
-            description: resolved.name,
-            quantity: q,
-            unit_price: resolved.embeddedPrice ?? resolved.sellingPrice,
-            tax_rate: resolved.taxRate ?? 0,
-            discount_percent: 0,
-            sort_order: prev.length,
-          };
-          const { line_total, tax_amount } = calculateLineTotal(seed as never);
-          return { ...seed, line_total, tax_amount } as Omit<InvoiceItem, "id" | "invoice_id">;
-        },
-        // doc_author intent: focus-only on repeat. Return an empty patch so
-        // the existing line is untouched; the affectedIndex below drives
-        // the flash so the operator sees which line the scan landed on.
-        incrementLine: () => ({}),
-        replaceTrailingEmpty: true,
-        isEmptyLine: (l) => !l.product_id && !l.description && (l.quantity ?? 0) <= 1 && (l.unit_price ?? 0) === 0,
-      });
-      setFlashIndex(result.affectedIndex);
-      window.setTimeout(() => setFlashIndex(null), 800);
-      return result.next;
+  const { handleScanResolved, handleScanSessionCommit, flashIndex, handleScanResolvedRef } =
+    usePricedLineScan(setLineItems, (resolved, quantity, lines) => {
+      const seed = {
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price: scanUnitPrice(resolved),
+        tax_rate: scanTaxRate(resolved),
+        discount_percent: 0,
+        sort_order: lines.length,
+      };
+      const { line_total, tax_amount } = calculateLineTotal(seed as never);
+      return { ...seed, line_total, tax_amount };
     });
-  }, []);
-
-  // Held in a ref so the seeding effect below can never fire a stale
-  // closure, and so the scan controller registration stays stable.
-  const handleScanResolvedRef = useRef(handleScanResolved);
-  useEffect(() => {
-    handleScanResolvedRef.current = handleScanResolved;
-  }, [handleScanResolved]);
-
-  /**
-   * Commit a batch of explicitly-quantified lines from the Scan Session.
-   * Unlike a single scan (doc_author: never silently increments), the
-   * session has already been reviewed by the operator, so quantities are
-   * authoritative and applied as-is.
-   */
-  const handleScanSessionCommit = useCallback(
-    (entries: { resolved: import("@/hooks/scanner").ResolvedScan; quantity: number }[]) => {
-      if (entries.length === 0) return;
-      setLineItems((prev) => {
-        let next = prev;
-        let lastIndex = -1;
-        for (const { resolved, quantity } of entries) {
-          const result = applyScanToLines<Omit<InvoiceItem, "id" | "invoice_id">>({
-            lines: next,
-            scanQuantity: quantity,
-            matchLine: (l) => !!l.product_id && l.product_id === resolved.productId,
-            buildLine: (q) => {
-              const seed = {
-                product_id: resolved.productId,
-                description: resolved.name,
-                quantity: q,
-                unit_price: resolved.embeddedPrice ?? resolved.sellingPrice,
-                tax_rate: resolved.taxRate ?? 0,
-                discount_percent: 0,
-                sort_order: next.length,
-              };
-              const { line_total, tax_amount } = computeLine({
-                quantity: seed.quantity,
-                unit_price: seed.unit_price,
-                discount_percent: seed.discount_percent,
-                tax_rate: seed.tax_rate,
-              });
-              return { ...seed, line_total, tax_amount } as Omit<InvoiceItem, "id" | "invoice_id">;
-            },
-            // Reviewed batch → the session's quantity replaces the line's.
-            incrementLine: (existing, q) => {
-              const merged = { ...existing, quantity: q };
-              const { line_total, tax_amount } = computeLine({
-                quantity: merged.quantity,
-                unit_price: merged.unit_price,
-                discount_percent: merged.discount_percent,
-                tax_rate: merged.tax_rate,
-              });
-              return { quantity: q, line_total, tax_amount } as Partial<
-                Omit<InvoiceItem, "id" | "invoice_id">
-              >;
-            },
-            replaceTrailingEmpty: true,
-            isEmptyLine: (l) =>
-              !l.product_id && !l.description && (l.quantity ?? 0) <= 1 && (l.unit_price ?? 0) === 0,
-          });
-          next = result.next;
-          lastIndex = result.affectedIndex;
-        }
-        if (lastIndex >= 0) {
-          setFlashIndex(lastIndex);
-          window.setTimeout(() => setFlashIndex(null), 800);
-        }
-        return next;
-      });
-    },
-    [],
-  );
 
   useEffect(() => {
     if (!open) {
@@ -584,7 +495,8 @@ export default function InvoiceCreatePage() {
             onAddRow={addLineItem}
             onRemoveRow={removeLineItem}
             toolbar={
-              <InvoiceLineScanner
+              <DocumentLineScanner
+                documentLabel="Invoice"
                 businessId={currentBusiness?.id}
                 branchId={currentBranch?.id ?? null}
                 onResolved={handleScanResolved}
