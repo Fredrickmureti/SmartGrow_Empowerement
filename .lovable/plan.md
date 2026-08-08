@@ -56,6 +56,13 @@ Guard test added: `src/test/architecture/inventory-adjustment-account-ladder.tes
 resolve accounts by `detail_type`, and still post through
 `post_journal_entry_atomic`.
 
+Also repaired an orphaned guard: `opening-stock-gl-trigger.test.ts` still read
+`src/pages/Products.tsx`, but the create-with-opening-stock flow now lives in
+`src/pages/inventory/ProductForm.tsx`. It was failing before this session's
+changes; it now guards the real call site.
+
+Verification: 7/7 guard tests green, `tsgo --noEmit` clean.
+
 ## Active phase
 
 P1 is closed. **Next: P1 item 2 — POS statement posting.**
