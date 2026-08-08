@@ -16,7 +16,13 @@ import { resolve, join, relative } from "node:path";
 const SRC = resolve(__dirname, "../..");
 
 /** Only these paths run inside the TanStack router. */
-const ALLOWED = [/^routes\//, /^router\.tsx$/, /^routeTree\.gen\.ts$/, /^main\.tsx$/];
+const ALLOWED = [
+  /^routes\//,
+  /^router\.tsx$/,
+  /^routeTree\.gen\.ts$/,
+  /^main\.tsx$/,
+  /^test\/architecture\/no-tanstack-router-in-spa\.test\.ts$/,
+];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
