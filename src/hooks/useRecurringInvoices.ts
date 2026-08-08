@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { callRpcWithSchemaRetry } from "@/lib/rpcSchemaRetry";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
@@ -190,12 +191,14 @@ export function useRecurringInvoices() {
     status: RecurringInvoiceStatus,
     reason?: string,
   ) => {
-    const { error } = await supabase.rpc("set_recurring_status_atomic" as never, {
-      p_recurring_id: id,
-      p_status: status,
-      p_user_id: user?.id ?? null,
-      p_reason: reason ?? null,
-    } as never);
+    const { error } = await callRpcWithSchemaRetry(() =>
+      supabase.rpc("set_recurring_status_atomic" as never, {
+        p_recurring_id: id,
+        p_status: status,
+        p_user_id: user?.id ?? null,
+        p_reason: reason ?? null,
+      } as never),
+    );
     if (error) throw error;
     invalidate();
   };
