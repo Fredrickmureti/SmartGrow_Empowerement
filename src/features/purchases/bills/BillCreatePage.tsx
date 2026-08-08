@@ -22,6 +22,14 @@ import {
 } from "@/components/ui/select";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanCostPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
@@ -125,6 +133,31 @@ export default function BillCreatePage() {
       });
     },
     [products, patchLineItem],
+  );
+
+  // Scan-to-line — shared workspace transport, cost-priced seed.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity, lines) => {
+      const unit_price = scanCostPrice(resolved);
+      const tax_rate = scanTaxRate(resolved);
+      const subtotal = quantity * unit_price;
+      return {
+        account_id: null,
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price,
+        tax_rate,
+        tax_amount: subtotal * (tax_rate / 100),
+        line_total: subtotal,
+        sort_order: lines.length,
+        project_id: null,
+        task_id: null,
+      } as unknown as LineItem;
+    },
   );
 
   const addLineItem = useCallback(
@@ -325,6 +358,16 @@ export default function BillCreatePage() {
         <EditableLineItemsGrid
           columns={PRICED_LINE_COLUMNS}
           rows={lineItems}
+          toolbar={
+            <DocumentLineScanner
+              documentLabel="Bill"
+              businessId={currentBusiness?.id}
+              branchId={currentBranch?.id ?? null}
+              onResolved={handleScanResolved}
+              onSessionCommit={handleScanSessionCommit}
+              disabled={isSubmitting}
+            />
+          }
           onAddRow={addLineItem}
           onRemoveRow={removeLineItem}
           addLabel="Add item"
@@ -334,6 +377,7 @@ export default function BillCreatePage() {
               key={index}
               index={index}
               item={item}
+              flashed={flashIndex === index}
               products={products}
               layout={layout}
               disabled={isSubmitting}

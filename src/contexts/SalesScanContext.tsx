@@ -84,10 +84,22 @@ interface BufferedScan {
 
 const QUEUE_MAX = 5;
 const QUEUE_TTL_MS = 500;
-const MODE_STORAGE_PREFIX = "sales.scan.mode";
+/**
+ * Workspace identity for the scan context. The mechanics (router target,
+ * mount-blind-spot buffer, controller registration, rapid/browse mode) are
+ * identical for every transactional workspace — only the persistence key and
+ * the `scan_events` audit lane differ. Purchases mounts the same provider
+ * with `workspace="purchases"`, so a paired phone / wedge / camera is live on
+ * purchasing documents without a second implementation.
+ */
+export type ScanWorkspace = "sales" | "purchases";
 
-function modeStorageKey(businessId: string | null, userId: string | null) {
-  return `${MODE_STORAGE_PREFIX}:${businessId ?? "_"}:${userId ?? "_"}`;
+function modeStorageKey(
+  workspace: ScanWorkspace,
+  businessId: string | null,
+  userId: string | null,
+) {
+  return `${workspace}.scan.mode:${businessId ?? "_"}:${userId ?? "_"}`;
 }
 
 function readPersistedMode(key: string): SalesScanMode {
@@ -99,7 +111,13 @@ function readPersistedMode(key: string): SalesScanMode {
   }
 }
 
-export function SalesScanProvider({ children }: { children: ReactNode }) {
+export function SalesScanProvider({
+  children,
+  workspace = "sales",
+}: {
+  children: ReactNode;
+  workspace?: ScanWorkspace;
+}) {
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranches();
   const { user } = useAuth();
@@ -110,7 +128,8 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
   // `scan_events` via the `workspace_id` audit lane. Resolved org comes
   // from the caller's active business; branch is left to the row-level
   // join. Cleared automatically on provider unmount.
-  useActiveScanContext({ workspace_id: "sales" });
+  useActiveScanContext({ workspace_id: workspace });
+
 
   const controllerRef = useRef<ScanController | null>(null);
   const openDraftRef = useRef<OpenDraftHandler | null>(null);
@@ -126,7 +145,7 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Mode state — persisted per (business, user).
-  const storageKey = modeStorageKey(currentBusiness?.id ?? null, user?.id ?? null);
+  const storageKey = modeStorageKey(workspace, currentBusiness?.id ?? null, user?.id ?? null);
   const [mode, setModeState] = useState<SalesScanMode>(() => readPersistedMode(storageKey));
   // Re-hydrate when the active business/user changes.
   useEffect(() => {
@@ -423,3 +442,17 @@ export function useSalesScanMode() {
 export function useSalesScanContext() {
   return useContext(SalesScanContext);
 }
+
+/* ------------------------------------------------------------------ *
+ * Domain-neutral aliases.
+ *
+ * The scan transport is a property of a *transactional workspace*, not of
+ * Sales. New workspaces (Purchases today, Inventory later) mount and consume
+ * it under these names; the `Sales*` names stay as-is so existing Sales code
+ * and its tests are untouched.
+ * ------------------------------------------------------------------ */
+export const DocumentScanProvider = SalesScanProvider;
+export const useDocumentScanController = useSalesScanController;
+export const useDocumentScanOpenDraftHandler = useSalesOpenDraftHandler;
+export const useDocumentScanHasActiveDraft = useSalesHasActiveDraft;
+export const useDocumentScanMode = useSalesScanMode;

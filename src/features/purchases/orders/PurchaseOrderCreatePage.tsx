@@ -30,6 +30,14 @@ import {
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanCostPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
 
 import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders, type PurchaseOrderItem } from "@/hooks/usePurchaseOrders";
@@ -130,6 +138,32 @@ export default function PurchaseOrderCreatePage() {
       }),
     );
   }, []);
+
+  // Scan-to-line — PurchasesLayout mounts the same workspace scan transport
+  // Sales uses, so a paired phone / wedge / camera is already live here.
+  // Buying documents seed from cost price; the vendor price-list override
+  // below stays authoritative.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity, lines) => {
+      const unit_price = scanCostPrice(resolved);
+      const tax_rate = scanTaxRate(resolved);
+      const subtotal = quantity * unit_price;
+      return {
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        quantity_received: 0,
+        unit_price,
+        tax_rate,
+        tax_amount: subtotal * (tax_rate / 100),
+        line_total: subtotal,
+        sort_order: lines.length,
+      } as LineItem;
+    },
+  );
 
   const selectProduct = useCallback(
     (index: number, productId: string) => {
@@ -287,6 +321,15 @@ export default function PurchaseOrderCreatePage() {
         <EditableLineItemsGrid
           columns={PRICED_LINE_COLUMNS}
           rows={lineItems}
+          toolbar={
+            <DocumentLineScanner
+              documentLabel="Purchase order"
+              businessId={currentBusiness?.id}
+              branchId={currentBranch?.id ?? null}
+              onResolved={handleScanResolved}
+              onSessionCommit={handleScanSessionCommit}
+            />
+          }
           onAddRow={addLineItem}
           onRemoveRow={removeLineItem}
           addLabel="Add Item"
@@ -295,6 +338,7 @@ export default function PurchaseOrderCreatePage() {
               key={index}
               index={index}
               item={item}
+              flashed={flashIndex === index}
               products={products}
               layout={layout}
               formatCurrency={formatCurrency}

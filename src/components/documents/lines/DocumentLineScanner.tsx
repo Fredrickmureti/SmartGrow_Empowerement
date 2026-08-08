@@ -1,9 +1,13 @@
 /**
- * InvoiceLineScanner — scan-first line entry for the Sales / Invoice
- * dialogs. The visible `<BarcodeInputField>` is a manual-entry surface;
- * the real transport for high-velocity scanning is `SalesScanContext`,
- * which owns a long-lived router target at the Sales workspace level.
+ * DocumentLineScanner — scan-first line entry for ANY transactional document
+ * form that captures product lines (Sales: Estimate, Proforma, Sales Order,
+ * Invoice, Credit Note, Return, Delivery Note; Purchases: PO, RFQ, Bill,
+ * Requisition, Purchase Return). The visible `<BarcodeInputField>` is a
+ * manual-entry surface; the real transport for high-velocity scanning is the
+ * workspace scan context, which owns a long-lived router target at the
+ * workspace level.
  *
+
  * Lifecycle:
  *  - On mount, registers a draft controller in `SalesScanContext`. Every
  *    scan dispatched by the router (paired phone, USB wedge, camera, or
@@ -46,6 +50,20 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Props {
   businessId?: string;
   branchId?: string | null;
+  /**
+   * Operator-facing name of the host document ("Invoice", "Purchase order",
+   * "Delivery note"…). Drives the scan feedback field label, the pairing
+   * button label and the guidance copy, so no document needs its own
+   * scanner component just to change wording.
+   */
+  documentLabel?: string;
+  /**
+   * `capture` (default) — a scan may append a new line to the document.
+   * `verify` — fulfilment/receiving documents: a scan ticks off a planned
+   * line and never authors one. Only affects the guidance copy here; the
+   * refusal semantics live in `useDocumentLineScan`.
+   */
+  mode?: "capture" | "verify";
   /** Called once per router-confirmed scan that resolves to a product. */
   onResolved: (resolved: ResolvedScan) => void;
   /** Optional ref to the lines-table container — used to decide whether
@@ -67,15 +85,19 @@ interface Props {
   openSessionOnMount?: boolean;
 }
 
-export function InvoiceLineScanner({
+export function DocumentLineScanner({
   businessId,
   branchId = null,
+  documentLabel = "Document",
+  mode = "capture",
   onResolved,
   linesTableRef,
   disabled,
   onSessionCommit,
   openSessionOnMount,
 }: Props) {
+  const fieldLabel = `${documentLabel} line`;
+
   const { resolveTagged } = useResolveBarcode(businessId, branchId);
   const { handheld } = useLocalScan();
   const { formatCurrency } = useCurrency();
@@ -139,7 +161,7 @@ export function InvoiceLineScanner({
             raw: norm,
             source: "field",
             workflow: "quantity",
-            fieldLabel: "Invoice line",
+            fieldLabel,
           });
         } else if (result.kind === "miss") {
           setLastFlash({
@@ -156,7 +178,7 @@ export function InvoiceLineScanner({
             raw: norm,
             source: "field",
             workflow: "quantity",
-            fieldLabel: "Invoice line",
+            fieldLabel,
           });
         } else {
           setLastFlash({ kind: "err", text: "Network blip — try again" });
@@ -165,7 +187,7 @@ export function InvoiceLineScanner({
             raw: norm,
             source: "field",
             workflow: "quantity",
-            fieldLabel: "Invoice line",
+            fieldLabel,
           });
         }
       } finally {
@@ -209,20 +231,26 @@ export function InvoiceLineScanner({
   return (
     <div
       ref={containerRef}
+      data-document-line-scanner="true"
       data-invoice-line-scanner="true"
       className="rounded-lg border bg-muted/30 p-3 space-y-2"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-medium text-muted-foreground">
           {handheld
-            ? "Tap Scan products for a live camera session — every hit shows up with its quantity"
-            : <>Scan to add a line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · scanning works even when this input is not focused</>}
+            ? mode === "verify"
+              ? "Tap Scan products to tick off the planned lines — anything not on the document is refused"
+              : "Tap Scan products for a live camera session — every hit shows up with its quantity"
+            : mode === "verify"
+              ? <>Scan to tick off a planned line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · items not on the document are refused</>
+              : <>Scan to add a line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · scanning works even when this input is not focused</>}
+
         </div>
         {!handheld && (
           <ScannerPairingButton
             businessId={businessId}
             branchId={branchId}
-            label="Invoice"
+            label={documentLabel}
           />
         )}
       </div>
@@ -260,7 +288,7 @@ export function InvoiceLineScanner({
         branchId={branchId}
         allowRepeats
         workflow="quantity"
-        fieldLabel="Invoice line"
+        fieldLabel={fieldLabel}
         placeholder={
           handheld
             ? "Or type a barcode / SKU"
