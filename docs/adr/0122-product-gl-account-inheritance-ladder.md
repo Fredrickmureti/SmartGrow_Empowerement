@@ -72,8 +72,10 @@ exactly as before.
 `src/test/architecture/posting-paths-no-direct-product-accounts.test.ts`
 guards the delegation.
 
+## Consequences
 
 - `product_categories` carries `sales_account_id`, `purchase_account_id`,
+
   `cogs_account_id`, `inventory_account_id`, all nullable = inherit.
 - `_resolve_invoice_gl_accounts` delegates per-product revenue to the canonical
   function. Remaining SQL posting paths (delivery COGS, bill expense, POS)
