@@ -80733,6 +80733,10 @@ export type Database = {
           schema_name: string
         }[]
       }
+      _account_is_postable: {
+        Args: { p_account_id: string; p_business_id: string; p_org_id: string }
+        Returns: boolean
+      }
       _apply_pack_upgrade_atomic_unchecked: {
         Args: { _proposal_id: string }
         Returns: Json
@@ -93182,6 +93186,16 @@ export type Database = {
           _setting_key: string
         }
         Returns: string
+      }
+      resolve_delivery_cogs_lines: {
+        Args: {
+          p_business_id: string
+          p_delivery_number: string
+          p_dn_id: string
+          p_is_return: boolean
+          p_org_id: string
+        }
+        Returns: Json
       }
       resolve_device: {
         Args: {
