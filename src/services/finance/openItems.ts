@@ -162,3 +162,71 @@ export async function fetchTopOpenCounterparties(
     .sort((a, b) => b.amount - a.amount)
     .slice(0, limit);
 }
+
+export interface OpenItemAging {
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  days120: number;
+  total: number;
+}
+
+export const EMPTY_OPEN_ITEM_AGING: OpenItemAging = {
+  current: 0,
+  days30: 0,
+  days60: 0,
+  days90: 0,
+  days120: 0,
+  total: 0,
+};
+
+/**
+ * Per-counterparty open-item aging, straight off the GL-gated projection.
+ *
+ * ADR: contact-level receivable / payable figures MUST come from
+ * `finance_ar_open_items` / `finance_ap_open_items`, never from a status list
+ * over `invoices` / `bills`. Residual there nets every settlement channel
+ * (cash receipts and applied credit notes) and only counts documents with a
+ * posted journal entry on the control account.
+ */
+export async function fetchContactOpenItemAging(
+  side: "ar" | "ap",
+  params: {
+    orgId: string;
+    contactId: string;
+    businessId?: string | null;
+    branchId?: string | null;
+  },
+): Promise<OpenItemAging> {
+  const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
+  let q = supabase
+    .from(view as any)
+    .select("document_date, due_date, residual_amount")
+    .eq("organization_id", params.orgId)
+    .eq("contact_id", params.contactId)
+    .gt("residual_amount", 0.01);
+  if (params.businessId) q = q.eq("business_id", params.businessId);
+  if (params.branchId) q = q.eq("branch_id", params.branchId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const now = Date.now();
+  const buckets: OpenItemAging = { ...EMPTY_OPEN_ITEM_AGING };
+  for (const row of (data || []) as any[]) {
+    const residual = Number(row.residual_amount) || 0;
+    if (residual <= 0.01) continue;
+    const due = row.due_date || row.document_date;
+    const daysOverdue = due
+      ? Math.floor((now - new Date(due).getTime()) / 86_400_000)
+      : 0;
+    if (daysOverdue <= 0) buckets.current += residual;
+    else if (daysOverdue <= 30) buckets.days30 += residual;
+    else if (daysOverdue <= 60) buckets.days60 += residual;
+    else if (daysOverdue <= 90) buckets.days90 += residual;
+    else buckets.days120 += residual;
+    buckets.total += residual;
+  }
+  return buckets;
+}
