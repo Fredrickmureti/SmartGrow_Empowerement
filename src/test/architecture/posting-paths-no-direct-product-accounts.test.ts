@@ -65,3 +65,35 @@ describe("posting paths never bypass the product GL ladder", () => {
     });
   }
 });
+
+/**
+ * Reversal symmetry (ADR 0122): a reversal must resolve accounts through the
+ * same ladder as the posting it reverses. These paths keep a company-level
+ * `detail_type` fallback for orgs with no mapped product/category account,
+ * so they are asserted on delegation rather than on the absence of a
+ * fallback lookup.
+ */
+const REVERSAL_FUNCTIONS = [
+  ["approve_sales_return_atomic", "resolve_sales_return_cogs_lines"],
+  ["issue_credit_note_atomic", "resolve_credit_note_revenue_lines"],
+  ["resolve_sales_return_cogs_lines", "resolve_product_gl_account"],
+  ["resolve_credit_note_revenue_lines", "resolve_product_gl_account"],
+] as const;
+
+describe("reversal paths resolve accounts through the ladder", () => {
+  for (const [fn, delegate] of REVERSAL_FUNCTIONS) {
+    const sql = latestDefinitionOf(fn);
+
+    it(`${fn} delegates to ${delegate}`, () => {
+      expect(sql).toContain(delegate);
+    });
+
+    it(`${fn} does not read product account columns directly`, () => {
+      for (const col of PRODUCT_ACCOUNT_COLUMNS) {
+        expect(sql).not.toMatch(
+          new RegExp(`\\b(p|pr|prod|products)\\.${col}\\b`, "i"),
+        );
+      }
+    });
+  }
+});
