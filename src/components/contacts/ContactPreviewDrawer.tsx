@@ -190,6 +190,9 @@ export function ContactPreviewDrawer({
           days90plus: apAging.days120,
         });
 
+        const txns: TransactionSummary[] = [];
+
+
         (invoices || []).slice(0, 3).forEach((inv: any) => {
           txns.push({
             type: "invoice",
