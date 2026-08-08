@@ -4,9 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import { usePermissions } from "./usePermissions";
+import { useAuditLog } from "./useAuditLog";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { applyBranchFilter } from "@/lib/branchScope";
+
 
 export interface ProformaInvoice {
   id: string;
