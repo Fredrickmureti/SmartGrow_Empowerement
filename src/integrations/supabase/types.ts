@@ -74175,6 +74175,17 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_open_items_tieout: {
+        Row: {
+          business_id: string | null
+          drift: number | null
+          ledger_net: number | null
+          organization_id: string | null
+          projection_residual: number | null
+          side: string | null
+        }
+        Relationships: []
+      }
       garnishment_ledger: {
         Row: {
           amount: number | null
