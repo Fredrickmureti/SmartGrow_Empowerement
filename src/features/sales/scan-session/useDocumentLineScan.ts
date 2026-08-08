@@ -276,3 +276,13 @@ export function scanUnitPrice(resolved: ResolvedScan): number {
 export function scanTaxRate(resolved: ResolvedScan): number {
   return resolved.taxRate ?? 0;
 }
+
+/**
+ * scanCostPrice — purchasing counterpart of `scanUnitPrice`. Buying documents
+ * seed the line from the product's cost, never its selling price. Any
+ * vendor-specific price list still overrides this afterwards through the
+ * host form's own pricing logic — the scanner never prices a line itself.
+ */
+export function scanCostPrice(resolved: ResolvedScan): number {
+  return resolved.costPrice ?? 0;
+}

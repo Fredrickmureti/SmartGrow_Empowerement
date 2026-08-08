@@ -16,6 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS_NO_TAX } from "@/components/documents/lines/PricedLineRow";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import { useDocumentLineScan, scanCostPrice } from "@/features/sales/scan-session/useDocumentLineScan";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
 import {
   Select,
   SelectContent,
@@ -97,6 +101,29 @@ export default function PurchaseReturnCreatePage() {
     (n: number) => formatCurrency(n, baseCurrency),
     [formatCurrency, baseCurrency],
   );
+
+  // Scan-to-line — returns to a vendor are priced at cost, and the row
+  // carries no tax column, so the line math stays local to this form.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = useDocumentLineScan<LineItem>({
+    setLines: setLineItems,
+    matchLine: (line, resolved) => !!line.product_id && line.product_id === resolved.productId,
+    isEmptyLine: (line) => !line.product_id && !line.description,
+    buildLine: (resolved, quantity, lines) => {
+      const unit_price = scanCostPrice(resolved);
+      return {
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price,
+        line_total: quantity * unit_price,
+        sort_order: lines.length,
+      } as LineItem;
+    },
+    applyToExisting: (line, quantity) =>
+      ({ quantity, line_total: quantity * (line.unit_price ?? 0) }) as Partial<LineItem>,
+  });
 
   const addLineItem = useCallback(
     () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
@@ -198,6 +225,16 @@ export default function PurchaseReturnCreatePage() {
         <EditableLineItemsGrid
           columns={PRICED_LINE_COLUMNS_NO_TAX}
           rows={lineItems}
+          toolbar={
+            <DocumentLineScanner
+              documentLabel="Purchase return"
+              businessId={currentBusiness?.id}
+              branchId={currentBranch?.id ?? null}
+              onResolved={handleScanResolved}
+              onSessionCommit={handleScanSessionCommit}
+              disabled={isSubmitting}
+            />
+          }
           onAddRow={addLineItem}
           onRemoveRow={removeLineItem}
           addLabel="Add Item"
@@ -207,6 +244,7 @@ export default function PurchaseReturnCreatePage() {
               key={index}
               index={index}
               item={item}
+              flashed={flashIndex === index}
               products={products.filter((p) => p.is_active)}
               layout={layout}
               disabled={isSubmitting}
