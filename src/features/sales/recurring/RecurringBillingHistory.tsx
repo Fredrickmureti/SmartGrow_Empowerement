@@ -66,6 +66,9 @@ function deliveryLabel(run: RecurringInvoiceRun) {
       return "Queued for sending";
     case "failed":
       return `Delivery failed: ${run.delivery_error ?? "unknown error"}`;
+    case "blocked":
+      // Auto-send was asked for, but the invoice never became sendable.
+      return run.delivery_error ?? "Not sent — invoice was never confirmed";
     default:
       return "Not sent";
   }
