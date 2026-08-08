@@ -18,6 +18,7 @@ import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useCustomerCredit } from "@/hooks/useCustomerCredit";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { CreditCheckAlert } from "@/components/shared/CreditCheckAlert";
+import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
