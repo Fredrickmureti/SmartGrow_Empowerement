@@ -35,39 +35,9 @@ interface OccurrenceResult {
   error?: string;
 }
 
-/** Mirrors public.recurring_period_end so the driver can walk the calendar. */
-function periodEnd(frequency: string, periodStart: string): string {
-  const d = new Date(`${periodStart}T00:00:00Z`);
-  const day = d.getUTCDate();
-  switch (frequency) {
-    case "weekly":
-      d.setUTCDate(d.getUTCDate() + 7);
-      break;
-    case "biweekly":
-      d.setUTCDate(d.getUTCDate() + 14);
-      break;
-    case "quarterly":
-      d.setUTCMonth(d.getUTCMonth() + 3);
-      if (d.getUTCDate() < day) d.setUTCDate(0);
-      break;
-    case "yearly":
-      d.setUTCFullYear(d.getUTCFullYear() + 1);
-      if (d.getUTCDate() < day) d.setUTCDate(0);
-      break;
-    default:
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      if (d.getUTCDate() < day) d.setUTCDate(0);
-      break;
-  }
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
-function nextStart(frequency: string, periodStart: string): string {
-  const d = new Date(`${periodEnd(frequency, periodStart)}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
+// The recurrence calendar lives in the database (`recurring_next_start`),
+// anchored on the template's start day. The driver never recomputes it: it
+// walks to whatever `next_run_date` the engine returns.
 
 async function deliverPendingInvoices(supabase: any, today: string) {
   const { data: pending } = await supabase
@@ -227,7 +197,8 @@ serve(async (req: Request) => {
           }
 
           generated++;
-          period = outcome.next_run_date ?? nextStart(t.frequency, period);
+          if (!outcome.next_run_date) break;
+          period = outcome.next_run_date;
         }
 
         if (!stopped) {
