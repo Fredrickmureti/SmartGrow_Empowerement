@@ -347,8 +347,23 @@ export default function Estimates() {
 
   const handleConvertToInvoice = async (id: string) => {
     try {
-      await convertToInvoice(id);
-      toast({ title: "Estimate converted to invoice" });
+      const res = await convertToInvoice(id);
+      if (res.confirmed) {
+        toast({
+          title: `Invoice ${res.invoice_number} issued`,
+          description: "The estimate was converted, posted to the ledger and marked as sent.",
+        });
+      } else {
+        toast({
+          title: `Invoice ${res.invoice_number} created as draft`,
+          description:
+            res.confirmError
+              ? `It could not be issued automatically: ${res.confirmError}`
+              : "It could not be issued automatically. Confirm it manually from Invoices.",
+          variant: "destructive",
+        });
+      }
+
     } catch (error: any) {
       toast({ title: "Error converting estimate", description: normalizeError(error).message, variant: "destructive" });
     }

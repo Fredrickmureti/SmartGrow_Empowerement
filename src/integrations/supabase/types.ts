@@ -84880,7 +84880,11 @@ export type Database = {
         Returns: string
       }
       convert_estimate_to_invoice_atomic: {
-        Args: { p_estimate_id: string; p_user_id: string }
+        Args: {
+          p_auto_confirm?: boolean
+          p_estimate_id: string
+          p_user_id: string
+        }
         Returns: Json
       }
       convert_estimate_to_so_atomic: {
