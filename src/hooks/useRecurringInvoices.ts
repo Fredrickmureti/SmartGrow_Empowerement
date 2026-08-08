@@ -8,10 +8,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
-import { useDefaultAccounts } from "./useDefaultAccounts";
-import { useAuditLog } from "./useAuditLog";
-import { confirmInvoiceAndPostGL } from "./invoices/confirmInvoiceGL";
-import type { Invoice } from "./useInvoices";
 
 export interface RecurringInvoiceItem {
   id?: string;
@@ -78,8 +74,6 @@ export function useRecurringInvoices() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { getInvoiceAccountMappings, hasRequiredAccounts, accounts: defaultAccountMappings } = useDefaultAccounts();
-  const { logAction } = useAuditLog();
 
   const orgId = currentOrg?.id;
   const businessId = currentBusiness?.id;
@@ -225,35 +219,4 @@ export function useRecurringInvoices() {
     generateInvoiceNow,
     refreshRecurringInvoices: invalidate,
   };
-}
-
-function calculateNextRunDate(
-  frequency: RecurringInvoice["frequency"],
-  fromDate: Date
-): string {
-  const originalDay = fromDate.getDate();
-  const date = new Date(fromDate);
-
-  switch (frequency) {
-    case "weekly":
-      date.setDate(date.getDate() + 7);
-      break;
-    case "biweekly":
-      date.setDate(date.getDate() + 14);
-      break;
-    case "monthly":
-      date.setMonth(date.getMonth() + 1);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-    case "quarterly":
-      date.setMonth(date.getMonth() + 3);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-    case "yearly":
-      date.setFullYear(date.getFullYear() + 1);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-  }
-
-  return date.toISOString().split("T")[0];
 }
