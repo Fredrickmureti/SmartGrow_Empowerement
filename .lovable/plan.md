@@ -1,105 +1,114 @@
-# Estimate / Quotation Lifecycle — Authoritative Project Status
+# Recurring Invoicing — Verification Verdict and Convergence Plan
 
-Domain: Sales → Estimates / Quotations
-Source audit: `.lovable/plan/estimate-quotation-lifecycle-audit-verdict-and-convergence-p-2026-08-08.md`
-Last updated: 2026-08-08
+Everything below was confirmed against the live database and the current code, not inferred
+from the previous engineer's notes.
 
-## Current state
+## Part 1 — The reported estimate error
 
-**All phases (0–6) of the Estimate convergence roadmap are implemented and verified.**
-The domain is at a coherent, production-ready state. Nothing is half-landed.
+`set_estimate_status_atomic` **exists** in the database with the exact signature the client calls
+(`p_estimate_id, p_status, p_user_id, p_reason`), is `SECURITY DEFINER`, and has EXECUTE granted to
+`authenticated`. Calling it live over the REST API today returns a normal business error
+(`Estimate ... not found`), not `404`.
 
-## Completed and verified
+So the 404 was the API layer's schema cache not yet knowing about a function that had just been
+created — a transient condition at the moment you clicked, not a missing implementation and not a
+broken lifecycle. It is already gone. The plan below still includes a live end-to-end re-check of
+the draft → sent transition on your real estimate before anything else, because a claim is not
+verified until it is exercised.
 
-### Phase 0 — Unbreak conversion (DONE, verified against live DB)
-- `invoices.source_estimate_id` added (nullable, FK, indexed); `sales_orders.source_estimate_id` in use.
-- `convert_estimate_to_so_atomic` reads `expiry_date` (the phantom `valid_until` is gone).
-- Both RPCs copy `packaging_id, display_uom_id, display_quantity, uom_snapshot` line-for-line and
-  materialise `estimate_additional_costs` as trailing document lines.
-- Both RPCs raise unless `subtotal + tax − discount = total` before any write.
-- Forward pointer recorded on both paths.
-- Verified: `pg_get_functiondef` on the live database confirms all of the above.
+## Part 2 — What the previous engineer actually landed on recurring invoicing
 
-### Phase 1 — Lifecycle spine (DONE)
-- `estimates.sent_at, viewed_at, accepted_at, rejected_at, converted_sales_order_id`.
-- `set_estimate_status_atomic(p_estimate_id, p_status, p_user_id)` owns the only legal transition
-  table: `draft→sent→viewed→accepted|rejected|expired`, `accepted→converted`, terminal states closed.
-- `estimate_status_events` audit table (business-scoped RLS) written on every transition,
-  including both conversion paths.
-- `trg_estimate_status_write_guard` blocks any direct `status` write that is not carrying the
-  `app.estimate_status_writer` token.
-- `get_document_lineage` knows the direct estimate → invoice edge.
+Verified present and genuinely working:
 
-### Phase 2 — Numbering convergence (DONE)
-- `get_next_so_number(_org_id, _business_id, _branch_id)` with advisory lock and business+branch
-  scope; the 1-arg signature remains as a thin delegate.
-- Sequence extraction now parses only the trailing counter segment, so `EST-2026-0002` no longer
-  becomes `EST-2026-20260002`.
+- `recurring_invoices`, `recurring_invoice_items`, `recurring_invoice_runs` with a **unique index on
+  (recurring_invoice_id, period_start)** — the durable billing-event identity. Duplicate billing for
+  the same period is structurally impossible, not merely unlikely.
+- `generate_recurring_invoice_occurrence` is one engine shared by the scheduler and the UI's
+  "Generate now". It takes `FOR UPDATE` on both the template and the run row, claims the period,
+  and on any failure rolls the whole occurrence back, leaves the run `failed` with a reason, and
+  **does not advance `next_run_date`**. Skipped-revenue-by-silent-advance is not possible.
+- The cron sweep (`process-recurring-invoices-daily`, 06:00) is a thin driver: it walks catch-up
+  periods one RPC per period, isolates failures per template so one broken customer cannot block
+  others, and gates on subscription entitlement.
+- Invoices carry `source='recurring'`, `source_recurring_id`, and billing period columns, and use
+  canonical invoice numbering. Delivery is a separate retryable sweep that cannot corrupt the
+  financial event.
+- The earlier AR defect is fixed: `finance_ar_open_items` / `finance_ap_open_items` /
+  `finance_open_items_tieout` all exist, there are zero invoices left on the orphaned `confirmed`
+  status, and `src/services/finance/invoicePayability.ts` is the single payability predicate.
+- Fiscal-period locks are enforced by triggers on `journal_entries`, so auto-posting into a closed
+  period fails deterministically and the occurrence rolls back.
 
-### Phase 3 — RLS convergence (DONE)
-- Legacy org-wide `estimate_items` policy family dropped; one business-scoped family remains,
-  aligned with the parent table.
-- `estimate_additional_costs` policies inherit the parent's business + module-permission check.
+That is a real, defensible foundation. It is not being rewritten.
 
-### Phase 4 — Frontend alignment (DONE)
-- `src/lib/estimateLifecycle.ts` — single source of truth for the transition table and the totals
-  formula (`computeEstimateTotals`, additional costs included).
-- `useEstimates.setEstimateStatus` routes every transition through the RPC; `updateEstimate` no
-  longer accepts `status` and now persists `additional_costs`.
-- Create and edit share one totals formula — editing an estimate can no longer change its price.
-- Conversion buttons are blocked when either forward pointer is set.
-- Note: the "duplicate creation surface" flagged in the audit turned out to be a CSV importer, not a
-  rival editor. Nothing to retire; finding withdrawn.
+## Part 3 — Genuine gaps found
 
-### Phase 5 — Expiry (DONE)
-- `expire_stale_estimates()` moves `sent`/`viewed` estimates past `expiry_date` to `expired`
-  through the same state machine; scheduled daily via `pg_cron`.
+1. **Duplicate accounting writer.** The occurrence engine hand-builds AR / revenue / tax journal
+   lines and posts them itself, instead of routing through `confirm_invoice_atomic`, the canonical
+   confirmation engine every manual invoice uses. Two posting paths for one document type is exactly
+   the drift the brief forbids: any future change to invoice confirmation silently skips recurring.
+2. **Auto-send is a false promise when auto-confirm is off.** Delivery is only queued when the run
+   reaches `posted`. A template with "Auto-send" ticked and "Auto-confirm" unticked marks delivery
+   `not_applicable` and the customer is never emailed, with no warning anywhere.
+3. **Delivery retries reuse the generation counter.** The sweep reads `attempt_count` — which counts
+   *generation* attempts — to decide whether to stop retrying email. Delivery needs its own counter
+   and a backoff timestamp; today a first email failure can be treated as attempt 1 forever, or a
+   regenerated period can prematurely exhaust its email budget.
+4. **Lifecycle is a boolean.** Pause/resume is a raw browser `update({ is_active })` straight onto
+   the table — no state machine, no audit row, no distinction between paused, cancelled, and
+   naturally completed. `completed_at` is set by the engine, so two writers disagree about what
+   "stopped" means.
+5. **Amendments mutate the definition in place.** Changing price, quantity or product rewrites the
+   template with no effective-dated version, so billing history cannot explain why period N was
+   priced differently from period N+1. Already-billed periods are safe (lines are snapshotted onto
+   the invoice), but the *why* is unrecoverable.
+6. **"Payment Terms" in the UI is `days_before_due`**, and the due date is computed from the period
+   start rather than the invoice issue date, and is not connected to the canonical payment-terms
+   concept used elsewhere. The label promises something the field does not do.
+7. **Timezone.** Due-date detection uses UTC "today", not the business's timezone, so month-boundary
+   billing fires on the wrong local day for non-UTC tenants.
+8. **Catch-up truncation is silent.** A template dormant longer than 12 periods stops at 12 with no
+   operator alert.
 
-### Phase 6 — Tests (DONE)
-- `src/test/lib/estimateLifecycle.test.ts` — transition legality + totals stability across
-  create/edit round-trips.
-- `src/test/architecture/estimate-status-single-writer.test.ts` — no client-side `estimates.status`
-  write anywhere in `src/`.
-- `src/test/architecture/estimate-conversion-parity.test.ts` (16 tests) — conversion invariants:
-  double conversion rejected, illegal source statuses rejected, totals assertion present,
-  additional costs materialised, UoM provenance carried, forward pointer recorded, audit event
-  written, `valid_until` can never return, and only `useEstimates.ts` may invoke the conversion RPCs.
-- All estimate suites pass. The repository-wide run has ~185 pre-existing failures unrelated to this
-  domain (e.g. `wms-topic-vocabulary`); every estimate-related test passes in isolation and in CI scope.
+## Part 4 — Convergence plan (ordered by financial risk)
 
-## Pending
+**Phase 0 — Re-verify the reported symptom.** Exercise draft → sent on your actual estimate against
+the live API and confirm the audit event lands in `estimate_status_events`. Only proceed once green.
 
-Nothing in the Estimate domain. No partial work, no orphaned functionality.
+**Phase 1 — One posting engine.** Rewrite the auto-confirm branch of
+`generate_recurring_invoice_occurrence` to call `confirm_invoice_atomic` with resolved account lines
+instead of composing and posting its own journal entry. Same GL result, one writer. Add an
+architecture test banning journal-line construction inside the recurring engine.
 
-## Active phase
+**Phase 2 — Honest auto-send.** Queue delivery whenever the invoice reaches a legally sendable
+state, and where auto-send is requested without auto-confirm, record an explicit, visible run
+outcome explaining why nothing was sent rather than silently marking it not applicable. Surface that
+in the billing history UI.
 
-None — the Estimate roadmap is closed.
+**Phase 3 — Delivery retry as its own concern.** Add `delivery_attempt_count` and `next_retry_at` to
+`recurring_invoice_runs`, drive the sweep off them with exponential backoff, and stop overloading
+`attempt_count`.
 
-## Next milestone
+**Phase 4 — Real lifecycle.** Introduce explicit statuses (`active`, `paused`, `cancelled`,
+`completed`) with a single `set_recurring_status_atomic` writer, a trigger guard against direct
+writes (mirroring the estimate pattern already proven in this codebase), an audit event table, and
+removal of the browser-side `is_active` write.
 
-The chronologically next domain in the sales chain, and the one this work now feeds directly:
-**Sales Order → Delivery → Invoice execution lifecycle.** The estimate now hands a complete,
-reconciled document to `sales_orders` (with additional costs as lines and UoM provenance intact);
-the natural continuation is to audit whether the SO side preserves that fidelity through
-fulfilment — specifically SO status machine parity, partial-delivery accounting, and whether
-`sales_orders.source_estimate_id` survives into the invoice for end-to-end lineage.
+**Phase 5 — Effective-dated amendments.** Version template lines so each generated invoice records
+the definition version that priced it, making "why was this period billed at this price" answerable.
 
-## Instructions for the next agent
+**Phase 6 — Terms, calendar and observability.** Rename/rewire the due-date field to the canonical
+payment-terms concept and anchor it on issue date; evaluate due dates in the business timezone;
+alert when catch-up truncates.
 
-1. **Verify before you build.** Do not assume this document is accurate. Confirm, in this order:
-   - `pg_get_functiondef` for `convert_estimate_to_invoice_atomic`, `convert_estimate_to_so_atomic`,
-     `set_estimate_status_atomic`, `expire_stale_estimates`, and both `get_next_so_number` overloads.
-   - `cron.job` contains the expiry schedule.
-   - Run `bunx vitest run src/test/architecture/estimate-conversion-parity.test.ts
-     src/test/architecture/estimate-status-single-writer.test.ts src/test/lib/estimateLifecycle.test.ts`
-     — expect all green.
-   - Spot-check RLS on `estimate_items` / `estimate_additional_costs`: exactly one business-scoped
-     policy family each, no org-wide leftovers.
-2. **If verification fails**, fix the Estimate domain first. Do not start the next milestone on a
-   broken foundation.
-3. **If verification passes**, open a new plan for the Sales Order execution lifecycle above.
-   Do not jump to an unrelated module.
-4. **Boundaries that must not be crossed** (carried forward from the audit): estimates never post to
-   the GL; line-level price/tax/UoM snapshots stay frozen on `estimate_items`; the document
-   snapshot/print pipeline (`services/documents/snapshots/salesEstimate.ts`) and `convert_lead_to_estimate`
-   are correct and out of scope.
+**Phase 7 — Tests.** SQL tests for: concurrent double sweep produces exactly one invoice per period;
+failed posting leaves no invoice and does not advance the schedule; closed fiscal period fails
+cleanly; auto-send-without-auto-confirm produces a visible explained outcome; delivery backoff
+terminates. Plus architecture ratchets for the single posting engine and the single lifecycle writer.
+
+## Technical notes
+
+- No new engines, tables-per-feature, PDF pipeline or notification path are introduced. Every phase
+  either deletes a parallel path or makes an existing one honest.
+- Existing run rows and templates are migrated in place; the unique period key stays the idempotency
+  anchor throughout.
