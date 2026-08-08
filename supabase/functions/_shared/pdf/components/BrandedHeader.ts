@@ -311,6 +311,8 @@ function drawOperationalHeader(
  * This matches the on-screen `ReportSurface` masthead, so preview and
  * printed PDF read identically.
  */
+// Retained for reference: superseded by drawOperationalHeader for every report.
+// deno-lint-ignore no-unused-vars
 function drawFinancialMasthead(
   builder: PdfBuilder,
   page: PDFPage,
