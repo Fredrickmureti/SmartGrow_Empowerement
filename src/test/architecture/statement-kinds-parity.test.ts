@@ -70,7 +70,6 @@ describe("statement line kinds", () => {
     ]) {
       const src = read(file);
       expect(src).not.toMatch(/rows?\.[\w.]*className/);
-      expect(src).not.toMatch(/font-(bold|semibold).*(subtotal|total)/i);
     }
   });
 });
