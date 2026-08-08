@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { callRpcWithSchemaRetry } from "@/lib/rpcSchemaRetry";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
@@ -221,12 +222,14 @@ export function useEstimates() {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to update estimates", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!user) throw new Error("Not authenticated");
 
-    const { error } = await supabase.rpc("set_estimate_status_atomic" as any, {
-      p_estimate_id: id,
-      p_status: status,
-      p_user_id: user.id,
-      p_reason: reason ?? null,
-    });
+    const { error } = await callRpcWithSchemaRetry(() =>
+      supabase.rpc("set_estimate_status_atomic" as any, {
+        p_estimate_id: id,
+        p_status: status,
+        p_user_id: user.id,
+        p_reason: reason ?? null,
+      }),
+    );
     if (error) throw error;
 
     const estimate = estimates.find((e) => e.id === id);
