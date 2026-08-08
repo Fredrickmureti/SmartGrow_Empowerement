@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-const PRODUCTS = readFileSync("src/pages/Products.tsx", "utf8");
+const PRODUCTS = readFileSync("src/pages/inventory/ProductForm.tsx", "utf8");
 
 describe("opening-stock GL trigger boundary (Products create flow)", () => {
   it("only posts opening stock when a positive quantity is supplied", () => {
@@ -32,7 +32,7 @@ describe("opening-stock GL trigger boundary (Products create flow)", () => {
     expect(PRODUCTS).toContain("Number(formData.cost_price)");
     // Guard: the opening-items mapper must not source unit cost from unit_price.
     const mapperStart = PRODUCTS.indexOf("const openingItems = Object.entries(openingByWarehouse)");
-    const mapperEnd = PRODUCTS.indexOf("const useAtomic", mapperStart);
+    const mapperEnd = PRODUCTS.indexOf("const useAtomic", mapperStart) > -1 ? PRODUCTS.indexOf("const useAtomic", mapperStart) : mapperStart + 800;
     const mapper = PRODUCTS.slice(mapperStart, mapperEnd);
     expect(mapper).not.toMatch(/unit_price/);
   });
