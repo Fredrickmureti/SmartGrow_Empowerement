@@ -32,6 +32,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
@@ -177,6 +178,7 @@ export default function BillCreatePage() {
     if (!vendorId) return;
     try {
       const defaults = await fetchContactDefaults(vendorId);
+      setVendorExpenseAccountId(defaults.default_expense_account_id ?? null);
       if (defaults.default_tax_rate_id) {
         const { data: taxRate } = await supabase
           .from("tax_rates")
