@@ -65,7 +65,7 @@ export default function ProformaInvoices() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { proformaInvoices, isLoading, deleteProformaInvoice, updateProformaInvoice, convertToInvoice, refresh } = useProformaInvoices();
+  const { proformaInvoices, isLoading, deleteProformaInvoice, setProformaStatus, convertToInvoice, refresh } = useProformaInvoices();
   const { formatCurrency } = useCurrency();
   const { isReadOnly, openUpgradeModal } = useSubscriptionAccess();
   
