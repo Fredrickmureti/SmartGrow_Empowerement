@@ -161,13 +161,11 @@ export default function ProformaCreatePage() {
   const formatLineCurrency = useCallback((n: number) => n.toFixed(2), []);
 
 
+  // Canonical line math — same helper the invoice/estimate paths use, and the
+  // same semantics `create_proforma_atomic` recomputes with server-side.
   const calculateTotals = () => {
-    const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-    const taxAmount = lineItems.reduce((sum, item) => {
-      const lineTotal = item.quantity * item.unit_price;
-      return sum + (lineTotal * (item.tax_rate / 100));
-    }, 0);
-    return { subtotal, taxAmount, total: subtotal + taxAmount };
+    const { subtotal, tax_total, total } = computeTotals(lineItems.map((item) => computeLine(item)));
+    return { subtotal, taxAmount: tax_total, total };
   };
 
   const totals = calculateTotals();
@@ -182,9 +180,8 @@ export default function ProformaCreatePage() {
 
     setIsSubmitting(true);
     try {
-      const subtotal = validatedLines.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-      const taxAmount = validatedLines.reduce((sum, item) => sum + (item.quantity * item.unit_price * (item.tax_rate || 0)) / 100, 0);
-      const total = subtotal + taxAmount;
+      const computed = validatedLines.map((item) => ({ item, calc: computeLine(item) }));
+      const { subtotal, tax_total: taxAmount, total } = computeTotals(computed.map((c) => c.calc));
 
       if (creditInfo) {
         const creditResult = checkCreditAvailability(total);
@@ -195,14 +192,15 @@ export default function ProformaCreatePage() {
         }
       }
 
-      const items = validatedLines.map((item) => ({
+      const items = computed.map(({ item, calc }) => ({
         product_id: item.product_id,
         description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         tax_rate: item.tax_rate,
-        tax_amount: (item.quantity * item.unit_price * (item.tax_rate || 0)) / 100,
-        line_total: item.quantity * item.unit_price,
+        discount_percent: (item as { discount_percent?: number }).discount_percent ?? 0,
+        tax_amount: calc.tax_amount,
+        line_total: calc.line_total,
       }));
 
       const created = await createProformaInvoice(
@@ -219,6 +217,7 @@ export default function ProformaCreatePage() {
         },
         items,
       );
+
       if (created?.id) {
         navigate(`/sales/proforma/${created.id}`);
       } else {
