@@ -15,6 +15,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import type { RecurringInvoice } from "@/hooks/useRecurringInvoices";
 import { useRecurringInvoiceRecord } from "./useRecurringInvoiceRecord";
+import { RecurringBillingHistory } from "./RecurringBillingHistory";
 
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
 
@@ -76,6 +77,7 @@ export function RecurringInvoicePeekSheet({ recurringId, onOpenChange }: Props) 
             </dl>
           </Section>
           <Section title="Line items"><LineItemsGrid columns={columns} rows={rows} readOnly /></Section>
+          <RecurringBillingHistory recurringId={recurringId} />
           <Section title="Activity">
             <DocumentActivityPanel entries={[
               { id: "created", at: fmt(record.created_at), actor: "System", title: `Template ${record.template_name} created` },
