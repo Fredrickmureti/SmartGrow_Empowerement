@@ -86,7 +86,7 @@ import Contact from "./pages/Contact";
 import Upgrade from "./pages/Upgrade";
 import Notifications from "./pages/Notifications";
 import Home from "./pages/Home";
-import Install from "./pages/Install";
+import Downloads from "./pages/Downloads";
 const PrivacyPolicyPage = lazy(() => import("./pages/legal/PrivacyPolicy"));
 const TermsOfServicePage = lazy(() => import("./pages/legal/TermsOfService"));
 const CookiePolicyPage = lazy(() => import("./pages/legal/CookiePolicy"));
@@ -325,7 +325,8 @@ const App = () => (
                             <Route path="/blog" element={<Blog />} />
                             <Route path="/features" element={<Features />} />
                             <Route path="/contact" element={<Contact />} />
-                            <Route path="/install" element={<Install />} />
+                            <Route path="/downloads" element={<Downloads />} />
+                            <Route path="/install" element={<Navigate to="/downloads" replace />} />
                             <Route path="/privacy" element={<LazyRoute module="Legal"><PrivacyPolicyPage /></LazyRoute>} />
                             <Route path="/terms" element={<LazyRoute module="Legal"><TermsOfServicePage /></LazyRoute>} />
                             <Route path="/cookies" element={<LazyRoute module="Legal"><CookiePolicyPage /></LazyRoute>} />

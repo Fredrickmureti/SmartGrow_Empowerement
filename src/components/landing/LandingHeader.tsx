@@ -58,9 +58,9 @@ import {
   Palmtree,
   Handshake,
   Utensils,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { InstallAppButton } from "@/components/pwa/InstallAppButton";
 
 const featuresData = [
   {
@@ -503,6 +503,17 @@ export function LandingHeader() {
                   </Link>
                 </NavigationMenuItem>
 
+                {/* Downloads Link */}
+                <NavigationMenuItem>
+                  <Link
+                    to="/downloads"
+                    className="flex items-center gap-1.5 px-4 py-2 text-white/70 hover:text-white transition-colors text-sm font-medium"
+                  >
+                    <Monitor className="h-4 w-4 text-cyan-400" />
+                    Desktop &amp; Hardware
+                  </Link>
+                </NavigationMenuItem>
+
                 {/* Pricing Link */}
                 <NavigationMenuItem>
                   <a
@@ -528,10 +539,16 @@ export function LandingHeader() {
               </Button>
             ) : (
               <>
-                <InstallAppButton
+                <Button
                   variant="ghost"
-                  className="text-white hover:bg-white/10 border border-white/20"
-                />
+                  className="text-white hover:bg-white/10 hover:text-white border border-white/20 gap-2"
+                  asChild
+                >
+                  <Link to="/downloads">
+                    <Download className="h-4 w-4" />
+                    Get Desktop App
+                  </Link>
+                </Button>
                 <Button variant="ghost" className="text-white hover:bg-white/10" asChild>
                   <Link to="/login">Sign In</Link>
                 </Button>
@@ -650,6 +667,17 @@ export function LandingHeader() {
                   </CollapsibleContent>
                 </Collapsible>
 
+                {/* Downloads Link */}
+                <NavigationMenuItem>
+                  <Link
+                    to="/downloads"
+                    className="flex items-center gap-1.5 px-4 py-2 text-white/70 hover:text-white transition-colors text-sm font-medium"
+                  >
+                    <Monitor className="h-4 w-4 text-cyan-400" />
+                    Desktop &amp; Hardware
+                  </Link>
+                </NavigationMenuItem>
+
                 {/* Pricing Link */}
                 <a
                   href="#pricing"
@@ -721,10 +749,16 @@ export function LandingHeader() {
                         Sign In
                       </Link>
                     </Button>
-                    <InstallAppButton
+                    <Button
                       variant="ghost"
-                      className="w-full border border-white/20 text-white hover:bg-white/10 hover:text-white justify-center"
-                    />
+                      className="w-full border border-white/20 text-white hover:bg-white/10 hover:text-white justify-center gap-2"
+                      asChild
+                    >
+                      <Link to="/downloads" onClick={() => setMobileOpen(false)}>
+                        <Download className="h-4 w-4" />
+                        Get Desktop App
+                      </Link>
+                    </Button>
                   </>
                 )}
               </div>
