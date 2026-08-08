@@ -225,7 +225,11 @@ export function useResolveBarcode(businessId: string | undefined, branchId: stri
    */
   const resolveTagged = useCallback(
     async (code: string): Promise<ResolveResult> => {
-      if (!businessId) return { kind: "error", err: new Error("no business context") };
+      if (!businessId) return {
+          kind: "error",
+          err: new Error("No active business selected — scanner cannot resolve codes"),
+          code: "no_business_context",
+        };
       const norm = code.trim();
       if (!norm) return { kind: "miss", status: "not_found", code, matchCount: 0, productName: null };
       const cacheKey = `${businessId}|${branchId ?? ""}|${norm.toLowerCase()}`;
