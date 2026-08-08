@@ -280,12 +280,20 @@ export default function RecurringInvoices() {
 
   const handleGenerateNow = async (id: string) => {
     try {
-      await generateInvoiceNow(id);
-      toast({ title: "Invoice generated" });
+      const result = await generateInvoiceNow(id);
+      if (!result?.duplicate) {
+        toast({
+          title: "Invoice generated",
+          description: result?.invoice_number
+            ? `${result.invoice_number} covers ${result.period_start} — ${result.period_end}.`
+            : undefined,
+        });
+      }
     } catch (error: any) {
       toast({ title: "Error generating invoice", description: normalizeError(error).message, variant: "destructive" });
     }
   };
+
 
   const handleDelete = async (id: string) => {
     try {
