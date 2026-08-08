@@ -53,6 +53,8 @@ import { normalizeError } from "@/services/resilience";
 import { ProductImageUpload } from "@/components/products/ProductImageUpload";
 import { ProductCategorySelector } from "@/components/products/ProductCategorySelector";
 import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
+import { useProductCategories } from "@/hooks/useProductCategories";
+import { resolveCategoryAccount, type CategoryAccountField } from "@/lib/productCategoryAccounts";
 import { ProductStockPanel } from "@/components/products/ProductStockPanel";
 import { UomSelect } from "@/components/products/UomSelect";
 import {
@@ -136,6 +138,13 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
     is_expiry_tracked: industryProfile.defaultExpiryTracking,
     expiry_alert_days: 30,
   });
+
+  // Category tier of the GL ladder (ADR 0122): product → category (walking
+  // parents) → company default. Presentation only; posting uses the same
+  // helper in src/lib/resolveProductAccounts.ts.
+  const { categories: productCategories } = useProductCategories();
+  const categoryAccount = (field: CategoryAccountField) =>
+    resolveCategoryAccount(productCategories, formData.category_id, field);
 
   // Seed defaults for create-mode when business/industry resolve after mount.
   useEffect(() => {
@@ -977,6 +986,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               onChange={(v) => setFormData({ ...formData, sales_account_id: v })}
               accountType="income"
               defaultKey="sales_revenue_id"
+              categoryDefault={categoryAccount("sales_account_id")}
               helpText="Revenue account credited on sale"
               disabled={isSubmitting}
             />
@@ -986,6 +996,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               onChange={(v) => setFormData({ ...formData, purchase_account_id: v })}
               accountType="expense"
               defaultKey="operating_expenses_id"
+              categoryDefault={categoryAccount("purchase_account_id")}
               helpText="Expense account debited when this item appears on a bill"
               disabled={isSubmitting}
             />
@@ -997,6 +1008,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
                   onChange={(v) => setFormData({ ...formData, cogs_account_id: v })}
                   accountType="expense"
                   defaultKey="cost_of_goods_sold_id"
+                  categoryDefault={categoryAccount("cogs_account_id")}
                   helpText="Cost of Goods Sold debited on sale"
                   disabled={isSubmitting}
                 />
@@ -1006,6 +1018,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
                   onChange={(v) => setFormData({ ...formData, inventory_account_id: v })}
                   accountType="asset"
                   defaultKey="inventory_account_id"
+                  categoryDefault={categoryAccount("inventory_account_id")}
                   helpText="Inventory asset account for stock valuation"
                   disabled={isSubmitting}
                 />

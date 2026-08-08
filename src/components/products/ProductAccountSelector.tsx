@@ -38,9 +38,15 @@ interface ProductAccountSelectorProps {
   /**
    * Which company-level default backs this field when no override is set.
    * Required to name the inherited account instead of the opaque phrase
-   * "Use system default".
+   * an opaque placeholder.
    */
   defaultKey?: keyof DefaultAccountMappings;
+  /**
+   * Category tier (ADR 0122). When the product's category — or its nearest
+   * ancestor — defines this account, it outranks the company default and the
+   * field is labelled "From category …".
+   */
+  categoryDefault?: { accountId?: string | null; categoryName?: string | null };
 }
 
 export function ProductAccountSelector({
@@ -51,6 +57,7 @@ export function ProductAccountSelector({
   helpText,
   disabled,
   defaultKey,
+  categoryDefault,
 }: ProductAccountSelectorProps) {
   const { accounts, isLoading } = useAccounts();
   const { accounts: defaults, isReady } = useDefaultAccounts();
@@ -59,13 +66,22 @@ export function ProductAccountSelector({
     (a) => a.account_type === accountType && a.is_active
   );
 
-  const defaultAccountId = defaultKey ? defaults[defaultKey] : undefined;
+  // Ladder for the *inherited* value: category → company default.
+  const inheritedFromCategory = !!categoryDefault?.accountId;
+  const defaultAccountId = inheritedFromCategory
+    ? categoryDefault!.accountId!
+    : defaultKey
+      ? defaults[defaultKey]
+      : undefined;
   const defaultAccount = defaultAccountId
     ? accounts.find((a) => a.id === defaultAccountId)
     : undefined;
   const defaultLabel = defaultAccount
     ? `${defaultAccount.code} — ${defaultAccount.name}`
     : undefined;
+  const sourceLabel = inheritedFromCategory
+    ? `From category${categoryDefault?.categoryName ? ` "${categoryDefault.categoryName}"` : ""}`
+    : "Default";
 
   const isOverridden = !!value;
   // Only warn once both the account list and the mappings have resolved.
@@ -76,7 +92,7 @@ export function ProductAccountSelector({
     ? "Loading…"
     : defaultLabel
       ? `${defaultLabel} (default)`
-      : "Use system default";
+      : "No default mapped — select an account";
 
   return (
     <div className="space-y-2">
@@ -88,7 +104,7 @@ export function ProductAccountSelector({
           </Badge>
         ) : defaultLabel ? (
           <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-medium">
-            Default
+            {sourceLabel}
           </Badge>
         ) : null}
         {isOverridden && (
@@ -121,10 +137,12 @@ export function ProductAccountSelector({
                   {defaultAccount!.code}
                 </span>
                 {defaultAccount!.name}
-                <span className="ml-2 text-xs text-muted-foreground">(system default)</span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({inheritedFromCategory ? "category default" : "system default"})
+                </span>
               </span>
             ) : (
-              "Use system default"
+              "No default mapped"
             )}
           </SelectItem>
           {filteredAccounts.map((account) => (
