@@ -32,6 +32,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useBranches } from "@/hooks/useBranches";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +92,8 @@ export default function BillCreatePage() {
     project_id: prefillProjectId,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+  /** Vendor tier of the purchase account ladder (ADR 0122). */
+  const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
   const vendors = contacts.filter(
     (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
@@ -175,6 +178,7 @@ export default function BillCreatePage() {
     if (!vendorId) return;
     try {
       const defaults = await fetchContactDefaults(vendorId);
+      setVendorExpenseAccountId(defaults.default_expense_account_id ?? null);
       if (defaults.default_tax_rate_id) {
         const { data: taxRate } = await supabase
           .from("tax_rates")
@@ -386,18 +390,27 @@ export default function BillCreatePage() {
               onProductSelect={selectProduct}
               productPlaceholder="Product (optional)"
               extra={
-                <LineAnalyticsCell
-                  projectId={item.project_id ?? null}
-                  taskId={item.task_id ?? null}
-                  headerProjectId={formData.project_id}
-                  onChange={(next) =>
-                    patchLineItem(index, {
-                      project_id: next.project_id,
-                      task_id: next.task_id,
-                    })
-                  }
-                  disabled={isSubmitting}
-                />
+                <div className="space-y-2">
+                  <LineAnalyticsCell
+                    projectId={item.project_id ?? null}
+                    taskId={item.task_id ?? null}
+                    headerProjectId={formData.project_id}
+                    onChange={(next) =>
+                      patchLineItem(index, {
+                        project_id: next.project_id,
+                        task_id: next.task_id,
+                      })
+                    }
+                    disabled={isSubmitting}
+                  />
+                  <LineAccountCell
+                    value={item.account_id}
+                    onChange={(account_id) => patchLineItem(index, { account_id })}
+                    product={products.find((p) => p.id === item.product_id) ?? null}
+                    vendorExpenseAccountId={vendorExpenseAccountId}
+                    disabled={isSubmitting}
+                  />
+                </div>
               }
             />
           )}

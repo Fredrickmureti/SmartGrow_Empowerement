@@ -41,6 +41,8 @@ import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
+import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { normalizeError } from "@/services/resilience";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
@@ -89,6 +91,24 @@ export default function BillEditPage() {
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [primed, setPrimed] = useState(false);
+  /** Vendor tier of the purchase account ladder (ADR 0122). */
+  const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!formData.vendor_id) {
+      setVendorExpenseAccountId(null);
+      return;
+    }
+    fetchContactDefaults(formData.vendor_id)
+      .then((d) => {
+        if (!cancelled) setVendorExpenseAccountId(d.default_expense_account_id ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.vendor_id]);
 
   useEffect(() => {
     if (!bill || primed) return;
@@ -470,18 +490,29 @@ export default function BillEditPage() {
                 onProductSelect={selectProduct}
                 productPlaceholder="Product"
                 extra={
-                  <LineAnalyticsCell
-                    projectId={(item as any).project_id ?? null}
-                    taskId={(item as any).task_id ?? null}
-                    headerProjectId={formData.project_id}
-                    onChange={(next) =>
-                      patchLineItem(index, {
-                        project_id: next.project_id,
-                        task_id: next.task_id,
-                      } as Partial<LineItem>)
-                    }
-                    disabled={isSubmitting}
-                  />
+                  <div className="space-y-2">
+                    <LineAnalyticsCell
+                      projectId={(item as any).project_id ?? null}
+                      taskId={(item as any).task_id ?? null}
+                      headerProjectId={formData.project_id}
+                      onChange={(next) =>
+                        patchLineItem(index, {
+                          project_id: next.project_id,
+                          task_id: next.task_id,
+                        } as Partial<LineItem>)
+                      }
+                      disabled={isSubmitting}
+                    />
+                    <LineAccountCell
+                      value={item.account_id}
+                      onChange={(account_id) =>
+                        patchLineItem(index, { account_id } as Partial<LineItem>)
+                      }
+                      product={products.find((p) => p.id === item.product_id) ?? null}
+                      vendorExpenseAccountId={vendorExpenseAccountId}
+                      disabled={isSubmitting}
+                    />
+                  </div>
                 }
               />
             )}
