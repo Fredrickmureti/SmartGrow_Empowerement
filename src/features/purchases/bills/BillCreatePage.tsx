@@ -386,18 +386,27 @@ export default function BillCreatePage() {
               onProductSelect={selectProduct}
               productPlaceholder="Product (optional)"
               extra={
-                <LineAnalyticsCell
-                  projectId={item.project_id ?? null}
-                  taskId={item.task_id ?? null}
-                  headerProjectId={formData.project_id}
-                  onChange={(next) =>
-                    patchLineItem(index, {
-                      project_id: next.project_id,
-                      task_id: next.task_id,
-                    })
-                  }
-                  disabled={isSubmitting}
-                />
+                <div className="space-y-2">
+                  <LineAnalyticsCell
+                    projectId={item.project_id ?? null}
+                    taskId={item.task_id ?? null}
+                    headerProjectId={formData.project_id}
+                    onChange={(next) =>
+                      patchLineItem(index, {
+                        project_id: next.project_id,
+                        task_id: next.task_id,
+                      })
+                    }
+                    disabled={isSubmitting}
+                  />
+                  <LineAccountCell
+                    value={item.account_id}
+                    onChange={(account_id) => patchLineItem(index, { account_id })}
+                    product={products.find((p) => p.id === item.product_id) ?? null}
+                    vendorExpenseAccountId={vendorExpenseAccountId}
+                    disabled={isSubmitting}
+                  />
+                </div>
               }
             />
           )}
