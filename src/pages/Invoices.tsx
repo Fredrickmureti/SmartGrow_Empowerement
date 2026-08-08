@@ -89,6 +89,7 @@ function describeInvoicePrintError(err: unknown): string {
 
 export default function Invoices() {
   const navigate = useNavigate();
+  const { handheld: handheldScanner } = useLocalScan();
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentView, selectedSavedView, setView } = useViewMode({ entityType: "invoice" });
   const coreFieldDisplay = useCoreFieldDisplay("invoice");
