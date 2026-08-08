@@ -470,18 +470,29 @@ export default function BillEditPage() {
                 onProductSelect={selectProduct}
                 productPlaceholder="Product"
                 extra={
-                  <LineAnalyticsCell
-                    projectId={(item as any).project_id ?? null}
-                    taskId={(item as any).task_id ?? null}
-                    headerProjectId={formData.project_id}
-                    onChange={(next) =>
-                      patchLineItem(index, {
-                        project_id: next.project_id,
-                        task_id: next.task_id,
-                      } as Partial<LineItem>)
-                    }
-                    disabled={isSubmitting}
-                  />
+                  <div className="space-y-2">
+                    <LineAnalyticsCell
+                      projectId={(item as any).project_id ?? null}
+                      taskId={(item as any).task_id ?? null}
+                      headerProjectId={formData.project_id}
+                      onChange={(next) =>
+                        patchLineItem(index, {
+                          project_id: next.project_id,
+                          task_id: next.task_id,
+                        } as Partial<LineItem>)
+                      }
+                      disabled={isSubmitting}
+                    />
+                    <LineAccountCell
+                      value={item.account_id}
+                      onChange={(account_id) =>
+                        patchLineItem(index, { account_id } as Partial<LineItem>)
+                      }
+                      product={products.find((p) => p.id === item.product_id) ?? null}
+                      vendorExpenseAccountId={vendorExpenseAccountId}
+                      disabled={isSubmitting}
+                    />
+                  </div>
                 }
               />
             )}
