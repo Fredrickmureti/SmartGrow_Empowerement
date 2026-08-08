@@ -1,13 +1,22 @@
 /**
- * Resolves GL accounts for a product using the 3-tier priority:
+ * Resolves GL accounts for a product using the 4-tier priority (ADR 0122):
  * 1. Line-level override (passed in)
  * 2. Product default (from product record)
- * 3. System default (from useDefaultAccounts)
+ * 3. Product category default (walking parent_id upward)
+ * 4. System default (from useDefaultAccounts)
  */
 
 import type { DefaultAccountMappings } from "@/hooks/useDefaultAccounts";
+import {
+  resolveCategoryAccount,
+  type CategoryAccountField,
+  type CategoryAccountNode,
+} from "@/lib/productCategoryAccounts";
+
+export type { CategoryAccountNode };
 
 export interface ProductAccountInfo {
+  category_id?: string | null;
   sales_account_id?: string | null;
   purchase_account_id?: string | null;
   cogs_account_id?: string | null;
@@ -32,12 +41,19 @@ export interface ResolvedLineAccounts {
 export function resolveLineAccounts(
   product: ProductAccountInfo | null | undefined,
   systemDefaults: DefaultAccountMappings,
-  lineOverrides?: { revenue_account_id?: string; cogs_account_id?: string; inventory_account_id?: string }
+  lineOverrides?: { revenue_account_id?: string; cogs_account_id?: string; inventory_account_id?: string },
+  categories?: CategoryAccountNode[]
 ): ResolvedLineAccounts {
-  // Revenue: line override > product default > system default
+  const fromCategory = (field: CategoryAccountField): string | null =>
+    categories?.length
+      ? resolveCategoryAccount(categories, product?.category_id, field).accountId
+      : null;
+
+  // Revenue: line override > product default > category default > system default
   const revenueAccountId =
     lineOverrides?.revenue_account_id ||
     product?.sales_account_id ||
+    fromCategory("sales_account_id") ||
     systemDefaults.sales_revenue_id ||
     "";
 
@@ -49,12 +65,14 @@ export function resolveLineAccounts(
     cogsAccountId =
       lineOverrides?.cogs_account_id ||
       product?.cogs_account_id ||
+      fromCategory("cogs_account_id") ||
       systemDefaults.cost_of_goods_sold_id ||
       null;
 
     inventoryAccountId =
       lineOverrides?.inventory_account_id ||
       product?.inventory_account_id ||
+      fromCategory("inventory_account_id") ||
       systemDefaults.inventory_account_id ||
       null;
   }
@@ -72,7 +90,7 @@ export interface ResolvedBillLineAccounts {
 
 /**
  * Resolves the GL accounts for a single bill line item.
- * Priority: line-level override → product.purchase_account_id → vendor default → system default
+ * Priority: line override → product.purchase_account_id → category → vendor default → system default
  *
  * For inventory-tracked products, debits the Inventory asset account instead of expense.
  */
@@ -80,13 +98,20 @@ export function resolveBillLineAccounts(
   product: ProductAccountInfo | null | undefined,
   systemDefaults: DefaultAccountMappings,
   lineOverrides?: { account_id?: string | null },
-  vendorDefaults?: { default_expense_account_id?: string | null }
+  vendorDefaults?: { default_expense_account_id?: string | null },
+  categories?: CategoryAccountNode[]
 ): ResolvedBillLineAccounts {
+  const fromCategory = (field: CategoryAccountField): string | null =>
+    categories?.length
+      ? resolveCategoryAccount(categories, product?.category_id, field).accountId
+      : null;
+
   // Inventory-tracked products debit the inventory asset account
   if (product?.track_inventory) {
     const inventoryAccountId =
       lineOverrides?.account_id ||
       product?.inventory_account_id ||
+      fromCategory("inventory_account_id") ||
       systemDefaults.inventory_account_id ||
       null;
 
@@ -100,6 +125,7 @@ export function resolveBillLineAccounts(
   const expenseAccountId =
     lineOverrides?.account_id ||
     product?.purchase_account_id ||
+    fromCategory("purchase_account_id") ||
     vendorDefaults?.default_expense_account_id ||
     systemDefaults.operating_expenses_id ||
     "";

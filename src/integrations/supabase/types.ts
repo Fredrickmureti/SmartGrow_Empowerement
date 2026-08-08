@@ -49830,39 +49830,51 @@ export type Database = {
       product_categories: {
         Row: {
           business_id: string | null
+          cogs_account_id: string | null
           color: string | null
           created_at: string | null
           description: string | null
           id: string
+          inventory_account_id: string | null
           is_active: boolean | null
           is_sample_data: boolean
           name: string
           organization_id: string
           parent_id: string | null
+          purchase_account_id: string | null
+          sales_account_id: string | null
         }
         Insert: {
           business_id?: string | null
+          cogs_account_id?: string | null
           color?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
+          inventory_account_id?: string | null
           is_active?: boolean | null
           is_sample_data?: boolean
           name: string
           organization_id: string
           parent_id?: string | null
+          purchase_account_id?: string | null
+          sales_account_id?: string | null
         }
         Update: {
           business_id?: string | null
+          cogs_account_id?: string | null
           color?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
+          inventory_account_id?: string | null
           is_active?: boolean | null
           is_sample_data?: boolean
           name?: string
           organization_id?: string
           parent_id?: string | null
+          purchase_account_id?: string | null
+          sales_account_id?: string | null
         }
         Relationships: [
           {
@@ -49885,6 +49897,48 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "product_categories_cogs_account_id_fkey"
+            columns: ["cogs_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_cogs_account_id_fkey"
+            columns: ["cogs_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "product_categories_cogs_account_id_fkey"
+            columns: ["cogs_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_inventory_account_id_fkey"
+            columns: ["inventory_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_inventory_account_id_fkey"
+            columns: ["inventory_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "product_categories_inventory_account_id_fkey"
+            columns: ["inventory_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "product_categories_organization_id_fkey"
@@ -49912,6 +49966,48 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_purchase_account_id_fkey"
+            columns: ["purchase_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_purchase_account_id_fkey"
+            columns: ["purchase_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "product_categories_purchase_account_id_fkey"
+            columns: ["purchase_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_sales_account_id_fkey"
+            columns: ["sales_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_sales_account_id_fkey"
+            columns: ["sales_account_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_mapping_findings"
+            referencedColumns: ["account_id"]
+          },
+          {
+            foreignKeyName: "product_categories_sales_account_id_fkey"
+            columns: ["sales_account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -93310,6 +93406,15 @@ export type Database = {
           p_payment_method_id: string
           p_provider_key: string
           p_tender_kind: string
+        }
+        Returns: string
+      }
+      resolve_product_gl_account: {
+        Args: {
+          p_business_id: string
+          p_org_id: string
+          p_product_id: string
+          p_purpose: string
         }
         Returns: string
       }

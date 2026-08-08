@@ -11,6 +11,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Invoice } from "../useInvoices";
 import { resolveLineAccounts, groupByAccount, type ProductAccountInfo } from "@/lib/resolveProductAccounts";
+import type { CategoryAccountNode } from "@/lib/productCategoryAccounts";
 
 interface InvoiceLineWithProduct {
   product_id: string | null;
@@ -66,7 +67,7 @@ async function fetchInvoiceLinesWithProducts(invoiceId: string): Promise<Invoice
   if (productIds.length > 0) {
     const { data: products } = await supabase
       .from("products")
-      .select("id, sales_account_id, cogs_account_id, inventory_account_id, cost_price, track_inventory")
+      .select("id, category_id, sales_account_id, cogs_account_id, inventory_account_id, cost_price, track_inventory")
       .in("id", productIds);
     if (products) {
       for (const p of products) productMap[p.id] = p as ProductAccountInfo;
@@ -78,6 +79,19 @@ async function fetchInvoiceLinesWithProducts(invoiceId: string): Promise<Invoice
     tax_amount: Number(item.tax_amount ?? 0),
     product: item.product_id ? productMap[item.product_id] || null : null,
   }));
+}
+
+/**
+ * Category tier of the GL ladder (ADR 0122). Categories are few per tenant,
+ * so we load the whole set and walk parent_id in memory.
+ */
+async function fetchCategoryAccounts(organizationId: string | null | undefined): Promise<CategoryAccountNode[]> {
+  if (!organizationId) return [];
+  const { data } = await supabase
+    .from("product_categories")
+    .select("id, name, parent_id, sales_account_id, purchase_account_id, cogs_account_id, inventory_account_id")
+    .eq("organization_id", organizationId);
+  return (data as CategoryAccountNode[]) || [];
 }
 
 async function fetchCustomerDefaults(contactId: string | null): Promise<{
@@ -138,6 +152,7 @@ export async function confirmInvoiceAndPostGL(
   // different `source_type` (invoice vs delivery_note) so the
   // `assert_no_existing_source_posting` guard does not catch them.
   const lineItems = await fetchInvoiceLinesWithProducts(invoice.id);
+  const categoryAccounts = await fetchCategoryAccounts((invoice as { organization_id?: string | null }).organization_id);
   const mainLines: JELine[] = [];
 
   // DR Accounts Receivable for full invoice total
@@ -153,7 +168,7 @@ export async function confirmInvoiceAndPostGL(
     // CR revenue grouped by resolved account
     const revenueLines: Array<{ accountId: string; amount: number }> = [];
     for (const line of lineItems) {
-      const resolved = resolveLineAccounts(line.product, deps.systemDefaults);
+      const resolved = resolveLineAccounts(line.product, deps.systemDefaults, undefined, categoryAccounts);
       // line_total is tax-EXCLUSIVE (Odoo convention)
       revenueLines.push({
         accountId: resolved.revenueAccountId || accountMappings.revenue_account_id!,

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useProductCategories, type CategoryTreeNode } from "@/hooks/useProductCategories";
+import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
+import { resolveCategoryAccount, type CategoryAccountField } from "@/lib/productCategoryAccounts";
 import { DetailSheet } from "@/design-system";
 import {
   Select,
@@ -67,6 +69,23 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
   const [formParentId, setFormParentId] = useState<string | null>(null);
   const [formColor, setFormColor] = useState<string | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  // Category-level GL accounts (ADR 0122). Null = inherit from parent category
+  // and, failing that, the company default.
+  const [formAccounts, setFormAccounts] = useState<Record<CategoryAccountField, string | null>>({
+    sales_account_id: null,
+    purchase_account_id: null,
+    cogs_account_id: null,
+    inventory_account_id: null,
+  });
+
+  const setAccount = (field: CategoryAccountField, value: string | null) =>
+    setFormAccounts((prev) => ({ ...prev, [field]: value }));
+
+  /** What this category would inherit from its parent chain, for the badge copy. */
+  const inheritedFromParent = (field: CategoryAccountField) => {
+    const r = resolveCategoryAccount(flatTreeList, formParentId, field);
+    return { accountId: r.accountId, categoryName: r.categoryName };
+  };
 
   const resetForm = () => {
     setShowForm(false);
@@ -75,6 +94,12 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
     setFormDescription("");
     setFormParentId(null);
     setFormColor(null);
+    setFormAccounts({
+      sales_account_id: null,
+      purchase_account_id: null,
+      cogs_account_id: null,
+      inventory_account_id: null,
+    });
   };
 
   const handleEdit = (node: CategoryTreeNode) => {
@@ -83,6 +108,12 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
     setFormDescription(node.description || "");
     setFormParentId(node.parent_id);
     setFormColor(node.color);
+    setFormAccounts({
+      sales_account_id: node.sales_account_id ?? null,
+      purchase_account_id: node.purchase_account_id ?? null,
+      cogs_account_id: node.cogs_account_id ?? null,
+      inventory_account_id: node.inventory_account_id ?? null,
+    });
     setShowForm(true);
   };
 
@@ -97,6 +128,7 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
           description: formDescription || null,
           parent_id: formParentId,
           color: formColor,
+          ...formAccounts,
         });
         toast({ title: "Category updated" });
       } else {
@@ -105,6 +137,7 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
           description: formDescription || undefined,
           parent_id: formParentId,
           color: formColor || undefined,
+          ...formAccounts,
         });
         toast({ title: "Category created" });
       }
@@ -268,6 +301,46 @@ export function ProductCategoriesManager({ open, onOpenChange }: ProductCategori
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-3 rounded-md border bg-background p-3">
+              <p className="text-xs font-medium">Default GL accounts</p>
+              <p className="text-xs text-muted-foreground">
+                Products in this category use these accounts unless the product
+                overrides them. Leave blank to inherit from the parent category
+                or the company default.
+              </p>
+              <ProductAccountSelector
+                label="Sales revenue account"
+                value={formAccounts.sales_account_id}
+                onChange={(v) => setAccount("sales_account_id", v)}
+                accountType="income"
+                defaultKey="sales_revenue_id"
+                categoryDefault={inheritedFromParent("sales_account_id")}
+              />
+              <ProductAccountSelector
+                label="Purchase / expense account"
+                value={formAccounts.purchase_account_id}
+                onChange={(v) => setAccount("purchase_account_id", v)}
+                accountType="expense"
+                defaultKey="operating_expenses_id"
+                categoryDefault={inheritedFromParent("purchase_account_id")}
+              />
+              <ProductAccountSelector
+                label="COGS account"
+                value={formAccounts.cogs_account_id}
+                onChange={(v) => setAccount("cogs_account_id", v)}
+                accountType="expense"
+                defaultKey="cost_of_goods_sold_id"
+                categoryDefault={inheritedFromParent("cogs_account_id")}
+              />
+              <ProductAccountSelector
+                label="Inventory account"
+                value={formAccounts.inventory_account_id}
+                onChange={(v) => setAccount("inventory_account_id", v)}
+                accountType="asset"
+                defaultKey="inventory_account_id"
+                categoryDefault={inheritedFromParent("inventory_account_id")}
+              />
             </div>
             <div className="flex gap-2">
               <Button

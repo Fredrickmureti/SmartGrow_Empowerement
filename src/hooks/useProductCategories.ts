@@ -14,6 +14,19 @@ export interface ProductCategory {
   color: string | null;
   is_active: boolean;
   created_at: string;
+  /** Category-level GL accounts (ADR 0122). Null = inherit from parent/company. */
+  sales_account_id: string | null;
+  purchase_account_id: string | null;
+  cogs_account_id: string | null;
+  inventory_account_id: string | null;
+}
+
+/** Category-level GL account overrides accepted by create/update. */
+export interface CategoryAccountInput {
+  sales_account_id?: string | null;
+  purchase_account_id?: string | null;
+  cogs_account_id?: string | null;
+  inventory_account_id?: string | null;
 }
 
 export interface CategoryTreeNode extends ProductCategory {
@@ -58,7 +71,7 @@ export function useProductCategories() {
   const flatTreeList = flattenTree(categoryTree);
 
   const createMutation = useMutation({
-    mutationFn: async (input: { name: string; description?: string; parent_id?: string | null; color?: string }) => {
+    mutationFn: async (input: { name: string; description?: string; parent_id?: string | null; color?: string } & CategoryAccountInput) => {
       if (!organizationId) throw new Error("No organization selected");
 
       const { data, error } = await supabase
@@ -70,6 +83,10 @@ export function useProductCategories() {
           description: input.description || null,
           parent_id: input.parent_id || null,
           color: input.color || null,
+          sales_account_id: input.sales_account_id ?? null,
+          purchase_account_id: input.purchase_account_id ?? null,
+          cogs_account_id: input.cogs_account_id ?? null,
+          inventory_account_id: input.inventory_account_id ?? null,
         })
         .select()
         .single();
@@ -97,7 +114,7 @@ export function useProductCategories() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; name?: string; description?: string | null; parent_id?: string | null; color?: string | null; is_active?: boolean }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; name?: string; description?: string | null; parent_id?: string | null; color?: string | null; is_active?: boolean } & CategoryAccountInput) => {
       const { error } = await supabase
         .from("product_categories")
         .update(updates)
