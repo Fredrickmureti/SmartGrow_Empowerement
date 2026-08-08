@@ -57,10 +57,17 @@ describe("publicAppUrl resolver", () => {
 
   it("normalize accepts http and https origins, strips trailing slash", () => {
     expect(__publicAppUrlInternals.normalize("https://x.com/")).toBe("https://x.com");
-    expect(__publicAppUrlInternals.normalize("http://accrualflow.systems")).toBe(
-      "http://accrualflow.systems",
+  });
+
+  it("normalize canonicalises any spelling of the production host", () => {
+    // http:// or a missing www. must never reach a QR code — the cert and
+    // auth cookies only exist on https://www.
+    expect(__publicAppUrlInternals.normalize("http://accrualflow.systems")).toBe(PRODUCTION_APP_URL);
+    expect(__publicAppUrlInternals.normalize("https://accrualflow.systems/")).toBe(
+      PRODUCTION_APP_URL,
     );
   });
+
 
   it("setPublicAppUrlOverride normalizes and persists", () => {
     setPublicAppUrlOverride("https://operator.example.com/");
