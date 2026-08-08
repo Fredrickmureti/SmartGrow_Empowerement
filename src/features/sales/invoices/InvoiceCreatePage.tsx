@@ -71,6 +71,8 @@ export default function InvoiceCreatePage() {
   const defaultProjectId = searchParams.get("project_id");
   const initialScan =
     ((location.state as { initialScan?: ResolvedScan } | null)?.initialScan) ?? null;
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
 
   const { contacts } = useContacts();
   const customers = useMemo(
@@ -236,7 +238,7 @@ export default function InvoiceCreatePage() {
    * Only a scan for a product NOT already on the draft appends a new line.
    * Math contract (`calculateLineTotal`) is unchanged.
    */
-  const handleScanResolved = (resolved: import("@/hooks/scanner").ResolvedScan) => {
+  const handleScanResolved = useCallback((resolved: import("@/hooks/scanner").ResolvedScan) => {
     setLineItems((prev) => {
       const result = applyScanToLines<Omit<InvoiceItem, "id" | "invoice_id">>({
         lines: prev,
@@ -266,7 +268,79 @@ export default function InvoiceCreatePage() {
       window.setTimeout(() => setFlashIndex(null), 800);
       return result.next;
     });
-  };
+  }, []);
+
+  // Held in a ref so the seeding effect below can never fire a stale
+  // closure, and so the scan controller registration stays stable.
+  const handleScanResolvedRef = useRef(handleScanResolved);
+  useEffect(() => {
+    handleScanResolvedRef.current = handleScanResolved;
+  }, [handleScanResolved]);
+
+  /**
+   * Commit a batch of explicitly-quantified lines from the Scan Session.
+   * Unlike a single scan (doc_author: never silently increments), the
+   * session has already been reviewed by the operator, so quantities are
+   * authoritative and applied as-is.
+   */
+  const handleScanSessionCommit = useCallback(
+    (entries: { resolved: import("@/hooks/scanner").ResolvedScan; quantity: number }[]) => {
+      if (entries.length === 0) return;
+      setLineItems((prev) => {
+        let next = prev;
+        let lastIndex = -1;
+        for (const { resolved, quantity } of entries) {
+          const result = applyScanToLines<Omit<InvoiceItem, "id" | "invoice_id">>({
+            lines: next,
+            scanQuantity: quantity,
+            matchLine: (l) => !!l.product_id && l.product_id === resolved.productId,
+            buildLine: (q) => {
+              const seed = {
+                product_id: resolved.productId,
+                description: resolved.name,
+                quantity: q,
+                unit_price: resolved.embeddedPrice ?? resolved.sellingPrice,
+                tax_rate: resolved.taxRate ?? 0,
+                discount_percent: 0,
+                sort_order: next.length,
+              };
+              const { line_total, tax_amount } = computeLine({
+                quantity: seed.quantity,
+                unit_price: seed.unit_price,
+                discount_percent: seed.discount_percent,
+                tax_rate: seed.tax_rate,
+              });
+              return { ...seed, line_total, tax_amount } as Omit<InvoiceItem, "id" | "invoice_id">;
+            },
+            // Reviewed batch → the session's quantity replaces the line's.
+            incrementLine: (existing, q) => {
+              const merged = { ...existing, quantity: q };
+              const { line_total, tax_amount } = computeLine({
+                quantity: merged.quantity,
+                unit_price: merged.unit_price,
+                discount_percent: merged.discount_percent,
+                tax_rate: merged.tax_rate,
+              });
+              return { quantity: q, line_total, tax_amount } as Partial<
+                Omit<InvoiceItem, "id" | "invoice_id">
+              >;
+            },
+            replaceTrailingEmpty: true,
+            isEmptyLine: (l) =>
+              !l.product_id && !l.description && (l.quantity ?? 0) <= 1 && (l.unit_price ?? 0) === 0,
+          });
+          next = result.next;
+          lastIndex = result.affectedIndex;
+        }
+        if (lastIndex >= 0) {
+          setFlashIndex(lastIndex);
+          window.setTimeout(() => setFlashIndex(null), 800);
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -277,7 +351,7 @@ export default function InvoiceCreatePage() {
     const key = `${initialScan.productId}:${initialScan.matchedCode}:${initialScan.scanQuantity}`;
     if (initialScanKeyRef.current === key) return;
     initialScanKeyRef.current = key;
-    handleScanResolved(initialScan);
+    handleScanResolvedRef.current(initialScan);
   }, [open, initialScan]);
 
   const handleCustomerChange = async (value: string) => {
@@ -514,6 +588,8 @@ export default function InvoiceCreatePage() {
                 businessId={currentBusiness?.id}
                 branchId={currentBranch?.id ?? null}
                 onResolved={handleScanResolved}
+                onSessionCommit={handleScanSessionCommit}
+                openSessionOnMount={openScanSessionOnMount}
                 linesTableRef={linesTableRef}
                 disabled={isSubmitting}
               />

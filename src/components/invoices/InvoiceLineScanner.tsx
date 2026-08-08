@@ -26,18 +26,22 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ScanLine } from "lucide-react";
 import {
   BarcodeInputField,
   type BarcodeInputFieldHandle,
 } from "@/components/scanner/BarcodeInputField";
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
 import { ScanCameraButton } from "@/components/scanner/ScanCameraButton";
+import { Button } from "@/components/ui/button";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useResolveBarcode, type ResolvedScan } from "@/hooks/scanner";
 import { identityOutcomeLine } from "@/features/products/identity/identityOutcome";
 import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useSalesScanController } from "@/contexts/SalesScanContext";
+import { ScanSessionSheet } from "@/features/sales/scan-session/ScanSessionSheet";
+import { useCurrency } from "@/hooks/useCurrency";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   businessId?: string;
@@ -50,6 +54,17 @@ interface Props {
   linesTableRef?: React.RefObject<HTMLElement>;
   /** Disable the entire scanner (e.g. while the dialog is submitting). */
   disabled?: boolean;
+  /**
+   * Commit handler for a reviewed Scan Session batch. Quantities are
+   * authoritative (the operator already reviewed them), so the host
+   * applies them as-is instead of following single-scan doc_author rules.
+   * When omitted the Scan Session affordance is hidden.
+   */
+  onSessionCommit?: (
+    entries: { resolved: ResolvedScan; quantity: number }[],
+  ) => void;
+  /** Open the Scan Session immediately (deep link from the Sales chip). */
+  openSessionOnMount?: boolean;
 }
 
 export function InvoiceLineScanner({
@@ -58,9 +73,18 @@ export function InvoiceLineScanner({
   onResolved,
   linesTableRef,
   disabled,
+  onSessionCommit,
+  openSessionOnMount,
 }: Props) {
   const { resolveTagged } = useResolveBarcode(businessId, branchId);
   const { handheld } = useLocalScan();
+  const { formatCurrency } = useCurrency();
+  const { user } = useAuth();
+  const sessionEnabled = !!onSessionCommit;
+  const [sessionOpen, setSessionOpen] = useState(false);
+  useEffect(() => {
+    if (openSessionOnMount && sessionEnabled) setSessionOpen(true);
+  }, [openSessionOnMount, sessionEnabled]);
   const inputRef = useRef<BarcodeInputFieldHandle | null>(null);
   const [scanCode, setScanCode] = useState("");
   const [resolving, setResolving] = useState(false);
@@ -191,7 +215,7 @@ export function InvoiceLineScanner({
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-medium text-muted-foreground">
           {handheld
-            ? "Tap scan to use this phone's camera, or type a code below"
+            ? "Tap Scan products for a live camera session — every hit shows up with its quantity"
             : <>Scan to add a line · press <kbd className="rounded border px-1 text-[10px]">F2</kbd> to refocus · scanning works even when this input is not focused</>}
         </div>
         {!handheld && (
@@ -204,13 +228,25 @@ export function InvoiceLineScanner({
       </div>
       {handheld && (
         <div className="flex items-center gap-2">
-          <ScanCameraButton
-            withText
-            continuous
-            label="Scan product"
-            disabled={disabled}
-            className="flex-1 h-11"
-          />
+          {sessionEnabled ? (
+            <Button
+              type="button"
+              onClick={() => setSessionOpen(true)}
+              disabled={disabled}
+              className="h-11 flex-1 gap-2 text-base"
+            >
+              <ScanLine className="h-4 w-4" />
+              Scan products
+            </Button>
+          ) : (
+            <ScanCameraButton
+              withText
+              continuous
+              label="Scan product"
+              disabled={disabled}
+              className="flex-1 h-11"
+            />
+          )}
         </div>
       )}
       <BarcodeInputField
@@ -240,6 +276,17 @@ export function InvoiceLineScanner({
         )}
         {!resolving && lastFlash && <span className={flashClass}>{lastFlash.text}</span>}
       </div>
+      {sessionEnabled && (
+        <ScanSessionSheet
+          open={sessionOpen}
+          onClose={() => setSessionOpen(false)}
+          businessId={businessId}
+          branchId={branchId}
+          userId={user?.id ?? null}
+          formatCurrency={formatCurrency}
+          onCommit={(entries) => onSessionCommit?.(entries)}
+        />
+      )}
     </div>
   );
 }

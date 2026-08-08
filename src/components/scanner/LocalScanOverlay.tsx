@@ -3,38 +3,61 @@
  *
  * Mounted ONCE for the authenticated app. Opened by `openLocalScan(...)`
  * from any scan field or task screen. Decodes with `useCameraDecoder`,
- * beeps via `feedbackTones`, then hands the code to `scanBus` through
- * `localScanService.emitDecoded` so `scanRouter` delivers it to the
- * active target — identical to a wedge scan.
+ * then hands the code to `scanBus` through `localScanService.emitDecoded`
+ * so `scanRouter` delivers it to the active target — identical to a wedge
+ * scan.
  *
- * If no target consumed the scan we say so instead of silently dropping
- * it: an operator staring at a viewfinder that "works" while nothing is
- * captured is the worst possible failure mode on a warehouse floor.
+ * Outcome truthfulness (the important part): `scanRouter.wasConsumed()`
+ * only says a target RECEIVED the code — it says nothing about whether the
+ * code resolved to a product. Reporting that as success is how an operator
+ * ends up with a green tick, a happy beep, a closed camera, and no line on
+ * the document. So a routed scan starts as PENDING and waits for a real
+ * business verdict on `scanFeedbackBus` (matched / unknown / failed)
+ * before it beeps, counts, or closes the viewfinder.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Zap, ZapOff, ScanLine, Loader2, Check, TriangleAlert } from "lucide-react";
+import { X, Zap, ZapOff, ScanLine, Loader2, Check, TriangleAlert, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { scanRouter } from "@/services/pos/scanRouter";
+import { scanRouter } from "@/services/scanner";
 import { beepForScan } from "@/services/scanner/scanBeep";
+import { scanFeedbackBus } from "@/services/scanner";
 import { useCameraDecoder } from "@/services/scanner/camera/useCameraDecoder";
 import {
   localScanService,
   type LocalScanRequest,
 } from "@/services/scanner/camera/localScanService";
 
+/** How long we wait for a downstream verdict before assuming plain capture. */
+const VERDICT_TIMEOUT_MS = 2000;
+
+type HitState = "pending" | "matched" | "unknown" | "failed" | "dropped";
+
 interface Hit {
+  id: string;
   code: string;
-  accepted: boolean;
+  state: HitState;
+  detail?: string;
   at: number;
 }
+
+const STATE_COPY: Record<HitState, string> = {
+  pending: "checking…",
+  matched: "captured",
+  unknown: "not recognised",
+  failed: "lookup failed",
+  dropped: "no field is listening",
+};
 
 export function LocalScanOverlay() {
   const [request, setRequest] = useState<LocalScanRequest | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const acceptedRef = useRef(0);
+  const continuousRef = useRef(false);
+  const timersRef = useRef<Map<string, number>>(new Map());
+  const seqRef = useRef(0);
 
   useEffect(() => localScanService.subscribe(setRequest), []);
 
@@ -46,22 +69,82 @@ export function LocalScanOverlay() {
   }, [request]);
 
   const continuous = request?.continuous === true;
+  continuousRef.current = continuous;
+
+  // Clear any outstanding verdict timers on unmount / close.
+  useEffect(() => {
+    if (request) return;
+    timersRef.current.forEach((t) => window.clearTimeout(t));
+    timersRef.current.clear();
+  }, [request]);
+
+  const settle = useCallback((code: string, state: Exclude<HitState, "pending">, detail?: string) => {
+    setHits((prev) => {
+      let changed = false;
+      const next = prev.map((h) => {
+        if (changed || h.state !== "pending" || h.code !== code) return h;
+        changed = true;
+        return { ...h, state, detail };
+      });
+      if (!changed) return prev;
+      return next;
+    });
+    const timer = timersRef.current.get(code);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timersRef.current.delete(code);
+    }
+    if (state === "matched") {
+      acceptedRef.current += 1;
+      beepForScan(code, "ok");
+      if (!continuousRef.current) {
+        // Let the tone start before the camera tears down.
+        window.setTimeout(() => localScanService.close(acceptedRef.current), 140);
+      }
+      return;
+    }
+    // Anything else keeps the viewfinder OPEN so the operator sees why.
+    beepForScan(code, "invalid");
+  }, []);
+
+  // Downstream verdicts. Consumers (SalesScanContext, WMS intents, POS
+  // cart, BarcodeInputField) already publish here — we just stop guessing.
+  useEffect(() => {
+    if (!request) return;
+    return scanFeedbackBus.on((f) => {
+      const code = (f.raw || "").trim();
+      if (!code) return;
+      if (f.kind === "pending") return;
+      if (f.kind === "unknown") return settle(code, "unknown", f.detail);
+      if (f.kind === "error") return settle(code, "failed", f.detail);
+      settle(code, "matched", f.detail);
+    });
+  }, [request, settle]);
 
   const onDecode = useCallback(
     (raw: string) => {
       const event = localScanService.emitDecoded(raw);
-      const accepted = scanRouter.wasConsumed(event);
-      if (accepted) acceptedRef.current += 1;
-      // Deduped: if the target produces a verdict, that ack beeps instead
-      // (and may escalate to duplicate/invalid).
-      beepForScan(event.code, accepted ? "ok" : "invalid");
-      setHits((prev) => [{ code: event.code, accepted, at: event.at }, ...prev].slice(0, 6));
-      if (accepted && !continuous) {
-        // Let the tone start before the overlay tears the camera down.
-        setTimeout(() => localScanService.close(acceptedRef.current), 120);
+      const routed = scanRouter.wasConsumed(event);
+      const id = `hit-${++seqRef.current}`;
+      setHits((prev) =>
+        [
+          { id, code: event.code, state: routed ? ("pending" as const) : ("dropped" as const), at: event.at },
+          ...prev,
+        ].slice(0, 6),
+      );
+      if (!routed) {
+        beepForScan(event.code, "invalid");
+        return;
       }
+      // No verdict within the window → the target was a plain capture
+      // field (identity/bin/serial), which is a legitimate success.
+      const timer = window.setTimeout(
+        () => settle(event.code, "matched", "captured"),
+        VERDICT_TIMEOUT_MS,
+      );
+      timersRef.current.set(event.code, timer);
     },
-    [continuous],
+    [settle],
   );
 
   const { scanning, error, torchAvailable, torchOn, toggleTorch } = useCameraDecoder({
@@ -84,6 +167,14 @@ export function LocalScanOverlay() {
   if (!request) return null;
 
   const last = hits[0];
+  const reticleTone =
+    last?.state === "matched"
+      ? "border-emerald-400"
+      : last?.state === "pending"
+        ? "border-amber-300"
+        : last
+          ? "border-red-400"
+          : "border-white/80";
 
   return (
     <div className="fixed inset-0 z-[120] flex flex-col bg-black/95">
@@ -128,7 +219,7 @@ export function LocalScanOverlay() {
           <div
             className={cn(
               "h-40 w-[80%] max-w-sm rounded-lg border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]",
-              last ? (last.accepted ? "border-emerald-400" : "border-red-400") : "border-white/80",
+              reticleTone,
             )}
           />
         </div>
@@ -148,17 +239,25 @@ export function LocalScanOverlay() {
           <div
             className={cn(
               "flex items-center gap-2 font-mono text-xs",
-              last.accepted ? "text-emerald-300" : "text-red-300",
+              last.state === "matched"
+                ? "text-emerald-300"
+                : last.state === "pending"
+                  ? "text-amber-200"
+                  : "text-red-300",
             )}
           >
-            {last.accepted ? (
+            {last.state === "matched" ? (
               <Check className="h-4 w-4 shrink-0" />
+            ) : last.state === "pending" ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : last.state === "unknown" ? (
+              <HelpCircle className="h-4 w-4 shrink-0" />
             ) : (
               <TriangleAlert className="h-4 w-4 shrink-0" />
             )}
             <span className="truncate">{last.code}</span>
-            <span className="ml-auto shrink-0 font-sans">
-              {last.accepted ? "captured" : "no field is listening"}
+            <span className="ml-auto shrink-0 truncate pl-2 font-sans">
+              {last.detail ?? STATE_COPY[last.state]}
             </span>
           </div>
         ) : (
@@ -166,7 +265,7 @@ export function LocalScanOverlay() {
         )}
         {continuous && (
           <div className="flex items-center justify-between text-xs text-white/70">
-            <span>{acceptedRef.current} scanned</span>
+            <span>{acceptedRef.current} captured</span>
             <Button
               size="sm"
               variant="secondary"

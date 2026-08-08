@@ -273,6 +273,7 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
           scanFeedbackBus.emit({
             kind: "ok", raw: norm, source: "field",
             workflow: "quantity", fieldLabel: "Sales workspace",
+            detail: `${result.row.name}${result.row.scanQuantity > 1 ? ` ×${result.row.scanQuantity}` : ""}`,
           });
           // Plan P2: route stale replays (decoded long before receive) into
           // the review drawer instead of mutating a live invoice draft.
@@ -299,33 +300,48 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
           scanFeedbackBus.emit({
             kind: "unknown", raw: norm, source: "field",
             workflow: "quantity", fieldLabel: "Sales workspace",
+            detail: outcome.title,
           });
-          if (!controllerRef.current && mode === "browse") {
-            toast({
-              title: outcome.title,
-              description: outcome.detail,
-              variant: "destructive",
-            });
-          }
+          // A scan whose outcome is invisible is worse than no scan at all:
+          // the operator believes the line landed. Announce EVERY non-hit,
+          // whether or not a draft controller is registered and regardless
+          // of rapid/browse mode.
+          toast({
+            title: outcome.title,
+            description: `${outcome.detail} (scanned ${norm})`,
+            variant: "destructive",
+          });
           return;
         }
+        const failure = normalizeError(result.err);
+        const cause = [result.code, result.err.message].filter(Boolean).join(" · ");
         scanFeedbackBus.emit({
           kind: "error", raw: norm, source: "field",
           workflow: "quantity", fieldLabel: "Sales workspace",
+          detail: "Lookup failed",
         });
-        if (!controllerRef.current && mode === "browse") {
-          toast({
-            title: "Scanner lookup failed",
-            description: normalizeError(result.err).message,
-            variant: "destructive",
-          });
-        }
+        toast({
+          title: "Scanner lookup failed",
+          description: `${failure.message} — ${cause || "no detail returned"} (scanned ${norm})`,
+          variant: "destructive",
+        });
       } finally {
         inFlightCodesRef.current.delete(norm);
       }
     },
-    [currentBusiness?.id, dispatch, enqueueInbox, mode, resolveTagged, toast],
+    [currentBusiness?.id, dispatch, enqueueInbox, resolveTagged, toast],
   );
+
+  // Keep the router registration STABLE. `useScanTarget` re-registers
+  // whenever `onScan` identity changes, and a provider re-render between
+  // unregister/register can drop a scan outright.
+  const handleScanRef = useRef(handleScan);
+  useEffect(() => {
+    handleScanRef.current = handleScan;
+  }, [handleScan]);
+  const routerOnScan = useCallback((event: { code: string; decodedAt?: number }) => {
+    void handleScanRef.current(event.code, event.decodedAt);
+  }, []);
 
   useScanTarget({
     active: !!currentBusiness?.id,
@@ -333,8 +349,9 @@ export function SalesScanProvider({ children }: { children: ReactNode }) {
     label: "SalesScanContext",
     workflow: "identity",
     intent: "doc_author",
-    onScan: (event) => { void handleScan(event.code, event.decodedAt); },
+    onScan: routerOnScan,
   });
+
 
   useEffect(() => {
     const t = window.setInterval(() => {
