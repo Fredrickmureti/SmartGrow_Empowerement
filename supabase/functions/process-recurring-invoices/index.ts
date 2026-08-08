@@ -27,7 +27,6 @@ const MAX_CATCH_UP = 12;
  */
 const DELIVERY_BACKOFF_MINUTES = [5, 15, 60, 240, 720];
 const MAX_DELIVERY_ATTEMPTS = DELIVERY_BACKOFF_MINUTES.length;
-/** Safety cap on catch-up periods generated for one template in one sweep. */
 
 interface OccurrenceResult {
   status: "generated" | "posted" | "failed" | "skipped";
