@@ -67,7 +67,7 @@ export interface ResolvedScan {
 export type ResolveResult =
   | { kind: "hit"; row: ResolvedScan }
   | { kind: "miss"; status: Exclude<IdentityStatus, "resolved" | "error">; code: string; matchCount: number; productName: string | null }
-  | { kind: "error"; err: Error };
+  | { kind: "error"; err: Error; code?: string };
 
 const MAX_CACHE = 256;
 const MISS_TTL_MS = 5_000;
@@ -154,7 +154,18 @@ async function rpcOnce(
     p_branch_id: branchId,
     p_code: code,
   } as never);
-  if (error) return { kind: "error", err: new Error(error.message || "RPC error") };
+  if (error) {
+    // Carry the real cause. Collapsing this into "an unexpected error"
+    // made every scanner failure unactionable for operators AND for
+    // support: the code, details and hint are the whole diagnosis.
+    const e = error as { message?: string; details?: string; hint?: string; code?: string };
+    const detail = [e.message, e.details, e.hint].filter(Boolean).join(" — ");
+    return {
+      kind: "error",
+      err: new Error(detail || "Scanner lookup RPC failed"),
+      code: e.code,
+    };
+  }
   // Tolerate the legacy row-set shape while the wrapper still exists.
   const raw = data as unknown;
   const payload = (Array.isArray(raw) ? (raw[0] ?? null) : (raw ?? null)) as
@@ -234,7 +245,11 @@ export function useResolveBarcode(businessId: string | undefined, branchId: stri
           } else {
             // Never cache errors; surface them so callers can show a
             // distinct "retrying" / "network blip" state.
-            console.warn("[useResolveBarcode] RPC failed after retry:", result.err.message);
+            console.warn(
+              "[useResolveBarcode] RPC failed after retry:",
+              result.code ?? "no-code",
+              result.err.message,
+            );
           }
           return result;
         })
