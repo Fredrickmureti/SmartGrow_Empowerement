@@ -3,14 +3,13 @@
  * Shows 30/60/90/120+ aging buckets for a contact.
  */
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Clock, Loader2 } from "lucide-react";
-import { differenceInDays } from "date-fns";
+import { fetchContactOpenItemAging } from "@/services/finance/openItems";
 
 interface Props {
   contactId: string;
@@ -35,60 +34,28 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
   const isSupplier = contactType === "supplier" || contactType === "both";
 
   const { data: aging, isLoading } = useQuery({
-    queryKey: ["contact-aging", contactId, currentOrg?.id],
+    queryKey: ["contact-aging", contactId, currentOrg?.id, currentBusiness?.id],
     queryFn: async (): Promise<{ ar: AgingBuckets | null; ap: AgingBuckets | null }> => {
       if (!currentOrg?.id) return { ar: null, ap: null };
 
-      const now = new Date();
-      let ar: AgingBuckets | null = null;
-      let ap: AgingBuckets | null = null;
-
-      if (isCustomer) {
-        let invQuery = supabase
-          .from("invoices")
-          .select("total, amount_paid, due_date")
-          .eq("contact_id", contactId)
-          .eq("organization_id", currentOrg.id);
-        invQuery = invQuery.eq("business_id", currentBusiness!.id);
-        const { data: invoices } = await (invQuery as any).in("status", ["sent", "overdue", "partial"]);
-
-        ar = { current: 0, days30: 0, days60: 0, days90: 0, days120: 0, total: 0 };
-        (invoices || []).forEach((inv: any) => {
-          const balance = (inv.total || 0) - (inv.amount_paid || 0);
-          if (balance <= 0) return;
-          const overdue = inv.due_date ? differenceInDays(now, new Date(inv.due_date)) : 0;
-          if (overdue <= 0) ar!.current += balance;
-          else if (overdue <= 30) ar!.days30 += balance;
-          else if (overdue <= 60) ar!.days60 += balance;
-          else if (overdue <= 90) ar!.days90 += balance;
-          else ar!.days120 += balance;
-          ar!.total += balance;
-        });
-      }
-
-      if (isSupplier) {
-        let billsQuery = (supabase as any)
-          .from("bills")
-          .select("total, amount_paid, due_date")
-          .eq("contact_id", contactId)
-          .eq("organization_id", currentOrg.id)
-          .in("status", ["received", "overdue", "partial"]);
-        billsQuery = billsQuery.eq("business_id", currentBusiness!.id);
-        const { data: bills } = await billsQuery;
-
-        ap = { current: 0, days30: 0, days60: 0, days90: 0, days120: 0, total: 0 };
-        (bills || []).forEach((bill: any) => {
-          const balance = (bill.total || 0) - (bill.amount_paid || 0);
-          if (balance <= 0) return;
-          const overdue = bill.due_date ? differenceInDays(now, new Date(bill.due_date)) : 0;
-          if (overdue <= 0) ap!.current += balance;
-          else if (overdue <= 30) ap!.days30 += balance;
-          else if (overdue <= 60) ap!.days60 += balance;
-          else if (overdue <= 90) ap!.days90 += balance;
-          else ap!.days120 += balance;
-          ap!.total += balance;
-        });
-      }
+      // GL-gated projection — residual already nets cash receipts and applied
+      // credit notes, so no status list is involved.
+      const [ar, ap] = await Promise.all([
+        isCustomer
+          ? fetchContactOpenItemAging("ar", {
+              orgId: currentOrg.id,
+              contactId,
+              businessId: currentBusiness?.id ?? null,
+            })
+          : Promise.resolve(null),
+        isSupplier
+          ? fetchContactOpenItemAging("ap", {
+              orgId: currentOrg.id,
+              contactId,
+              businessId: currentBusiness?.id ?? null,
+            })
+          : Promise.resolve(null),
+      ]);
 
       return { ar, ap };
     },
