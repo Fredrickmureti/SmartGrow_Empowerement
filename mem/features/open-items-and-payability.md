@@ -32,3 +32,11 @@ client-side status overwrite after confirmation.
 ## Guards
 - `supabase/tests/open_items_settlement_channels_test.sql`
 - `src/test/architecture/invoice-payability-single-source.test.ts`
+
+## Contact & management surfaces (converged)
+`fetchContactOpenItemAging(side, {orgId, contactId, businessId, branchId})` in
+`src/services/finance/openItems.ts` is the only way to compute a
+counterparty's receivable/payable and aging buckets. `ContactAgingBreakdown`,
+`ContactPreviewDrawer` and `ManagementReports` (via `fetchARSummary` /
+`fetchAPSummary`) all read it — never a status list over `invoices` / `bills`.
+Guarded by `src/test/architecture/invoice-payability-single-source.test.ts`.
