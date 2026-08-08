@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
+import type { RecurringInvoiceStatus } from "@/lib/recurringLifecycle";
 
 export interface RecurringInvoiceItem {
   id?: string;
@@ -34,7 +35,11 @@ export interface RecurringInvoice {
   end_date: string | null;
   next_run_date: string;
   last_run_date: string | null;
+  /** Derived from `status` by the database; read-only for the client. */
   is_active: boolean;
+  status: RecurringInvoiceStatus;
+  status_changed_at?: string;
+  definition_version?: number;
   auto_send: boolean;
   auto_confirm?: boolean;
   days_before_due: number;
@@ -234,6 +239,7 @@ export function useRecurringInvoices() {
     updateRecurringInvoice,
     deleteRecurringInvoice,
     toggleActive,
+    setRecurringStatus,
     generateInvoiceNow,
     refreshRecurringInvoices: invalidate,
   };
