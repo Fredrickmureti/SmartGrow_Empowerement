@@ -26,7 +26,8 @@ export function isSchemaCacheMiss(error: RpcError | null | undefined): boolean {
  * database yet. Every other error is returned untouched.
  */
 export async function callRpcWithSchemaRetry<T extends { error: RpcError | null }>(
-  invoke: () => Promise<T>,
+  // Supabase query builders are thenables, not real Promises.
+  invoke: () => PromiseLike<T>,
   delayMs = 750,
 ): Promise<T> {
   const first = await invoke();
