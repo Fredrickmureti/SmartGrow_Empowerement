@@ -158,11 +158,29 @@ export function useRecurringInvoices() {
     invalidate();
   };
 
-  const toggleActive = async (id: string, isActive: boolean) => {
-    const { error } = await supabase.from("recurring_invoices").update({ is_active: isActive }).eq("id", id);
+  /**
+   * The template lifecycle is owned by the database
+   * (`set_recurring_status_atomic`); a trigger rejects any direct `status`
+   * write and derives the legacy `is_active` flag from it. The client may
+   * only ask for a transition.
+   */
+  const setRecurringStatus = async (
+    id: string,
+    status: RecurringInvoiceStatus,
+    reason?: string,
+  ) => {
+    const { error } = await supabase.rpc("set_recurring_status_atomic" as never, {
+      p_recurring_id: id,
+      p_status: status,
+      p_user_id: user?.id ?? null,
+      p_reason: reason ?? null,
+    } as never);
     if (error) throw error;
     invalidate();
   };
+
+  const toggleActive = async (id: string, isActive: boolean) =>
+    setRecurringStatus(id, isActive ? "active" : "paused");
 
   /**
    * "Generate now" runs the SAME database engine the scheduler uses
