@@ -15,6 +15,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { computeLine } from "@/lib/invoiceLineMath";
+import { computeEstimateTotals } from "@/lib/estimateLifecycle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -265,9 +266,10 @@ export default function EstimateEditPage() {
         subtotal += item.line_total;
         taxAmount += item.tax_amount;
       });
-      const additionalCostsTotal = additionalCosts.reduce((sum, c) => sum + c.amount, 0);
+      // One formula shared with the create path (see estimateLifecycle.ts).
+      const totals = computeEstimateTotals(validItems, additionalCosts, formData.discount_amount);
       const additionalCostsTax = additionalCosts.reduce((sum, c) => sum + c.tax_amount, 0);
-      const total = subtotal + taxAmount + additionalCostsTotal + additionalCostsTax - formData.discount_amount;
+      const total = totals.total;
 
       const { error: estimateError } = await supabase
         .from("estimates")
@@ -278,7 +280,7 @@ export default function EstimateEditPage() {
           terms: formData.terms || null,
           discount_amount: formData.discount_amount,
           subtotal,
-          tax_amount: taxAmount + additionalCostsTax,
+          tax_amount: totals.tax_amount,
           total,
         })
         .eq("id", estimate.id);

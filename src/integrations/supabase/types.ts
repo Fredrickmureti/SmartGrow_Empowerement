@@ -18900,13 +18900,59 @@ export type Database = {
           },
         ]
       }
+      estimate_status_events: {
+        Row: {
+          business_id: string | null
+          changed_by: string | null
+          created_at: string
+          estimate_id: string
+          from_status: string | null
+          id: string
+          organization_id: string
+          reason: string | null
+          to_status: string
+        }
+        Insert: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          estimate_id: string
+          from_status?: string | null
+          id?: string
+          organization_id: string
+          reason?: string | null
+          to_status: string
+        }
+        Update: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          estimate_id?: string
+          from_status?: string | null
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_status_events_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       estimates: {
         Row: {
+          accepted_at: string | null
           branch_id: string | null
           business_id: string
           contact_id: string | null
           converted_at: string | null
           converted_invoice_id: string | null
+          converted_sales_order_id: string | null
           created_at: string
           created_by: string | null
           currency: string | null
@@ -18919,6 +18965,8 @@ export type Database = {
           issue_date: string
           notes: string | null
           organization_id: string
+          rejected_at: string | null
+          sent_at: string | null
           signed_at: string | null
           signed_by_email: string | null
           signed_by_name: string | null
@@ -18930,13 +18978,16 @@ export type Database = {
           terms: string | null
           total: number
           updated_at: string
+          viewed_at: string | null
         }
         Insert: {
+          accepted_at?: string | null
           branch_id?: string | null
           business_id: string
           contact_id?: string | null
           converted_at?: string | null
           converted_invoice_id?: string | null
+          converted_sales_order_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
@@ -18949,6 +19000,8 @@ export type Database = {
           issue_date?: string
           notes?: string | null
           organization_id: string
+          rejected_at?: string | null
+          sent_at?: string | null
           signed_at?: string | null
           signed_by_email?: string | null
           signed_by_name?: string | null
@@ -18960,13 +19013,16 @@ export type Database = {
           terms?: string | null
           total?: number
           updated_at?: string
+          viewed_at?: string | null
         }
         Update: {
+          accepted_at?: string | null
           branch_id?: string | null
           business_id?: string
           contact_id?: string | null
           converted_at?: string | null
           converted_invoice_id?: string | null
+          converted_sales_order_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
@@ -18979,6 +19035,8 @@ export type Database = {
           issue_date?: string
           notes?: string | null
           organization_id?: string
+          rejected_at?: string | null
+          sent_at?: string | null
           signed_at?: string | null
           signed_by_email?: string | null
           signed_by_name?: string | null
@@ -18990,6 +19048,7 @@ export type Database = {
           terms?: string | null
           total?: number
           updated_at?: string
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -19039,6 +19098,13 @@ export type Database = {
             columns: ["converted_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimates_converted_sales_order_id_fkey"
+            columns: ["converted_sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
             referencedColumns: ["id"]
           },
           {
@@ -23333,6 +23399,7 @@ export type Database = {
           signed_at: string | null
           source: string | null
           source_delivery_note_id: string | null
+          source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
@@ -23396,6 +23463,7 @@ export type Database = {
           signed_at?: string | null
           source?: string | null
           source_delivery_note_id?: string | null
+          source_estimate_id?: string | null
           source_pos_transaction_id?: string | null
           source_proforma_invoice_id?: string | null
           source_recurring_id?: string | null
@@ -23459,6 +23527,7 @@ export type Database = {
           signed_at?: string | null
           source?: string | null
           source_delivery_note_id?: string | null
+          source_estimate_id?: string | null
           source_pos_transaction_id?: string | null
           source_proforma_invoice_id?: string | null
           source_recurring_id?: string | null
@@ -23691,6 +23760,13 @@ export type Database = {
             columns: ["source_delivery_note_id"]
             isOneToOne: false
             referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_source_estimate_id_fkey"
+            columns: ["source_estimate_id"]
+            isOneToOne: false
+            referencedRelation: "estimates"
             referencedColumns: ["id"]
           },
           {
@@ -86605,6 +86681,7 @@ export type Database = {
         Returns: Json
       }
       expire_app_trials: { Args: never; Returns: number }
+      expire_stale_estimates: { Args: never; Returns: number }
       expire_stock_reservations: { Args: never; Returns: number }
       extend_app_trial: {
         Args: { p_app_id: string; p_extra_days: number; p_org_id: string }
@@ -87036,6 +87113,7 @@ export type Database = {
           signed_at: string | null
           source: string | null
           source_delivery_note_id: string | null
+          source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
@@ -87686,7 +87764,12 @@ export type Database = {
         Args: { _org_id: string; _register_id: string }
         Returns: string
       }
-      get_next_so_number: { Args: { _org_id: string }; Returns: string }
+      get_next_so_number:
+        | { Args: { _org_id: string }; Returns: string }
+        | {
+            Args: { _branch_id?: string; _business_id: string; _org_id: string }
+            Returns: string
+          }
       get_next_sourcing_event_number: {
         Args: { _business_id: string; _kind: string; _org_id: string }
         Returns: string
@@ -93970,6 +94053,15 @@ export type Database = {
       set_employee_kiosk_pin: {
         Args: { _employee_id: string; _pin: string }
         Returns: undefined
+      }
+      set_estimate_status_atomic: {
+        Args: {
+          p_estimate_id: string
+          p_reason?: string
+          p_status: string
+          p_user_id?: string
+        }
+        Returns: Json
       }
       set_label_run_status: {
         Args: {

@@ -125,7 +125,7 @@ export default function Estimates() {
   // Custom field filtering
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("estimate");
 
-  const { estimates, isLoading, createEstimate, getNextEstimateNumber, updateEstimate, deleteEstimate, convertToInvoice, convertToSalesOrder, refreshEstimates } = useEstimates();
+  const { estimates, isLoading, createEstimate, getNextEstimateNumber, updateEstimate, setEstimateStatus, deleteEstimate, convertToInvoice, convertToSalesOrder, refreshEstimates } = useEstimates();
   const { contacts } = useContacts();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
   const { toast } = useToast();
@@ -338,7 +338,7 @@ export default function Estimates() {
 
   const handleStatusChange = async (id: string, status: string) => {
     try {
-      await updateEstimate(id, { status: status as any });
+      await setEstimateStatus(id, status as any);
       toast({ title: "Status updated" });
     } catch (error: any) {
       toast({ title: "Error updating status", description: normalizeError(error).message, variant: "destructive" });

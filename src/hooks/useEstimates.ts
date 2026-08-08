@@ -10,6 +10,7 @@ import { useAuditLog } from "./useAuditLog";
 import { usePermissions } from "./usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
+import { computeEstimateTotals, type EstimateStatus } from "@/lib/estimateLifecycle";
 
 export interface EstimateItem {
   id?: string;
@@ -57,7 +58,12 @@ export interface Estimate {
   notes: string | null;
   terms: string | null;
   converted_invoice_id: string | null;
+  converted_sales_order_id: string | null;
   converted_at: string | null;
+  sent_at: string | null;
+  viewed_at: string | null;
+  accepted_at: string | null;
+  rejected_at: string | null;
   customer_signature_url: string | null;
   signed_at: string | null;
   signed_by_name: string | null;
@@ -132,12 +138,12 @@ export function useEstimates() {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to create estimates", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
-    const subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
-    const itemsTax = items.reduce((sum, item) => sum + item.tax_amount, 0);
-    const additionalCostsTotal = (additionalCosts || []).reduce((sum, cost) => sum + cost.amount, 0);
-    const additionalCostsTax = (additionalCosts || []).reduce((sum, cost) => sum + cost.tax_amount, 0);
-    const taxAmount = itemsTax + additionalCostsTax;
-    const total = subtotal + taxAmount + additionalCostsTotal - (estimate.discount_amount || 0);
+    const { subtotal, tax_amount: taxAmount, total } = computeEstimateTotals(
+      items,
+      additionalCosts || [],
+      estimate.discount_amount || 0,
+    );
+
 
     const { data: created, error: estimateError } = await supabase
       .from("estimates")
@@ -192,21 +198,51 @@ export function useEstimates() {
     return created;
   };
 
+  /**
+   * Moves an estimate through the lifecycle. The DB owns the transition table
+   * (`set_estimate_status_atomic`); a trigger rejects any direct status write,
+   * so this RPC is the only legal path.
+   */
+  const setEstimateStatus = async (id: string, status: EstimateStatus, reason?: string) => {
+    if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to update estimates", variant: "destructive" }); throw new Error("Permission denied"); }
+    if (!user) throw new Error("Not authenticated");
+
+    const { error } = await supabase.rpc("set_estimate_status_atomic" as any, {
+      p_estimate_id: id,
+      p_status: status,
+      p_user_id: user.id,
+      p_reason: reason ?? null,
+    });
+    if (error) throw error;
+
+    const estimate = estimates.find((e) => e.id === id);
+    logAction({
+      action: "status_changed",
+      entityType: "estimate",
+      entityId: id,
+      entityName: estimate?.estimate_number ?? id,
+      changesSummary: `Estimate status → ${status}`,
+    });
+
+    invalidate();
+  };
+
   const updateEstimate = async (
     id: string,
     updates: Partial<Estimate>,
-    items?: Omit<EstimateItem, "id" | "estimate_id">[]
+    items?: Omit<EstimateItem, "id" | "estimate_id">[],
+    additionalCosts?: Omit<AdditionalCost, "id" | "estimate_id">[]
   ) => {
     if (!can("manageSales")) { toast({ title: "Permission denied", description: "You don't have permission to update estimates", variant: "destructive" }); throw new Error("Permission denied"); }
 
-    if (items) {
-      const subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
-      const taxAmount = items.reduce((sum, item) => sum + item.tax_amount, 0);
-      const total = subtotal + taxAmount - (updates.discount_amount || 0);
+    const costs = additionalCosts ?? (updates.additional_costs as AdditionalCost[] | undefined);
 
-      updates.subtotal = subtotal;
-      updates.tax_amount = taxAmount;
-      updates.total = total;
+    if (items) {
+      // Same formula as create — additional costs are part of the price.
+      const totals = computeEstimateTotals(items, costs ?? [], updates.discount_amount || 0);
+      updates.subtotal = totals.subtotal;
+      updates.tax_amount = totals.tax_amount;
+      updates.total = totals.total;
 
       await supabase.from("estimate_items").delete().eq("estimate_id", id);
 
@@ -221,10 +257,39 @@ export function useEstimates() {
       }
     }
 
-    const { additional_costs: _ac, contact: _c, items: _i, ...dbUpdates } = updates as any;
+    if (costs) {
+      await supabase.from("estimate_additional_costs").delete().eq("estimate_id", id);
+      if (costs.length > 0) {
+        const costsToInsert = costs.map((cost, index) => ({
+          estimate_id: id,
+          name: cost.name,
+          amount: cost.amount,
+          is_taxable: cost.is_taxable,
+          tax_rate: cost.tax_rate,
+          tax_amount: cost.tax_amount,
+          sort_order: index,
+        }));
+        const { error: costsError } = await supabase.from("estimate_additional_costs").insert(costsToInsert);
+        if (costsError) throw costsError;
+      }
+    }
 
-    const { error } = await supabase.from("estimates").update(dbUpdates).eq("id", id);
-    if (error) throw error;
+    const { additional_costs: _ac, contact: _c, items: _i, status: nextStatus, ...dbUpdates } = updates as any;
+
+    if (Object.keys(dbUpdates).length > 0) {
+      const { error } = await supabase.from("estimates").update(dbUpdates).eq("id", id);
+      if (error) throw error;
+    }
+
+    // Status changes never travel with a plain update — route them through the
+    // state machine so illegal transitions are rejected server-side.
+    if (nextStatus) {
+      const current = estimates.find((e) => e.id === id)?.status;
+      if (nextStatus !== current) {
+        await setEstimateStatus(id, nextStatus as EstimateStatus);
+      }
+    }
+
 
     const estimate = estimates.find((e) => e.id === id);
     if (estimate) {
@@ -264,11 +329,14 @@ export function useEstimates() {
     const estimate = estimates.find((e) => e.id === estimateId);
     if (!estimate) throw new Error("Estimate not found");
 
+    if ((estimate as any).converted_sales_order_id) {
+      throw new Error(`Estimate ${estimate.estimate_number} has already been converted to a sales order.`);
+    }
     if ((estimate as any).converted_invoice_id) {
       throw new Error(`Estimate ${estimate.estimate_number} has already been converted to an invoice.`);
     }
 
-    const convertibleStatuses = ["draft", "sent", "accepted", "approved"];
+    const convertibleStatuses = ["draft", "sent", "viewed", "accepted"];
     if (!convertibleStatuses.includes(estimate.status)) {
       throw new Error(`Cannot convert estimate with status "${estimate.status}".`);
     }
@@ -298,6 +366,9 @@ export function useEstimates() {
 
     const estimate = estimates.find((e) => e.id === estimateId);
     if (!estimate) throw new Error("Estimate not found");
+    if ((estimate as any).converted_sales_order_id || (estimate as any).converted_invoice_id) {
+      throw new Error(`Estimate ${estimate.estimate_number} has already been converted.`);
+    }
 
     // Sales audit Phase 2: atomic RPC. Single DB transaction creates the SO
     // header + items and flips the estimate to 'converted'. Replaces the
@@ -330,6 +401,7 @@ export function useEstimates() {
     getNextEstimateNumber,
     createEstimate,
     updateEstimate,
+    setEstimateStatus,
     deleteEstimate,
     convertToInvoice,
     convertToSalesOrder,

@@ -137,7 +137,7 @@ export function EstimateListTable({
                           </DropdownMenuItem>
                         </>
                       )}
-                      {estimate.status === "accepted" && !estimate.converted_invoice_id && (
+                      {estimate.status === "accepted" && !estimate.converted_invoice_id && !estimate.converted_sales_order_id && (
                         <>
                           <DropdownMenuItem onClick={() => onConvertToSalesOrder(estimate.id)}>
                             <ShoppingCart className="mr-2 h-4 w-4" /> Convert to Sales Order
