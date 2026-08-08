@@ -15,6 +15,7 @@ import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { RecurringInvoice, RecurringInvoiceItem } from "@/hooks/useRecurringInvoices";
+import { RECURRING_STATUS_LABEL, type RecurringInvoiceStatus } from "@/lib/recurringLifecycle";
 import { RecurringBillingHistory } from "./RecurringBillingHistory";
 
 type Row = RecurringInvoice & {
@@ -92,8 +93,14 @@ export default function RecurringInvoiceRecordPage() {
     [row],
   );
 
-  const statusLabel = row ? (row.is_active ? "Active" : "Paused") : "";
-  const statusTone: "success" | "warning" = row?.is_active ? "success" : "warning";
+  // `status` is the lifecycle truth; `is_active` is only its boolean shadow.
+  const lifecycle = (row?.status ?? (row?.is_active ? "active" : "paused")) as RecurringInvoiceStatus;
+  const statusLabel = row ? RECURRING_STATUS_LABEL[lifecycle] ?? lifecycle : "";
+  const statusTone: "success" | "warning" | "danger" | "neutral" =
+    lifecycle === "active" ? "success"
+      : lifecycle === "paused" ? "warning"
+      : lifecycle === "cancelled" ? "danger"
+      : "neutral";
 
   return (
     <RecordScaffold
@@ -128,6 +135,7 @@ export default function RecurringInvoiceRecordPage() {
         { label: "Auto-confirm", value: row.auto_confirm ? "Yes" : "No" },
         { label: "Days before due", value: row.days_before_due },
         { label: "Currency", value: row.currency },
+        { label: "Definition version", value: row.definition_version ?? 1 },
       ] : undefined}
       extraSections={row ? <RecurringBillingHistory recurringId={id} /> : undefined}
       lineColumns={columns}

@@ -73,9 +73,22 @@ import {
   Download,
   FileText,
   ExternalLink,
+  Ban,
 } from "lucide-react";
 import { useExport } from "@/hooks/useExport";
 import { format } from "date-fns";
+import {
+  RECURRING_STATUS_LABEL,
+  canTransitionRecurring,
+  type RecurringInvoiceStatus,
+} from "@/lib/recurringLifecycle";
+
+/**
+ * A template's lifecycle state. Rows written before the status column existed
+ * still only carry `is_active`, so fall back to its meaning.
+ */
+const lifecycleOf = (ri: { status?: string | null; is_active?: boolean }): RecurringInvoiceStatus =>
+  (ri.status as RecurringInvoiceStatus | undefined) ?? (ri.is_active ? "active" : "paused");
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { RecurringInvoicePeekSheet } from "@/features/sales/recurring/RecurringInvoicePeekSheet";
@@ -85,7 +98,7 @@ import { normalizeError } from "@/services/resilience";
 export default function RecurringInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { recurringInvoices, isLoading, createRecurringInvoice, updateRecurringInvoice, deleteRecurringInvoice, toggleActive, generateInvoiceNow } = useRecurringInvoices();
+  const { recurringInvoices, isLoading, createRecurringInvoice, updateRecurringInvoice, deleteRecurringInvoice, setRecurringStatus, generateInvoiceNow } = useRecurringInvoices();
   const { currentOrg } = useOrganization();
   const { contacts } = useContacts();
   const { products } = useProducts();
@@ -269,10 +282,10 @@ export default function RecurringInvoices() {
     }
   };
 
-  const handleToggleActive = async (id: string, currentState: boolean) => {
+  const handleSetStatus = async (id: string, next: RecurringInvoiceStatus) => {
     try {
-      await toggleActive(id, !currentState);
-      toast({ title: currentState ? "Paused" : "Activated" });
+      await setRecurringStatus(id, next);
+      toast({ title: RECURRING_STATUS_LABEL[next] });
     } catch (error: any) {
       toast({ title: "Error", description: normalizeError(error).message, variant: "destructive" });
     }
@@ -324,7 +337,7 @@ export default function RecurringInvoices() {
   };
 
   const stats = {
-    active: filteredRecurring.filter((ri) => ri.is_active).length,
+    active: filteredRecurring.filter((ri) => lifecycleOf(ri) === "active").length,
     total: filteredRecurring.length,
     generated: filteredRecurring.reduce((sum, ri) => sum + ri.invoices_generated, 0),
   };
@@ -379,7 +392,7 @@ export default function RecurringInvoices() {
                   customer: ri.contact?.name || "",
                   frequency: ri.frequency,
                   amount: (ri.items || []).reduce((s, item) => s + (item.quantity * item.unit_price), 0),
-                  status: ri.is_active ? "Active" : "Paused",
+                  status: RECURRING_STATUS_LABEL[lifecycleOf(ri)],
                   next_date: ri.next_run_date,
                   generated: ri.invoices_generated,
                 }));
@@ -426,12 +439,12 @@ export default function RecurringInvoices() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {filteredRecurring.filter((ri) => ri.is_active).length > 0
+                {filteredRecurring.filter((ri) => lifecycleOf(ri) === "active").length > 0
                   ? format(
                       new Date(
                         Math.min(
                           ...filteredRecurring
-                            .filter((ri) => ri.is_active)
+                            .filter((ri) => lifecycleOf(ri) === "active")
                             .map((ri) => new Date(ri.next_run_date).getTime())
                         )
                       ),
@@ -512,8 +525,11 @@ export default function RecurringInvoices() {
                     <TableCell>{format(new Date(ri.next_run_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{ri.invoices_generated}</TableCell>
                     <TableCell>
-                      <Badge variant={ri.is_active ? "default" : "secondary"} className={ri.is_active ? "bg-green-500" : ""}>
-                        {ri.is_active ? "Active" : "Paused"}
+                      <Badge
+                        variant={lifecycleOf(ri) === "active" ? "default" : lifecycleOf(ri) === "cancelled" ? "destructive" : "secondary"}
+                        className={lifecycleOf(ri) === "active" ? "bg-green-500" : ""}
+                      >
+                        {RECURRING_STATUS_LABEL[lifecycleOf(ri)]}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">
@@ -532,16 +548,27 @@ export default function RecurringInvoices() {
                             <ExternalLink className="mr-2 h-4 w-4" /> Open Full Page
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleGenerateNow(ri.id)}>
+                          <DropdownMenuItem
+                            onClick={() => handleGenerateNow(ri.id)}
+                            disabled={lifecycleOf(ri) !== "active"}
+                          >
                             <Zap className="mr-2 h-4 w-4" /> Generate Now
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleToggleActive(ri.id, ri.is_active)}>
-                            {ri.is_active ? (
-                              <><Pause className="mr-2 h-4 w-4" /> Pause</>
-                            ) : (
-                              <><Play className="mr-2 h-4 w-4" /> Activate</>
-                            )}
-                          </DropdownMenuItem>
+                          {canTransitionRecurring(lifecycleOf(ri), "paused") && (
+                            <DropdownMenuItem onClick={() => handleSetStatus(ri.id, "paused")}>
+                              <Pause className="mr-2 h-4 w-4" /> Pause
+                            </DropdownMenuItem>
+                          )}
+                          {canTransitionRecurring(lifecycleOf(ri), "active") && (
+                            <DropdownMenuItem onClick={() => handleSetStatus(ri.id, "active")}>
+                              <Play className="mr-2 h-4 w-4" /> Activate
+                            </DropdownMenuItem>
+                          )}
+                          {canTransitionRecurring(lifecycleOf(ri), "cancelled") && (
+                            <DropdownMenuItem onClick={() => handleSetStatus(ri.id, "cancelled")}>
+                              <Ban className="mr-2 h-4 w-4" /> Cancel schedule
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleDelete(ri.id)} className="text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete

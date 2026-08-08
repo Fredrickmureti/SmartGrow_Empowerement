@@ -9,6 +9,7 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { RecurringDeliveryStatus } from "@/lib/recurringLifecycle";
 
 export interface RecurringInvoiceRun {
   id: string;
@@ -20,10 +21,15 @@ export interface RecurringInvoiceRun {
   invoice_number: string | null;
   journal_entry_id: string | null;
   failure_reason: string | null;
-  delivery_status: "pending" | "not_applicable" | "queued" | "sent" | "failed";
+  delivery_status: RecurringDeliveryStatus;
   delivery_error: string | null;
   delivered_at: string | null;
   attempt_count: number;
+  /** Email retries are counted separately from generation attempts. */
+  delivery_attempt_count?: number;
+  next_retry_at?: string | null;
+  /** Which version of the template definition priced this period. */
+  definition_version?: number | null;
   trigger_source: "schedule" | "manual" | "api";
   created_at: string;
 }

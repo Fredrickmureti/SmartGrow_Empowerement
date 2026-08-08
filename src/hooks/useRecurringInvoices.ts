@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
+import type { RecurringInvoiceStatus } from "@/lib/recurringLifecycle";
 
 export interface RecurringInvoiceItem {
   id?: string;
@@ -34,7 +35,11 @@ export interface RecurringInvoice {
   end_date: string | null;
   next_run_date: string;
   last_run_date: string | null;
+  /** Derived from `status` by the database; read-only for the client. */
   is_active: boolean;
+  status: RecurringInvoiceStatus;
+  status_changed_at?: string;
+  definition_version?: number;
   auto_send: boolean;
   auto_confirm?: boolean;
   days_before_due: number;
@@ -93,16 +98,22 @@ export function useRecurringInvoices() {
   const createRecurringInvoice = async (
     recurringInvoice: Omit<
       RecurringInvoice,
-      "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "items" | "invoices_generated" | "last_run_date"
+      "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "items" | "invoices_generated" | "last_run_date" | "status" | "status_changed_at" | "definition_version"
     >,
     items: Omit<RecurringInvoiceItem, "id" | "recurring_invoice_id">[]
   ) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
+    // `is_active` is a derived mirror of `status`; a new template is born
+    // active or paused, never in a terminal state.
+    const { is_active: startsActive, ...templateFields } = recurringInvoice;
+
     const { data: created, error: riError } = await supabase
       .from("recurring_invoices")
       .insert({
-        ...recurringInvoice,
+        ...templateFields,
+        status: startsActive === false ? "paused" : "active",
+        is_active: startsActive !== false,
         organization_id: currentOrg.id,
         business_id: currentBusiness?.id || null,
         branch_id: currentBranch?.id ?? null,
@@ -146,7 +157,17 @@ export function useRecurringInvoices() {
       }
     }
 
-    const { contact, items: _i, ...dbUpdates } = updates as any;
+    // Lifecycle columns are owned by `set_recurring_status_atomic`; an edit
+    // form may never smuggle a state change through a field update.
+    const {
+      contact,
+      items: _i,
+      status: _status,
+      is_active: _isActive,
+      status_changed_at: _sca,
+      definition_version: _dv,
+      ...dbUpdates
+    } = updates as any;
     const { error } = await supabase.from("recurring_invoices").update(dbUpdates).eq("id", id);
     if (error) throw error;
     invalidate();
@@ -158,11 +179,29 @@ export function useRecurringInvoices() {
     invalidate();
   };
 
-  const toggleActive = async (id: string, isActive: boolean) => {
-    const { error } = await supabase.from("recurring_invoices").update({ is_active: isActive }).eq("id", id);
+  /**
+   * The template lifecycle is owned by the database
+   * (`set_recurring_status_atomic`); a trigger rejects any direct `status`
+   * write and derives the legacy `is_active` flag from it. The client may
+   * only ask for a transition.
+   */
+  const setRecurringStatus = async (
+    id: string,
+    status: RecurringInvoiceStatus,
+    reason?: string,
+  ) => {
+    const { error } = await supabase.rpc("set_recurring_status_atomic" as never, {
+      p_recurring_id: id,
+      p_status: status,
+      p_user_id: user?.id ?? null,
+      p_reason: reason ?? null,
+    } as never);
     if (error) throw error;
     invalidate();
   };
+
+  const toggleActive = async (id: string, isActive: boolean) =>
+    setRecurringStatus(id, isActive ? "active" : "paused");
 
   /**
    * "Generate now" runs the SAME database engine the scheduler uses
@@ -216,6 +255,7 @@ export function useRecurringInvoices() {
     updateRecurringInvoice,
     deleteRecurringInvoice,
     toggleActive,
+    setRecurringStatus,
     generateInvoiceNow,
     refreshRecurringInvoices: invalidate,
   };
