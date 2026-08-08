@@ -36,6 +36,9 @@ export class PublicAppUrlUnavailableError extends Error {
 
 const NETWORK_PROTOCOLS = new Set(["http:", "https:"]);
 
+/** Canonical production host, without the `www.` prefix. */
+const PRODUCTION_HOST = "accrualflow.systems";
+
 function normalize(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
@@ -47,8 +50,14 @@ function normalize(raw: string | null | undefined): string | null {
     return null;
   }
   if (!NETWORK_PROTOCOLS.has(parsed.protocol)) return null;
+  // Any spelling of the production host canonicalises to the one origin the
+  // certificate and auth cookies are issued for (https + www). A stray
+  // `http://accrualflow.systems` in an env file must never end up in a QR.
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (host === PRODUCTION_HOST) return PRODUCTION_APP_URL;
   return parsed.origin;
 }
+
 
 declare global {
   interface Window {
@@ -81,11 +90,26 @@ export function getPublicAppUrl(): string {
   const stored = normalize(readLocalOverride());
   if (stored) return stored;
 
-  // 3. Build-time env override
+  // 3. Build-time env override.
+  // Bracket access on purpose: Vite statically inlines `import.meta.env.FOO`,
+  // which makes the value un-overridable at runtime (and in tests).
+  const envBag = (typeof import.meta !== "undefined"
+    ? ((import.meta as any).env as Record<string, string> | undefined)
+    : undefined) as Record<string, string | undefined> | undefined;
+  const procBag =
+    typeof process !== "undefined"
+      ? (process.env as Record<string, string | undefined> | undefined)
+      : undefined;
+  // process.env first: it is the runtime-mutable bag (Node/SSR and test
+  // harnesses), whereas Vite freezes VITE_* values into import.meta.env at
+  // build time.
   const envVal = normalize(
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_PUBLIC_APP_URL) || null,
+    procBag?.["VITE_PUBLIC_APP_URL"] ?? envBag?.["VITE_PUBLIC_APP_URL"] ?? null,
   );
+
   if (envVal) return envVal;
+
+
 
   // 4. Canonical production host — guaranteed reachable from any phone.
   return PRODUCTION_APP_URL;
