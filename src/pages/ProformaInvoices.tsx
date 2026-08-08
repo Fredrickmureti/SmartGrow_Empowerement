@@ -439,34 +439,47 @@ export default function ProformaInvoices() {
                               <Mail className="mr-2 h-4 w-4" />
                               Send via Email
                             </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {inv.status === "draft" && (
-                              <DropdownMenuItem onClick={() => {
-                                if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
-                                updateProformaInvoice(inv.id, { status: "sent" });
-                              }}>
-                                <Send className="mr-2 h-4 w-4" />
-                                Mark as Sent
-                              </DropdownMenuItem>
-                            )}
-                            {(inv.status === "sent" || inv.status === "accepted") && (
-                              <DropdownMenuItem onClick={() => {
-                                if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
-                                convertToInvoice(inv.id);
-                              }}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                Convert to Invoice
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => {
-                                if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
-                                deleteProformaInvoice(inv.id);
-                              }}
-                            >
-                              Delete
-                            </DropdownMenuItem>
+                            <PermissionGate permission="manageSales">
+                              <DropdownMenuSeparator />
+                              {inv.status === "draft" && (
+                                <DropdownMenuItem onClick={() => {
+                                  if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
+                                  setProformaStatus(inv.id, "sent");
+                                }}>
+                                  <Send className="mr-2 h-4 w-4" />
+                                  Mark as Sent
+                                </DropdownMenuItem>
+                              )}
+                              {(inv.status === "sent" || inv.status === "accepted") && (
+                                <DropdownMenuItem onClick={() => {
+                                  if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
+                                  convertToInvoice(inv.id);
+                                }}>
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Convert to Invoice
+                                </DropdownMenuItem>
+                              )}
+                              {!["converted", "cancelled"].includes(inv.status) && (
+                                <DropdownMenuItem onClick={() => {
+                                  if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
+                                  setProformaStatus(inv.id, "cancelled");
+                                }}>
+                                  Cancel Proforma
+                                </DropdownMenuItem>
+                              )}
+                              {inv.status !== "converted" && (
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    if (isReadOnly) { openUpgradeModal("proforma_invoices"); return; }
+                                    deleteProformaInvoice(inv.id);
+                                  }}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </PermissionGate>
+
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
