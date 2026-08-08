@@ -98,16 +98,22 @@ export function useRecurringInvoices() {
   const createRecurringInvoice = async (
     recurringInvoice: Omit<
       RecurringInvoice,
-      "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "items" | "invoices_generated" | "last_run_date"
+      "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "items" | "invoices_generated" | "last_run_date" | "status" | "status_changed_at" | "definition_version"
     >,
     items: Omit<RecurringInvoiceItem, "id" | "recurring_invoice_id">[]
   ) => {
     if (!currentOrg || !user) throw new Error("No organization selected");
 
+    // `is_active` is a derived mirror of `status`; a new template is born
+    // active or paused, never in a terminal state.
+    const { is_active: startsActive, ...templateFields } = recurringInvoice;
+
     const { data: created, error: riError } = await supabase
       .from("recurring_invoices")
       .insert({
-        ...recurringInvoice,
+        ...templateFields,
+        status: startsActive === false ? "paused" : "active",
+        is_active: startsActive !== false,
         organization_id: currentOrg.id,
         business_id: currentBusiness?.id || null,
         branch_id: currentBranch?.id ?? null,
