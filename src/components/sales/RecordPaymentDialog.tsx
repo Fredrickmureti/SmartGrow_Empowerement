@@ -37,19 +37,14 @@ import { normalizeError } from "@/services/resilience";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { FooterActionBar } from "@/design-system/primitives/FooterActionBar";
 import { FieldGroup } from "@/design-system/primitives/FieldGrid";
+import {
+  fetchOpenCustomerInvoices,
+  type OpenCustomerInvoice,
+} from "@/services/finance/invoicePayability";
 
-interface OpenInvoice {
-  id: string;
-  invoice_number: string;
-  issue_date: string;
-  due_date: string;
-  total: number;
-  amount_paid: number;
-  balance_due: number;
-  currency: string;
-  status: string;
-  contact_id: string;
-}
+
+type OpenInvoice = OpenCustomerInvoice;
+
 
 interface RecordPaymentDialogProps {
   open: boolean;

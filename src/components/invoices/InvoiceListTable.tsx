@@ -132,10 +132,8 @@ export function InvoiceListTable({
                 <div className="flex items-center gap-1.5">
                   {format(new Date(invoice.due_date), "MMM d, yyyy")}
                   {(() => {
-                    const isOverdue = ["overdue", "sent", "viewed", "partial", "confirmed"].includes(invoice.status)
-                      && (invoice.status as string) !== "voided"
-                      && invoice.total - invoice.amount_paid > 0
-                      && new Date(invoice.due_date) < new Date();
+                    const isOverdue = isInvoiceOverdue(invoice);
+
                     if (!isOverdue) return null;
                     const daysOverdue = Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000);
                     const severity = daysOverdue > 90 ? "bg-destructive text-destructive-foreground"
@@ -171,7 +169,7 @@ export function InvoiceListTable({
                     {invoice.status === "draft" && <DropdownMenuItem onClick={() => onStatusChange(invoice, "confirmed")}><CheckCircle2 className="mr-2 h-4 w-4" />Confirm &amp; Release Stock</DropdownMenuItem>}
                     {invoice.status === "draft" && <DropdownMenuItem onClick={() => onStatusChange(invoice, "sent")}><Send className="mr-2 h-4 w-4" />Confirm, Release Stock &amp; Send</DropdownMenuItem>}
                     <DropdownMenuSeparator />
-                    {["sent", "viewed", "partial", "overdue"].includes(invoice.status) && (
+                    {isInvoicePayable(invoice) && (
                       <DropdownMenuItem onClick={() => onRecordPayment(invoice)}><CreditCard className="mr-2 h-4 w-4" />Record Payment</DropdownMenuItem>
                     )}
                     {invoice.amount_paid > 0 && <DropdownMenuItem onClick={() => onViewPaymentHistory(invoice)}><History className="mr-2 h-4 w-4" />Payment History</DropdownMenuItem>}
