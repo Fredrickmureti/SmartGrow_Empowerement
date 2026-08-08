@@ -44,6 +44,14 @@ import { toast } from "sonner";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { DeliveryNoteLineRow, DELIVERY_LINE_COLUMNS } from "@/components/documents/lines/DeliveryNoteLineRow";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  useDocumentLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -107,6 +115,39 @@ export default function DeliveryNoteCreatePage() {
   useEffect(() => {
     if (prefillContactId) form.setValue("contact_id", prefillContactId);
   }, [prefillContactId, form]);
+
+  // Scan-to-line parity — a delivery note counts physical units, so unlike the
+  // priced author-time documents a repeat scan DOES bump the delivered
+  // quantity, and it is capped at what the line says was ordered (a delivery
+  // note must never invent stock movements the order did not authorise).
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = useDocumentLineScan<LineItem>({
+    setLines: setLineItems,
+    incrementOnSingleScan: true,
+    matchLine: (line, resolved) => !!line.product_id && line.product_id === resolved.productId,
+    buildLine: (resolved, quantity) => ({
+      product_id: resolved.productId,
+      description: resolved.name,
+      quantity_ordered: quantity,
+      quantity_delivered: quantity,
+      unit_price: scanUnitPrice(resolved),
+      tax_rate: scanTaxRate(resolved),
+      discount_percent: 0,
+    }),
+    isEmptyLine: (line) =>
+      !line.product_id && !line.description && (line.quantity_delivered ?? 0) <= 1 && (line.unit_price ?? 0) === 0,
+    applyToExisting: (line, quantity, _resolved, source) => {
+      const target = source === "session" ? quantity : (line.quantity_delivered ?? 0) + quantity;
+      const ordered = line.quantity_ordered ?? 0;
+      // Over-delivery is refused, not silently clamped — the operator needs to
+      // know the physical count exceeds the authorised quantity.
+      if (ordered > 0 && target > ordered) return null;
+      return { quantity_delivered: target };
+    },
+    rejectMessage: (line, resolved) =>
+      `${resolved.name}: only ${line.quantity_ordered} ordered on this delivery note`,
+  });
 
   const addLineItem = () => {
     setLineItems([...lineItems, { product_id: null, description: "", quantity_ordered: 1, quantity_delivered: 1, unit_price: 0, tax_rate: 0, discount_percent: 0 }]);
@@ -325,6 +366,16 @@ export default function DeliveryNoteCreatePage() {
             <EditableLineItemsGrid
               columns={DELIVERY_LINE_COLUMNS}
               rows={lineItems}
+              toolbar={
+                <DocumentLineScanner
+                  documentLabel="Delivery note"
+                  mode="verify"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                />
+              }
               addLabel="Add Item"
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
@@ -332,6 +383,7 @@ export default function DeliveryNoteCreatePage() {
                 <DeliveryNoteLineRow
                   index={index}
                   item={item}
+                  flashed={flashIndex === index}
                   products={products}
                   layout={layout}
                   lineTotal={computeLine(item).total}

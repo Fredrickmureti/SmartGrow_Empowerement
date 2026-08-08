@@ -29,6 +29,15 @@ import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
+import { computeLine } from "@/lib/invoiceLineMath";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { normalizeError } from "@/services/resilience";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
@@ -170,6 +179,26 @@ export default function SalesOrderEditPage() {
       return newItems;
     });
   };
+
+  // Scan-to-line parity — same workspace scanner as every other Sales document.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity, lines) => {
+      const seed = {
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price: scanUnitPrice(resolved),
+        tax_rate: scanTaxRate(resolved),
+        discount_percent: 0,
+        sort_order: lines.length,
+      };
+      const { line_total, tax_amount } = computeLine(seed);
+      return { ...seed, line_total, tax_amount };
+    },
+  );
 
   const addLineItem = () => {
     setLineItems((prev) => [
@@ -348,6 +377,15 @@ export default function SalesOrderEditPage() {
             <EditableLineItemsGrid
               columns={PRICED_LINE_COLUMNS}
               rows={lineItems}
+              toolbar={
+                <DocumentLineScanner
+                  documentLabel="Sales order"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                />
+              }
               disabled={isSubmitting}
               addLabel="Add Item"
               onAddRow={addLineItem}
@@ -356,6 +394,7 @@ export default function SalesOrderEditPage() {
                 <PricedLineRow
                   index={index}
                   item={item}
+                  flashed={flashIndex === index}
                   products={products}
                   layout={layout}
                   disabled={isSubmitting}

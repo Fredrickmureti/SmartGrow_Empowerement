@@ -42,6 +42,14 @@ import { validateLineItems } from "@/lib/validation/lineItems";
 import { AITextAssist } from "@/components/shared/AITextAssist";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { PricedLineRow, PRICED_LINE_COLUMNS } from "@/components/documents/lines/PricedLineRow";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
@@ -96,6 +104,22 @@ export default function ProformaCreatePage() {
   useEffect(() => {
     if (prefillContactId) form.setValue("contact_id", prefillContactId);
   }, [prefillContactId, form]);
+
+  // Scan-to-line parity — the Sales workspace scan transport is live on every
+  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity) => ({
+      product_id: resolved.productId,
+      description: resolved.name,
+      quantity,
+      unit_price: scanUnitPrice(resolved),
+      tax_rate: scanTaxRate(resolved),
+    }),
+  );
 
   const addLineItem = useCallback(() => {
     setLineItems((prev) => [
@@ -300,6 +324,15 @@ export default function ProformaCreatePage() {
             <EditableLineItemsGrid
               columns={PRICED_LINE_COLUMNS}
               rows={lineItems}
+              toolbar={
+                <DocumentLineScanner
+                  documentLabel="Proforma"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                />
+              }
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
               addLabel="Add Item"
@@ -308,6 +341,7 @@ export default function ProformaCreatePage() {
                   key={index}
                   index={index}
                   item={item}
+                  flashed={flashIndex === index}
                   products={products}
                   layout={layout}
                   formatCurrency={formatLineCurrency}

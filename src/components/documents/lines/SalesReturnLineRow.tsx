@@ -75,6 +75,8 @@ interface Props<T extends ReturnLineShape> {
   formatCurrency: (n: number) => string;
   onPatch: (index: number, patch: Partial<T>) => void;
   extra?: ReactNode;
+  /** Scanner flash — highlights the line a scan just landed on. */
+  flashed?: boolean;
 }
 
 function SalesReturnLineRowInner<T extends ReturnLineShape>({
@@ -87,6 +89,7 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
   formatCurrency,
   onPatch,
   extra,
+  flashed,
 }: Props<T>) {
   const cell = (columnId: string) => {
     switch (columnId) {
@@ -176,7 +179,7 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
     }
   };
 
-  return <EditableLineRowCells layout={layout} cell={cell} extra={extra} />;
+  return <EditableLineRowCells layout={layout} cell={cell} extra={extra} flashed={flashed} />;
 }
 
 export const SalesReturnLineRow = memo(

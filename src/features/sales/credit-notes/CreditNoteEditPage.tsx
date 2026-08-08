@@ -16,6 +16,14 @@ import { computeLine } from "@/lib/invoiceLineMath";
 import { validateLineItems } from "@/lib/validation/lineItems";
 import { normalizeError } from "@/services/resilience";
 import { EditableLineItemsGrid } from "@/design-system/records";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import {
+  usePricedLineScan,
+  scanUnitPrice,
+  scanTaxRate,
+} from "@/features/sales/scan-session/useDocumentLineScan";
 import {
   PRICED_LINE_COLUMNS,
   PricedLineRow,
@@ -170,6 +178,27 @@ export default function CreditNoteEditPage() {
     });
   }, []);
 
+
+  // Scan-to-line parity — the Sales workspace scan transport is live on every
+  // page (SalesLayout mounts SalesScanProvider); this form is a consumer of it.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = usePricedLineScan(
+    setLineItems,
+    (resolved, quantity, lines) => {
+      const seed = {
+        ...emptyLine(lines.length),
+        product_id: resolved.productId,
+        description: resolved.name,
+        quantity,
+        unit_price: scanUnitPrice(resolved),
+        tax_rate: scanTaxRate(resolved),
+      };
+      const { line_total, tax_amount } = computeLine(seed);
+      return { ...seed, line_total, tax_amount };
+    },
+  );
 
   const addLineItem = () => setLineItems((prev) => [...prev, emptyLine(prev.length)]);
   const removeLineItem = (index: number) => {
@@ -330,6 +359,15 @@ export default function CreditNoteEditPage() {
           <EditableLineItemsGrid
             columns={PRICED_LINE_COLUMNS}
             rows={lineItems}
+            toolbar={
+              <DocumentLineScanner
+                documentLabel="Credit note"
+                businessId={currentBusiness?.id}
+                branchId={currentBranch?.id ?? null}
+                onResolved={handleScanResolved}
+                onSessionCommit={handleScanSessionCommit}
+              />
+            }
             addLabel="Add Item"
             onAddRow={addLineItem}
             onRemoveRow={removeLineItem}
@@ -337,6 +375,7 @@ export default function CreditNoteEditPage() {
               <PricedLineRow
                 index={index}
                 item={item}
+                flashed={flashIndex === index}
                 hideProductPicker
                 layout={layout}
                 formatCurrency={formatCurrency}

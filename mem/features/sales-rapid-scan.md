@@ -30,3 +30,22 @@ Rules:
 
 New scan-driven Sales features must reuse this provider — do NOT mount
 a second `useScanTarget` at priority 5 inside Sales.
+
+## Scanner parity across Sales documents (enforced)
+
+The Sales workspace scan transport (`SalesScanProvider`) is workspace-wide, so
+EVERY line-capturing Sales document consumes it — not just invoices:
+
+- One component: `src/components/documents/lines/DocumentLineScanner.tsx`
+  (`InvoiceLineScanner` is gone). Modes: `capture` (authoring) and `verify`
+  (fulfilment).
+- One apply hook: `src/features/sales/scan-session/useDocumentLineScan.ts`
+  (`usePricedLineScan` for priced lines). Never re-implement the scan→line merge.
+- Wired: Estimate (create/edit), Proforma, Sales Order (create/edit), Invoice
+  (create/edit), Credit Note (create/edit), Sales Return, Delivery Note.
+- `doc_author` rule kept: a repeat single scan flashes the existing line instead
+  of silently bumping quantity. Reviewed Scan Session batches are authoritative.
+- Delivery notes are the exception: they count physical units, so repeat scans
+  increment delivered quantity and over-delivery beyond `quantity_ordered` is
+  REFUSED with a toast, never clamped silently.
+- Guard: `src/test/architecture/sales-document-scanner-parity.test.ts`.
