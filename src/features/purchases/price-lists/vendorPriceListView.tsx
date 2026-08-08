@@ -7,6 +7,7 @@
  */
 import { format } from "date-fns";
 import { useMemo } from "react";
+import type { ReactElement } from "react";
 import {
   Edit,
   Star,
@@ -80,7 +81,7 @@ interface Options {
 
 export interface VendorPriceListViewResult {
   view: DocumentRecordView;
-  actions: JSX.Element[];
+  actions: ReactElement[];
 }
 
 export function useVendorPriceListView(
@@ -116,7 +117,7 @@ export function useVendorPriceListView(
     const isActive = entry.is_active && !isExpired;
     const cur = entry.currency || baseCurrency;
 
-    const actions: JSX.Element[] = [];
+    const actions: ReactElement[] = [];
     if (isActive) {
       actions.push(
         <Button
