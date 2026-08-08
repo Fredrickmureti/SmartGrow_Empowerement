@@ -19,6 +19,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
 import { RequestLineRow, REQUEST_LINE_COLUMNS } from "@/components/documents/lines/RequestLineRow";
+import { DocumentLineScanner } from "@/components/documents/lines/DocumentLineScanner";
+import { useDocumentLineScan } from "@/features/sales/scan-session/useDocumentLineScan";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import { useBranches } from "@/hooks/useBranches";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -119,6 +123,25 @@ export default function RFQEditPage() {
     [formatCurrency, baseCurrency],
   );
 
+  // Scan-to-line — RFQ lines carry no committed price, so a scan only
+  // identifies the item and its quantity; the target price stays the
+  // buyer's judgement call.
+  const { currentBusiness } = useBusinesses();
+  const { currentBranch } = useBranches();
+  const { handleScanResolved, handleScanSessionCommit, flashIndex } = useDocumentLineScan<LineItem>({
+    setLines: setLineItems,
+    matchLine: (line, resolved) => !!line.product_id && line.product_id === resolved.productId,
+    isEmptyLine: (line) => !line.product_id && !line.description,
+    buildLine: (resolved, quantity, lines) => ({
+      product_id: resolved.productId,
+      description: resolved.name,
+      quantity,
+      target_price: null,
+      sort_order: lines.length,
+    }) as LineItem,
+    applyToExisting: (_line, quantity) => ({ quantity }) as Partial<LineItem>,
+  });
+
   const addLineItem = useCallback(
     () => setLineItems((prev) => [...prev, emptyLine(prev.length)]),
     [],
@@ -213,6 +236,15 @@ export default function RFQEditPage() {
         <EditableLineItemsGrid
           columns={REQUEST_LINE_COLUMNS}
           rows={lineItems}
+          toolbar={
+            <DocumentLineScanner
+              documentLabel="Request for quotation"
+              businessId={currentBusiness?.id}
+              branchId={currentBranch?.id ?? null}
+              onResolved={handleScanResolved}
+              onSessionCommit={handleScanSessionCommit}
+            />
+          }
           onAddRow={addLineItem}
           onRemoveRow={removeLineItem}
           addLabel="Add item"
@@ -222,6 +254,7 @@ export default function RFQEditPage() {
               key={index}
               index={index}
               item={item}
+              flashed={flashIndex === index}
               products={products.filter((p) => p.is_active)}
               layout={layout}
               disabled={isUpdating}
