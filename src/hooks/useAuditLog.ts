@@ -25,7 +25,8 @@ export type AuditAction =
   | "reapplied"
   | "reversed"
   | "credit_note_issued"
-  | "deposit_applied";
+  | "deposit_applied"
+  | "status_changed";
 
 export type EntityType = 
   | "invoice" 
