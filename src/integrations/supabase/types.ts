@@ -54067,6 +54067,36 @@ export type Database = {
           },
         ]
       }
+      recurring_invoice_test_results: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          passed: boolean
+          run_at: string
+          suite: string
+          test_name: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          passed: boolean
+          run_at?: string
+          suite: string
+          test_name: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          passed?: boolean
+          run_at?: string
+          suite?: string
+          test_name?: string
+        }
+        Relationships: []
+      }
       recurring_invoices: {
         Row: {
           auto_confirm: boolean
@@ -80964,6 +80994,7 @@ export type Database = {
       }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _recurring_engine_scenarios: { Args: never; Returns: Json }
       _release_physical_count_reservations: {
         Args: { p_count_id: string }
         Returns: number
@@ -80993,6 +81024,10 @@ export type Database = {
           p_org_id: string
           p_product_ids: string[]
         }
+        Returns: Json
+      }
+      _rtest: {
+        Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
       }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
@@ -94583,6 +94618,22 @@ export type Database = {
       terminate_procurement_contract: {
         Args: { p_contract_id: string; p_reason?: string }
         Returns: Json
+      }
+      test_recurring_calendar: {
+        Args: never
+        Returns: {
+          detail: string
+          passed: boolean
+          test_name: string
+        }[]
+      }
+      test_recurring_invoicing_engine: {
+        Args: never
+        Returns: {
+          detail: string
+          passed: boolean
+          test_name: string
+        }[]
       }
       trailer_departure_blockers: {
         Args: { p_visit_id: string }
