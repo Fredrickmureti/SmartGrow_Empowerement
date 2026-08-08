@@ -148,16 +148,13 @@ export function RecordPaymentDialog({
     const fetchInvoices = async () => {
       setLoadingInvoices(true);
       try {
-        const { data, error } = await supabase
-          .from("invoices")
-          .select("id, invoice_number, issue_date, due_date, total, amount_paid, currency, status, contact_id")
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("contact_id", selectedContactId)
-          .in("status", ["sent", "partial", "overdue"])
-          .order("due_date", { ascending: true });
-        if (error) throw error;
-        const invoices: OpenInvoice[] = (data || []).map((inv) => ({ ...inv, amount_paid: inv.amount_paid || 0, balance_due: inv.total - (inv.amount_paid || 0) }));
+        // Sourced from the GL-gated AR projection: residual already nets cash
+        // receipts and applied credit notes, and no status list is involved.
+        const invoices = await fetchOpenCustomerInvoices({
+          orgId: currentOrg.id,
+          businessId: currentBusiness.id,
+          contactId: selectedContactId,
+        });
         setOpenInvoices(invoices);
         if (preSelectedInvoiceId) {
           const inv = invoices.find((i) => i.id === preSelectedInvoiceId);
@@ -174,6 +171,7 @@ export function RecordPaymentDialog({
     };
     fetchInvoices();
   }, [selectedContactId, currentOrg?.id, currentBusiness?.id]);
+
 
   useEffect(() => {
     if (!open || !preSelectedInvoiceId || selectedContactId) return;
