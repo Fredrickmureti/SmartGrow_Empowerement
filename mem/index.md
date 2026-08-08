@@ -37,7 +37,10 @@ Credit notes, customer credit and refunds are server-side services (ADR 0131): n
 
 PDF typography is profile-based: `document` (transactional, frozen = legacy theme) vs `statement`/`ledger`/`operational` (reports). Profiles are opt-in in `generateReportPdf`; only `renderReport` selects one.
 
+One report masthead for every report (PDF + screen): logo left, entity block left, title/period right. `formatProfile` drives wording/typography only, never header layout.
+
 ## Memories
+- [Report masthead](mem://features/report-masthead-single-layout) — single operational masthead for all reports; redeploy render-report + process-scheduled-reports after PDF changes
 - [Certificate rendering](mem://features/certificate-rendering) — Engine AST versions, node primitives, theme system, KE P9 blueprint mapping.
 - [ESS identity portal](mem://features/ess-identity-portal) — Ownership matrix (HR vs identity vs employee-managed), change-request RPCs, /me/* shell integrity guards.
 - [Product identification](mem://features/product-identification) — canonical resolver contract, level-aware labels, Phase D removals
