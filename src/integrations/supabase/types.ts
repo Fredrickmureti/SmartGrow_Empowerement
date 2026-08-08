@@ -54073,6 +54073,47 @@ export type Database = {
           },
         ]
       }
+      recurring_invoice_definition_versions: {
+        Row: {
+          business_id: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          recurring_invoice_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          recurring_invoice_id: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          recurring_invoice_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_invoice_definition_versions_recurring_invoice_id_fkey"
+            columns: ["recurring_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_invoice_items: {
         Row: {
           created_at: string
@@ -54140,6 +54181,7 @@ export type Database = {
           branch_id: string | null
           business_id: string | null
           created_at: string
+          definition_version: number | null
           delivered_at: string | null
           delivery_attempt_count: number
           delivery_error: string | null
@@ -54164,6 +54206,7 @@ export type Database = {
           branch_id?: string | null
           business_id?: string | null
           created_at?: string
+          definition_version?: number | null
           delivered_at?: string | null
           delivery_attempt_count?: number
           delivery_error?: string | null
@@ -54188,6 +54231,7 @@ export type Database = {
           branch_id?: string | null
           business_id?: string | null
           created_at?: string
+          definition_version?: number | null
           delivered_at?: string | null
           delivery_attempt_count?: number
           delivery_error?: string | null
@@ -54245,6 +54289,50 @@ export type Database = {
           },
         ]
       }
+      recurring_invoice_status_events: {
+        Row: {
+          business_id: string | null
+          changed_by: string | null
+          created_at: string
+          from_status: string | null
+          id: string
+          organization_id: string
+          reason: string | null
+          recurring_invoice_id: string
+          to_status: string
+        }
+        Insert: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          organization_id: string
+          reason?: string | null
+          recurring_invoice_id: string
+          to_status: string
+        }
+        Update: {
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          from_status?: string | null
+          id?: string
+          organization_id?: string
+          reason?: string | null
+          recurring_invoice_id?: string
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_invoice_status_events_recurring_invoice_id_fkey"
+            columns: ["recurring_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_invoice_test_results: {
         Row: {
           created_at: string
@@ -54287,6 +54375,7 @@ export type Database = {
           created_by: string | null
           currency: string | null
           days_before_due: number | null
+          definition_version: number
           end_date: string | null
           frequency: string
           id: string
@@ -54298,6 +54387,8 @@ export type Database = {
           notes: string | null
           organization_id: string
           start_date: string
+          status: string
+          status_changed_at: string
           template_name: string
           terms: string | null
           updated_at: string
@@ -54313,6 +54404,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           days_before_due?: number | null
+          definition_version?: number
           end_date?: string | null
           frequency: string
           id?: string
@@ -54324,6 +54416,8 @@ export type Database = {
           notes?: string | null
           organization_id: string
           start_date: string
+          status?: string
+          status_changed_at?: string
           template_name: string
           terms?: string | null
           updated_at?: string
@@ -54339,6 +54433,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           days_before_due?: number | null
+          definition_version?: number
           end_date?: string | null
           frequency?: string
           id?: string
@@ -54350,6 +54445,8 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           start_date?: string
+          status?: string
+          status_changed_at?: string
           template_name?: string
           terms?: string | null
           updated_at?: string
@@ -81196,6 +81293,14 @@ export type Database = {
       }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _recurring_bump_definition_version: {
+        Args: { _recurring_id: string; _user_id: string }
+        Returns: undefined
+      }
+      _recurring_complete_if_finished: {
+        Args: { _next_start: string; _recurring_id: string }
+        Returns: undefined
+      }
       _recurring_engine_scenarios: { Args: never; Returns: Json }
       _release_physical_count_reservations: {
         Args: { p_count_id: string }
@@ -94106,6 +94211,15 @@ export type Database = {
           p_secret_key: string
         }
         Returns: string
+      }
+      set_recurring_status_atomic: {
+        Args: {
+          p_reason?: string
+          p_recurring_id: string
+          p_status: string
+          p_user_id?: string
+        }
+        Returns: Json
       }
       set_sms_provider_config: {
         Args: {
