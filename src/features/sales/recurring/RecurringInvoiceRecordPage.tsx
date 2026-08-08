@@ -15,6 +15,7 @@ import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { RecurringInvoice, RecurringInvoiceItem } from "@/hooks/useRecurringInvoices";
+import { RecurringBillingHistory } from "./RecurringBillingHistory";
 
 type Row = RecurringInvoice & {
   items?: RecurringInvoiceItem[];
@@ -128,6 +129,7 @@ export default function RecurringInvoiceRecordPage() {
         { label: "Days before due", value: row.days_before_due },
         { label: "Currency", value: row.currency },
       ] : undefined}
+      extraSections={row ? <RecurringBillingHistory recurringId={id} /> : undefined}
       lineColumns={columns}
       lineRows={rows}
       totalsRows={row ? [

@@ -8,10 +8,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "./use-toast";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
-import { useDefaultAccounts } from "./useDefaultAccounts";
-import { useAuditLog } from "./useAuditLog";
-import { confirmInvoiceAndPostGL } from "./invoices/confirmInvoiceGL";
-import type { Invoice } from "./useInvoices";
 
 export interface RecurringInvoiceItem {
   id?: string;
@@ -78,8 +74,6 @@ export function useRecurringInvoices() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { getInvoiceAccountMappings, hasRequiredAccounts, accounts: defaultAccountMappings } = useDefaultAccounts();
-  const { logAction } = useAuditLog();
 
   const orgId = currentOrg?.id;
   const businessId = currentBusiness?.id;
@@ -170,120 +164,49 @@ export function useRecurringInvoices() {
     invalidate();
   };
 
+  /**
+   * "Generate now" runs the SAME database engine the scheduler uses
+   * (`generate_recurring_invoice_occurrence`, via a permission-checked
+   * wrapper). The client no longer builds invoices, lines or journal
+   * entries: doing so produced a second, divergent billing engine.
+   *
+   * The call is idempotent — pressing the button twice, or pressing it while
+   * the nightly sweep is running, cannot mint two invoices for one period.
+   */
   const generateInvoiceNow = async (recurringInvoiceId: string) => {
-    const ri = recurringInvoices.find((r) => r.id === recurringInvoiceId);
-    if (!ri) throw new Error("Recurring invoice not found");
+    const { data, error } = await supabase.rpc("generate_recurring_invoice_now" as never, {
+      _recurring_id: recurringInvoiceId,
+    } as never);
+    if (error) throw error;
 
-    const { data: invoiceNumber, error: numError } = await supabase.rpc(
-      "get_next_invoice_number",
-      { _org_id: currentOrg!.id, _business_id: ((ri as any).business_id ?? currentBusiness!.id) as string }
-    );
-    if (numError) throw numError;
+    const result = data as unknown as {
+      status: "generated" | "posted" | "failed" | "skipped";
+      duplicate: boolean;
+      invoice_id: string | null;
+      invoice_number: string | null;
+      period_start: string;
+      period_end: string;
+      error?: string;
+    };
 
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + ri.days_before_due);
-
-    const items = ri.items || [];
-    const subtotal = items.reduce(
-      (sum, item) => sum + item.quantity * item.unit_price * (1 - (item.discount_percent || 0) / 100),
-      0
-    );
-    const taxAmount = items.reduce(
-      (sum, item) => {
-        const discountedAmount = item.quantity * item.unit_price * (1 - (item.discount_percent || 0) / 100);
-        return sum + discountedAmount * (item.tax_rate / 100);
-      },
-      0
-    );
-    const total = subtotal + taxAmount;
-
-    // AUDIT FIX (G7): generated invoice MUST inherit the recurring template's
-    // branch_id, NOT the caller's currently-active branch. The recurring rule
-    // is the source of truth for where this revenue belongs.
-    const templateBranchId = (ri as any).branch_id ?? null;
-    const templateBusinessId = ((ri as any).business_id ?? currentBusiness?.id) as string | null;
-
-    const { data: invoice, error: invoiceError } = await supabase
-      .from("invoices")
-      .insert({
-        organization_id: currentOrg!.id,
-        business_id: templateBusinessId,
-        branch_id: templateBranchId,
-        contact_id: ri.contact_id,
-        invoice_number: invoiceNumber,
-        status: ri.auto_send ? "sent" : "draft",
-        issue_date: new Date().toISOString().split("T")[0],
-        due_date: dueDate.toISOString().split("T")[0],
-        subtotal,
-        tax_amount: taxAmount,
-        total,
-        currency: ri.currency,
-        notes: ri.notes,
-        terms: ri.terms,
-        created_by: user!.id,
-        source_recurring_id: recurringInvoiceId,
-      } as any)
-      .select()
-      .single();
-
-    if (invoiceError) throw invoiceError;
-
-    if (items.length > 0) {
-      const invoiceItems = items.map((item) => {
-        const discountedLineTotal = item.quantity * item.unit_price * (1 - (item.discount_percent || 0) / 100);
-        return {
-          invoice_id: invoice.id,
-          product_id: item.product_id,
-          description: item.description,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          tax_rate: item.tax_rate,
-          tax_amount: discountedLineTotal * (item.tax_rate / 100),
-          discount_percent: item.discount_percent,
-          line_total: discountedLineTotal,
-          sort_order: item.sort_order,
-        };
-      });
-      const { error: itemsError } = await supabase.from("invoice_items").insert(invoiceItems);
-      if (itemsError) throw itemsError;
-    }
-
-    const nextRunDate = calculateNextRunDate(ri.frequency, new Date());
-
-    await supabase
-      .from("recurring_invoices")
-      .update({
-        last_run_date: new Date().toISOString().split("T")[0],
-        next_run_date: nextRunDate,
-        invoices_generated: ri.invoices_generated + 1,
-      })
-      .eq("id", recurringInvoiceId);
-
-    // Sales audit Phase F: if the template opts into auto-confirm, post the
-    // generated invoice to GL immediately via the shared confirm helper. This
-    // builds real AR/Revenue/Tax JE lines and uses the canonical 3-arg RPC
-    // (ADR 0026 — COGS posts only at goods-issue). Best-effort: failure leaves
-    // the invoice as draft for manual confirmation. Only draft invoices are
-    // eligible (auto_send promotes to 'sent', which is a separate flow).
-    if ((ri as any).auto_confirm === true && invoice.status === "draft") {
-      try {
-        await confirmInvoiceAndPostGL(invoice as unknown as Invoice, {
-          hasRequiredAccounts,
-          getInvoiceAccountMappings,
-          systemDefaults: defaultAccountMappings,
-          logAction,
-          userId: user!.id,
-          releaseStock: true,
-        });
-      } catch (e) {
-        console.warn("Auto-confirm failed for generated invoice; left as draft:", e);
-      }
+    if (result?.status === "failed") {
+      throw new Error(result.error || "Invoice generation failed");
     }
 
     invalidate();
-    queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    return invoice;
+    queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["recurring-invoice-runs"] });
+
+    if (result?.duplicate) {
+      toast({
+        title: "Already billed",
+        description: `This billing period was already invoiced as ${result.invoice_number}.`,
+      });
+    }
+
+    return result;
   };
+
 
   return {
     recurringInvoices,
@@ -296,35 +219,4 @@ export function useRecurringInvoices() {
     generateInvoiceNow,
     refreshRecurringInvoices: invalidate,
   };
-}
-
-function calculateNextRunDate(
-  frequency: RecurringInvoice["frequency"],
-  fromDate: Date
-): string {
-  const originalDay = fromDate.getDate();
-  const date = new Date(fromDate);
-
-  switch (frequency) {
-    case "weekly":
-      date.setDate(date.getDate() + 7);
-      break;
-    case "biweekly":
-      date.setDate(date.getDate() + 14);
-      break;
-    case "monthly":
-      date.setMonth(date.getMonth() + 1);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-    case "quarterly":
-      date.setMonth(date.getMonth() + 3);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-    case "yearly":
-      date.setFullYear(date.getFullYear() + 1);
-      if (date.getDate() < originalDay) date.setDate(0);
-      break;
-  }
-
-  return date.toISOString().split("T")[0];
 }
