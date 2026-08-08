@@ -1,6 +1,13 @@
 import { useMemo, useCallback, useState } from "react";
 import { DrillDownDialog, DrillDownConfig } from "@/components/reports/DrillDownDialog";
+import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useBusinesses } from "@/contexts/BusinessContext";
+import {
+  fetchARSummary,
+  fetchAPSummary,
+  EMPTY_OPEN_ITEMS_SUMMARY,
+} from "@/services/finance/openItems";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useBills } from "@/hooks/useBills";
@@ -24,7 +31,20 @@ function ManagementReportsInner() {
   const { bills, isLoading: billsLoading } = useBills();
   const { formatCurrency, baseCurrency, isReady: currencyReady } = useCurrency();
 
-  const isLoading = invoicesLoading || expensesLoading || billsLoading || !currencyReady;
+  const { currentBusiness } = useBusinesses();
+  const { data: openItems, isLoading: openItemsLoading } = useQuery({
+    queryKey: ["management-open-items", currentOrg?.id, currentBusiness?.id],
+    enabled: !!currentOrg?.id,
+    queryFn: async () => ({
+      ar: await fetchARSummary(currentOrg!.id, currentBusiness?.id ?? null),
+      ap: await fetchAPSummary(currentOrg!.id, currentBusiness?.id ?? null),
+    }),
+  });
+  const arSummary = openItems?.ar ?? EMPTY_OPEN_ITEMS_SUMMARY;
+  const apSummary = openItems?.ap ?? EMPTY_OPEN_ITEMS_SUMMARY;
+
+  const isLoading =
+    invoicesLoading || expensesLoading || billsLoading || openItemsLoading || !currencyReady;
 
   const now = new Date();
   const thisMonthStart = startOfMonth(now);
@@ -45,13 +65,11 @@ function ManagementReportsInner() {
       .filter((i) => i.status === "paid" && new Date(i.issue_date) >= lastMonthStart && new Date(i.issue_date) <= lastMonthEnd)
       .reduce((sum, i) => sum + i.total, 0);
 
-    const totalReceivables = validInvoices
-      .filter((i) => ["sent", "viewed", "partial", "overdue"].includes(i.status))
-      .reduce((sum, i) => sum + (i.total - i.amount_paid), 0);
-
-    const overdueReceivables = validInvoices
-      .filter((i) => i.status === "overdue")
-      .reduce((sum, i) => sum + (i.total - i.amount_paid), 0);
+    // Receivables/payables come off the GL-gated open-item projections, never
+    // from a document status list: residual there nets cash receipts and
+    // applied credit notes.
+    const totalReceivables = arSummary.totalResidual;
+    const overdueReceivables = Math.max(arSummary.totalResidual - arSummary.notDue, 0);
 
     const paidInvoices = validInvoices.filter((i) => i.status === "paid");
     const avgDSO = paidInvoices.length > 0
@@ -61,13 +79,8 @@ function ManagementReportsInner() {
         }, 0) / paidInvoices.length
       : 0;
 
-    const totalPayables = bills
-      .filter((b) => ["received", "partial"].includes(b.status))
-      .reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0);
-
-    const overduePayables = bills
-      .filter((b) => new Date(b.due_date) < now && ["received", "partial"].includes(b.status))
-      .reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0);
+    const totalPayables = apSummary.totalResidual;
+    const overduePayables = Math.max(apSummary.totalResidual - apSummary.notDue, 0);
 
     const thisMonthExpenses = expenses
       .filter((e) => (e.status === "approved" || e.status === "paid") && new Date(e.expense_date) >= thisMonthStart && new Date(e.expense_date) <= thisMonthEnd)
@@ -96,7 +109,7 @@ function ManagementReportsInner() {
       invoiceCount: validInvoices.length,
       paidInvoiceCount: paidInvoices.length,
     };
-  }, [invoices, expenses, bills, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd, now]);
+  }, [invoices, expenses, bills, arSummary, apSummary, thisMonthStart, thisMonthEnd, lastMonthStart, lastMonthEnd, now]);
 
   const getExportConfig = useCallback((): ExportConfig => {
     const rows: ExportRow[] = [];
