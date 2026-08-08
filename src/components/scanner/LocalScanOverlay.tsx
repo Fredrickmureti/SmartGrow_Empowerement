@@ -20,7 +20,7 @@ import { X, Zap, ZapOff, ScanLine, Loader2, Check, TriangleAlert, HelpCircle } f
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
-import { scanRouter } from "@/services/pos/scanRouter";
+import { scanRouter } from "@/services/scanner";
 import { beepForScan } from "@/services/scanner/scanBeep";
 import { scanFeedbackBus } from "@/services/scanner";
 import { useCameraDecoder } from "@/services/scanner/camera/useCameraDecoder";
