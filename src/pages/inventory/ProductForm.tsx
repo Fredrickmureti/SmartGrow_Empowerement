@@ -976,6 +976,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               value={formData.sales_account_id}
               onChange={(v) => setFormData({ ...formData, sales_account_id: v })}
               accountType="income"
+              defaultKey="sales_revenue_id"
               helpText="Revenue account credited on sale"
               disabled={isSubmitting}
             />
@@ -984,6 +985,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
               value={formData.purchase_account_id}
               onChange={(v) => setFormData({ ...formData, purchase_account_id: v })}
               accountType="expense"
+              defaultKey="operating_expenses_id"
               helpText="Expense account debited when this item appears on a bill"
               disabled={isSubmitting}
             />
@@ -994,6 +996,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
                   value={formData.cogs_account_id}
                   onChange={(v) => setFormData({ ...formData, cogs_account_id: v })}
                   accountType="expense"
+                  defaultKey="cost_of_goods_sold_id"
                   helpText="Cost of Goods Sold debited on sale"
                   disabled={isSubmitting}
                 />
@@ -1002,6 +1005,7 @@ export function ProductForm({ mode, product, initialBarcode }: ProductFormProps)
                   value={formData.inventory_account_id}
                   onChange={(v) => setFormData({ ...formData, inventory_account_id: v })}
                   accountType="asset"
+                  defaultKey="inventory_account_id"
                   helpText="Inventory asset account for stock valuation"
                   disabled={isSubmitting}
                 />

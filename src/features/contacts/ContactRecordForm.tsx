@@ -517,6 +517,7 @@ export function ContactRecordForm({
                   })
                 }
                 accountType="asset"
+                defaultKey="accounts_receivable_id"
                 helpText="Override the system AR account for this customer (optional)"
               />
             </div>
@@ -540,6 +541,7 @@ export function ContactRecordForm({
                   setFormData({ ...formData, default_expense_account_id: v })
                 }
                 accountType="expense"
+                defaultKey="operating_expenses_id"
                 helpText="Debited by default on bills from this vendor"
               />
               <ProductAccountSelector
@@ -549,6 +551,7 @@ export function ContactRecordForm({
                   setFormData({ ...formData, default_payable_account_id: v })
                 }
                 accountType="liability"
+                defaultKey="accounts_payable_id"
                 helpText="Override the system AP account for this vendor (optional)"
               />
               <div className="space-y-2">
