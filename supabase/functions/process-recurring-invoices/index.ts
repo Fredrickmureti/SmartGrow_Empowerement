@@ -20,8 +20,14 @@ const corsHeaders = {
 
 /** Safety cap on catch-up periods generated for one template in one sweep. */
 const MAX_CATCH_UP = 12;
-/** Delivery attempts per run row before it stops being retried automatically. */
-const MAX_DELIVERY_ATTEMPTS = 5;
+/**
+ * Email retry schedule, in minutes, indexed by the delivery attempt already
+ * made. Delivery has its OWN counter: `attempt_count` counts invoice
+ * generation attempts and must never be spent on email failures.
+ */
+const DELIVERY_BACKOFF_MINUTES = [5, 15, 60, 240, 720];
+const MAX_DELIVERY_ATTEMPTS = DELIVERY_BACKOFF_MINUTES.length;
+/** Safety cap on catch-up periods generated for one template in one sweep. */
 
 interface OccurrenceResult {
   status: "generated" | "posted" | "failed" | "skipped";
@@ -39,12 +45,31 @@ interface OccurrenceResult {
 // anchored on the template's start day. The driver never recomputes it: it
 // walks to whatever `next_run_date` the engine returns.
 
+/**
+ * Billing day is a local-calendar concept. A tenant in UTC+3 bills on their
+ * own date boundary, not the worker's.
+ */
+function localToday(timezone: string | null | undefined): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone || "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 async function deliverPendingInvoices(supabase: any, today: string) {
+  const nowIso = new Date().toISOString();
   const { data: pending } = await supabase
     .from("recurring_invoice_runs")
-    .select("id, organization_id, invoice_id, invoice_number, attempt_count")
+    .select("id, organization_id, invoice_id, invoice_number, delivery_attempt_count")
     .eq("delivery_status", "pending")
     .not("invoice_id", "is", null)
+    .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
     .limit(200);
 
   let delivered = 0;
@@ -64,6 +89,7 @@ async function deliverPendingInvoices(supabase: any, today: string) {
         .update({
           delivery_status: "failed",
           delivery_error: "Customer has no email address on file",
+          next_retry_at: null,
         })
         .eq("id", run.id);
       failed++;
@@ -86,16 +112,23 @@ async function deliverPendingInvoices(supabase: any, today: string) {
           delivery_status: "sent",
           delivery_error: null,
           delivered_at: new Date().toISOString(),
+          next_retry_at: null,
         })
         .eq("id", run.id);
       delivered++;
     } catch (e) {
-      const attempts = Number(run.attempt_count ?? 1);
+      const attempts = Number(run.delivery_attempt_count ?? 0) + 1;
+      const exhausted = attempts >= MAX_DELIVERY_ATTEMPTS;
+      const backoff = DELIVERY_BACKOFF_MINUTES[Math.min(attempts, MAX_DELIVERY_ATTEMPTS - 1)];
       await supabase
         .from("recurring_invoice_runs")
         .update({
           // Exhausted attempts stop the retry loop but keep the evidence.
-          delivery_status: attempts >= MAX_DELIVERY_ATTEMPTS ? "failed" : "pending",
+          delivery_status: exhausted ? "failed" : "pending",
+          delivery_attempt_count: attempts,
+          next_retry_at: exhausted
+            ? null
+            : new Date(Date.now() + backoff * 60_000).toISOString(),
           delivery_error: String(e),
         })
         .eq("id", run.id);
@@ -122,14 +155,18 @@ serve(async (req: Request) => {
     );
     const { checkSubscriptionActive } = await import("../_shared/entitlementCheck.ts");
 
-    const today = new Date().toISOString().slice(0, 10);
-    console.log(`[recurring] sweep starting for ${today}`);
+    const utcToday = new Date().toISOString().slice(0, 10);
+    console.log(`[recurring] sweep starting for ${utcToday} (UTC)`);
 
+    // Pull one day wide, then filter per template against its own local date.
+    const horizon = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { data: templates, error: fetchError } = await supabase
       .from("recurring_invoices")
-      .select("id, organization_id, template_name, frequency, next_run_date, end_date")
-      .eq("is_active", true)
-      .lte("next_run_date", today);
+      .select(
+        "id, organization_id, business_id, template_name, frequency, next_run_date, end_date, business:businesses(timezone)",
+      )
+      .eq("status", "active")
+      .lte("next_run_date", horizon);
 
     if (fetchError) throw fetchError;
 
@@ -161,17 +198,27 @@ serve(async (req: Request) => {
         }
 
         // ── Walk every due occurrence, one RPC call each ──────────────────
+        const today = localToday(t.business?.timezone);
+        if (t.next_run_date > today) {
+          results.push({ id: t.id, status: "not_due", next_run_date: t.next_run_date });
+          continue;
+        }
+
         let period: string = t.next_run_date;
         let generated = 0;
         let stopped: string | null = null;
 
         while (period <= today && generated < MAX_CATCH_UP) {
           if (t.end_date && period > t.end_date) {
-            // The schedule has run its course: complete it, don't just disable it.
-            await supabase
-              .from("recurring_invoices")
-              .update({ is_active: false, completed_at: new Date().toISOString() })
-              .eq("id", t.id);
+            // The schedule has run its course: complete it through the
+            // lifecycle writer so the change is attributable, don't just
+            // flip a flag.
+            await supabase.rpc("set_recurring_status_atomic", {
+              p_recurring_id: t.id,
+              p_status: "completed",
+              p_user_id: null,
+              p_reason: "Schedule reached its end date",
+            });
             stopped = "completed";
             break;
           }
@@ -201,7 +248,23 @@ serve(async (req: Request) => {
           period = outcome.next_run_date;
         }
 
-        if (!stopped) {
+        if (!stopped && generated >= MAX_CATCH_UP && period <= today) {
+          // Truncated catch-up is a business event, not a silent cap: the
+          // remaining periods stay unbilled until someone is told.
+          await supabase.from("platform_admin_alerts").insert({
+            alert_type: "recurring_catch_up_truncated",
+            severity: "warning",
+            title: `Recurring billing catch-up truncated for ${t.template_name ?? t.id}`,
+            details: {
+              function: "process-recurring-invoices",
+              recurring_invoice_id: t.id,
+              generated,
+              next_unbilled_period: period,
+            },
+            organization_id: t.organization_id,
+          });
+          results.push({ id: t.id, status: "truncated", generated, next_period: period });
+        } else if (!stopped) {
           results.push({ id: t.id, status: "success", generated });
         }
       } catch (error) {
@@ -210,7 +273,7 @@ serve(async (req: Request) => {
       }
     }
 
-    const delivery = await deliverPendingInvoices(supabase, today);
+    const delivery = await deliverPendingInvoices(supabase, utcToday);
 
     console.log(`[recurring] sweep complete: ${results.length} templates`);
     return new Response(
