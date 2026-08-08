@@ -100,9 +100,13 @@ export function getPublicAppUrl(): string {
     typeof process !== "undefined"
       ? (process.env as Record<string, string | undefined> | undefined)
       : undefined;
+  // process.env first: it is the runtime-mutable bag (Node/SSR and test
+  // harnesses), whereas Vite freezes VITE_* values into import.meta.env at
+  // build time.
   const envVal = normalize(
-    envBag?.["VITE_PUBLIC_APP_URL"] ?? procBag?.["VITE_PUBLIC_APP_URL"] ?? null,
+    procBag?.["VITE_PUBLIC_APP_URL"] ?? envBag?.["VITE_PUBLIC_APP_URL"] ?? null,
   );
+
   if (envVal) return envVal;
 
 
