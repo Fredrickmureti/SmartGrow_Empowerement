@@ -35,8 +35,15 @@ tax-exclusive `line_total` convention and flip the estimate to `converted` in
 the same transaction. No more partial-conversion states.
 
 ## Proforma Invoices
-Conversion to invoice goes through a business-match-enforced trigger; same
-branch-scope rules as estimates.
+Non-accounting commercial document: no GL, AR, tax-liability, inventory or
+payment effect. Creation: `create_proforma_atomic` (business-scoped numbering
+under an advisory lock, server-recomputed totals). Lifecycle:
+`set_proforma_status_atomic` with a trigger blocking direct status writes.
+Conversion: `convert_proforma_to_invoice_atomic` (atomic, idempotent,
+business-match enforced) — after which the proforma is frozen and undeletable.
+Nightly `expire_overdue_proformas()` sweeps overdue sent proformas. Same
+branch-scope rules as estimates. Verdict: `docs/audit/2026-08-08-proforma-domain-verdict.md`.
+
 
 ## Sales Orders (`/sales/orders`)
 Branch-scoped reads. Confirmation: `confirm_sales_order_atomic`. Conversion to

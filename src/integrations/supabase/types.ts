@@ -7869,6 +7869,7 @@ export type Database = {
           payroll_standard_working_days: number | null
           phone: string | null
           postal_code: string | null
+          proforma_prefix: string | null
           receipt_engine_v2: boolean
           receipt_settings: Json
           receipt_theme: Json | null
@@ -7922,6 +7923,7 @@ export type Database = {
           payroll_standard_working_days?: number | null
           phone?: string | null
           postal_code?: string | null
+          proforma_prefix?: string | null
           receipt_engine_v2?: boolean
           receipt_settings?: Json
           receipt_theme?: Json | null
@@ -7975,6 +7977,7 @@ export type Database = {
           payroll_standard_working_days?: number | null
           phone?: string | null
           postal_code?: string | null
+          proforma_prefix?: string | null
           receipt_engine_v2?: boolean
           receipt_settings?: Json
           receipt_theme?: Json | null
@@ -85115,6 +85118,10 @@ export type Database = {
         Args: { p_opening_items: Json; p_product: Json; p_user_id: string }
         Returns: Json
       }
+      create_proforma_atomic: {
+        Args: { p_header: Json; p_items: Json }
+        Returns: Json
+      }
       create_purchase_requisition: {
         Args: {
           p_business_id: string
@@ -86805,6 +86812,7 @@ export type Database = {
         Returns: Json
       }
       expire_app_trials: { Args: never; Returns: number }
+      expire_overdue_proformas: { Args: never; Returns: number }
       expire_stale_estimates: { Args: never; Returns: number }
       expire_stock_reservations: { Args: never; Returns: number }
       extend_app_trial: {
@@ -87865,7 +87873,10 @@ export type Database = {
         Args: { _org_id: string; _register_code: string }
         Returns: string
       }
-      get_next_proforma_number: { Args: { _org_id: string }; Returns: string }
+      get_next_proforma_number: {
+        Args: { _business_id: string; _org_id: string }
+        Returns: string
+      }
       get_next_project_number: { Args: { p_org_id: string }; Returns: string }
       get_next_purchase_return_number: {
         Args: { _org_id: string }
@@ -94215,6 +94226,15 @@ export type Database = {
           p_secret_key: string
         }
         Returns: string
+      }
+      set_proforma_status_atomic: {
+        Args: {
+          p_proforma_id: string
+          p_reason?: string
+          p_status: string
+          p_user_id?: string
+        }
+        Returns: Json
       }
       set_recurring_status_atomic: {
         Args: {

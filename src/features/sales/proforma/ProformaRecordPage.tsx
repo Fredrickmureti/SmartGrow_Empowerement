@@ -1,9 +1,10 @@
 /**
  * ProformaRecordPage — object-page route for a Proforma Invoice.
- * Read-only view built on RecordScaffold. Create/edit still routes
- * through the list-page dialogs until the wizard migration lands
- * (see docs/design-system/audit/sales.md).
+ * Read-only view built on RecordScaffold. Creation lives on
+ * ProformaCreatePage (`/sales/proforma/new`); lifecycle actions are on the
+ * list page and go through set_proforma_status_atomic.
  */
+
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";

@@ -4,9 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import { usePermissions } from "./usePermissions";
+import { useAuditLog } from "./useAuditLog";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { applyBranchFilter } from "@/lib/branchScope";
+
 
 export interface ProformaInvoice {
   id: string;
@@ -67,6 +70,8 @@ export function useProformaInvoices() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
   const { currentBranch } = useBranch();
+  const { can } = usePermissions();
+  const { logAction } = useAuditLog();
   const queryClient = useQueryClient();
 
   const orgId = currentOrg?.id;
@@ -84,13 +89,27 @@ export function useProformaInvoices() {
     queryClient.invalidateQueries({ queryKey: queryKeys.proformaInvoices.all(orgId) });
   }, [queryClient, orgId]);
 
+  const requireManage = (verb: string) => {
+    if (!can("manageSales")) {
+      toast.error(`You don't have permission to ${verb} proforma invoices`);
+      return false;
+    }
+    return true;
+  };
+
   const getNextNumber = async () => {
-    if (!currentOrg) return "";
-    const { data, error } = await supabase.rpc("get_next_proforma_number", { _org_id: currentOrg.id });
+    if (!currentOrg || !currentBusiness) return "";
+    const { data, error } = await supabase.rpc("get_next_proforma_number", {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+    });
     if (error) throw error;
     return data;
   };
 
+  // Proforma convergence: creation is a single atomic RPC. The server allocates
+  // the number under an advisory lock, inserts header + lines in one
+  // transaction and recomputes subtotal/tax/total from the lines.
   const createProformaInvoice = async (invoice: { expiry_date: string } & Partial<ProformaInvoice>, items: Array<{
     description: string;
     unit_price: number;
@@ -102,91 +121,118 @@ export function useProformaInvoices() {
     discount_percent?: number | null;
   }>) => {
     if (!currentOrg) return null;
+    if (!currentBusiness) {
+      toast.error("Select a company before creating a proforma invoice");
+      return null;
+    }
+    if (!requireManage("create")) return null;
 
     try {
-      const proformaNumber = await getNextNumber();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { data: newInvoice, error: invoiceError } = await supabase
-        .from("proforma_invoices")
-        .insert({
+      const { data, error } = await supabase.rpc("create_proforma_atomic" as any, {
+        p_header: {
           organization_id: currentOrg.id,
-          business_id: currentBusiness?.id || null,
+          business_id: currentBusiness.id,
           branch_id: currentBranch?.id ?? null,
-          proforma_number: proformaNumber,
-          contact_id: invoice.contact_id,
-          issue_date: invoice.issue_date || new Date().toISOString().split('T')[0],
+          contact_id: invoice.contact_id ?? null,
+          issue_date: invoice.issue_date || new Date().toISOString().split("T")[0],
           expiry_date: invoice.expiry_date,
-          status: invoice.status || 'draft',
-          currency: invoice.currency || currentBusiness?.base_currency,
-          subtotal: invoice.subtotal || 0,
-          tax_amount: invoice.tax_amount || 0,
-          discount_amount: invoice.discount_amount || 0,
-          total: invoice.total || 0,
-          notes: invoice.notes,
-          terms: invoice.terms,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (invoiceError) throw invoiceError;
-
-      if (items.length > 0) {
-        const invoiceItems = items.map((item, index) => ({
-          proforma_invoice_id: newInvoice.id,
+          currency: invoice.currency || currentBusiness.base_currency,
+          notes: invoice.notes ?? null,
+          terms: invoice.terms ?? null,
+        },
+        p_items: items.map((item) => ({
+          product_id: item.product_id ?? null,
           description: item.description,
+          quantity: item.quantity ?? 1,
           unit_price: item.unit_price,
-          line_total: item.line_total,
-          quantity: item.quantity || 1,
-          product_id: item.product_id,
-          tax_rate: item.tax_rate,
-          tax_amount: item.tax_amount,
-          discount_percent: item.discount_percent,
-          sort_order: index,
-        }));
+          tax_rate: item.tax_rate ?? 0,
+          discount_percent: item.discount_percent ?? 0,
+        })),
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; id: string; proforma_number: string; total: number };
+      if (!result?.success) throw new Error("Proforma creation failed");
 
-        const { error: itemsError } = await supabase.from("proforma_invoice_items").insert(invoiceItems);
-        if (itemsError) throw itemsError;
-      }
+      logAction({
+        action: "created",
+        entityType: "proforma_invoice",
+        entityId: result.id,
+        entityName: result.proforma_number,
+        newValues: { total: result.total, status: "draft" },
+      });
 
-      toast.success("Proforma invoice created successfully");
+      toast.success(`Proforma invoice ${result.proforma_number} created`);
       invalidate();
-      return newInvoice;
+      return { id: result.id, proforma_number: result.proforma_number };
     } catch (error) {
       console.error("Error creating proforma invoice:", error);
-      toast.error("Failed to create proforma invoice");
+      toast.error((error as any)?.message || "Failed to create proforma invoice");
       return null;
     }
   };
 
   const updateProformaInvoice = async (id: string, updates: Partial<ProformaInvoice>) => {
+    if (!requireManage("update")) return;
     try {
-      const { contact, items, ...dbUpdates } = updates as any;
+      // Status is owned by the lifecycle state machine — never write it directly.
+      const { contact, items, status, ...dbUpdates } = updates as any;
       const { error } = await supabase.from("proforma_invoices").update(dbUpdates).eq("id", id);
       if (error) throw error;
+      logAction({ action: "updated", entityType: "proforma_invoice", entityId: id, newValues: dbUpdates });
       toast.success("Proforma invoice updated successfully");
       invalidate();
     } catch (error) {
       console.error("Error updating proforma invoice:", error);
-      toast.error("Failed to update proforma invoice");
+      toast.error((error as any)?.message || "Failed to update proforma invoice");
+    }
+  };
+
+  const setProformaStatus = async (id: string, status: string, reason?: string) => {
+    if (!requireManage("update")) return false;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data, error } = await supabase.rpc("set_proforma_status_atomic" as any, {
+        p_proforma_id: id,
+        p_status: status,
+        p_user_id: user?.id ?? null,
+        p_reason: reason ?? null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; status: string; from_status?: string };
+      logAction({
+        action: "status_changed",
+        entityType: "proforma_invoice",
+        entityId: id,
+        oldValues: { status: result?.from_status },
+        newValues: { status },
+      });
+      toast.success(`Proforma marked as ${status}`);
+      invalidate();
+      return true;
+    } catch (error) {
+      console.error("Error changing proforma status:", error);
+      toast.error((error as any)?.message || "Failed to change proforma status");
+      return false;
     }
   };
 
   const deleteProformaInvoice = async (id: string) => {
+    if (!requireManage("delete")) return;
     try {
       const { error } = await supabase.from("proforma_invoices").delete().eq("id", id);
       if (error) throw error;
+      logAction({ action: "deleted", entityType: "proforma_invoice", entityId: id });
       toast.success("Proforma invoice deleted successfully");
       invalidate();
     } catch (error) {
       console.error("Error deleting proforma invoice:", error);
-      toast.error("Failed to delete proforma invoice");
+      toast.error((error as any)?.message || "Failed to delete proforma invoice");
     }
   };
 
   const convertToInvoice = async (proformaId: string) => {
     if (!currentOrg) return null;
+    if (!requireManage("convert")) return null;
 
     try {
       // Sales audit Phase F: atomic RPC. Single DB transaction creates the
@@ -204,6 +250,14 @@ export function useProformaInvoices() {
       const result = data as { success: boolean; invoice_id: string; invoice_number: string };
       if (!result?.success) throw new Error("Proforma conversion failed");
 
+      logAction({
+        action: "converted",
+        entityType: "proforma_invoice",
+        entityId: proformaId,
+        newValues: { invoice_id: result.invoice_id, invoice_number: result.invoice_number },
+        changesSummary: `Converted to invoice ${result.invoice_number}`,
+      });
+
       toast.success(`Converted to invoice ${result.invoice_number}`);
       invalidate();
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -219,9 +273,12 @@ export function useProformaInvoices() {
     proformaInvoices,
     isLoading,
     refresh: invalidate,
+    getNextNumber,
     createProformaInvoice,
     updateProformaInvoice,
+    setProformaStatus,
     deleteProformaInvoice,
     convertToInvoice,
   };
 }
+
