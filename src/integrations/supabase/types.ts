@@ -54141,6 +54141,7 @@ export type Database = {
           business_id: string | null
           created_at: string
           delivered_at: string | null
+          delivery_attempt_count: number
           delivery_error: string | null
           delivery_status: string
           failure_reason: string | null
@@ -54148,6 +54149,7 @@ export type Database = {
           invoice_id: string | null
           invoice_number: string | null
           journal_entry_id: string | null
+          next_retry_at: string | null
           organization_id: string
           period_end: string
           period_start: string
@@ -54163,6 +54165,7 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           delivered_at?: string | null
+          delivery_attempt_count?: number
           delivery_error?: string | null
           delivery_status?: string
           failure_reason?: string | null
@@ -54170,6 +54173,7 @@ export type Database = {
           invoice_id?: string | null
           invoice_number?: string | null
           journal_entry_id?: string | null
+          next_retry_at?: string | null
           organization_id: string
           period_end: string
           period_start: string
@@ -54185,6 +54189,7 @@ export type Database = {
           business_id?: string | null
           created_at?: string
           delivered_at?: string | null
+          delivery_attempt_count?: number
           delivery_error?: string | null
           delivery_status?: string
           failure_reason?: string | null
@@ -54192,6 +54197,7 @@ export type Database = {
           invoice_id?: string | null
           invoice_number?: string | null
           journal_entry_id?: string | null
+          next_retry_at?: string | null
           organization_id?: string
           period_end?: string
           period_start?: string
@@ -80870,6 +80876,15 @@ export type Database = {
       }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
       _assert_reset_permission: { Args: { org_id: string }; Returns: undefined }
+      _confirm_invoice_core: {
+        Args: {
+          p_final_status?: string
+          p_invoice_id: string
+          p_main_lines: Json
+          p_user_id: string
+        }
+        Returns: Json
+      }
       _default_receipt_settings: { Args: never; Returns: Json }
       _eba_sync_primary_to_employees: {
         Args: { p_employee_id: string }
