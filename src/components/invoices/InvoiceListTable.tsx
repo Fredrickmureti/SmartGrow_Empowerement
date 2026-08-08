@@ -2,6 +2,8 @@
  * InvoiceListTable - Extracted from Invoices.tsx for maintainability
  */
 import { Invoice } from "@/hooks/useInvoicesPaginated";
+import { isInvoicePayable, isInvoiceOverdue } from "@/services/finance/invoicePayability";
+
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
