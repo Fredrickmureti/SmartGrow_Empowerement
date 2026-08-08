@@ -19,6 +19,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { globSync } from "glob";
 
 const MIGRATIONS_DIR = "supabase/migrations";
 
@@ -159,5 +160,35 @@ describe("estimate state machine", () => {
     expect(expire).toMatch(/expiry_date/);
     expect(expire).toMatch(/'sent'|'viewed'/);
     expect(expire).toMatch(/set_estimate_status_atomic|estimate_status_writer/);
+  });
+});
+
+describe("single conversion engine", () => {
+  const files = globSync("src/**/*.{ts,tsx}", {
+    ignore: ["src/test/**", "src/integrations/supabase/types.ts"],
+  });
+
+  it("no client code builds an invoice or sales order from an estimate itself", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = readFileSync(file, "utf8");
+      const re =
+        /\.from\(\s*["'`](invoices|sales_orders|invoice_items|sales_order_items)["'`]\s*\)[\s\S]{0,400}?\.insert\(([\s\S]{0,800}?)\)\s*\n?\s*[.;]/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(src))) {
+        if (/source_estimate_id|estimate_id/.test(m[2])) offenders.push(`${file} -> ${m[1]}`);
+      }
+    }
+    expect(
+      offenders,
+      `Estimate conversion must go through the atomic RPCs. Offenders: ${offenders.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("conversion is invoked only from the estimates hook", () => {
+    const callers = files.filter((f) =>
+      /convert_estimate_to_(invoice|so)_atomic/.test(readFileSync(f, "utf8")),
+    );
+    expect(callers).toEqual(["src/hooks/useEstimates.ts"]);
   });
 });
