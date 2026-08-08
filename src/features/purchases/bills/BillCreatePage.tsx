@@ -91,6 +91,8 @@ export default function BillCreatePage() {
     project_id: prefillProjectId,
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
+  /** Vendor tier of the purchase account ladder (ADR 0122). */
+  const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
   const vendors = contacts.filter(
     (c) => (c.type === "supplier" || c.type === "both") && c.is_active,
