@@ -23288,6 +23288,8 @@ export type Database = {
       invoices: {
         Row: {
           amount_paid: number | null
+          billing_period_end: string | null
+          billing_period_start: string | null
           branch_id: string | null
           business_id: string
           confirmed_by: string | null
@@ -23349,6 +23351,8 @@ export type Database = {
         }
         Insert: {
           amount_paid?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           branch_id?: string | null
           business_id: string
           confirmed_by?: string | null
@@ -23410,6 +23414,8 @@ export type Database = {
         }
         Update: {
           amount_paid?: number | null
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           branch_id?: string | null
           business_id?: string
           confirmed_by?: string | null
@@ -53956,12 +53962,118 @@ export type Database = {
           },
         ]
       }
+      recurring_invoice_runs: {
+        Row: {
+          attempt_count: number
+          branch_id: string | null
+          business_id: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_error: string | null
+          delivery_status: string
+          failure_reason: string | null
+          id: string
+          invoice_id: string | null
+          invoice_number: string | null
+          journal_entry_id: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          recurring_invoice_id: string
+          status: string
+          trigger_source: string
+          triggered_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          failure_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          invoice_number?: string | null
+          journal_entry_id?: string | null
+          organization_id: string
+          period_end: string
+          period_start: string
+          recurring_invoice_id: string
+          status?: string
+          trigger_source?: string
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          branch_id?: string | null
+          business_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          failure_reason?: string | null
+          id?: string
+          invoice_id?: string | null
+          invoice_number?: string | null
+          journal_entry_id?: string | null
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          recurring_invoice_id?: string
+          status?: string
+          trigger_source?: string
+          triggered_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_invoice_runs_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_invoice_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "recurring_invoice_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "recurring_invoice_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_invoice_runs_recurring_invoice_id_fkey"
+            columns: ["recurring_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_invoices: {
         Row: {
           auto_confirm: boolean
           auto_send: boolean | null
           branch_id: string | null
           business_id: string
+          completed_at: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -53987,6 +54099,7 @@ export type Database = {
           auto_send?: boolean | null
           branch_id?: string | null
           business_id: string
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -54012,6 +54125,7 @@ export type Database = {
           auto_send?: boolean | null
           branch_id?: string | null
           business_id?: string
+          completed_at?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -86723,6 +86837,8 @@ export type Database = {
         }
         Returns: {
           amount_paid: number | null
+          billing_period_end: string | null
+          billing_period_start: string | null
           branch_id: string | null
           business_id: string
           confirmed_by: string | null
@@ -86821,6 +86937,19 @@ export type Database = {
           p_year?: number
         }
         Returns: number
+      }
+      generate_recurring_invoice_now: {
+        Args: { _recurring_id: string }
+        Returns: Json
+      }
+      generate_recurring_invoice_occurrence: {
+        Args: {
+          _period_start: string
+          _recurring_id: string
+          _trigger_source?: string
+          _user_id?: string
+        }
+        Returns: Json
       }
       get_account_balance_at_date: {
         Args: { p_account_id: string; p_as_of_date: string }
@@ -92114,6 +92243,10 @@ export type Database = {
         }[]
       }
       recount_label_run: { Args: { p_run_id: string }; Returns: undefined }
+      recurring_period_end: {
+        Args: { _frequency: string; _period_start: string }
+        Returns: string
+      }
       refresh_filing_calendar_business: {
         Args: { _business_id: string }
         Returns: number
