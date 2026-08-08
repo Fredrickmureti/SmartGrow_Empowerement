@@ -16,6 +16,7 @@ import { DetailRow } from "@/components/common/DetailRow";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useScopedFrom } from "@/lib/useScopedQuery";
 import { useBusinesses } from "@/contexts/BusinessContext";
+import { useOrganization } from "@/hooks/useOrganization";
 import { fetchContactOpenItemAging, EMPTY_OPEN_ITEM_AGING } from "@/services/finance/openItems";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
@@ -89,6 +90,7 @@ export function ContactPreviewDrawer({
   const location = useLocation();
   const { formatCurrency } = useCurrency();
   const { currentBusiness } = useBusinesses();
+  const { currentOrg } = useOrganization();
   const scoped = useScopedFrom();
   const [contact, setContact] = useState<ContactData | null>(null);
   const [receivable, setReceivable] = useState(0);
