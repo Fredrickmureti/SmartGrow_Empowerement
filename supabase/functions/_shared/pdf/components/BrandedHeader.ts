@@ -119,11 +119,23 @@ export function drawBrandedHeader(
   if (builder.state.density === "narrow") {
     return drawNarrowHeader(builder, page, config);
   }
-  if (config.formatProfile === "financial") {
-    return drawFinancialMasthead(builder, page, config);
-  }
+  // Product decision (2026-08): ALL reports — statutory statements
+  // included — use one masthead: logo top-left, entity block left,
+  // title / period / generated-on right. `formatProfile` still drives
+  // typography + wording ("As of ..."), never the header layout, so no
+  // single document can drift into a different-looking header again.
+  // `drawFinancialMasthead` is retained below for reference only.
   return drawOperationalHeader(builder, page, config);
 }
+
+// deno-lint-ignore no-unused-vars
+function _unusedFinancialMasthead(
+  builder: PdfBuilder,
+  page: PDFPage,
+  config: BrandedHeaderConfig,
+): DrawnHeader {
+  return drawFinancialMasthead(builder, page, config);
+
 
 /**
  * Narrow (thermal) masthead — everything stacked, centered, single column.
