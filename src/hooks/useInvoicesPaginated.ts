@@ -419,15 +419,9 @@ export function useInvoicesPaginated(filters?: InvoiceFilters) {
       releaseStock: true,
     });
 
-    // Unified post-confirm state: always "sent" (matches industry practice — Odoo "open",
-    // Xero "awaiting payment", QuickBooks "open"). Removes the "confirmed" vs "sent" inconsistency.
-    const { error: statusErr } = await supabase
-      .from("invoices")
-      .update({ status: "sent" as any })
-      .eq("id", id);
-    if (statusErr) {
-      console.error("Failed to set invoice status to sent after confirm:", statusErr);
-    }
+    // Single writer: `confirm_invoice_atomic` already lands the invoice on the
+    // canonical post-confirm status ('sent'), so no client-side overwrite here.
+
 
     toast({ title: "Invoice confirmed", description: `${invoice.invoice_number} has been posted and stockable items were released through delivery.` });
 

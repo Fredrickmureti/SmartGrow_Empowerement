@@ -195,6 +195,9 @@ export async function confirmInvoiceAndPostGL(
   // auto-created Delivery Note, so quantity changes remain movement-based and
   // traceable rather than direct product decrements.
   const releaseStock = deps.releaseStock !== false;
+  // `p_final_status: 'sent'` makes the RPC the single writer of the canonical
+  // post-confirmation status (Odoo "open" / Xero "awaiting payment"); no
+  // client-side status overwrite follows.
   const { data, error } = releaseStock
     ? await supabase.rpc("confirm_invoice_and_release_stock_atomic" as any, {
         p_invoice_id: invoice.id,
@@ -202,13 +205,16 @@ export async function confirmInvoiceAndPostGL(
         p_main_lines: mainLines as any,
         p_release_stock: true,
         p_warehouse_id: null,
+        p_final_status: "sent",
       })
     : await supabase.rpc("confirm_invoice_atomic" as any, {
         p_invoice_id: invoice.id,
         p_user_id: deps.userId || null,
         p_main_lines: mainLines as any,
+        p_final_status: "sent",
         // COGS posts only at goods-issue (complete_delivery_atomic) — ADR 0026.
       });
+
 
   if (error) {
     const rawMsg = error.message || "Unknown error";
