@@ -49,6 +49,8 @@ describe("scan_events telemetry payload", () => {
       verdict: "ok",
       workflow: "identity",
       source: "phone",
+      workspace_id: null,
+
     });
   });
 
