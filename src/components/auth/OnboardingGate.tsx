@@ -41,7 +41,7 @@ const PUBLIC_PATH_PREFIXES = [
   "/blog",
   "/features",
   "/contact",
-  "/install",
+  "/downloads",
   "/privacy",
   "/terms",
   "/cookies",
