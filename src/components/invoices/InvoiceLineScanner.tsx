@@ -41,7 +41,7 @@ import { useLocalScan } from "@/hooks/scanner/useLocalScan";
 import { useSalesScanController } from "@/contexts/SalesScanContext";
 import { ScanSessionSheet } from "@/features/sales/scan-session/ScanSessionSheet";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   businessId?: string;
