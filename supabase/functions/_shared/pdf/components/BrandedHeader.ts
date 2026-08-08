@@ -128,13 +128,6 @@ export function drawBrandedHeader(
   return drawOperationalHeader(builder, page, config);
 }
 
-// deno-lint-ignore no-unused-vars
-function _unusedFinancialMasthead(
-  builder: PdfBuilder,
-  page: PDFPage,
-  config: BrandedHeaderConfig,
-): DrawnHeader {
-  return drawFinancialMasthead(builder, page, config);
 
 
 /**
