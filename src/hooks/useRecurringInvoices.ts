@@ -157,7 +157,17 @@ export function useRecurringInvoices() {
       }
     }
 
-    const { contact, items: _i, ...dbUpdates } = updates as any;
+    // Lifecycle columns are owned by `set_recurring_status_atomic`; an edit
+    // form may never smuggle a state change through a field update.
+    const {
+      contact,
+      items: _i,
+      status: _status,
+      is_active: _isActive,
+      status_changed_at: _sca,
+      definition_version: _dv,
+      ...dbUpdates
+    } = updates as any;
     const { error } = await supabase.from("recurring_invoices").update(dbUpdates).eq("id", id);
     if (error) throw error;
     invalidate();
