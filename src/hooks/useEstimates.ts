@@ -365,17 +365,36 @@ export function useEstimates() {
     // canonical tax-exclusive line_total convention, and flips the estimate
     // to 'converted' in a single transaction so we cannot get an invoice
     // without the estimate being marked converted.
+    // It also posts and issues the invoice ('sent') in the same transaction —
+    // a converted estimate is a customer commitment, not a draft. If posting
+    // is impossible (missing default accounts, closed period) the invoice is
+    // still created as a draft and `confirm_error` explains why.
     const { data, error } = await supabase.rpc("convert_estimate_to_invoice_atomic" as any, {
       p_estimate_id: estimateId,
       p_user_id: user.id,
+      p_auto_confirm: true,
     });
     if (error) throw error;
-    const result = data as { success: boolean; invoice_id: string; invoice_number: string };
+    const result = data as {
+      success: boolean;
+      invoice_id: string;
+      invoice_number: string;
+      invoice_status?: string;
+      confirmed?: boolean;
+      confirm_error?: string | null;
+    };
     if (!result?.success) throw new Error("Estimate conversion failed");
 
     invalidate();
     queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    return { id: result.invoice_id, invoice_number: result.invoice_number };
+    return {
+      id: result.invoice_id,
+      invoice_number: result.invoice_number,
+      status: result.invoice_status ?? "draft",
+      confirmed: result.confirmed ?? false,
+      confirmError: result.confirm_error ?? null,
+    };
+
   };
 
   const convertToSalesOrder = async (estimateId: string) => {
