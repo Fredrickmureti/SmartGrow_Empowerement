@@ -41,6 +41,8 @@ import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
+import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
+import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { normalizeError } from "@/services/resilience";
 import { EditableLineItemsGrid } from "@/design-system/records/EditableLineItemsGrid";
