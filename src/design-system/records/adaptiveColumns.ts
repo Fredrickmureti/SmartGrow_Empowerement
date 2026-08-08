@@ -129,6 +129,17 @@ export function useAdaptiveLayout<C extends AdaptiveColumn>(
       if (fits(kept)) break;
     }
 
+    // Phone rails (≈330px inside a card) cannot hold identity + amount side
+    // by side: 240 + 110 + gap overflows. Rather than force a sideways
+    // scrollbar, demote priority-1 columns from the right too — they are
+    // still rendered (and still editable) on the secondary line. The first
+    // column always stays: it is the row's identity.
+    for (let i = kept.length - 1; i >= 1 && !fits(kept); i--) {
+      dropped.unshift(kept[i]);
+      kept = kept.filter((_, idx) => idx !== i);
+    }
+
+
     return {
       visible: kept,
       demoted: dropped,
