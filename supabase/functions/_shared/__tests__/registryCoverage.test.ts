@@ -196,10 +196,10 @@ Deno.test("renderReport — audit insert failure does NOT block PDF delivery", a
   assert(bytes.length > 500, "PDF must still be produced when audit fails");
 });
 
-// ─── Format-profile contract — IS / PL / CF must be financial ────────────
+// ─── Format-profile contracts ─────────────────────────────────────────────
 
-Deno.test("Registry — statutory financial reports carry formatProfile=financial", () => {
-  const statutory = ["balance_sheet", "trial_balance", "income_statement", "profit_and_loss", "cash_flow"];
+Deno.test("Registry — centered statutory reports carry formatProfile=financial", () => {
+  const statutory = ["balance_sheet", "income_statement", "profit_and_loss"];
   for (const key of statutory) {
     const spec = getReportSpec(key);
     assertExists(spec, `${key}: missing from registry`);
@@ -209,4 +209,13 @@ Deno.test("Registry — statutory financial reports carry formatProfile=financia
       `${key}: must be flagged formatProfile="financial" (statutory statement)`,
     );
   }
+});
+
+Deno.test("Registry — Cash Flow uses the exact Trial Balance PDF masthead profile", () => {
+  const trialBalance = getReportSpec("trial_balance");
+  const cashFlow = getReportSpec("cash_flow");
+  assertExists(trialBalance);
+  assertExists(cashFlow);
+  assertEquals(trialBalance!.formatProfile, "operational");
+  assertEquals(cashFlow!.formatProfile, trialBalance!.formatProfile);
 });
