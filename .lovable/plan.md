@@ -1,12 +1,12 @@
 # Delivery Note Domain — Business-Event Convergence
 
 Authoritative status for the Delivery Note (DN) architecture audit and convergence work.
-Last updated: 2026-08-09.
+Last updated: 2026-08-09 (Phase 5 landed).
 
 ## Current position
 
-Phases 1-4 are complete and verified. **Phase 5 (lifecycle UI + POD capture) is the
-active/next phase.**
+Phases 1-5 are complete and verified. **Phase 6 (list/record parity hardening +
+returns) is the next phase; nothing is currently half-wired.**
 
 ## Phase 1 — Unblock the record surface (COMPLETE, verified)
 
@@ -57,20 +57,37 @@ active/next phase.**
   Delivered / Returned / Outstanding from the view instead of re-deriving from
   `delivery_note_items`.
 
-## Phase 5 — Lifecycle UI + proof of delivery (NEXT, not started)
+## Phase 5 — Lifecycle UI + proof of delivery on the record page (COMPLETE, verified)
 
-The engines exist server-side but are unreachable from the UI. Scope:
+- `DeliveryNoteRecordPage` now renders `DeliveryLogisticsPanel` inside a
+  **Fulfilment** section, which exposes the full engine set: mark ready
+  (`mark_delivery_ready_atomic`), dispatch (`dispatch_delivery_atomic`),
+  logistics edit incl. carrier/tracking/freight (`update_delivery_logistics_atomic`),
+  complete with POD capture (`complete_delivery_atomic`), record partial +
+  backorder (`record_partial_delivery_atomic`), plus the lifecycle timeline and
+  proof-of-delivery history.
+- Header quick actions added: Back, **Print** (now enabled) and Cancel delivery
+  (via `cancel_delivery_atomic`, hidden on final statuses).
+- Print bug fixed: the record page passed no `onPrint`, so `RecordScaffold`
+  rendered the button disabled. Print now runs through the new shared
+  `usePrintDeliveryNote` hook (snapshot → `document_records` → output intent);
+  `src/pages/DeliveryNotes.tsx` was refactored onto the same hook so the list and
+  the record page cannot drift.
+- `useDocumentRecord` now returns `refetch`; lifecycle actions refresh the record
+  in place.
+- `DeliveryStatusBanner` (invoice surface) refactored off an inline
+  `complete_delivery_atomic` call onto `useCompleteDelivery`.
+- Ratchet extended with two new tests: only `usePrintDeliveryNote` may build the
+  delivery-note snapshot, and only the RPC wrapper hooks may call the lifecycle
+  RPCs. All 5 ratchet tests pass; `tsgo --noEmit` clean.
 
-1. Expose `ready_to_dispatch → dispatched → in_transit` in `DeliveryLogisticsPanel`
-   via `mark_delivery_ready_atomic` / `dispatch_delivery_atomic`, gated by
-   `LIFECYCLE_TRANSITIONS` in `src/types/deliveryNote.ts`.
-2. Carrier + tracking editing through `update_delivery_logistics_atomic`
-   (carrier select from `carriers`, tracking number, freight cost).
-3. Proof-of-delivery capture: write path into `delivery_proofs` + the
-   `delivery-proofs` storage bucket (signature/photo, received-by contact).
-4. Partial delivery / backorder action via `record_partial_delivery_atomic`,
-   surfacing the spawned backorder DN.
-5. Extend the ratchet test with the new RPC-only call sites.
+## Phase 6 — Returns and parity hardening (NEXT, not started)
+
+1. Return delivery notes: a first-class create path + UI surfacing on the record
+   page (the `dn_line_balances` view already nets completed returns).
+2. Record-page edit path for the descriptive columns (the granted whitelist)
+   so "Edit" stops being a dead action.
+3. Backorder visibility: link spawned backorder DNs from the parent record.
 
 ## Deferred (explicitly out of scope, do not start early)
 
@@ -93,7 +110,10 @@ The engines exist server-side but are unreachable from the UI. Scope:
    `get_next_delivery_number(uuid, uuid)` exist and are SECURITY DEFINER; the unique
    delivery-number index is present; `dn_line_balances` returns rows; and
    `npx tsgo --noEmit -p tsconfig.app.json` plus the two delivery test files pass.
-2. Only then start **Phase 5**, in the numbered order above. Finish each item
+2. Also verify Phase 5: open a delivery note full page and confirm Print is
+   enabled and fires the print event, the Fulfilment panel renders, and each
+   lifecycle button calls its RPC and refreshes the record. Only then start
+   **Phase 6**, in the numbered order above. Finish each item
    (RPC call + UI + invalidation + ratchet coverage) before moving to the next —
    no half-wired lifecycle actions.
 3. Update this file immediately after each item lands.
