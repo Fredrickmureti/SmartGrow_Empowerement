@@ -57,6 +57,7 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { ShipToPicker } from "@/components/addresses/ShipToPicker";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
