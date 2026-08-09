@@ -281,3 +281,16 @@ export async function freezeBillToSnapshot(
     console.warn(`[contactAddresses] bill-to snapshot skipped for ${table}`, error);
   }
 }
+
+/**
+ * Single-line form of {@link formatAddress}, for inline display in tables,
+ * cards and summary rows where a multi-line block would break the layout.
+ *
+ * Same field order and same omission rules as the block form, so the two
+ * can never disagree about what an address contains.
+ */
+export function formatAddressInline(
+  address: Partial<PartyAddress> | null | undefined,
+): string {
+  return formatAddress(address).split("\n").join(", ");
+}

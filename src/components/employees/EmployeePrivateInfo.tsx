@@ -1,3 +1,4 @@
+import { formatAddressInline } from "@/lib/contactAddresses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmployeeProfile } from "@/hooks/useEmployeeProfile";
 import { useEmployeeStatutoryIdentifiers } from "@/hooks/employees/useEmployeeStatutoryIdentifiers";
@@ -24,17 +25,17 @@ export function EmployeePrivateInfo({ employee }: Props) {
   const { data: identifiers = [] } = useEmployeeStatutoryIdentifiers(employee.id);
   const valueByKey = new Map(identifiers.map((i) => [i.identifier_type, i.identifier_value]));
 
-  const formatAddress = () => {
-    const parts = [
-      employee.address_line1,
-      employee.address_line2,
-      employee.city,
-      employee.county,
-      employee.postal_code,
-      employee.country,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(", ") : null;
-  };
+  // One formatter for every printed/displayed address (ADR-0080).
+  // Employees carry `county` where contacts carry `state`.
+  const formatAddress = () =>
+    formatAddressInline({
+      address_line1: employee.address_line1,
+      address_line2: employee.address_line2,
+      city: employee.city,
+      state: employee.county,
+      postal_code: employee.postal_code,
+      country: employee.country,
+    }) || null;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">

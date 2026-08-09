@@ -1,3 +1,4 @@
+import { formatAddressInline } from "@/lib/contactAddresses";
 /**
  * CustomerRecordPage — object-page route for a customer (contact scoped
  * to the customer role). Read-only view built on RecordScaffold.
@@ -81,8 +82,7 @@ export default function CustomerRecordPage() {
 
   const address = useMemo(() => {
     if (!row) return "—";
-    const parts = [row.address_line1, row.address_line2, row.city, row.state, row.postal_code, row.country].filter(Boolean);
-    return parts.length ? parts.join(", ") : "—";
+    return formatAddressInline(row) || "—";
   }, [row]);
 
   const statusLabel = row ? (row.credit_hold ? "Credit hold" : row.is_active ? "Active" : "Inactive") : "";
