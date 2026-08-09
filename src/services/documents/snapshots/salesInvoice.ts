@@ -169,6 +169,7 @@ export function buildSalesInvoiceSnapshot(
     currency,
     notes: invoice.notes ?? null,
     terms: invoice.terms ?? null,
+    payment_term: invoice.payment_term ?? null,
     contact: invoice.contact,
     billing_address: resolveSnapshotAddress(invoice.billing_address, invoice.contact),
     business_id: invoice.business_id,
@@ -210,7 +211,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       id, invoice_number, status, issue_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
       currency, notes, terms, billing_address,
-      organization_id, business_id, branch_id, contact_id
+      organization_id, business_id, branch_id, contact_id, payment_term_id
       `,
     )
     .eq("id", invoiceId)
@@ -348,6 +349,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       contact: contactResult.data,
       business: businessResult.data,
       invoice_items: hydratedItems,
+      payment_term: await fetchPaymentTermSnapshot(supabase, invoice.payment_term_id),
     },
     "invoice_items",
   );
