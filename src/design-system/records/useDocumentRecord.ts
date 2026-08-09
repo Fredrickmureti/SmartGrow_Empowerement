@@ -4,13 +4,18 @@
  * embedded select. Guarantees a single source of truth for the peek
  * surface so peek and object page cannot drift.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface State<T> {
   record: T | null;
   loading: boolean;
   error: string | null;
+}
+
+interface Result<T> extends State<T> {
+  /** Re-runs the fetch (used after a lifecycle RPC mutates the record). */
+  refetch: () => void;
 }
 
 interface Options {
@@ -29,12 +34,14 @@ export function useDocumentRecord<T>({
   select,
   id,
   entityLabel = "Record",
-}: Options): State<T> {
+}: Options): Result<T> {
   const [state, setState] = useState<State<T>>({
     record: null,
     loading: !!id,
     error: null,
   });
+  const [nonce, setNonce] = useState(0);
+  const refetch = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     if (!id) {
@@ -68,7 +75,7 @@ export function useDocumentRecord<T>({
     return () => {
       cancelled = true;
     };
-  }, [table, select, id, entityLabel]);
+  }, [table, select, id, entityLabel, nonce]);
 
-  return state;
+  return { ...state, refetch };
 }
