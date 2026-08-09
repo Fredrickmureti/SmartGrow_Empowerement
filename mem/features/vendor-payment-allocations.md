@@ -43,6 +43,27 @@ Adding a new entry requires reviewer sign-off; the goal is zero.
   of `deriveInvoiceFromAllocations`. Same display contract.
 - Architecture guard above.
 
+## Supplier advances (D6.1 — shipped)
+Money paid to a supplier before a bill exists is an **advance**, not a
+bill settlement:
+
+- Record: `useBills().recordVendorAdvance` →
+  `record_vendor_advance_payment` (Dr Vendor Credits / Cr Bank).
+  UI: `RecordVendorAdvanceDialog`.
+- Apply: `useBills().applyVendorAdvance` →
+  `apply_vendor_advance_atomic` (Dr Accounts Payable / Cr Vendor
+  Credits). UI: `ApplyVendorAdvanceDialog`.
+  **Never** apply an advance through `record_multi_bill_payment` — that
+  engine credits Bank and would count the same cash out twice.
+- Read unapplied AP cash **only** from the `vendor_unapplied_advances`
+  view via `useVendorUnappliedAdvances`. `bill_payments` has no
+  `outstanding_amount` column; never re-derive it by summing
+  `bill_payment_allocations` in component code.
+- Operator surface: `/finance/vendor-credits` (`VendorCredits` page),
+  the AP mirror of `/finance/customer-credits`.
+- Both RPCs are idempotent on `client_request_id`; callers must pass a
+  stable key per attempt.
+
 ## Pending (S3c)
 - Move writers (`useBills.recordBillPayment`,
   `useTransactionReversal`, `useVendorCreditNotes`,

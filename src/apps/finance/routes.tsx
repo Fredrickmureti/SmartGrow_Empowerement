@@ -60,6 +60,7 @@ const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
 const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
 const ApplyCreditWizardPage = lazy(() => import("@/features/finance/customer-credits/ApplyCreditWizardPage"));
 const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-credits/ProcessRefundWizardPage"));
+const VendorCredits = lazy(() => import("@/pages/finance/VendorCredits"));
 const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
 const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
@@ -186,6 +187,18 @@ export function FinanceApp() {
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Customer Credits">
                 <CustomerCredits />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+        {/* Vendor Credits — AP mirror of Customer Credits (ADR 0028). */}
+        <Route
+          path="vendor-credits"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Vendor Credits">
+                <VendorCredits />
               </LazyRoute>
             </SubscriptionProtectedRoute>
           }

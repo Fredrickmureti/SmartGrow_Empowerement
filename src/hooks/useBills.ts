@@ -600,6 +600,45 @@ export function useBills() {
   };
 
 
+  /**
+   * Apply an existing supplier advance to an open bill (D6.1).
+   *
+   * This is NOT `recordMultiBillPayment`: the cash already left the bank
+   * when the advance was recorded, so the settlement engine — which credits
+   * Bank — would count the same money out twice. The dedicated RPC posts
+   * Dr Accounts Payable / Cr Vendor Credits instead, the AP mirror of
+   * `apply_customer_deposit_atomic`.
+   */
+  const applyVendorAdvance = async (args: {
+    billPaymentId: string;
+    billId: string;
+    amount: number;
+    applyDate?: string;
+    clientRequestId?: string | null;
+  }) => {
+    if (!user) throw new Error("Not signed in");
+
+    const { data, error } = await supabase.rpc("apply_vendor_advance_atomic" as any, {
+      _bill_payment_id: args.billPaymentId,
+      _bill_id: args.billId,
+      _amount: args.amount,
+      _apply_date: args.applyDate ?? new Date().toISOString().slice(0, 10),
+      _actor: user.id,
+      _client_request_id: args.clientRequestId ?? null,
+    } as any);
+
+    if (error) throw error;
+    await fetchBills();
+    return data as {
+      event_id: string;
+      journal_entry_id?: string;
+      applied_amount?: number;
+      bill_new_status?: string;
+      advance_remaining?: number;
+      idempotent_replay?: boolean;
+    };
+  };
+
 
   /**
    * Single-bill convenience wrapper — preserved for existing callers.
@@ -787,6 +826,7 @@ export function useBills() {
     recordBillPayment,
     recordMultiBillPayment,
     recordVendorAdvance,
+    applyVendorAdvance,
 
     getBillPayments,
     getDefaultDueDate,

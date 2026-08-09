@@ -4647,6 +4647,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_reconciliation_matches_matched_bill_payment_id_fkey"
+            columns: ["matched_bill_payment_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_unapplied_advances"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bank_reconciliation_matches_matched_journal_entry_id_fkey"
             columns: ["matched_journal_entry_id"]
             isOneToOne: false
@@ -6292,6 +6299,13 @@ export type Database = {
             referencedRelation: "bill_payments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bill_payment_allocations_bill_payment_id_fkey"
+            columns: ["bill_payment_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_unapplied_advances"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bill_payment_reversal_events: {
@@ -6349,6 +6363,13 @@ export type Database = {
             columns: ["bill_payment_id"]
             isOneToOne: false
             referencedRelation: "bill_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payment_reversal_events_bill_payment_id_fkey"
+            columns: ["bill_payment_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_unapplied_advances"
             referencedColumns: ["id"]
           },
         ]
@@ -80729,6 +80750,131 @@ export type Database = {
           },
         ]
       }
+      vendor_unapplied_advances: {
+        Row: {
+          amount: number | null
+          applied_amount: number | null
+          branch_id: string | null
+          business_id: string | null
+          created_at: string | null
+          id: string | null
+          journal_entry_id: string | null
+          notes: string | null
+          organization_id: string | null
+          outstanding_amount: number | null
+          payment_date: string | null
+          payment_method: string | null
+          reference: string | null
+          vendor_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ar_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "customer_ledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "scrap_document_facts"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "bill_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wms_billable_activities_summary_view: {
         Row: {
           activity: string | null
@@ -82582,6 +82728,17 @@ export type Database = {
           p_reason_text: string
         }
         Returns: undefined
+      }
+      apply_vendor_advance_atomic: {
+        Args: {
+          _actor?: string
+          _amount: number
+          _apply_date?: string
+          _bill_id: string
+          _bill_payment_id: string
+          _client_request_id?: string
+        }
+        Returns: Json
       }
       apply_vendor_credit_fifo_atomic: {
         Args: {
