@@ -181,6 +181,8 @@ export interface ReceiptTransactionLike {
   notes?: string | null;
   /** Terms & conditions block. */
   terms?: string | null;
+  /** Structured payment term label (e.g. "Net 20"). Never T&C prose. */
+  payment_term_label?: string | null;
   /** Currency ISO code (KES, USD…). Adapter passes this so engine can fall
    * back to a code prefix when no symbol override is configured. */
   currency_code?: string | null;
@@ -386,6 +388,9 @@ export function buildReceiptLines(input: BuildReceiptLinesInput): ReceiptLinesRe
       ? fmtDateTime(t.due_date, rs.date_format, "none")
       : t.due_date;
     left(padLR("Due:", dueLabel, cw));
+  }
+  if (t.payment_term_label) {
+    left(padLR("Terms:", String(t.payment_term_label), cw));
   }
   const isPaymentDoc =
     t.is_payment_document === true ||

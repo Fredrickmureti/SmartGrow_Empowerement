@@ -224,6 +224,11 @@ function drawDocumentMeta(
   metas.push({ label: "Document #", value: data.document_number });
   if (data.issue_date) metas.push({ label: "Issue Date", value: formatDate(data.issue_date) });
   if (data.due_date) metas.push({ label: "Due Date", value: formatDate(data.due_date) });
+  // Structured payment term — printed as its own meta row, never merged
+  // into the Terms & Conditions prose block below.
+  if (data.payment_term?.name) {
+    metas.push({ label: "Payment Terms", value: String(data.payment_term.name) });
+  }
   if (data.expiry_date && !data.due_date) {
     metas.push({ label: "Valid Until", value: formatDate(data.expiry_date) });
   }

@@ -26,6 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 import { resolveSnapshotAddress } from "./partyAddress";
+import { fetchPaymentTermSnapshot, type SnapshotPaymentTerm } from "./paymentTerm";
 
 // ---------- Input shapes (mirror what fetchInvoice selects) ----------
 
@@ -90,6 +91,10 @@ export interface SalesInvoiceHeaderRow {
   currency: string | null;
   notes: string | null;
   terms: string | null;
+  /** Structured commercial term id (drives due_date); NOT T&C prose. */
+  payment_term_id?: string | null;
+  /** Hydrated term, frozen into the snapshot as values. */
+  payment_term?: SnapshotPaymentTerm | null;
   organization_id: string;
   business_id: string | null;
   /** Frozen printed address; authoritative over live party data. */
@@ -164,6 +169,7 @@ export function buildSalesInvoiceSnapshot(
     currency,
     notes: invoice.notes ?? null,
     terms: invoice.terms ?? null,
+    payment_term: invoice.payment_term ?? null,
     contact: invoice.contact,
     billing_address: resolveSnapshotAddress(invoice.billing_address, invoice.contact),
     business_id: invoice.business_id,
@@ -205,7 +211,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       id, invoice_number, status, issue_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
       currency, notes, terms, billing_address,
-      organization_id, business_id, branch_id, contact_id
+      organization_id, business_id, branch_id, contact_id, payment_term_id
       `,
     )
     .eq("id", invoiceId)
@@ -343,6 +349,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       contact: contactResult.data,
       business: businessResult.data,
       invoice_items: hydratedItems,
+      payment_term: await fetchPaymentTermSnapshot(supabase, invoice.payment_term_id),
     },
     "invoice_items",
   );

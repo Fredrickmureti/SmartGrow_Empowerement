@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 import { resolveSnapshotAddress } from "./partyAddress";
+import { fetchPaymentTermSnapshot, type SnapshotPaymentTerm } from "./paymentTerm";
 
 // ---------- Input shapes (mirror fetchBill's projection) ----------
 
@@ -68,6 +69,9 @@ export interface PurchasesBillHeaderRow {
   amount_paid: number | null;
   currency: string | null;
   notes: string | null;
+  /** Structured supplier term id (drives due_date); NOT T&C prose. */
+  payment_term_id?: string | null;
+  payment_term?: SnapshotPaymentTerm | null;
   organization_id: string;
   business_id: string | null;
   /** Frozen printed address; authoritative over live party data. */
@@ -141,7 +145,10 @@ export function buildPurchasesBillSnapshot(
     amount_paid: Number(bill.amount_paid ?? 0),
     currency,
     notes: bill.notes ?? null,
+    // `bills` carries no T&C prose column; the structured term travels
+    // separately in `payment_term` and must never be stuffed in here.
     terms: null,
+    payment_term: bill.payment_term ?? null,
     contact: bill.vendor,
     remit_to_address: resolveSnapshotAddress(bill.remit_to_address, bill.vendor),
     business_id: bill.business_id,
@@ -178,7 +185,7 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       `
       id, bill_number, status, bill_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
-      currency, notes, remit_to_address,
+      currency, notes, remit_to_address, payment_term_id,
       organization_id, business_id, branch_id, vendor_id,
       vendor:contacts(name, email, phone, address_line1, city, state, postal_code),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
@@ -201,7 +208,15 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       }`,
     );
   }
+  const row = data as Record<string, unknown>;
+  const paymentTerm = await fetchPaymentTermSnapshot(
+    supabase,
+    row.payment_term_id as string | null,
+  );
   return buildPurchasesBillSnapshot(
-    normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesBillHeaderRow,
+    {
+      ...(normalizeSnapshotItems(row, "items") as Record<string, unknown>),
+      payment_term: paymentTerm,
+    } as unknown as PurchasesBillHeaderRow,
   );
 }
