@@ -26,6 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 import { resolveSnapshotAddress } from "./partyAddress";
+import { fetchPaymentTermSnapshot, type SnapshotPaymentTerm } from "./paymentTerm";
 
 // ---------- Input shapes (mirror what fetchInvoice selects) ----------
 
@@ -90,6 +91,10 @@ export interface SalesInvoiceHeaderRow {
   currency: string | null;
   notes: string | null;
   terms: string | null;
+  /** Structured commercial term id (drives due_date); NOT T&C prose. */
+  payment_term_id?: string | null;
+  /** Hydrated term, frozen into the snapshot as values. */
+  payment_term?: SnapshotPaymentTerm | null;
   organization_id: string;
   business_id: string | null;
   /** Frozen printed address; authoritative over live party data. */
