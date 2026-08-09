@@ -76,8 +76,14 @@ interface Props<T extends ReturnLineShape> {
   products: ProductOption[];
   layout: EditableRowLayout;
   disabled?: boolean;
-  /** True when the lines came from an invoice — item text is then fixed. */
+  /**
+   * Document-level hint kept for callers that still pass it. Provenance is
+   * decided PER LINE by `item.invoice_item_id` so invoice-sourced lines and
+   * deliberate off-invoice lines can coexist in one grid.
+   */
   fromInvoice?: boolean;
+  /** Reference document number rendered on invoice-sourced lines. */
+  sourceDocumentLabel?: string | null;
   formatCurrency: (n: number) => string;
   onPatch: (index: number, patch: Partial<T>) => void;
   extra?: ReactNode;
@@ -92,17 +98,22 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
   layout,
   disabled,
   fromInvoice,
+  sourceDocumentLabel,
   formatCurrency,
   onPatch,
   extra,
   flashed,
 }: Props<T>) {
+  // Per-line provenance: an invoice-sourced line is locked to what was
+  // actually invoiced; anything else is a deliberate off-invoice line.
+  const invoiceSourced = !!item.invoice_item_id;
+
   const cell = (columnId: string) => {
     switch (columnId) {
       case "item":
         return (
           <div className="min-w-0 space-y-2">
-            {!fromInvoice && (
+            {!invoiceSourced && (
               <ProductCombobox
                 products={products}
                 value={item.product_id || ""}
@@ -116,12 +127,24 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
               value={item.description}
               onChange={(e) => onPatch(index, { description: e.target.value } as Partial<T>)}
               placeholder="Item description"
-              readOnly={fromInvoice}
+              readOnly={invoiceSourced}
               className="h-8"
               disabled={disabled}
             />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {invoiceSourced ? (
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  from {sourceDocumentLabel || "invoice"}
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] font-normal">
+                  Off-invoice · no tax/cost basis
+                </Badge>
+              )}
+            </div>
           </div>
         );
+
 
       case "quantity":
         return (
