@@ -9,7 +9,7 @@
 --   * transition_sales_return enforces the state machine and refuses to
 --     approve (approval belongs to approve_sales_return_atomic)
 BEGIN;
-SELECT plan(33);
+SELECT plan(34);
 
 -- ---------- fixtures ----------
 CREATE TEMP TABLE _sr_fx (org uuid, biz uuid) ON COMMIT DROP;
