@@ -19,7 +19,11 @@ import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvid
 import { downloadDocumentRecord } from "@/services/printing/PrintService";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
-import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
+import {
+  RecordCustomerPaymentDialog as RecordPaymentDialog,
+  makeCustomerPaymentRequestId,
+} from "@/components/payments/RecordCustomerPaymentDialog";
+
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { VoidPaymentDialog } from "@/components/payments/VoidPaymentDialog";
 import { ReversePaymentWizard } from "@/components/payments/ReversePaymentWizard";
