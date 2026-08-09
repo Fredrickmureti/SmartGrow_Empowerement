@@ -58,3 +58,18 @@ on both routes. Never re-derive the rate downstream.
 ## Approval
 Approving a sales order sets `approved` then calls `confirm_sales_order_atomic` so stock
 reservations are actually created. Writing `confirmed` directly skips reservations.
+
+## Editing
+`update_sales_order_atomic(p_so_id, p_header, p_items, p_user_id)` is the ONLY edit path. It
+updates surviving lines in place (lines are matched by `id`), so `quantity_fulfilled`,
+`quantity_invoiced` and the `invoice_items` / `delivery_note_items` provenance links survive an
+edit. Never delete-then-reinsert `sales_order_items` from the client. Edits are refused on
+locked / invoiced / cancelled / fulfilled orders, and a line that already has delivered or
+invoiced quantity can be neither removed nor reduced below what happened. Totals are
+server-derived.
+
+## Approval transitions
+`set_sales_order_approval_state_atomic(p_so_id, p_action, p_user_id, p_notes)` with
+action `submit | approve | reject` owns draft -> pending_approval -> approved/rejected and
+writes the audit row. `approval_requests` keeps its own vocabulary (`pending`, ...) — do not
+confuse it with `sales_orders.status`. Approve still chains `confirm_sales_order_atomic`.
