@@ -12,7 +12,7 @@
  * `src/test/architecture/invoice-totals-contract.test.ts`.
  */
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useEstimates, EstimateItem } from "@/hooks/useEstimates";
 import { useContacts } from "@/hooks/useContacts";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
@@ -52,6 +52,11 @@ import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/Fie
 
 export default function EstimateCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const [searchParams] = useSearchParams();
   const prefillContactId = searchParams.get("contact_id") ?? "";
 
@@ -309,6 +314,7 @@ export default function EstimateCreatePage() {
                 branchId={currentBranch?.id ?? null}
                 onResolved={handleScanResolved}
                 onSessionCommit={handleScanSessionCommit}
+                openSessionOnMount={openScanSessionOnMount}
               />
             }
             addLabel="Add Item"

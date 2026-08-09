@@ -5,7 +5,7 @@
  * Return" dialog on `src/pages/PurchaseReturns.tsx`.
  */
 import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
@@ -50,6 +50,11 @@ const emptyLine = (sort_order = 0): LineItem => ({
 
 export default function PurchaseReturnCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const { createPurchaseReturn } = usePurchaseReturns();
   const { contacts } = useContacts();
   const { products } = useProducts();
@@ -232,6 +237,7 @@ export default function PurchaseReturnCreatePage() {
               branchId={currentBranch?.id ?? null}
               onResolved={handleScanResolved}
               onSessionCommit={handleScanSessionCommit}
+              openSessionOnMount={openScanSessionOnMount}
               disabled={isSubmitting}
             />
           }

@@ -9,7 +9,7 @@
  *   ?invoice_id=<uuid>   pre-fill the original invoice (auto-loads items)
  */
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -103,6 +103,11 @@ const emptyLine = (): LineItem => ({
 
 export default function SalesReturnCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const [searchParams] = useSearchParams();
   const prefillContactId = searchParams.get("contact_id") ?? undefined;
   const prefillInvoiceId = searchParams.get("invoice_id") ?? undefined;
@@ -468,6 +473,7 @@ export default function SalesReturnCreatePage() {
                   branchId={currentBranch?.id ?? null}
                   onResolved={handleScanResolved}
                   onSessionCommit={handleScanSessionCommit}
+                  openSessionOnMount={openScanSessionOnMount}
                 />
               }
               addLabel="Add Item"
