@@ -36,16 +36,18 @@ BEGIN;
     ---------------------------------------------------------------------------
     IF NOT EXISTS (
       SELECT 1
-        FROM pg_constraint c
-        JOIN pg_class t ON t.oid = c.conrelid
-       WHERE t.relname = 'sales_orders'
-         AND c.contype = 'u'
+        FROM pg_index i
+        JOIN pg_class t ON t.oid = i.indrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+       WHERE n.nspname = 'public'
+         AND t.relname = 'sales_orders'
+         AND i.indisunique
          AND (SELECT array_agg(a.attname::text ORDER BY a.attname::text)
-                FROM unnest(c.conkey) k
+                FROM unnest(i.indkey::int[]) k
                 JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k)
              = ARRAY['organization_id','so_number']
     ) THEN
-      RAISE EXCEPTION 'Q1 FAILED: sales_orders has no org-wide unique so_number constraint';
+      RAISE EXCEPTION 'Q1 FAILED: sales_orders has no org-wide unique so_number index';
     END IF;
 
     SELECT prosrc INTO v_src
