@@ -166,12 +166,18 @@ describe("Sales Order — one backorder engine", () => {
 describe("Sales Order — status vocabulary", () => {
   it("app code only uses statuses the CHECK constraint permits", () => {
     const files = appFiles.filter((f) => /SalesOrder|sales-order|salesOrder/i.test(f));
+    // `approval_requests` has its own lifecycle vocabulary and lives in the same
+    // files; only sales-order statuses are governed by the CHECK constraint.
+    const APPROVAL_REQUEST_STATUSES = ["pending", "in_progress", "approved", "rejected", "cancelled"];
     const illegal = new Set<string>();
     for (const f of files) {
       const src = read(f);
+      const touchesApprovalRequests = /["']approval_requests["']/.test(src);
       for (const m of src.matchAll(/status\s*(?:===|!==|:)\s*["']([a-z_]+)["']/g)) {
         const v = m[1];
-        if (!SO_STATUSES.includes(v)) illegal.add(`${v} (${f})`);
+        if (SO_STATUSES.includes(v)) continue;
+        if (touchesApprovalRequests && APPROVAL_REQUEST_STATUSES.includes(v)) continue;
+        illegal.add(`${v} (${f})`);
       }
     }
     expect([...illegal]).toEqual([]);
