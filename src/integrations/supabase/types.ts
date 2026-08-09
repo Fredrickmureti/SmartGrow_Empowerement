@@ -6609,6 +6609,7 @@ export type Database = {
           migration_session_id: string | null
           notes: string | null
           organization_id: string
+          payment_term_id: string | null
           project_id: string | null
           purchase_order_id: string | null
           remit_to_address: string | null
@@ -6654,6 +6655,7 @@ export type Database = {
           migration_session_id?: string | null
           notes?: string | null
           organization_id: string
+          payment_term_id?: string | null
           project_id?: string | null
           purchase_order_id?: string | null
           remit_to_address?: string | null
@@ -6699,6 +6701,7 @@ export type Database = {
           migration_session_id?: string | null
           notes?: string | null
           organization_id?: string
+          payment_term_id?: string | null
           project_id?: string | null
           purchase_order_id?: string | null
           remit_to_address?: string | null
@@ -6852,6 +6855,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_payment_term_id_fkey"
+            columns: ["payment_term_id"]
+            isOneToOne: false
+            referencedRelation: "payment_terms"
             referencedColumns: ["id"]
           },
           {
@@ -83477,6 +83487,7 @@ export type Database = {
           migration_session_id: string | null
           notes: string | null
           organization_id: string
+          payment_term_id: string | null
           project_id: string | null
           purchase_order_id: string | null
           remit_to_address: string | null
@@ -94847,6 +94858,19 @@ export type Database = {
       resolve_pack_rule_schema: {
         Args: { _computation_kind: string; _rule_type: string }
         Returns: Json
+      }
+      resolve_payment_term: {
+        Args: {
+          p_business_id: string
+          p_contact_id?: string
+          p_organization_id: string
+          p_override_term_id?: string
+        }
+        Returns: {
+          days: number
+          name: string
+          payment_term_id: string
+        }[]
       }
       resolve_payroll_pack_for_employee: {
         Args: { p_employee_id: string }
