@@ -82,6 +82,12 @@ interface Props<T extends PricedLineShape> {
   products?: PricedLineRowProduct[];
   /** Renders the item cell as a bare description input (credit notes, returns). */
   hideProductPicker?: boolean;
+  /**
+   * Column ids rendered as read-only text instead of inputs. Used by documents
+   * whose lines carry provenance from a source document (a credit note line
+   * picked off an invoice must not have its item, price or tax retyped).
+   */
+  lockedCells?: string[];
   /** Layout resolved by `EditableLineItemsGrid` for the measured container. */
   layout: EditableRowLayout;
   disabled?: boolean;
@@ -104,6 +110,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
   item,
   products,
   hideProductPicker,
+  lockedCells,
   layout,
   disabled,
   flashed,
@@ -113,9 +120,18 @@ function PricedLineRowInner<T extends PricedLineShape>({
   extra,
   productPlaceholder,
 }: Props<T>) {
+  const isLocked = (columnId: string) => lockedCells?.includes(columnId) ?? false;
+
   const cell = (columnId: string) => {
     switch (columnId) {
       case "item":
+        if (isLocked("item")) {
+          return (
+            <div className="min-w-0 pt-2 text-sm font-medium">
+              {item.description || "—"}
+            </div>
+          );
+        }
         if (hideProductPicker) {
           return (
             <Input
@@ -167,6 +183,13 @@ function PricedLineRowInner<T extends PricedLineShape>({
         );
 
       case "unit_price":
+        if (isLocked("unit_price")) {
+          return (
+            <div className="pt-2 text-right tabular-nums">
+              {formatCurrency(item.unit_price)}
+            </div>
+          );
+        }
         return (
           <NumericInput
             value={item.unit_price}
@@ -177,6 +200,11 @@ function PricedLineRowInner<T extends PricedLineShape>({
         );
 
       case "tax_rate":
+        if (isLocked("tax_rate")) {
+          return (
+            <div className="pt-2 text-right tabular-nums">{item.tax_rate ?? 0}%</div>
+          );
+        }
         return (
           <NumericInput
             value={item.tax_rate ?? 0}

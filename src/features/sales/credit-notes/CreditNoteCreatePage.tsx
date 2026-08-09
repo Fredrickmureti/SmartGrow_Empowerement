@@ -50,8 +50,20 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { Badge } from "@/components/ui/badge";
+import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { useInvoiceCreditableLines } from "./useInvoiceCreditableLines";
+import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCreditPicker";
+import { CREDIT_REASON_OPTIONS, CREDIT_REASON_OTHER } from "./creditReasonOptions";
 
-type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id">;
+/**
+ * `source_invoice_item_id` is UI-only provenance: it marks a line as picked
+ * off the source invoice so the grid locks its item, price and tax. It is
+ * stripped before the payload is sent (`credit_note_items` has no such column).
+ */
+type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & {
+  source_invoice_item_id?: string | null;
+};
 
 const emptyLine = (sort_order = 0): LineItem => ({
   product_id: null,
@@ -62,7 +74,11 @@ const emptyLine = (sort_order = 0): LineItem => ({
   tax_amount: 0,
   line_total: 0,
   sort_order,
+  source_invoice_item_id: null,
 });
+
+const stripProvenance = (items: LineItem[]) =>
+  items.map(({ source_invoice_item_id: _ignored, ...rest }) => rest);
 
 export default function CreditNoteCreatePage() {
   const navigate = useNavigate();
@@ -90,6 +106,8 @@ export default function CreditNoteCreatePage() {
     notes: "",
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine()]);
+  const [reasonChoice, setReasonChoice] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const customers = contacts.filter((c) => (c.type === "customer" || c.type === "both") && c.is_active);
 
@@ -101,6 +119,19 @@ export default function CreditNoteCreatePage() {
         ["sent", "partial", "overdue", "paid"].includes(inv.status),
     );
   }, [invoices, formData.contact_id]);
+
+  const selectedInvoice = useMemo(
+    () => invoices.find((i) => i.id === formData.invoice_id) ?? null,
+    [invoices, formData.invoice_id],
+  );
+
+  const {
+    lines: invoiceLines,
+    isLoading: invoiceLinesLoading,
+    error: invoiceLinesError,
+  } = useInvoiceCreditableLines(formData.invoice_id || null);
+
+  const { products } = useBranchScopedProducts();
 
   const calculateLineTotal = (item: LineItem) => {
     const { line_total, tax_amount } = computeLine({
@@ -150,35 +181,73 @@ export default function CreditNoteCreatePage() {
     setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   };
 
+  /** Off-invoice lines only — an invoice-sourced line keeps the invoiced price. */
+  const handleProductSelect = (index: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    patchLineItem(index, {
+      product_id: productId,
+      description: product.name,
+      unit_price: product.unit_price,
+    });
+  };
+
   const handleInvoiceSelect = (invoiceId: string) => {
     setFormData((f) => ({ ...f, invoice_id: invoiceId }));
-    const inv = invoices.find((i) => i.id === invoiceId);
-    if (inv && (inv as any).items && (inv as any).items.length > 0) {
-      const items: LineItem[] = (inv as any).items.map((item: any, idx: number) => ({
-        product_id: item.product_id || null,
-        description: item.description || "",
-        quantity: item.quantity || 1,
-        unit_price: item.unit_price || 0,
-        tax_rate: item.tax_rate || 0,
-        tax_amount: item.tax_amount || 0,
-        line_total: item.line_total || 0,
-        sort_order: idx,
-        packaging_id: item.packaging_id ?? null,
-        display_uom_id: item.display_uom_id ?? null,
-        display_quantity: item.display_quantity ?? null,
-        uom_snapshot: item.uom_snapshot ?? null,
-      }));
-      setLineItems(items);
-    }
+    // Lines are authored by picking off the invoice, never by retyping.
+    setLineItems([emptyLine()]);
+    if (invoiceId) setPickerOpen(true);
   };
+
+  /**
+   * Picked invoice lines replace the invoice-sourced part of the document and
+   * keep whatever off-invoice lines the operator added by hand.
+   */
+  const applyPickedLines = (picked: PickedCreditLine[]) => {
+    setLineItems((prev) => {
+      const manual = prev.filter(
+        (l) => !l.source_invoice_item_id && (l.description.trim() || l.product_id),
+      );
+      const fromInvoice: LineItem[] = picked.map(({ line, quantity }, idx) => {
+        const seed: LineItem = {
+          ...emptyLine(idx),
+          product_id: line.product_id,
+          description: line.description,
+          quantity,
+          unit_price: line.net_unit_price,
+          tax_rate: line.tax_rate,
+          packaging_id: line.packaging_id,
+          display_uom_id: line.display_uom_id,
+          display_quantity: line.display_quantity,
+          uom_snapshot: line.uom_snapshot,
+          source_invoice_item_id: line.invoice_item_id,
+        } as LineItem;
+        const { line_total, tax_amount } = computeLine(seed);
+        return { ...seed, line_total, tax_amount };
+      });
+      const merged = [...fromInvoice, ...manual].map((l, i) => ({ ...l, sort_order: i }));
+      return merged.length > 0 ? merged : [emptyLine()];
+    });
+  };
+
+  const pickedQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of lineItems) {
+      if (l.source_invoice_item_id) map[l.source_invoice_item_id] = l.quantity;
+    }
+    return map;
+  }, [lineItems]);
 
   // Deep-link: pre-fill invoice after invoices load
   useEffect(() => {
     if (!prefillInvoiceId || invoices.length === 0) return;
     const inv = invoices.find((i) => i.id === prefillInvoiceId);
     if (inv) {
-      setFormData((f) => ({ ...f, contact_id: inv.contact_id || f.contact_id }));
-      handleInvoiceSelect(prefillInvoiceId);
+      setFormData((f) => ({
+        ...f,
+        contact_id: inv.contact_id || f.contact_id,
+        invoice_id: prefillInvoiceId,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillInvoiceId, invoices]);
@@ -219,7 +288,7 @@ export default function CreditNoteCreatePage() {
           reason: formData.reason,
           notes: formData.notes || null,
         },
-        validation.valid,
+        stripProvenance(validation.valid as LineItem[]),
       );
       toast({
         title: status === "issued" ? "Credit note created and posted" : "Credit note saved as draft",
@@ -328,14 +397,66 @@ export default function CreditNoteCreatePage() {
         </FieldGroup>
 
         <FieldGroup label="Reason">
-          <div className="space-y-2">
-            <Label>Reason for Credit *</Label>
-            <Input
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              placeholder="e.g., Product return, Service issue, Billing error"
-            />
-          </div>
+          <FieldGrid columns={2}>
+            <div className="space-y-2">
+              <Label>Reason for Credit *</Label>
+              <Select
+                value={reasonChoice}
+                onValueChange={(v) => {
+                  setReasonChoice(v);
+                  setFormData((f) => ({
+                    ...f,
+                    reason: v === CREDIT_REASON_OTHER ? "" : v,
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CREDIT_REASON_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {reasonChoice && reasonChoice !== CREDIT_REASON_OTHER && (
+                <p className="text-xs text-muted-foreground">
+                  {CREDIT_REASON_OPTIONS.find((o) => o.value === reasonChoice)?.description}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>
+                {reasonChoice === CREDIT_REASON_OTHER ? "Your reason *" : "Detail (optional)"}
+              </Label>
+              <Input
+                value={
+                  reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
+                    ? formData.reason.replace(new RegExp(`^${reasonChoice}\\s*[—-]?\\s*`), "")
+                    : formData.reason
+                }
+                onChange={(e) => {
+                  const detail = e.target.value;
+                  setFormData((f) => ({
+                    ...f,
+                    reason:
+                      reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
+                        ? detail
+                          ? `${reasonChoice} — ${detail}`
+                          : reasonChoice
+                        : detail,
+                  }));
+                }}
+                placeholder={
+                  reasonChoice === CREDIT_REASON_OTHER
+                    ? "Describe why this credit is being issued"
+                    : "Add specifics for the audit trail"
+                }
+              />
+            </div>
+          </FieldGrid>
         </FieldGroup>
 
         <FieldGroup label="Line Items">
@@ -343,41 +464,68 @@ export default function CreditNoteCreatePage() {
             columns={PRICED_LINE_COLUMNS}
             rows={lineItems}
             toolbar={
-              <DocumentLineScanner
-                documentLabel="Credit note"
-                businessId={currentBusiness?.id}
-                branchId={currentBranch?.id ?? null}
-                onResolved={handleScanResolved}
-                onSessionCommit={handleScanSessionCommit}
-                openSessionOnMount={openScanSessionOnMount}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {formData.invoice_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    {lineItems.some((l) => l.source_invoice_item_id)
+                      ? "Edit invoice lines"
+                      : "Select invoice lines"}
+                  </Button>
+                )}
+                <DocumentLineScanner
+                  documentLabel="Credit note"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                  openSessionOnMount={openScanSessionOnMount}
+                />
+              </div>
             }
-            addLabel="Add Item"
+            addLabel={formData.invoice_id ? "Add off-invoice line" : "Add Item"}
             onAddRow={addLineItem}
             onRemoveRow={removeLineItem}
-            renderRow={(item, index, layout) => (
-              <PricedLineRow
-                index={index}
-                item={item}
-                flashed={flashIndex === index}
-                hideProductPicker
-                layout={layout}
-                formatCurrency={formatCurrency}
-                onPatch={patchLineItem}
-                extra={
-                  <OutboundLineTracking
-                    productId={item.product_id ?? null}
-                    quantity={item.quantity}
-                    onLotChange={(allocs) =>
-                      patchLineItem(index, { lot_number: lotNumberFromAllocations(allocs) } as any)
-                    }
-                    onSerialChange={(_ids, rows) =>
-                      patchLineItem(index, { serial_number: serialNumberFromRows(rows) } as any)
-                    }
-                  />
-                }
-              />
-            )}
+            renderRow={(item, index, layout) => {
+              const fromInvoice = Boolean(item.source_invoice_item_id);
+              return (
+                <PricedLineRow
+                  index={index}
+                  item={item}
+                  products={fromInvoice ? undefined : products}
+                  hideProductPicker={fromInvoice}
+                  lockedCells={fromInvoice ? ["item", "unit_price", "tax_rate"] : undefined}
+                  flashed={flashIndex === index}
+                  layout={layout}
+                  formatCurrency={formatCurrency}
+                  onPatch={patchLineItem}
+                  onProductSelect={fromInvoice ? undefined : handleProductSelect}
+                  extra={
+                    <div className="space-y-1">
+                      <Badge variant={fromInvoice ? "secondary" : "outline"} className="text-[10px]">
+                        {fromInvoice
+                          ? `From ${selectedInvoice?.invoice_number ?? "invoice"}`
+                          : "Off-invoice line"}
+                      </Badge>
+                      <OutboundLineTracking
+                        productId={item.product_id ?? null}
+                        quantity={item.quantity}
+                        onLotChange={(allocs) =>
+                          patchLineItem(index, { lot_number: lotNumberFromAllocations(allocs) } as any)
+                        }
+                        onSerialChange={(_ids, rows) =>
+                          patchLineItem(index, { serial_number: serialNumberFromRows(rows) } as any)
+                        }
+                      />
+                    </div>
+                  }
+                />
+              );
+            }}
           />
 
           <div className="flex justify-end pt-2">
@@ -409,6 +557,18 @@ export default function CreditNoteCreatePage() {
             />
           </div>
         </FieldGroup>
+
+        <InvoiceLineCreditPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          invoiceNumber={selectedInvoice?.invoice_number}
+          lines={invoiceLines}
+          isLoading={invoiceLinesLoading}
+          error={invoiceLinesError}
+          existing={pickedQuantities}
+          formatCurrency={formatCurrency}
+          onConfirm={applyPickedLines}
+        />
       </div>
     </RecordFormShell>
   );
