@@ -121,7 +121,7 @@ export default function SalespersonPerformance() {
       </Card>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
@@ -129,7 +129,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{formatCurrency(totals.totalSales)}</p>
+            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.totalSales)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -139,7 +139,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{totals.totalOrders}</p>
+            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.totalOrders}</p>
           </CardContent>
         </Card>
         <Card>
@@ -149,7 +149,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{totals.totalInvoices}</p>
+            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.totalInvoices}</p>
           </CardContent>
         </Card>
         <Card>
@@ -159,7 +159,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{formatCurrency(totals.totalCash)}</p>
+            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.totalCash)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -169,7 +169,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{formatCurrency(totals.totalCredit)}</p>
+            <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{formatCurrency(totals.totalCredit)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -179,7 +179,7 @@ export default function SalespersonPerformance() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-destructive">{formatCurrency(totals.totalOutstanding)}</p>
+            <p className="stat-value text-destructive tabular-nums whitespace-nowrap">{formatCurrency(totals.totalOutstanding)}</p>
           </CardContent>
         </Card>
       </div>
