@@ -86450,6 +86450,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: Json
       }
+      delete_credit_note_atomic: {
+        Args: { _credit_note_id: string }
+        Returns: Json
+      }
       delete_draft_journal_entry: {
         Args: { _entry_id: string }
         Returns: undefined
