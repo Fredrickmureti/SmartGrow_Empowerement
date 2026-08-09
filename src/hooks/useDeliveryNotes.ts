@@ -176,11 +176,30 @@ export function useDeliveryNotes() {
 
   const updateDeliveryNote = async (id: string, updates: Partial<DeliveryNote>) => {
     try {
-      const { contact, items, sales_order, ...dbUpdates } = updates as any;
+      const { contact, items, sales_order, ...rest } = updates as any;
+
+      // Lifecycle columns are owned by the delivery engines
+      // (`mark_delivery_ready_atomic`, `dispatch_delivery_atomic`,
+      // `complete_delivery_atomic`, `record_partial_delivery_atomic`,
+      // `cancel_delivery_atomic`, `create_invoice_from_delivery_atomic`).
+      // A generic passthrough update let the UI flip `status` to
+      // `delivered` without moving stock, snapshotting cost or posting
+      // COGS — while still firing the completed/shipped event triggers.
+      const governed = Object.keys(rest).filter((k) => !EDITABLE_DN_FIELDS.has(k));
+      if (governed.length > 0) {
+        throw new Error(
+          `Cannot write ${governed.join(", ")} directly on a delivery note — ` +
+            `these fields are owned by the delivery engines. Use the ` +
+            `corresponding action (ready / dispatch / complete / cancel) instead.`,
+        );
+      }
+
+      const dbUpdates = rest as Record<string, unknown>;
+      if (Object.keys(dbUpdates).length === 0) return;
 
       const { error } = await supabase
         .from("delivery_notes")
-        .update(dbUpdates)
+        .update(dbUpdates as never)
         .eq("id", id);
 
       if (error) throw error;
@@ -188,30 +207,20 @@ export function useDeliveryNotes() {
       invalidate();
     } catch (error) {
       console.error("Error updating delivery note:", error);
-      toast.error("Failed to update delivery note");
+      toast.error(normalizeError(error).message || "Failed to update delivery note");
     }
   };
 
+  /**
+   * A delivery note is a business document, not a CRUD row: once it exists it
+   * may already carry lineage (source invoice, sales order, spawned invoice)
+   * and, after completion, stock movements and a COGS journal. Removal always
+   * routes through `cancel_delivery_atomic`, which writes compensating
+   * movements / voids the journal when required, instead of destroying the
+   * record.
+   */
   const deleteDeliveryNote = async (id: string) => {
-    try {
-      const note = deliveryNotes.find((n) => n.id === id);
-      if (note && !["pending", "draft"].includes(note.status)) {
-        toast.error("Only pending or draft delivery notes can be deleted");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("delivery_notes")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-      toast.success("Delivery note deleted successfully");
-      invalidate();
-    } catch (error) {
-      console.error("Error deleting delivery note:", error);
-      toast.error("Failed to delete delivery note");
-    }
+    await cancelDelivery(id, "Removed from delivery notes list");
   };
 
   /**
