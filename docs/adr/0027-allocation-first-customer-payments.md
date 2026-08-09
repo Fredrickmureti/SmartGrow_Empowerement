@@ -70,10 +70,17 @@ Adopt an allocation-first model across the entire receivables stack.
 4. Allocation `branch_id` is inherited from the parent payment
    header. The legacy `trg_cascade_branch_payment_allocations`
    trigger that overwrote it from the invoice has been dropped.
-5. (Pending) Reallocation is append-only: new allocation rows
-   (positive for the new state, negative compensating rows for the
-   prior state) — never UPDATE. Implemented by
-   `reallocate_payment_atomic` in Batch 2.
+5. Reallocation is append-only: new allocation rows (positive for the
+   new state, negative compensating rows for the prior state) — never
+   UPDATE. Shipped as `reallocate_payment_atomic`.
+6. Money-in is idempotent on a caller-supplied request key:
+   `payments.client_request_id` under the partial unique index
+   `payments_org_client_request_id_uq (organization_id,
+   client_request_id)`. `record_multi_invoice_payment`,
+   `record_payment_atomic` and `record_advance_payment` all replay the
+   existing payment instead of posting a second one. The key MUST be
+   derived from the payment intent — `crypto.randomUUID()` defeats it.
+
 
 ### Reversal semantics
 Voided / unreconciled payments are excluded from the sum invariant —
