@@ -557,6 +557,18 @@ export default function CreditNoteCreatePage() {
             />
           </div>
         </FieldGroup>
+
+        <InvoiceLineCreditPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          invoiceNumber={selectedInvoice?.invoice_number}
+          lines={invoiceLines}
+          isLoading={invoiceLinesLoading}
+          error={invoiceLinesError}
+          existing={pickedQuantities}
+          formatCurrency={formatCurrency}
+          onConfirm={applyPickedLines}
+        />
       </div>
     </RecordFormShell>
   );
