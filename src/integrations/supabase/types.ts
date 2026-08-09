@@ -7908,7 +7908,6 @@ export type Database = {
           created_at: string
           credit_note_prefix: string | null
           date_format: string | null
-          default_payment_terms: number | null
           default_tax_rate_id: string | null
           email: string | null
           email_display_name: string | null
@@ -7963,7 +7962,6 @@ export type Database = {
           created_at?: string
           credit_note_prefix?: string | null
           date_format?: string | null
-          default_payment_terms?: number | null
           default_tax_rate_id?: string | null
           email?: string | null
           email_display_name?: string | null
@@ -8018,7 +8016,6 @@ export type Database = {
           created_at?: string
           credit_note_prefix?: string | null
           date_format?: string | null
-          default_payment_terms?: number | null
           default_tax_rate_id?: string | null
           email?: string | null
           email_display_name?: string | null
