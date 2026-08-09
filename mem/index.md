@@ -8,6 +8,8 @@ Sales order fulfilment/billing progress is read from so_line_balances only — n
 Sales order create/edit/cancel/confirm/approve/invoice are DB RPCs; the client never writes sales_orders status, totals, or line deletes directly.
 Delivery note status/dates/deletion are DB-owned (atomic RPCs only); clients edit descriptive fields only and must FK-hint contacts embeds.
 Every settlement RPC takes a request key derived from the payment intent — never crypto.randomUUID(); one customer money-in dialog only.
+Credit notes: money and the per-invoice-line credit ceiling are resolved server-side from the invoice; clients never write credit_notes/credit_note_items.
+
 
 
 ## Memories
