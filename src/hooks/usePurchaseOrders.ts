@@ -130,9 +130,10 @@ export function usePurchaseOrders() {
   };
 
   const createPurchaseOrder = async (
-    po: Omit<PurchaseOrder, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items">,
+    po: Omit<PurchaseOrder, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items" | "deliver_to_warehouse" | "deliver_to_branch">,
     items: Omit<PurchaseOrderItem, "id" | "purchase_order_id">[]
   ) => {
+
     if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to create purchase orders", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
