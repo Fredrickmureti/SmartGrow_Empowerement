@@ -29,6 +29,7 @@ export interface IdentifierWriteInput {
 
 const REASONS: Record<string, string> = {
   code_taken: "That code is already registered to another product. Retire it there first.",
+  code_taken_same_product: "This product already carries that code on another row.",
   duplicate_code: "That code is already registered to another product. Retire it there first.",
   packaging_mismatch: "The chosen packaging level belongs to a different product.",
   invalid_packaging: "The chosen packaging level belongs to a different product.",
