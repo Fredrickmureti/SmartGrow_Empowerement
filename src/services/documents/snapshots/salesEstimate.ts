@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
+import { resolveSnapshotAddress } from "./partyAddress";
 
 // ---------- Input shapes (mirror what fetchEstimate selects) ----------
 
@@ -78,6 +79,8 @@ export interface SalesEstimateHeaderRow {
   terms: string | null;
   organization_id: string;
   business_id: string | null;
+  /** Frozen printed address; authoritative over live party data. */
+  billing_address?: string | null;
   branch_id: string | null;
   customer_signature_url?: string | null;
   signed_at?: string | null;
@@ -150,6 +153,7 @@ export function buildSalesEstimateSnapshot(
     notes: estimate.notes ?? null,
     terms: estimate.terms ?? null,
     contact: estimate.contact,
+    billing_address: resolveSnapshotAddress(estimate.billing_address, estimate.contact),
     business_id: estimate.business_id,
     organization_id: estimate.organization_id,
     branch_id: estimate.branch_id,

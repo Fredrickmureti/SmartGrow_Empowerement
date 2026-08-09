@@ -18,6 +18,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
+import { resolveSnapshotAddress } from "./partyAddress";
 
 // ---------- Input shapes (mirror fetchCreditNote's projection) ----------
 
@@ -72,6 +73,8 @@ export interface SalesCreditNoteHeaderRow {
   reason?: string | null;
   organization_id: string;
   business_id: string | null;
+  /** Frozen printed address; authoritative over live party data. */
+  billing_address?: string | null;
   branch_id: string | null;
   contact_id: string | null;
   contact: SalesCreditNoteContactRow | null;
@@ -142,6 +145,7 @@ export function buildSalesCreditNoteSnapshot(
     reason: cn.reason ?? null,
     terms: null,
     contact: cn.contact,
+    billing_address: resolveSnapshotAddress(cn.billing_address, cn.contact),
     business_id: cn.business_id,
     organization_id: cn.organization_id,
     branch_id: cn.branch_id,
