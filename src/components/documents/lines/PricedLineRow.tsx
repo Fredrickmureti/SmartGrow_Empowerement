@@ -183,6 +183,13 @@ function PricedLineRowInner<T extends PricedLineShape>({
         );
 
       case "unit_price":
+        if (isLocked("unit_price")) {
+          return (
+            <div className="pt-2 text-right tabular-nums">
+              {formatCurrency(item.unit_price)}
+            </div>
+          );
+        }
         return (
           <NumericInput
             value={item.unit_price}
@@ -193,6 +200,11 @@ function PricedLineRowInner<T extends PricedLineShape>({
         );
 
       case "tax_rate":
+        if (isLocked("tax_rate")) {
+          return (
+            <div className="pt-2 text-right tabular-nums">{item.tax_rate ?? 0}%</div>
+          );
+        }
         return (
           <NumericInput
             value={item.tax_rate ?? 0}
