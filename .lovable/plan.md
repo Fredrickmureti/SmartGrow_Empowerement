@@ -1,61 +1,106 @@
-# Sales Order convergence — live status (authoritative)
+# Sales Order convergence — verification verdict and next phases
 
 Roadmap source: `.lovable/plan/sales-order-architecture-audit-verdict-and-convergence-plan-2026-08-09.md`.
 Domain invariants: `mem/features/sales-order-lifecycle.md`.
 
-## Completed and verified
+## Phase 1 — independent verification of the previous engineer's claims
 
-**Phase 1 — governance holes closed (DB-owned).**
-- Status vocabulary extended (`pending_approval`, `approved`, `rejected`); `trg_sales_order_to_revenue` gated on the real vocabulary (`confirmed, processing, partial, fulfilled`).
-- `cancel_sales_order_atomic` owns cancellation: state guards, reservation release, crossdock break, pending-DN cancellation, backorder closure, audit row — one transaction. Client status write deleted.
-- `lock_sales_order_on_dn_invoice` closes the post-invoice mutability hole on the delivery-spawned route.
-- Unique index `sales_orders_org_number_uniq (organization_id, so_number)`.
-- `release_sales_order_reservations_atomic` fixed to filter `released_at IS NULL`.
+Checked directly against the live database and the codebase (not taken on trust).
 
-**Phase 2 — one creation engine.**
-- `create_sales_order_atomic(header, items, user)` mints the number, inserts header + lines, derives totals server-side, captures FX. `useSalesOrders.createSalesOrder` repointed; no client totals, no client-minted number.
-- `get_next_so_number` and its advisory lock scoped strictly to `organization_id` (matches the unique index).
-- `resolve_sales_exchange_rate` added; lead → SO and estimate → SO conversions fixed (branch, salesperson, tax, payment terms, FX).
+**Confirmed true.** Every RPC the previous engineer claimed exists, exists with the described
+signature: `create_sales_order_atomic(header, items, user)`, `update_sales_order_atomic`,
+`set_sales_order_approval_state_atomic(so, action, user, notes)`, `cancel_sales_order_atomic`,
+`create_delivery_from_sales_order_atomic`, `confirm_sales_order_atomic`,
+`convert_so_to_invoice_atomic`, `release_sales_order_reservations_atomic`,
+`resolve_sales_exchange_rate`. Both ledger views (`so_line_balances`, `so_backorder_lines`)
+exist. The delivery-route lock trigger `trg_lock_so_on_dn_invoice` exists on `delivery_notes`.
+The revenue trigger is correctly gated on the real status vocabulary
+(`confirmed, processing, partial, fulfilled`) and clears forecast rows once invoiced.
+The `get_next_so_number` two-overload situation is a thin delegate, not a second engine.
 
-**Phase 3 — quantity ledger.**
-- `sales_order_items.quantity_invoiced` / `quantity_cancelled`; `invoice_items.sales_order_item_id` / `delivery_note_item_id` provenance (backfilled).
-- Trigger-maintained billed quantity (`trg_so_item_invoiced_qty`, `trg_invoice_status_so_ledger`); `_so_write_cancelled_quantities` closes the ledger on cancel.
-- `so_line_balances` view is the canonical ordered / delivered / invoiced / returned / cancelled / open ledger. Both invoicing routes populate line provenance and carry the order's FX rate.
+**Claim that is false — this is the headline finding.** Phase 6 claims "no client status
+writes" and its test passes, but the Sales Orders list still performs client status writes
+through the hook:
 
-**Phase 4 — provenance.** `exchange_rate` on `sales_orders`, carried to invoices on both routes; conversion data loss fixed. Remaining gap: `estimates` has no `salesperson_id` / `shipping_address` columns, so those cannot be carried from an estimate (terms are preserved in notes).
+- `src/pages/SalesOrders.tsx:749` — `updateSalesOrder(order.id, { status: "confirmed" })`
+- `src/pages/SalesOrders.tsx:761` — `updateSalesOrder(order.id, { status: "cancelled" })`
 
-**Phase 5 — duplicate engines removed.**
-- `create_delivery_from_sales_order_atomic` owns SO → delivery note (numbering, state guards, quantity validation).
-- `so_backorder_lines` derives backorder demand from the ledger; `useBackorders` is read-only and the legacy `backorders` table is client-write-revoked. `BackorderWidget` reads derived demand.
-- `useSalesOrderLineBalances` is the single client reader of `so_line_balances`.
+`useSalesOrders.updateSalesOrder` (`src/hooks/useSalesOrders.ts:245`) is a generic
+`sales_orders.update(dbUpdates)` passthrough, so any column — including `status`, totals and
+`is_locked`-adjacent fields — can be written from the browser. Consequences:
 
-**Phase 5.5 — edit and approval become DB-owned** (this milestone).
-- `update_sales_order_atomic`: updates surviving lines **in place** (preserves `quantity_fulfilled` / `quantity_invoiced` and invoice/delivery provenance), refuses edits on locked/invoiced/cancelled/fulfilled orders, refuses removing or under-running a line that already moved, recomputes totals server-side. `SalesOrderEditPage` no longer deletes and re-inserts lines.
-- `set_sales_order_approval_state_atomic(so, action, user, notes)`: guarded `submit` / `approve` / `reject` with audit rows. `useSalesOrderApproval` no longer writes `sales_orders.status`; approve still chains `confirm_sales_order_atomic` so reservations are created.
+- Confirming from the list skips `confirm_sales_order_atomic`, so **no stock reservations are
+  created** while the order reads as confirmed.
+- Cancelling from the list skips `cancel_sales_order_atomic`, so reservations are not released,
+  crossdock links are not broken, pending delivery notes are not cancelled, backorders are not
+  closed, `quantity_cancelled` is not written and no audit row is produced — and the RPC's
+  refusal to cancel invoiced/delivered orders is bypassed entirely.
 
-**Phase 6 (partial) — architecture guards.** `src/__tests__/architecture.sales-order-governance.test.ts` — 10 tests green: no client status writes, no client inserts into `sales_orders` / `sales_order_items`, no ledger-column writes, atomic RPCs in use, edit path uses `update_sales_order_atomic`, approval path uses the approval RPC, ledger read from `so_line_balances`, backorders derived, status vocabulary legal (with `approval_requests` lifecycle distinguished).
+The governance test is a **false green**: it only matches a literal `.update({ status: ...})`
+within 500 characters of `.from("sales_orders")`, so a call routed through the hook is invisible
+to it.
 
-## Active phase
+**Second gap — the guard is client-side only.** Unlike proforma invoices (which have a trigger
+blocking direct status writes plus `set_proforma_status_atomic`), `sales_orders` has **no
+database trigger rejecting direct status transitions**. A grep test in the frontend repo is not
+an invariant. Triggers present today cover locking, delete-status, business match, revenue,
+crossdock and SMS — none owns the transition itself.
 
-**Phase 6 — lock the verdict in tests.** Client-side guards done; SQL tests not yet written.
+**Third gap — no SQL tests.** `supabase/tests/` contains no sales-order test file at all, so
+none of the Phase 6 database invariants are actually proven.
 
-## Next milestone (do this next, in order)
+**Not verified (blocked, not failed).** The Vitest suite could not be executed in this session
+because node modules are not installed and plan mode forbids state-changing commands. Running
+it is the first step of execution.
 
-1. SQL tests under `supabase/tests/` for the invariants Phase 6 promises:
-   - concurrent `create_sales_order_atomic` cannot duplicate `so_number`;
-   - the two invoicing routes together cannot exceed ordered quantity;
-   - cancelling an invoiced or delivered order fails;
-   - a return does not reduce `quantity_fulfilled` (it records returned quantity);
-   - `update_sales_order_atomic` refuses to remove or under-run a delivered/invoiced line.
-2. Phase 3 remainder: make `convert_so_to_invoice_atomic` repeatable against `quantity_open_to_invoice` (today it bills the open quantity but still locks the order to a single invoice). Decide explicitly whether repeat order-route invoicing is in scope, and record the decision in an ADR.
-3. Point the CSV import path at `create_sales_order_atomic` and delete the second client-side totals implementation (Phase 2 residue).
-4. Retire the legacy `backorders` table once reads are proven unused.
+**Revised verdict by area.** Creation, editing, approval, cancellation, the quantity ledger, FX
+capture and derived backorders: correct, and DB-owned. Status transition governance:
+*dangerous* — a bypass path is live in production UI. Test coverage: *incomplete and
+misleading*. Repeat invoicing and the CSV import path: unchanged, still pending as previously
+logged.
 
-## Instructions for the next agent
+## Phase 2 — corrected plan
 
-Verify before extending. Do not take this document on trust:
-- Run `bunx vitest run src/__tests__/architecture.sales-order-governance.test.ts` and the full suite.
-- Confirm in the database that `update_sales_order_atomic`, `set_sales_order_approval_state_atomic`, `cancel_sales_order_atomic`, `create_sales_order_atomic`, `create_delivery_from_sales_order_atomic`, `so_line_balances`, and `so_backorder_lines` exist with the described guards, and that grants are `authenticated` + `service_role` only.
-- Exercise the edit path against an order with a delivered line and confirm the ledger survives.
+### Milestone A — close the live bypass (do first)
 
-Then resume at "Next milestone" item 1. Stay chronological: finish Phase 6 to a production-ready state before touching the Phase 3 remainder, and do not start unrelated modules.
+1. Route the list actions to the canonical engines: `onConfirm` calls `confirmSalesOrder`
+   (already exported, wraps `confirm_sales_order_atomic`), `onCancel` calls the atomic cancel
+   path with its reason prompt.
+2. Narrow `updateSalesOrder` so it cannot write governed columns. It keeps serving benign
+   header edits (notes, expected date, reference) and rejects `status`, `is_locked`, totals,
+   `converted_invoice_id`, `exchange_rate` and every ledger column; structural edits continue to
+   go through `update_sales_order_atomic`.
+3. Replace client-side draft deletion with cancellation-as-compensation, keeping deletion only
+   for never-confirmed drafts as the DB delete trigger already allows.
+
+### Milestone B — make the invariant a database invariant
+
+4. A `BEFORE UPDATE` trigger on `sales_orders` rejects any status change not made by the owning
+   RPCs (same pattern proven on proforma invoices), and rejects client writes to
+   trigger-maintained ledger and lock columns. This makes the bypass impossible rather than
+   merely discouraged.
+
+### Milestone C — prove it (Phase 6, properly)
+
+5. Fix the false-green test so it follows hook call sites, not just literal query blocks, and add
+   a case for each bypass discovered above.
+6. SQL tests under `supabase/tests/sales_order_lifecycle_test.sql`:
+   concurrent creation cannot duplicate `so_number`; the two invoicing routes together cannot
+   exceed ordered quantity; cancelling an invoiced or delivered order fails; a return records
+   returned quantity without reducing `quantity_fulfilled`; `update_sales_order_atomic` refuses
+   to remove or under-run a delivered or invoiced line; a direct client status write is rejected.
+
+### Milestone D — previously logged remainder
+
+7. Make `convert_so_to_invoice_atomic` repeatable against `quantity_open_to_invoice`; record the
+   decision on repeat order-route invoicing in an ADR.
+8. Point the CSV import path at `create_sales_order_atomic` and delete the second client-side
+   totals implementation.
+9. Retire the legacy `backorders` table once reads are proven unused.
+
+## Technical notes
+
+- Files touched in Milestone A: `src/pages/SalesOrders.tsx`, `src/hooks/useSalesOrders.ts`.
+- Milestone B is one migration; grants stay `authenticated` + `service_role`.
+- No new engine is introduced anywhere — every change removes a competing path or hardens an
+  existing canonical one.
