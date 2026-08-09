@@ -48,6 +48,17 @@ describe("credit note provenance guard", () => {
     expect(offenders.map(rel)).toEqual([]);
   });
 
+  it("no client deletes or status-updates credit notes directly", () => {
+    const offenders = appFiles.filter((f) => {
+      const src = readFileSync(f, "utf8");
+      return /from\(\s*["']credit_notes["']\s*\)\s*\.\s*(delete|update)/.test(src);
+    });
+    expect(
+      offenders.map(rel),
+      "deletion and header mutation belong to delete_credit_note_atomic / update_credit_note_atomic",
+    ).toEqual([]);
+  });
+
   it("provenance is submitted, never stripped", () => {
     const createPage = readFileSync(
       join(SRC, "features/sales/credit-notes/CreditNoteCreatePage.tsx"),
