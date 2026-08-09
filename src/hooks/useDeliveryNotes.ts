@@ -45,6 +45,26 @@ export interface DeliveryNoteItem {
 }
 
 async function fetchDeliveryNotesFn(orgId: string, businessId: string, branchId: string | null) {
+  return fetchDeliveryNotes(orgId, businessId, branchId);
+}
+
+/**
+ * Header columns the UI may write directly. Everything else — status,
+ * delivered_at, dispatched_at, ready_at, spawned_invoice_id, cancellation
+ * columns, numbering, lineage — belongs to the delivery RPCs.
+ */
+const EDITABLE_DN_FIELDS = new Set([
+  "notes",
+  "delivery_date",
+  "shipping_address",
+  "driver_name",
+  "vehicle_number",
+  "contact_id",
+  "received_by_contact_id",
+  "auto_invoice_on_complete",
+]);
+
+async function fetchDeliveryNotes(orgId: string, businessId: string, branchId: string | null) {
   let query = supabase
     .from("delivery_notes")
     .select(`
