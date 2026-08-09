@@ -786,6 +786,8 @@ export function useBills() {
     voidBill,
     recordBillPayment,
     recordMultiBillPayment,
+    recordVendorAdvance,
+
     getBillPayments,
     getDefaultDueDate,
     refreshBills: fetchBills,
