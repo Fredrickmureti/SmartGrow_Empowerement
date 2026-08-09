@@ -244,7 +244,9 @@ export default function SalesReturnCreatePage() {
 
   /**
    * Applies a partial line update: derives product defaults, clamps the
-   * returned quantity to the invoiced ceiling, and recomputes line tax.
+   * returned quantity to the invoiced ceiling, and re-previews line tax.
+   * Invoice-sourced lines keep the original line's price and tax basis —
+   * the current product price/tax setting must not leak into a return.
    */
   const patchLineItem = useCallback(
     (index: number, patch: Partial<LineItem>) => {
@@ -252,7 +254,7 @@ export default function SalesReturnCreatePage() {
         prev.map((it, i) => {
           if (i !== index) return it;
           const next: LineItem = { ...it, ...patch };
-          if (patch.product_id) {
+          if (patch.product_id && !next.invoice_item_id) {
             const product = products.find((p) => p.id === patch.product_id);
             if (product) {
               next.description = product.name;
@@ -262,14 +264,14 @@ export default function SalesReturnCreatePage() {
           if (typeof next.quantity === "number") {
             next.quantity = Math.min(next.quantity, next.max_quantity);
           }
-          const subtotal = next.quantity * next.unit_price;
-          next.tax_amount = subtotal * ((next.tax_rate || 0) / 100);
+          next.tax_amount = previewLineTax(next);
           return next;
         }),
       );
     },
     [products],
   );
+
 
   const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
