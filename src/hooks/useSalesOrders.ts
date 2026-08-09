@@ -242,9 +242,43 @@ export function useSalesOrders() {
   };
 
 
+  /**
+   * Benign header fields a user may edit directly on an existing order.
+   *
+   * Everything else on `sales_orders` is owned by a database engine:
+   * `status` by `confirm_sales_order_atomic` / `cancel_sales_order_atomic` /
+   * `set_sales_order_approval_state_atomic`, the money columns and the line
+   * structure by `update_sales_order_atomic`, `converted_invoice_id` /
+   * `is_locked` by the invoicing routes, `exchange_rate` by
+   * `resolve_sales_exchange_rate` at creation, and the quantity ledger by
+   * triggers. A generic passthrough update let the UI bypass all of them.
+   */
+  const EDITABLE_HEADER_FIELDS = new Set([
+    "notes",
+    "expected_date",
+    "shipping_address",
+    "customer_reference",
+    "delivery_instructions",
+    "payment_term_id",
+    "salesperson_id",
+    "contact_id",
+  ]);
+
   const updateSalesOrder = async (id: string, updates: Partial<SalesOrder>) => {
     try {
-      const { contact, items, ...dbUpdates } = updates as any;
+      const { contact, items, ...rest } = updates as Record<string, unknown> as any;
+
+      const governed = Object.keys(rest).filter((k) => !EDITABLE_HEADER_FIELDS.has(k));
+      if (governed.length > 0) {
+        throw new Error(
+          `Cannot write ${governed.join(", ")} directly on a sales order — ` +
+            `these fields are owned by the sales-order engines (confirm / cancel / ` +
+            `approval / update RPCs). Use the corresponding action instead.`,
+        );
+      }
+
+      const dbUpdates = rest as Record<string, unknown>;
+      if (Object.keys(dbUpdates).length === 0) return;
 
       const { error } = await supabase
         .from("sales_orders")
@@ -256,12 +290,12 @@ export function useSalesOrders() {
 
       const oldOrder = salesOrders.find((so) => so.id === id);
       if (oldOrder && currentOrg) {
-        const changedFields = getChangedFields(oldOrder as unknown as Record<string, unknown>, updates as Record<string, unknown>);
+        const changedFields = getChangedFields(oldOrder as unknown as Record<string, unknown>, dbUpdates);
         triggerAutomation({
           event_type: changedFields.length > 0 ? "field_change" : "on_update",
           target_model: "sales_order",
           record_id: id,
-          record_data: { ...oldOrder, ...updates },
+          record_data: { ...oldOrder, ...dbUpdates },
           old_data: oldOrder as unknown as Record<string, unknown>,
           changed_fields: changedFields,
           organization_id: currentOrg.id,
@@ -271,32 +305,48 @@ export function useSalesOrders() {
       invalidate();
     } catch (error) {
       console.error("Error updating sales order:", error);
-      toast.error("Failed to update sales order");
+      toast.error(normalizeError(error).message || "Failed to update sales order");
     }
   };
 
+  /**
+   * Deletion is only legal for a never-confirmed draft — nothing downstream can
+   * exist yet, so there is no history to preserve. Every other state is
+   * compensated with `cancelSalesOrder`, never deleted. The state is re-read
+   * from the database rather than trusted from the list cache, and
+   * `trg_enforce_sales_order_delete_status` is the final authority.
+   */
   const deleteSalesOrder = async (id: string) => {
-    const order = salesOrders.find((so) => so.id === id);
-
-    if (order && order.status !== "draft") {
-      toast.error(`Only draft sales orders can be deleted. Current status: ${order.status}`);
-      throw new Error(`Cannot delete SO with status: ${order.status}`);
-    }
-
     try {
+      const { data: current, error: readError } = await supabase
+        .from("sales_orders")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (readError) throw readError;
+
+      if (current?.status !== "draft") {
+        toast.error(
+          `Only draft sales orders can be deleted (this one is ${current?.status}). ` +
+            `Cancel it instead so the history is preserved.`,
+        );
+        throw new Error(`Cannot delete SO with status: ${current?.status}`);
+      }
+
       const { error } = await supabase
         .from("sales_orders")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
-      toast.success("Sales order deleted successfully");
+      toast.success("Draft sales order deleted");
       invalidate();
     } catch (error) {
       console.error("Error deleting sales order:", error);
-      toast.error("Failed to delete sales order");
+      toast.error(normalizeError(error).message || "Failed to delete sales order");
     }
   };
+
 
   /**
    * Confirm a draft sales order — flips status to `confirmed` and creates per-line
