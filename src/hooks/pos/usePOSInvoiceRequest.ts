@@ -133,7 +133,7 @@ export function usePOSInvoiceRequest() {
           variant: "destructive",
         });
       } else {
-        for (const s of settlements) {
+        for (const [tenderIndex, s] of settlements.entries()) {
           const depositAccountId = getPaymentAccountForMethod?.(s.method) || accounts?.cash_account_id || accounts?.bank_account_id;
           if (!depositAccountId) continue;
           const { data: receiptNumberData } = await supabase.rpc("get_next_receipt_number", {
@@ -155,7 +155,11 @@ export function usePOSInvoiceRequest() {
             _created_by: user?.id,
             _deposit_account_id: depositAccountId,
             _receivable_account_id: receivableAccountId,
+            // Deterministic per POS tender: re-running invoice generation for
+            // the same transaction can never double-record the same tender.
+            _request_id: `pos:${txn.id}:${tenderIndex}`,
           } as any);
+
           if (payErr) {
             console.error("[usePOSInvoiceRequest] record_payment_atomic failed:", payErr);
             toast({
