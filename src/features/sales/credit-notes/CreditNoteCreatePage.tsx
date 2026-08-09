@@ -8,7 +8,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  *   ?invoice_id=<uuid>   pre-fill related invoice (auto-loads its items)
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useCreditNotes, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
@@ -57,9 +57,11 @@ import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCre
 import { CREDIT_REASON_OPTIONS, CREDIT_REASON_OTHER } from "./creditReasonOptions";
 
 /**
- * `source_invoice_item_id` is UI-only provenance: it marks a line as picked
- * off the source invoice so the grid locks its item, price and tax. It is
- * stripped before the payload is sent (`credit_note_items` has no such column).
+ * `source_invoice_item_id` is durable provenance: it marks a line as picked
+ * off the source invoice, is submitted as `invoice_item_id`, and is stored on
+ * `credit_note_items`. The server then resolves the description, price,
+ * discount and tax from the invoice line itself and enforces the remaining
+ * creditable quantity — the money shown here is a preview, not the record.
  */
 type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & {
   source_invoice_item_id?: string | null;
@@ -77,8 +79,13 @@ const emptyLine = (sort_order = 0): LineItem => ({
   source_invoice_item_id: null,
 });
 
-const stripProvenance = (items: LineItem[]) =>
-  items.map(({ source_invoice_item_id: _ignored, ...rest }) => rest);
+/** Client intent → server payload. Invoice-referenced lines carry the link. */
+const toWireLines = (items: LineItem[]) =>
+  items.map(({ source_invoice_item_id, ...rest }, index) => ({
+    ...rest,
+    sort_order: rest.sort_order ?? index,
+    invoice_item_id: source_invoice_item_id ?? null,
+  }));
 
 export default function CreditNoteCreatePage() {
   const navigate = useNavigate();
@@ -108,6 +115,17 @@ export default function CreditNoteCreatePage() {
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine()]);
   const [reasonChoice, setReasonChoice] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  /**
+   * Idempotency key for this form instance. A double click, a retry after a
+   * network wobble, or a resubmitted request all carry the same key, so the
+   * server returns the credit note it already created instead of creating a
+   * second economic document.
+   */
+  const requestIdRef = useRef<string>(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `cn-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
 
   const customers = contacts.filter((c) => (c.type === "customer" || c.type === "both") && c.is_active);
 
@@ -216,10 +234,6 @@ export default function CreditNoteCreatePage() {
           quantity,
           unit_price: line.net_unit_price,
           tax_rate: line.tax_rate,
-          packaging_id: line.packaging_id,
-          display_uom_id: line.display_uom_id,
-          display_quantity: line.display_quantity,
-          uom_snapshot: line.uom_snapshot,
           source_invoice_item_id: line.invoice_item_id,
         } as LineItem;
         const { line_total, tax_amount } = computeLine(seed);
@@ -288,7 +302,8 @@ export default function CreditNoteCreatePage() {
           reason: formData.reason,
           notes: formData.notes || null,
         },
-        stripProvenance(validation.valid as LineItem[]),
+        toWireLines(validation.valid as LineItem[]),
+        requestIdRef.current,
       );
       toast({
         title: status === "issued" ? "Credit note created and posted" : "Credit note saved as draft",
