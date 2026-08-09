@@ -166,6 +166,9 @@ export function useDeliveryNotes() {
           lot_number: (item as any).lot_number ?? null,
           serial_number: (item as any).serial_number ?? null,
           lot_allocations: (item as any).lot_allocations ?? null,
+          packaging_id: (item as any).packaging_id ?? null,
+          display_uom_id: (item as any).display_uom_id ?? null,
+          display_quantity: (item as any).display_quantity ?? null,
         })),
         p_user_id: user?.id ?? null,
       });
