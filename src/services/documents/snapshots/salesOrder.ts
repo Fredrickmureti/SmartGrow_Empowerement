@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
+import { fetchPaymentTermSnapshot, type SnapshotPaymentTerm } from "./paymentTerm";
 
 // ---------- Input shapes (mirror what fetchSalesOrder selects) ----------
 
@@ -70,6 +71,9 @@ export interface SalesOrderHeaderRow {
   currency: string | null;
   notes: string | null;
   shipping_address: string | null;
+  /** Structured customer term id inherited by the spawned invoice. */
+  payment_term_id?: string | null;
+  payment_term?: SnapshotPaymentTerm | null;
   organization_id: string;
   business_id: string | null;
   branch_id: string | null;
@@ -142,7 +146,10 @@ export function buildSalesOrderSnapshot(
     amount_paid: 0,
     currency,
     notes: order.notes ?? null,
+    // `sales_orders` carries no T&C prose column; the structured term
+    // travels separately in `payment_term`.
     terms: null,
+    payment_term: order.payment_term ?? null,
     contact: order.contact,
     shipping_address: order.shipping_address ?? null,
     business_id: order.business_id,
@@ -178,7 +185,7 @@ export async function fetchAndBuildSalesOrderSnapshot(
       `
       id, so_number, status, order_date, expected_date,
       subtotal, tax_amount, discount_amount, shipping_amount, total,
-      currency, notes, shipping_address,
+      currency, notes, shipping_address, payment_term_id,
       organization_id, business_id, branch_id,
       contact:contacts!sales_orders_contact_id_fkey(name, email, phone, address_line1, city, state, postal_code, country),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
@@ -202,5 +209,13 @@ export async function fetchAndBuildSalesOrderSnapshot(
       }`,
     );
   }
-  return buildSalesOrderSnapshot(normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as SalesOrderHeaderRow);
+  const row = data as Record<string, unknown>;
+  const paymentTerm = await fetchPaymentTermSnapshot(
+    supabase,
+    row.payment_term_id as string | null,
+  );
+  return buildSalesOrderSnapshot({
+    ...(normalizeSnapshotItems(row, "items") as Record<string, unknown>),
+    payment_term: paymentTerm,
+  } as unknown as SalesOrderHeaderRow);
 }
