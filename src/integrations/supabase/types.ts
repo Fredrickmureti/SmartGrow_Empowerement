@@ -10558,6 +10558,13 @@ export type Database = {
             referencedRelation: "v_sales_return_settlement"
             referencedColumns: ["sales_return_id"]
           },
+          {
+            foreignKeyName: "credit_notes_source_return_id_fkey"
+            columns: ["source_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_returns_integrity"
+            referencedColumns: ["sales_return_id"]
+          },
         ]
       }
       crm_activities: {
@@ -57173,6 +57180,13 @@ export type Database = {
             referencedColumns: ["sales_return_id"]
           },
           {
+            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_returns_integrity"
+            referencedColumns: ["sales_return_id"]
+          },
+          {
             foreignKeyName: "sales_return_cost_basis_sales_return_item_id_fkey"
             columns: ["sales_return_item_id"]
             isOneToOne: true
@@ -57334,6 +57348,13 @@ export type Database = {
             columns: ["sales_return_id"]
             isOneToOne: false
             referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["sales_return_id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_returns_integrity"
             referencedColumns: ["sales_return_id"]
           },
         ]
@@ -80628,6 +80649,82 @@ export type Database = {
           },
         ]
       }
+      v_sales_returns_integrity: {
+        Row: {
+          bad_number_format: boolean | null
+          branch_id: string | null
+          business_id: string | null
+          double_restock: boolean | null
+          duplicate_number: boolean | null
+          expected_prefix: string | null
+          lines_without_cost_basis: number | null
+          lines_without_tax_basis: number | null
+          organization_id: string | null
+          refunded_unsettled: boolean | null
+          return_number: string | null
+          sales_return_id: string | null
+          settlement_shortfall: number | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_returns_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_stock_on_hand: {
         Row: {
           available_quantity: number | null
@@ -88888,16 +88985,10 @@ export type Database = {
         Returns: string
       }
       get_next_rfq_number: { Args: { _org_id: string }; Returns: string }
-      get_next_sales_return_number:
-        | { Args: { _org_id: string }; Returns: string }
-        | {
-            Args: {
-              _branch_id?: string
-              _business_id?: string
-              _org_id: string
-            }
-            Returns: string
-          }
+      get_next_sales_return_number: {
+        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
+        Returns: string
+      }
       get_next_shift_number: {
         Args: { _org_id: string; _register_id: string }
         Returns: string
@@ -94077,6 +94168,14 @@ export type Database = {
           merged_account_id: string
           merged_code: string
           role_key: string
+        }[]
+      }
+      repair_sales_return_numbers: {
+        Args: { _org_id?: string }
+        Returns: {
+          new_number: string
+          old_number: string
+          sales_return_id: string
         }[]
       }
       request_app_access: {
