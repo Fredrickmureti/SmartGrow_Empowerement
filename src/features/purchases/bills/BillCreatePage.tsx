@@ -42,6 +42,10 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+import {
+  resolvePaymentTerm,
+  dueDateFromTerm,
+} from "@/services/finance/paymentTerms";
 import { normalizeError } from "@/services/resilience";
 
 type LineItem = Omit<BillItem, "id" | "bill_id"> & {
