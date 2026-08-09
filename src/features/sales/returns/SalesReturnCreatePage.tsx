@@ -156,39 +156,60 @@ export default function SalesReturnCreatePage() {
   const selectedContactId = form.watch("contact_id");
   const selectedInvoiceId = form.watch("invoice_id");
 
+  // Reference-document lines for the selected invoice, with the remaining
+  // returnable quantity per line (v_sales_returnable_qty).
+  const {
+    lines: returnableLines,
+    isLoading: linesLoading,
+    error: linesError,
+  } = useInvoiceReturnableLines(selectedInvoiceId || null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  /** Builds a locked, invoice-sourced return line. */
+  const lineFromInvoiceLine = (
+    src: ReturnableInvoiceLine,
+    quantity: number,
+  ): LineItem => ({
+    product_id: src.product_id,
+    invoice_item_id: src.invoice_item_id,
+    description: src.description,
+    quantity,
+    max_quantity: src.returnable_qty,
+    unit_price: src.net_unit_price,
+    tax_rate: src.tax_rate,
+    tax_amount: src.source_tax_amount * (src.invoiced_qty ? quantity / src.invoiced_qty : 0),
+    condition: "good",
+    return_reason: "",
+    packaging_id: src.packaging_id,
+    display_uom_id: src.display_uom_id,
+    display_quantity: src.display_quantity,
+    invoiced_quantity: src.invoiced_qty,
+    source_tax_amount: src.source_tax_amount,
+    source_discount_percent: src.discount_percent,
+  });
+
+  /** Replaces the invoice-sourced lines with the picker's selection. */
+  const applyPickedLines = (
+    picked: { line: ReturnableInvoiceLine; quantity: number }[],
+  ) => {
+    setLineItems((prev) => {
+      const offInvoice = prev.filter(
+        (l) => !l.invoice_item_id && (l.product_id || l.description.trim()),
+      );
+      return [...picked.map((p) => lineFromInvoiceLine(p.line, p.quantity)), ...offInvoice];
+    });
+  };
+
   const handleInvoiceSelect = (invoiceId: string) => {
     form.setValue("invoice_id", invoiceId);
-    const inv = invoices.find((i) => i.id === invoiceId);
-    if (inv && (inv as any).items && (inv as any).items.length > 0) {
-      const items: LineItem[] = (inv as any).items.map((item: any) => {
-        const invoicedQty = Number(item.quantity) || 1;
-        const discount = Number(item.discount_percent) || 0;
-        // Net-of-discount unit price: the return must credit what was
-        // actually charged, not the pre-discount list price.
-        const netUnitPrice = (Number(item.unit_price) || 0) * (1 - discount / 100);
-        return {
-          product_id: item.product_id || null,
-          invoice_item_id: item.id || null,
-          description: item.description || "",
-          quantity: invoicedQty,
-          max_quantity: invoicedQty,
-          unit_price: netUnitPrice,
-          tax_rate: Number(item.tax_rate) || 0,
-          // Original line tax, pro-rated to the full quantity = the line tax.
-          tax_amount: Number(item.tax_amount) || 0,
-          condition: "good",
-          return_reason: "",
-          packaging_id: item.packaging_id ?? null,
-          display_uom_id: item.display_uom_id ?? null,
-          display_quantity: item.display_quantity ?? null,
-          invoiced_quantity: invoicedQty,
-          source_tax_amount: Number(item.tax_amount) || 0,
-          source_discount_percent: discount,
-        };
-      });
-
-      setLineItems(items);
-    }
+    // Drop stale invoice-sourced lines; the picker seeds the new ones.
+    setLineItems((prev) => {
+      const kept = prev.filter(
+        (l) => !l.invoice_item_id && (l.product_id || l.description.trim()),
+      );
+      return kept.length > 0 ? kept : [];
+    });
+    setPickerOpen(true);
   };
 
   // Deep-link: pre-fill invoice once invoices load
@@ -197,10 +218,12 @@ export default function SalesReturnCreatePage() {
     const inv = invoices.find((i) => i.id === prefillInvoiceId);
     if (inv) {
       form.setValue("contact_id", inv.contact_id || "");
-      handleInvoiceSelect(prefillInvoiceId);
+      form.setValue("invoice_id", prefillInvoiceId);
+      setPickerOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillInvoiceId, invoices]);
+
 
   const customerInvoices = useMemo(() => {
     if (!selectedContactId) return [];
