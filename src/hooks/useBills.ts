@@ -233,7 +233,7 @@ export function useBills() {
 
     // Freeze the vendor's remit-to address on the bill itself. Master-data
     // edits must never rewrite the address an entered bill records.
-    const remitTo = await captureRemitToSnapshot((bill as any).contact_id ?? null);
+    const remitTo = await captureRemitToSnapshot(bill.vendor_id ?? null);
 
     // Always insert as draft — GL posting happens on confirmation
     const { data: created, error: billError } = await supabase
