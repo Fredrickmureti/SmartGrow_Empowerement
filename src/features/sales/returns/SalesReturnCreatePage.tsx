@@ -86,6 +86,16 @@ interface LineItem {
   // Phase A.4 — picker output persisted to sales_return_items.
   lot_number?: string | null;
   serial_number?: string | null;
+  /**
+   * Phase 8 — tax basis provenance. For an invoice-sourced line the tax the
+   * original invoice line charged is the only lawful basis; the figures below
+   * are a *preview* of what `create_sales_return_atomic` will resolve
+   * server-side via `resolve_sales_return_line_tax`. The server never trusts
+   * the tax we send.
+   */
+  invoiced_quantity?: number | null;
+  source_tax_amount?: number | null;
+  source_discount_percent?: number | null;
 }
 
 const emptyLine = (): LineItem => ({
@@ -100,6 +110,16 @@ const emptyLine = (): LineItem => ({
   condition: "good",
   return_reason: "",
 });
+
+/** Pro-rates the original invoice line's tax onto the returned quantity. */
+const previewLineTax = (line: LineItem): number => {
+  if (line.invoice_item_id && line.invoiced_quantity) {
+    const proportion = Math.abs(line.quantity) / Math.abs(line.invoiced_quantity);
+    return (line.source_tax_amount ?? 0) * proportion;
+  }
+  return line.quantity * line.unit_price * ((line.tax_rate || 0) / 100);
+};
+
 
 export default function SalesReturnCreatePage() {
   const navigate = useNavigate();
