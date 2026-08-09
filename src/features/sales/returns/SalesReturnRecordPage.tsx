@@ -167,6 +167,12 @@ export default function SalesReturnRecordPage() {
         { label: "Reason", value: row.reason },
         { label: "Refund method", value: row.refund_method },
         { label: "Credit note", value: row.credit_note_id ?? "—" },
+        {
+          label: "Settlement",
+          value: settlement
+            ? `${settlement.is_settled ? "Settled" : "Outstanding"} — applied ${formatCurrency(settlement.applied ?? 0)}, refunded ${formatCurrency(settlement.refunded ?? 0)}, open credit ${formatCurrency(settlement.open_credit ?? 0)}`
+            : "—",
+        },
         { label: "Currency", value: row.currency },
       ] : undefined}
       lineColumns={columns}
