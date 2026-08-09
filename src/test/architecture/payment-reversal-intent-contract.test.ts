@@ -171,16 +171,21 @@ describe("ADR 0012 — call-site guards in src/", () => {
     ).toEqual([]);
   });
 
-  // Ratchet: there are currently two RecordPaymentDialog files (sales + invoices).
-  // P3 deletes the invoices-side duplicate. Until then, lock the count at 2 so
-  // no third copy can appear. Tighten to `=== 1` after P3 ships.
-  it("RecordPaymentDialog component count does not grow (ratchet)", () => {
-    const matches = files.filter((f) => /\/RecordPaymentDialog\.tsx$/.test(f));
+  // P3 closed: `src/components/invoices/RecordPaymentDialog.tsx` and
+  // `src/components/sales/RecordPaymentDialog.tsx` were merged into the single
+  // `src/components/payments/RecordCustomerPaymentDialog.tsx`. Exactly one
+  // customer money-in component may exist — a second copy is how the two
+  // dialogs drifted apart in the first place.
+  it("exactly one customer payment recording component exists (ratchet)", () => {
+    const matches = files.filter((f) =>
+      /\/(RecordPaymentDialog|RecordCustomerPaymentDialog)\.tsx$/.test(f),
+    );
     expect(
-      matches.length,
-      `Too many RecordPaymentDialog.tsx files (max 2 during P3 window):\n${matches.join("\n")}`
-    ).toBeLessThanOrEqual(2);
+      matches.map((f) => f.slice(PROJECT_ROOT.length + 1)),
+      "There must be exactly one customer payment dialog: src/components/payments/RecordCustomerPaymentDialog.tsx",
+    ).toEqual(["src/components/payments/RecordCustomerPaymentDialog.tsx"]);
   });
+
 
   // ADR 0012 — every voidPayment / unapplyPayment / refundCustomer call from
   // UI code must go through ReversePaymentWizard, which builds the reasonCode

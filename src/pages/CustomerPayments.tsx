@@ -19,7 +19,11 @@ import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvid
 import { downloadDocumentRecord } from "@/services/printing/PrintService";
 import { normalizeError } from "@/services/resilience";
 import { BulkActionsToolbar } from "@/components/common/BulkActionsToolbar";
-import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
+import {
+  RecordCustomerPaymentDialog as RecordPaymentDialog,
+  makeCustomerPaymentRequestId,
+} from "@/components/payments/RecordCustomerPaymentDialog";
+
 import { SendDocumentDialog, DocumentEmailData } from "@/components/common/SendDocumentDialog";
 import { VoidPaymentDialog } from "@/components/payments/VoidPaymentDialog";
 import { ReversePaymentWizard } from "@/components/payments/ReversePaymentWizard";
@@ -213,15 +217,28 @@ export default function CustomerPayments() {
       throw new Error("No deposit account mapped. Configure default accounts in Settings before importing payments.");
     }
 
+    const amount = Number(row.amount) || 0;
+    const paymentDate = row.payment_date || new Date().toISOString().split("T")[0];
+
     await recordPayment({
       invoice_id: invoiceId,
-      amount: Number(row.amount) || 0,
-      payment_date: row.payment_date || new Date().toISOString().split("T")[0],
+      amount,
+      payment_date: paymentDate,
       payment_method: method,
       reference: row.reference || undefined,
       notes: row.notes || undefined,
       deposit_account_id: depositAcct,
+      // Deterministic on the imported row, so re-running the same import
+      // file cannot mint duplicate money.
+      requestId: makeCustomerPaymentRequestId({
+        contactId: invoiceId,
+        allocations: [{ invoice_id: invoiceId, amount }],
+        totalCents: Math.round(amount * 100),
+        paymentDate,
+        depositAccountId: depositAcct,
+      }),
     });
+
   }, [currentOrg, contacts, recordPayment, defaultAcctMappings]);
 
   const handleImportComplete = () => {
