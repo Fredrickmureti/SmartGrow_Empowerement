@@ -9,7 +9,7 @@
 --   * transition_sales_return enforces the state machine and refuses to
 --     approve (approval belongs to approve_sales_return_atomic)
 BEGIN;
-SELECT plan(34);
+SELECT plan(40);
 
 -- ---------- fixtures ----------
 CREATE TEMP TABLE _sr_fx (org uuid, biz uuid) ON COMMIT DROP;
@@ -173,6 +173,26 @@ SELECT ok(
 );
 SELECT has_column('public', 'fiscal_transmissions', 'original_transmission_id',
   'a credit note transmission can point back at the invoice it reverses');
+
+-- Phase 9.3: the data-repair census is a permanent surface, not a one-off script.
+SELECT has_view('public', 'v_sales_returns_integrity',
+  'the returns integrity census exists');
+SELECT has_column('public', 'v_sales_returns_integrity', 'bad_number_format',
+  'the census flags legacy malformed return numbers');
+SELECT has_column('public', 'v_sales_returns_integrity', 'double_restock',
+  'the census flags WMS returns that also moved stock themselves');
+SELECT has_column('public', 'v_sales_returns_integrity', 'refunded_unsettled',
+  'the census flags refunded returns that are not fully settled');
+SELECT has_function('public', 'repair_sales_return_numbers', ARRAY['uuid'],
+  'the idempotent renumbering repair exists');
+
+-- Numbering has exactly one entry point: the (org, business, branch) generator.
+SELECT is(
+  (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'get_next_sales_return_number'),
+  1,
+  'the legacy single-argument numbering overload is gone'
+);
 
 SELECT * FROM finish();
 ROLLBACK;
