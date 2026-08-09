@@ -2,109 +2,111 @@
 
 Authoritative status file. Update it after every implementation step.
 
-**Currently active:** Phase 4 (document rendering & snapshot verification)
-**Next up:** Phase 5 (invoices, bills, credit notes, quotes — remaining document surfaces)
+**Currently active:** Phase 4 (record-page rendering of ship-to vs deliver-to)
+**Next up:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
+
+## Verified current state (re-checked this session, against live DB + source)
+
+- `contacts` carries `child_address_type`, `is_default_shipping`,
+  `is_default_billing`. `contact_addresses` no longer exists (`to_regclass`
+  returns nothing; only historical migrations mention it).
+- Structured links exist on exactly three documents:
+  `sales_orders.ship_to_contact_id`, `delivery_notes.ship_to_contact_id`,
+  `purchase_orders.deliver_to_warehouse_id` / `deliver_to_branch_id`.
+  Each of those three also keeps its own `shipping_address` text snapshot.
+- Snapshot builders `salesOrder.ts`, `salesDeliveryNote.ts`, `purchasesPo.ts`
+  each read the document's own `shipping_address` column — correct historical
+  behaviour, nothing to change there.
+- `purchasesGrn.ts` hard-codes `shipping_address: null` — the receipt document
+  shows no destination at all.
+- `salesInvoice.ts` reads `address_line1, city, state, postal_code` **live from
+  `contacts`** at render time. Invoices therefore have no address snapshot: a
+  master-data edit retroactively changes an issued invoice. Same pattern needs
+  checking for `salesCreditNote.ts`, `salesEstimate.ts`, `purchasesBill.ts`.
+- Record pages (`salesOrderView.tsx`, `purchaseOrderView.tsx`,
+  `DeliveryNoteRecordPage.tsx`, `DeliveryNotePeekSheet.tsx`) all show one
+  undifferentiated row labelled "Shipping address" — including the PO, where
+  the value is *our* warehouse, not the supplier's.
 
 ## Architecture (locked)
 
-- `contacts` is the single address master. A party is a root contact; its
-  saved addresses are child contacts carrying
-  `child_address_type IN ('contact','invoice','delivery','other')`
-  (ADR-0038 hierarchy).
-- `is_default_shipping` / `is_default_billing` nominate defaults; a DB
-  trigger keeps them unique per parent.
-- `contact_addresses` is retired (dropped — it was orphaned, zero rows).
+- `contacts` is the single address master. A party is a root contact; its saved
+  addresses are child contacts carrying
+  `child_address_type IN ('contact','invoice','delivery','other')` (ADR-0038).
+- `is_default_shipping` / `is_default_billing` nominate defaults; a DB trigger
+  keeps them unique per parent.
 - Counterparty addresses (`src/lib/contactAddresses.ts`) and our own
-  destinations — warehouses/branches (`src/lib/internalDestinations.ts`) —
-  are deliberately separate resolvers. A PO's "Deliver to" is never a
-  supplier address.
-- Documents store BOTH a structured link (`ship_to_contact_id`,
-  `deliver_to_warehouse_id` / `deliver_to_branch_id`) and the rendered
-  address text, which is the immutable printed snapshot.
+  destinations — warehouses/branches (`src/lib/internalDestinations.ts`) — are
+  deliberately separate resolvers. A PO's "Deliver to" is never a supplier
+  address.
+- Documents store BOTH a structured link and the rendered address text; the
+  text is the immutable printed snapshot.
 
 ## Phase 1 — Schema convergence — DONE
 
-- Dropped the orphaned `contact_addresses` table.
-- Added `is_default_shipping` / `is_default_billing` to `contacts` plus the
-  unique-default triggers.
-- Added `ship_to_contact_id` to sales orders and delivery notes.
-- Added `deliver_to_warehouse_id` / `deliver_to_branch_id` to purchase orders.
-- Disambiguated every Supabase embed that now has two FKs to `contacts`
-  (`SalesOrders.tsx`, `useSalesOrders`, `useSalesOrderApproval`,
-  `useSalesOrderRecord`, `useBackorders`, `snapshots/salesOrder.ts`).
-- Verified: typecheck clean.
-
 ## Phase 2 — Resolver layer — DONE
 
-- `src/lib/contactAddresses.ts` — the ONE party-address resolver:
-  `listPartyAddresses`, `pickAddressForRole`, `resolveShipTo`,
-  `resolveBillTo`, `formatAddress`, `addressOptionLabel`.
-- `src/lib/internalDestinations.ts` — warehouse/branch destinations:
-  `listInternalDestinations`, `formatInternalDestination`.
-- Verified: typecheck clean; both are the only implementations of their rule.
+`src/lib/contactAddresses.ts` (listPartyAddresses, pickAddressForRole,
+resolveShipTo, resolveBillTo, formatAddress, addressOptionLabel) and
+`src/lib/internalDestinations.ts` are the only implementations of their rule.
 
 ## Phase 3 — Address book UI + document pickers — DONE
 
-- `src/features/contacts/ContactAddressBook.tsx` — add / edit / delete
-  saved addresses and nominate default ship-to and bill-to. Mounted on
-  the contact edit workspace for root parties only.
-- `src/components/addresses/ShipToPicker.tsx` — customer-side selection
-  with provenance ("from address book" vs "custom"), default
-  preselection, and snapshot write-through.
-- `src/components/addresses/DeliverToPicker.tsx` — purchase-side
-  selection of OUR warehouse/branch.
-- Wired into: Sales Order create + edit, Delivery Note create,
-  Purchase Order create + edit.
-- Migration: `update_sales_order_atomic` now persists
-  `ship_to_contact_id` (only when the caller supplies the key, so other
-  callers are unaffected).
-- Verified: typecheck clean after every edit.
+`ContactAddressBook.tsx`, `ShipToPicker.tsx`, `DeliverToPicker.tsx`, wired into
+Sales Order create/edit, Delivery Note create, Purchase Order create/edit.
+`update_sales_order_atomic` persists `ship_to_contact_id`.
 
-## Phase 4 — Document rendering & snapshots — ACTIVE
+## Phase 4 — Record rendering — ACTIVE
 
-Confirmed already correct:
+1. Sales Order record view + peek: replace the single "Shipping address" row
+   with a distinct **Ship to** block that shows the snapshot text plus a
+   provenance line ("From customer address book" / "Custom address") derived
+   from whether `ship_to_contact_id` is set.
+2. Delivery Note record page + peek: same treatment, plus indicate when the
+   destination was inherited from the source Sales Order.
+3. Purchase Order record view + peek: relabel to **Deliver to (our location)**
+   and resolve the warehouse/branch name from
+   `deliver_to_warehouse_id` / `deliver_to_branch_id` via
+   `formatInternalDestination`, falling back to the text snapshot.
+4. GRN document: carry the originating PO's destination into
+   `purchasesGrn.ts` instead of `null`.
 
-- `snapshots/salesOrder.ts`, `snapshots/salesDeliveryNote.ts`, and
-  `snapshots/purchasesPo.ts` all read the document's own
-  `shipping_address` column — i.e. the snapshot, not live master data.
+Presentation-layer only — no schema or RPC changes in this phase.
 
-Remaining in this phase:
+## Phase 5 — Bill-to snapshot on financial documents — PENDING
 
-- Render the ship-to block distinctly from the bill-to block on the SO,
-  DN and PO record pages and peek sheets (today they show a single
-  "Shipping address" row).
-- Show the PO destination as "Deliver to (our location)" so it can never
-  be misread as the supplier's address.
+The real defect found this session: invoices resolve the customer address live.
 
-## Phase 5 — Remaining document surfaces — PENDING
-
-- Invoices, credit notes, quotes/estimates: bill-to selection via
-  `pickAddressForRole(..., "billing")` plus a stored snapshot.
-- Bills and vendor credit notes: supplier remit-to.
-- Decide per document whether a structured `bill_to_contact_id` column is
-  warranted, mirroring `ship_to_contact_id`.
+- Add `billing_address` text (snapshot) and `bill_to_contact_id` to `invoices`,
+  `credit_notes`, `estimates`; supplier remit-to equivalent on `bills`.
+- Populate on confirm from `pickAddressForRole(..., "billing")`; never
+  retro-fill historical rows — existing documents keep rendering the live
+  fallback so nothing visibly changes for them.
+- Switch `salesInvoice.ts` / `salesCreditNote.ts` / `salesEstimate.ts` /
+  `purchasesBill.ts` to prefer the snapshot and fall back to the live contact
+  only when the snapshot is null.
+- Add a bill-to picker to the invoice/credit-note/estimate forms.
 
 ## Phase 6 — Documentation & guardrails — PENDING
 
-- Write ADR-0080 (address master-data model) — referenced from
-  `contactAddresses.ts` but not yet authored.
+- ADR-0080 (address master-data model), referenced from `contactAddresses.ts`
+  but not yet authored.
 - Update `docs/adr/0038-contact-master-data-model.md` with the address
   child-row contract.
-- Add an ESLint rule banning hand-rolled `address_line1 + city` string
-  concatenation outside `src/lib/contactAddresses.ts`.
+- ESLint rule banning hand-rolled `address_line1 + city` concatenation outside
+  `src/lib/contactAddresses.ts`.
 
-## Instructions for the next agent
+## Phase 7 — Business-event tests — PENDING
 
-1. **Verify Phase 3 before writing new code.** Open a contact in
-   `/contacts-app/:id/edit`, add a delivery address, mark it default
-   ship-to, then create a Sales Order for that customer and confirm the
-   address preselects and the "From customer address book" badge shows.
-   Repeat for a Purchase Order using the deliver-to picker. Confirm
-   `sales_orders.ship_to_contact_id` and
-   `purchase_orders.deliver_to_warehouse_id` actually persist by querying
-   the rows after saving.
-2. Confirm no feature module has reintroduced a second address resolver
-   or a raw `contact_addresses` reference.
-3. Then resume at **Phase 4 remaining items**, not elsewhere. Do not open
-   Phase 5 until the SO/DN/PO record pages render ship-to and bill-to
-   distinctly.
+Multiple ship-to addresses, default change after an order exists (historical
+document must not move), cross-business address reference rejection, PO
+destination inheritance into the GRN, invoice snapshot immutability.
+
+## Technical notes
+
+Files touched in Phase 4: `src/features/sales/orders/salesOrderView.tsx`,
+`src/features/sales/delivery-notes/DeliveryNoteRecordPage.tsx` and
+`DeliveryNotePeekSheet.tsx`,
+`src/features/purchases/orders/purchaseOrderView.tsx`,
+`src/services/documents/snapshots/purchasesGrn.ts`. Address formatting must go
+through the existing resolvers; no new address-resolution helper.
