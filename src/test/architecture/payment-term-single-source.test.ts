@@ -51,14 +51,24 @@ function walk(dir: string): string[] {
 
 const toPosix = (p: string) => p.split(sep).join(posix.sep);
 
-function scan(pattern: RegExp): string[] {
+/** Only due-date arithmetic is in scope; quote validity / roster ranges are not. */
+const DUE_DATE_CONTEXT = /due_date|dueDate|payment_term|paymentTerm/i;
+
+function scan(pattern: RegExp, contextOnly = false): string[] {
   const offenders: string[] = [];
   for (const scope of SCOPES) {
     for (const f of walk(scope)) {
       if (ALLOWLIST.has(f)) continue;
       const lines = readFileSync(f, "utf8").split("\n");
       lines.forEach((ln, i) => {
-        if (pattern.test(ln)) offenders.push(`${toPosix(f)}:${i + 1}`);
+        if (!pattern.test(ln)) return;
+        if (contextOnly) {
+          // Look at a small window so `const due = addDays(new Date(), 30)`
+          // followed by `due_date: due` is still caught.
+          const window = lines.slice(Math.max(0, i - 3), i + 4).join("\n");
+          if (!DUE_DATE_CONTEXT.test(window)) return;
+        }
+        offenders.push(`${toPosix(f)}:${i + 1}`);
       });
     }
   }
@@ -77,7 +87,7 @@ describe("architecture: payment terms single source of truth", () => {
   });
 
   it("never hardcodes a credit period as a due-date fallback", () => {
-    const offenders = scan(HARDCODED_CREDIT_PERIOD);
+    const offenders = scan(HARDCODED_CREDIT_PERIOD, true);
     expect(
       offenders,
       "Due dates must come from the resolved payment term; an unresolved term means due on " +
