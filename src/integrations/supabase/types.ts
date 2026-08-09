@@ -6377,6 +6377,7 @@ export type Database = {
           submitted_at: string | null
           submitted_by: string | null
           updated_at: string
+          vendor_id: string | null
           void_reason: string | null
           void_reason_code: string | null
           voided_at: string | null
@@ -6405,6 +6406,7 @@ export type Database = {
           submitted_at?: string | null
           submitted_by?: string | null
           updated_at?: string
+          vendor_id?: string | null
           void_reason?: string | null
           void_reason_code?: string | null
           voided_at?: string | null
@@ -6433,6 +6435,7 @@ export type Database = {
           submitted_at?: string | null
           submitted_by?: string | null
           updated_at?: string
+          vendor_id?: string | null
           void_reason?: string | null
           void_reason_code?: string | null
           voided_at?: string | null
@@ -6542,6 +6545,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -82772,6 +82782,7 @@ export type Database = {
           submitted_at: string | null
           submitted_by: string | null
           updated_at: string
+          vendor_id: string | null
           void_reason: string | null
           void_reason_code: string | null
           voided_at: string | null
@@ -93041,6 +93052,25 @@ export type Database = {
         Args: { p_config_id: string; p_error?: string; p_status: string }
         Returns: undefined
       }
+      record_vendor_advance_payment: {
+        Args: {
+          _advance_asset_account_id?: string
+          _amount: number
+          _bank_account_id?: string
+          _bank_gl_account_id?: string
+          _branch_id?: string
+          _business_id: string
+          _created_by?: string
+          _notes?: string
+          _org_id: string
+          _payment_date: string
+          _payment_method?: string
+          _reference?: string
+          _request_id?: string
+          _vendor_id: string
+        }
+        Returns: Json
+      }
       recost_movements_since: {
         Args: { p_business_id: string; p_product_id?: string; p_since: string }
         Returns: {
@@ -95997,6 +96027,10 @@ export type Database = {
       validate_task_dependency_no_cycle: {
         Args: { _depends_on_id: string; _task_id: string }
         Returns: Json
+      }
+      vendor_advance_account: {
+        Args: { _business_id: string }
+        Returns: string
       }
       vendor_credit_account: { Args: { _business_id: string }; Returns: string }
       vendor_credit_balance_id: {

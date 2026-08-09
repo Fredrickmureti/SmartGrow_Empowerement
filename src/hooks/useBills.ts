@@ -547,6 +547,61 @@ export function useBills() {
   };
 
   /**
+   * Supplier advance — money out with nothing to apply it to yet (D4).
+   * Mirrors `record_advance_payment` on the AR side: the cash is held as a
+   * Vendor Credit (asset), never as a bill settlement. Applying it to a bill
+   * later goes through `recordMultiBillPayment` like any other AP payment.
+   */
+  const recordVendorAdvance = async (args: {
+    vendorId: string;
+    amount: number;
+    payment_date: string;
+    payment_method?: string;
+    reference?: string | null;
+    notes?: string | null;
+    bank_account_id?: string | null;
+    branch_id?: string | null;
+    requestId?: string | null;
+  }) => {
+    if (!currentOrg || !currentBusiness || !user) throw new Error("No organization selected");
+    if (accountsLoading) {
+      throw new Error("Default account mappings are still loading. Please retry in a moment.");
+    }
+    const cashAccountId = accounts.bank_account_id || accounts.cash_account_id || null;
+    if (!cashAccountId) {
+      throw new Error("Cash or Bank account is not mapped. Go to Settings > Default Accounts.");
+    }
+
+    const { data, error } = await supabase.rpc("record_vendor_advance_payment" as any, {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _vendor_id: args.vendorId,
+      _amount: args.amount,
+      _payment_date: args.payment_date,
+      _payment_method: args.payment_method ?? "bank_transfer",
+      _reference: args.reference ?? null,
+      _notes: args.notes ?? null,
+      _created_by: user.id,
+      _bank_account_id: args.bank_account_id ?? null,
+      _bank_gl_account_id: cashAccountId,
+      _advance_asset_account_id: null,
+      _branch_id: args.branch_id ?? currentBranch?.id ?? null,
+      _request_id: args.requestId ?? null,
+    } as any);
+
+    if (error) throw error;
+    await fetchBills();
+    return data as {
+      bill_payment_id: string;
+      journal_entry_id: string;
+      amount: number;
+      idempotent_replay?: boolean;
+    };
+  };
+
+
+
+  /**
    * Single-bill convenience wrapper — preserved for existing callers.
    * Internally delegates to `recordMultiBillPayment` so every AP payment
    * flows through the same allocation-aware path. ADR 0028.
@@ -731,6 +786,8 @@ export function useBills() {
     voidBill,
     recordBillPayment,
     recordMultiBillPayment,
+    recordVendorAdvance,
+
     getBillPayments,
     getDefaultDueDate,
     refreshBills: fetchBills,
