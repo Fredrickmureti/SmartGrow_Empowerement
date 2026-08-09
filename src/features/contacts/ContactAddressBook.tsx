@@ -172,14 +172,13 @@ export function ContactAddressBook({
       address: PartyAddress;
       role: "shipping" | "billing";
     }) => {
-      const column =
-        role === "shipping" ? "is_default_shipping" : "is_default_billing";
-      const next = !(role === "shipping"
-        ? address.is_default_shipping
-        : address.is_default_billing);
+      const patch =
+        role === "shipping"
+          ? { is_default_shipping: !address.is_default_shipping }
+          : { is_default_billing: !address.is_default_billing };
       const { error } = await supabase
         .from("contacts")
-        .update({ [column]: next })
+        .update(patch)
         .eq("id", address.id);
       if (error) throw error;
     },
