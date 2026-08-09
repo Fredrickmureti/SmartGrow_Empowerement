@@ -6,7 +6,7 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
-import { ArrowLeft, Printer, XCircle } from "lucide-react";
+import { ArrowLeft, FileSearch, Printer, XCircle } from "lucide-react";
 
 import { ActionBar, Section, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { useDeliveryNoteLineBalances } from "./useDeliveryNoteLineBalances";
 import { usePrintDeliveryNote } from "./usePrintDeliveryNote";
 import { resolveRecipientName } from "@/lib/looksLikeUUID";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { DeliveryLogisticsPanel } from "@/components/sales/DeliveryLogisticsPanel";
 import { isFinalDeliveryStatus } from "@/types/deliveryNote";
 
@@ -44,6 +45,7 @@ export default function DeliveryNoteRecordPage() {
   const row = record as Row | null;
   const notFound = !loading && !isNew && !row;
   const printDeliveryNote = usePrintDeliveryNote();
+  const { preview } = useDocumentPreview();
   const { cancelDelivery } = useDeliveryNotes();
   const isFinal = isFinalDeliveryStatus(row?.status);
   // Quantities come from the canonical ledger view, never re-derived here:
@@ -88,10 +90,25 @@ export default function DeliveryNoteRecordPage() {
     ? () => printDeliveryNote({ id: row.id, delivery_number: row.delivery_number })
     : undefined;
 
+  // Preview is a read-only render of the canonical snapshot — no document
+  // record, no device dispatch.
+  const onPreview = row
+    ? () =>
+        preview({
+          documentType: "delivery_note",
+          documentId: row.id,
+          title: `Delivery Note ${row.delivery_number}`,
+          filename: `delivery-note-${row.delivery_number}`,
+        })
+    : undefined;
+
   const headerActions = row ? (
     <ActionBar>
       <Button variant="outline" size="sm" onClick={() => navigate("/sales/delivery-notes")}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      </Button>
+      <Button variant="outline" size="sm" onClick={onPreview}>
+        <FileSearch className="mr-2 h-4 w-4" /> Preview
       </Button>
       <Button variant="outline" size="sm" onClick={onPrint}>
         <Printer className="mr-2 h-4 w-4" /> Print
@@ -121,6 +138,7 @@ export default function DeliveryNoteRecordPage() {
       notFound={notFound}
       newLabel="New delivery note"
       onPrint={onPrint}
+      onPreview={onPreview}
       headerActions={headerActions}
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.delivery_number}
