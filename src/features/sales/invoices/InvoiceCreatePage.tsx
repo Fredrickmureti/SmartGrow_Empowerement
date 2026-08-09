@@ -155,6 +155,37 @@ export default function InvoiceCreatePage() {
     }
   }, [prefillContactId, defaultCustomerId, defaultProjectId, open]);
 
+  // Seed the due date from the company's configured default term whenever the
+  // form opens without a customer yet. Server-side resolver only — the UI must
+  // never guess a credit period.
+  useEffect(() => {
+    if (!open || !currentBusiness?.organization_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resolved = await resolvePaymentTerm({
+          organizationId: currentBusiness.organization_id,
+          businessId: currentBusiness.id,
+        });
+        if (cancelled) return;
+        setFormData((prev) =>
+          prev.contact_id
+            ? prev
+            : {
+                ...prev,
+                payment_term_id: resolved?.payment_term_id ?? null,
+                due_date: dueDateFromTerm(todayIso(), resolved?.days ?? 0),
+              },
+        );
+      } catch {
+        // Leave the due-on-receipt seed in place.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, currentBusiness?.id, currentBusiness?.organization_id]);
+
   // Fetch available credit notes when customer changes
   useEffect(() => {
     if (!formData.contact_id) {
@@ -281,13 +312,20 @@ export default function InvoiceCreatePage() {
     setFormData((prev) => ({ ...prev, contact_id: value }));
     try {
       const defaults = await fetchContactDefaults(value);
-      if (defaults.payment_term_id) {
-        const term = paymentTerms?.find((t: any) => t.id === defaults.payment_term_id);
-        if (term) {
-          const dueDate = format(addDays(new Date(), term.days), "yyyy-MM-dd");
-          setFormData((prev) => ({ ...prev, due_date: dueDate, terms: term.name || prev.terms }));
-        }
-      }
+      // Payment term: customer default, else company default, else due on
+      // receipt. Resolved server-side so every document path agrees. The term
+      // NAME is deliberately not written into `terms` — that field is the
+      // invoice's terms & conditions prose, a different concept.
+      const resolved = await resolvePaymentTerm({
+        organizationId: currentBusiness?.organization_id,
+        businessId: currentBusiness?.id,
+        contactId: value,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        payment_term_id: resolved?.payment_term_id ?? null,
+        due_date: dueDateFromTerm(todayIso(), resolved?.days ?? 0),
+      }));
       if (defaults.tax_exemption_number) {
         setLineItems((prev) =>
           prev.map((item) => {
