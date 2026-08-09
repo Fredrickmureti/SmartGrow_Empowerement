@@ -7922,6 +7922,7 @@ export type Database = {
           receipt_settings: Json
           receipt_theme: Json | null
           registration_number: string | null
+          sales_return_prefix: string | null
           sample_data_prompt_dismissed: boolean | null
           setup_wizard_completed: boolean | null
           setup_wizard_step: number | null
@@ -7976,6 +7977,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
+          sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
           setup_wizard_step?: number | null
@@ -8030,6 +8032,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
+          sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
           setup_wizard_step?: number | null
@@ -57136,6 +57139,7 @@ export type Database = {
         Row: {
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -57160,6 +57164,7 @@ export type Database = {
         Insert: {
           branch_id?: string | null
           business_id: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -57184,6 +57189,7 @@ export type Database = {
         Update: {
           branch_id?: string | null
           business_id?: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -85845,6 +85851,7 @@ export type Database = {
         Args: { p_header: Json; p_items: Json; p_user_id?: string }
         Returns: Json
       }
+      create_sales_return_atomic: { Args: { _payload: Json }; Returns: Json }
       create_scanner_session: {
         Args: {
           p_branch_id: string
@@ -88593,10 +88600,16 @@ export type Database = {
         Returns: string
       }
       get_next_rfq_number: { Args: { _org_id: string }; Returns: string }
-      get_next_sales_return_number: {
-        Args: { _org_id: string }
-        Returns: string
-      }
+      get_next_sales_return_number:
+        | { Args: { _org_id: string }; Returns: string }
+        | {
+            Args: {
+              _branch_id?: string
+              _business_id?: string
+              _org_id: string
+            }
+            Returns: string
+          }
       get_next_shift_number: {
         Args: { _org_id: string; _register_id: string }
         Returns: string
@@ -95843,6 +95856,10 @@ export type Database = {
             }
             Returns: Json
           }
+      transition_sales_return: {
+        Args: { _reason?: string; _return_id: string; _to_status: string }
+        Returns: Json
+      }
       trust_device: {
         Args: { p_device_id: string; p_trust_days?: number }
         Returns: boolean
