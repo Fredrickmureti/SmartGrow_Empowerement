@@ -106,12 +106,8 @@ export function useDeliveryNotes() {
     queryClient.invalidateQueries({ queryKey: ["products"] });
   }, [queryClient, orgId]);
 
-  const getNextNumber = async () => {
-    if (!currentOrg) return "";
-    const { data, error } = await supabase.rpc("get_next_delivery_number", { _org_id: currentOrg.id });
-    if (error) throw error;
-    return data;
-  };
+  // Numbering is allocated server-side inside create_delivery_note_atomic
+  // (advisory-locked, business-scoped). No client-side number reservation.
 
   const createDeliveryNote = async (
     note: Partial<DeliveryNote> & { auto_invoice_on_complete?: boolean },
