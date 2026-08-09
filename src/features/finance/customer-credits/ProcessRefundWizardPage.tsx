@@ -89,6 +89,12 @@ export default function ProcessRefundWizardPage() {
   const [refundMethod, setRefundMethod] = useState<string>("cash");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * Phase 7 — one idempotency key per submission attempt. Retrying a failed
+   * submit reuses the key so the refund engine dedupes instead of paying twice;
+   * a genuinely new refund gets a new key.
+   */
+  const requestIdRef = useRef<string>(crypto.randomUUID());
 
   // Keep the default amount in sync until the user overrides it (once
   // they touch the field, we honour their number).
@@ -123,11 +129,13 @@ export default function ProcessRefundWizardPage() {
         refundMethod,
         paymentAccountId!,
         notes || undefined,
+        requestIdRef.current,
       );
       toast({
         title: `Refund of ${formatCurrency(refundAmount, currency)} processed for ${creditNoteNumber}`,
       });
       await refreshCreditNotes?.();
+      requestIdRef.current = crypto.randomUUID();
       navigate(`${returnTo}?peek=${creditNoteId}`);
     } catch (err) {
       toast({
