@@ -258,7 +258,11 @@ describe("event: goods are received against a purchase order", () => {
 
   it("prints OUR warehouse as the destination, inherited from the PO", () => {
     const { snapshot } = buildPurchasesGrnSnapshot(grnBase);
-    expect(snapshot.shipping_address).toBe("Central Warehouse");
+    // Name of the location first, then the address text the PO froze —
+    // a dock worker needs both lines.
+    expect(snapshot.shipping_address).toBe(
+      "Central Warehouse\nOld text destination",
+    );
   });
 
   it("falls back to the branch, then to the PO text snapshot", () => {
@@ -270,7 +274,9 @@ describe("event: goods are received against a purchase order", () => {
         deliver_to_branch: { name: "Westlands Branch" },
       },
     });
-    expect(viaBranch.snapshot.shipping_address).toBe("Westlands Branch");
+    expect(viaBranch.snapshot.shipping_address).toBe(
+      "Westlands Branch\nOld text destination",
+    );
 
     const viaText = buildPurchasesGrnSnapshot({
       ...grnBase,
@@ -281,6 +287,19 @@ describe("event: goods are received against a purchase order", () => {
       },
     });
     expect(viaText.snapshot.shipping_address).toBe("Old text destination");
+  });
+
+  it("prints nothing rather than inventing a destination when the PO has none", () => {
+    const { snapshot } = buildPurchasesGrnSnapshot({
+      ...grnBase,
+      purchase_order: {
+        ...grnBase.purchase_order,
+        shipping_address: null,
+        deliver_to_warehouse: null,
+        deliver_to_branch: null,
+      },
+    });
+    expect(snapshot.shipping_address).toBeNull();
   });
 
   it("never prints the supplier's own address as the destination", () => {
