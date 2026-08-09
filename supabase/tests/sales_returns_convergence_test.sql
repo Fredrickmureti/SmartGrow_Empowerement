@@ -9,7 +9,7 @@
 --   * transition_sales_return enforces the state machine and refuses to
 --     approve (approval belongs to approve_sales_return_atomic)
 BEGIN;
-SELECT plan(22);
+SELECT plan(34);
 
 -- ---------- fixtures ----------
 CREATE TEMP TABLE _sr_fx (org uuid, biz uuid) ON COMMIT DROP;
@@ -126,6 +126,53 @@ SELECT throws_ok(
   NULL, NULL,
   'transition to refunded refuses when there is no settled credit note'
 );
+
+
+-- ---------- Phase 8: tax fidelity & fiscal transmission ----------
+SELECT has_column('public', 'sales_return_items', 'source_tax_rate',
+  'a return line remembers the rate the invoice line charged');
+SELECT has_column('public', 'sales_return_items', 'source_tax_amount',
+  'a return line remembers the tax the invoice line charged');
+SELECT has_column('public', 'sales_return_items', 'source_discount_percent',
+  'a return line remembers the discount the invoice line gave');
+SELECT has_column('public', 'sales_return_items', 'etims_tax_code',
+  'the fiscal tax code travels with the return line');
+SELECT has_column('public', 'sales_return_items', 'tax_basis_source',
+  'every return line declares where its tax basis came from');
+SELECT has_column('public', 'credit_note_items', 'etims_tax_code',
+  'the fiscal tax code reaches the credit note line');
+
+SELECT has_function('public', 'resolve_sales_return_line_tax',
+  ARRAY['uuid','numeric'],
+  'resolve_sales_return_line_tax(uuid, numeric) exists');
+SELECT ok(
+  public.resolve_sales_return_line_tax(NULL, 1) IS NULL,
+  'the tax resolver returns nothing for a line with no invoice provenance'
+);
+
+SELECT ok(
+  (SELECT pg_get_functiondef(p.oid) LIKE '%resolve_sales_return_line_tax%'
+     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'create_sales_return_atomic'),
+  'creation resolves tax from the invoice line instead of trusting the client'
+);
+SELECT ok(
+  (SELECT pg_get_functiondef(p.oid) LIKE '%v_return.return_date%'
+     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'approve_sales_return_atomic'),
+  'the credit note is dated on the return, so the reversal stays in period'
+);
+
+-- One fiscal document per economic reversal: the credit note, never the return.
+SELECT ok(
+  (SELECT count(*) FROM pg_trigger
+    WHERE tgrelid = 'public.sales_returns'::regclass
+      AND NOT tgisinternal
+      AND tgname ILIKE '%fiscal%') = 0,
+  'a sales return no longer enqueues a fiscal transmission of its own'
+);
+SELECT has_column('public', 'fiscal_transmissions', 'original_transmission_id',
+  'a credit note transmission can point back at the invoice it reverses');
 
 SELECT * FROM finish();
 ROLLBACK;
