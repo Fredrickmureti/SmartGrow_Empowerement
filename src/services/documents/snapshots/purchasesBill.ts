@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
 import { resolveSnapshotAddress } from "./partyAddress";
+import { fetchPaymentTermSnapshot, type SnapshotPaymentTerm } from "./paymentTerm";
 
 // ---------- Input shapes (mirror fetchBill's projection) ----------
 
@@ -207,7 +208,15 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       }`,
     );
   }
+  const row = data as Record<string, unknown>;
+  const paymentTerm = await fetchPaymentTermSnapshot(
+    supabase,
+    row.payment_term_id as string | null,
+  );
   return buildPurchasesBillSnapshot(
-    normalizeSnapshotItems(data as Record<string, unknown>, "items") as unknown as PurchasesBillHeaderRow,
+    {
+      ...(normalizeSnapshotItems(row, "items") as Record<string, unknown>),
+      payment_term: paymentTerm,
+    } as unknown as PurchasesBillHeaderRow,
   );
 }
