@@ -60,6 +60,7 @@ const BankReconciliation = lazy(() => import("@/pages/BankReconciliation"));
 const StartReconciliationPage = lazy(() => import("@/features/finance/reconciliation/StartReconciliationPage"));
 const ApplyCreditWizardPage = lazy(() => import("@/features/finance/customer-credits/ApplyCreditWizardPage"));
 const ProcessRefundWizardPage = lazy(() => import("@/features/finance/customer-credits/ProcessRefundWizardPage"));
+const VendorCredits = lazy(() => import("@/pages/finance/VendorCredits"));
 const AssetCreatePage = lazy(() => import("@/features/finance/fixed-assets/AssetCreatePage"));
 const AssetEditPage = lazy(() => import("@/features/finance/fixed-assets/AssetEditPage"));
 const BankFeeds = lazy(() => import("@/pages/BankFeeds"));
@@ -194,6 +195,10 @@ export function FinanceApp() {
         {/* Customer Statements */}
         <Route
           path="statements"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Customer Statements">
+                <CustomerStatements />
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Customer Statements">
