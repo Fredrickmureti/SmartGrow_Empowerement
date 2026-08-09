@@ -1,88 +1,112 @@
-# Payment & Reconciliation Convergence — Status
+# Payment & Reconciliation Convergence — Verification Verdict and D6/D7
 
-Authoritative status file. Update after every tranche.
+## Phase 1 verdict: the previous engineer's claims check out
 
-**Active phase:** D4 complete (supplier advances). **Next up:** D6 — UI
-consolidation + docs alignment, then D7 ratchets.
+I re-verified every "shipped" claim directly against the live database and the
+codebase rather than trusting the status file.
 
-## Shipped and verified
+Confirmed true:
 
-### Tranche 1 — Money-in idempotency (D1, D2) ✅
-- `payments.client_request_id` / `bill_payments.client_request_id` with partial
-  unique indexes.
-- `record_multi_invoice_payment` / `record_payment_atomic` accept `_request_id`,
-  return the existing payment on replay, and survive concurrent insert races.
-  (`record_multi_bill_payment` already had `_request_id`.)
-- `supabase/functions/mpesa-c2b/index.ts`: settlement is attempted even on a
-  duplicate webhook delivery, keyed on the M-Pesa `TransID`. Fixed a settlement
-  failure caused by selecting a non-existent `invoices.total_amount` (now `total`).
-- Clients thread request ids: `src/hooks/usePayments.ts`,
-  `src/hooks/pos/usePOSInvoiceRequest.ts` (POS transaction id + tender index).
-- Verified: `payment-allocations-first-class` 9/9.
+- **Money-in idempotency (D1/D2).** `payments.client_request_id` and
+  `bill_payments.client_request_id` both exist. `record_multi_invoice_payment`
+  and `record_payment_atomic` both carry a `_request_id` argument;
+  `record_multi_bill_payment` carries `_request_id` plus withholding-tax args.
+- **Unreconcile accounting (D3).** `unreconcile_payment_atomic(_payment_id,
+  _reason, _actor)` is a single definition and its body does post the
+  `payment_unreconcile` reclassification entry, so cash is reclassified rather
+  than destroyed.
+- **Bank reconciliation hardening (D5).** `reconcile_bank_transaction_atomic`
+  has exactly **one** signature and it ends in `_client_request_id` — the old
+  7-argument overload really was dropped, so there is no ambiguity.
+- **Supplier advances (D4).** `bill_payments.vendor_id`,
+  `vendor_advance_account(business_id)` and `record_vendor_advance_payment(...,
+  _request_id)` all exist. The backfill is clean: zero supplier payments have
+  allocations but a null vendor.
+- **Legacy columns retired.** `payments.invoice_id` and `bill_payments.bill_id`
+  are both gone from the schema — allocation-first is now structural, not
+  aspirational.
 
-### Tranche 2 — Unreconcile accounting + bank recon hardening (D3, D5) ✅
-- **D3 `unreconcile_payment_atomic`** no longer makes cash vanish. It voids the
-  original settlement JE (the AR credit carries invoice linkage and cannot
-  survive detachment), then posts Dr Bank / Cr Customer Deposits through
-  `post_journal_entry_atomic` with `source_type = 'payment_unreconcile'`
-  (idempotent per payment). Adds a fiscal-period guard, repoints
-  `payments.journal_entry_id` at the reclass entry, and refuses when no Customer
-  Deposits account is configured. Allocations stay append-only via compensating
-  negatives (ADR 0027 invariant 5).
-- **D5 `reconcile_bank_transaction_atomic`** gains `_client_request_id`
-  (default `brecon:<txn_id>`), threads it into both settlement engines, and
-  refuses a transaction dated inside a closed fiscal period. The old 7-arg
-  signature was dropped to avoid overload ambiguity.
-  `src/hooks/useBankTransactions.ts` passes the deterministic key.
-- Verified: `reconciliation-business-level-gating` 11/11.
+Confirmed still open (matches the status file, no hidden regressions found):
 
-### Tranche 3 — Supplier payments on account (D4) ✅
-- `bill_payments.vendor_id` added (FK to `contacts`), backfilled from existing
-  allocations, indexed `(business_id, vendor_id, payment_date DESC)`. An
-  unapplied advance is now a first-class AP document, not an orphan row.
-- `check_bill_payment_allocation_consistency` extended: allocating a payment to
-  a bill stamps the header vendor when unset and rejects allocation to a bill of
-  a different supplier — the AP mirror of the AR single-customer rule.
-- `vendor_advance_account(business_id)` resolves `vendor_advances`, falling back
-  to the existing `vendor_credit` default (asset — "Vendor Credits").
-- `record_vendor_advance_payment(...)`: Dr Vendor Credits / Cr Bank through
-  `post_journal_entry_atomic`, period-guarded, vendor/branch/account validated,
-  idempotent by `_request_id` (returns the original payment on replay).
-- Client entrypoint `recordVendorAdvance` in `src/hooks/useBills.ts`, exported
-  alongside `recordMultiBillPayment`. Applying an advance to a bill later uses
-  the same canonical `record_multi_bill_payment` path — no second AP writer.
-- Verified: `tsgo --noEmit` clean; `bill-payment-allocations-first-class` 5/5,
-  `procurement` 7/7.
+- `recordVendorAdvance` exists in `src/hooks/useBills.ts` but **has no caller**.
+  The supplier-advance business event is reachable from code only, never from
+  an operator's screen. AR has the mirror surfaces (Customer Credits, Apply
+  Customer Deposit, Reallocate Payment); AP has none of them.
+- Two competing customer-payment dialogs are live:
+  `src/components/invoices/RecordPaymentDialog.tsx` (556 lines) and
+  `src/components/sales/RecordPaymentDialog.tsx` (451 lines). Accounts
+  Receivable imports **both** in the same page — the clearest evidence of drift.
+- ADR 0028 still documents `bill_payments.bill_id` as a pending drop and lists
+  writer migration as deferred, both of which are now done. ADR 0027 has the
+  same staleness. No ADR records the unreconcile reclassification rule or the
+  supplier-advance model, so both can be silently regressed.
+- No ratchet enforces request keys on money-in RPCs, and nothing stops a second
+  writer inserting into `bill_payments`.
 
-## Pending
+Nothing the previous engineer claimed was found to be superficial or wrong, so
+work resumes at **D6** as they intended — but with the vendor-advance operator
+surface treated as the first item, since a business event with no way to
+trigger it is an incomplete feature, not a UI nicety.
 
-### D6 — UI consolidation + docs alignment (next)
-- Collapse the duplicate payment-recording dialogs onto one component.
-- Refresh ADRs 0027/0028 — they still describe `payments.invoice_id` and
-  `bill_payments.bill_id` as pending drops; both columns are already gone.
-- New ADR for the unreconcile reclassification rule (D3) so the cash-preserving
-  behaviour cannot be silently regressed.
-- New ADR (or extend 0028) for supplier advances: `bill_payments.vendor_id`,
-  Vendor Credits as the holding account, allocation-later contract.
-- Surface unapplied vendor cash in the AP UI (vendor ledger / vendor payments)
-  so `recordVendorAdvance` is reachable by an operator, not just by code.
+## D6 — Operator surfaces, dialog consolidation, documentation
 
-### D7 — Ratchets
-- Architecture test asserting every money-in RPC accepts and honours a request
-  key, and that no client path calls a settlement RPC without one.
-- Ratchet banning a second AP writer: nothing but
-  `record_multi_bill_payment` / `record_vendor_advance_payment` may insert into
-  `bill_payments`.
+### D6.1 Supplier advances become operator-reachable (AP/AR parity)
 
-## Instructions for the next agent
-1. **Verify before extending.** Re-read the live definitions of
-   `unreconcile_payment_atomic`, `reconcile_bank_transaction_atomic` and
-   `record_vendor_advance_payment` from `pg_proc` rather than trusting this
-   file. Confirm: the unreconcile reclass entry balances and is idempotent per
-   payment; the recon RPC has exactly one signature; the vendor-advance replay
-   path returns the original `bill_payment_id`.
-2. Confirm `bill_payments.vendor_id` backfill left no live payment with
-   allocations but a NULL vendor.
-3. Then resume at **D6** — starting with the operator-facing surface for vendor
-   advances, since the RPC exists but has no UI yet. Do not start unrelated
-   work; finish D6 before D7.
+Business event: *business pays a supplier before any bill exists.* Today it
+posts correctly (Dr Vendor Credits / Cr Bank) but only from code.
+
+- Add a **Vendor Credits** page mirroring the existing Customer Credits page:
+  lists supplier payments with unallocated cash, computed from
+  `bill_payments.amount` minus the sum of its live allocations.
+- Add a **Record Vendor Advance** dialog calling `recordVendorAdvance`, with a
+  deterministic request key so a double submit cannot mint two advances.
+- Add an **Apply Vendor Credit** dialog that allocates an existing advance to
+  open bills through the canonical `record_multi_bill_payment` — no second AP
+  writer is introduced.
+- Surface unapplied vendor cash on Accounts Payable and the vendor ledger so
+  the AP balance an operator sees accounts for cash already paid out.
+
+### D6.2 One customer-payment dialog
+
+- Compare the two dialogs field by field and keep the superset behaviour
+  (multi-invoice allocation, overpayment-to-credit, FX rate capture, request
+  key) in a single component under `src/components/payments/`.
+- Repoint Invoices, Customer Payments, Accounts Receivable and Collections at
+  it; delete the losing implementation.
+- Update the two architecture tests that reference the old paths so the guard
+  follows the surviving file rather than being weakened.
+
+### D6.3 Documentation truth
+
+- Amend ADRs 0027 and 0028: mark the legacy FK drops and writer migration as
+  completed, so no future engineer plans work that is already done.
+- New ADR: **unreconciliation is a reclassification, not a reversal** — voiding
+  the settlement entry and re-posting Dr Bank / Cr Customer Deposits, with the
+  fiscal-period guard and per-payment idempotency spelled out.
+- New ADR (or an 0028 extension): **supplier advances** — `vendor_id` on the
+  header, Vendor Credits as the holding account, allocate-later contract, and
+  the single-supplier allocation rule.
+- Refresh the project memory entries for customer and vendor allocations so the
+  "pending" sections reflect reality.
+
+## D7 — Ratchets
+
+- **Request-key ratchet.** Assert every money-in RPC exposes a request key and
+  that no client call site invokes a settlement RPC without passing one.
+- **AP writer monopoly ratchet.** Only `record_multi_bill_payment` and
+  `record_vendor_advance_payment` may insert into `bill_payments`; anything
+  else fails CI, mirroring the existing journal-posting monopoly test.
+- **Single payment dialog ratchet.** Fail the build if a second
+  customer-payment recording component reappears.
+
+## Technical notes
+
+- All new AP behaviour reuses existing RPCs; the only possible database work is
+  a read-side view for unapplied vendor cash if the client-side computation
+  proves too heavy on large ledgers.
+- Regression risk concentrates in D6.2: four pages change their payment entry
+  point at once. Mitigation is to keep the surviving component's props a
+  superset and migrate call sites one page at a time, with the existing
+  payability and print-preview architecture tests as the safety net.
+- No changes to posting, allocation, void or reversal semantics are proposed —
+  the audit found those layers sound and they stay untouched.
