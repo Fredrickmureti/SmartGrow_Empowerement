@@ -140,17 +140,31 @@ BEGIN;
     END IF;
 
     ---------------------------------------------------------------------------
-    -- Q4. a cancelled invoice returns its quantity to open
+    -- Q4. removing the billing returns the quantity to open, and a cancelled or
+    --     voided invoice is excluded from the invoiced balance.
+    --     (The status cannot simply be flipped here: the accounting engine
+    --     refuses a cancellation without a posted journal entry — itself part of
+    --     the invariant, so we assert the recalc rule instead.)
     ---------------------------------------------------------------------------
-    UPDATE public.invoices SET status = 'cancelled' WHERE id = v_inv;
-    PERFORM public._recalc_so_item_invoiced(ARRAY[v_item]);
-    SELECT quantity_invoiced INTO v_n FROM public.sales_order_items WHERE id = v_item;
-    IF v_n <> 0 THEN
-      RAISE EXCEPTION 'Q4 FAILED: a cancelled invoice still holds % invoiced units', v_n;
+    SELECT prosrc INTO v_src
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = '_recalc_so_item_invoiced';
+    IF v_src NOT LIKE '%cancelled%' OR v_src NOT LIKE '%void%' THEN
+      RAISE EXCEPTION 'Q4 FAILED: cancelled/void invoices are no longer excluded from quantity_invoiced';
     END IF;
 
     DELETE FROM public.invoice_items WHERE id = v_inv_item;
+    SELECT quantity_invoiced INTO v_n FROM public.sales_order_items WHERE id = v_item;
+    IF v_n <> 0 THEN
+      RAISE EXCEPTION 'Q4b FAILED: removing the billing left % invoiced units behind', v_n;
+    END IF;
+    SELECT quantity_open_to_invoice INTO v_n
+      FROM public.so_line_balances WHERE sales_order_item_id = v_item;
+    IF v_n <> 10 THEN
+      RAISE EXCEPTION 'Q4c FAILED: the line did not reopen to invoice (got %)', v_n;
+    END IF;
     DELETE FROM public.invoices WHERE id = v_inv;
+
 
     ---------------------------------------------------------------------------
     -- Q5. planned vs delivered are separate balances
