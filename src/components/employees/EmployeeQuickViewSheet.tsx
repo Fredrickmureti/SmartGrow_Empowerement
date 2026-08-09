@@ -1,3 +1,4 @@
+import { formatAddressInline } from "@/lib/contactAddresses";
 /**
  * EmployeeQuickViewSheet — lightweight side panel for HR users to inspect
  * an employee at a glance without navigating away from the directory.
@@ -59,9 +60,14 @@ export function EmployeeQuickViewSheet({ employee, open, onOpenChange }: Props) 
   const fullName = `${e.first_name} ${e.last_name}`.trim();
   const grossPay =
     (e.basic_salary ?? 0) + (e.housing_allowance ?? 0) + (e.transport_allowance ?? 0);
-  const address = [e.address_line1, e.address_line2, e.city, e.county, e.country]
-    .filter(Boolean)
-    .join(", ");
+  // ADR-0080: never hand-roll address text.
+  const address = formatAddressInline({
+    address_line1: e.address_line1,
+    address_line2: e.address_line2,
+    city: e.city,
+    state: e.county,
+    country: e.country,
+  });
 
   const goToProfile = () => {
     onOpenChange(false);

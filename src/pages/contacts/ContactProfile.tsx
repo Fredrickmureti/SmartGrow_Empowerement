@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { formatAddressInline } from "@/lib/contactAddresses";
 /**
  * Unified Contact Profile Page - 360-degree business view
  * 
@@ -824,9 +825,7 @@ export default function ContactProfile() {
                   <div className="sm:col-span-2">
                     <p className="text-xs text-muted-foreground mb-1">Address</p>
                     <p className="text-sm">
-                      {[contact.address_line1, contact.city, contact.state, contact.postal_code, contact.country]
-                        .filter(Boolean)
-                        .join(", ")}
+                      {formatAddressInline(contact)}
                     </p>
                   </div>
                 )}

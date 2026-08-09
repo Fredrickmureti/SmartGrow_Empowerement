@@ -102,3 +102,22 @@ Every new consumer that touches contacts MUST:
 - ADR-0031 — AR/AP contact integrity triggers
 - ADR-0033 — single AR/AP open-items engine
 - Migration `20260424073005` — `commercial_partner_id` column + trigger
+## Addendum (2026-08-09) — Addresses are child contacts
+
+Saved addresses are not a separate entity. A party's addresses are CHILD
+`contacts` rows (`parent_contact_id = <party>`) carrying
+`child_address_type IN ('contact','invoice','delivery','other')`, with
+`is_default_shipping` / `is_default_billing` nominating the defaults (a DB
+trigger keeps each unique per parent). The party's own row is the implicit
+fallback address. No `contact_addresses` table exists, and none may be
+added.
+
+Because a parent and a child must share a `business_id`, an address can
+never be borrowed across businesses — the same rule the document-level
+`_assert_party_address_contact()` trigger re-checks when a document links
+to a bill-to / remit-to party.
+
+The full contract — resolution precedence, the link-plus-text snapshot rule
+for documents, and why the bill-to links are triggers rather than foreign
+keys — is in ADR-0080 (address master-data model & document address
+snapshots).

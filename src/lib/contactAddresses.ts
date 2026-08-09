@@ -219,13 +219,78 @@ export async function captureBillToSnapshot(
   if (!contactId) return { bill_to_contact_id: null, billing_address: null };
   try {
     const address = await resolveBillTo(contactId);
+    // No resolvable address means the party is not readable in this
+    // business (RLS) or has no address at all. Writing the raw contact id
+    // anyway would either link a foreign party — which the
+    // `_assert_party_address_contact` trigger rejects — or record a link
+    // to an address that was never printed. Store nothing instead.
+    if (!address) return { bill_to_contact_id: null, billing_address: null };
     const text = formatAddress(address);
     return {
-      bill_to_contact_id: address?.id ?? contactId,
+      bill_to_contact_id: address.id,
       billing_address: text || null,
     };
   } catch {
     // Address capture must never block document creation.
     return { bill_to_contact_id: null, billing_address: null };
   }
+}
+
+/**
+ * Supplier equivalent of {@link captureBillToSnapshot}: the remit-to address
+ * a bill prints. Bills reference the vendor's billing address, so the same
+ * "billing" role resolution applies — only the column names differ.
+ */
+export async function captureRemitToSnapshot(
+  contactId: string | null | undefined,
+): Promise<{ remit_to_contact_id: string | null; remit_to_address: string | null }> {
+  const { bill_to_contact_id, billing_address } =
+    await captureBillToSnapshot(contactId);
+  return {
+    remit_to_contact_id: bill_to_contact_id,
+    remit_to_address: billing_address,
+  };
+}
+
+/**
+ * Freezes the bill-to snapshot on a document that was created through an
+ * atomic RPC (credit notes, proforma invoices), where the client cannot add
+ * columns to the server-side insert.
+ *
+ * This runs immediately after creation, so the frozen text is still the
+ * address as it stood at issue time. It is deliberately best-effort: a
+ * failure here must never surface as "document creation failed" when the
+ * document exists — the snapshot layer falls back to the live party for
+ * rows without a snapshot, which is exactly the legacy behaviour.
+ */
+export async function freezeBillToSnapshot(
+  table: "credit_notes" | "proforma_invoices",
+  documentId: string,
+  contactId: string | null | undefined,
+): Promise<void> {
+  if (!documentId || !contactId) return;
+  try {
+    const snapshot = await captureBillToSnapshot(contactId);
+    if (!snapshot.billing_address) return;
+    await supabase
+      .from(table as any)
+      .update(snapshot as any)
+      .eq("id", documentId)
+      .is("billing_address", null);
+  } catch (error) {
+    console.warn(`[contactAddresses] bill-to snapshot skipped for ${table}`, error);
+  }
+}
+
+/**
+ * Single-line form of {@link formatAddress}, for inline display in tables,
+ * cards and summary rows where a multi-line block would break the layout.
+ *
+ * Same field order and same omission rules as the block form, so the two
+ * can never disagree about what an address contains.
+ */
+export function formatAddressInline(
+  address: Partial<PartyAddress> | null | undefined,
+): string {
+  return formatAddress(address).split("\n").join(", ");
 }

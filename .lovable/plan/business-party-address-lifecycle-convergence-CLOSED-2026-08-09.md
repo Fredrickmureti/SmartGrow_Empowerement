@@ -2,9 +2,9 @@
 
 Authoritative status file. Update it after every implementation step.
 
-**Currently active:** Phase 6 (documentation & guardrails)
-**Last completed:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
-**Last completed:** Phase 4 (record rendering) — 2026-08-09
+**Status: CLOSED — all phases delivered (2026-08-09).**
+Phases 1-7 are implemented, typechecked, linted and covered by tests. The
+durable contract now lives in ADR-0080; this file is history.
 
 ## Verified current state (re-checked this session, against live DB + source)
 
@@ -83,34 +83,67 @@ the UI agree. Typecheck clean; 159 document-snapshot tests pass.
 
 Presentation-layer only — no schema or RPC changes in this phase.
 
-## Phase 5 — Bill-to snapshot on financial documents — PENDING
+## Phase 5 — Bill-to snapshot on financial documents — DONE
 
-The real defect found this session: invoices resolve the customer address live.
+The real defect found this session: invoices resolved the customer address
+live, so a master-data edit retroactively rewrote issued invoices.
 
-- Add `billing_address` text (snapshot) and `bill_to_contact_id` to `invoices`,
-  `credit_notes`, `estimates`; supplier remit-to equivalent on `bills`.
-- Populate on confirm from `pickAddressForRole(..., "billing")`; never
-  retro-fill historical rows — existing documents keep rendering the live
-  fallback so nothing visibly changes for them.
-- Switch `salesInvoice.ts` / `salesCreditNote.ts` / `salesEstimate.ts` /
-  `purchasesBill.ts` to prefer the snapshot and fall back to the live contact
-  only when the snapshot is null.
-- Add a bill-to picker to the invoice/credit-note/estimate forms.
+- Migration added `bill_to_contact_id` + `billing_address` to `invoices`,
+  `credit_notes`, `estimates`, `proforma_invoices`, and
+  `remit_to_contact_id` + `remit_to_address` to `bills`. These are
+  deliberately NOT foreign keys: a second FK to `contacts` makes every
+  existing `contact:contacts(...)` embed ambiguous to PostgREST (~118 call
+  sites). Integrity is enforced by the
+  `public._assert_party_address_contact()` BEFORE INSERT/UPDATE trigger,
+  which requires the party to exist and share the document's business.
+- `src/services/documents/snapshots/partyAddress.ts` implements the rule
+  once — stored snapshot first, live party only as a legacy fallback — and
+  is applied in `salesInvoice`, `salesCreditNote`, `salesEstimate`,
+  `salesProforma` and `purchasesBill`, mirrored in `generate-document` so
+  screen and PDF cannot disagree.
+- Capture at creation time: `captureBillToSnapshot` (invoices, estimates),
+  `freezeBillToSnapshot` for the atomic-RPC documents (credit notes,
+  proformas — the client cannot extend the server-side insert), and
+  `captureRemitToSnapshot` on bills, resolved from `vendor_id`.
+- Capture is best-effort by design: it never blocks document creation, and
+  it writes NO link when no address resolves, so an unreadable
+  (cross-business) party can never be linked.
+- Historical rows are never retro-filled; a NULL snapshot keeps the legacy
+  live-fallback rendering.
 
-## Phase 6 — Documentation & guardrails — PENDING
+## Phase 6 — Documentation & guardrails — DONE
 
-- ADR-0080 (address master-data model), referenced from `contactAddresses.ts`
-  but not yet authored.
-- Update `docs/adr/0038-contact-master-data-model.md` with the address
-  child-row contract.
-- ESLint rule banning hand-rolled `address_line1 + city` concatenation outside
-  `src/lib/contactAddresses.ts`.
+- `docs/adr/0080-address-master-data-model.md` authored: the address master
+  model, counterparty vs. our-own-location split, the link-plus-text
+  snapshot contract, and the reasoning behind trigger-based integrity.
+- `docs/adr/0038-contact-master-data-model.md` carries an addendum stating
+  that addresses are child contacts and that no `contact_addresses` table
+  exists or may be added.
+- ESLint rule `local/no-hand-rolled-address-format` (error) forbids gluing
+  `address_line1` to `city`/`state`/`postal_code` outside the three
+  canonical formatters. The four pre-existing violations (employee private
+  info, employee quick view, customer record page, contact profile) were
+  migrated to the new `formatAddressInline` helper; the codebase is clean
+  under the rule.
 
-## Phase 7 — Business-event tests — PENDING
+## Phase 7 — Business-event tests — DONE
 
-Multiple ship-to addresses, default change after an order exists (historical
-document must not move), cross-business address reference rejection, PO
-destination inheritance into the GRN, invoice snapshot immutability.
+`src/test/addresses/address-lifecycle.test.ts` — 18 tests written as events
+a user can cause, not helper unit tests:
+
+- a party with several ship-to addresses (flagged default, role fallback,
+  party-own fallback, billing never picking a delivery address);
+- the default address changing AFTER a document exists — the printed
+  snapshot must not move, and whitespace-only snapshots count as absent;
+- a document referencing a party in another business — no addresses, no
+  link, no leaked text on either the sales or the purchase side;
+- GRN destination inheritance from the PO (warehouse, then branch, then the
+  PO text; nothing invented when the PO has none; never the supplier);
+- an issued invoice reprinted after the customer moves, plus the legacy
+  pre-snapshot fallback.
+
+Full run: 215 tests green across documents, addresses, contacts, sales and
+lib; typecheck clean; lint clean.
 
 ## Technical notes
 
