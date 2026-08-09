@@ -73,3 +73,18 @@ server-derived.
 action `submit | approve | reject` owns draft -> pending_approval -> approved/rejected and
 writes the audit row. `approval_requests` keeps its own vocabulary (`pending`, ...) — do not
 confuse it with `sales_orders.status`. Approve still chains `confirm_sales_order_atomic`.
+
+## Direct writes are refused by the database (Aug 2026)
+
+`sales_order_governed_write_guard()` (trigger `trg_00_sales_order_governed_write`, BEFORE UPDATE
+on `sales_orders`) rejects any UPDATE that changes `status`, `so_number`, `subtotal`/`tax_amount`/
+`discount_amount`/`shipping_amount`/`total`, `exchange_rate`, `converted_invoice_id` or `is_locked`
+unless the PL/pgSQL call stack (`GET DIAGNOSTICS ... PG_CONTEXT`) contains one of the owning
+engines (create/update/confirm/cancel/approval RPCs, the invoicing and delivery routes, the lock
+triggers, lead/estimate conversion, org teardown). ERRCODE `42501`.
+
+Consequence for client code: `useSalesOrders.updateSalesOrder` accepts only benign header fields
+(`notes`, `expected_date`, `shipping_address`, `customer_reference`, `delivery_instructions`,
+`payment_term_id`, `salesperson_id`, `contact_id`) and throws for anything else. Confirm and
+cancel actions must call the RPC wrappers, never a status payload. Adding a new engine that must
+change a governed column means adding its name to the guard's whitelist.
