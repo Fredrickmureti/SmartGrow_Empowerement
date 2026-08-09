@@ -262,14 +262,14 @@ function AgingReportInner() {
       <PeriodLockBanner dateTo={asOfDate} />
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Current</CardTitle>
             <CardDescription>0-30 days</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">
+            <p className="stat-value text-green-600 tabular-nums whitespace-nowrap">
               {formatCurrency(data?.summary.current || 0, baseCurrency)}
             </p>
             {totalAmount > 0 && <Progress value={((data?.summary.current || 0) / totalAmount) * 100} className="h-2 mt-2" />}
@@ -281,7 +281,7 @@ function AgingReportInner() {
             <CardDescription>Overdue</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-yellow-600">
+            <p className="stat-value text-yellow-600 tabular-nums whitespace-nowrap">
               {formatCurrency(data?.summary.days30 || 0, baseCurrency)}
             </p>
             {totalAmount > 0 && <Progress value={((data?.summary.days30 || 0) / totalAmount) * 100} className="h-2 mt-2" />}
@@ -293,7 +293,7 @@ function AgingReportInner() {
             <CardDescription>Overdue</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-orange-600">
+            <p className="stat-value text-orange-600 tabular-nums whitespace-nowrap">
               {formatCurrency(data?.summary.days60 || 0, baseCurrency)}
             </p>
             {totalAmount > 0 && <Progress value={((data?.summary.days60 || 0) / totalAmount) * 100} className="h-2 mt-2" />}
@@ -303,12 +303,12 @@ function AgingReportInner() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm font-medium">90+ Days</CardTitle>
-              {(data?.summary.days90 || 0) > 0 && <AlertTriangle className="h-4 w-4 text-destructive" />}
+              {(data?.summary.days90 || 0) > 0 && <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />}
             </div>
             <CardDescription>Seriously Overdue</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-destructive">
+            <p className="stat-value text-destructive tabular-nums whitespace-nowrap">
               {formatCurrency(data?.summary.days90 || 0, baseCurrency)}
             </p>
             {totalAmount > 0 && <Progress value={((data?.summary.days90 || 0) / totalAmount) * 100} className="h-2 mt-2" />}
@@ -319,7 +319,7 @@ function AgingReportInner() {
             <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{formatCurrency(data?.summary.total || 0, baseCurrency)}</p>
+            <p className="stat-value tabular-nums whitespace-nowrap">{formatCurrency(data?.summary.total || 0, baseCurrency)}</p>
             <p className="text-sm text-muted-foreground mt-1">
               {data?.contacts.length || 0} {reportType === "ar" ? "customers" : "suppliers"}
             </p>
