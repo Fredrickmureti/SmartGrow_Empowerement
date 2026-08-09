@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 const PAYABILITY = readFileSync("src/services/finance/invoicePayability.ts", "utf8");
-const SALES_DIALOG = readFileSync("src/components/sales/RecordPaymentDialog.tsx", "utf8");
+const SALES_DIALOG = readFileSync("src/components/payments/RecordCustomerPaymentDialog.tsx", "utf8");
 const INVOICE_LIST = readFileSync("src/components/invoices/InvoiceListTable.tsx", "utf8");
 const CONFIRM_GL = readFileSync("src/hooks/invoices/confirmInvoiceGL.ts", "utf8");
 const PAGINATED = readFileSync("src/hooks/useInvoicesPaginated.ts", "utf8");

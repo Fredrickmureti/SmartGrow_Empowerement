@@ -20,7 +20,7 @@ const EXEMPT_FILES = new Set<string>([
   "src/components/common/PrintPreviewDialog.tsx",  // the dialog itself
   // RecordPaymentDialog reuses the dialog but the parent page already passes
   // communication when previewing the resulting receipt.
-  "src/components/invoices/RecordPaymentDialog.tsx",
+  "src/components/payments/RecordCustomerPaymentDialog.tsx",
 ]);
 
 function walk(dir: string): string[] {
