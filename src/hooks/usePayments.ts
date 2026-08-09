@@ -153,7 +153,14 @@ export function usePayments() {
     reference?: string;
     notes?: string;
     deposit_account_id: string;
+    /**
+     * Idempotency key. Pass a value that is stable across retries of the SAME
+     * logical payment (e.g. a UUID minted when the payment form is opened).
+     * Without it, a double-click or network retry records the money twice.
+     */
+    requestId?: string;
   }) => {
+
     if (!can("manageSales")) throw new Error("Permission denied: cannot record payments");
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
@@ -197,7 +204,9 @@ export function usePayments() {
       _receivable_account_id: receivableAccountId,
       _customer_credit_account_id: customerCreditAccountId,
       _branch_id: currentBranch?.id ?? null,
+      _request_id: payment.requestId ?? null,
     } as any);
+
 
     if (rpcError) {
       const msg = rpcError.message || "";
