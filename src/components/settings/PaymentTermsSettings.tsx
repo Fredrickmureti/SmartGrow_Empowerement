@@ -177,6 +177,16 @@ export function PaymentTermsSettings() {
         </Button>
       </CardHeader>
       <CardContent>
+        {/* Without an explicitly flagged default, documents fall back to due on
+            receipt — the app never invents a credit period. Make that visible
+            here rather than letting it surprise people on the invoice screen. */}
+        {!isLoading && paymentTerms.length > 0 && !paymentTerms.some((t) => t.is_default) && (
+          <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <span className="font-medium">No default payment term set.</span>{" "}
+            New invoices and bills will be due on receipt unless the customer or
+            supplier has its own term. Use the row menu to set a default.
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
