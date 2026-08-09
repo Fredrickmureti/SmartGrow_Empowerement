@@ -82,6 +82,12 @@ interface Props<T extends PricedLineShape> {
   products?: PricedLineRowProduct[];
   /** Renders the item cell as a bare description input (credit notes, returns). */
   hideProductPicker?: boolean;
+  /**
+   * Column ids rendered as read-only text instead of inputs. Used by documents
+   * whose lines carry provenance from a source document (a credit note line
+   * picked off an invoice must not have its item, price or tax retyped).
+   */
+  lockedCells?: string[];
   /** Layout resolved by `EditableLineItemsGrid` for the measured container. */
   layout: EditableRowLayout;
   disabled?: boolean;
