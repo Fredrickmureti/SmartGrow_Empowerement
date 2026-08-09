@@ -20,7 +20,7 @@ import { DocumentVersionsSection } from "@/components/documents/DocumentVersions
 interface AllocationRow {
   id: string;
   invoice_id: string | null;
-  amount_applied: number;
+  amount: number;
   invoice?: { id: string; invoice_number: string | null; total: number | null } | null;
 }
 
@@ -62,7 +62,7 @@ export default function CustomerPaymentRecordPage() {
       const { data, error: err } = await supabase
         .from("payments")
         .select(
-          "*, contact:contacts(name, email, phone), payment_allocations(id, invoice_id, amount_applied, invoice:invoices(id, invoice_number, total))",
+          "*, contact:contacts(name, email, phone), payment_allocations(id, invoice_id, amount, invoice:invoices(id, invoice_number, total))",
         )
         .eq("id", id)
         .maybeSingle();
@@ -87,13 +87,13 @@ export default function CustomerPaymentRecordPage() {
       cells: [
         { columnId: "invoice", content: a.invoice?.invoice_number ?? a.invoice_id ?? "—" },
         { columnId: "invoiceTotal", content: formatCurrency(a.invoice?.total ?? 0) },
-        { columnId: "applied", content: formatCurrency(a.amount_applied ?? 0) },
+        { columnId: "applied", content: formatCurrency(a.amount ?? 0) },
       ],
     }));
   }, [row, formatCurrency]);
 
   const applied = useMemo(
-    () => (row?.payment_allocations ?? []).reduce((s, a) => s + (a.amount_applied ?? 0), 0),
+    () => (row?.payment_allocations ?? []).reduce((s, a) => s + (a.amount ?? 0), 0),
     [row],
   );
   const unapplied = Math.max((row?.amount ?? 0) - applied, 0);
