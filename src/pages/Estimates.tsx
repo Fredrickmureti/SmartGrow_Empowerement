@@ -102,6 +102,7 @@ import { EstimatePeekSheet } from "@/features/sales/estimates/EstimatePeekSheet"
 import { usePeekParam } from "@/design-system/records";
 import { EstimateListTable } from "@/components/estimates/EstimateListTable";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 export default function Estimates() {
   // View mode state
@@ -587,6 +588,7 @@ export default function Estimates() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" /> Import
                 </Button>
+                <ScanToDocumentButton createPath="/sales/estimates/new" label="Scan to estimate" />
                 <Button onClick={() => navigate("/sales/estimates/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" /> Create Estimate
                 </Button>

@@ -50,6 +50,7 @@ import {
 import { format } from "date-fns";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 // Compact workflow pipeline for table rows
 function RFQPipeline({ status }: { status: string }) {
@@ -213,6 +214,7 @@ export default function RFQs() {
                 } as ExportConfig;
               }}
             />
+            <ScanToDocumentButton createPath="/purchases/rfqs/new" label="Scan to RFQ" />
             <Button onClick={() => navigate("/purchases/rfqs/new")}>
               <Plus className="mr-2 h-4 w-4" /> Create RFQ
             </Button>

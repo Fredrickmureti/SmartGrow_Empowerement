@@ -69,6 +69,7 @@ import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord"
 import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -530,6 +531,7 @@ export default function SalesOrders() {
               <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                 <Upload className="mr-2 h-4 w-4" /> Import
               </Button>
+              <ScanToDocumentButton createPath="/sales/orders/new" label="Scan to order" />
               <Button onClick={() => navigate("/sales/orders/new")} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 New Sales Order

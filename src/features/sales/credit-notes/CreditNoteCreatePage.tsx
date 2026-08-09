@@ -9,7 +9,7 @@
  *   ?invoice_id=<uuid>   pre-fill related invoice (auto-loads its items)
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useCreditNotes, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { useContacts } from "@/hooks/useContacts";
 import { useInvoices } from "@/hooks/useInvoices";
@@ -66,6 +66,11 @@ const emptyLine = (sort_order = 0): LineItem => ({
 
 export default function CreditNoteCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const [searchParams] = useSearchParams();
   const prefillContactId = searchParams.get("contact_id") ?? "";
   const prefillInvoiceId = searchParams.get("invoice_id") ?? "";
@@ -344,6 +349,7 @@ export default function CreditNoteCreatePage() {
                 branchId={currentBranch?.id ?? null}
                 onResolved={handleScanResolved}
                 onSessionCommit={handleScanSessionCommit}
+                openSessionOnMount={openScanSessionOnMount}
               />
             }
             addLabel="Add Item"

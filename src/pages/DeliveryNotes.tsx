@@ -66,6 +66,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useMarkDeliveryReady, useCompleteDelivery } from "@/hooks/useDeliveryLifecycle";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -395,6 +396,7 @@ export default function DeliveryNotes() {
               }}
             />
             <PermissionGate permission="manageSales">
+              <ScanToDocumentButton createPath="/sales/delivery-notes/new" label="Scan to delivery note" />
               <Button onClick={() => navigate("/sales/delivery-notes/new")} className="w-full sm:w-auto shrink-0">
                 <Plus className="mr-2 h-4 w-4" />
                 New Delivery Note

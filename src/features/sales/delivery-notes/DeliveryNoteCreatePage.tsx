@@ -8,7 +8,7 @@
  *   ?contact_id=<uuid>   pre-fill customer
  */
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -84,6 +84,11 @@ interface LineItem {
 
 export default function DeliveryNoteCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const [searchParams] = useSearchParams();
   const prefillContactId = searchParams.get("contact_id") ?? undefined;
 
@@ -374,6 +379,7 @@ export default function DeliveryNoteCreatePage() {
                   branchId={currentBranch?.id ?? null}
                   onResolved={handleScanResolved}
                   onSessionCommit={handleScanSessionCommit}
+                  openSessionOnMount={openScanSessionOnMount}
                 />
               }
               addLabel="Add Item"

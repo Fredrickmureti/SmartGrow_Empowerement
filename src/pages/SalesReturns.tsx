@@ -62,6 +62,7 @@ import { PrintLabelButton } from "@/components/labels/PrintLabelButton";
 import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { PageHeader, PageBody } from "@/design-system";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 // Workflow step indicator component
 function WorkflowPipeline({ status, hasCreditNote, creditNoteStatus }: { status: string; hasCreditNote: boolean; creditNoteStatus?: string }) {
@@ -289,6 +290,7 @@ export default function SalesReturns() {
               }}
             />
             <PermissionGate permission="manageSales">
+              <ScanToDocumentButton createPath="/sales/returns/new" label="Scan to return" />
               <Button onClick={() => navigate("/sales/returns/new")}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Return

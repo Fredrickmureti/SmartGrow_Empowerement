@@ -78,6 +78,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Printer, Mail, Loader2 } from "lucide-react";
 import { normalizeError } from "@/services/resilience";
 import { PackagedQtyCell } from "@/components/products/PackagedQtyCell";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 // Compact workflow pipeline for table rows
 function WorkflowPipeline({ status }: { status: string }) {
@@ -350,6 +351,7 @@ export default function PurchaseReturns() {
               }}
             />
             <PermissionGate permission="managePurchases">
+              <ScanToDocumentButton createPath="/purchases/returns/new" label="Scan to return" />
               <Button onClick={() => navigate("/purchases/returns/new")} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" /> Create Return
               </Button>

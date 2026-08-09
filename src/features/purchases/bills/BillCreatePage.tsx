@@ -5,7 +5,7 @@
  * items, totals, analytics, and notes on the enterprise RecordFormShell.
  */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 
 import { FieldGrid, FieldGroup, RecordFormShell } from "@/design-system";
@@ -70,6 +70,11 @@ const calculateLineTotal = (item: LineItem) => {
 
 export default function BillCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Handheld list pages deep-link here with `openScanSession` so the
+  // camera sheet opens immediately (see ScanToDocumentButton).
+  const openScanSessionOnMount =
+    ((location.state as { openScanSession?: boolean } | null)?.openScanSession) === true;
   const [searchParams] = useSearchParams();
   const prefillContactId = searchParams.get("contact_id") ?? "";
   const prefillProjectId = searchParams.get("project_id");
@@ -369,6 +374,7 @@ export default function BillCreatePage() {
               branchId={currentBranch?.id ?? null}
               onResolved={handleScanResolved}
               onSessionCommit={handleScanSessionCommit}
+              openSessionOnMount={openScanSessionOnMount}
               disabled={isSubmitting}
             />
           }
