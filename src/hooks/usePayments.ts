@@ -109,6 +109,12 @@ export function usePayments() {
     reference?: string;
     notes?: string;
     deposit_account_id: string;
+    /**
+     * Idempotency key, forwarded to `record_multi_invoice_payment`. Derive it
+     * from the payment intent (never `crypto.randomUUID()`) so a double-click
+     * or a retry after a network timeout collapses onto one payment.
+     */
+    requestId?: string;
   }) => {
     if (!can("manageSales")) throw new Error("Permission denied: cannot record payments");
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
@@ -132,7 +138,9 @@ export function usePayments() {
       reference: input.reference,
       notes: input.notes,
       deposit_account_id: input.deposit_account_id,
+      requestId: input.requestId,
     });
+
 
     return {
       id: result.id,
