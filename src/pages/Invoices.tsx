@@ -24,6 +24,7 @@ import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
+import { resolvePaymentTerm, dueDateFromTerm, todayIso } from "@/services/finance/paymentTerms";
 import { DynamicViewsRenderer } from "@/components/common/DynamicViewsRenderer";
 import { CustomFieldFilters } from "@/components/common/CustomFieldFilters";
 import { useCustomFieldFiltering } from "@/hooks/useCustomFieldFiltering";
