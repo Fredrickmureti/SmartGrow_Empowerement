@@ -60,10 +60,10 @@ export function ReportSurface({
 }: ReportSurfaceProps) {
   const identity = useReportExportContext();
   const preparedOn = formatReportDate(new Date());
-  // One masthead for every report (see BrandedHeader.ts): logo left,
-  // entity block left, title/period right. `profile` still selects the
-  // wording ("As of ..." vs "For the period ..."), never the layout.
-  const financial = false;
+  // One masthead for every report (see BrandedHeader.ts): logo + entity
+  // block left, title/period/basis/scope right. `profile` still selects
+  // the wording ("As of ..." vs "For the period ..."), never the layout.
+
   const entityName = companyName || identity.companyName || "";
   const logoUrl = identity.logoUrl || null;
   const scopeLabel = identity.scopeLabel || null;
