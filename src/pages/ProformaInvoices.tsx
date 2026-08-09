@@ -59,6 +59,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PermissionGate } from "@/components/common/PermissionGate";
 import { ProformaPeekSheet } from "@/features/sales/proforma/ProformaPeekSheet";
 import { usePeekParam } from "@/design-system/records";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 export default function ProformaInvoices() {
   const navigate = useNavigate();
@@ -260,6 +261,7 @@ export default function ProformaInvoices() {
               }}
             />
             <PermissionGate permission="manageSales">
+              <ScanToDocumentButton createPath="/sales/proforma/new" label="Scan to proforma" />
               <Button onClick={() => navigate("/sales/proforma/new")} className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 New Proforma

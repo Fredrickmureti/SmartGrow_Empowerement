@@ -85,6 +85,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { CreditNoteListTable } from "@/components/credit-notes/CreditNoteListTable";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 export default function CreditNotes() {
   const navigate = useNavigate();
@@ -339,6 +340,7 @@ export default function CreditNotes() {
               }}
             />
             <PermissionGate permission="manageSales">
+              <ScanToDocumentButton createPath="/sales/credit-notes/new" label="Scan to credit note" />
               <Button onClick={() => navigate("/sales/credit-notes/new")} className="w-full sm:w-auto shrink-0">
                 <Plus className="mr-2 h-4 w-4" /> Create Credit Note
               </Button>

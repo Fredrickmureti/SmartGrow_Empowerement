@@ -84,6 +84,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { PurchaseOrderPeekSheet } from "@/features/purchases/orders/PurchaseOrderPeekSheet";
 import { usePeekParam } from "@/design-system";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 // Workflow pipeline for Purchase Orders
 function POWorkflowPipeline({ status }: { status: string }) {
@@ -441,6 +442,7 @@ export default function PurchaseOrders() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" /> Import
                 </Button>
+                <ScanToDocumentButton createPath="/purchases/orders/new" label="Scan to PO" />
                 <Button onClick={() => navigate("/purchases/orders/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" /> Create PO
                 </Button>

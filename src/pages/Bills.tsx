@@ -103,6 +103,7 @@ import { ReportExportButtons } from "@/components/reports/ReportExportButtons";
 import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportExportService";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
+import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 
 // Workflow pipeline for Bills
@@ -622,6 +623,7 @@ export default function Bills() {
                 <Button variant="outline" onClick={() => setShowImportWizard(true)} className="flex-1 sm:flex-none">
                   <Upload className="mr-2 h-4 w-4" /> Import
                 </Button>
+                <ScanToDocumentButton createPath="/purchases/bills/new" label="Scan to bill" />
                 <Button onClick={() => navigate("/purchases/bills/new")} className="flex-1 sm:flex-none">
                   <Plus className="mr-2 h-4 w-4" /> Add Bill
                 </Button>
