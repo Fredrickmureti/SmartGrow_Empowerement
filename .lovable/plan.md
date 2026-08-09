@@ -1,119 +1,124 @@
-# Delivery Note Domain — Business-Event Convergence
+# Payments & Reconciliation — Audit Findings and Convergence Plan
 
-Authoritative status for the Delivery Note (DN) architecture audit and convergence work.
-Last updated: 2026-08-09 (Phase 5 landed).
+## What the investigation actually found
 
-## Current position
+This subsystem is **already enterprise-grade in most respects**. Both the AR and AP
+allocation-first migrations (ADR 0027 / 0028) are *complete in the database*, not
+pending as the docs claim: I confirmed directly against the live schema that
+`payments.invoice_id` and `bill_payments.bill_id` no longer exist. Every distinct
+business event is modelled as its own server-side primitive, and no application code
+writes money into tables directly.
 
-Phases 1-5 are complete and verified. **Phase 6 (list/record parity hardening +
-returns) is the next phase; nothing is currently half-wired.**
+### Verified as correct — do not disturb
 
-## Phase 1 — Unblock the record surface (COMPLETE, verified)
+- **Separate business events, separate primitives.** `unapply_payment_atomic`,
+  `unreconcile_payment_atomic`, `reallocate_payment_atomic`, `void_payment_atomic`,
+  `refund_customer_atomic`, `issue_credit_note_for_payment_atomic`,
+  `apply_customer_deposit_atomic`, plus AP mirrors (`void_bill_payment_atomic`,
+  `refund_from_vendor_atomic`, `apply_vendor_credit_*`). Unreconcile, void, refund and
+  credit note are genuinely distinct — not collapsed into CRUD.
+- **Allocation-first, append-only.** Reversals append compensating negative allocation
+  rows and recompute invoice/bill balances from the *live allocation sum*; they never
+  delete history or decrement a client-supplied delta.
+- **RPC monopoly.** No client `.insert`/`.update` into `payments`, `payment_allocations`,
+  `bill_payments`, `bill_payment_allocations`. POS keeps its own tender tables and
+  bridges into AR only through `record_payment_atomic`. Bank reconciliation writes only
+  through `reconcile_bank_transaction_atomic`.
+- **Database invariants.** Allocation sum invariants (deferrable), contact/business
+  consistency, closed-period rejection, self-approval segregation-of-duties guards, and
+  a unique index preventing two live journal entries per source document.
+- **Idempotency where it already exists.** Refunds, reversals, deposit application and
+  payment-sourced credit notes all carry `client_request_id` with unique indexes.
+- **One reporting spine.** `customer_ledger_entries` / `vendor_ledger_entries`,
+  `finance_ar_open_items` / `finance_ap_open_items`, and the tie-out views.
 
-- `delivery_notes` has two foreign keys to `contacts` (`contact_id`,
-  `received_by_contact_id`), so a bare `contacts(...)` embed was ambiguous and the
-  record page failed with "Unable to load delivery note".
-- `useDeliveryNoteRecord` now embeds `contact:contacts!contact_id(...)` and
-  `received_by_contact:contacts!received_by_contact_id(...)` in one shared select.
-- `DeliveryNoteRecordPage` reads that single hook (no local fetch) and resolves the
-  recipient through the four-tier `resolveRecipientName` chain.
-- Verified: typecheck clean; ratchet test asserts no ambiguous embed can return.
+None of the above will be rewritten.
 
-## Phase 2 — Lifecycle ownership moved into the database (COMPLETE, verified)
+### Verified defects (each backed by code or database evidence)
 
-- Table-wide `UPDATE`/`DELETE` on `delivery_notes` revoked from `authenticated`/`anon`;
-  only descriptive columns granted back (`notes`, `delivery_date`, `shipping_address`,
-  `driver_name`, `vehicle_number`, `contact_id`, `received_by_contact_id`,
-  `auto_invoice_on_complete`, `updated_at`).
-- `status`, `ready_at`, `dispatched_at`, `delivered_at`, `cancelled_at`,
-  `spawned_invoice_id` are therefore changeable only inside the SECURITY DEFINER
-  engines (`mark_delivery_ready_atomic`, `dispatch_delivery_atomic`,
-  `complete_delivery_atomic`, `record_partial_delivery_atomic`,
-  `cancel_delivery_atomic`, `create_invoice_from_delivery_atomic`,
-  `wms_manifest_bridge_delivery_notes`).
-- Client delete removed; removal routes through `cancel_delivery_atomic`.
-- Verified in DB: `relacl` for `delivery_notes` shows `authenticated=arDxtm` (no `w`, no `d`).
-- Note: the original GUC-based trigger guard was rejected by Supabase
-  (`permission denied to set parameter "app.dn_status_writer"`); column privileges
-  achieve the same invariant declaratively and are the accepted mechanism.
+**D1 — Money-in is not idempotent (highest severity).**
+`payments` and `bill_payments` have no `client_request_id` column and no idempotency
+index, and `record_multi_invoice_payment` / `record_multi_bill_payment` /
+`record_payment_atomic` accept no request key. Every *reversal* path is protected; the
+path that creates money is not. A double-submit, retry-after-timeout, or replayed POS
+tender produces two payments and two journal entries — the journal source-uniqueness
+index cannot help, because the duplicate carries a new payment id.
 
-## Phase 3 — Atomic creation and safe numbering (COMPLETE, verified)
+**D2 — M-Pesa inbound can silently strand cash.**
+In `supabase/functions/mpesa-c2b/index.ts:342-381`, settlement runs only inside the
+`else` branch of the transaction-insert dedupe gate, and a settlement failure is merely
+logged. If the settlement RPC fails, the feed row is stored as matched, and any webhook
+redelivery is swallowed by the duplicate gate — the money exists in the feed and never
+becomes a payment, with no alert.
 
-- `get_next_delivery_number(org, business)` takes a per-business advisory lock and
-  parses only the sequence segment. Unique index enforces one number per business.
-- Legacy duplicates renumbered (four notes shared `DN-2026-2026`); live data now shows
-  `DN-2026-0001`, `2026`, `2027`, `2028`, `2029` — all distinct.
-- `create_delivery_note_atomic(p_payload, p_lines, p_user_id)` allocates the number and
-  writes header + lines in one transaction, including packaging/display-UoM fields.
-- `useDeliveryNotes.createDeliveryNote` calls the RPC; client-side number reservation
-  deleted.
+**D3 — Unreconcile reverses the payment itself.**
+`unreconcile_payment_atomic` voids the payment's journal entry and nulls
+`journal_entry_id`, which reverses the whole `Dr Bank / Cr AR` entry. The payment stays
+valid, but the cash disappears from the general ledger until someone reapplies it —
+bank balance understated, and permanently wrong if never reapplied. The correct shape
+already exists next door: `unapply_payment_atomic` reclassifies `Dr AR / Cr Customer
+Deposits` and leaves cash untouched. Currently latent (the operation is not exposed in
+the UI), which makes it cheap to fix now.
 
-## Phase 4 — Quantity ledger (COMPLETE, verified)
+**D4 — AP has no advance/unapplied vendor payment.**
+`bill_payments` has no vendor column at all; vendor identity is only reachable through
+allocations to bills. A vendor payment on account therefore cannot exist, and AR's
+customer-deposit capability has no AP mirror.
 
-- `dn_line_balances` (security_invoker view) is the single source for
-  ordered / delivered / invoiced / returned / outstanding quantities. It zeroes
-  quantities before goods-issue and nets completed return DNs.
-- `useDeliveryNoteLineBalances` reads it; `DeliveryNoteRecordPage` renders
-  Delivered / Returned / Outstanding from the view instead of re-deriving from
-  `delivery_note_items`.
+**D5 — Bank reconciliation creates payments without a period guard or request key.**
+`reconcile_bank_transaction_atomic` creates payment/bill-payment rows; closed-period
+protection is only inherited from row triggers, and repeated matching has no idempotency
+key of its own.
 
-## Phase 5 — Lifecycle UI + proof of delivery on the record page (COMPLETE, verified)
+**D6 — Documentation and guard drift.**
+ADR 0028 still labels the completed S3c work "deferred"; project memory lists finished
+items as pending; two parallel `RecordPaymentDialog` components remain (ratcheted at
+"max 2"); migration rollback deletes `payments` rows directly with no guard test
+covering that carve-out.
 
-- `DeliveryNoteRecordPage` now renders `DeliveryLogisticsPanel` inside a
-  **Fulfilment** section, which exposes the full engine set: mark ready
-  (`mark_delivery_ready_atomic`), dispatch (`dispatch_delivery_atomic`),
-  logistics edit incl. carrier/tracking/freight (`update_delivery_logistics_atomic`),
-  complete with POD capture (`complete_delivery_atomic`), record partial +
-  backorder (`record_partial_delivery_atomic`), plus the lifecycle timeline and
-  proof-of-delivery history.
-- Header quick actions added: Back, **Print** (now enabled) and Cancel delivery
-  (via `cancel_delivery_atomic`, hidden on final statuses).
-- Print bug fixed: the record page passed no `onPrint`, so `RecordScaffold`
-  rendered the button disabled. Print now runs through the new shared
-  `usePrintDeliveryNote` hook (snapshot → `document_records` → output intent);
-  `src/pages/DeliveryNotes.tsx` was refactored onto the same hook so the list and
-  the record page cannot drift.
-- `useDocumentRecord` now returns `refetch`; lifecycle actions refresh the record
-  in place.
-- `DeliveryStatusBanner` (invoice surface) refactored off an inline
-  `complete_delivery_atomic` call onto `useCompleteDelivery`.
-- Ratchet extended with two new tests: only `usePrintDeliveryNote` may build the
-  delivery-note snapshot, and only the RPC wrapper hooks may call the lifecycle
-  RPCs. All 5 ratchet tests pass; `tsgo --noEmit` clean.
+## Convergence plan
 
-## Phase 6 — Returns and parity hardening (NEXT, not started)
+Ordered by financial risk. Each step is additive and preserves existing call signatures.
 
-1. Return delivery notes: a first-class create path + UI surfacing on the record
-   page (the `dn_line_balances` view already nets completed returns).
-2. Record-page edit path for the descriptive columns (the granted whitelist)
-   so "Edit" stops being a dead action.
-3. Backorder visibility: link spawned backorder DNs from the parent record.
+**1. Idempotent money-in.** Add `client_request_id` to `payments` and `bill_payments`
+with a partial unique index. Extend `record_multi_invoice_payment`,
+`record_multi_bill_payment` and the `record_payment_atomic` shim with an optional
+`_client_request_id`; when it matches an existing payment, return that payment instead of
+creating a second one. Thread a deterministic key from the record-payment dialogs,
+`useBills`, the POS invoice bridge and the M-Pesa function.
 
-## Deferred (explicitly out of scope, do not start early)
+**2. M-Pesa settlement becomes retryable.** Move settlement outside the dedupe gate and
+drive it from the feed row's own settlement state, so a redelivery retries an unsettled
+transaction rather than skipping it; surface failures instead of swallowing them.
 
-- Per-line over-delivery cap (needs `delivery_note_items.invoice_item_id` + backfill);
-  the per-product cap is sufficient today.
-- Multi-step pick / pack / ship warehouse flow.
+**3. Correct unreconcile accounting.** Replace the journal void inside
+`unreconcile_payment_atomic` with the reclassification `Dr AR / Cr Customer Deposits`,
+matching `unapply_payment_atomic`; reapply then consumes the deposit. Cash never leaves
+the ledger during an unreconciliation.
 
-## Ratchets and docs
+**4. Bank reconciliation hardening.** Add an explicit period check and an idempotency key
+to `reconcile_bank_transaction_atomic`.
 
-- `src/__tests__/architecture.delivery-note-engine.test.ts` — no direct insert/delete,
-  no lifecycle-column writes, no ambiguous contacts embed.
-- `supabase/tests/delivery_notes_invariants_test.sql` — DB-layer invariants.
-- ADR: `docs/adr/0026-delivery-note-product-coupling.md` (amendment at the end).
-- Memory: `mem://features/delivery-note-lifecycle`.
+**5. Vendor payments on account.** Add `vendor_id` to `bill_payments`, allow
+`record_multi_bill_payment` to run with zero allocations against a Vendor Deposits
+account, and mirror the deposit-application flow used on the customer side.
 
-## Instructions for the next agent
+**6. Close the drift.** Update ADR 0027/0028 and the memory files to match reality; add a
+guard test banning direct writes to the payment tables including migration code (with the
+rollback path explicitly allowlisted and justified); consolidate the two
+`RecordPaymentDialog` components to one and tighten the ratchet to 1.
 
-1. **Verify before building.** Confirm, with real reads: `relacl` on `delivery_notes`
-   still lacks `w`/`d` for `authenticated`; `create_delivery_note_atomic` and
-   `get_next_delivery_number(uuid, uuid)` exist and are SECURITY DEFINER; the unique
-   delivery-number index is present; `dn_line_balances` returns rows; and
-   `npx tsgo --noEmit -p tsconfig.app.json` plus the two delivery test files pass.
-2. Also verify Phase 5: open a delivery note full page and confirm Print is
-   enabled and fires the print event, the Fulfilment panel renders, and each
-   lifecycle button calls its RPC and refreshes the record. Only then start
-   **Phase 6**, in the numbered order above. Finish each item
-   (RPC call + UI + invalidation + ratchet coverage) before moving to the next —
-   no half-wired lifecycle actions.
-3. Update this file immediately after each item lands.
+**7. Publish the audit.** Write the full A–P deliverable (domain model, lifecycle,
+allocation model, accounting flow, downstream consumer map, enterprise comparison,
+preserved architecture) to `docs/audit/payments-reconciliation-2026-08.md`, and record the
+two behavioural changes as ADRs.
+
+### Risk and verification
+
+Steps 1, 4 and 5 are additive schema changes with defaulted parameters, so existing
+callers keep working. Step 3 changes accounting behaviour for an operation with no
+current UI caller and no production rows on this instance, so regression exposure is
+minimal. Verification uses the existing pattern: SQL behavioural tests under
+`supabase/tests/` (duplicate-key replay proves one payment and one journal entry;
+unreconcile proves bank balance unchanged and AR restored) plus the architecture ratchets
+under `src/test/architecture/`.
