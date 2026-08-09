@@ -9,7 +9,7 @@
 --   * transition_sales_return enforces the state machine and refuses to
 --     approve (approval belongs to approve_sales_return_atomic)
 BEGIN;
-SELECT plan(16);
+SELECT plan(22);
 
 -- ---------- fixtures ----------
 CREATE TEMP TABLE _sr_fx (org uuid, biz uuid) ON COMMIT DROP;
@@ -99,6 +99,32 @@ SELECT ok(
      (SELECT biz FROM _sr_fx), NULL,
      '00000000-0000-0000-0000-0000000000c6'::uuid, 2)->>'fallback_reason') IS NOT NULL,
   'a fallback valuation always records an explainable reason'
+);
+
+
+-- ---------- Phase 7: settlement & refund completeness ----------
+SELECT has_view('public', 'v_sales_return_settlement',
+  'a single settlement position exists per sales return');
+SELECT has_column('public', 'v_sales_return_settlement', 'is_settled',
+  'the settlement position states whether the return is fully settled');
+SELECT has_column('public', 'v_sales_return_settlement', 'open_credit',
+  'unused customer credit is reported separately from refunds and applications');
+SELECT ok(
+  (SELECT count(*) FROM public.v_sales_return_settlement
+    WHERE applied + refunded > credited + 0.01) = 0,
+  'no return is settled for more than it was credited (no double settlement)'
+);
+SELECT ok(
+  (SELECT count(*) FROM public.sales_returns sr
+    LEFT JOIN public.v_sales_return_settlement s ON s.sales_return_id = sr.id
+    WHERE sr.status = 'refunded' AND COALESCE(s.credit_note_id, NULL) IS NULL) = 0,
+  'a refunded return always carries a credit note'
+);
+SELECT throws_ok(
+  $$ SELECT public.transition_sales_return(
+       '00000000-0000-0000-0000-000000000001'::uuid, 'refunded', NULL) $$,
+  NULL, NULL,
+  'transition to refunded refuses when there is no settled credit note'
 );
 
 SELECT * FROM finish();
