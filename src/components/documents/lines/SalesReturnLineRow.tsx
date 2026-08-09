@@ -12,6 +12,7 @@
 
 import { memo, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
