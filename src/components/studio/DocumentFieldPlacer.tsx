@@ -159,10 +159,10 @@ export function DocumentFieldPlacer({ entityType }: DocumentFieldPlacerProps) {
                       : "hover:bg-muted/20"
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="text-xs font-medium">{section.label}</span>
-                    <span className="text-xs text-muted-foreground">— {section.description}</span>
+                    <span className="hidden text-xs text-muted-foreground sm:inline">— {section.description}</span>
                     {sectionFields.length > 0 && (
                       <Badge variant="secondary" className="text-xs ml-auto">
                         {sectionFields.length}
