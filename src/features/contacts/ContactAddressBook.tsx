@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, MapPin, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { useOrganizations } from "@/hooks/useOrganizations";
+import { useOrganization } from "@/hooks/useOrganization";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ export function ContactAddressBook({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentBusiness } = useBusinesses();
-  const { currentOrganization } = useOrganizations();
+  const { currentOrg } = useOrganization();
   const [draft, setDraft] = useState<AddressDraft | null>(null);
 
   const queryKey = ["party-addresses", contactId];
@@ -143,13 +143,13 @@ export function ContactAddressBook({
         return;
       }
 
-      if (!currentBusiness || !currentOrganization) {
+      if (!currentBusiness || !currentOrg) {
         throw new Error("No business selected");
       }
       const { error } = await supabase.from("contacts").insert({
         ...payload,
         parent_contact_id: contactId,
-        organization_id: currentOrganization.id,
+        organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         is_company: false,
         is_active: true,
