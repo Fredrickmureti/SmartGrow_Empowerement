@@ -31,6 +31,12 @@ import {
 /** Minimum line shape a sales-return line satisfies. */
 export interface ReturnLineShape {
   product_id?: string | null;
+  /**
+   * Set when the line came from an invoice line picked through the
+   * reference-document picker. Its presence is what makes the line
+   * carry cost/tax provenance — and what locks product and price.
+   */
+  invoice_item_id?: string | null;
   description: string;
   quantity: number;
   max_quantity: number;
