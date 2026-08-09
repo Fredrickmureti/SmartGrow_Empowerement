@@ -24,6 +24,7 @@ import { ViewSwitcher } from "@/components/common/ViewSwitcher";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
 import { ContactResolver, ProductResolver } from "@/lib/entityResolver";
+import { resolvePaymentTerm, dueDateFromTerm, todayIso } from "@/services/finance/paymentTerms";
 import { DynamicViewsRenderer } from "@/components/common/DynamicViewsRenderer";
 import { CustomFieldFilters } from "@/components/common/CustomFieldFilters";
 import { useCustomFieldFiltering } from "@/hooks/useCustomFieldFiltering";
@@ -486,7 +487,9 @@ export default function Invoices() {
       tax_rate: taxRate,
     });
     await createInvoice(
-      { contact_id: resolved.id, due_date: row.due_date || format(addDays(new Date(), 30), "yyyy-MM-dd"), notes: row.notes || undefined, currency: baseCurrency, status: "draft" },
+      // Imported rows without a due date get the resolved payment term
+      // (customer -> company default -> due on receipt), never a made-up 30 days.
+      { contact_id: resolved.id, due_date: row.due_date || dueDateFromTerm(todayIso(), (await resolvePaymentTerm({ organizationId: currentOrg.id, businessId: currentBusiness.id, contactId: resolved.id }))?.days ?? 0), notes: row.notes || undefined, currency: baseCurrency, status: "draft" },
       [{ description: row.item_description, quantity, unit_price: unitPrice, tax_rate: taxRate, tax_amount, discount_percent: discountPercent, line_total, sort_order: 0 }]
     );
   };
