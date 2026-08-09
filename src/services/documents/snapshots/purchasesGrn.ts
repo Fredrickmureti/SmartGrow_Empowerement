@@ -49,6 +49,10 @@ export interface PurchasesGrnHeaderRow {
     currency: string | null;
     vendor_id?: string | null;
     vendor: PurchasesGrnVendorRow | null;
+    /** OUR receiving destination, snapshotted on the PO. Never the vendor's. */
+    shipping_address?: string | null;
+    deliver_to_warehouse?: { name: string | null } | null;
+    deliver_to_branch?: { name: string | null } | null;
   } | null;
   items: PurchasesGrnItemRow[] | null;
 }
@@ -125,7 +129,17 @@ export function buildPurchasesGrnSnapshot(
     business_id: grn.business_id,
     organization_id: grn.organization_id,
     branch_id: grn.branch_id,
-    shipping_address: null,
+    // The receiving destination the PO committed to. A GRN that prints no
+    // destination is unusable at the dock, so it inherits the PO snapshot.
+    shipping_address:
+      [
+        grn.purchase_order?.deliver_to_warehouse?.name ??
+          grn.purchase_order?.deliver_to_branch?.name ??
+          null,
+        grn.purchase_order?.shipping_address ?? null,
+      ]
+        .filter(Boolean)
+        .join("\n") || null,
     reference: grn.purchase_order?.po_number ?? null,
     items,
   };
@@ -154,7 +168,9 @@ export async function fetchAndBuildPurchasesGrnSnapshot(
       id, receipt_number, status, receipt_date, notes,
       organization_id, business_id, branch_id, purchase_order_id,
       purchase_order:purchase_orders(
-        po_number, currency, vendor_id,
+        po_number, currency, vendor_id, shipping_address,
+        deliver_to_warehouse:warehouses!purchase_orders_deliver_to_warehouse_id_fkey(name),
+        deliver_to_branch:branches!purchase_orders_deliver_to_branch_id_fkey(name),
         vendor:contacts(name, email, phone, address_line1, city, state, postal_code)
       ),
       items:goods_receipt_items(

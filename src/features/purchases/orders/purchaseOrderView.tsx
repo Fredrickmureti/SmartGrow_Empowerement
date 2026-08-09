@@ -15,6 +15,7 @@ import type {
   LineItemRow,
 } from "@/design-system/records";
 import { Section } from "@/design-system";
+import { AddressBlock } from "@/components/addresses/AddressBlock";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { PurchaseOrderReceiptsSection } from "@/features/purchases/goods-receipt/PurchaseOrderReceiptsSection";
@@ -109,11 +110,25 @@ export function usePurchaseOrderView(
             { label: "Currency", value: po.currency },
             { label: "Billing status", value: formatStatus(po.billing_status ?? "no") },
             {
-              label: "Shipping address",
+              // A PO destination is OUR location, never the supplier's
+              // address — the label has to say so.
+              label: "Deliver to (our location)",
               value: (
-                <span className="whitespace-pre-wrap">
-                  {po.shipping_address ?? "—"}
-                </span>
+                <AddressBlock
+                  name={
+                    po.deliver_to_warehouse?.name ??
+                    po.deliver_to_branch?.name ??
+                    null
+                  }
+                  address={po.shipping_address}
+                  provenance={
+                    po.deliver_to_warehouse_id || po.deliver_to_branch_id
+                      ? "internal"
+                      : po.shipping_address
+                        ? "custom"
+                        : "none"
+                  }
+                />
               ),
             },
           ]

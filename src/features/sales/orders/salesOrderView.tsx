@@ -11,6 +11,7 @@ import type {
   LineItemRow,
 } from "@/design-system/records";
 import { Section } from "@/design-system";
+import { AddressBlock } from "@/components/addresses/AddressBlock";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import type { SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderRecord } from "./useSalesOrderRecord";
@@ -104,11 +105,18 @@ export function useSalesOrderView(
             { label: "Expected date", value: fmt(order.expected_date) },
             { label: "Currency", value: order.currency },
             {
-              label: "Shipping address",
+              label: "Ship to",
               value: (
-                <span className="whitespace-pre-wrap">
-                  {order.shipping_address ?? "—"}
-                </span>
+                <AddressBlock
+                  address={order.shipping_address}
+                  provenance={
+                    order.ship_to_contact_id
+                      ? "address_book"
+                      : order.shipping_address
+                        ? "custom"
+                        : "none"
+                  }
+                />
               ),
             },
           ]

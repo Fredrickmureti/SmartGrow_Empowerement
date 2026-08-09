@@ -400,7 +400,7 @@ async function fetchGoodsReceivedNote(supabase: any, documentId: string): Promis
     .from("goods_receipts")
     .select(`
       *,
-      purchase_order:purchase_orders(po_number, vendor:contacts(name, email, phone, address_line1, city, state, postal_code), currency),
+      purchase_order:purchase_orders(po_number, vendor:contacts(name, email, phone, address_line1, city, state, postal_code), currency, shipping_address, deliver_to_warehouse:warehouses!purchase_orders_deliver_to_warehouse_id_fkey(name), deliver_to_branch:branches!purchase_orders_deliver_to_branch_id_fkey(name)),
       organization:organizations(${ORG_FALLBACK_COLS}),
       business:businesses(${BUSINESS_BRANDING_COLS}),
       items:goods_receipt_items(*, packaging:product_packaging(name, qty_in_base_uom), product:products(base_uom:units_of_measure!base_uom_id(code, name)))
@@ -436,7 +436,17 @@ async function fetchGoodsReceivedNote(supabase: any, documentId: string): Promis
       line_total: 0,
       ...packFields(item),
     })),
-    shipping_address: null,
+    // Receiving destination inherited from the PO — mirrors
+    // src/services/documents/snapshots/purchasesGrn.ts.
+    shipping_address:
+      [
+        grn.purchase_order?.deliver_to_warehouse?.name ??
+          grn.purchase_order?.deliver_to_branch?.name ??
+          null,
+        grn.purchase_order?.shipping_address ?? null,
+      ]
+        .filter(Boolean)
+        .join("\n") || null,
   };
 }
 

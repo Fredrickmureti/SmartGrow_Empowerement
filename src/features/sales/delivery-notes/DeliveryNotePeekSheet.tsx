@@ -15,6 +15,7 @@ import {
 } from "@/design-system/records";
 import type { DeliveryNote } from "@/hooks/useDeliveryNotes";
 import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
+import { AddressBlock } from "@/components/addresses/AddressBlock";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 const fmt = (v?: string | null) => { if (!v) return "—"; try { return format(new Date(v), "PP"); } catch { return v; } };
@@ -69,7 +70,23 @@ export function DeliveryNotePeekSheet({ deliveryNoteId, onOpenChange }: Props) {
               <div><dt className="text-xs font-medium text-muted-foreground">Delivered at</dt><dd className="mt-0.5">{fmt(record.delivered_at)}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Driver</dt><dd className="mt-0.5">{record.driver_name ?? "—"}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Vehicle</dt><dd className="mt-0.5">{record.vehicle_number ?? "—"}</dd></div>
-              <div className="sm:col-span-2"><dt className="text-xs font-medium text-muted-foreground">Shipping address</dt><dd className="mt-0.5 whitespace-pre-line">{record.shipping_address ?? "—"}</dd></div>
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-medium text-muted-foreground">Ship to</dt>
+                <dd className="mt-0.5">
+                  <AddressBlock
+                    address={record.shipping_address}
+                    provenance={
+                      record.ship_to_contact_id
+                        ? "address_book"
+                        : record.sales_order_id && record.shipping_address
+                          ? "inherited"
+                          : record.shipping_address
+                            ? "custom"
+                            : "none"
+                    }
+                  />
+                </dd>
+              </div>
             </dl>
           </Section>
           <Section title="Line items"><LineItemsGrid columns={columns} rows={rows} readOnly /></Section>

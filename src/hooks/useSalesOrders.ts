@@ -25,6 +25,8 @@ export interface SalesOrder {
   shipping_amount: number;
   total: number;
   shipping_address: string | null;
+  /** Structured link to the chosen saved address (ADR-0038 child contact). */
+  ship_to_contact_id?: string | null;
   notes: string | null;
   converted_invoice_id: string | null;
   converted_at: string | null;

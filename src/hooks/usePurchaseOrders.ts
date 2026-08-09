@@ -47,6 +47,11 @@ export interface PurchaseOrder {
   total: number;
   currency: string;
   shipping_address: string | null;
+  /** OUR receiving location — never the supplier's address. */
+  deliver_to_warehouse_id?: string | null;
+  deliver_to_branch_id?: string | null;
+  deliver_to_warehouse?: { name: string } | null;
+  deliver_to_branch?: { name: string } | null;
   notes: string | null;
   converted_bill_id: string | null;
   converted_at: string | null;
@@ -125,9 +130,10 @@ export function usePurchaseOrders() {
   };
 
   const createPurchaseOrder = async (
-    po: Omit<PurchaseOrder, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items">,
+    po: Omit<PurchaseOrder, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items" | "deliver_to_warehouse" | "deliver_to_branch">,
     items: Omit<PurchaseOrderItem, "id" | "purchase_order_id">[]
   ) => {
+
     if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to create purchase orders", variant: "destructive" }); throw new Error("Permission denied"); }
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 

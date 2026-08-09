@@ -18,6 +18,7 @@ import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
 import { useDeliveryNoteLineBalances } from "./useDeliveryNoteLineBalances";
 import { usePrintDeliveryNote } from "./usePrintDeliveryNote";
 import { resolveRecipientName } from "@/lib/looksLikeUUID";
+import { AddressBlock } from "@/components/addresses/AddressBlock";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { DeliveryLogisticsPanel } from "@/components/sales/DeliveryLogisticsPanel";
@@ -157,7 +158,23 @@ export default function DeliveryNoteRecordPage() {
         { label: "Delivery date", value: fmt(row.delivery_date) },
         { label: "Driver", value: row.driver_name },
         { label: "Vehicle #", value: row.vehicle_number },
-        { label: "Shipping address", value: row.shipping_address },
+        {
+          label: "Ship to",
+          value: (
+            <AddressBlock
+              address={row.shipping_address}
+              provenance={
+                      row.ship_to_contact_id
+                        ? "address_book"
+                        : row.sales_order_id && row.shipping_address
+                          ? "inherited"
+                          : row.shipping_address
+                            ? "custom"
+                            : "none"
+                    }
+            />
+          ),
+        },
         {
           label: "Received by",
           value: resolveRecipientName({
