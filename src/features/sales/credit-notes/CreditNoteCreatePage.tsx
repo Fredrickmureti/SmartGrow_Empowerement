@@ -397,14 +397,66 @@ export default function CreditNoteCreatePage() {
         </FieldGroup>
 
         <FieldGroup label="Reason">
-          <div className="space-y-2">
-            <Label>Reason for Credit *</Label>
-            <Input
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              placeholder="e.g., Product return, Service issue, Billing error"
-            />
-          </div>
+          <FieldGrid columns={2}>
+            <div className="space-y-2">
+              <Label>Reason for Credit *</Label>
+              <Select
+                value={reasonChoice}
+                onValueChange={(v) => {
+                  setReasonChoice(v);
+                  setFormData((f) => ({
+                    ...f,
+                    reason: v === CREDIT_REASON_OTHER ? "" : v,
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CREDIT_REASON_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {reasonChoice && reasonChoice !== CREDIT_REASON_OTHER && (
+                <p className="text-xs text-muted-foreground">
+                  {CREDIT_REASON_OPTIONS.find((o) => o.value === reasonChoice)?.description}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>
+                {reasonChoice === CREDIT_REASON_OTHER ? "Your reason *" : "Detail (optional)"}
+              </Label>
+              <Input
+                value={
+                  reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
+                    ? formData.reason.replace(new RegExp(`^${reasonChoice}\\s*[—-]?\\s*`), "")
+                    : formData.reason
+                }
+                onChange={(e) => {
+                  const detail = e.target.value;
+                  setFormData((f) => ({
+                    ...f,
+                    reason:
+                      reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
+                        ? detail
+                          ? `${reasonChoice} — ${detail}`
+                          : reasonChoice
+                        : detail,
+                  }));
+                }}
+                placeholder={
+                  reasonChoice === CREDIT_REASON_OTHER
+                    ? "Describe why this credit is being issued"
+                    : "Add specifics for the audit trail"
+                }
+              />
+            </div>
+          </FieldGrid>
         </FieldGroup>
 
         <FieldGroup label="Line Items">
@@ -412,41 +464,68 @@ export default function CreditNoteCreatePage() {
             columns={PRICED_LINE_COLUMNS}
             rows={lineItems}
             toolbar={
-              <DocumentLineScanner
-                documentLabel="Credit note"
-                businessId={currentBusiness?.id}
-                branchId={currentBranch?.id ?? null}
-                onResolved={handleScanResolved}
-                onSessionCommit={handleScanSessionCommit}
-                openSessionOnMount={openScanSessionOnMount}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {formData.invoice_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    {lineItems.some((l) => l.source_invoice_item_id)
+                      ? "Edit invoice lines"
+                      : "Select invoice lines"}
+                  </Button>
+                )}
+                <DocumentLineScanner
+                  documentLabel="Credit note"
+                  businessId={currentBusiness?.id}
+                  branchId={currentBranch?.id ?? null}
+                  onResolved={handleScanResolved}
+                  onSessionCommit={handleScanSessionCommit}
+                  openSessionOnMount={openScanSessionOnMount}
+                />
+              </div>
             }
-            addLabel="Add Item"
+            addLabel={formData.invoice_id ? "Add off-invoice line" : "Add Item"}
             onAddRow={addLineItem}
             onRemoveRow={removeLineItem}
-            renderRow={(item, index, layout) => (
-              <PricedLineRow
-                index={index}
-                item={item}
-                flashed={flashIndex === index}
-                hideProductPicker
-                layout={layout}
-                formatCurrency={formatCurrency}
-                onPatch={patchLineItem}
-                extra={
-                  <OutboundLineTracking
-                    productId={item.product_id ?? null}
-                    quantity={item.quantity}
-                    onLotChange={(allocs) =>
-                      patchLineItem(index, { lot_number: lotNumberFromAllocations(allocs) } as any)
-                    }
-                    onSerialChange={(_ids, rows) =>
-                      patchLineItem(index, { serial_number: serialNumberFromRows(rows) } as any)
-                    }
-                  />
-                }
-              />
-            )}
+            renderRow={(item, index, layout) => {
+              const fromInvoice = Boolean(item.source_invoice_item_id);
+              return (
+                <PricedLineRow
+                  index={index}
+                  item={item}
+                  products={fromInvoice ? undefined : products}
+                  hideProductPicker={fromInvoice}
+                  lockedCells={fromInvoice ? ["item", "unit_price", "tax_rate"] : undefined}
+                  flashed={flashIndex === index}
+                  layout={layout}
+                  formatCurrency={formatCurrency}
+                  onPatch={patchLineItem}
+                  onProductSelect={fromInvoice ? undefined : handleProductSelect}
+                  extra={
+                    <div className="space-y-1">
+                      <Badge variant={fromInvoice ? "secondary" : "outline"} className="text-[10px]">
+                        {fromInvoice
+                          ? `From ${selectedInvoice?.invoice_number ?? "invoice"}`
+                          : "Off-invoice line"}
+                      </Badge>
+                      <OutboundLineTracking
+                        productId={item.product_id ?? null}
+                        quantity={item.quantity}
+                        onLotChange={(allocs) =>
+                          patchLineItem(index, { lot_number: lotNumberFromAllocations(allocs) } as any)
+                        }
+                        onSerialChange={(_ids, rows) =>
+                          patchLineItem(index, { serial_number: serialNumberFromRows(rows) } as any)
+                        }
+                      />
+                    </div>
+                  }
+                />
+              );
+            }}
           />
 
           <div className="flex justify-end pt-2">
