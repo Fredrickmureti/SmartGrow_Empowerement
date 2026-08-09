@@ -27,6 +27,7 @@ import {
 import { CountryCombobox } from "@/components/contacts/CountryCombobox";
 import { ParentCompanyCombobox } from "@/components/contacts/ParentCompanyCombobox";
 import { CreditManagementSection } from "@/components/contacts/CreditManagementSection";
+import { ContactAddressBook } from "./ContactAddressBook";
 import { ProductAccountSelector } from "@/components/products/ProductAccountSelector";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { useContactsPaginated, type Contact } from "@/hooks/useContactsPaginated";
@@ -473,6 +474,17 @@ export function ContactRecordForm({
             </div>
           )}
         </div>
+
+        {/* Saved addresses — only for an existing ROOT party. A child
+            address row cannot own an address book of its own. */}
+        {mode === "edit" &&
+          initialContact?.id &&
+          formData.parent_contact_id === "none" && (
+            <ContactAddressBook
+              contactId={initialContact.id}
+              partyName={formData.name}
+            />
+          )}
 
         {(formData.type === "customer" || formData.type === "both") && (
           <CreditManagementSection
