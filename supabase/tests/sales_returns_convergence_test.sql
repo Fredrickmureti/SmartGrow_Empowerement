@@ -9,7 +9,7 @@
 --   * transition_sales_return enforces the state machine and refuses to
 --     approve (approval belongs to approve_sales_return_atomic)
 BEGIN;
-SELECT plan(9);
+SELECT plan(16);
 
 -- ---------- fixtures ----------
 CREATE TEMP TABLE _sr_fx (org uuid, biz uuid) ON COMMIT DROP;
@@ -70,6 +70,35 @@ SELECT throws_ok(
        '00000000-0000-0000-0000-000000000001'::uuid, 'approved', NULL) $$,
   NULL, NULL,
   'transition_sales_return never performs approval'
+);
+
+
+-- ---------- Phase 6: cost basis fidelity ----------
+SELECT has_table('public', 'sales_return_cost_basis',
+  'cost basis of every restored return line is recorded');
+SELECT has_table('public', 'sales_return_cost_allocations',
+  'each restored line records which outbound cost portions it consumed');
+SELECT col_is_unique('public', 'sales_return_cost_basis', ARRAY['sales_return_item_id'],
+  'a return line can only carry one cost basis row');
+SELECT has_function('public', 'resolve_sales_return_line_cost',
+  ARRAY['uuid','uuid','uuid','numeric'],
+  'resolver for the original outbound cost of a returned line exists');
+SELECT ok(
+  (SELECT public.resolve_sales_return_line_cost(
+     (SELECT biz FROM _sr_fx), NULL, NULL, 1)->>'method') = 'none',
+  'resolver returns no basis when there is no product to value'
+);
+SELECT ok(
+  (SELECT (public.resolve_sales_return_line_cost(
+     (SELECT biz FROM _sr_fx), NULL,
+     '00000000-0000-0000-0000-0000000000c6'::uuid, 2)->>'fallback_qty')::numeric) = 2,
+  'with no outbound history the whole quantity is flagged as a fallback valuation'
+);
+SELECT ok(
+  (SELECT public.resolve_sales_return_line_cost(
+     (SELECT biz FROM _sr_fx), NULL,
+     '00000000-0000-0000-0000-0000000000c6'::uuid, 2)->>'fallback_reason') IS NOT NULL,
+  'a fallback valuation always records an explainable reason'
 );
 
 SELECT * FROM finish();
