@@ -15,6 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
+import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
+
 
 type Row = CreditNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -29,6 +32,8 @@ function fmt(d?: string | null) {
 export default function CreditNoteRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
+  const { preview } = useDocumentPreview();
+  const { print, printing } = useRecordPrint("credit_note");
   const [row, setRow] = useState<Row | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +130,13 @@ export default function CreditNoteRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Credit note ${row.credit_note_number} created` },
         ...(isFullyApplied ? [{ id: "applied", at: fmt(row.updated_at), title: "Fully applied", tone: "success" as const }] : []),
       ] : undefined}
+      onPreview={row ? () => preview({
+        documentType: "credit_note",
+        documentId: row.id,
+        title: `Credit Note ${row.credit_note_number}`,
+        filename: `credit-note-${row.credit_note_number}`,
+      }) : undefined}
+      onPrint={row && !printing ? () => void print(row.id, `Credit Note ${row.credit_note_number}`) : undefined}
       extraSections={row ? <DocumentVersionsSection documentType="credit_note" documentId={row.id} /> : undefined}
     />
   );
