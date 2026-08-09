@@ -42,10 +42,12 @@ describe("delivery note write paths", () => {
   });
 
   it("disambiguates the two contacts foreign keys when embedding", () => {
-    const offenders = FILES.filter(({ text }) => {
-      const flat = text.replace(/\s+/g, " ");
-      return /from\("delivery_notes"\)/.test(flat) && /contact:contacts\(/.test(flat);
-    }).map((f) => f.path);
+    // delivery_notes has two FKs to contacts (contact_id, received_by_contact_id),
+    // so a bare `contact:contacts(...)` embed is ambiguous and 400s at runtime.
+    const ambiguous = /from\("delivery_notes"\)[^;]{0,300}?contact:contacts\(/;
+    const offenders = FILES.filter(({ text }) => ambiguous.test(text.replace(/\s+/g, " "))).map(
+      (f) => f.path,
+    );
     expect(offenders).toEqual([]);
   });
 });
