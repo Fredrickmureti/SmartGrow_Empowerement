@@ -524,16 +524,30 @@ export default function SalesReturnCreatePage() {
               columns={RETURN_LINE_COLUMNS}
               rows={lineItems}
               toolbar={
-                <DocumentLineScanner
-                  documentLabel="Sales return"
-                  businessId={currentBusiness?.id}
-                  branchId={currentBranch?.id ?? null}
-                  onResolved={handleScanResolved}
-                  onSessionCommit={handleScanSessionCommit}
-                  openSessionOnMount={openScanSessionOnMount}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!selectedInvoiceId}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <FileText className="mr-1.5 h-3.5 w-3.5" />
+                    {lineItems.some((l) => l.invoice_item_id)
+                      ? "Edit invoice lines"
+                      : "Select invoice lines"}
+                  </Button>
+                  <DocumentLineScanner
+                    documentLabel="Sales return"
+                    businessId={currentBusiness?.id}
+                    branchId={currentBranch?.id ?? null}
+                    onResolved={handleScanResolved}
+                    onSessionCommit={handleScanSessionCommit}
+                    openSessionOnMount={openScanSessionOnMount}
+                  />
+                </div>
               }
-              addLabel="Add Item"
+              addLabel="Add off-invoice item"
               onAddRow={addLineItem}
               onRemoveRow={removeLineItem}
               renderRow={(item, index, layout) => (
@@ -543,7 +557,7 @@ export default function SalesReturnCreatePage() {
                   flashed={flashIndex === index}
                   products={products}
                   layout={layout}
-                  fromInvoice={!!selectedInvoiceId}
+                  sourceDocumentLabel={selectedInvoice?.invoice_number ?? null}
                   formatCurrency={formatCurrency}
                   onPatch={patchLineItem}
                   extra={
@@ -565,6 +579,23 @@ export default function SalesReturnCreatePage() {
                 />
               )}
             />
+
+            <InvoiceLinePickerDialog
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              invoiceNumber={selectedInvoice?.invoice_number ?? null}
+              lines={returnableLines}
+              isLoading={linesLoading}
+              error={linesError}
+              existing={Object.fromEntries(
+                lineItems
+                  .filter((l) => l.invoice_item_id)
+                  .map((l) => [l.invoice_item_id as string, l.quantity]),
+              )}
+              formatCurrency={formatCurrency}
+              onConfirm={applyPickedLines}
+            />
+
 
             <div className="flex justify-end pt-2">
               <div className="w-full sm:w-72 space-y-1.5 text-sm bg-muted/50 rounded-lg p-4">
