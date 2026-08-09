@@ -1,5 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * A credit note line as expressed by the client.
+ *
+ * For an invoice-referenced line the client expresses *intent only*:
+ * "credit this invoice line, this many units". The server resolves the
+ * description, price, discount and tax from `invoice_items` and enforces the
+ * remaining creditable quantity — the money fields below are ignored on that
+ * path. For an off-invoice line (`invoice_item_id: null`) the server still
+ * recomputes `line_total`/`tax_amount` from quantity, price and rate.
+ */
+export interface CreditNoteLinePayload extends Record<string, unknown> {
+  invoice_item_id?: string | null;
+  product_id?: string | null;
+  description?: string | null;
+  quantity: number;
+  unit_price?: number;
+  tax_rate?: number;
+  sort_order?: number;
+}
+
 export interface CreateCreditNotePayload {
   organization_id: string;
   business_id: string;
@@ -12,11 +32,22 @@ export interface CreateCreditNotePayload {
   items: Array<Record<string, unknown>>;
   source_return_id: string | null;
   issue: boolean;
+  /** Idempotency key: the same value never creates a second credit note. */
+  client_request_id?: string | null;
+}
+
+export interface UpdateCreditNotePayload {
+  credit_note_id: string;
+  reason?: string | null;
+  notes?: string | null;
+  issue_date?: string | null;
+  items?: Array<Record<string, unknown>>;
 }
 
 interface CreateCreditNoteResult {
   credit_note_id: string;
   credit_note_number: string;
+  idempotent_replay?: boolean;
 }
 
 interface PostgrestErrorBody {
@@ -33,7 +64,7 @@ export class CreditNoteRpcError extends Error {
   readonly hint?: string | null;
 
   constructor(status: number, body: PostgrestErrorBody) {
-    super(body.message ?? `Credit note creation failed with HTTP ${status}`);
+    super(body.message ?? `Credit note request failed with HTTP ${status}`);
     this.name = "CreditNoteRpcError";
     this.status = status;
     this.code = body.code;
@@ -46,10 +77,23 @@ export function serializeCreateCreditNoteRequest(payload: CreateCreditNotePayloa
   return JSON.stringify({ _payload: payload });
 }
 
-/** Deterministic transport for `create_credit_note_atomic(_payload jsonb)`. */
-export async function createCreditNoteAtomic(
-  payload: CreateCreditNotePayload,
-): Promise<CreateCreditNoteResult> {
+/**
+ * Shared deterministic transport for the credit-note RPCs. Sends the named
+ * argument explicitly and surfaces the full PostgREST error body instead of
+ * collapsing everything into an opaque HTTP status.
+ */
+/**
+ * The endpoints are written out in full rather than assembled from fragments:
+ * the architecture guard greps for them, and a composed URL would hide a
+ * second creation entry point from that ratchet.
+ */
+const RPC_ENDPOINTS = {
+  create: "rest/v1/rpc/create_credit_note_atomic",
+  update: "rest/v1/rpc/update_credit_note_atomic",
+  issue: "rest/v1/rpc/issue_credit_note_atomic",
+} as const;
+
+async function callCreditNoteRpc<T>(endpoint: string, body: string): Promise<T> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
 
@@ -60,7 +104,7 @@ export async function createCreditNoteAtomic(
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
   if (!supabaseUrl || !publishableKey) throw new Error("Supabase connection is not configured.");
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/create_credit_note_atomic`, {
+  const response = await fetch(`${supabaseUrl}/${endpoint}`, {
     method: "POST",
     headers: {
       apikey: publishableKey,
@@ -69,61 +113,53 @@ export async function createCreditNoteAtomic(
       "Content-Profile": "public",
       Accept: "application/json",
     },
-    body: serializeCreateCreditNoteRequest(payload),
+    body,
   });
 
   const text = await response.text();
-  let body: unknown;
+  let parsed: unknown;
   try {
-    body = text ? JSON.parse(text) : null;
+    parsed = text ? JSON.parse(text) : null;
   } catch {
-    body = { message: text || response.statusText };
+    parsed = { message: text || response.statusText };
   }
 
   if (!response.ok) {
-    throw new CreditNoteRpcError(response.status, (body ?? {}) as PostgrestErrorBody);
+    throw new CreditNoteRpcError(response.status, (parsed ?? {}) as PostgrestErrorBody);
   }
-  return body as CreateCreditNoteResult;
+  return parsed as T;
 }
+
+/** Deterministic transport for `create_credit_note_atomic(_payload jsonb)`. */
+export async function createCreditNoteAtomic(
+  payload: CreateCreditNotePayload,
+): Promise<CreateCreditNoteResult> {
+  return callCreditNoteRpc<CreateCreditNoteResult>(
+    RPC_ENDPOINTS.create,
+    serializeCreateCreditNoteRequest(payload),
+  );
+}
+
 /**
- * Deterministic transport for `issue_credit_note_atomic(_credit_note_id uuid)`.
- * Sends the named argument explicitly and surfaces the full PostgREST error
- * body instead of collapsing everything into an opaque HTTP 404.
+ * Deterministic transport for `update_credit_note_atomic(_payload jsonb)`.
+ * Drafts only — the server rejects edits to an issued credit note, and
+ * re-applies the credit ceiling to any rewritten line.
  */
+export async function updateCreditNoteAtomic(
+  payload: UpdateCreditNotePayload,
+): Promise<{ credit_note_id: string }> {
+  return callCreditNoteRpc<{ credit_note_id: string }>(
+    RPC_ENDPOINTS.update,
+    JSON.stringify({ _payload: payload }),
+  );
+}
+
+/** Deterministic transport for `issue_credit_note_atomic(_credit_note_id uuid)`. */
 export async function issueCreditNoteAtomic(creditNoteId: string): Promise<{
   journal_entry_id: string;
   applied_to_invoice: number;
   customer_credit_created: number;
 }> {
   if (!creditNoteId) throw new Error("Cannot issue a credit note without an id.");
-
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) throw sessionError;
-  const accessToken = sessionData.session?.access_token;
-  if (!accessToken) throw new Error("Your session has expired. Please sign in again.");
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-  if (!supabaseUrl || !publishableKey) throw new Error("Supabase connection is not configured.");
-
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/issue_credit_note_atomic`, {
-    method: "POST",
-    headers: {
-      apikey: publishableKey,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ _credit_note_id: creditNoteId }),
-  });
-
-  const text = await response.text();
-  let body: unknown;
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = { message: text || response.statusText };
-  }
-  if (!response.ok) throw new CreditNoteRpcError(response.status, (body ?? {}) as PostgrestErrorBody);
-  return body as { journal_entry_id: string; applied_to_invoice: number; customer_credit_created: number };
+  return callCreditNoteRpc(RPC_ENDPOINTS.issue, JSON.stringify({ _credit_note_id: creditNoteId }));
 }

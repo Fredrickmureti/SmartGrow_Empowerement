@@ -7,6 +7,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { updateCreditNoteAtomic } from "@/services/finance/createCreditNote";
+import { CreditReasonField } from "./CreditReasonField";
+import { CREDIT_REASON_OPTIONS, CREDIT_REASON_OTHER } from "./creditReasonOptions";
 import { useContacts } from "@/hooks/useContacts";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCreditNotes, CreditNoteItem } from "@/hooks/useCreditNotes";
@@ -50,7 +53,11 @@ import {
   serialNumberFromRows,
 } from "@/components/inventory/outboundLineTrackingUtils";
 
-type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & { id?: string };
+type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & {
+  id?: string;
+  /** Durable link to the invoice line this credit reverses, when there is one. */
+  invoice_item_id?: string | null;
+};
 
 const emptyLine = (sort_order = 0): LineItem => ({
   product_id: null,
@@ -82,6 +89,7 @@ export default function CreditNoteEditPage() {
     notes: "",
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [reasonChoice, setReasonChoice] = useState("");
 
   const customers = contacts.filter((c) => (c.type === "customer" || c.type === "both") && c.is_active);
 
@@ -121,6 +129,13 @@ export default function CreditNoteEditPage() {
           reason: cn.reason || "",
           notes: cn.notes || "",
         });
+        setReasonChoice(
+          CREDIT_REASON_OPTIONS.some((o) => o.value === cn.reason)
+            ? (cn.reason as string)
+            : cn.reason
+              ? CREDIT_REASON_OTHER
+              : "",
+        );
 
         const { data: items, error: itemsErr } = await supabase
           .from("credit_note_items")
@@ -133,6 +148,7 @@ export default function CreditNoteEditPage() {
           items && items.length > 0
             ? items.map((item: any) => ({
                 id: item.id,
+                invoice_item_id: item.invoice_item_id ?? null,
                 product_id: item.product_id,
                 description: item.description,
                 quantity: item.quantity,
@@ -226,38 +242,23 @@ export default function CreditNoteEditPage() {
 
     setIsSubmitting(true);
     try {
-      const sub = validItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-      const tax = validItems.reduce((s, i) => s + i.tax_amount, 0);
-      const total = sub + tax;
-
-      const { error: cnErr } = await supabase
-        .from("credit_notes")
-        .update({
-          contact_id: formData.contact_id || null,
-          invoice_id: formData.invoice_id || null,
-          reason: formData.reason,
-          notes: formData.notes || null,
-          subtotal: sub,
-          tax_amount: tax,
-          total,
-        })
-        .eq("id", creditNote.id);
-      if (cnErr) throw cnErr;
-
-      await supabase.from("credit_note_items").delete().eq("credit_note_id", creditNote.id);
-      const newItems = validItems.map((item, index) => ({
+      // ADR 0131 single-writer rule: the browser never writes credit note
+      // headers or lines. The server re-resolves invoice-referenced money,
+      // re-applies the credit ceiling and rejects edits to a non-draft.
+      await updateCreditNoteAtomic({
         credit_note_id: creditNote.id,
-        product_id: item.product_id || null,
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        tax_rate: item.tax_rate,
-        tax_amount: item.tax_amount,
-        line_total: item.line_total,
-        sort_order: index,
-      }));
-      const { error: insertErr } = await supabase.from("credit_note_items").insert(newItems);
-      if (insertErr) throw insertErr;
+        reason: formData.reason,
+        notes: formData.notes || null,
+        items: (validItems as LineItem[]).map((item, index) => ({
+          invoice_item_id: item.invoice_item_id ?? null,
+          product_id: item.product_id || null,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          tax_rate: item.tax_rate,
+          sort_order: index,
+        })),
+      });
 
       toast({ title: "Credit note updated" });
       await refreshCreditNotes();
@@ -345,14 +346,16 @@ export default function CreditNoteEditPage() {
         </FieldGroup>
 
         <FieldGroup label="Reason">
-          <div className="space-y-2">
-            <Label>Reason for Credit *</Label>
-            <Input
-              value={formData.reason}
-              onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              placeholder="e.g., Product return, Service issue, Billing error"
+          <FieldGrid columns={2}>
+            <CreditReasonField
+              choice={reasonChoice}
+              onChoiceChange={setReasonChoice}
+              reason={formData.reason}
+              onReasonChange={(reason) => setFormData((f) => ({ ...f, reason }))}
+              notes={formData.notes}
+              onNotesChange={(notes) => setFormData((f) => ({ ...f, notes }))}
             />
-          </div>
+          </FieldGrid>
         </FieldGroup>
 
         <FieldGroup label="Line Items">
@@ -415,16 +418,6 @@ export default function CreditNoteEditPage() {
           </div>
         </FieldGroup>
 
-        <FieldGroup label="Notes">
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes..."
-            />
-          </div>
-        </FieldGroup>
       </div>
     </RecordFormShell>
   );
