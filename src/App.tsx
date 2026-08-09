@@ -310,8 +310,11 @@ const App = () => (
                                 localStorage/BroadcastChannel from the opener is the auth). */}
                             <Route path="/localization/preview/:kind/:templateCode" element={<LocalizationPreviewRoute />} />
 
-                           <Route path="/resources" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense></ProtectedRoute>} />
-                           <Route path="/resources/:id" element={<ProtectedRoute><Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense></ProtectedRoute>} />
+                           {/* Public: the learning library shows videos the platform
+                               admin published for a public audience (RLS enforces
+                               that); signed-in users additionally see internal ones. */}
+                           <Route path="/resources" element={<Suspense fallback={<RouteLoadingFallback />}><ResourcesIndex /></Suspense>} />
+                           <Route path="/resources/:id" element={<Suspense fallback={<RouteLoadingFallback />}><ResourceDetail /></Suspense>} />
                            <Route path="/forgot-password" element={<RedirectIfAuthenticated><ForgotPassword /></RedirectIfAuthenticated>} />
 
                             <Route path="/reset-password" element={<RedirectIfAuthenticated allowRecoveryHash><ResetPassword /></RedirectIfAuthenticated>} />

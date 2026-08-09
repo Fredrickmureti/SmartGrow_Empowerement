@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BookOpen, Play, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDemoVideos, type DemoVideo } from "@/hooks/useDemoVideos";
 import {
   RESOURCE_APP_OPTIONS,
@@ -76,6 +77,9 @@ function VideoCard({ v }: { v: DemoVideo }) {
 }
 
 export default function ResourcesIndex() {
+  const { user } = useAuth();
+  const backHref = user ? "/home" : "/";
+  const backLabel = user ? "Back to workspace" : "Back to home";
   const { videos, isLoading } = useDemoVideos(true);
   const [query, setQuery] = useState("");
   const [appFilter, setAppFilter] = useState<string>("all");
@@ -123,8 +127,8 @@ export default function ResourcesIndex() {
         description="Product tours, tutorials, and getting-started guides for every part of the platform."
         actions={
           <Button variant="outline" asChild>
-            <Link to="/home">
-              <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+            <Link to={backHref}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
             </Link>
           </Button>
         }
