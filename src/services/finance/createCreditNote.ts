@@ -91,7 +91,9 @@ const RPC_ENDPOINTS = {
   create: "rest/v1/rpc/create_credit_note_atomic",
   update: "rest/v1/rpc/update_credit_note_atomic",
   issue: "rest/v1/rpc/issue_credit_note_atomic",
+  remove: "rest/v1/rpc/delete_credit_note_atomic",
 } as const;
+
 
 async function callCreditNoteRpc<T>(endpoint: string, body: string): Promise<T> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
