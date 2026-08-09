@@ -19,8 +19,14 @@ import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshot
 import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
 import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
+import { fetchAndBuildSalesCreditNoteSnapshot } from "@/services/documents/snapshots/salesCreditNote";
 
-export type RecordPrintKind = "invoice" | "estimate" | "sales_order" | "payment_receipt";
+export type RecordPrintKind =
+  | "invoice"
+  | "estimate"
+  | "sales_order"
+  | "payment_receipt"
+  | "credit_note";
 
 const KIND_CONFIG: Record<
   RecordPrintKind,
@@ -49,6 +55,11 @@ const KIND_CONFIG: Record<
     kindCode: "sales.payment_receipt",
     sourceDocType: "payment_receipt",
     build: fetchAndBuildPaymentReceiptSnapshot,
+  },
+  credit_note: {
+    kindCode: "sales.credit_note",
+    sourceDocType: "credit_note",
+    build: fetchAndBuildSalesCreditNoteSnapshot,
   },
 };
 
