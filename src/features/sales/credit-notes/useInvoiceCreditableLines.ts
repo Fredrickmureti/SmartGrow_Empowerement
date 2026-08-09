@@ -60,7 +60,7 @@ export function useInvoiceCreditableLines(
 
         // In edit mode the credit note being edited has already consumed part
         // of the ceiling; give it back so its own lines stay adjustable.
-        let ownQty: Record<string, number> = {};
+        const ownQty: Record<string, number> = {};
         if (excludeCreditNoteId) {
           const { data: own } = await supabase
             .from("credit_note_items")
@@ -75,16 +75,16 @@ export function useInvoiceCreditableLines(
 
         const mapped: CreditableInvoiceLine[] = (data ?? []).map((row: any) => {
           const giveBack = ownQty[row.invoice_item_id] ?? 0;
-          const credited = Math.max(Number(row.credited_qty) || 0 - 0, 0) - giveBack;
           const invoiced = Number(row.invoiced_qty) || 0;
           const netUnit = Number(row.net_unit_price) || 0;
-          const remaining = Math.max(invoiced - Math.max(credited, 0), 0);
+          const credited = Math.max((Number(row.credited_qty) || 0) - giveBack, 0);
+          const remaining = Math.max(invoiced - credited, 0);
           return {
             invoice_item_id: row.invoice_item_id,
             product_id: row.product_id ?? null,
             description: row.description ?? "",
             invoiced_qty: invoiced,
-            credited_qty: Math.max(credited, 0),
+            credited_qty: credited,
             remaining_qty: remaining,
             unit_price: Number(row.unit_price) || 0,
             discount_percent: Number(row.discount_percent) || 0,

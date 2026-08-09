@@ -1,8 +1,9 @@
 /**
  * InvoiceLineCreditPicker — the "reference document" pick list for credit
  * notes. The operator ticks the invoice lines being credited and sets the
- * quantity per line (capped at what was invoiced) instead of retyping the
- * item as free text.
+ * quantity per line (capped at what is still creditable) instead of retyping
+ * the item as free text. The cap shown here mirrors
+ * `v_invoice_creditable_qty`; the server re-enforces it on submit.
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -57,14 +58,15 @@ export function InvoiceLineCreditPicker({
     const seed: Record<string, number> = {};
     for (const line of lines) {
       const already = existing?.[line.invoice_item_id];
-      if (already != null) seed[line.invoice_item_id] = Math.min(already, line.invoiced_qty);
+      if (already != null) seed[line.invoice_item_id] = Math.min(already, line.remaining_qty);
     }
     setSelected(seed);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lines]);
 
   const allSelected =
-    lines.length > 0 && lines.every((l) => selected[l.invoice_item_id] != null);
+    lines.some((l) => l.remaining_qty > 0) &&
+    lines.every((l) => l.remaining_qty === 0 || selected[l.invoice_item_id] != null);
 
   const toggleAll = () => {
     if (allSelected) {
@@ -72,7 +74,10 @@ export function InvoiceLineCreditPicker({
       return;
     }
     const next: Record<string, number> = {};
-    for (const l of lines) next[l.invoice_item_id] = selected[l.invoice_item_id] ?? l.invoiced_qty;
+    for (const l of lines) {
+      if (l.remaining_qty <= 0) continue;
+      next[l.invoice_item_id] = selected[l.invoice_item_id] ?? l.remaining_qty;
+    }
     setSelected(next);
   };
 
@@ -80,13 +85,13 @@ export function InvoiceLineCreditPicker({
     setSelected((prev) => {
       const next = { ...prev };
       if (next[line.invoice_item_id] != null) delete next[line.invoice_item_id];
-      else next[line.invoice_item_id] = line.invoiced_qty;
+      else next[line.invoice_item_id] = line.remaining_qty;
       return next;
     });
   };
 
   const setQuantity = (line: CreditableInvoiceLine, value: number) => {
-    const clamped = Math.max(0, Math.min(value, line.invoiced_qty));
+    const clamped = Math.max(0, Math.min(value, line.remaining_qty));
     setSelected((prev) => ({ ...prev, [line.invoice_item_id]: clamped }));
   };
 
@@ -134,6 +139,8 @@ export function InvoiceLineCreditPicker({
                   </th>
                   <th className="py-2 text-left font-medium">Item</th>
                   <th className="py-2 text-right font-medium">Invoiced</th>
+                  <th className="py-2 text-right font-medium">Credited</th>
+                  <th className="py-2 text-right font-medium">Remaining</th>
                   <th className="py-2 text-right font-medium">Unit price</th>
                   <th className="w-32 py-2 text-right font-medium">Credit qty</th>
                 </tr>
@@ -141,11 +148,13 @@ export function InvoiceLineCreditPicker({
               <tbody>
                 {lines.map((line) => {
                   const checked = selected[line.invoice_item_id] != null;
+                  const exhausted = line.remaining_qty <= 0;
                   return (
                     <tr key={line.invoice_item_id} className="border-b last:border-0">
                       <td className="py-2 align-top">
                         <Checkbox
                           checked={checked}
+                          disabled={exhausted}
                           onCheckedChange={() => toggleLine(line)}
                           aria-label={`Select ${line.description}`}
                         />
@@ -163,10 +172,21 @@ export function InvoiceLineCreditPicker({
                               Tax {line.tax_rate}%
                             </Badge>
                           )}
+                          {exhausted && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Fully credited
+                            </Badge>
+                          )}
                         </div>
                       </td>
                       <td className="py-2 text-right tabular-nums align-top">
                         {line.invoiced_qty}
+                      </td>
+                      <td className="py-2 text-right tabular-nums align-top text-muted-foreground">
+                        {line.credited_qty}
+                      </td>
+                      <td className="py-2 text-right tabular-nums align-top font-medium">
+                        {line.remaining_qty}
                       </td>
                       <td className="py-2 text-right tabular-nums align-top">
                         {formatCurrency(line.net_unit_price)}
@@ -175,7 +195,7 @@ export function InvoiceLineCreditPicker({
                         <NumericInput
                           className="h-8"
                           value={selected[line.invoice_item_id] ?? 0}
-                          disabled={!checked}
+                          disabled={!checked || exhausted}
                           onValueChange={(v) => setQuantity(line, v ?? 0)}
                         />
                       </td>
