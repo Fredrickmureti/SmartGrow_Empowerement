@@ -88,15 +88,23 @@ reversal truth lives in `payment_reversal_events` per ADR 0012, not
 in the `payments` row. Refunds appear in the ledger as a debit
 against the customer.
 
-## Out of scope (Batch 2 follow-up)
-- `reallocate_payment_atomic` RPC + `ReallocatePaymentDialog` UI.
+## Batch 2 status
+Shipped:
+- `reallocate_payment_atomic` RPC.
+- POS payment RPC alignment — `usePOSInvoiceRequest` posts through
+  `record_payment_atomic` with the deterministic key `pos:<txn>:<tender>`.
+- Single money-in surface: `RecordCustomerPaymentDialog` replaced the two
+  competing `RecordPaymentDialog` components (invoices + sales), which are
+  deleted. The ratchet in
+  `src/test/architecture/payment-reversal-intent-contract.test.ts` pins the
+  count at exactly one.
+
+Still out of scope:
 - `/sales/customers/:id/ledger` page rendering the ledger view with
   CSV/PDF export. Statement page should consume the same hook.
-- Receipt template for multi-invoice payments
-  (`generate-document` `customer_payment` type).
-- POS payment RPC alignment.
 - Multi-currency FX guard between deposit account and invoice
   currency (deferred to ADR 0015).
+
 
 ## Invariants enforced by tests
 1. `src/test/architecture/payment-allocations-first-class.test.ts`
