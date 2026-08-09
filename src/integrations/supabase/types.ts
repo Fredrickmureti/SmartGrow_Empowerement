@@ -4232,6 +4232,13 @@ export type Database = {
             referencedRelation: "sales_order_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "backorders_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "so_line_balances"
+            referencedColumns: ["sales_order_item_id"]
+          },
         ]
       }
       bank_accounts: {
@@ -12586,6 +12593,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "so_line_balances"
+            referencedColumns: ["sales_order_item_id"]
           },
         ]
       }
@@ -23034,6 +23048,7 @@ export type Database = {
         Row: {
           business_id: string | null
           created_at: string
+          delivery_note_item_id: string | null
           description: string
           discount_percent: number | null
           display_quantity: number | null
@@ -23050,6 +23065,7 @@ export type Database = {
           product_id: string | null
           project_id: string | null
           quantity: number
+          sales_order_item_id: string | null
           serial_number: string | null
           sort_order: number | null
           task_id: string | null
@@ -23061,6 +23077,7 @@ export type Database = {
         Insert: {
           business_id?: string | null
           created_at?: string
+          delivery_note_item_id?: string | null
           description: string
           discount_percent?: number | null
           display_quantity?: number | null
@@ -23077,6 +23094,7 @@ export type Database = {
           product_id?: string | null
           project_id?: string | null
           quantity?: number
+          sales_order_item_id?: string | null
           serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
@@ -23088,6 +23106,7 @@ export type Database = {
         Update: {
           business_id?: string | null
           created_at?: string
+          delivery_note_item_id?: string | null
           description?: string
           discount_percent?: number | null
           display_quantity?: number | null
@@ -23104,6 +23123,7 @@ export type Database = {
           product_id?: string | null
           project_id?: string | null
           quantity?: number
+          sales_order_item_id?: string | null
           serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
@@ -23133,6 +23153,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_delivery_note_item_id_fkey"
+            columns: ["delivery_note_item_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_note_items"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "invoice_items_display_uom_id_fkey"
@@ -23182,6 +23209,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "sales_order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "so_line_balances"
+            referencedColumns: ["sales_order_item_id"]
           },
           {
             foreignKeyName: "invoice_items_task_id_fkey"
@@ -56576,7 +56617,9 @@ export type Database = {
           project_id: string | null
           quantity: number
           quantity_backordered: number | null
+          quantity_cancelled: number
           quantity_fulfilled: number | null
+          quantity_invoiced: number
           sales_order_id: string
           serial_number: string | null
           sort_order: number | null
@@ -56602,7 +56645,9 @@ export type Database = {
           project_id?: string | null
           quantity?: number
           quantity_backordered?: number | null
+          quantity_cancelled?: number
           quantity_fulfilled?: number | null
+          quantity_invoiced?: number
           sales_order_id: string
           serial_number?: string | null
           sort_order?: number | null
@@ -56628,7 +56673,9 @@ export type Database = {
           project_id?: string | null
           quantity?: number
           quantity_backordered?: number | null
+          quantity_cancelled?: number
           quantity_fulfilled?: number | null
+          quantity_invoiced?: number
           sales_order_id?: string
           serial_number?: string | null
           sort_order?: number | null
@@ -56701,6 +56748,7 @@ export type Database = {
           created_by: string | null
           currency: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_locked: boolean
@@ -56732,6 +56780,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_locked?: boolean
@@ -56763,6 +56812,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_locked?: boolean
@@ -67643,6 +67693,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wms_crossdock_opportunities_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "so_line_balances"
+            referencedColumns: ["sales_order_item_id"]
+          },
+          {
             foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
             columns: ["stage_task_id"]
             isOneToOne: false
@@ -70115,6 +70172,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_order_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wms_pick_wave_lines_sales_order_item_id_fkey"
+            columns: ["sales_order_item_id"]
+            isOneToOne: false
+            referencedRelation: "so_line_balances"
+            referencedColumns: ["sales_order_item_id"]
           },
           {
             foreignKeyName: "wms_pick_wave_lines_wave_id_fkey"
@@ -75850,6 +75914,107 @@ export type Database = {
           },
         ]
       }
+      so_line_balances: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          description: string | null
+          line_total: number | null
+          order_status: string | null
+          organization_id: string | null
+          product_id: string | null
+          quantity_cancelled: number | null
+          quantity_delivered: number | null
+          quantity_invoiced: number | null
+          quantity_open_to_deliver: number | null
+          quantity_open_to_invoice: number | null
+          quantity_ordered: number | null
+          quantity_returned: number | null
+          sales_order_id: string | null
+          sales_order_item_id: string | null
+          so_number: string | null
+          unit_price: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_order_items_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_quant_drift_view: {
         Row: {
           drift: number | null
@@ -81296,6 +81461,10 @@ export type Database = {
       }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
+      _recalc_so_item_invoiced: {
+        Args: { p_so_item_ids: string[] }
+        Returns: undefined
+      }
       _recurring_bump_definition_version: {
         Args: { _recurring_id: string; _user_id: string }
         Returns: undefined
@@ -81343,6 +81512,10 @@ export type Database = {
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
       _seed_default_printer_roles: {
         Args: { p_organization_id: string }
+        Returns: undefined
+      }
+      _so_write_cancelled_quantities: {
+        Args: { p_so_id: string }
         Returns: undefined
       }
       _sod_is_approved_status: { Args: { s: string }; Returns: boolean }
@@ -83864,6 +84037,10 @@ export type Database = {
         Args: { p_reason?: string; p_requisition_id: string }
         Returns: Json
       }
+      cancel_sales_order_atomic: {
+        Args: { p_reason?: string; p_so_id: string; p_user_id: string }
+        Returns: Json
+      }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
         Returns: Json
@@ -85143,6 +85320,10 @@ export type Database = {
           p_reason?: string
           p_user_id: string
         }
+        Returns: Json
+      }
+      create_sales_order_atomic: {
+        Args: { p_header: Json; p_items: Json; p_user_id?: string }
         Returns: Json
       }
       create_scanner_session: {
@@ -93754,6 +93935,15 @@ export type Database = {
         }[]
       }
       resolve_rules_for_run: { Args: { _run_id: string }; Returns: Json[] }
+      resolve_sales_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: number
+      }
       resolve_sales_return_cogs_lines: {
         Args: {
           p_business_id: string

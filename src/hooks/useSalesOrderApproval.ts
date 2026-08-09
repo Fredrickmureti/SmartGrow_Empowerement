@@ -274,13 +274,26 @@ export function useSalesOrderApproval() {
         comments,
       });
 
-      // Update sales order status
+      // Approval is a governance decision, not a fulfilment decision: move the
+      // order to `approved`, then run the confirmation RPC so stock
+      // reservations are actually created. Writing `confirmed` directly here
+      // used to skip reservations entirely, so approved orders committed no
+      // stock and could be oversold.
       await supabase
         .from("sales_orders")
-        .update({
-          status: "confirmed",
-        })
+        .update({ status: "approved" })
         .eq("id", approval.sales_order_id);
+
+      const { data: confirmResult, error: confirmError } = await supabase.rpc(
+        "confirm_sales_order_atomic",
+        { p_so_id: approval.sales_order_id, p_user_id: user?.id as string },
+      );
+      if (confirmError) throw confirmError;
+      const confirmed = confirmResult as { success?: boolean; error?: string } | null;
+      if (!confirmed?.success) {
+        throw new Error(confirmed?.error || "Approved, but confirmation failed");
+      }
+
 
       toast.success("Order approved");
       await fetchPendingApprovals();

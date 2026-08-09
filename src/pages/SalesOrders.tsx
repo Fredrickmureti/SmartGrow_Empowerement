@@ -231,18 +231,27 @@ export default function SalesOrders() {
         countMap[dn.sales_order_id!] = (countMap[dn.sales_order_id!] || 0) + 1;
       });
 
-      // Get fulfillment data from sales_order_items
+      // Fulfilment progress comes from the canonical ledger view, which nets
+      // off cancelled quantity. Re-summing sales_order_items here reported an
+      // order as under-delivered forever once part of it was cancelled.
       const { data: soItems } = await supabase
-        .from("sales_order_items")
-        .select("sales_order_id, quantity, quantity_fulfilled")
+        .from("so_line_balances" as any)
+        .select("sales_order_id, quantity_ordered, quantity_delivered, quantity_cancelled")
         .in("sales_order_id", orderIds);
 
       const fulfillmentMap: Record<string, { total: number; fulfilled: number }> = {};
-      soItems?.forEach(item => {
+      (soItems as unknown as Array<{
+        sales_order_id: string;
+        quantity_ordered: number | null;
+        quantity_delivered: number | null;
+        quantity_cancelled: number | null;
+      }> | null)?.forEach(item => {
         if (!fulfillmentMap[item.sales_order_id]) fulfillmentMap[item.sales_order_id] = { total: 0, fulfilled: 0 };
-        fulfillmentMap[item.sales_order_id].total += item.quantity || 0;
-        fulfillmentMap[item.sales_order_id].fulfilled += item.quantity_fulfilled || 0;
+        fulfillmentMap[item.sales_order_id].total +=
+          Math.max((item.quantity_ordered || 0) - (item.quantity_cancelled || 0), 0);
+        fulfillmentMap[item.sales_order_id].fulfilled += item.quantity_delivered || 0;
       });
+
       
       const docs: Record<string, { invoiceNumber?: string; deliveryCount?: number; fulfillmentPercent?: number }> = {};
       salesOrders.forEach(o => {
