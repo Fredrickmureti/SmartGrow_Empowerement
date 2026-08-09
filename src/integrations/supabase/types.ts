@@ -6611,6 +6611,8 @@ export type Database = {
           organization_id: string
           project_id: string | null
           purchase_order_id: string | null
+          remit_to_address: string | null
+          remit_to_contact_id: string | null
           source_expense_id: string | null
           source_purchase_order_id: string | null
           status: Database["public"]["Enums"]["bill_status"]
@@ -6654,6 +6656,8 @@ export type Database = {
           organization_id: string
           project_id?: string | null
           purchase_order_id?: string | null
+          remit_to_address?: string | null
+          remit_to_contact_id?: string | null
           source_expense_id?: string | null
           source_purchase_order_id?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
@@ -6697,6 +6701,8 @@ export type Database = {
           organization_id?: string
           project_id?: string | null
           purchase_order_id?: string | null
+          remit_to_address?: string | null
+          remit_to_contact_id?: string | null
           source_expense_id?: string | null
           source_purchase_order_id?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
@@ -6860,6 +6866,13 @@ export type Database = {
             columns: ["purchase_order_id"]
             isOneToOne: false
             referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_remit_to_contact_id_fkey"
+            columns: ["remit_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -10287,6 +10300,8 @@ export type Database = {
           amount_applied: number | null
           approved_at: string | null
           approved_by: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -10326,6 +10341,8 @@ export type Database = {
           amount_applied?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           client_request_id?: string | null
@@ -10365,6 +10382,8 @@ export type Database = {
           amount_applied?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           client_request_id?: string | null
@@ -10401,6 +10420,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "credit_notes_bill_to_contact_id_fkey"
+            columns: ["bill_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "credit_notes_branch_id_fkey"
             columns: ["branch_id"]
@@ -19014,6 +19040,8 @@ export type Database = {
       estimates: {
         Row: {
           accepted_at: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           contact_id: string | null
@@ -19049,6 +19077,8 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           contact_id?: string | null
@@ -19084,6 +19114,8 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           contact_id?: string | null
@@ -19118,6 +19150,13 @@ export type Database = {
           viewed_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "estimates_bill_to_contact_id_fkey"
+            columns: ["bill_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "estimates_branch_id_fkey"
             columns: ["branch_id"]
@@ -23475,6 +23514,8 @@ export type Database = {
       invoices: {
         Row: {
           amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           billing_period_end: string | null
           billing_period_start: string | null
           branch_id: string | null
@@ -23539,6 +23580,8 @@ export type Database = {
         }
         Insert: {
           amount_paid?: number | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           billing_period_end?: string | null
           billing_period_start?: string | null
           branch_id?: string | null
@@ -23603,6 +23646,8 @@ export type Database = {
         }
         Update: {
           amount_paid?: number | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           billing_period_end?: string | null
           billing_period_start?: string | null
           branch_id?: string | null
@@ -23706,6 +23751,13 @@ export type Database = {
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_bill_to_contact_id_fkey"
+            columns: ["bill_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -51351,6 +51403,8 @@ export type Database = {
       }
       proforma_invoices: {
         Row: {
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           contact_id: string | null
@@ -51375,6 +51429,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           contact_id?: string | null
@@ -51399,6 +51455,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           contact_id?: string | null
@@ -51423,6 +51481,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "proforma_invoices_bill_to_contact_id_fkey"
+            columns: ["bill_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "proforma_invoices_branch_id_fkey"
             columns: ["branch_id"]
@@ -83449,6 +83514,8 @@ export type Database = {
           organization_id: string
           project_id: string | null
           purchase_order_id: string | null
+          remit_to_address: string | null
+          remit_to_contact_id: string | null
           source_expense_id: string | null
           source_purchase_order_id: string | null
           status: Database["public"]["Enums"]["bill_status"]
@@ -83546,6 +83613,8 @@ export type Database = {
           amount_applied: number | null
           approved_at: string | null
           approved_by: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -88369,6 +88438,8 @@ export type Database = {
         }
         Returns: {
           amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           billing_period_end: string | null
           billing_period_start: string | null
           branch_id: string | null
