@@ -190,41 +190,43 @@ export default function StudioFields() {
   }, [search]);
 
   return (
-    <div className="flex h-[calc(100vh-var(--workspace-header-height,52px))] min-h-0 flex-col bg-background">
+    <div className="flex min-h-[calc(100dvh-var(--workspace-header-height,52px))] flex-col bg-background lg:h-[calc(100dvh-var(--workspace-header-height,52px))] lg:min-h-0">
       {/* Page header — flat, no card chrome. */}
-      <header className="border-b bg-background px-6 pb-4 pt-5">
-        <div className="flex items-start justify-between gap-4">
+      <header className="border-b bg-background px-4 pb-3 pt-4 sm:px-6 sm:pb-4 sm:pt-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-4">
           <div className="min-w-0">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Studio
             </p>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold leading-tight tracking-tight">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
                 Fields
               </h1>
-              <span className="text-muted-foreground/40">·</span>
-              <div className="flex items-center gap-2 text-base text-muted-foreground">
-                <SelectedIcon className="h-4 w-4" />
-                <span className="font-medium text-foreground">{entityLabel}</span>
+              <span className="hidden text-muted-foreground/40 sm:inline">·</span>
+              <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground sm:text-base">
+                <SelectedIcon className="h-4 w-4 shrink-0" />
+                <span className="truncate font-medium text-foreground">
+                  {entityLabel}
+                </span>
               </div>
               {isFinancial && (
                 <Badge
                   variant="outline"
-                  className="gap-1 border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                  className="gap-1 whitespace-nowrap border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
                 >
                   <ShieldAlert className="h-3 w-3" />
                   Financial — metadata only
                 </Badge>
               )}
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
               Schema workbench — manage the fields that power forms, list views,
               and document templates for every entity in the system.
             </p>
           </div>
 
           {/* Inline metrics — context, not a dashboard. */}
-          <div className="flex shrink-0 items-center gap-6 rounded-lg border bg-card px-4 py-2">
+          <div className="grid grid-cols-3 gap-3 rounded-lg border bg-card px-3 py-2 sm:gap-6 sm:px-4 lg:flex lg:shrink-0 lg:items-center">
             <Metric
               icon={Tag}
               label="Custom fields"
