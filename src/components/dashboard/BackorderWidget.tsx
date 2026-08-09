@@ -9,7 +9,7 @@ export function BackorderWidget() {
   const { backorders, isLoading } = useBackorders();
   const navigate = useNavigate();
 
-  const pendingBackorders = backorders.filter((b) => b.status === "pending");
+  const pendingBackorders = backorders;
 
   if (isLoading) {
     return (
@@ -56,7 +56,7 @@ export function BackorderWidget() {
         orderCount: 0,
       };
     }
-    acc[productId].totalQuantity += Number(bo.quantity);
+    acc[productId].totalQuantity += Number(bo.quantity_backordered);
     acc[productId].orderCount += 1;
     return acc;
   }, {} as Record<string, { productName: string; sku: string | null; totalQuantity: number; orderCount: number }>);
