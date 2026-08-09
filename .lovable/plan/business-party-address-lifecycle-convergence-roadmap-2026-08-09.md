@@ -2,8 +2,8 @@
 
 Authoritative status file. Update it after every implementation step.
 
-**Currently active:** Phase 4 (record-page rendering of ship-to vs deliver-to)
-**Next up:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
+**Currently active:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
+**Last completed:** Phase 4 (record rendering) — 2026-08-09
 
 ## Verified current state (re-checked this session, against live DB + source)
 
@@ -56,7 +56,16 @@ resolveShipTo, resolveBillTo, formatAddress, addressOptionLabel) and
 Sales Order create/edit, Delivery Note create, Purchase Order create/edit.
 `update_sales_order_atomic` persists `ship_to_contact_id`.
 
-## Phase 4 — Record rendering — ACTIVE
+## Phase 4 — Record rendering — DONE
+
+Shipped: `src/components/addresses/AddressBlock.tsx` is the one presentation of
+a document address + its provenance. Sales Order, Delivery Note (record page
+and peek) and Purchase Order all render through it; the PO row is now
+"Deliver to (our location)" with the warehouse/branch name resolved from the
+structured link. `purchasesGrn.ts` and the matching `generate-document` path
+both inherit the PO destination instead of emitting null, so the GRN PDF and
+the UI agree. Typecheck clean; 159 document-snapshot tests pass.
+
 
 1. Sales Order record view + peek: replace the single "Shipping address" row
    with a distinct **Ship to** block that shows the snapshot text plus a
