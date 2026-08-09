@@ -52,11 +52,12 @@ export function identifierWriteMessage(reason?: string | null): string {
  * trigger, not an operator error.
  */
 export type IdentifierWriteResult =
-  | { status: "ok"; identifierId: string; idempotent: boolean }
+  | { status: "ok"; identifierId: string; idempotent: boolean; revived: boolean }
   | {
       status: "duplicate";
       conflictProductId: string | null;
       conflictProductName: string | null;
+      sameProduct: boolean;
       message: string;
     }
   | { status: "invalid"; reason: string | null; message: string };
