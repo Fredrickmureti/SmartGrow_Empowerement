@@ -106,6 +106,8 @@ export default function CreditNoteCreatePage() {
     notes: "",
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine()]);
+  const [reasonChoice, setReasonChoice] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const customers = contacts.filter((c) => (c.type === "customer" || c.type === "both") && c.is_active);
 
@@ -117,6 +119,19 @@ export default function CreditNoteCreatePage() {
         ["sent", "partial", "overdue", "paid"].includes(inv.status),
     );
   }, [invoices, formData.contact_id]);
+
+  const selectedInvoice = useMemo(
+    () => invoices.find((i) => i.id === formData.invoice_id) ?? null,
+    [invoices, formData.invoice_id],
+  );
+
+  const {
+    lines: invoiceLines,
+    isLoading: invoiceLinesLoading,
+    error: invoiceLinesError,
+  } = useInvoiceCreditableLines(formData.invoice_id || null);
+
+  const { products } = useBranchScopedProducts();
 
   const calculateLineTotal = (item: LineItem) => {
     const { line_total, tax_amount } = computeLine({
