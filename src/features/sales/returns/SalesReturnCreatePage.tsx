@@ -60,6 +60,11 @@ import { validateLineItems } from "@/lib/validation/lineItems";
 import { format } from "date-fns";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import {
+  useInvoiceReturnableLines,
+  type ReturnableInvoiceLine,
+} from "./useInvoiceReturnableLines";
+import { InvoiceLinePickerDialog } from "./InvoiceLinePickerDialog";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
