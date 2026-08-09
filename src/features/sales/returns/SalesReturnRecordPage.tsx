@@ -24,6 +24,25 @@ type Row = SalesReturn & {
   wms_return_order?: { id: string; code: string | null; state: string | null } | null;
 };
 
+/** Phase 6: the cost basis inventory value was restored at, per returned line. */
+type CostBasis = {
+  id: string;
+  sales_return_item_id: string;
+  unit_cost: number;
+  total_value: number;
+  method: string;
+  fallback_qty: number;
+  fallback_reason: string | null;
+};
+
+const METHOD_LABEL: Record<string, string> = {
+  cost_layer: "original outbound cost layers",
+  mixed: "part original cost layers, part fallback",
+  delivery_note: "delivery shipment cost",
+  product_cost: "current product cost (fallback)",
+  none: "no cost basis",
+};
+
 function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
@@ -33,6 +52,7 @@ export default function SalesReturnRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
   const [row, setRow] = useState<Row | null>(null);
+  const [costBasis, setCostBasis] = useState<CostBasis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isNew = id === "new";
@@ -53,6 +73,11 @@ export default function SalesReturnRecordPage() {
       if (err) setError(err.message);
       else setRow((data as unknown as Row) ?? null);
       setLoading(false);
+      const { data: cb } = await supabase
+        .from("sales_return_cost_basis")
+        .select("id, sales_return_item_id, unit_cost, total_value, method, fallback_qty, fallback_reason")
+        .eq("sales_return_id", id);
+      if (!cancelled) setCostBasis((cb as unknown as CostBasis[]) ?? []);
     })();
     return () => { cancelled = true; };
   }, [id, isNew]);
@@ -68,6 +93,7 @@ export default function SalesReturnRecordPage() {
 
   const rows = useMemo<LineItemRow[]>(() => {
     const items = row?.sales_return_items ?? [];
+    const basisByItem = new Map(costBasis.map((b) => [b.sales_return_item_id, b]));
     return items
       .slice()
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -79,10 +105,16 @@ export default function SalesReturnRecordPage() {
           { columnId: "unit", content: formatCurrency(l.unit_price ?? 0) },
           { columnId: "reason", content: l.return_reason ?? "—" },
           { columnId: "condition", content: l.condition ?? "—" },
+          {
+            columnId: "cost",
+            content: basisByItem.has(l.id ?? "")
+              ? formatCurrency(basisByItem.get(l.id ?? "")!.unit_cost ?? 0)
+              : "—",
+          },
           { columnId: "total", content: formatCurrency(l.line_total ?? 0) },
         ],
       }));
-  }, [row, formatCurrency]);
+  }, [row, costBasis, formatCurrency]);
 
   return (
     <RecordScaffold
