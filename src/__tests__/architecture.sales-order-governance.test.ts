@@ -125,11 +125,14 @@ describe("Sales Order — DB-owned lifecycle", () => {
 
 describe("Sales Order — quantity ledger is the single source of truth", () => {
   it("never writes the ledger columns from the client", () => {
-    const forbidden = /\b(quantity_invoiced|quantity_cancelled|quantity_backordered|quantity_fulfilled)\s*:/;
+    // Only payloads handed to a Supabase write count; type declarations that
+    // merely *read* the ledger columns are legitimate.
+    const LEDGER = /\b(quantity_invoiced|quantity_cancelled|quantity_backordered|quantity_fulfilled)\s*:/;
     const offenders = appFiles.filter((f) => {
       const src = read(f);
-      if (!forbidden.test(src)) return false;
-      return /\.update\(|\.insert\(|\.upsert\(/.test(src) && /sales_order_items/.test(src);
+      if (!/sales_order_items/.test(src)) return false;
+      const payloads = [...src.matchAll(/\.(update|insert|upsert)\(\s*(\{[\s\S]{0,1200}?\})/g)];
+      return payloads.some((m) => LEDGER.test(m[2]));
     });
     expect(offenders).toEqual([]);
   });
