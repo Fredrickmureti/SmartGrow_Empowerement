@@ -430,7 +430,16 @@ export default function SalesReturns() {
 
                     return (
                       <TableRow key={ret.id} className="cursor-pointer" onClick={() => setDetailReturnId(ret.id)}>
-                        <TableCell className="font-medium font-mono">{ret.return_number}</TableCell>
+                        <TableCell className="font-medium font-mono">
+                          <div className="flex items-center gap-2">
+                            <span>{ret.return_number}</span>
+                            {ret.wms_return_order_id && (
+                              <Badge variant="outline" className="font-sans text-[10px] font-normal">
+                                Warehouse
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           {ret.contact_id && ret.contact?.name ? (
                             <ClickableEntity onClick={() => setPreviewContactId(ret.contact_id)}>

@@ -25,6 +25,9 @@ export interface SalesReturn {
   refund_method: string | null;
   credit_note_id: string | null;
   notes: string | null;
+  /** Phase 5 provenance — set when the return was raised by a warehouse RMA. */
+  wms_return_order_id?: string | null;
+  wms_return_order?: { id: string; code: string | null; state: string | null } | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -64,6 +67,7 @@ async function fetchSalesReturnsFn(orgId: string, businessId: string, branchId: 
       *,
       contact:contacts(name, email),
       invoice:invoices(invoice_number, total, amount_paid),
+      wms_return_order:wms_return_orders(id, code, state),
       credit_note:credit_notes!sales_returns_credit_note_id_fkey(id, credit_note_number, status, total, amount_applied, refund_amount)
     `)
     .eq("organization_id", orgId)

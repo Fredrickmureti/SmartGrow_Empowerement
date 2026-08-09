@@ -70,6 +70,14 @@ export function SalesReturnPeekSheet({ salesReturnId, onOpenChange }: Props) {
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <div><dt className="text-xs font-medium text-muted-foreground">Customer</dt><dd className="mt-0.5">{(record as any).contact?.name ?? "—"}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Original invoice</dt><dd className="mt-0.5">{(record as any).invoice?.invoice_number ?? "—"}</dd></div>
+              <div>
+                <dt className="text-xs font-medium text-muted-foreground">Origin</dt>
+                <dd className="mt-0.5">
+                  {(record as any).wms_return_order
+                    ? `Warehouse RMA ${(record as any).wms_return_order.code ?? ""}`.trim()
+                    : "Direct (sales-raised)"}
+                </dd>
+              </div>
               <div><dt className="text-xs font-medium text-muted-foreground">Return date</dt><dd className="mt-0.5">{fmt(record.return_date)}</dd></div>
               <div><dt className="text-xs font-medium text-muted-foreground">Refund method</dt><dd className="mt-0.5">{record.refund_method ?? "—"}</dd></div>
               <div className="sm:col-span-2"><dt className="text-xs font-medium text-muted-foreground">Reason</dt><dd className="mt-0.5 whitespace-pre-line">{record.reason ?? "—"}</dd></div>
@@ -86,6 +94,14 @@ export function SalesReturnPeekSheet({ salesReturnId, onOpenChange }: Props) {
           <Section title="Activity">
             <DocumentActivityPanel entries={[
               { id: "created", at: fmt(record.created_at), actor: "System", title: `Return ${record.return_number} created` },
+              ...((record as any).wms_return_order
+                ? [{
+                    id: "wms-origin",
+                    at: fmt(record.created_at),
+                    title: "Stock movements owned by the warehouse RMA",
+                    tone: "info" as const,
+                  }]
+                : []),
             ]} />
           </Section>
           <DocumentVersionsSection documentType="sales_return" documentId={salesReturnId} />
