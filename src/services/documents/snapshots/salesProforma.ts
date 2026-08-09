@@ -184,7 +184,7 @@ export async function fetchAndBuildSalesProformaSnapshot(
       `
       id, proforma_number, status, issue_date, expiry_date,
       subtotal, tax_amount, discount_amount, total,
-      currency, notes, terms,
+      currency, notes, terms, billing_address,
       organization_id, business_id, branch_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, country),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),

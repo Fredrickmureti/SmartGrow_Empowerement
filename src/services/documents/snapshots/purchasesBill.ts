@@ -178,7 +178,7 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       `
       id, bill_number, status, bill_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
-      currency, notes,
+      currency, notes, remit_to_address,
       organization_id, business_id, branch_id, vendor_id,
       vendor:contacts(name, email, phone, address_line1, city, state, postal_code),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),

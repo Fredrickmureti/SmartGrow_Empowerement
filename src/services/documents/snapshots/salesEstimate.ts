@@ -188,7 +188,7 @@ export async function fetchAndBuildSalesEstimateSnapshot(
       `
       id, estimate_number, status, issue_date, expiry_date,
       subtotal, tax_amount, discount_amount, total,
-      currency, notes, terms,
+      currency, notes, terms, billing_address,
       organization_id, business_id, branch_id,
       customer_signature_url, signed_at,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, country),

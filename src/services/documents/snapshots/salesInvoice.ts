@@ -204,7 +204,7 @@ export async function fetchAndBuildSalesInvoiceSnapshot(
       `
       id, invoice_number, status, issue_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
-      currency, notes, terms,
+      currency, notes, terms, billing_address,
       organization_id, business_id, branch_id, contact_id
       `,
     )

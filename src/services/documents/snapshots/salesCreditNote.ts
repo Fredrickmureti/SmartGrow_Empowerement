@@ -181,7 +181,7 @@ export async function fetchAndBuildSalesCreditNoteSnapshot(
     .select(
       `
       id, credit_note_number, status, issue_date,
-      subtotal, tax_amount, total, currency, notes, reason,
+      subtotal, tax_amount, total, currency, notes, reason, billing_address,
       organization_id, business_id, branch_id, contact_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
