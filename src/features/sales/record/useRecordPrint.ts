@@ -18,8 +18,9 @@ import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildSalesInvoiceSnapshot } from "@/services/documents/snapshots/salesInvoice";
 import { fetchAndBuildSalesEstimateSnapshot } from "@/services/documents/snapshots/salesEstimate";
 import { fetchAndBuildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrder";
+import { fetchAndBuildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 
-export type RecordPrintKind = "invoice" | "estimate" | "sales_order";
+export type RecordPrintKind = "invoice" | "estimate" | "sales_order" | "payment_receipt";
 
 const KIND_CONFIG: Record<
   RecordPrintKind,
@@ -43,6 +44,11 @@ const KIND_CONFIG: Record<
     kindCode: "sales.order_ack",
     sourceDocType: "sales_order",
     build: fetchAndBuildSalesOrderSnapshot,
+  },
+  payment_receipt: {
+    kindCode: "sales.payment_receipt",
+    sourceDocType: "payment_receipt",
+    build: fetchAndBuildPaymentReceiptSnapshot,
   },
 };
 

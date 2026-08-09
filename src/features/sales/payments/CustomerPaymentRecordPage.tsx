@@ -15,6 +15,8 @@ import { RecordScaffold } from "@/design-system/records";
 import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 interface AllocationRow {
@@ -49,6 +51,8 @@ function fmt(d?: string | null) {
 export default function CustomerPaymentRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency, baseCurrency } = useCurrency();
+  const { print, printing } = useRecordPrint("payment_receipt");
+  const { preview } = useDocumentPreview();
   const [row, setRow] = useState<PaymentRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +101,7 @@ export default function CustomerPaymentRecordPage() {
     [row],
   );
   const unapplied = Math.max((row?.amount ?? 0) - applied, 0);
+  const receiptNumber = row?.receipt_number || `RCP-${id.slice(0, 8)}`;
   const status = row?.status || (unapplied > 0.005 ? "unreconciled" : "applied");
 
   return (
@@ -141,6 +146,22 @@ export default function CustomerPaymentRecordPage() {
       activity={row ? [
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Payment ${row.receipt_number ?? id.slice(0, 8)} recorded` },
       ] : undefined}
+      onPreview={
+        row
+          ? () =>
+              preview({
+                documentType: "payment_receipt",
+                documentId: row.id,
+                title: `Receipt ${receiptNumber}`,
+                filename: receiptNumber,
+              })
+          : undefined
+      }
+      onPrint={
+        row && !printing
+          ? () => void print(row.id, `Receipt ${receiptNumber}`)
+          : undefined
+      }
       extraSections={row ? <DocumentVersionsSection documentType="receipt" documentId={row.id} /> : undefined}
     />
   );
