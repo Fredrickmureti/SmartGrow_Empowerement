@@ -288,7 +288,7 @@ export default function CreditNoteCreatePage() {
           reason: formData.reason,
           notes: formData.notes || null,
         },
-        validation.valid,
+        stripProvenance(validation.valid as LineItem[]),
       );
       toast({
         title: status === "issued" ? "Credit note created and posted" : "Credit note saved as draft",
