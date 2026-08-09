@@ -56,6 +56,43 @@ export interface SalesOrderItem {
   sort_order: number;
 }
 
+/**
+ * Canonical per-line quantity ledger (`so_line_balances`).
+ *
+ * Fulfilment and billing progress is READ ONLY from this view — never re-summed
+ * from `sales_order_items`, `delivery_note_items` or `invoice_items` in app
+ * code, which is how the two invoicing routes used to disagree.
+ */
+export interface SalesOrderLineBalance {
+  sales_order_id: string;
+  sales_order_item_id: string;
+  quantity_ordered: number;
+  quantity_delivered: number;
+  quantity_invoiced: number;
+  quantity_returned: number;
+  quantity_cancelled: number;
+  quantity_open_to_deliver: number;
+  quantity_open_to_invoice: number;
+  quantity_on_open_deliveries: number;
+  quantity_open_to_plan: number;
+}
+
+export function useSalesOrderLineBalances(salesOrderId?: string) {
+  return useQuery({
+    queryKey: ["so_line_balances", salesOrderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("so_line_balances" as any)
+        .select("*")
+        .eq("sales_order_id", salesOrderId!);
+      if (error) throw error;
+      return (data || []) as unknown as SalesOrderLineBalance[];
+    },
+    enabled: !!salesOrderId,
+  });
+}
+
+
 async function fetchSalesOrdersFn(orgId: string, businessId: string, branchId: string | null) {
   let query = supabase
     .from("sales_orders")
