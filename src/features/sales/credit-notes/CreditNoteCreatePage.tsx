@@ -512,16 +512,6 @@ export default function CreditNoteCreatePage() {
           </div>
         </FieldGroup>
 
-        <FieldGroup label="Notes">
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes..."
-            />
-          </div>
-        </FieldGroup>
 
         <InvoiceLineCreditPicker
           open={pickerOpen}
