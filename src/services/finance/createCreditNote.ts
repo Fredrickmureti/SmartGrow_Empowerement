@@ -165,3 +165,17 @@ export async function issueCreditNoteAtomic(creditNoteId: string): Promise<{
   if (!creditNoteId) throw new Error("Cannot issue a credit note without an id.");
   return callCreditNoteRpc(RPC_ENDPOINTS.issue, JSON.stringify({ _credit_note_id: creditNoteId }));
 }
+
+/**
+ * Deterministic transport for `delete_credit_note_atomic(_credit_note_id uuid)`.
+ * The server owns the deletability rules: draft only, nothing applied, nothing
+ * refunded, no credit movements and no posted journal entry.
+ */
+export async function deleteCreditNoteAtomic(creditNoteId: string): Promise<{
+  credit_note_id: string;
+  deleted: boolean;
+}> {
+  if (!creditNoteId) throw new Error("Cannot delete a credit note without an id.");
+  return callCreditNoteRpc(RPC_ENDPOINTS.remove, JSON.stringify({ _credit_note_id: creditNoteId }));
+}
+
