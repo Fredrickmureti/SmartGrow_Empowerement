@@ -59,8 +59,8 @@ import {
   BarChart3,
   History,
 } from "lucide-react";
-import { RecordPaymentDialog } from "@/components/invoices/RecordPaymentDialog";
-import { RecordPaymentDialog as SalesRecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
+import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
+import { RecordCustomerPaymentDialog as SalesRecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 import { AdvancePaymentDialog } from "@/components/payments/AdvancePaymentDialog";
 import { PaymentHistoryDialog } from "@/components/invoices/PaymentHistoryDialog";
 import { useQuery } from "@tanstack/react-query";

@@ -42,7 +42,7 @@ import {
   Search,
   Wallet,
 } from "lucide-react";
-import { RecordPaymentDialog } from "@/components/sales/RecordPaymentDialog";
+import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 
 type Bucket = "all" | "current" | "days30" | "days60" | "days90";
 

@@ -52,7 +52,7 @@ import { InvoicePeekSheet } from "@/features/sales/invoices/InvoicePeekSheet";
 import { usePeekParam } from "@/design-system/records";
 // CreateInvoiceDialog retired — /sales/invoices/new hosts the create form on RecordFormShell.
 import { InvoiceListTable } from "@/components/invoices/InvoiceListTable";
-import { RecordPaymentDialog } from "@/components/invoices/RecordPaymentDialog";
+import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 import { PaymentHistoryDialog } from "@/components/invoices/PaymentHistoryDialog";
 // EditInvoiceDialog retired — /sales/invoices/:id/edit hosts the edit form on RecordFormShell.
 import { ScannerPairingButton } from "@/components/scanner/ScannerPairingButton";
