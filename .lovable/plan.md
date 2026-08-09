@@ -1,73 +1,61 @@
-# Commercial Terms / Payment Terms / Document Notes — authoritative status
+# Payment Terms workstream — verification result and next phase
 
-Roadmap source: `.lovable/plan/commercial-terms-payment-terms-document-notes-domain-audit-c-2026-08-09.md`
-Domain invariants: `mem/features/payment-terms.md`
+## Phase 1 — independent verification (done this session)
 
-## The three concepts (settled, do not re-merge)
+Every claim in the handover was checked against the live database and the source, not the notes.
 
-1. **Payment term** — structured (`payment_terms` row: name + days). Drives `due_date` and AR/AP aging. Lives in `payment_term_id`.
-2. **Document terms & conditions** — legal prose. Lives in the `terms` text column where a document has one.
-3. **Document notes** — human message to the counterparty. Separate field.
+Confirmed true:
 
-A term *name* must never be written into a prose field, and prose must never be parsed to derive a due date.
+- `businesses.default_payment_terms` no longer exists anywhere in the schema (0 columns named that in `public`). The drop migration is present.
+- `resolve_payment_term(org, business, contact, override)` exists and implements exactly four tiers: document override -> `contacts.payment_term_id` -> business default (`is_default AND is_active`) -> no row (caller treats as due on receipt).
+- The three `BEFORE INSERT` fill triggers exist and are enabled on `invoices`, `bills`, `sales_orders`, all calling `_fill_document_payment_term()`. The function returns early when `payment_term_id` is already set, so an explicit choice is never overwritten. (An earlier `information_schema.triggers` lookup returns nothing for these — the body lives in the function, not the trigger statement. They are real; `pg_trigger` confirms them.)
+- `payment_term_id` exists on `contacts`, `invoices`, `bills`, `sales_orders`.
+- Client code reaches resolution only through `src/services/finance/paymentTerms.ts`. `useBills.getDefaultDueDate` falls back to the bill date, not +30. Invoice create keeps the structured term in `payment_term_id` and leaves the `terms` textarea as prose.
+- Snapshots freeze `{id,name,days}` for invoice, bill and sales order via `fetchPaymentTermSnapshot`.
+- `bunx vitest run src/test/architecture/payment-term-single-source.test.ts src/test/documents` — 161 tests pass, including both architecture guards.
 
-## Resolution — one resolver only
+Nothing claimed complete was found to be fake or superficial. Phases 0-5 stand.
 
-`public.resolve_payment_term(org, business, contact, override)`:
-document override -> party (customer/supplier) default -> company default (`payment_terms.is_default`) -> **due on receipt (0 days)**.
+New gaps found during verification (not in the previous engineer's list):
 
-There is **no other legitimate source** for a credit period. No hardcoded net period is permitted anywhere, ever.
+1. **No uniqueness guard on the business default term.** Nothing prevents two `is_default AND is_active` rows for the same business. Today no business has more than one, so this is latent, but the resolver would then pick by `ORDER BY days` — a silent, arbitrary credit period. That is exactly the class of bug this workstream exists to kill.
+2. **Historical invoices carry no term.** All 6 existing invoices have `payment_term_id IS NULL`; the fill trigger is insert-only. Their `due_date` is already correct and must not be touched, but the rows are unattributed for reporting.
+3. **The party tier is configurable but unexercised.** `contacts.payment_term_id` is wired end to end (form, defaults fetch, resolver tier 2) yet zero contacts have one set. Worth confirming the customer/supplier UI actually persists it before declaring tier 2 proven.
 
-## Status by phase
+## Phase 2 — work to do next, in order
 
-| Phase | Scope | State |
-|---|---|---|
-| 0 | Separate payment term / T&C prose / notes | **Done, verified** |
-| 1 | `resolve_payment_term` + single client seam `src/services/finance/paymentTerms.ts`; all `+30 day` fallbacks removed (invoice create, `useBills.getDefaultDueDate`, invoice CSV import) | **Done, verified live** (returns `Net 20 / 20 days`) |
-| 2 | `bills.payment_term_id` added and persisted (the picker's value was previously discarded) | **Done, verified** |
-| 3 | `BEFORE INSERT` triggers on `invoices`, `bills`, `sales_orders` fill `payment_term_id` when null, so every conversion RPC / recurring run inherits. Additive only: explicit terms and historical `due_date` untouched | **Done, verified** |
-| 4 | Snapshot + render: `src/services/documents/snapshots/paymentTerm.ts` freezes `{id,name,days}`; invoice / bill / sales-order snapshots carry `payment_term`; PDF prints a **Payment Terms** meta row; thermal receipts print a `Terms:` line | **Done** — 159 document tests + typecheck pass |
-| 5 | **Retire the legacy integer column** | **Done, this session** |
+### 1. DB-level invariant test (`supabase/tests/payment_terms_test.sql`)
 
-### Phase 5 detail (current session)
+Prove in the database, not in TypeScript:
 
-- `businesses.default_payment_terms` (integer, default 30) was the original source of the
-  "30 days" bug. It is **DROPPED from the database** — not deprecated, not kept as a fallback.
-  `contacts.default_payment_terms` did not exist; only the `businesses` one did.
-- The settings audit trigger `audit_businesses_settings` was recreated without the retired
-  column so the audit trail stays valid.
-- Verified before dropping: zero application reads/writes, zero SQL functions, zero views depend on it.
-- New guard `src/test/architecture/payment-term-single-source.test.ts` fails CI if
-  (a) the retired identifier reappears anywhere in `src/`, or (b) a hardcoded net period
-  (7/14/15/21/30/45/60/90 days) is used in due-date arithmetic. Quote validity
-  (`valid_until`) and roster/report date ranges are deliberately out of scope.
+- all four resolution tiers return the expected term, including the empty fourth tier;
+- the fill trigger populates a null term on `invoices`, `bills`, `sales_orders`;
+- the fill trigger never overwrites an explicit term;
+- an inactive term is ignored at every tier;
+- a term belonging to another organization is never resolved.
 
-**Retirement rule for every future agent:** when something is retired in this workstream it is
-*deleted*. Do not leave it readable, do not COALESCE onto it, do not "keep it for old rows".
-A retired field silently rehydrating is exactly how the original bug survived.
+### 2. Single-default integrity
 
-## Remaining / next milestone
+Add a partial unique index so a business can have at most one active default term, then confirm the resolver's `ORDER BY days` tie-break becomes unreachable.
 
-Phase 5 closes the audit's original scope. Nothing in this workstream is partially implemented.
+### 3. Attribute historical documents
 
-Optional hardening, in priority order, if this workstream is resumed:
+Backfill `payment_term_id` on existing invoices and bills **only where the stored `due_date` matches what the resolved term would have produced**. Where it does not match, leave the row null — a document's historical due date is truth and must not be rewritten to fit a term. Record the outcome.
 
-1. **DB-level invariant test** — `supabase/tests/payment_terms_test.sql`: prove the cascade's four
-   levels, prove the fill triggers never overwrite an explicit term, prove a document with no
-   resolvable term gets `due_date = issue_date`.
-2. **Purchase-side parity** — purchase orders and expenses have no `payment_term_id`. Decide
-   (ADR) whether a PO carries a commercial term or only inherits it at bill time. Do not add the
-   column until that decision is written down.
-3. **T&C prose ownership** — `bills`, `sales_orders` and `delivery_notes` have no prose `terms`
-   column. If those documents must print T&C, source it from the document template / company
-   default, never from the term name.
+### 4. Purchase-side parity decision (ADR, no schema change yet)
 
-## Instructions for the next agent
+Write `docs/adr/` entry deciding whether a purchase order carries a commercial term or only inherits one at bill time, and the same for expenses. Neither table gets a column until the ADR is written down.
 
-1. **Verify before you build.** Confirm: `businesses.default_payment_terms` no longer exists;
-   `resolve_payment_term` still returns the company default for a business with one; the three
-   `BEFORE INSERT` fill triggers exist on `invoices`, `bills`, `sales_orders`; and
-   `bunx vitest run src/test/architecture/payment-term-single-source.test.ts src/test/documents`
-   plus `tsgo --noEmit` are clean.
-2. **Then resume at "Remaining / next milestone" item 1** — not unrelated work. Keep the order.
-3. Never reintroduce a credit-period constant. Unresolved term = due on receipt.
+### 5. T&C prose ownership
+
+`bills`, `sales_orders` and `delivery_notes` have no prose `terms` column. Decide and document: prose comes from the document template or the company default, never from the payment-term name.
+
+## Technical notes
+
+- Migrations only via the migration tool; the two schema items above (index, backfill) are one migration each so the backfill can be reviewed on its own.
+- The architecture guard test already fails CI on any reintroduced credit-period constant; extend its banned-pattern list only if a new violation shape appears.
+- Retirement rule stays in force: retired means deleted. No COALESCE onto a dropped field, no "keep it for old rows".
+
+## Explicitly not changing
+
+Accounting posting, AR/AP aging computation, tax, document snapshot format, and the existing `due_date` values on issued documents.
