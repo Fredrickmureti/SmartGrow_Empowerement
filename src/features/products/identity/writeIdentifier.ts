@@ -90,22 +90,29 @@ export async function writeIdentifierResult(
     reason?: string;
     identifier_id?: string;
     idempotent?: boolean;
+    revived?: boolean;
     product_id?: string;
     product_name?: string;
+    same_product?: boolean;
   } | null;
   if (envelope?.status === "ok") {
     return {
       status: "ok",
       identifierId: envelope.identifier_id ?? "",
       idempotent: !!envelope.idempotent,
+      revived: !!envelope.revived,
     };
   }
   if (envelope?.status === "duplicate") {
+    const sameProduct = !!envelope.same_product;
     return {
       status: "duplicate",
       conflictProductId: envelope.product_id ?? null,
       conflictProductName: envelope.product_name ?? null,
-      message: identifierWriteMessage(envelope.reason ?? "code_taken"),
+      sameProduct,
+      message: identifierWriteMessage(
+        sameProduct ? "code_taken_same_product" : (envelope.reason ?? "code_taken"),
+      ),
     };
   }
   return {
