@@ -50,6 +50,11 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { Badge } from "@/components/ui/badge";
+import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
+import { useInvoiceCreditableLines } from "./useInvoiceCreditableLines";
+import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCreditPicker";
+import { CREDIT_REASON_OPTIONS, CREDIT_REASON_OTHER } from "./creditReasonOptions";
 
 /**
  * `source_invoice_item_id` is UI-only provenance: it marks a line as picked
