@@ -186,3 +186,43 @@ describe("Sales Order — status vocabulary", () => {
     expect([...illegal]).toEqual([]);
   });
 });
+
+describe("Sales Order — the client update path cannot reach governed columns", () => {
+  const hook = read(join(ROOT, "hooks", "useSalesOrders.ts"));
+
+  it("useSalesOrders.updateSalesOrder whitelists benign header fields only", () => {
+    expect(hook).toContain("EDITABLE_HEADER_FIELDS");
+    for (const governed of [
+      "status",
+      "so_number",
+      "total",
+      "subtotal",
+      "tax_amount",
+      "exchange_rate",
+      "is_locked",
+      "converted_invoice_id",
+    ]) {
+      const whitelist = hook.slice(
+        hook.indexOf("EDITABLE_HEADER_FIELDS = new Set(["),
+        hook.indexOf("]);", hook.indexOf("EDITABLE_HEADER_FIELDS = new Set([")),
+      );
+      expect(whitelist).not.toContain(`"${governed}"`);
+    }
+  });
+
+  it("the list page routes confirm / cancel to the atomic engines", () => {
+    const page = read(join(ROOT, "pages", "SalesOrders.tsx"));
+    expect(page).toContain("confirmSalesOrder");
+    expect(page).toContain("cancelSalesOrder");
+    expect(page).not.toMatch(/updateSalesOrder\([^)]*status/);
+  });
+
+  it("a database trigger — not just this test file — owns the rule", () => {
+    const migrations = walk(join(process.cwd(), "supabase", "migrations"))
+      .filter((f) => f.endsWith(".sql"))
+      .map(read)
+      .join("\n");
+    expect(migrations).toContain("sales_order_governed_write_guard");
+    expect(migrations).toContain("trg_00_sales_order_governed_write");
+  });
+});
