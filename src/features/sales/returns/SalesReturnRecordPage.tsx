@@ -88,6 +88,7 @@ export default function SalesReturnRecordPage() {
     { id: "unit", header: "Unit price", width: "120px", numeric: true },
     { id: "reason", header: "Return reason", width: "160px", hideOnMobile: true },
     { id: "condition", header: "Condition", width: "110px", hideOnMobile: true },
+    { id: "cost", header: "Cost basis", width: "120px", numeric: true, hideOnMobile: true },
     { id: "total", header: "Subtotal", width: "120px", numeric: true },
   ], []);
 
@@ -169,6 +170,13 @@ export default function SalesReturnRecordPage() {
             }]
           : []),
         ...(row.credit_note_id ? [{ id: "credit", at: fmt(row.updated_at), title: "Credit note issued", tone: "info" as const }] : []),
+        ...costBasis.map((b) => ({
+          id: `cost-${b.id}`,
+          at: fmt(row.updated_at),
+          title: `Inventory restored at ${METHOD_LABEL[b.method] ?? b.method} — ${formatCurrency(b.total_value ?? 0)}`,
+          description: b.fallback_reason ?? undefined,
+          tone: (b.fallback_qty > 0 ? "warning" : "info") as "warning" | "info",
+        })),
       ] : undefined}
       extraSections={row ? <DocumentVersionsSection documentType="sales_return" documentId={row.id} /> : undefined}
     />
