@@ -29,6 +29,11 @@ import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+import {
+  resolvePaymentTerm,
+  dueDateFromTerm,
+  todayIso,
+} from "@/services/finance/paymentTerms";
 import { computeLine, computeTotals } from "@/lib/invoiceLineMath";
 import { CreditCheckAlert } from "@/components/shared/CreditCheckAlert";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
@@ -113,14 +118,20 @@ export default function InvoiceCreatePage() {
 
   const [formData, setFormData] = useState({
     contact_id: "",
-    due_date: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    // Due date is derived from the resolved payment term (see the effect
+    // below). Seeded to the issue date = due on receipt, never an invented
+    // 30-day term.
+    due_date: todayIso(),
     notes: "",
-    terms: "Payment due within 30 days.",
+    // Free-text terms & conditions ONLY. The structured payment term lives in
+    // `payment_term_id`; never stamp a term name into this field.
+    terms: "",
     discount_amount: 0,
     currency: "",
     markAsSent: false,
     salesperson_id: "",
     project_id: null as string | null,
+    payment_term_id: null as string | null,
   });
 
   const [lineItems, setLineItems] = useState<Omit<InvoiceItem, "id" | "invoice_id">[]>([
@@ -167,14 +178,15 @@ export default function InvoiceCreatePage() {
   const resetForm = () => {
     setFormData({
       contact_id: "",
-      due_date: format(addDays(new Date(), 30), "yyyy-MM-dd"),
+      due_date: todayIso(),
       notes: "",
-      terms: "Payment due within 30 days.",
+      terms: "",
       discount_amount: 0,
       currency: baseCurrency,
       markAsSent: false,
       salesperson_id: user?.id || "",
       project_id: null,
+      payment_term_id: null,
     });
     setLineItems([
       { description: "", quantity: 1, unit_price: 0, tax_rate: 0, tax_amount: 0, discount_percent: 0, line_total: 0, sort_order: 0 },
