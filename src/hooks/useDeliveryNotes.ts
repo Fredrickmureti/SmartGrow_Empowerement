@@ -131,65 +131,57 @@ export function useDeliveryNotes() {
     if (!currentOrg || !currentBusiness) return null;
 
     try {
-      const deliveryNumber = await getNextNumber();
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: newNote, error: noteError } = await supabase
-        .from("delivery_notes")
-        .insert({
+      // Single transaction: the number is allocated under an advisory lock and
+      // the header + lines are written together. The previous three-step
+      // browser sequence (number → header → lines) could strand a header with
+      // no lines and could hand the same number to two concurrent users.
+      const { data, error } = await (supabase.rpc as any)("create_delivery_note_atomic", {
+        p_payload: {
           organization_id: currentOrg.id,
           business_id: currentBusiness.id,
           branch_id: currentBranch?.id ?? null,
-          delivery_number: deliveryNumber,
-          contact_id: note.contact_id,
-          delivery_date: note.delivery_date || new Date().toISOString().split('T')[0],
-          status: note.status || 'pending',
-          sales_order_id: note.sales_order_id,
-          shipping_address: note.shipping_address,
-          driver_name: note.driver_name,
-          vehicle_number: note.vehicle_number,
-          notes: note.notes,
+          contact_id: note.contact_id ?? null,
+          delivery_date: note.delivery_date || new Date().toISOString().split("T")[0],
+          sales_order_id: note.sales_order_id ?? null,
+          shipping_address: note.shipping_address ?? null,
+          driver_name: note.driver_name ?? null,
+          vehicle_number: note.vehicle_number ?? null,
+          notes: note.notes ?? null,
           auto_invoice_on_complete: note.auto_invoice_on_complete ?? true,
-          created_by: user?.id,
-        } as any)
-        .select()
-        .single();
-
-      if (noteError) throw noteError;
-
-      if (items.length > 0) {
-        const noteItems = items.map((item, index) => ({
-          delivery_note_id: newNote.id,
+        },
+        p_lines: items.map((item) => ({
           description: item.description,
-          quantity_ordered: item.quantity_ordered || 0,
-          quantity_delivered: item.quantity_delivered || 0,
-          product_id: item.product_id,
-          sales_order_item_id: item.sales_order_item_id,
+          quantity_ordered: item.quantity_ordered ?? 0,
+          quantity_delivered: item.quantity_delivered ?? 0,
+          product_id: item.product_id ?? null,
+          sales_order_item_id: item.sales_order_item_id ?? null,
           unit_price: item.unit_price ?? null,
           tax_rate: item.tax_rate ?? null,
           tax_amount: item.tax_amount ?? null,
           discount_percent: item.discount_percent ?? 0,
           line_total: item.line_total ?? null,
-          sort_order: index,
           // Phase A.4 — persist picker output for lot/serial-tracked lines.
           lot_number: (item as any).lot_number ?? null,
           serial_number: (item as any).serial_number ?? null,
           lot_allocations: (item as any).lot_allocations ?? null,
-        }));
+        })),
+        p_user_id: user?.id ?? null,
+      });
 
-        const { error: itemsError } = await supabase
-          .from("delivery_note_items")
-          .insert(noteItems as any);
-
-        if (itemsError) throw itemsError;
+      if (error) throw error;
+      const result = data as { success?: boolean; id?: string; delivery_number?: string } | null;
+      if (!result?.success || !result.id) {
+        throw new Error((result as any)?.error || "Failed to create delivery note");
       }
 
-      toast.success("Delivery note created successfully");
+      toast.success(`Delivery note ${result.delivery_number ?? ""} created`.trim());
       invalidate();
-      return newNote;
+      return { id: result.id, delivery_number: result.delivery_number } as any;
     } catch (error) {
       console.error("Error creating delivery note:", error);
-      toast.error("Failed to create delivery note");
+      toast.error(normalizeError(error).message || "Failed to create delivery note");
       return null;
     }
   };
