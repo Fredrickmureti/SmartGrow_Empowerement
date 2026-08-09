@@ -94586,6 +94586,15 @@ export type Database = {
         }
         Returns: Json
       }
+      set_sales_order_approval_state_atomic: {
+        Args: {
+          p_action: string
+          p_notes?: string
+          p_so_id: string
+          p_user_id?: string
+        }
+        Returns: Json
+      }
       set_sms_provider_config: {
         Args: {
           p_account_sid?: string
@@ -95590,6 +95599,15 @@ export type Database = {
           p_organization_id: string
         }
         Returns: undefined
+      }
+      update_sales_order_atomic: {
+        Args: {
+          p_header: Json
+          p_items: Json
+          p_so_id: string
+          p_user_id?: string
+        }
+        Returns: Json
       }
       upsert_notification_alert_settings: {
         Args: {
