@@ -54,10 +54,14 @@ import {
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldCell, FieldGroup } from "@/design-system/primitives/FieldGrid";
+import { ShipToPicker } from "@/components/addresses/ShipToPicker";
 
 const formSchema = z.object({
   contact_id: z.string().min(1, "Customer is required"),
   delivery_date: z.string(),
+  // Structured link to the customer's saved address (null = custom address).
+  ship_to_contact_id: z.string().nullable().optional(),
+  // Rendered snapshot printed on the document.
   shipping_address: z.string().optional(),
   driver_name: z.string().optional(),
   vehicle_number: z.string().optional(),
@@ -107,6 +111,7 @@ export default function DeliveryNoteCreatePage() {
     defaultValues: {
       contact_id: prefillContactId || "",
       delivery_date: new Date().toISOString().split("T")[0],
+      ship_to_contact_id: null,
       shipping_address: "",
       driver_name: "",
       vehicle_number: "",
@@ -330,16 +335,20 @@ export default function DeliveryNoteCreatePage() {
                 )}
               />
               <FieldCell span={2}>
-                <FormField
-                  control={form.control}
-                  name="shipping_address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shipping Address</FormLabel>
-                      <FormControl><Input {...field} placeholder="Enter delivery address" /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <ShipToPicker
+                  contactId={watchedContactId || null}
+                  value={{
+                    shipToContactId: form.watch("ship_to_contact_id") ?? null,
+                    shippingAddress: form.watch("shipping_address") ?? "",
+                  }}
+                  onChange={(next) => {
+                    form.setValue("ship_to_contact_id", next.shipToContactId, {
+                      shouldDirty: true,
+                    });
+                    form.setValue("shipping_address", next.shippingAddress, {
+                      shouldDirty: true,
+                    });
+                  }}
                 />
               </FieldCell>
               <FormField
