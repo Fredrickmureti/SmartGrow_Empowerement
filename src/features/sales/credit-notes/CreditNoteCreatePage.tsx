@@ -54,7 +54,7 @@ import { Badge } from "@/components/ui/badge";
 import { useBranchScopedProducts } from "@/hooks/useBranchScopedProducts";
 import { useInvoiceCreditableLines } from "./useInvoiceCreditableLines";
 import { InvoiceLineCreditPicker, type PickedCreditLine } from "./InvoiceLineCreditPicker";
-import { CREDIT_REASON_OPTIONS, CREDIT_REASON_OTHER } from "./creditReasonOptions";
+import { CreditReasonField } from "./CreditReasonField";
 
 /**
  * `source_invoice_item_id` is durable provenance: it marks a line as picked
@@ -413,64 +413,14 @@ export default function CreditNoteCreatePage() {
 
         <FieldGroup label="Reason">
           <FieldGrid columns={2}>
-            <div className="space-y-2">
-              <Label>Reason for Credit *</Label>
-              <Select
-                value={reasonChoice}
-                onValueChange={(v) => {
-                  setReasonChoice(v);
-                  setFormData((f) => ({
-                    ...f,
-                    reason: v === CREDIT_REASON_OTHER ? "" : v,
-                  }));
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a reason" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CREDIT_REASON_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {reasonChoice && reasonChoice !== CREDIT_REASON_OTHER && (
-                <p className="text-xs text-muted-foreground">
-                  {CREDIT_REASON_OPTIONS.find((o) => o.value === reasonChoice)?.description}
-                </p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>
-                {reasonChoice === CREDIT_REASON_OTHER ? "Your reason *" : "Detail (optional)"}
-              </Label>
-              <Input
-                value={
-                  reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
-                    ? formData.reason.replace(new RegExp(`^${reasonChoice}\\s*[—-]?\\s*`), "")
-                    : formData.reason
-                }
-                onChange={(e) => {
-                  const detail = e.target.value;
-                  setFormData((f) => ({
-                    ...f,
-                    reason:
-                      reasonChoice && reasonChoice !== CREDIT_REASON_OTHER
-                        ? detail
-                          ? `${reasonChoice} — ${detail}`
-                          : reasonChoice
-                        : detail,
-                  }));
-                }}
-                placeholder={
-                  reasonChoice === CREDIT_REASON_OTHER
-                    ? "Describe why this credit is being issued"
-                    : "Add specifics for the audit trail"
-                }
-              />
-            </div>
+            <CreditReasonField
+              choice={reasonChoice}
+              onChoiceChange={setReasonChoice}
+              reason={formData.reason}
+              onReasonChange={(reason) => setFormData((f) => ({ ...f, reason }))}
+              notes={formData.notes}
+              onNotesChange={(notes) => setFormData((f) => ({ ...f, notes }))}
+            />
           </FieldGrid>
         </FieldGroup>
 

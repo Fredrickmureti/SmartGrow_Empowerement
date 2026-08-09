@@ -146,7 +146,9 @@ export function useCreditNotes() {
 
   const createCreditNote = async (
     creditNote: Omit<CreditNote, "id" | "organization_id" | "created_at" | "updated_at" | "created_by" | "contact" | "invoice" | "items" | "source_return">,
-    items: Omit<CreditNoteItem, "id" | "credit_note_id">[]
+    items: Array<Record<string, unknown>>,
+    /** Idempotency key: repeat submissions of the same intent are collapsed. */
+    clientRequestId?: string,
   ) => {
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
 
@@ -165,9 +167,10 @@ export function useCreditNotes() {
         issue_date: creditNote.issue_date ?? new Date().toISOString().split("T")[0],
         reason: creditNote.reason ?? null,
         notes: creditNote.notes ?? null,
-        items: items.map((item, index) => ({ ...item, sort_order: item.sort_order ?? index })),
+        items: items.map((item, index) => ({ ...item, sort_order: (item as any).sort_order ?? index })),
         source_return_id: creditNote.source_return_id ?? null,
         issue: creditNote.status === "issued",
+        client_request_id: clientRequestId ?? null,
     });
 
     await fetchCreditNotes();
