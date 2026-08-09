@@ -6611,6 +6611,8 @@ export type Database = {
           organization_id: string
           project_id: string | null
           purchase_order_id: string | null
+          remit_to_address: string | null
+          remit_to_contact_id: string | null
           source_expense_id: string | null
           source_purchase_order_id: string | null
           status: Database["public"]["Enums"]["bill_status"]
@@ -6654,6 +6656,8 @@ export type Database = {
           organization_id: string
           project_id?: string | null
           purchase_order_id?: string | null
+          remit_to_address?: string | null
+          remit_to_contact_id?: string | null
           source_expense_id?: string | null
           source_purchase_order_id?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
@@ -6697,6 +6701,8 @@ export type Database = {
           organization_id?: string
           project_id?: string | null
           purchase_order_id?: string | null
+          remit_to_address?: string | null
+          remit_to_contact_id?: string | null
           source_expense_id?: string | null
           source_purchase_order_id?: string | null
           status?: Database["public"]["Enums"]["bill_status"]
@@ -10287,6 +10293,8 @@ export type Database = {
           amount_applied: number | null
           approved_at: string | null
           approved_by: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -10326,6 +10334,8 @@ export type Database = {
           amount_applied?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           client_request_id?: string | null
@@ -10365,6 +10375,8 @@ export type Database = {
           amount_applied?: number | null
           approved_at?: string | null
           approved_by?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           client_request_id?: string | null
@@ -19014,6 +19026,8 @@ export type Database = {
       estimates: {
         Row: {
           accepted_at: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           contact_id: string | null
@@ -19049,6 +19063,8 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           contact_id?: string | null
@@ -19084,6 +19100,8 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           contact_id?: string | null
@@ -23475,6 +23493,8 @@ export type Database = {
       invoices: {
         Row: {
           amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           billing_period_end: string | null
           billing_period_start: string | null
           branch_id: string | null
@@ -23539,6 +23559,8 @@ export type Database = {
         }
         Insert: {
           amount_paid?: number | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           billing_period_end?: string | null
           billing_period_start?: string | null
           branch_id?: string | null
@@ -23603,6 +23625,8 @@ export type Database = {
         }
         Update: {
           amount_paid?: number | null
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           billing_period_end?: string | null
           billing_period_start?: string | null
           branch_id?: string | null
@@ -51351,6 +51375,8 @@ export type Database = {
       }
       proforma_invoices: {
         Row: {
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           contact_id: string | null
@@ -51375,6 +51401,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id: string
           contact_id?: string | null
@@ -51399,6 +51427,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bill_to_contact_id?: string | null
+          billing_address?: string | null
           branch_id?: string | null
           business_id?: string
           contact_id?: string | null
@@ -83449,6 +83479,8 @@ export type Database = {
           organization_id: string
           project_id: string | null
           purchase_order_id: string | null
+          remit_to_address: string | null
+          remit_to_contact_id: string | null
           source_expense_id: string | null
           source_purchase_order_id: string | null
           status: Database["public"]["Enums"]["bill_status"]
@@ -83546,6 +83578,8 @@ export type Database = {
           amount_applied: number | null
           approved_at: string | null
           approved_by: string | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -88369,6 +88403,8 @@ export type Database = {
         }
         Returns: {
           amount_paid: number | null
+          bill_to_contact_id: string | null
+          billing_address: string | null
           billing_period_end: string | null
           billing_period_start: string | null
           branch_id: string | null

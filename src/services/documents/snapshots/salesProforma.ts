@@ -20,6 +20,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
+import { resolveSnapshotAddress } from "./partyAddress";
 
 // ---------- Input shapes (mirror what fetchProforma selects) ----------
 
@@ -78,6 +79,8 @@ export interface SalesProformaHeaderRow {
   terms: string | null;
   organization_id: string;
   business_id: string | null;
+  /** Frozen printed address; authoritative over live party data. */
+  billing_address?: string | null;
   branch_id: string | null;
   contact: SalesProformaContactRow | null;
   business: SalesProformaBusinessRow | null;
@@ -148,6 +151,7 @@ export function buildSalesProformaSnapshot(
     notes: proforma.notes ?? null,
     terms: proforma.terms ?? null,
     contact: proforma.contact,
+    billing_address: resolveSnapshotAddress(proforma.billing_address, proforma.contact),
     business_id: proforma.business_id,
     organization_id: proforma.organization_id,
     branch_id: proforma.branch_id,
@@ -180,7 +184,7 @@ export async function fetchAndBuildSalesProformaSnapshot(
       `
       id, proforma_number, status, issue_date, expiry_date,
       subtotal, tax_amount, discount_amount, total,
-      currency, notes, terms,
+      currency, notes, terms, billing_address,
       organization_id, business_id, branch_id,
       contact:contacts(name, email, phone, address_line1, city, state, postal_code, country),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),

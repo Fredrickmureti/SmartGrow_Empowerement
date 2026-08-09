@@ -2,7 +2,8 @@
 
 Authoritative status file. Update it after every implementation step.
 
-**Currently active:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
+**Currently active:** Phase 6 (documentation & guardrails)
+**Last completed:** Phase 5 (invoices, credit notes, estimates — bill-to snapshot)
 **Last completed:** Phase 4 (record rendering) — 2026-08-09
 
 ## Verified current state (re-checked this session, against live DB + source)

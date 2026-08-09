@@ -12,6 +12,7 @@ import { usePermissions } from "./usePermissions";
 import { queryKeys } from "@/lib/queryKeys";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { computeEstimateTotals, type EstimateStatus } from "@/lib/estimateLifecycle";
+import { captureBillToSnapshot } from "@/lib/contactAddresses";
 
 export interface EstimateItem {
   id?: string;
@@ -160,10 +161,14 @@ export function useEstimates() {
     );
 
 
+    // Freeze the bill-to address on the document (Phase 5).
+    const billTo = await captureBillToSnapshot(estimate.contact_id);
+
     const { data: created, error: estimateError } = await supabase
       .from("estimates")
       .insert({
         ...estimate,
+        ...billTo,
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
         branch_id: currentBranch?.id ?? null,

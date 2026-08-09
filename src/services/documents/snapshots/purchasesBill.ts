@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeSnapshotItems } from "./lineItemUom";
 import type { SnapshotBlob } from "./index";
+import { resolveSnapshotAddress } from "./partyAddress";
 
 // ---------- Input shapes (mirror fetchBill's projection) ----------
 
@@ -69,6 +70,8 @@ export interface PurchasesBillHeaderRow {
   notes: string | null;
   organization_id: string;
   business_id: string | null;
+  /** Frozen printed address; authoritative over live party data. */
+  remit_to_address?: string | null;
   branch_id: string | null;
   vendor_id: string | null;
   vendor: PurchasesBillVendorRow | null;
@@ -140,6 +143,7 @@ export function buildPurchasesBillSnapshot(
     notes: bill.notes ?? null,
     terms: null,
     contact: bill.vendor,
+    remit_to_address: resolveSnapshotAddress(bill.remit_to_address, bill.vendor),
     business_id: bill.business_id,
     organization_id: bill.organization_id,
     branch_id: bill.branch_id,
@@ -174,7 +178,7 @@ export async function fetchAndBuildPurchasesBillSnapshot(
       `
       id, bill_number, status, bill_date, due_date,
       subtotal, tax_amount, discount_amount, total, amount_paid,
-      currency, notes,
+      currency, notes, remit_to_address,
       organization_id, business_id, branch_id, vendor_id,
       vendor:contacts(name, email, phone, address_line1, city, state, postal_code),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),

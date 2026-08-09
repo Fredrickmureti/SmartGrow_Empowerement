@@ -151,6 +151,29 @@ function packFields(it: any): {
 // ── Data fetchers per document type ────────────────────────────────────────
 
 
+/**
+ * Snapshot first, live party second — mirrors
+ * src/services/documents/snapshots/partyAddress.ts.
+ */
+function resolveSnapshotAddress(
+  stored: string | null | undefined,
+  party: any,
+): string | null {
+  const text = (stored ?? "").trim();
+  if (text) return text;
+  if (!party) return null;
+  const cityLine = [party.city, party.state, party.postal_code]
+    .map((part: any) => (part ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+  return (
+    [party.address_line1, party.address_line2, cityLine, party.country]
+      .map((part: any) => (part ?? "").trim())
+      .filter(Boolean)
+      .join("\n") || null
+  );
+}
+
 async function fetchInvoice(supabase: any, documentId: string): Promise<DocumentData> {
   const { data: invoice, error } = await supabase
     .from("invoices")
@@ -183,6 +206,7 @@ async function fetchInvoice(supabase: any, documentId: string): Promise<Document
     notes: invoice.notes,
     terms: invoice.terms,
     contact: invoice.contact,
+    billing_address: resolveSnapshotAddress(invoice.billing_address, invoice.contact),
     organization: await mapBusinessToOrg(supabase, invoice.business, invoice.organization, invoice.branch_id),
     business_id: invoice.business_id,
     organization_id: invoice.organization_id,
@@ -232,6 +256,7 @@ async function fetchEstimate(supabase: any, documentId: string): Promise<Documen
     notes: estimate.notes,
     terms: estimate.terms,
     contact: estimate.contact,
+    billing_address: resolveSnapshotAddress(estimate.billing_address, estimate.contact),
     organization: await mapBusinessToOrg(supabase, estimate.business, estimate.organization, estimate.branch_id),
     business_id: estimate.business_id,
     organization_id: estimate.organization_id,
@@ -283,6 +308,7 @@ async function fetchProforma(supabase: any, documentId: string): Promise<Documen
     notes: proforma.notes,
     terms: proforma.terms,
     contact: proforma.contact,
+    billing_address: resolveSnapshotAddress(proforma.billing_address, proforma.contact),
     organization: await mapBusinessToOrg(supabase, proforma.business, proforma.organization, proforma.branch_id),
     business_id: proforma.business_id,
     organization_id: proforma.organization_id,
@@ -330,6 +356,7 @@ async function fetchCreditNote(supabase: any, documentId: string): Promise<Docum
     notes: cn.notes,
     terms: null,
     contact: cn.contact,
+    billing_address: resolveSnapshotAddress(cn.billing_address, cn.contact),
     organization: await mapBusinessToOrg(supabase, cn.business, cn.organization, cn.branch_id),
     business_id: cn.business_id,
     organization_id: cn.organization_id,
@@ -1659,6 +1686,7 @@ async function fetchBill(supabase: any, documentId: string): Promise<DocumentDat
     notes: bill.notes,
     terms: null,
     contact: bill.vendor,
+    billing_address: resolveSnapshotAddress(bill.remit_to_address, bill.vendor),
     organization: await mapBusinessToOrg(supabase, bill.business, bill.organization, bill.branch_id),
     business_id: bill.business_id,
     organization_id: bill.organization_id,

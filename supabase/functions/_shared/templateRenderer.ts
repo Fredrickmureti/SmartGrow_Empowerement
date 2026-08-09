@@ -219,6 +219,8 @@ export interface DocumentData {
 
   // PO / Sales Order specific
   shipping_address?: string | null;
+  /** Frozen printed bill-to / remit-to address; snapshot, not live data. */
+  billing_address?: string | null;
 
   // Delivery note specific
   hide_amounts?: boolean;
