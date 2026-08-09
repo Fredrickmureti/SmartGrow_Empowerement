@@ -98,13 +98,6 @@ export function useSalesReturns() {
     queryClient.invalidateQueries({ queryKey: queryKeys.salesReturns.all(orgId) });
   }, [queryClient, orgId]);
 
-  const getNextNumber = async () => {
-    if (!currentOrg) return "";
-    const { data, error } = await supabase.rpc("get_next_sales_return_number", { _org_id: currentOrg.id });
-    if (error) throw error;
-    return data;
-  };
-
   const fetchReturnWithItems = async (returnId: string): Promise<SalesReturn | null> => {
     const { data, error } = await supabase
       .from("sales_returns")
@@ -140,80 +133,81 @@ export function useSalesReturns() {
     if (!currentOrg || !currentBusiness) return null;
 
     try {
-      const returnNumber = await getNextNumber();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Phase 1/4: stamp branch_id on insert so returns are branch-attributed.
-      // The DB trigger `cascade_branch_from_invoice_to_return` will overwrite this
-      // with the linked invoice's branch when invoice_id is set.
-      const { data: newReturn, error: returnError } = await supabase
-        .from("sales_returns")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          branch_id: currentBranch?.id ?? null,
-          return_number: returnNumber,
-          contact_id: returnData.contact_id,
-          return_date: returnData.return_date || new Date().toISOString().split('T')[0],
-          status: returnData.status || 'pending',
-          invoice_id: returnData.invoice_id,
-          reason: returnData.reason,
-          currency: returnData.currency || currentBusiness.base_currency,
-          subtotal: returnData.subtotal || 0,
-          tax_amount: returnData.tax_amount || 0,
-          total: returnData.total || 0,
-          refund_method: returnData.refund_method,
-          notes: returnData.notes,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (returnError) throw returnError;
-
-      if (items.length > 0) {
-        const returnItems = items.map((item, index) => ({
-          sales_return_id: newReturn.id,
+      // Returns convergence Phase 3: header + lines + totals + number allocation
+      // happen in one server transaction. Totals and the document number are
+      // derived server-side; `client_request_id` makes a retry a no-op instead
+      // of a duplicate return.
+      const payload = {
+        organization_id: currentOrg.id,
+        business_id: currentBusiness.id,
+        branch_id: currentBranch?.id ?? null,
+        contact_id: returnData.contact_id ?? null,
+        return_date: returnData.return_date || new Date().toISOString().split("T")[0],
+        invoice_id: returnData.invoice_id ?? null,
+        reason: returnData.reason,
+        currency: returnData.currency || currentBusiness.base_currency,
+        refund_method: returnData.refund_method ?? null,
+        notes: returnData.notes ?? null,
+        client_request_id: crypto.randomUUID(),
+        items: items.map((item) => ({
           description: item.description,
           unit_price: item.unit_price,
-          line_total: item.line_total,
-          quantity: item.quantity || 1,
-          product_id: item.product_id,
-          invoice_item_id: item.invoice_item_id,
-          tax_rate: item.tax_rate,
-          tax_amount: item.tax_amount,
-          return_reason: item.return_reason,
-          condition: item.condition,
-          sort_order: index,
+          quantity: item.quantity ?? 1,
+          product_id: item.product_id ?? null,
+          invoice_item_id: item.invoice_item_id ?? null,
+          tax_rate: item.tax_rate ?? 0,
+          tax_amount: item.tax_amount ?? 0,
+          return_reason: item.return_reason ?? null,
+          condition: item.condition ?? "good",
           // Phase A.4 — persist picker output for lot/serial-tracked lines.
           lot_number: (item as any).lot_number ?? null,
           serial_number: (item as any).serial_number ?? null,
-        }));
-        const { error: itemsError } = await supabase.from("sales_return_items").insert(returnItems);
-        if (itemsError) throw itemsError;
-      }
+        })),
+      };
 
-      toast.success("Sales return created successfully");
-      logAction({ action: "created", entityType: "sales_return" as any, entityId: newReturn.id, entityName: returnNumber, changesSummary: `Sales return created: ${returnNumber}` });
+      const { data, error } = await supabase.rpc("create_sales_return_atomic" as any, {
+        _payload: payload as any,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; id: string; return_number: string };
+      if (!result?.success) throw new Error("Create sales return failed");
+
+      toast.success(`Sales return ${result.return_number} created`);
+      logAction({ action: "created", entityType: "sales_return" as any, entityId: result.id, entityName: result.return_number, changesSummary: `Sales return created: ${result.return_number}` });
       invalidate();
-      return newReturn;
+      return { id: result.id, return_number: result.return_number } as unknown as SalesReturn;
     } catch (error) {
       console.error("Error creating sales return:", error);
-      toast.error("Failed to create sales return");
+      toast.error((error as any)?.message || "Failed to create sales return");
       return null;
     }
   };
 
   const updateSalesReturn = async (id: string, updates: Partial<SalesReturn>) => {
     try {
-      const { contact, credit_note, invoice, items, ...dbUpdates } = updates as any;
+      const { contact, credit_note, invoice, items, status, ...dbUpdates } = updates as any;
+      if (status !== undefined) {
+        // Lifecycle transitions belong to `transition_sales_return`, never to a
+        // free-form client update.
+        const { error: tErr } = await supabase.rpc("transition_sales_return" as any, {
+          _return_id: id,
+          _to_status: status,
+          _reason: null,
+        });
+        if (tErr) throw tErr;
+      }
+      if (Object.keys(dbUpdates).length === 0) {
+        toast.success("Sales return updated successfully");
+        invalidate();
+        return;
+      }
       const { error } = await supabase.from("sales_returns").update(dbUpdates).eq("id", id);
       if (error) throw error;
       toast.success("Sales return updated successfully");
       invalidate();
     } catch (error) {
       console.error("Error updating sales return:", error);
-      toast.error("Failed to update sales return");
+      toast.error((error as any)?.message || "Failed to update sales return");
     }
   };
 
@@ -276,13 +270,17 @@ export function useSalesReturns() {
 
   const rejectReturn = async (id: string) => {
     try {
-      const { error } = await supabase.from("sales_returns").update({ status: "rejected" }).eq("id", id);
+      const { error } = await supabase.rpc("transition_sales_return" as any, {
+        _return_id: id,
+        _to_status: "rejected",
+        _reason: null,
+      });
       if (error) throw error;
       toast.success("Return rejected");
       invalidate();
     } catch (error) {
       console.error("Error rejecting return:", error);
-      toast.error("Failed to reject return");
+      toast.error((error as any)?.message || "Failed to reject return");
     }
   };
 
