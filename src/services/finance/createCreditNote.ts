@@ -82,7 +82,18 @@ export function serializeCreateCreditNoteRequest(payload: CreateCreditNotePayloa
  * argument explicitly and surfaces the full PostgREST error body instead of
  * collapsing everything into an opaque HTTP status.
  */
-async function callCreditNoteRpc<T>(fn: string, body: string): Promise<T> {
+/**
+ * The endpoints are written out in full rather than assembled from fragments:
+ * the architecture guard greps for them, and a composed URL would hide a
+ * second creation entry point from that ratchet.
+ */
+const RPC_ENDPOINTS = {
+  create: "rest/v1/rpc/create_credit_note_atomic",
+  update: "rest/v1/rpc/update_credit_note_atomic",
+  issue: "rest/v1/rpc/issue_credit_note_atomic",
+} as const;
+
+async function callCreditNoteRpc<T>(endpoint: string, body: string): Promise<T> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
 
@@ -93,7 +104,7 @@ async function callCreditNoteRpc<T>(fn: string, body: string): Promise<T> {
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
   if (!supabaseUrl || !publishableKey) throw new Error("Supabase connection is not configured.");
 
-  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${fn}`, {
+  const response = await fetch(`${supabaseUrl}/${endpoint}`, {
     method: "POST",
     headers: {
       apikey: publishableKey,
@@ -124,7 +135,7 @@ export async function createCreditNoteAtomic(
   payload: CreateCreditNotePayload,
 ): Promise<CreateCreditNoteResult> {
   return callCreditNoteRpc<CreateCreditNoteResult>(
-    "create_credit_note_atomic",
+    RPC_ENDPOINTS.create,
     serializeCreateCreditNoteRequest(payload),
   );
 }
@@ -138,7 +149,7 @@ export async function updateCreditNoteAtomic(
   payload: UpdateCreditNotePayload,
 ): Promise<{ credit_note_id: string }> {
   return callCreditNoteRpc<{ credit_note_id: string }>(
-    "update_credit_note_atomic",
+    RPC_ENDPOINTS.update,
     JSON.stringify({ _payload: payload }),
   );
 }
@@ -150,5 +161,5 @@ export async function issueCreditNoteAtomic(creditNoteId: string): Promise<{
   customer_credit_created: number;
 }> {
   if (!creditNoteId) throw new Error("Cannot issue a credit note without an id.");
-  return callCreditNoteRpc("issue_credit_note_atomic", JSON.stringify({ _credit_note_id: creditNoteId }));
+  return callCreditNoteRpc(RPC_ENDPOINTS.issue, JSON.stringify({ _credit_note_id: creditNoteId }));
 }
