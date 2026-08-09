@@ -19,6 +19,9 @@ import { DocumentVersionsSection } from "@/components/documents/DocumentVersions
 type Row = SalesReturn & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
   sales_return_items?: SalesReturnItem[];
+  /** Phase 5 provenance: the warehouse RMA this finance document was raised from. */
+  wms_return_order_id?: string | null;
+  wms_return_order?: { id: string; return_number: string | null; status: string | null } | null;
 };
 
 function fmt(d?: string | null) {
@@ -41,7 +44,9 @@ export default function SalesReturnRecordPage() {
       setLoading(true); setError(null);
       const { data, error: err } = await supabase
         .from("sales_returns")
-        .select("*, contact:contacts(name, email, phone), sales_return_items(*)")
+        .select(
+          "*, contact:contacts(name, email, phone), sales_return_items(*), wms_return_order:wms_return_orders(id, return_number, status)",
+        )
         .eq("id", id)
         .maybeSingle();
       if (cancelled) return;
@@ -101,6 +106,12 @@ export default function SalesReturnRecordPage() {
       detailFields={row ? [
         { label: "Customer", value: row.contact?.name },
         { label: "Source invoice", value: row.invoice_id ?? "—" },
+        {
+          label: "Origin",
+          value: row.wms_return_order
+            ? `Warehouse RMA ${row.wms_return_order.return_number ?? row.wms_return_order.id}`
+            : "Direct (sales-raised)",
+        },
         { label: "Return date", value: fmt(row.return_date) },
         { label: "Reason", value: row.reason },
         { label: "Refund method", value: row.refund_method },
@@ -117,6 +128,14 @@ export default function SalesReturnRecordPage() {
       totalsFooter={row ? `Currency ${row.currency}` : undefined}
       activity={row ? [
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Return ${row.return_number} created` },
+        ...(row.wms_return_order
+          ? [{
+              id: "wms-origin",
+              at: fmt(row.created_at),
+              title: `Stock movements owned by warehouse RMA ${row.wms_return_order.return_number ?? ""}`.trim(),
+              tone: "info" as const,
+            }]
+          : []),
         ...(row.credit_note_id ? [{ id: "credit", at: fmt(row.updated_at), title: "Credit note issued", tone: "info" as const }] : []),
       ] : undefined}
       extraSections={row ? <DocumentVersionsSection documentType="sales_return" documentId={row.id} /> : undefined}
