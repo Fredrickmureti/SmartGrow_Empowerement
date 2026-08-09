@@ -558,6 +558,12 @@ export default function SalesReturnCreatePage() {
                   <span>Return Total:</span>
                   <span className="text-destructive">-{formatCurrency(grandTotal)}</span>
                 </div>
+                <p className="pt-1 text-[11px] leading-snug text-muted-foreground">
+                  {lineItems.some((l) => l.invoice_item_id)
+                    ? "Tax is taken from the original invoice lines and confirmed by the server on save."
+                    : "Tax is confirmed by the server on save."}
+                </p>
+
               </div>
             </div>
           </FieldGroup>
