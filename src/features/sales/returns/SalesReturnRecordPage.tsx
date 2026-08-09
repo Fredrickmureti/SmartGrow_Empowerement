@@ -21,7 +21,7 @@ type Row = SalesReturn & {
   sales_return_items?: SalesReturnItem[];
   /** Phase 5 provenance: the warehouse RMA this finance document was raised from. */
   wms_return_order_id?: string | null;
-  wms_return_order?: { id: string; return_number: string | null; status: string | null } | null;
+  wms_return_order?: { id: string; code: string | null; state: string | null } | null;
 };
 
 function fmt(d?: string | null) {
@@ -45,7 +45,7 @@ export default function SalesReturnRecordPage() {
       const { data, error: err } = await supabase
         .from("sales_returns")
         .select(
-          "*, contact:contacts(name, email, phone), sales_return_items(*), wms_return_order:wms_return_orders(id, return_number, status)",
+          "*, contact:contacts(name, email, phone), sales_return_items(*), wms_return_order:wms_return_orders(id, code, state)",
         )
         .eq("id", id)
         .maybeSingle();
@@ -109,7 +109,7 @@ export default function SalesReturnRecordPage() {
         {
           label: "Origin",
           value: row.wms_return_order
-            ? `Warehouse RMA ${row.wms_return_order.return_number ?? row.wms_return_order.id}`
+            ? `Warehouse RMA ${row.wms_return_order.code ?? row.wms_return_order.id}`
             : "Direct (sales-raised)",
         },
         { label: "Return date", value: fmt(row.return_date) },
@@ -132,7 +132,7 @@ export default function SalesReturnRecordPage() {
           ? [{
               id: "wms-origin",
               at: fmt(row.created_at),
-              title: `Stock movements owned by warehouse RMA ${row.wms_return_order.return_number ?? ""}`.trim(),
+              title: `Stock movements owned by warehouse RMA ${row.wms_return_order.code ?? ""}`.trim(),
               tone: "info" as const,
             }]
           : []),

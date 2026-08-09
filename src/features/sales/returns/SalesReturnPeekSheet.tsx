@@ -74,7 +74,7 @@ export function SalesReturnPeekSheet({ salesReturnId, onOpenChange }: Props) {
                 <dt className="text-xs font-medium text-muted-foreground">Origin</dt>
                 <dd className="mt-0.5">
                   {(record as any).wms_return_order
-                    ? `Warehouse RMA ${(record as any).wms_return_order.return_number ?? ""}`.trim()
+                    ? `Warehouse RMA ${(record as any).wms_return_order.code ?? ""}`.trim()
                     : "Direct (sales-raised)"}
                 </dd>
               </div>
