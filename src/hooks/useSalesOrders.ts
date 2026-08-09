@@ -282,7 +282,7 @@ export function useSalesOrders() {
 
       const { error } = await supabase
         .from("sales_orders")
-        .update(dbUpdates)
+        .update(dbUpdates as never)
         .eq("id", id);
 
       if (error) throw error;
