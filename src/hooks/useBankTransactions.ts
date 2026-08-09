@@ -176,7 +176,11 @@ export function useBankTransactions(filters: TransactionFilters = {}) {
         _offset_account_id: reconcileData.offsetAccountId || null,
         _create_gl: reconcileData.createGLEntry !== false,
         _user_id: userData.user?.id || null,
+        // Deterministic per bank line: a double-click or retry collapses onto
+        // the same settlement instead of minting a second payment (D5).
+        _client_request_id: `brecon:${transactionId}`,
       });
+
 
       if (error) throw error;
 

@@ -92756,6 +92756,7 @@ export type Database = {
       reconcile_bank_transaction_atomic: {
         Args: {
           _category?: string
+          _client_request_id?: string
           _create_gl?: boolean
           _entity_id?: string
           _offset_account_id?: string
