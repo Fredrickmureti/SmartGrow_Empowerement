@@ -226,4 +226,23 @@ describe("Sales Order — the client update path cannot reach governed columns",
     expect(migrations).toContain("sales_order_governed_write_guard");
     expect(migrations).toContain("trg_00_sales_order_governed_write");
   });
+
+  it("the quantity ledger is proven by a SQL suite, not by hope", () => {
+    const tests = join(process.cwd(), "supabase", "tests");
+    const files = readdirSync(tests);
+    expect(files).toContain("sales_order_governed_write_test.sql");
+    expect(files).toContain("sales_order_quantity_ledger_test.sql");
+
+    const ledger = read(join(tests, "sales_order_quantity_ledger_test.sql"));
+    for (const claim of [
+      "quantity_open_to_invoice",
+      "quantity_open_to_plan",
+      "quantity_returned",
+      "_so_write_cancelled_quantities",
+      "process a return before cancelling",
+      "cannot be reduced below the quantity already delivered or invoiced",
+    ]) {
+      expect(ledger).toContain(claim);
+    }
+  });
 });

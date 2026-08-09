@@ -88,3 +88,24 @@ Consequence for client code: `useSalesOrders.updateSalesOrder` accepts only beni
 `payment_term_id`, `salesperson_id`, `contact_id`) and throws for anything else. Confirm and
 cancel actions must call the RPC wrappers, never a status payload. Adding a new engine that must
 change a governed column means adding its name to the guard's whitelist.
+
+## The quantity ledger (Aug 2026)
+
+Line progress lives in four columns on `sales_order_items`: `quantity`,
+`quantity_fulfilled` (delivery engine), `quantity_invoiced` (maintained by trigger
+`trg_invoice_items_so_ledger` -> `_recalc_so_item_invoiced`, which ignores cancelled/void
+invoices) and `quantity_cancelled` (written by `_so_write_cancelled_quantities` at cancel).
+
+`so_line_balances` is the only place these are read together. It exposes
+`quantity_open_to_deliver`, `quantity_open_to_plan` (deliver minus quantity already on open
+delivery notes — this is what prevents planning the same unit twice), `quantity_open_to_invoice`
+and `quantity_returned` (return DNs are reported, never netted out of `quantity_fulfilled`).
+`so_backorder_lines` filters that view; never compute backorders from the legacy `backorders` table.
+
+Both invoicing routes bill off `quantity_open_to_invoice`, so over-invoicing is arithmetically
+impossible, and `convert_so_to_invoice_atomic` refuses when a delivery already spawned an invoice.
+Cancellation refuses delivered or invoiced orders (credit note instead). Editing refuses dropping
+a line below what was delivered/invoiced.
+
+Proof: `supabase/tests/sales_order_quantity_ledger_test.sql` (behavioural, runs in a rolled-back
+transaction) and `supabase/tests/sales_order_governed_write_test.sql`.
