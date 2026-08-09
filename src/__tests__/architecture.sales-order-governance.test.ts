@@ -106,7 +106,22 @@ describe("Sales Order — DB-owned lifecycle", () => {
     // the old client-side DN header+lines insert is gone
     expect(hook).not.toMatch(/\.from\(\s*["']delivery_note_items["']\s*\)\s*\.insert/);
   });
+
+  it("edits orders through update_sales_order_atomic, preserving the line ledger", () => {
+    const page = read(join(ROOT, "features", "sales", "orders", "SalesOrderEditPage.tsx"));
+    expect(page).toContain("update_sales_order_atomic");
+    // delete-then-reinsert wipes quantity_fulfilled / quantity_invoiced and the
+    // invoice_items provenance links; it must never come back.
+    expect(page).not.toMatch(/\.from\(\s*["']sales_order_items["']\s*\)\s*\.delete/);
+  });
+
+  it("moves approval transitions into set_sales_order_approval_state_atomic", () => {
+    const hook = read(join(ROOT, "hooks", "useSalesOrderApproval.ts"));
+    expect(hook).toContain("set_sales_order_approval_state_atomic");
+    expect(hook).toContain("confirm_sales_order_atomic");
+  });
 });
+
 
 describe("Sales Order — quantity ledger is the single source of truth", () => {
   it("never writes the ledger columns from the client", () => {
