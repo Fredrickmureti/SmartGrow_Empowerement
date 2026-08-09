@@ -322,13 +322,20 @@ export default function StudioFields() {
         </aside>
 
         {/* Workbench */}
-        <main className="min-h-0 overflow-auto">
+        <main className="min-w-0 flex-1 lg:min-h-0 lg:overflow-auto">
           {/* Mobile entity picker */}
           <div className="border-b bg-background px-4 py-3 lg:hidden">
+            <label
+              htmlFor="studio-fields-entity"
+              className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              Entity
+            </label>
             <select
+              id="studio-fields-entity"
               value={selectedEntity}
               onChange={(e) => selectEntity(e.target.value as EntityType)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
             >
               {ENTITY_GROUPS.map((group) => (
                 <optgroup key={group.label} label={group.label}>
@@ -346,8 +353,8 @@ export default function StudioFields() {
           </div>
 
           {/* Segmented view switcher — only "Catalog" and "Document layout" */}
-          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-background/95 px-6 py-3 backdrop-blur">
-            <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-sm">
+          <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-background/95 px-4 py-2.5 backdrop-blur sm:px-6 sm:py-3">
+            <div className="inline-flex min-w-0 flex-1 rounded-md border bg-muted/40 p-0.5 text-sm sm:flex-none">
               <ViewTab
                 active={view === "catalog"}
                 onClick={() => setView("catalog")}
@@ -367,14 +374,15 @@ export default function StudioFields() {
                 Document layout
               </ViewTab>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="ml-auto hidden text-xs text-muted-foreground sm:block">
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono">
                 {selectedEntity}
               </code>
             </div>
           </div>
 
-          <div className="px-6 py-6">
+          <div className="px-3 py-4 sm:px-6 sm:py-6">
+
             {view === "catalog" ? (
               <div className="space-y-8">
                 {/* Custom fields — primary work surface */}
