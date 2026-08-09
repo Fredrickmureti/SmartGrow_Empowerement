@@ -37,6 +37,7 @@ import {
   scanTaxRate,
 } from "@/features/sales/scan-session/useDocumentLineScan";
 import { useBusinesses } from "@/hooks/useBusinesses";
+import { DeliverToPicker } from "@/components/addresses/DeliverToPicker";
 import { useBranches } from "@/hooks/useBranches";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +86,9 @@ export default function PurchaseOrderCreatePage() {
     vendor_id: prefillContactId,
     order_date: new Date().toISOString().split("T")[0],
     expected_date: "",
+    // OUR receiving location (structured), plus the printed snapshot.
+    deliver_to_warehouse_id: null as string | null,
+    deliver_to_branch_id: null as string | null,
     shipping_address: "",
     notes: "",
     discount_amount: 0,
@@ -251,6 +255,8 @@ export default function PurchaseOrderCreatePage() {
           discount_amount: formData.discount_amount,
           total: 0,
           currency: baseCurrency,
+          deliver_to_warehouse_id: formData.deliver_to_warehouse_id,
+          deliver_to_branch_id: formData.deliver_to_branch_id,
           shipping_address: formData.shipping_address || null,
           notes: formData.notes || null,
           converted_bill_id: null,
@@ -311,12 +317,22 @@ export default function PurchaseOrderCreatePage() {
               onChange={(e) => setFormData({ ...formData, expected_date: e.target.value })}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Shipping Address</Label>
-            <Input
-              value={formData.shipping_address}
-              onChange={(e) => setFormData({ ...formData, shipping_address: e.target.value })}
-              placeholder="Delivery address"
+          <div className="space-y-2 md:col-span-2">
+            <DeliverToPicker
+              businessId={currentBusiness?.id}
+              value={{
+                deliverToWarehouseId: formData.deliver_to_warehouse_id,
+                deliverToBranchId: formData.deliver_to_branch_id,
+                shippingAddress: formData.shipping_address,
+              }}
+              onChange={(next) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  deliver_to_warehouse_id: next.deliverToWarehouseId,
+                  deliver_to_branch_id: next.deliverToBranchId,
+                  shipping_address: next.shippingAddress,
+                }))
+              }
             />
           </div>
         </FieldGrid>
