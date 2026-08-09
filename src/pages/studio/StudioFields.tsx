@@ -489,7 +489,7 @@ function ViewTab({
       disabled={disabled}
       title={title}
       className={cn(
-        "rounded px-3 py-1.5 text-sm font-medium transition-colors",
+        "flex-1 truncate whitespace-nowrap rounded px-3 py-1.5 text-xs font-medium transition-colors sm:flex-none sm:text-sm",
         active
           ? "bg-background text-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
