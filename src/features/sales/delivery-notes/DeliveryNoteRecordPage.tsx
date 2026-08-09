@@ -3,20 +3,22 @@
  * Read-only, powered by RecordScaffold.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
 import { RecordScaffold } from "@/design-system/records";
 import type { LineItemColumn, LineItemRow } from "@/design-system/records";
-import { supabase } from "@/integrations/supabase/client";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
+import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
+import { resolveRecipientName } from "@/lib/looksLikeUUID";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 type Row = DeliveryNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
-  delivery_note_items?: DeliveryNoteItem[];
+  received_by_contact?: { name: string | null } | null;
+  items?: DeliveryNoteItem[];
 };
 
 function fmt(d?: string | null) {
@@ -26,28 +28,13 @@ function fmt(d?: string | null) {
 
 export default function DeliveryNoteRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
-  const [row, setRow] = useState<Row | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const isNew = id === "new";
-
-  useEffect(() => {
-    if (isNew) { setLoading(false); return; }
-    let cancelled = false;
-    (async () => {
-      setLoading(true); setError(null);
-      const { data, error: err } = await supabase
-        .from("delivery_notes")
-        .select("*, contact:contacts(name, email, phone), delivery_note_items(*)")
-        .eq("id", id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (err) setError(err.message);
-      else setRow((data as unknown as Row) ?? null);
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [id, isNew]);
+  // Single reader for the delivery note record — shared with the peek sheet
+  // so the two surfaces cannot drift (and so the contacts embed is
+  // disambiguated in exactly one place).
+  const { record, loading, error } = useDeliveryNoteRecord(isNew ? null : id);
+  const row = record as Row | null;
+  const notFound = !loading && !isNew && !row;
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
@@ -57,7 +44,7 @@ export default function DeliveryNoteRecordPage() {
   ], []);
 
   const rows = useMemo<LineItemRow[]>(() => {
-    const items = row?.delivery_note_items ?? [];
+    const items = row?.items ?? [];
     return items
       .slice()
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -78,8 +65,8 @@ export default function DeliveryNoteRecordPage() {
       listPath="/sales/delivery-notes"
       id={id}
       loading={loading}
-      error={error}
-      notFound={!loading && !isNew && !row}
+      error={notFound ? null : error}
+      notFound={notFound}
       newLabel="New delivery note"
       title={row?.contact?.name ?? "Customer"}
       docNumber={row?.delivery_number}
@@ -99,7 +86,13 @@ export default function DeliveryNoteRecordPage() {
         { label: "Driver", value: row.driver_name },
         { label: "Vehicle #", value: row.vehicle_number },
         { label: "Shipping address", value: row.shipping_address },
-        { label: "Received by", value: row.received_by },
+        {
+          label: "Received by",
+          value: resolveRecipientName({
+            received_by_contact: row.received_by_contact ?? null,
+            received_by: row.received_by,
+          }),
+        },
         { label: "Source SO", value: row.sales_order_id },
       ] : undefined}
       lineColumns={columns}
