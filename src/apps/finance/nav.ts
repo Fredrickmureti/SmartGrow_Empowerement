@@ -45,6 +45,7 @@ export const FINANCE_NAV: WorkspaceNav = {
         { to: "/finance/receivables", label: "Receivables", icon: Receipt },
         { to: "/finance/payables", label: "Payables", icon: FileText },
         { to: "/finance/customer-credits", label: "Customer credits", icon: Coins },
+        { to: "/finance/vendor-credits", label: "Vendor credits", icon: Coins },
         { to: "/finance/statements", label: "Statements", icon: ScrollText },
         { to: "/finance/journal-entries", label: "Journal entries", icon: BookOpen },
         { to: "/finance/banking", label: "Banking", icon: Landmark },
