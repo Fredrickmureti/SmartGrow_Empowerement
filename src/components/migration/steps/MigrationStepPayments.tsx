@@ -140,7 +140,11 @@ export function MigrationStepPayments({ onComplete, onSkip }: Props) {
       matchedRows: importable,
       unmatchedCount: unmatchedRows.length,
       importRow: async (row, i) => {
-        const receiptNumber = row.reference || `MIG-PMT-${Date.now()}-${i}`;
+        // Both the receipt number and the idempotency key are derived from
+        // (file hash, row index) rather than the clock: re-running the same
+        // import file replays each payment instead of minting a duplicate.
+        const rowKey = `${fileUpload.fileHash}-${i}`;
+        const receiptNumber = row.reference || `MIG-PMT-${rowKey}`;
 
         // Settlement — including migrated/backfilled settlement — is written
         // ONLY by the canonical AR engine. The importer no longer inserts
@@ -168,8 +172,10 @@ export function MigrationStepPayments({ onComplete, onSkip }: Props) {
             _receivable_account_id: accountMappings.receivable_account_id || null,
             _customer_credit_account_id: null,
             _branch_id: null,
+            _request_id: `migration:payments:${rowKey}`,
           } as any,
         );
+
 
         if (rpcError) throw rpcError;
 

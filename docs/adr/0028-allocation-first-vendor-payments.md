@@ -44,13 +44,22 @@ notes. Single source of truth for vendor statements and AP balance.
   shipped; architecture guard
   `src/test/architecture/bill-payment-allocations-first-class.test.ts`
   added with a ratcheted allowlist of remaining legacy readers.
-- S3c (deferred): rewrite writer-side callers
-  (`useBills.recordBillPayment`, `useTransactionReversal`,
-  `useVendorCreditNotes`, `applyVendorCredit`) to use
-  `record_multi_bill_payment`, drive the ratchet allowlist to zero,
-  then `ALTER TABLE bill_payments DROP COLUMN bill_id` together with
-  its cascade trigger and auto-allocation trigger. Mirrors the staged
-  approach used to retire `payments.invoice_id`.
+- S3c (shipped): writer-side callers rewritten onto
+  `record_multi_bill_payment`, the ratchet allowlist driven to zero, and
+  `bill_payments.bill_id` dropped together with its cascade trigger and
+  auto-allocation trigger. `bill_payments` is now allocation-only, exactly
+  as `payments` is after `payments.invoice_id` was retired.
+- S3d (shipped): AP money-out is idempotent on
+  `bill_payments.client_request_id` under the partial unique index
+  `bill_payments_org_client_request_id_uq (organization_id,
+  client_request_id)`. `record_multi_bill_payment`,
+  `record_vendor_advance_payment` and `apply_vendor_advance_atomic` replay
+  instead of double-paying. Keys MUST be derived from the payment intent.
+- Reversal is server-side only: see ADR 0126 —
+  `void_bill_payment_atomic` is the single writer, and client writes to
+  `bills.amount_paid` or deletes against `bill_payments` are banned by
+  `src/test/architecture/journal-posting-monopoly.test.ts`.
+
 
 ## Consequences
 - Vendor receipts/statements can faithfully render multi-bill

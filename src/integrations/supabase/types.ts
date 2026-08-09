@@ -92967,19 +92967,20 @@ export type Database = {
       }
       record_advance_payment: {
         Args: {
-          _advance_liability_account_id?: string
+          _advance_liability_account_id: string
           _amount: number
-          _branch_id?: string
+          _branch_id: string
           _business_id: string
           _contact_id: string
-          _created_by?: string
-          _deposit_account_id?: string
-          _notes?: string
+          _created_by: string
+          _deposit_account_id: string
+          _notes: string
           _org_id: string
           _payment_date: string
-          _payment_method?: string
-          _receipt_number?: string
-          _reference?: string
+          _payment_method: string
+          _receipt_number: string
+          _reference: string
+          _request_id?: string
         }
         Returns: Json
       }

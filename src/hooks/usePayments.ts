@@ -272,6 +272,12 @@ export function usePayments() {
     reference?: string;
     notes?: string;
     deposit_account_id: string;
+    /**
+     * Idempotency key, forwarded to `record_advance_payment`. Derive it from
+     * the deposit intent so a double-click replays instead of minting a
+     * second unapplied deposit.
+     */
+    requestId?: string;
   }) => {
     if (!can("manageSales")) throw new Error("Permission denied: cannot record payments");
     if (!currentOrg || !currentBusiness || !user) throw new Error("No organization or business selected");
@@ -309,6 +315,7 @@ export function usePayments() {
       _deposit_account_id: payment.deposit_account_id,
       _advance_liability_account_id: advanceLiabilityAccountId,
       _branch_id: currentBranch?.id ?? null,
+      _request_id: payment.requestId ?? null,
     } as any);
 
     if (rpcError) throw rpcError;
