@@ -13,6 +13,7 @@ import { confirmInvoiceAndPostGL } from "./invoices/confirmInvoiceGL";
 import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAutomation";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
+import { captureBillToSnapshot } from "@/lib/contactAddresses";
 
 export interface InvoiceItem {
   id?: string;
@@ -147,8 +148,13 @@ export function useInvoices() {
       taxAmount += item.tax_amount;
     });
 
+    // Freeze the bill-to address on the document (Phase 5): the printed
+    // address must not follow later edits to the customer's address book.
+    const billTo = await captureBillToSnapshot(invoice.contact_id);
+
     const insertData = {
       contact_id: invoice.contact_id,
+      ...billTo,
       due_date: invoice.due_date,
       notes: invoice.notes,
       terms: invoice.terms,

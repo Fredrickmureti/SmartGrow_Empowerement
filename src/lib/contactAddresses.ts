@@ -203,3 +203,29 @@ export function addressOptionLabel(address: PartyAddress): string {
     : "Address";
   return `${address.name} — ${role}`;
 }
+
+/**
+ * Captures the bill-to snapshot a financial document must freeze at
+ * creation time: the structured link plus the rendered text. Once written
+ * the text is historical truth — editing the customer's address book later
+ * must never change what an issued document prints.
+ *
+ * Returns empty fields (not an error) when the party has no usable
+ * address, so callers can spread the result unconditionally.
+ */
+export async function captureBillToSnapshot(
+  contactId: string | null | undefined,
+): Promise<{ bill_to_contact_id: string | null; billing_address: string | null }> {
+  if (!contactId) return { bill_to_contact_id: null, billing_address: null };
+  try {
+    const address = await resolveBillTo(contactId);
+    const text = formatAddress(address);
+    return {
+      bill_to_contact_id: address?.id ?? contactId,
+      billing_address: text || null,
+    };
+  } catch {
+    // Address capture must never block document creation.
+    return { bill_to_contact_id: null, billing_address: null };
+  }
+}
