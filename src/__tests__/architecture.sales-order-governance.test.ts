@@ -218,9 +218,10 @@ describe("Sales Order — the client update path cannot reach governed columns",
   });
 
   it("a database trigger — not just this test file — owns the rule", () => {
-    const migrations = walk(join(process.cwd(), "supabase", "migrations"))
+    const dir = join(process.cwd(), "supabase", "migrations");
+    const migrations = readdirSync(dir)
       .filter((f) => f.endsWith(".sql"))
-      .map(read)
+      .map((f) => read(join(dir, f)))
       .join("\n");
     expect(migrations).toContain("sales_order_governed_write_guard");
     expect(migrations).toContain("trg_00_sales_order_governed_write");
