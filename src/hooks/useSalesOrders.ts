@@ -56,6 +56,43 @@ export interface SalesOrderItem {
   sort_order: number;
 }
 
+/**
+ * Canonical per-line quantity ledger (`so_line_balances`).
+ *
+ * Fulfilment and billing progress is READ ONLY from this view — never re-summed
+ * from `sales_order_items`, `delivery_note_items` or `invoice_items` in app
+ * code, which is how the two invoicing routes used to disagree.
+ */
+export interface SalesOrderLineBalance {
+  sales_order_id: string;
+  sales_order_item_id: string;
+  quantity_ordered: number;
+  quantity_delivered: number;
+  quantity_invoiced: number;
+  quantity_returned: number;
+  quantity_cancelled: number;
+  quantity_open_to_deliver: number;
+  quantity_open_to_invoice: number;
+  quantity_on_open_deliveries: number;
+  quantity_open_to_plan: number;
+}
+
+export function useSalesOrderLineBalances(salesOrderId?: string) {
+  return useQuery({
+    queryKey: ["so_line_balances", salesOrderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("so_line_balances" as any)
+        .select("*")
+        .eq("sales_order_id", salesOrderId!);
+      if (error) throw error;
+      return (data || []) as unknown as SalesOrderLineBalance[];
+    },
+    enabled: !!salesOrderId,
+  });
+}
+
+
 async function fetchSalesOrdersFn(orgId: string, businessId: string, branchId: string | null) {
   let query = supabase
     .from("sales_orders")
@@ -376,129 +413,52 @@ export function useSalesOrders() {
     }
   };
 
-  const createDeliveryNote = async (salesOrderId: string, customQuantities?: Record<string, number>) => {
+  /**
+   * Phase 5: delivery-note creation for a sales order is DB-owned
+   * (`create_delivery_from_sales_order_atomic`). Numbering, business/branch
+   * inheritance, status guards and open-to-plan quantities (which net off
+   * quantity already sitting on other open delivery notes) all happen inside
+   * one transaction — the client no longer inserts header-then-lines.
+   */
+  const createDeliveryNote = async (
+    salesOrderId: string,
+    customQuantities?: Record<string, number>,
+  ) => {
     if (!currentOrg) return null;
 
     try {
-      const { data: salesOrder, error: soError } = await supabase
-        .from("sales_orders")
-        .select(`*, items:sales_order_items(*)`)
-        .eq("id", salesOrderId)
-        .single();
-
-      if (soError) throw soError;
-      if (!salesOrder) throw new Error("Sales order not found");
-
-      const allowedStatuses = ["confirmed", "processing", "partial"];
-      if (!allowedStatuses.includes(salesOrder.status)) {
-        toast.error(`Cannot create delivery note for a ${salesOrder.status} order`);
-        return null;
-      }
-
-      // Phase 2: pull business_id + branch_id from the SO, not current context
-      const soBusinessId = (salesOrder as any).business_id ?? currentBusiness?.id;
-      const soBranchId = (salesOrder as any).branch_id ?? null;
-
-      if (!soBusinessId) {
-        toast.error("Sales order has no business assigned — cannot create delivery.");
-        return null;
-      }
-      if (currentBusiness && soBusinessId !== currentBusiness.id) {
-        toast.error(
-          "This sales order belongs to a different company. Switch to that company to deliver it."
-        );
-        return null;
-      }
-
-      const { data: deliveryNumber, error: numError } = await supabase.rpc(
-        "get_next_delivery_number",
-        { _org_id: currentOrg.id }
-      );
-      if (numError) throw numError;
-
       const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: deliveryNote, error: dnError } = await supabase
-        .from("delivery_notes")
-        .insert({
-          organization_id: currentOrg.id,
-          business_id: soBusinessId,
-          branch_id: soBranchId,
-          delivery_number: deliveryNumber,
-          contact_id: salesOrder.contact_id,
-          sales_order_id: salesOrderId,
-          delivery_date: new Date().toISOString().split("T")[0],
-          status: "pending",
-          shipping_address: salesOrder.shipping_address,
-          notes: salesOrder.notes,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc(
+        "create_delivery_from_sales_order_atomic" as any,
+        {
+          p_so_id: salesOrderId,
+          p_user_id: user?.id ?? null,
+          p_line_qtys: customQuantities ?? null,
+        },
+      );
 
-      if (dnError) throw dnError;
+      if (error) throw error;
 
-      if (salesOrder.items && salesOrder.items.length > 0) {
-        // Open-to-deliver comes from the ledger view, which nets off cancelled
-        // quantity. Computing `quantity - quantity_fulfilled` here shipped
-        // quantity that had already been written off.
-        const { data: balances } = await supabase
-          .from("so_line_balances" as any)
-          .select("sales_order_item_id, quantity_open_to_deliver")
-          .eq("sales_order_id", salesOrderId);
-        const openByLine = new Map<string, number>(
-          (balances as unknown as Array<{
-            sales_order_item_id: string;
-            quantity_open_to_deliver: number | null;
-          }> | null)?.map((b) => [b.sales_order_item_id, b.quantity_open_to_deliver || 0]) ?? [],
-        );
+      const result = data as unknown as {
+        success?: boolean;
+        error?: string;
+        delivery_note_id?: string;
+        delivery_number?: string;
+      };
 
-        const deliveryItems = salesOrder.items
-          .map((item: any, index: number) => {
-            const remaining = openByLine.get(item.id)
-              ?? Math.max(item.quantity - (item.quantity_fulfilled || 0), 0);
-
-            const qtyToDeliver = customQuantities
-              ? Math.min(customQuantities[item.id] ?? 0, remaining)
-              : remaining;
-            if (qtyToDeliver <= 0) return null;
-            return {
-              delivery_note_id: deliveryNote.id,
-              product_id: item.product_id,
-              sales_order_item_id: item.id,
-              description: item.description,
-              quantity_ordered: item.quantity,
-              quantity_delivered: qtyToDeliver,
-              sort_order: index,
-            };
-          })
-          .filter(Boolean);
-
-        if (deliveryItems.length === 0) {
-          toast.error("No remaining items to deliver");
-          await supabase.from("delivery_notes").delete().eq("id", deliveryNote.id);
-          return null;
-        }
-
-        const { error: itemsError } = await supabase
-          .from("delivery_note_items")
-          .insert(deliveryItems);
-
-        if (itemsError) throw itemsError;
-
-        // Phase 5: per-line `quantity_fulfilled` rollup is now performed atomically
-        // inside `complete_delivery_atomic` when the DN is marked delivered.
-        // Status rollup also happens there. Keeping a no-op here for clarity.
+      if (!result?.success) {
+        toast.error(result?.error || "Failed to create delivery note");
+        return null;
       }
 
-      toast.success(`Delivery note ${deliveryNumber} created`);
+      toast.success(`Delivery note ${result.delivery_number} created`);
       invalidate();
-      // Also invalidate delivery notes
       queryClient.invalidateQueries({ queryKey: ['delivery-notes'] });
-      return deliveryNote;
+      return { id: result.delivery_note_id!, delivery_number: result.delivery_number! };
     } catch (error) {
       console.error("Error creating delivery note:", error);
-      toast.error("Failed to create delivery note");
+      toast.error((error as any)?.message || "Failed to create delivery note");
       return null;
     }
   };

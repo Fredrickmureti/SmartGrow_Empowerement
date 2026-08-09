@@ -234,49 +234,48 @@ export default function SalesOrderEditPage() {
       if (!result.ok) throw new Error(result.error);
       const validItems = result.valid;
 
-      const subtotal = validItems.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-      const taxAmount = validItems.reduce((sum, item) => sum + item.tax_amount, 0);
-      const total = subtotal + taxAmount;
+      // Phase 5.5: the edit is DB-owned. `update_sales_order_atomic` updates
+      // surviving lines in place (preserving quantity_fulfilled /
+      // quantity_invoiced and the invoice/delivery provenance links), refuses
+      // to remove or under-run lines that already moved, and recomputes
+      // totals server-side. Never delete-and-reinsert lines from the client.
+      const { data: authData } = await supabase.auth.getUser();
 
-      const { error: soError } = await supabase
-        .from("sales_orders")
-        .update({
-          contact_id: formData.contact_id || null,
-          order_date: formData.order_date,
-          expected_date: formData.expected_date || null,
-          shipping_address: formData.shipping_address || null,
-          notes: formData.notes || null,
-          terms: formData.terms || null,
-          subtotal,
-          tax_amount: taxAmount,
-          total,
-          project_id: formData.project_id,
-        } as any)
-        .eq("id", orderId);
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        "update_sales_order_atomic" as any,
+        {
+          p_so_id: orderId,
+          p_user_id: authData?.user?.id ?? null,
+          p_header: {
+            contact_id: formData.contact_id || null,
+            order_date: formData.order_date,
+            expected_date: formData.expected_date || null,
+            shipping_address: formData.shipping_address || null,
+            notes: formData.notes || null,
+            terms: formData.terms || null,
+            project_id: formData.project_id,
+          },
+          p_items: validItems.map((item, index) => ({
+            id: (item as LineItem).id ?? null,
+            product_id: item.product_id || null,
+            description: item.description,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_rate: item.tax_rate,
+            tax_amount: item.tax_amount,
+            line_total: item.line_total,
+            sort_order: index,
+            project_id: (item as LineItem).project_id ?? null,
+            packaging_id: (item as LineItem).packaging_id ?? null,
+            display_quantity: (item as LineItem).display_quantity ?? null,
+            display_uom_id: (item as LineItem).display_uom_id ?? null,
+          })),
+        },
+      );
 
-      if (soError) throw soError;
-
-      await supabase.from("sales_order_items").delete().eq("sales_order_id", orderId);
-
-      const newItems = validItems.map((item, index) => ({
-        sales_order_id: orderId,
-        product_id: item.product_id || null,
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        tax_rate: item.tax_rate,
-        tax_amount: item.tax_amount,
-        line_total: item.line_total,
-        sort_order: index,
-        project_id: (item as LineItem).project_id ?? null,
-        task_id: (item as LineItem).task_id ?? null,
-        packaging_id: (item as LineItem).packaging_id ?? null,
-        display_quantity: (item as LineItem).display_quantity ?? null,
-        display_uom_id: (item as LineItem).display_uom_id ?? null,
-      }));
-
-      const { error: insertError } = await supabase.from("sales_order_items").insert(newItems);
-      if (insertError) throw insertError;
+      if (rpcError) throw rpcError;
+      const rpcResult = rpcData as unknown as { success?: boolean; error?: string } | null;
+      if (!rpcResult?.success) throw new Error(rpcResult?.error || "Failed to update sales order");
 
       toast({ title: "Sales order updated successfully" });
       navigate(`/sales/orders/${orderId}`);

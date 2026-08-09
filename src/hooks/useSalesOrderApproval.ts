@@ -229,13 +229,14 @@ export function useSalesOrderApproval() {
 
       if (error) throw error;
 
-      // Update sales order status
-      await supabase
-        .from("sales_orders")
-        .update({
-          status: "pending_approval",
-        })
-        .eq("id", salesOrderId);
+      // Phase 5.5: the state transition is DB-owned and audited.
+      const { data: submitData, error: submitError } = await supabase.rpc(
+        "set_sales_order_approval_state_atomic" as any,
+        { p_so_id: salesOrderId, p_action: "submit", p_user_id: user?.id ?? null, p_notes: notes ?? null },
+      );
+      if (submitError) throw submitError;
+      const submitted = submitData as unknown as { success?: boolean; error?: string } | null;
+      if (!submitted?.success) throw new Error(submitted?.error || "Could not submit for approval");
 
       toast.success("Order submitted for approval");
       await fetchPendingApprovals();
@@ -279,10 +280,13 @@ export function useSalesOrderApproval() {
       // reservations are actually created. Writing `confirmed` directly here
       // used to skip reservations entirely, so approved orders committed no
       // stock and could be oversold.
-      await supabase
-        .from("sales_orders")
-        .update({ status: "approved" })
-        .eq("id", approval.sales_order_id);
+      const { data: approveData, error: approveError } = await supabase.rpc(
+        "set_sales_order_approval_state_atomic" as any,
+        { p_so_id: approval.sales_order_id, p_action: "approve", p_user_id: user?.id ?? null, p_notes: comments ?? null },
+      );
+      if (approveError) throw approveError;
+      const approved = approveData as unknown as { success?: boolean; error?: string } | null;
+      if (!approved?.success) throw new Error(approved?.error || "Could not approve the order");
 
       const { data: confirmResult, error: confirmError } = await supabase.rpc(
         "confirm_sales_order_atomic",
@@ -330,13 +334,13 @@ export function useSalesOrderApproval() {
         comments: reason,
       });
 
-      // Update sales order status
-      await supabase
-        .from("sales_orders")
-        .update({
-          status: "rejected",
-        })
-        .eq("id", approval.sales_order_id);
+      const { data: rejectData, error: rejectError } = await supabase.rpc(
+        "set_sales_order_approval_state_atomic" as any,
+        { p_so_id: approval.sales_order_id, p_action: "reject", p_user_id: user?.id ?? null, p_notes: reason },
+      );
+      if (rejectError) throw rejectError;
+      const rejected = rejectData as unknown as { success?: boolean; error?: string } | null;
+      if (!rejected?.success) throw new Error(rejected?.error || "Could not reject the order");
 
       toast.success("Order rejected");
       await fetchPendingApprovals();
