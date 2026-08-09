@@ -161,13 +161,22 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
               disabled={disabled}
             />
             {item.max_quantity < 999 && (
-              <p className="text-[10px] text-muted-foreground">max {item.max_quantity}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {invoiceSourced ? "returnable" : "max"} {item.max_quantity}
+              </p>
             )}
           </div>
         );
 
       case "unit_price":
-        return (
+        // Invoice-sourced lines credit exactly what was charged (net of the
+        // original discount). Editing that here would silently break the
+        // credit note and the tax basis the server resolves.
+        return invoiceSourced ? (
+          <div className="pt-2 text-right font-medium tabular-nums">
+            {formatCurrency(item.unit_price)}
+          </div>
+        ) : (
           <NumericInput
             value={item.unit_price}
             disabled={disabled}
@@ -175,6 +184,7 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
             className="h-8"
           />
         );
+
 
       case "condition":
         return (
