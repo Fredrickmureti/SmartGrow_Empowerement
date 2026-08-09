@@ -165,7 +165,18 @@ export function AdvancePaymentDialog({
         reference: formData.reference || undefined,
         notes: formData.notes || undefined,
         deposit_account_id: depositAccountId,
+        // Deterministic on the deposit intent — a double-click or a retry
+        // after a timeout replays the same deposit instead of minting a
+        // second one. Never `crypto.randomUUID()`.
+        requestId: makeCustomerPaymentRequestId({
+          contactId: formData.contact_id,
+          allocations: [],
+          totalCents: Math.round(formData.amount * 100),
+          paymentDate: formData.payment_date,
+          depositAccountId,
+        }),
       });
+
 
       toast({
         title: "Advance payment recorded",
