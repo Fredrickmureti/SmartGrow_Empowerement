@@ -104,7 +104,7 @@ export function RecordVendorAdvanceDialog({
         .from("contacts")
         .select("id, name, type")
         .eq("organization_id", currentOrg.id)
-        .in("type", ["vendor", "both"])
+        .in("type", ["supplier", "both"])
         .order("name");
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; name: string }>;
