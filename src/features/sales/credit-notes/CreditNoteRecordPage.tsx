@@ -15,6 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
+import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
+
 
 type Row = CreditNote & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
