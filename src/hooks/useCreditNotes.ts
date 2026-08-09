@@ -7,7 +7,13 @@ import { useToast } from "./use-toast";
 import { useBranch } from "@/contexts/BranchContext";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
-import { createCreditNoteAtomic, issueCreditNoteAtomic } from "@/services/finance/createCreditNote";
+import {
+  createCreditNoteAtomic,
+  issueCreditNoteAtomic,
+  updateCreditNoteAtomic,
+  deleteCreditNoteAtomic,
+} from "@/services/finance/createCreditNote";
+
 
 /**
  * ADR 0131 — commercial compensation is a server-side service.
@@ -206,63 +212,28 @@ export function useCreditNotes() {
       throw new Error("updateCreditNote cannot flip status to 'issued'. Call issueCreditNote(id) instead.");
     }
 
-    // Strip joined fields
-    const { contact, invoice, items, source_return, ...dbUpdates } = updates as any;
-
-    const { error } = await supabase
-      .from("credit_notes")
-      .update(dbUpdates)
-      .eq("id", id);
-
-    if (error) throw error;
+    // Descriptive fields only, and only through the draft-only server writer:
+    // money, status and totals are never client-writable.
+    await updateCreditNoteAtomic({
+      credit_note_id: id,
+      ...(updates.reason !== undefined ? { reason: updates.reason ?? null } : {}),
+      ...(updates.notes !== undefined ? { notes: updates.notes ?? null } : {}),
+      ...(updates.issue_date !== undefined ? { issue_date: updates.issue_date } : {}),
+    });
 
     await fetchCreditNotes();
   };
 
   /**
-   * Delete a credit note — only allowed for drafts with no applications or refunds.
+   * Delete a credit note. Deletability is decided by the server
+   * (`delete_credit_note_atomic`): draft only, nothing applied, nothing
+   * refunded, no credit movements, no posted journal entry.
    */
   const deleteCreditNote = async (id: string) => {
-    const cn = creditNotes.find((c) => c.id === id);
-    if (!cn) {
-      toast({ title: "Error", description: "Credit note not found", variant: "destructive" });
-      return;
-    }
-
-    // Guard: only draft CNs can be deleted
-    if (cn.status !== "draft") {
-      toast({
-        title: "Cannot delete",
-        description: `Only draft credit notes can be deleted. This credit note is "${cn.status}".`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Guard: check for applications
-    if (cn.amount_applied > 0) {
-      toast({
-        title: "Cannot delete",
-        description: "This credit note has been partially applied. Void it instead.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Guard: check for refunds
-    if ((cn.refund_amount || 0) > 0) {
-      toast({
-        title: "Cannot delete",
-        description: "This credit note has refunds recorded. Void it instead.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const { error } = await supabase.from("credit_notes").delete().eq("id", id);
-    if (error) throw error;
+    await deleteCreditNoteAtomic(id);
     await fetchCreditNotes();
   };
+
 
   const applyCreditToInvoice = async (
     creditNoteId: string,

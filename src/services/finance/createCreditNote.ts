@@ -91,7 +91,9 @@ const RPC_ENDPOINTS = {
   create: "rest/v1/rpc/create_credit_note_atomic",
   update: "rest/v1/rpc/update_credit_note_atomic",
   issue: "rest/v1/rpc/issue_credit_note_atomic",
+  remove: "rest/v1/rpc/delete_credit_note_atomic",
 } as const;
+
 
 async function callCreditNoteRpc<T>(endpoint: string, body: string): Promise<T> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -163,3 +165,17 @@ export async function issueCreditNoteAtomic(creditNoteId: string): Promise<{
   if (!creditNoteId) throw new Error("Cannot issue a credit note without an id.");
   return callCreditNoteRpc(RPC_ENDPOINTS.issue, JSON.stringify({ _credit_note_id: creditNoteId }));
 }
+
+/**
+ * Deterministic transport for `delete_credit_note_atomic(_credit_note_id uuid)`.
+ * The server owns the deletability rules: draft only, nothing applied, nothing
+ * refunded, no credit movements and no posted journal entry.
+ */
+export async function deleteCreditNoteAtomic(creditNoteId: string): Promise<{
+  credit_note_id: string;
+  deleted: boolean;
+}> {
+  if (!creditNoteId) throw new Error("Cannot delete a credit note without an id.");
+  return callCreditNoteRpc(RPC_ENDPOINTS.remove, JSON.stringify({ _credit_note_id: creditNoteId }));
+}
+
