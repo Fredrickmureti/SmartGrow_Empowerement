@@ -40,7 +40,7 @@ BEGIN;
         JOIN pg_class t ON t.oid = c.conrelid
        WHERE t.relname = 'sales_orders'
          AND c.contype = 'u'
-         AND (SELECT array_agg(a.attname ORDER BY a.attname)
+         AND (SELECT array_agg(a.attname::text ORDER BY a.attname::text)
                 FROM unnest(c.conkey) k
                 JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k)
              = ARRAY['organization_id','so_number']
