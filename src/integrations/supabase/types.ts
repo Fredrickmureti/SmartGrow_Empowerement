@@ -83864,6 +83864,10 @@ export type Database = {
         Args: { p_reason?: string; p_requisition_id: string }
         Returns: Json
       }
+      cancel_sales_order_atomic: {
+        Args: { p_reason?: string; p_so_id: string; p_user_id: string }
+        Returns: Json
+      }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
         Returns: Json
