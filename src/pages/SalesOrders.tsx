@@ -91,7 +91,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 export default function SalesOrders() {
-  const { deleteSalesOrder, updateSalesOrder, createDeliveryNote, convertToInvoice, createSalesOrder } = useSalesOrders();
+  const { deleteSalesOrder, confirmSalesOrder, cancelSalesOrder, createDeliveryNote, convertToInvoice, createSalesOrder } = useSalesOrders();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { exportSalesOrders } = useExport();
   const { toast: shadcnToast } = useToast();
