@@ -42,6 +42,10 @@ import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { fetchContactDefaults } from "@/lib/fetchContactDefaults";
+import {
+  resolvePaymentTerm,
+  dueDateFromTerm,
+} from "@/services/finance/paymentTerms";
 import { normalizeError } from "@/services/resilience";
 
 type LineItem = Omit<BillItem, "id" | "bill_id"> & {
@@ -184,6 +188,18 @@ export default function BillCreatePage() {
     try {
       const defaults = await fetchContactDefaults(vendorId);
       setVendorExpenseAccountId(defaults.default_expense_account_id ?? null);
+      // Supplier term -> company default -> due on receipt, resolved server
+      // side by the one canonical rule.
+      const resolved = await resolvePaymentTerm({
+        organizationId: currentBusiness?.organization_id,
+        businessId: currentBusiness?.id,
+        contactId: vendorId,
+      });
+      setFormData((prev) => ({
+        ...prev,
+        payment_term_id: resolved?.payment_term_id ?? "",
+        due_date: dueDateFromTerm(prev.bill_date, resolved?.days ?? 0),
+      }));
       if (defaults.default_tax_rate_id) {
         const { data: taxRate } = await supabase
           .from("tax_rates")
@@ -246,6 +262,7 @@ export default function BillCreatePage() {
           status: "received",
           bill_date: formData.bill_date,
           due_date: formData.due_date,
+          payment_term_id: formData.payment_term_id || null,
           subtotal: 0,
           tax_amount: 0,
           discount_amount: formData.discount_amount,

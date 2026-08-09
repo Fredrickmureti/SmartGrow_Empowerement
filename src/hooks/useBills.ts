@@ -77,6 +77,12 @@ export interface Bill {
    */
   company_currency_total: number | null;
   notes: string | null;
+  /**
+   * Structured payment term the bill was raised under. Snapshotted at
+   * creation — never re-resolved from vendor master data, so editing a
+   * supplier's default term cannot rewrite bills already entered.
+   */
+  payment_term_id?: string | null;
   attachment_url: string | null;
   project_id?: string | null;
   created_by: string | null;
@@ -691,10 +697,10 @@ export function useBills() {
       date.setDate(date.getDate() + defaultPaymentTerm.days);
       return date.toISOString().split("T")[0];
     }
-    // Default to 30 days
-    const date = new Date(billDate);
-    date.setDate(date.getDate() + 30);
-    return date.toISOString().split("T")[0];
+    // No configured default term => due on receipt. We deliberately do NOT
+    // invent a 30-day credit period: an unconfigured term must not silently
+    // grant a month of credit and skew AP aging.
+    return billDate;
   };
 
   /**
