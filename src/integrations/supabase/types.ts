@@ -57089,6 +57089,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sales_return_items_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_returnable_qty"
+            referencedColumns: ["invoice_item_id"]
+          },
+          {
             foreignKeyName: "sales_return_items_packaging_id_fkey"
             columns: ["packaging_id"]
             isOneToOne: false
@@ -57148,6 +57155,7 @@ export type Database = {
           tax_amount: number
           total: number
           updated_at: string
+          wms_return_order_id: string | null
         }
         Insert: {
           branch_id?: string | null
@@ -57171,6 +57179,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          wms_return_order_id?: string | null
         }
         Update: {
           branch_id?: string | null
@@ -57194,6 +57203,7 @@ export type Database = {
           tax_amount?: number
           total?: number
           updated_at?: string
+          wms_return_order_id?: string | null
         }
         Relationships: [
           {
@@ -57271,6 +57281,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_wms_return_order_id_fkey"
+            columns: ["wms_return_order_id"]
+            isOneToOne: false
+            referencedRelation: "wms_return_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -80228,6 +80245,91 @@ export type Database = {
             columns: ["original_transaction_id"]
             isOneToOne: false
             referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_sales_returnable_qty: {
+        Row: {
+          business_id: string | null
+          contact_id: string | null
+          invoice_id: string | null
+          invoice_item_id: string | null
+          invoiced_qty: number | null
+          organization_id: string | null
+          product_id: string | null
+          returnable_qty: number | null
+          returned_qty: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoices_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoices_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
