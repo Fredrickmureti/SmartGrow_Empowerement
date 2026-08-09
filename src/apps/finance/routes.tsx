@@ -192,13 +192,21 @@ export function FinanceApp() {
           }
         />
 
+        {/* Vendor Credits — AP mirror of Customer Credits (ADR 0028). */}
+        <Route
+          path="vendor-credits"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Vendor Credits">
+                <VendorCredits />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
         {/* Customer Statements */}
         <Route
           path="statements"
-          element={
-            <SubscriptionProtectedRoute allowReadOnly>
-              <LazyRoute module="Customer Statements">
-                <CustomerStatements />
           element={
             <SubscriptionProtectedRoute allowReadOnly>
               <LazyRoute module="Customer Statements">
