@@ -195,6 +195,11 @@ export interface DocumentData {
   currency: string;
   notes?: string | null;
   terms?: string | null;
+  /**
+   * Structured commercial payment term (name + net days), frozen into the
+   * snapshot. Distinct from `terms`, which is Terms & Conditions prose.
+   */
+  payment_term?: { id?: string; name?: string | null; days?: number | null } | null;
   contact?: Contact | null;
   organization?: Organization | null;
   branch_id?: string | null;
