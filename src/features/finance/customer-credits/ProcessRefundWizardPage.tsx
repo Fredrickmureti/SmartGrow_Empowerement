@@ -13,7 +13,7 @@
  *   - On success redirects to `<returnTo>?peek=<id>` (default
  *     `/finance/customer-credits`) so the caller re-sees the record
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
