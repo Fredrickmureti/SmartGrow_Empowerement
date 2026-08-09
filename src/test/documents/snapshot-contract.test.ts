@@ -485,7 +485,7 @@ describe("snapshot builder contract", () => {
 
   it("every builder file under snapshots/ is covered by SUITE", () => {
     // Non-builder modules: barrel + shared projection helpers.
-    const NON_BUILDERS = new Set(["index.ts", "lineItemUom.ts"]);
+    const NON_BUILDERS = new Set(["index.ts", "lineItemUom.ts", "partyAddress.ts"]);
     const files = fs
       .readdirSync(SNAPSHOTS_DIR)
       .filter((f) => f.endsWith(".ts") && !NON_BUILDERS.has(f));
