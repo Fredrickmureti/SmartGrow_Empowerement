@@ -51,7 +51,14 @@ import {
 import { RecordFormShell } from "@/design-system/primitives/RecordFormShell";
 import { FieldGrid, FieldGroup } from "@/design-system/primitives/FieldGrid";
 
-type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id">;
+/**
+ * `source_invoice_item_id` is UI-only provenance: it marks a line as picked
+ * off the source invoice so the grid locks its item, price and tax. It is
+ * stripped before the payload is sent (`credit_note_items` has no such column).
+ */
+type LineItem = Omit<CreditNoteItem, "id" | "credit_note_id"> & {
+  source_invoice_item_id?: string | null;
+};
 
 const emptyLine = (sort_order = 0): LineItem => ({
   product_id: null,
@@ -62,7 +69,11 @@ const emptyLine = (sort_order = 0): LineItem => ({
   tax_amount: 0,
   line_total: 0,
   sort_order,
+  source_invoice_item_id: null,
 });
+
+const stripProvenance = (items: LineItem[]) =>
+  items.map(({ source_invoice_item_id: _ignored, ...rest }) => rest);
 
 export default function CreditNoteCreatePage() {
   const navigate = useNavigate();
