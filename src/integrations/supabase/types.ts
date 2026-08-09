@@ -10242,6 +10242,7 @@ export type Database = {
           etims_classification_code: string | null
           etims_tax_code: string | null
           id: string
+          invoice_item_id: string | null
           is_sample_data: boolean
           line_total: number
           lot_number: string | null
@@ -10250,6 +10251,10 @@ export type Database = {
           quantity: number
           serial_number: string | null
           sort_order: number | null
+          source_currency: string | null
+          source_discount_percent: number | null
+          source_tax_rate: number | null
+          source_unit_price: number | null
           tax_amount: number | null
           tax_rate: number | null
           unit_price: number
@@ -10264,6 +10269,7 @@ export type Database = {
           etims_classification_code?: string | null
           etims_tax_code?: string | null
           id?: string
+          invoice_item_id?: string | null
           is_sample_data?: boolean
           line_total: number
           lot_number?: string | null
@@ -10272,6 +10278,10 @@ export type Database = {
           quantity?: number
           serial_number?: string | null
           sort_order?: number | null
+          source_currency?: string | null
+          source_discount_percent?: number | null
+          source_tax_rate?: number | null
+          source_unit_price?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price: number
@@ -10286,6 +10296,7 @@ export type Database = {
           etims_classification_code?: string | null
           etims_tax_code?: string | null
           id?: string
+          invoice_item_id?: string | null
           is_sample_data?: boolean
           line_total?: number
           lot_number?: string | null
@@ -10294,6 +10305,10 @@ export type Database = {
           quantity?: number
           serial_number?: string | null
           sort_order?: number | null
+          source_currency?: string | null
+          source_discount_percent?: number | null
+          source_tax_rate?: number | null
+          source_unit_price?: number | null
           tax_amount?: number | null
           tax_rate?: number | null
           unit_price?: number
@@ -10320,6 +10335,27 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "units_of_measure"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_invoice_creditable_qty"
+            referencedColumns: ["invoice_item_id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_returnable_qty"
+            referencedColumns: ["invoice_item_id"]
           },
           {
             foreignKeyName: "credit_note_items_packaging_id_fkey"
@@ -10351,6 +10387,7 @@ export type Database = {
           approved_by: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -10389,6 +10426,7 @@ export type Database = {
           approved_by?: string | null
           branch_id?: string | null
           business_id: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -10427,6 +10465,7 @@ export type Database = {
           approved_by?: string | null
           branch_id?: string | null
           business_id?: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -57305,6 +57344,13 @@ export type Database = {
             foreignKeyName: "sales_return_items_invoice_item_id_fkey"
             columns: ["invoice_item_id"]
             isOneToOne: false
+            referencedRelation: "v_invoice_creditable_qty"
+            referencedColumns: ["invoice_item_id"]
+          },
+          {
+            foreignKeyName: "sales_return_items_invoice_item_id_fkey"
+            columns: ["invoice_item_id"]
+            isOneToOne: false
             referencedRelation: "v_sales_returnable_qty"
             referencedColumns: ["invoice_item_id"]
           },
@@ -78121,6 +78167,67 @@ export type Database = {
         }
         Relationships: []
       }
+      v_invoice_creditable_qty: {
+        Row: {
+          business_id: string | null
+          credited_qty: number | null
+          description: string | null
+          discount_percent: number | null
+          invoice_id: string | null
+          invoice_item_id: string | null
+          invoiced_qty: number | null
+          net_unit_price: number | null
+          product_id: string | null
+          remaining_net_amount: number | null
+          remaining_qty: number | null
+          tax_rate: number | null
+          unit_price: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "invoice_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_je_source_consistency: {
         Row: {
           description: string | null
@@ -82379,6 +82486,14 @@ export type Database = {
         }
         Returns: string
       }
+      _resolve_credit_note_line: {
+        Args: {
+          _exclude_credit_note_id?: string
+          _invoice_id: string
+          _item: Json
+        }
+        Returns: Json
+      }
       _resolve_invoice_gl_accounts: {
         Args: {
           p_business_id: string
@@ -83482,6 +83597,7 @@ export type Database = {
           approved_by: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -96310,6 +96426,7 @@ export type Database = {
         Args: { _bill_id: string; _items: Json }
         Returns: undefined
       }
+      update_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
       update_delivery_logistics_atomic: {
         Args: { p_dn_id: string; p_payload: Json; p_user_id: string }
         Returns: Json
