@@ -113,3 +113,35 @@ resolves the branch's active warehouse itself.
 snapshot trigger, the single corrected release overload (no `p_cogs_lines`
 reference), reservation-restore and return functions, both over-delivery caps,
 and symmetric return GL.
+
+## Amendment 2026 — lifecycle ownership moved into the database
+
+Convergence audit findings and the resulting contract:
+
+1. **Lifecycle columns are engine-owned.** Table-wide `UPDATE`/`DELETE` on
+   `delivery_notes` is revoked from `authenticated`/`anon`; only descriptive
+   columns (`notes`, `delivery_date`, `shipping_address`, `driver_name`,
+   `vehicle_number`, `contact_id`, `received_by_contact_id`,
+   `auto_invoice_on_complete`, `updated_at`) are granted back. `status`,
+   `delivered_at`, `dispatched_at`, `ready_at`, `cancelled_at` and
+   `spawned_invoice_id` can therefore only change inside the SECURITY DEFINER
+   engines (`mark_delivery_ready_atomic`, `dispatch_delivery_atomic`,
+   `complete_delivery_atomic`, `record_partial_delivery_atomic`,
+   `cancel_delivery_atomic`, `create_invoice_from_delivery_atomic`,
+   `wms_manifest_bridge_delivery_notes`). A browser can no longer mark a note
+   delivered without stock movement, `cost_at_shipment` and the COGS journal.
+2. **Deletion is cancellation.** Client delete is revoked; removal routes
+   through `cancel_delivery_atomic` so movements and journals reverse.
+3. **Numbering is atomic and business-scoped.** `get_next_delivery_number`
+   takes an advisory lock per business and parses only the sequence segment;
+   a unique index enforces one number per business. Legacy duplicates of
+   `DN-2026-2026` were renumbered.
+4. **Creation is atomic.** `create_delivery_note_atomic(p_payload, p_lines,
+   p_user_id)` allocates the number and writes header + lines in one
+   transaction; the client no longer reserves numbers.
+5. **Two contacts FKs must be disambiguated.** Every embed uses
+   `contact:contacts!contact_id(...)` and
+   `received_by_contact:contacts!received_by_contact_id(...)`; a bare
+   `contacts(...)` embed is ambiguous and fails at runtime.
+
+Ratchet: `src/__tests__/architecture.delivery-note-engine.test.ts`.
