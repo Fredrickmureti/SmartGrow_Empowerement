@@ -181,35 +181,73 @@ export default function CreditNoteCreatePage() {
     setLineItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   };
 
+  /** Off-invoice lines only — an invoice-sourced line keeps the invoiced price. */
+  const handleProductSelect = (index: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+    patchLineItem(index, {
+      product_id: productId,
+      description: product.name,
+      unit_price: product.unit_price,
+    });
+  };
+
   const handleInvoiceSelect = (invoiceId: string) => {
     setFormData((f) => ({ ...f, invoice_id: invoiceId }));
-    const inv = invoices.find((i) => i.id === invoiceId);
-    if (inv && (inv as any).items && (inv as any).items.length > 0) {
-      const items: LineItem[] = (inv as any).items.map((item: any, idx: number) => ({
-        product_id: item.product_id || null,
-        description: item.description || "",
-        quantity: item.quantity || 1,
-        unit_price: item.unit_price || 0,
-        tax_rate: item.tax_rate || 0,
-        tax_amount: item.tax_amount || 0,
-        line_total: item.line_total || 0,
-        sort_order: idx,
-        packaging_id: item.packaging_id ?? null,
-        display_uom_id: item.display_uom_id ?? null,
-        display_quantity: item.display_quantity ?? null,
-        uom_snapshot: item.uom_snapshot ?? null,
-      }));
-      setLineItems(items);
-    }
+    // Lines are authored by picking off the invoice, never by retyping.
+    setLineItems([emptyLine()]);
+    if (invoiceId) setPickerOpen(true);
   };
+
+  /**
+   * Picked invoice lines replace the invoice-sourced part of the document and
+   * keep whatever off-invoice lines the operator added by hand.
+   */
+  const applyPickedLines = (picked: PickedCreditLine[]) => {
+    setLineItems((prev) => {
+      const manual = prev.filter(
+        (l) => !l.source_invoice_item_id && (l.description.trim() || l.product_id),
+      );
+      const fromInvoice: LineItem[] = picked.map(({ line, quantity }, idx) => {
+        const seed: LineItem = {
+          ...emptyLine(idx),
+          product_id: line.product_id,
+          description: line.description,
+          quantity,
+          unit_price: line.net_unit_price,
+          tax_rate: line.tax_rate,
+          packaging_id: line.packaging_id,
+          display_uom_id: line.display_uom_id,
+          display_quantity: line.display_quantity,
+          uom_snapshot: line.uom_snapshot,
+          source_invoice_item_id: line.invoice_item_id,
+        } as LineItem;
+        const { line_total, tax_amount } = computeLine(seed);
+        return { ...seed, line_total, tax_amount };
+      });
+      const merged = [...fromInvoice, ...manual].map((l, i) => ({ ...l, sort_order: i }));
+      return merged.length > 0 ? merged : [emptyLine()];
+    });
+  };
+
+  const pickedQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of lineItems) {
+      if (l.source_invoice_item_id) map[l.source_invoice_item_id] = l.quantity;
+    }
+    return map;
+  }, [lineItems]);
 
   // Deep-link: pre-fill invoice after invoices load
   useEffect(() => {
     if (!prefillInvoiceId || invoices.length === 0) return;
     const inv = invoices.find((i) => i.id === prefillInvoiceId);
     if (inv) {
-      setFormData((f) => ({ ...f, contact_id: inv.contact_id || f.contact_id }));
-      handleInvoiceSelect(prefillInvoiceId);
+      setFormData((f) => ({
+        ...f,
+        contact_id: inv.contact_id || f.contact_id,
+        invoice_id: prefillInvoiceId,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillInvoiceId, invoices]);
