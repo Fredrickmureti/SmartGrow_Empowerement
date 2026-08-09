@@ -277,6 +277,7 @@ export function documentToReceiptInput(
     status: !isPos ? (doc.status ?? null) : null,
     notes: !isPos ? (doc.notes ?? null) : null,
     terms: !isPos ? (doc.terms ?? null) : null,
+    payment_term_label: !isPos ? (doc.payment_term?.name ?? null) : null,
     currency_code: typeof doc.currency === "string" ? doc.currency : null,
     fiscal_block: anyDoc.fiscal_block ?? null,
     is_payment_document: isPayment || undefined,
