@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BookOpen, Play } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDemoVideos, type DemoVideo } from "@/hooks/useDemoVideos";
 import { labelForAppKey } from "@/features/resources/appOptions";
 
@@ -32,6 +33,9 @@ function formatDuration(sec: number | null): string {
 }
 
 export default function ResourceDetail() {
+  const { user } = useAuth();
+  const backHref = user ? "/home" : "/";
+  const backLabel = user ? "Back to workspace" : "Back to home";
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { videos, isLoading } = useDemoVideos(true);
@@ -53,8 +57,8 @@ export default function ResourceDetail() {
           title="Resource"
           actions={
             <Button variant="outline" asChild>
-              <Link to="/home">
-                <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+              <Link to={backHref}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
               </Link>
             </Button>
           }
@@ -66,8 +70,8 @@ export default function ResourceDetail() {
             description="It may have been unpublished. Head back to the library or your workspace."
             action={
               <div className="flex flex-wrap justify-center gap-2">
-                <Button variant="outline" onClick={() => navigate("/home")}>
-                  <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+                <Button variant="outline" onClick={() => navigate(backHref)}>
+                  <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
                 </Button>
                 <Button variant="ghost" onClick={() => navigate("/resources")}>
                   Library
@@ -90,8 +94,8 @@ export default function ResourceDetail() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
-              <Link to="/home">
-                <ArrowLeft className="mr-1 h-4 w-4" /> Back to workspace
+              <Link to={backHref}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> {backLabel}
               </Link>
             </Button>
             <Button variant="ghost" asChild>
