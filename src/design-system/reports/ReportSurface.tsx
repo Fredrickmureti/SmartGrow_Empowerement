@@ -60,10 +60,10 @@ export function ReportSurface({
 }: ReportSurfaceProps) {
   const identity = useReportExportContext();
   const preparedOn = formatReportDate(new Date());
-  // One masthead for every report (see BrandedHeader.ts): logo left,
-  // entity block left, title/period right. `profile` still selects the
-  // wording ("As of ..." vs "For the period ..."), never the layout.
-  const financial = false;
+  // One masthead for every report (see BrandedHeader.ts): logo + entity
+  // block left, title/period/basis/scope right. `profile` still selects
+  // the wording ("As of ..." vs "For the period ..."), never the layout.
+
   const entityName = companyName || identity.companyName || "";
   const logoUrl = identity.logoUrl || null;
   const scopeLabel = identity.scopeLabel || null;
@@ -71,41 +71,42 @@ export function ReportSurface({
   return (
     <Card className={cn("print:border-0 print:shadow-none", className)}>
       <CardContent className="pt-6">
-        <header
-          className={cn(
-            "mb-4 border-b-2 border-border pb-3",
-            financial ? "text-center" : "text-left",
-          )}
-        >
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt={entityName ? `${entityName} logo` : "Company logo"}
-              className={cn(
-                "mb-2 h-10 w-auto object-contain",
-                financial ? "mx-auto" : "",
-              )}
-              loading="lazy"
-            />
-          )}
-          {entityName && (
-            <h2 className="text-base font-bold uppercase tracking-wide text-foreground">
-              {entityName}
-            </h2>
-          )}
-          <h3 className="mt-0.5 text-base font-semibold text-foreground">{title}</h3>
-          {dateRange && (
-            <p className="mt-0.5 text-sm text-muted-foreground">For the period {dateRange}</p>
-          )}
-          {asOfDate && <p className="mt-0.5 text-sm text-muted-foreground">{asOfDate}</p>}
-          {subtitle && (
-            <p className="mt-0.5 text-xs italic text-muted-foreground">{subtitle}</p>
-          )}
-          {scopeLabel && (
-            <p className="mt-0.5 text-xs text-muted-foreground">{scopeLabel}</p>
-          )}
-          <p className="mt-1 text-xs text-muted-foreground">Prepared on {preparedOn}</p>
+        {/* Two-column masthead, mirroring drawOperationalHeader in the PDF:
+            logo + entity block on the left, title/period/basis/scope/
+            prepared-on right-aligned on the right. */}
+        <header className="mb-4 flex flex-col gap-3 border-b-2 border-border pb-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 text-left">
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt={entityName ? `${entityName} logo` : "Company logo"}
+                className="mb-2 h-10 w-auto object-contain"
+                loading="lazy"
+              />
+            )}
+            {entityName && (
+              <h2 className="text-base font-bold uppercase tracking-wide text-foreground">
+                {entityName}
+              </h2>
+            )}
+          </div>
+
+          <div className="min-w-0 text-left sm:text-right">
+            <h3 className="text-base font-semibold text-foreground">{title}</h3>
+            {dateRange && (
+              <p className="mt-0.5 text-sm text-muted-foreground">For the period {dateRange}</p>
+            )}
+            {asOfDate && <p className="mt-0.5 text-sm text-muted-foreground">{asOfDate}</p>}
+            {subtitle && (
+              <p className="mt-0.5 text-xs italic text-muted-foreground">{subtitle}</p>
+            )}
+            {scopeLabel && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{scopeLabel}</p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">Prepared on {preparedOn}</p>
+          </div>
         </header>
+
 
         {banner && <div className="mb-4">{banner}</div>}
 
