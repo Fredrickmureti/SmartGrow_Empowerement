@@ -57003,6 +57003,123 @@ export type Database = {
           },
         ]
       }
+      sales_return_cost_allocations: {
+        Row: {
+          basis_id: string
+          business_id: string
+          consumption_id: string
+          created_at: string
+          id: string
+          layer_id: string
+          organization_id: string
+          qty: number
+          unit_cost: number
+        }
+        Insert: {
+          basis_id: string
+          business_id: string
+          consumption_id: string
+          created_at?: string
+          id?: string
+          layer_id: string
+          organization_id: string
+          qty: number
+          unit_cost: number
+        }
+        Update: {
+          basis_id?: string
+          business_id?: string
+          consumption_id?: string
+          created_at?: string
+          id?: string
+          layer_id?: string
+          organization_id?: string
+          qty?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_return_cost_allocations_basis_id_fkey"
+            columns: ["basis_id"]
+            isOneToOne: false
+            referencedRelation: "sales_return_cost_basis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_cost_allocations_consumption_id_fkey"
+            columns: ["consumption_id"]
+            isOneToOne: false
+            referencedRelation: "cost_layer_consumptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_return_cost_basis: {
+        Row: {
+          business_id: string
+          created_at: string
+          fallback_qty: number
+          fallback_reason: string | null
+          id: string
+          method: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_return_id: string
+          sales_return_item_id: string
+          total_value: number
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          fallback_qty?: number
+          fallback_reason?: string | null
+          id?: string
+          method: string
+          organization_id: string
+          product_id: string
+          quantity: number
+          sales_return_id: string
+          sales_return_item_id: string
+          total_value?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          fallback_qty?: number
+          fallback_reason?: string | null
+          id?: string
+          method?: string
+          organization_id?: string
+          product_id?: string
+          quantity?: number
+          sales_return_id?: string
+          sales_return_item_id?: string
+          total_value?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "sales_returns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_return_cost_basis_sales_return_item_id_fkey"
+            columns: ["sales_return_item_id"]
+            isOneToOne: true
+            referencedRelation: "sales_return_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_return_items: {
         Row: {
           condition: string | null
@@ -94508,6 +94625,15 @@ export type Database = {
           p_org_id: string
           p_return_id: string
           p_return_number: string
+        }
+        Returns: Json
+      }
+      resolve_sales_return_line_cost: {
+        Args: {
+          _business_id: string
+          _invoice_id: string
+          _product_id: string
+          _qty: number
         }
         Returns: Json
       }
