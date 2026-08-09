@@ -6361,6 +6361,7 @@ export type Database = {
           bank_account_id: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           created_at: string
           created_by: string | null
           currency_rate: number
@@ -6388,6 +6389,7 @@ export type Database = {
           bank_account_id?: string | null
           branch_id?: string | null
           business_id: string
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           currency_rate?: number
@@ -6415,6 +6417,7 @@ export type Database = {
           bank_account_id?: string | null
           branch_id?: string | null
           business_id?: string
+          client_request_id?: string | null
           created_at?: string
           created_by?: string | null
           currency_rate?: number
@@ -33167,6 +33170,7 @@ export type Database = {
           approved_by: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -33206,6 +33210,7 @@ export type Database = {
           approved_by?: string | null
           branch_id?: string | null
           business_id: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -33245,6 +33250,7 @@ export type Database = {
           approved_by?: string | null
           branch_id?: string | null
           business_id?: string
+          client_request_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -82750,6 +82756,7 @@ export type Database = {
           bank_account_id: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           created_at: string
           created_by: string | null
           currency_rate: number
@@ -83119,6 +83126,7 @@ export type Database = {
           approved_by: string | null
           branch_id: string | null
           business_id: string
+          client_request_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -92919,6 +92927,7 @@ export type Database = {
           _receipt_number?: string
           _receivable_account_id?: string
           _reference?: string
+          _request_id?: string
           _total_amount: number
         }
         Returns: Json
