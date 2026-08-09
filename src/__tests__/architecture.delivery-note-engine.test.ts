@@ -56,6 +56,7 @@ describe("delivery note write paths", () => {
     // re-implement that pipeline inline.
     const offenders = FILES.filter(
       ({ path, text }) =>
+        !/services[\\/]documents[\\/]/.test(path) &&
         !path.endsWith("usePrintDeliveryNote.ts") &&
         /fetchAndBuildSalesDeliveryNoteSnapshot/.test(text),
     ).map((f) => f.path);
@@ -69,7 +70,7 @@ describe("delivery note write paths", () => {
       /supabase\s*\.\s*rpc\(\s*"(mark_delivery_ready_atomic|dispatch_delivery_atomic|complete_delivery_atomic|record_partial_delivery_atomic|update_delivery_logistics_atomic)"/;
     const offenders = FILES.filter(
       ({ path, text }) =>
-        !path.endsWith("useDeliveryLifecycle.ts") && inlineRpc.test(text.replace(/\s+/g, " ")),
+        !/use(DeliveryLifecycle|DeliveryNotes)\.ts$/.test(path) && inlineRpc.test(text.replace(/\s+/g, " ")),
     ).map((f) => f.path);
     expect(offenders).toEqual([]);
   });

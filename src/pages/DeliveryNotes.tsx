@@ -57,8 +57,6 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { format } from "date-fns";
 import { PrintPreviewDialog } from "@/components/common/PrintPreviewDialog";
 import { useBusinesses } from "@/hooks/useBusinesses";
-import { fetchAndBuildSalesDeliveryNoteSnapshot } from "@/services/documents/snapshots/salesDeliveryNote";
-import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
 import { usePrintDeliveryNote } from "@/features/sales/delivery-notes/usePrintDeliveryNote";
 import { useSubscriptionAccess } from "@/contexts/SubscriptionAccessContext";
 import { PermissionGate } from "@/components/common/PermissionGate";
