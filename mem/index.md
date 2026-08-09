@@ -11,6 +11,7 @@ Delivery note status/dates/deletion are DB-owned (atomic RPCs only); clients edi
 ## Memories
 - [Open items & payability](mem://features/open-items-and-payability) — AR/AP projection settlement channels, payability predicate, invoice status vocabulary
 - [Customer payment allocations](mem://features/customer-payment-allocations) — ADR 0027 allocation-first payments, customer ledger SoT
+- [Vendor payment allocations](mem://features/vendor-payment-allocations) — ADR 0028 allocation-first AP, supplier advances (record vs apply accounting), vendor_unapplied_advances SoT
 - [Document scanning layer](mem://features/document-scanning-layer) — shared scanner across Sales/Purchases, cost-vs-selling price rule, requisition exclusion, import-based guards
 - [Sales order lifecycle](mem://features/sales-order-lifecycle) — status vocabulary, atomic creation, DB-owned cancellation, quantity ledger, FX capture, the two invoicing routes
 - [Delivery note lifecycle](mem://features/delivery-note-lifecycle) — engine-owned status columns, atomic create/cancel, business-scoped numbering, dual contacts FK embeds
