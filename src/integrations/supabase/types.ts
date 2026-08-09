@@ -56701,6 +56701,7 @@ export type Database = {
           created_by: string | null
           currency: string | null
           discount_amount: number | null
+          exchange_rate: number | null
           expected_date: string | null
           id: string
           is_locked: boolean
@@ -56732,6 +56733,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_locked?: boolean
@@ -56763,6 +56765,7 @@ export type Database = {
           created_by?: string | null
           currency?: string | null
           discount_amount?: number | null
+          exchange_rate?: number | null
           expected_date?: string | null
           id?: string
           is_locked?: boolean
@@ -85149,6 +85152,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_sales_order_atomic: {
+        Args: { p_header: Json; p_items: Json; p_user_id?: string }
+        Returns: Json
+      }
       create_scanner_session: {
         Args: {
           p_branch_id: string
@@ -93758,6 +93765,15 @@ export type Database = {
         }[]
       }
       resolve_rules_for_run: { Args: { _run_id: string }; Returns: Json[] }
+      resolve_sales_exchange_rate: {
+        Args: {
+          p_business_id: string
+          p_currency: string
+          p_on_date: string
+          p_org_id: string
+        }
+        Returns: number
+      }
       resolve_sales_return_cogs_lines: {
         Args: {
           p_business_id: string
