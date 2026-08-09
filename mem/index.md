@@ -19,3 +19,4 @@ Every settlement RPC takes a request key derived from the payment intent — nev
 - [Document scanning layer](mem://features/document-scanning-layer) — shared scanner across Sales/Purchases, cost-vs-selling price rule, requisition exclusion, import-based guards
 - [Sales order lifecycle](mem://features/sales-order-lifecycle) — status vocabulary, atomic creation, DB-owned cancellation, quantity ledger, FX capture, the two invoicing routes
 - [Delivery note lifecycle](mem://features/delivery-note-lifecycle) — engine-owned status columns, atomic create/cancel, business-scoped numbering, dual contacts FK embeds
+- [Sales return tax basis](mem://features/sales-return-tax-basis) — invoice-line tax/discount/eTIMS snapshot on returns, document-level rounding, credit note as sole fiscal exit
