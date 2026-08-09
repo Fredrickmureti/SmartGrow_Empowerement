@@ -6869,13 +6869,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bills_remit_to_contact_id_fkey"
-            columns: ["remit_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bills_source_expense_id_fkey"
             columns: ["source_expense_id"]
             isOneToOne: false
@@ -10420,13 +10413,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "credit_notes_bill_to_contact_id_fkey"
-            columns: ["bill_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "credit_notes_branch_id_fkey"
             columns: ["branch_id"]
@@ -19151,13 +19137,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "estimates_bill_to_contact_id_fkey"
-            columns: ["bill_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "estimates_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
@@ -23751,13 +23730,6 @@ export type Database = {
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_bill_to_contact_id_fkey"
-            columns: ["bill_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -51481,13 +51453,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "proforma_invoices_bill_to_contact_id_fkey"
-            columns: ["bill_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "proforma_invoices_branch_id_fkey"
             columns: ["branch_id"]
