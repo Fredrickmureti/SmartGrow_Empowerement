@@ -1,44 +1,47 @@
-# Payment & Reconciliation Convergence — Remaining Work (D6.2, D6.3, D7)
+# Payments & Reconciliation — Verification Verdict, then D6.2 / D6.3 / D7
 
-## Where things stand
+## Phase 1 verdict on the previous engineer's claims
 
-D6.1 is complete and closed. Supplier advances are now operator-reachable:
+I re-checked each "done" claim directly in the code, not the status file.
 
-- `vendor_unapplied_advances` view is the single source of truth for supplier cash paid but not yet applied.
-- `apply_vendor_advance_atomic` applies an advance to bills as a reclassification (Dr Accounts Payable / Cr Vendor Credits) — it never re-credits the bank, so cash cannot be double-counted.
-- `record_multi_bill_payment` now honours the request key properly, so a double submit cannot mint a second payment or overwrite an operator's reference.
-- New surfaces: Vendor Credits page, Record Vendor Advance dialog, Apply Vendor Advance dialog, plus route and sidebar entry.
+Confirmed genuinely complete (D6.1, supplier advances):
 
-Three items from the original plan are still open, and they are wider than a cleanup pass, so the plan stays open with them as the remaining scope.
+- `vendor_unapplied_advances` and `apply_vendor_advance_atomic` exist in the migration applied on 9 Aug and in the generated types.
+- Operator surfaces exist and are wired: Vendor Credits page (`src/pages/finance/VendorCredits.tsx`), a route entry in the finance app, `RecordVendorAdvanceDialog`, `ApplyVendorAdvanceDialog`, and the `useVendorUnappliedAdvances` read hook.
 
-## D6.2 — One customer-payment dialog
+Confirmed still open, exactly as the plan said — plus one defect the plan did not record:
 
-Two competing dialogs are live and Accounts Receivable imports both:
+- Two customer-payment dialogs are still live. `src/pages/finance/AccountsReceivable.tsx` imports **both** (lines 62–63) and renders both. Invoices uses the invoices one; Customer Payments and Collections use the sales one.
+- ADRs 0027 and 0028 still describe the legacy `invoice_id` / `bill_id` columns and the writer migration as pending/deferred, although both are done.
+- No ratchet exists for request keys or for an AP writer monopoly. The only guard is a "max 2 RecordPaymentDialog files" ratchet in `payment-reversal-intent-contract.test.ts`.
+- **New defect (evidence-backed):** `usePayments.recordPayment` accepts `requestId` and forwards it as `_request_id`, but **no call site passes one**. Both dialogs submit without a key, so the database idempotency added in D1/D2 is unreachable from the UI. A double submit on Receive Payment can mint two payments today. This is the highest-severity item remaining and moves to the front of D6.2.
 
-- `src/components/invoices/RecordPaymentDialog.tsx`
-- `src/components/sales/RecordPaymentDialog.tsx`
+Work resumes at D6.2 with idempotency wiring pulled forward.
 
-Work:
+## D6.2 — One customer-payment dialog, with a working request key
 
-- Compare both field by field and keep the superset behaviour — multi-invoice allocation, overpayment-to-credit, FX rate capture, request key — as one component under `src/components/payments/`.
-- Repoint Invoices, Customer Payments, Accounts Receivable and Collections at the survivor, one page at a time.
-- Delete the losing implementation and update the two architecture tests that reference the old paths so the guard follows the survivor rather than being weakened.
+1. **Idempotency first.** Derive a deterministic request key from the payment intent (contact, allocation set, cents, payment date, deposit account) — the same pattern already proven in `ReversePaymentWizard` (`makeDeterministicRequestId`) and `ApplyCustomerDepositDialog`. Pass it through `recordPayment` and `recordMultiInvoicePayment`. No `crypto.randomUUID()`.
+2. **Choose the survivor.** The sales dialog owns the superior model: customer-first, multi-invoice allocation, and residual sourced from `fetchOpenCustomerInvoices` (the GL-gated AR projection) rather than a status list. The invoices dialog owns behaviour the sales one lacks: single-invoice context with payment history, available credit-note application, overpayment→customer-credit preview, and the server-side receipt preview.
+3. **Build the survivor** at `src/components/payments/RecordCustomerPaymentDialog.tsx` as the union: customer-first with an optional `invoice` pre-selection that renders the single-invoice affordances (history, credits, overpayment preview, receipt preview). Props are a superset of both current interfaces so call sites migrate without behaviour loss.
+4. **Migrate call sites one page at a time** — Invoices, Customer Payments, Collections, then Accounts Receivable (which drops one of its two dialogs and its duplicated state).
+5. **Delete both old files** and retarget the tests that read them by path (`invoice-payability-single-source.test.ts`, `print-preview-communication.test.ts`, and the count ratchet), tightening the ratchet from 2 files to 1 rather than weakening it.
 
 ## D6.3 — Documentation truth
 
-- Amend ADRs 0027 and 0028: the legacy FK drops and the writer migration are done, not pending.
-- New ADR: unreconciliation is a reclassification, not a reversal — void the settlement entry, re-post Dr Bank / Cr Customer Deposits, with the fiscal-period guard and per-payment idempotency spelled out.
-- New ADR (or an 0028 extension): supplier advances — `vendor_id` on the header, Vendor Credits as the holding account, the allocate-later contract, the single-supplier allocation rule, and the no-bank-re-credit rule proven out in D6.1.
-- Refresh the customer and vendor allocation memory entries so nothing still reads as "pending".
+- Amend ADR 0027 and ADR 0028: the legacy FK drops and writer migration are complete, not pending.
+- New ADR: unreconciliation is a reclassification, not a reversal — void the settlement entry, re-post Dr Bank / Cr Customer Deposits, with the fiscal-period guard and per-payment idempotency stated.
+- New ADR (or 0028 extension): supplier advances — `vendor_id` on the header, Vendor Credits as the holding account, allocate-later contract, single-supplier allocation rule, and the no-bank-re-credit rule.
+- Refresh `mem/features/customer-payment-allocations.md` and `mem/features/vendor-payment-allocations.md` so nothing still reads as pending, and record the single-dialog rule.
 
 ## D7 — Ratchets
 
-- Request-key ratchet: every money-in RPC must expose a request key, and no client call site may invoke a settlement RPC without passing one.
-- AP writer monopoly ratchet: only `record_multi_bill_payment`, `record_vendor_advance_payment` and `apply_vendor_advance_atomic` may touch `bill_payments`; anything else fails CI, mirroring the journal-posting monopoly test.
-- Single payment dialog ratchet: fail the build if a second customer-payment recording component reappears.
+- **Request-key ratchet:** every money-in RPC exposes a request key, and no client call site invokes a settlement RPC without passing one. This is the test that would have caught the defect above.
+- **AP writer monopoly ratchet:** only `record_multi_bill_payment`, `record_vendor_advance_payment` and `apply_vendor_advance_atomic` may write `bill_payments`, mirroring `journal-posting-monopoly.test.ts`.
+- **Single payment dialog ratchet:** exactly one customer-payment recording component may exist.
 
 ## Technical notes
 
-- No further database work is expected. Everything remaining is client consolidation, documentation and CI guards.
-- Regression risk concentrates in D6.2, where four pages change their payment entry point. Mitigation: keep the surviving component's props a superset, migrate call sites one page at a time, and lean on the existing payability and print-preview architecture tests as the safety net.
-- Posting, allocation, void and reversal semantics stay untouched.
+- No database work is expected. Everything remaining is client consolidation, documentation and CI guards.
+- Posting, allocation, void, unreconcile and reversal semantics stay untouched — the audit found those layers sound.
+- Regression risk concentrates in D6.2 (four pages change entry point). Mitigation: superset props, page-by-page migration, and the existing payability / print-preview architecture tests as the safety net.
+- Verification: `bunx vitest run src/test/architecture src/test/payments`, plus a manual double-submit check on Receive Payment confirming a single payment row.
