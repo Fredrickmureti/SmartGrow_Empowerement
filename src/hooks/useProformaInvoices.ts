@@ -9,6 +9,7 @@ import { useAuditLog } from "./useAuditLog";
 import { queryKeys } from "@/lib/queryKeys";
 import { toast } from "sonner";
 import { applyBranchFilter } from "@/lib/branchScope";
+import { freezeBillToSnapshot } from "@/lib/contactAddresses";
 
 
 export interface ProformaInvoice {
@@ -152,6 +153,10 @@ export function useProformaInvoices() {
       if (error) throw error;
       const result = data as { success: boolean; id: string; proforma_number: string; total: number };
       if (!result?.success) throw new Error("Proforma creation failed");
+
+      // Freeze the bill-to address at creation time so a later edit to the
+      // customer's address book cannot rewrite an issued proforma.
+      await freezeBillToSnapshot("proforma_invoices", result.id, invoice.contact_id ?? null);
 
       logAction({
         action: "created",

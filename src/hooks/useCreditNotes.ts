@@ -7,6 +7,7 @@ import { useToast } from "./use-toast";
 import { useBranch } from "@/contexts/BranchContext";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
+import { freezeBillToSnapshot } from "@/lib/contactAddresses";
 import {
   createCreditNoteAtomic,
   issueCreditNoteAtomic,
@@ -179,8 +180,12 @@ export function useCreditNotes() {
         client_request_id: clientRequestId ?? null,
     });
 
-    await fetchCreditNotes();
     const result = data as { credit_note_id: string; credit_note_number: string };
+    // Freeze the bill-to address at issue time. The atomic RPC owns the
+    // header insert, so the snapshot is written immediately after it.
+    await freezeBillToSnapshot("credit_notes", result.credit_note_id, creditNote.contact_id);
+
+    await fetchCreditNotes();
     return { id: result.credit_note_id, credit_note_number: result.credit_note_number };
 
   };

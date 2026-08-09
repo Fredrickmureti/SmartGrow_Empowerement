@@ -17,6 +17,7 @@ import { triggerAutomation } from "@/lib/automations/triggerAutomation";
 import { assertCompanyScoped, assertBranchScoped } from "@/lib/purchases/scopingAssertions";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
+import { captureRemitToSnapshot } from "@/lib/contactAddresses";
 
 export interface BillItem {
   id?: string;
@@ -230,11 +231,16 @@ export function useBills() {
         ? Number(bill.company_currency_total)
         : Number((total * currencyRate).toFixed(2));
 
+    // Freeze the vendor's remit-to address on the bill itself. Master-data
+    // edits must never rewrite the address an entered bill records.
+    const remitTo = await captureRemitToSnapshot((bill as any).contact_id ?? null);
+
     // Always insert as draft — GL posting happens on confirmation
     const { data: created, error: billError } = await supabase
       .from("bills")
       .insert({
         ...bill,
+        ...remitTo,
         status: "draft", // Force draft regardless of what caller passes
         organization_id: currentOrg.id,
         business_id: currentBusiness.id,
