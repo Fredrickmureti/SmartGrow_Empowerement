@@ -86,6 +86,16 @@ interface LineItem {
   // Phase A.4 — picker output persisted to sales_return_items.
   lot_number?: string | null;
   serial_number?: string | null;
+  /**
+   * Phase 8 — tax basis provenance. For an invoice-sourced line the tax the
+   * original invoice line charged is the only lawful basis; the figures below
+   * are a *preview* of what `create_sales_return_atomic` will resolve
+   * server-side via `resolve_sales_return_line_tax`. The server never trusts
+   * the tax we send.
+   */
+  invoiced_quantity?: number | null;
+  source_tax_amount?: number | null;
+  source_discount_percent?: number | null;
 }
 
 const emptyLine = (): LineItem => ({
@@ -100,6 +110,16 @@ const emptyLine = (): LineItem => ({
   condition: "good",
   return_reason: "",
 });
+
+/** Pro-rates the original invoice line's tax onto the returned quantity. */
+const previewLineTax = (line: LineItem): number => {
+  if (line.invoice_item_id && line.invoiced_quantity) {
+    const proportion = Math.abs(line.quantity) / Math.abs(line.invoiced_quantity);
+    return (line.source_tax_amount ?? 0) * proportion;
+  }
+  return line.quantity * line.unit_price * ((line.tax_rate || 0) / 100);
+};
+
 
 export default function SalesReturnCreatePage() {
   const navigate = useNavigate();
@@ -140,21 +160,33 @@ export default function SalesReturnCreatePage() {
     form.setValue("invoice_id", invoiceId);
     const inv = invoices.find((i) => i.id === invoiceId);
     if (inv && (inv as any).items && (inv as any).items.length > 0) {
-      const items: LineItem[] = (inv as any).items.map((item: any) => ({
-        product_id: item.product_id || null,
-        invoice_item_id: item.id || null,
-        description: item.description || "",
-        quantity: item.quantity || 1,
-        max_quantity: item.quantity || 1,
-        unit_price: item.unit_price || 0,
-        tax_rate: item.tax_rate || 0,
-        tax_amount: (item.unit_price * item.quantity * (item.tax_rate || 0)) / 100,
-        condition: "good",
-        return_reason: "",
-        packaging_id: item.packaging_id ?? null,
-        display_uom_id: item.display_uom_id ?? null,
-        display_quantity: item.display_quantity ?? null,
-      }));
+      const items: LineItem[] = (inv as any).items.map((item: any) => {
+        const invoicedQty = Number(item.quantity) || 1;
+        const discount = Number(item.discount_percent) || 0;
+        // Net-of-discount unit price: the return must credit what was
+        // actually charged, not the pre-discount list price.
+        const netUnitPrice = (Number(item.unit_price) || 0) * (1 - discount / 100);
+        return {
+          product_id: item.product_id || null,
+          invoice_item_id: item.id || null,
+          description: item.description || "",
+          quantity: invoicedQty,
+          max_quantity: invoicedQty,
+          unit_price: netUnitPrice,
+          tax_rate: Number(item.tax_rate) || 0,
+          // Original line tax, pro-rated to the full quantity = the line tax.
+          tax_amount: Number(item.tax_amount) || 0,
+          condition: "good",
+          return_reason: "",
+          packaging_id: item.packaging_id ?? null,
+          display_uom_id: item.display_uom_id ?? null,
+          display_quantity: item.display_quantity ?? null,
+          invoiced_quantity: invoicedQty,
+          source_tax_amount: Number(item.tax_amount) || 0,
+          source_discount_percent: discount,
+        };
+      });
+
       setLineItems(items);
     }
   };
@@ -212,7 +244,9 @@ export default function SalesReturnCreatePage() {
 
   /**
    * Applies a partial line update: derives product defaults, clamps the
-   * returned quantity to the invoiced ceiling, and recomputes line tax.
+   * returned quantity to the invoiced ceiling, and re-previews line tax.
+   * Invoice-sourced lines keep the original line's price and tax basis —
+   * the current product price/tax setting must not leak into a return.
    */
   const patchLineItem = useCallback(
     (index: number, patch: Partial<LineItem>) => {
@@ -220,7 +254,7 @@ export default function SalesReturnCreatePage() {
         prev.map((it, i) => {
           if (i !== index) return it;
           const next: LineItem = { ...it, ...patch };
-          if (patch.product_id) {
+          if (patch.product_id && !next.invoice_item_id) {
             const product = products.find((p) => p.id === patch.product_id);
             if (product) {
               next.description = product.name;
@@ -230,14 +264,14 @@ export default function SalesReturnCreatePage() {
           if (typeof next.quantity === "number") {
             next.quantity = Math.min(next.quantity, next.max_quantity);
           }
-          const subtotal = next.quantity * next.unit_price;
-          next.tax_amount = subtotal * ((next.tax_rate || 0) / 100);
+          next.tax_amount = previewLineTax(next);
           return next;
         }),
       );
     },
     [products],
   );
+
 
   const subtotal = lineItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
@@ -524,6 +558,12 @@ export default function SalesReturnCreatePage() {
                   <span>Return Total:</span>
                   <span className="text-destructive">-{formatCurrency(grandTotal)}</span>
                 </div>
+                <p className="pt-1 text-[11px] leading-snug text-muted-foreground">
+                  {lineItems.some((l) => l.invoice_item_id)
+                    ? "Tax is taken from the original invoice lines and confirmed by the server on save."
+                    : "Tax is confirmed by the server on save."}
+                </p>
+
               </div>
             </div>
           </FieldGroup>

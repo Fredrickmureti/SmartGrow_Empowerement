@@ -10239,6 +10239,8 @@ export type Database = {
           description: string
           display_quantity: number | null
           display_uom_id: string | null
+          etims_classification_code: string | null
+          etims_tax_code: string | null
           id: string
           is_sample_data: boolean
           line_total: number
@@ -10259,6 +10261,8 @@ export type Database = {
           description: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          etims_classification_code?: string | null
+          etims_tax_code?: string | null
           id?: string
           is_sample_data?: boolean
           line_total: number
@@ -10279,6 +10283,8 @@ export type Database = {
           description?: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          etims_classification_code?: string | null
+          etims_tax_code?: string | null
           id?: string
           is_sample_data?: boolean
           line_total?: number
@@ -20314,6 +20320,8 @@ export type Database = {
           last_error: string | null
           next_attempt_at: string | null
           organization_id: string
+          original_fiscal_number: string | null
+          original_transmission_id: string | null
           provider_key: string
           qr_data: string | null
           request_payload: Json | null
@@ -20341,6 +20349,8 @@ export type Database = {
           last_error?: string | null
           next_attempt_at?: string | null
           organization_id: string
+          original_fiscal_number?: string | null
+          original_transmission_id?: string | null
           provider_key: string
           qr_data?: string | null
           request_payload?: Json | null
@@ -20368,6 +20378,8 @@ export type Database = {
           last_error?: string | null
           next_attempt_at?: string | null
           organization_id?: string
+          original_fiscal_number?: string | null
+          original_transmission_id?: string | null
           provider_key?: string
           qr_data?: string | null
           request_payload?: Json | null
@@ -20382,6 +20394,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fiscal_transmissions_original_transmission_id_fkey"
+            columns: ["original_transmission_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_transmissions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fiscal_transmissions_superseded_by_fkey"
             columns: ["superseded_by"]
@@ -57169,6 +57188,8 @@ export type Database = {
           description: string
           display_quantity: number | null
           display_uom_id: string | null
+          etims_classification_code: string | null
+          etims_tax_code: string | null
           id: string
           invoice_item_id: string | null
           is_sample_data: boolean
@@ -57182,7 +57203,11 @@ export type Database = {
           sales_return_id: string
           serial_number: string | null
           sort_order: number | null
+          source_discount_percent: number | null
+          source_tax_amount: number | null
+          source_tax_rate: number | null
           tax_amount: number | null
+          tax_basis_source: string | null
           tax_rate: number | null
           unit_price: number
           uom_snapshot: string | null
@@ -57193,6 +57218,8 @@ export type Database = {
           description: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          etims_classification_code?: string | null
+          etims_tax_code?: string | null
           id?: string
           invoice_item_id?: string | null
           is_sample_data?: boolean
@@ -57206,7 +57233,11 @@ export type Database = {
           sales_return_id: string
           serial_number?: string | null
           sort_order?: number | null
+          source_discount_percent?: number | null
+          source_tax_amount?: number | null
+          source_tax_rate?: number | null
           tax_amount?: number | null
+          tax_basis_source?: string | null
           tax_rate?: number | null
           unit_price: number
           uom_snapshot?: string | null
@@ -57217,6 +57248,8 @@ export type Database = {
           description?: string
           display_quantity?: number | null
           display_uom_id?: string | null
+          etims_classification_code?: string | null
+          etims_tax_code?: string | null
           id?: string
           invoice_item_id?: string | null
           is_sample_data?: boolean
@@ -57230,7 +57263,11 @@ export type Database = {
           sales_return_id?: string
           serial_number?: string | null
           sort_order?: number | null
+          source_discount_percent?: number | null
+          source_tax_amount?: number | null
+          source_tax_rate?: number | null
           tax_amount?: number | null
+          tax_basis_source?: string | null
           tax_rate?: number | null
           unit_price?: number
           uom_snapshot?: string | null
@@ -94769,6 +94806,10 @@ export type Database = {
           _product_id: string
           _qty: number
         }
+        Returns: Json
+      }
+      resolve_sales_return_line_tax: {
+        Args: { _invoice_item_id: string; _qty: number }
         Returns: Json
       }
       resolve_statutory_country_for_employee: {
