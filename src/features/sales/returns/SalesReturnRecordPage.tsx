@@ -128,6 +128,14 @@ export default function SalesReturnRecordPage() {
       totalsFooter={row ? `Currency ${row.currency}` : undefined}
       activity={row ? [
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Return ${row.return_number} created` },
+        ...(row.wms_return_order
+          ? [{
+              id: "wms-origin",
+              at: fmt(row.created_at),
+              title: `Stock movements owned by warehouse RMA ${row.wms_return_order.return_number ?? ""}`.trim(),
+              tone: "info" as const,
+            }]
+          : []),
         ...(row.credit_note_id ? [{ id: "credit", at: fmt(row.updated_at), title: "Credit note issued", tone: "info" as const }] : []),
       ] : undefined}
       extraSections={row ? <DocumentVersionsSection documentType="sales_return" documentId={row.id} /> : undefined}
