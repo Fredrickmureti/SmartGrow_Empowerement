@@ -43,6 +43,17 @@ const METHOD_LABEL: Record<string, string> = {
   none: "no cost basis",
 };
 
+/** Phase 7: the single settlement position for the return. */
+type Settlement = {
+  credited: number;
+  applied: number;
+  refunded: number;
+  open_credit: number;
+  is_settled: boolean;
+  credit_note_number: string | null;
+  credit_note_status: string | null;
+};
+
 function fmt(d?: string | null) {
   if (!d) return "—";
   try { return format(new Date(d), "PP"); } catch { return d; }
@@ -53,6 +64,7 @@ export default function SalesReturnRecordPage() {
   const { formatCurrency } = useCurrency();
   const [row, setRow] = useState<Row | null>(null);
   const [costBasis, setCostBasis] = useState<CostBasis[]>([]);
+  const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isNew = id === "new";
@@ -78,6 +90,12 @@ export default function SalesReturnRecordPage() {
         .select("id, sales_return_item_id, unit_cost, total_value, method, fallback_qty, fallback_reason")
         .eq("sales_return_id", id);
       if (!cancelled) setCostBasis((cb as unknown as CostBasis[]) ?? []);
+      const { data: st } = await supabase
+        .from("v_sales_return_settlement")
+        .select("credited, applied, refunded, open_credit, is_settled, credit_note_number, credit_note_status")
+        .eq("sales_return_id", id)
+        .maybeSingle();
+      if (!cancelled) setSettlement((st as unknown as Settlement) ?? null);
     })();
     return () => { cancelled = true; };
   }, [id, isNew]);
