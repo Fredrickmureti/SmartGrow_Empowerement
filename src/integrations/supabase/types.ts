@@ -10217,6 +10217,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "credit_note_applications_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["credit_note_id"]
+          },
+          {
             foreignKeyName: "credit_note_applications_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -10293,6 +10300,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "credit_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["credit_note_id"]
           },
           {
             foreignKeyName: "credit_note_items_display_uom_id_fkey"
@@ -10530,6 +10544,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_returns"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_source_return_id_fkey"
+            columns: ["source_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["sales_return_id"]
           },
         ]
       }
@@ -11519,6 +11540,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_credit_movements_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["credit_note_id"]
+          },
+          {
             foreignKeyName: "customer_credit_movements_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -11816,6 +11844,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "credit_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_refunds_source_credit_note_id_fkey"
+            columns: ["source_credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["credit_note_id"]
           },
           {
             foreignKeyName: "customer_refunds_source_payment_id_fkey"
@@ -57112,6 +57147,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["sales_return_id"]
+          },
+          {
             foreignKeyName: "sales_return_cost_basis_sales_return_item_id_fkey"
             columns: ["sales_return_item_id"]
             isOneToOne: true
@@ -57250,6 +57292,13 @@ export type Database = {
             referencedRelation: "sales_returns"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_return_items_sales_return_id_fkey"
+            columns: ["sales_return_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["sales_return_id"]
+          },
         ]
       }
       sales_returns: {
@@ -57377,6 +57426,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "credit_notes"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "v_sales_return_settlement"
+            referencedColumns: ["credit_note_id"]
           },
           {
             foreignKeyName: "sales_returns_invoice_id_fkey"
@@ -80368,6 +80424,84 @@ export type Database = {
             columns: ["original_transaction_id"]
             isOneToOne: false
             referencedRelation: "pos_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_sales_return_settlement: {
+        Row: {
+          applied: number | null
+          branch_id: string | null
+          business_id: string | null
+          credit_note_id: string | null
+          credit_note_number: string | null
+          credit_note_status:
+            | Database["public"]["Enums"]["credit_note_status"]
+            | null
+          credited: number | null
+          is_settled: boolean | null
+          open_credit: number | null
+          organization_id: string | null
+          refunded: number | null
+          return_number: string | null
+          sales_return_id: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_returns_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "sales_returns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
