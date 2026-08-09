@@ -23,4 +23,4 @@ Credit notes: money and the per-invoice-line credit ceiling are resolved server-
 - [Delivery note lifecycle](mem://features/delivery-note-lifecycle) — engine-owned status columns, atomic create/cancel, business-scoped numbering, dual contacts FK embeds
 - [Sales return tax basis](mem://features/sales-return-tax-basis) — invoice-line tax/discount/eTIMS snapshot on returns, document-level rounding, credit note as sole fiscal exit
 - [Credit note provenance](mem://features/credit-note-provenance) — invoice_item_id lineage, v_invoice_creditable_qty ceiling, server-resolved money, idempotency, draft-only edits
-
+- [Payment terms](mem://features/payment-terms) — resolve_payment_term cascade, fill-on-insert triggers, snapshot freezing, retired default_payment_terms column, no hardcoded credit periods
