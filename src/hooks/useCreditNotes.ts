@@ -310,7 +310,13 @@ export function useCreditNotes() {
     amount: number,
     method: string,
     paymentAccountId: string,
-    notes?: string
+    notes?: string,
+    /**
+     * Phase 7 — idempotency key owned by the caller (one key per user
+     * submission, reused across retries). A timestamp here would let a
+     * retried refund pay the customer twice.
+     */
+    clientRequestId?: string,
   ) => {
     if (!currentOrg || !user) throw new Error("Not authenticated");
 
@@ -330,7 +336,8 @@ export function useCreditNotes() {
       _reason_text: notes || `Refund of credit note ${cn.credit_note_number}`,
       _payment_method: method,
       _reference: cn.credit_note_number,
-      _client_request_id: `cn-refund-${creditNoteId}-${amount}-${Date.now()}`,
+      _client_request_id:
+        clientRequestId ?? `cn-refund-${creditNoteId}-${amount.toFixed(2)}`,
     });
     if (error) throw new Error(`Refund failed: ${error.message}`);
     await fetchCreditNotes();

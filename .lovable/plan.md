@@ -1,7 +1,7 @@
 # Returns Domain — Convergence Plan & Status
 
 Last updated: 2026-08-09
-Active phase: **Phase 7 (not started)** — Phases 1-6 complete and verified.
+Active phase: **Phase 8 (not started)** — Phases 1-7 complete and verified.
 
 ## Verdict recap
 
@@ -108,6 +108,30 @@ a single, non-overlapping responsibility:
   outbound history is fully flagged as fallback with a reason.
 - Architecture ratchet still green (3 tests).
 
+### Phase 7 — Settlement & refund completeness (DONE, verified)
+- `v_sales_return_settlement` (security_invoker view, granted to `authenticated`)
+  is the single settlement position per return: `credited`, `applied`,
+  `refunded`, `open_credit` and `is_settled`. Each amount is counted once, so a
+  return credited partly to AR and partly to customer credit reports one
+  non-double-counted position.
+- `transition_sales_return` now refuses `received -> refunded` unless the credit
+  note exists, is `issued`/`applied`/`refunded`, and
+  `amount_applied + refund_amount >= total` (0.01 tolerance). The status can no
+  longer run ahead of the money; the error names the shortfall and hints at the
+  fix.
+- Refund idempotency end to end: `useCreditNotes.processRefund` accepts a
+  caller-owned `clientRequestId` (the `Date.now()` suffix that defeated
+  `refund_customer_atomic`'s dedupe is gone), and
+  `ProcessRefundWizardPage` mints one UUID per submission attempt in a ref —
+  retries of a failed submit dedupe, a genuinely new refund gets a new key.
+- The record page shows the settlement line (`Settled/Outstanding — applied X,
+  refunded Y, open credit Z`).
+- pgTAP suite extended to 22 tests: the view and its `is_settled` / `open_credit`
+  columns exist, no return is settled beyond what it was credited, every
+  `refunded` return carries a credit note, and the transition refuses to settle
+  a return with no settled credit note.
+- Architecture ratchet still green (3 tests); typecheck clean.
+
 ---
 
 ## Next agent — start here
@@ -115,34 +139,37 @@ a single, non-overlapping responsibility:
 **Step 1: verify before building.** Do not assume the above is correct.
 - Re-run `npx vitest run src/test/architecture/sales-returns-single-writer.test.ts`
   and exercise `supabase/tests/sales_returns_convergence_test.sql` against the DB.
-- Confirm the Phase 1-5 objects are still installed: `create_sales_return_atomic`,
+- Confirm Phase 1-5 objects: `create_sales_return_atomic`,
   `transition_sales_return`, `get_next_sales_return_number`,
   `approve_sales_return_atomic`, `trg_assign_sales_return_number`,
   `uq_sales_returns_org_number`, `uq_sales_returns_client_request`, the four
   `sales_return_items_*_v2` policies.
 - Confirm Phase 6: `sales_return_cost_basis`, `sales_return_cost_allocations`,
-  `resolve_sales_return_line_cost`, and that approving a sales-raised return
-  writes exactly one basis row per product line.
-- Spot-check data: malformed `SR-YYYY-YYYYNNNN` numbers, or WMS-sourced returns
-  that also carry `stock_movements`, are pre-fix damage and need a data-repair
-  migration, not a code change.
+  `resolve_sales_return_line_cost`; approving a sales-raised return must write
+  exactly one basis row per product line.
+- Confirm Phase 7: `v_sales_return_settlement` returns one row per return, and
+  `transition_sales_return(..., 'refunded')` fails on an unsettled return.
+- Spot-check data: malformed `SR-YYYY-YYYYNNNN` numbers, WMS-sourced returns
+  that also carry `stock_movements`, or `refunded` returns whose settlement is
+  short, are pre-fix damage and need a data-repair migration, not a code change.
 
-**Step 2: resume at Phase 7 — return settlement completeness.** Next milestone,
-do not open unrelated areas.
+**Step 2: resume at Phase 8 — tax fidelity on returns.** Next milestone, do not
+open unrelated areas.
 
-### Phase 7 — Settlement & refund completeness (NEXT, not started)
-1. Guarantee the `received -> refunded` transition can only happen once the
-   credit note is issued and the refund payment (or customer-credit application)
-   is actually recorded — today the status can move ahead of the money.
-2. Make refunds idempotent end to end (a `client_request_id` on the refund path
-   mirroring `create_sales_return_atomic`) so a retried refund cannot pay twice.
-3. Reconcile partial settlements: a return credited partly to AR and partly to
-   customer credit must report a single, non-double-counted settlement position.
-4. Extend the pgTAP suite with a settlement round trip: approve -> issue credit
-   note -> refund, asserting exactly one AR/credit effect and one cash effect.
+### Phase 8 — Tax fidelity & fiscal transmission (NEXT, not started)
+1. A return must reverse the tax the *original invoice line* charged (rate,
+   category, exemption), not the product's current tax setting — snapshot the
+   invoice line's tax basis onto the return line at creation time.
+2. Partial returns must reverse tax proportionally, with rounding handled once at
+   document level so line rounding never drifts the output-tax control account.
+3. Credit notes raised from returns must transmit to the fiscal device / eTIMS
+   pipeline exactly once, referencing the original invoice's fiscal document.
+4. Extend the pgTAP suite: sell at rate A, change the product's tax rate, return,
+   and assert the reversed tax equals A and the output-tax control account nets
+   to zero on a full return.
 
 **Rules for this domain.** Never reintroduce client-side inserts into
 `sales_returns`/`sales_return_items`, client status writes, or a second restock
-path. Cost basis for a returned line must keep coming from
-`resolve_sales_return_line_cost`. All journal effects go through
+path. Cost basis comes from `resolve_sales_return_line_cost`; settlement truth
+comes from `v_sales_return_settlement`. All journal effects go through
 `post_journal_entry_atomic` (ADR 0123).
