@@ -514,7 +514,7 @@ function WorkbenchSection({
 }) {
   return (
     <section>
-      <div className="mb-3 flex items-baseline gap-3">
+      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">
           {eyebrow}
         </span>
