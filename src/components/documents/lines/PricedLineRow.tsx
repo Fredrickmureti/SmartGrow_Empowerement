@@ -110,6 +110,7 @@ function PricedLineRowInner<T extends PricedLineShape>({
   item,
   products,
   hideProductPicker,
+  lockedCells,
   layout,
   disabled,
   flashed,
@@ -119,9 +120,18 @@ function PricedLineRowInner<T extends PricedLineShape>({
   extra,
   productPlaceholder,
 }: Props<T>) {
+  const isLocked = (columnId: string) => lockedCells?.includes(columnId) ?? false;
+
   const cell = (columnId: string) => {
     switch (columnId) {
       case "item":
+        if (isLocked("item")) {
+          return (
+            <div className="min-w-0 pt-2 text-sm font-medium">
+              {item.description || "—"}
+            </div>
+          );
+        }
         if (hideProductPicker) {
           return (
             <Input
