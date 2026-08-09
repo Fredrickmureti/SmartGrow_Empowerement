@@ -180,7 +180,7 @@ export async function fetchAndBuildSalesOrderSnapshot(
       subtotal, tax_amount, discount_amount, shipping_amount, total,
       currency, notes, shipping_address,
       organization_id, business_id, branch_id,
-      contact:contacts(name, email, phone, address_line1, city, state, postal_code, country),
+      contact:contacts!sales_orders_contact_id_fkey(name, email, phone, address_line1, city, state, postal_code, country),
       business:businesses(id, name, legal_name, email, phone, address, logo_url, base_currency),
       items:sales_order_items(
         description, quantity, unit_price, tax_rate, tax_amount,

@@ -171,7 +171,7 @@ export default function SalesOrders() {
   } = usePaginatedListQuery<SalesOrder>({
     cacheKey: "sales_orders",
     table: "sales_orders",
-    select: "*, contact:contacts(name, email)",
+    select: "*, contact:contacts!sales_orders_contact_id_fkey(name, email)",
     search: searchQuery || undefined,
     searchColumns: ["so_number"],
     status: statusFilter,
@@ -365,7 +365,7 @@ export default function SalesOrders() {
       // Not in local array — fetch directly
       supabase
         .from("sales_orders")
-        .select("*, contact:contacts(name, email)")
+        .select("*, contact:contacts!sales_orders_contact_id_fkey(name, email)")
         .eq("id", editId)
         .maybeSingle()
         .then(({ data }) => {

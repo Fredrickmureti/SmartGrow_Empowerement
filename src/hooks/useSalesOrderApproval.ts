@@ -72,7 +72,7 @@ export function useSalesOrderApproval() {
         // SCOPE-EXEMPT: lookup by PK (entity_id) — no cross-company leak risk
         const { data: salesOrder } = await supabase
           .from("sales_orders")
-          .select("so_number, total, contact:contacts(name)")
+          .select("so_number, total, contact:contacts!sales_orders_contact_id_fkey(name)")
           .eq("id", approval.entity_id)
           .single();
 
