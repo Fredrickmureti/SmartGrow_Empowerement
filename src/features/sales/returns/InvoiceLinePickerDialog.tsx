@@ -127,7 +127,7 @@ export function InvoiceLinePickerDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <LoadingState label="Loading invoice lines…" />
+          <LoadingState rows={4} />
         ) : error ? (
           <p className="py-8 text-center text-sm text-destructive">{error}</p>
         ) : lines.length === 0 ? (
