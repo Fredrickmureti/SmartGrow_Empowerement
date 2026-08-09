@@ -29,6 +29,7 @@ export interface IdentifierWriteInput {
 
 const REASONS: Record<string, string> = {
   code_taken: "That code is already registered to another product. Retire it there first.",
+  code_taken_same_product: "This product already carries that code on another row.",
   duplicate_code: "That code is already registered to another product. Retire it there first.",
   packaging_mismatch: "The chosen packaging level belongs to a different product.",
   invalid_packaging: "The chosen packaging level belongs to a different product.",
@@ -51,11 +52,12 @@ export function identifierWriteMessage(reason?: string | null): string {
  * trigger, not an operator error.
  */
 export type IdentifierWriteResult =
-  | { status: "ok"; identifierId: string; idempotent: boolean }
+  | { status: "ok"; identifierId: string; idempotent: boolean; revived: boolean }
   | {
       status: "duplicate";
       conflictProductId: string | null;
       conflictProductName: string | null;
+      sameProduct: boolean;
       message: string;
     }
   | { status: "invalid"; reason: string | null; message: string };
@@ -88,22 +90,29 @@ export async function writeIdentifierResult(
     reason?: string;
     identifier_id?: string;
     idempotent?: boolean;
+    revived?: boolean;
     product_id?: string;
     product_name?: string;
+    same_product?: boolean;
   } | null;
   if (envelope?.status === "ok") {
     return {
       status: "ok",
       identifierId: envelope.identifier_id ?? "",
       idempotent: !!envelope.idempotent,
+      revived: !!envelope.revived,
     };
   }
   if (envelope?.status === "duplicate") {
+    const sameProduct = !!envelope.same_product;
     return {
       status: "duplicate",
       conflictProductId: envelope.product_id ?? null,
       conflictProductName: envelope.product_name ?? null,
-      message: identifierWriteMessage(envelope.reason ?? "code_taken"),
+      sameProduct,
+      message: identifierWriteMessage(
+        sameProduct ? "code_taken_same_product" : (envelope.reason ?? "code_taken"),
+      ),
     };
   }
   return {

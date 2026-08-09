@@ -130,12 +130,15 @@ export function useProductDetailData({
         .gt("quantity", 0);
       if (branchId) lotsQ = lotsQ.eq("warehouses.branch_id", branchId);
 
+      // Reorder rules are branch-scoped, not warehouse-scoped: the table has
+      // its own `branch_id` and no relationship to `warehouses`. Embedding
+      // `warehouses!inner(...)` here made PostgREST reject the request (400).
       let rrQ = (supabase as any)
         .from("product_reorder_rules")
-        .select("*, warehouses!inner(name, branch_id)")
+        .select("*")
         .eq("product_id", productId)
         .eq("business_id", businessId);
-      if (branchId) rrQ = rrQ.eq("warehouses.branch_id", branchId);
+      if (branchId) rrQ = rrQ.eq("branch_id", branchId);
 
       let mvQ = supabase
         .from("stock_movements")
