@@ -91,7 +91,7 @@ const DATE_RANGE_OPTIONS = [
 ];
 
 export default function SalesOrders() {
-  const { deleteSalesOrder, updateSalesOrder, createDeliveryNote, convertToInvoice, createSalesOrder } = useSalesOrders();
+  const { deleteSalesOrder, confirmSalesOrder, cancelSalesOrder, createDeliveryNote, convertToInvoice, createSalesOrder } = useSalesOrders();
   const { formatCurrency, baseCurrency } = useCurrency();
   const { exportSalesOrders } = useExport();
   const { toast: shadcnToast } = useToast();
@@ -744,9 +744,11 @@ export default function SalesOrders() {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
                   navigate(`/sales/orders/${order.id}/edit`);
                 }}
-                onConfirm={(order) => {
+                onConfirm={async (order) => {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
-                  updateSalesOrder(order.id, { status: "confirmed" });
+                  // Confirmation is DB-owned: `confirm_sales_order_atomic`
+                  // flips the status AND creates the stock reservations.
+                  await confirmSalesOrder(order.id);
                 }}
                 onCreateDeliveryNote={async (order) => {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
@@ -756,10 +758,12 @@ export default function SalesOrders() {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
                   await convertToInvoice(order.id);
                 }}
-                onCancel={(order) => {
+                onCancel={async (order) => {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
-                  updateSalesOrder(order.id, { status: "cancelled" });
+                  // Cancellation is compensation, not a status overwrite.
+                  await cancelSalesOrder(order.id);
                 }}
+
                 onDelete={(order) => {
                   if (isReadOnly) { openUpgradeModal("sales_orders"); return; }
                   deleteSalesOrder(order.id);
