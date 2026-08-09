@@ -19,6 +19,8 @@ export interface DeliveryNote {
   status: string;
   sales_order_id: string | null;
   shipping_address: string | null;
+  /** Structured link to the chosen saved address (ADR-0038 child contact). */
+  ship_to_contact_id?: string | null;
   driver_name: string | null;
   vehicle_number: string | null;
   notes: string | null;

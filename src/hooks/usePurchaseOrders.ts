@@ -47,6 +47,11 @@ export interface PurchaseOrder {
   total: number;
   currency: string;
   shipping_address: string | null;
+  /** OUR receiving location — never the supplier's address. */
+  deliver_to_warehouse_id?: string | null;
+  deliver_to_branch_id?: string | null;
+  deliver_to_warehouse?: { name: string } | null;
+  deliver_to_branch?: { name: string } | null;
   notes: string | null;
   converted_bill_id: string | null;
   converted_at: string | null;
