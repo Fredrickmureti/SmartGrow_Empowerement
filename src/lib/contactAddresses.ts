@@ -219,9 +219,15 @@ export async function captureBillToSnapshot(
   if (!contactId) return { bill_to_contact_id: null, billing_address: null };
   try {
     const address = await resolveBillTo(contactId);
+    // No resolvable address means the party is not readable in this
+    // business (RLS) or has no address at all. Writing the raw contact id
+    // anyway would either link a foreign party — which the
+    // `_assert_party_address_contact` trigger rejects — or record a link
+    // to an address that was never printed. Store nothing instead.
+    if (!address) return { bill_to_contact_id: null, billing_address: null };
     const text = formatAddress(address);
     return {
-      bill_to_contact_id: address?.id ?? contactId,
+      bill_to_contact_id: address.id,
       billing_address: text || null,
     };
   } catch {
