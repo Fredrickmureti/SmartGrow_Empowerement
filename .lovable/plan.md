@@ -1,71 +1,65 @@
-# Returns Domain — Convergence Status
+# Returns Domain — Convergence: CLOSED
 
-Phases 1-7: complete and independently re-verified against the live database.
-Phase 8 (tax fidelity & fiscal transmission): **complete**.
-Phase 9 items 1 and 2: **complete**. Item 3 (data repair) is the only open work.
+All phases (1-9) are complete and verified against the live database.
+Nothing in this plan is open. Future returns work starts from the standing
+rules at the bottom of this file.
 
-## Phase 8 — shipped
+## Final phase — 9.3 data repair (closed)
 
-**Tax basis is the invoice line, not the product.**
-- `resolve_sales_return_line_tax(invoice_item_id, qty)` returns the net-of-discount
-  unit price, the pro-rated tax (from the invoice line's *stored* tax_amount, so
-  historic rounding is honoured), the rate, the discount and the eTIMS codes.
-- `create_sales_return_atomic` calls it for every line carrying an
-  `invoice_item_id` and ignores client-supplied price and tax for those lines.
-  Manual lines keep the supplied rate and are stamped `tax_basis_source = 'manual'`.
-- New columns on `sales_return_items`: `source_tax_rate`, `source_tax_amount`,
-  `source_discount_percent`, `etims_tax_code`, `etims_classification_code`,
-  `tax_basis_source`. Existing rows were backfilled from their invoice line.
-- Rounding is settled once per document: lines hold 6 dp, the header rounds to
-  2 dp, and the delta lands on the largest tax line so output tax cannot drift.
+A live census of the database was run before writing any repair:
 
-**The basis reaches the credit note.**
-- `credit_note_items` gained `etims_tax_code` / `etims_classification_code`;
-  `approve_sales_return_atomic` and `create_credit_note_atomic` propagate them.
+| Check | Rows found |
+| --- | --- |
+| malformed `SR-YYYY-NNNN` numbers | 0 |
+| duplicate numbers per business | 0 |
+| WMS returns carrying their own `stock_movements` | 0 |
+| `refunded` returns short in `v_sales_return_settlement` | 0 |
+| lines missing cost basis or tax basis | 0 |
 
-**One fiscal document per reversal.**
-- `trg_sales_return_fiscal_enqueue` dropped — the return is internal, the credit
-  note is the fiscal artefact.
-- `fiscal_transmissions` gained `original_transmission_id` /
-  `original_fiscal_number`; a BEFORE INSERT trigger resolves the reversed
-  invoice's latest successful transmission and mirrors it into the payload.
+There was no pre-fix damage to repair, so a one-off data migration would have
+been a no-op. The durable equivalents were shipped instead:
 
-**Client (presentation only).**
-- `SalesReturnCreatePage` seeds invoice lines at the discounted net price, previews
-  tax by pro-rating the invoice line's own tax, no longer lets the current product
-  price or rate overwrite an invoice-sourced line, and states that the server
-  confirms tax on save.
+- **`v_sales_returns_integrity`** — a permanent, security-invoker census view.
+  One row per defective return, with `bad_number_format`, `duplicate_number`,
+  `double_restock`, `refunded_unsettled`, `settlement_shortfall`,
+  `lines_without_cost_basis`, `lines_without_tax_basis`. Currently returns 0
+  rows; any future drift surfaces here instead of hiding.
+- **`repair_sales_return_numbers(_org_id)`** — idempotent renumbering of
+  malformed numbers through the canonical generator, `service_role` only,
+  returns the old/new pairs it changed.
+- **Legacy numbering path removed** — the single-argument
+  `get_next_sales_return_number(uuid)` overload (the producer of the old
+  `SR-YYYY-NNNN` format) was dropped. Exactly one numbering entry point remains:
+  `get_next_sales_return_number(org, business, branch)`, reached only through the
+  `BEFORE INSERT` trigger.
 
-## Phase 9 — items 1 and 2 shipped
+## What the domain now looks like
 
-1. Invoice-sourced lines now take their price from the invoice line (net of the
-   original discount); the browser's price is used only for manual lines.
-2. The credit note is dated `COALESCE(return_date, CURRENT_DATE)`, so a reversal
-   cannot drift into a different period from the return it settles.
+- WMS owns the physical goods; Sales owns the financial documents. One restock
+  path, one numbering path, one fiscal exit.
+- Creation, transition, approval and refund are server-atomic
+  (`create_sales_return_atomic`, `transition_sales_return`,
+  `approve_sales_return_atomic`, `refund_customer_atomic`). The client never
+  inserts, never numbers, never sets status.
+- Cost basis: `resolve_sales_return_line_cost` + `sales_return_cost_basis`.
+- Tax basis: snapshotted from the invoice line
+  (`resolve_sales_return_line_tax`), rounded once per document, carried into the
+  credit note with its eTIMS codes.
+- Fiscal: the credit note is the only transmitted artefact and back-references
+  the reversed invoice's transmission.
+- Settlement truth: `v_sales_return_settlement`.
 
-## Guards
+## Guards (all green)
 
-- `src/test/architecture/sales-returns-single-writer.test.ts` — 5 ratchets: no
-  direct inserts, no client status writes, no client numbering, no product-rate
-  tax derivation on returns pages, no product price overwrite of an
-  invoice-sourced line.
-- `supabase/tests/sales_returns_convergence_test.sql` — 34 assertions (was 22),
-  covering the new columns, the resolver, the credit-note date, the absent
-  fiscal trigger and the transmission back-reference.
+- `src/test/architecture/sales-returns-single-writer.test.ts` — 5 ratchets, passing.
+- `supabase/tests/sales_returns_convergence_test.sql` — 40 assertions, now also
+  covering the census view, the repair function and the single numbering entry point.
 
-## Open — Phase 9 item 3 (data repair, not a code change)
-
-A repair migration is still needed for pre-fix damage:
-- malformed `SR-YYYY-YYYYNNNN` numbers,
-- WMS-sourced returns that also carry `stock_movements` (double restock era),
-- `refunded` returns whose settlement is short in `v_sales_return_settlement`.
-
-This should be scoped from a live census of the affected rows before it is written.
-
-## Rules for this domain
+## Standing rules for this domain
 
 Never reintroduce client-side inserts into `sales_returns`/`sales_return_items`,
-client status writes, or a second restock path. Cost basis comes from
-`resolve_sales_return_line_cost`; settlement truth from
-`v_sales_return_settlement`; tax truth from the invoice-line snapshot. All
-journal effects go through `post_journal_entry_atomic` (ADR 0123).
+client status writes, client numbering, a second restock path, or a second
+numbering overload. Cost basis comes from `resolve_sales_return_line_cost`; tax
+truth from the invoice-line snapshot; settlement truth from
+`v_sales_return_settlement`. All journal effects go through
+`post_journal_entry_atomic` (ADR 0123).
