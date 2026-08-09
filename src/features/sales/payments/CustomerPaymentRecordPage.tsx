@@ -15,6 +15,8 @@ import { RecordScaffold } from "@/design-system/records";
 import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
+import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
 interface AllocationRow {
