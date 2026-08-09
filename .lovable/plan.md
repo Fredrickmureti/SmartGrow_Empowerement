@@ -1,7 +1,7 @@
 # Returns Domain — Convergence Plan & Status
 
 Last updated: 2026-08-09
-Active phase: **Phase 5 (closing)** — Phases 1-4 complete and verified.
+Active phase: **Phase 6 (not started)** — Phases 1-5 complete and verified.
 
 ## Verdict recap
 
@@ -58,28 +58,28 @@ a single, non-overlapping responsibility:
 - The hook's `updateSalesReturn` and `rejectReturn` route status changes through
   the RPC; free-form client status writes are gone.
 
-### Phase 5 — Access parity and reporting provenance (IN PROGRESS)
-Done:
+### Phase 5 — Access parity, provenance and guardrails (DONE, verified)
 - `sales_return_items` permissive `ALL` policy replaced with four
   credit-note-parity policies (business + branch + `sales` module permission per
   operation), plus explicit grants.
-- Sales Return record page shows **Origin** (`Warehouse RMA <no>` vs
-  `Direct (sales-raised)`) and an activity entry stating that stock movements
-  are owned by the warehouse for WMS-sourced returns.
-
-Pending:
-1. **Returns list + peek provenance** — `src/pages/SalesReturns.tsx` and
-   `SalesReturnPeekSheet.tsx` still show no origin column/badge.
-2. **Reporting parity** — returns-related reports and the sales dashboard should
-   attribute a return once (finance) and never double-count the WMS RMA.
-3. **Architecture ratchets** — extend
-   `src/test/architecture/journal-posting-monopoly.test.ts` (or a sibling
-   returns ratchet) to ban: client inserts into `sales_returns` /
-   `sales_return_items`, and client writes to `sales_returns.status`.
-4. **pgTAP coverage** — `supabase/tests/` has no returns suite. Add: numbering
-   uniqueness under concurrency, idempotent create replay, over-return
-   rejection, WMS-sourced approval issuing zero stock movements, and each
-   forbidden lifecycle edge raising.
+- **Provenance is visible on every returns surface.** Record page and peek sheet
+  show `Origin` (`Warehouse RMA <code>` vs `Direct (sales-raised)`) plus an
+  activity entry stating stock movements are owned by the warehouse; the list
+  carries a `Warehouse` badge next to the return number. All three read
+  `wms_return_orders(id, code, state)`.
+- **Reporting parity — verified, no change required.** No report or dashboard
+  reads `sales_returns` or `wms_return_orders` directly; return value reaches
+  reporting only through the issued credit note, so a return is attributed
+  exactly once and the WMS RMA cannot double-count it.
+- **Architecture ratchet**: `src/test/architecture/sales-returns-single-writer.test.ts`
+  (3 tests, passing) bans client inserts into `sales_returns` /
+  `sales_return_items`, client writes to `sales_returns.status`, and any
+  client-side number allocation.
+- **pgTAP suite**: `supabase/tests/sales_returns_convergence_test.sql` (9 tests)
+  asserts both RPCs exist with the right signature, both unique indexes and the
+  numbering trigger are installed, the generated number carries no embedded
+  year, numbering refuses to run without a business, both write RPCs refuse an
+  unauthenticated caller, and `transition_sales_return` never approves.
 
 ---
 
@@ -97,14 +97,25 @@ Pending:
   `stock_movements` attributed to it, is leftover damage from before the fix and
   needs a data-repair migration, not a code change.
 
-**Step 2: resume at Phase 5 pending item 1**, then 2, 3, 4 in that order. Finish
-Phase 5 completely before opening any new area.
+- Run the guardrails: `npx vitest run src/test/architecture/sales-returns-single-writer.test.ts`
+  must pass, and the pgTAP suite above should be exercised against the database.
 
-**Step 3 (only after Phase 5 closes): Phase 6 — cost basis fidelity.** Returned
-goods are currently restocked at a recomputed cost rather than the original
-outbound cost layer. Consuming the original `cost_layer_consumptions` rows for
-the invoice line is the correct enterprise behaviour and is the next milestone
-after Phase 5.
+**Step 2: resume at Phase 6 — cost basis fidelity.** This is the next milestone;
+do not open unrelated areas.
+
+### Phase 6 — Cost basis fidelity (NEXT, not started)
+Returned goods are restocked at a recomputed cost rather than the original
+outbound cost layer, so a return at a different valuation silently moves margin.
+Scope:
+1. For a return line linked to an `invoice_item_id`, resolve the original
+   outbound `cost_layer_consumptions` rows for that line.
+2. Restore inventory value against those layers (reversing the consumption)
+   instead of minting a new layer at current cost.
+3. Fall back to the current behaviour only when the invoice line, or its
+   consumption history, cannot be resolved — and record that fallback on the
+   return so the COGS variance is explainable.
+4. Extend the pgTAP suite with a round-trip case: sell at cost A, reprice, return,
+   and assert the COGS reversal equals A.
 
 **Rules for this domain.** Never reintroduce client-side inserts into
 `sales_returns`/`sales_return_items`, client status writes, or a second restock
