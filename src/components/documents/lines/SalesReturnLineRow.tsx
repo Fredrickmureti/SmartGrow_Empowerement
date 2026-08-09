@@ -12,6 +12,7 @@
 
 import { memo, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
@@ -31,6 +32,12 @@ import {
 /** Minimum line shape a sales-return line satisfies. */
 export interface ReturnLineShape {
   product_id?: string | null;
+  /**
+   * Set when the line came from an invoice line picked through the
+   * reference-document picker. Its presence is what makes the line
+   * carry cost/tax provenance — and what locks product and price.
+   */
+  invoice_item_id?: string | null;
   description: string;
   quantity: number;
   max_quantity: number;
@@ -70,8 +77,14 @@ interface Props<T extends ReturnLineShape> {
   products: ProductOption[];
   layout: EditableRowLayout;
   disabled?: boolean;
-  /** True when the lines came from an invoice — item text is then fixed. */
+  /**
+   * Document-level hint kept for callers that still pass it. Provenance is
+   * decided PER LINE by `item.invoice_item_id` so invoice-sourced lines and
+   * deliberate off-invoice lines can coexist in one grid.
+   */
   fromInvoice?: boolean;
+  /** Reference document number rendered on invoice-sourced lines. */
+  sourceDocumentLabel?: string | null;
   formatCurrency: (n: number) => string;
   onPatch: (index: number, patch: Partial<T>) => void;
   extra?: ReactNode;
@@ -86,17 +99,22 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
   layout,
   disabled,
   fromInvoice,
+  sourceDocumentLabel,
   formatCurrency,
   onPatch,
   extra,
   flashed,
 }: Props<T>) {
+  // Per-line provenance: an invoice-sourced line is locked to what was
+  // actually invoiced; anything else is a deliberate off-invoice line.
+  const invoiceSourced = !!item.invoice_item_id;
+
   const cell = (columnId: string) => {
     switch (columnId) {
       case "item":
         return (
           <div className="min-w-0 space-y-2">
-            {!fromInvoice && (
+            {!invoiceSourced && (
               <ProductCombobox
                 products={products}
                 value={item.product_id || ""}
@@ -110,12 +128,24 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
               value={item.description}
               onChange={(e) => onPatch(index, { description: e.target.value } as Partial<T>)}
               placeholder="Item description"
-              readOnly={fromInvoice}
+              readOnly={invoiceSourced}
               className="h-8"
               disabled={disabled}
             />
+            <div className="flex flex-wrap items-center gap-1.5">
+              {invoiceSourced ? (
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  from {sourceDocumentLabel || "invoice"}
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] font-normal">
+                  Off-invoice · no tax/cost basis
+                </Badge>
+              )}
+            </div>
           </div>
         );
+
 
       case "quantity":
         return (
@@ -132,13 +162,22 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
               disabled={disabled}
             />
             {item.max_quantity < 999 && (
-              <p className="text-[10px] text-muted-foreground">max {item.max_quantity}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {invoiceSourced ? "returnable" : "max"} {item.max_quantity}
+              </p>
             )}
           </div>
         );
 
       case "unit_price":
-        return (
+        // Invoice-sourced lines credit exactly what was charged (net of the
+        // original discount). Editing that here would silently break the
+        // credit note and the tax basis the server resolves.
+        return invoiceSourced ? (
+          <div className="pt-2 text-right font-medium tabular-nums">
+            {formatCurrency(item.unit_price)}
+          </div>
+        ) : (
           <NumericInput
             value={item.unit_price}
             disabled={disabled}
@@ -146,6 +185,7 @@ function SalesReturnLineRowInner<T extends ReturnLineShape>({
             className="h-8"
           />
         );
+
 
       case "condition":
         return (
