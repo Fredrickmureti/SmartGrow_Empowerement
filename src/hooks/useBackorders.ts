@@ -47,7 +47,7 @@ export function useBackorders() {
         .from("so_backorder_lines" as any)
         .select(`
           *,
-          sales_order:sales_orders(so_number, contact:contacts(name)),
+          sales_order:sales_orders(so_number, contact:contacts!sales_orders_contact_id_fkey(name)),
           product:products(name, sku)
         `)
         .eq("organization_id", currentOrg.id);
@@ -77,7 +77,7 @@ export function useBackorders() {
 
     let query = supabase
       .from("so_backorder_lines" as any)
-      .select(`*, sales_order:sales_orders(so_number, contact:contacts(name))`)
+      .select(`*, sales_order:sales_orders(so_number, contact:contacts!sales_orders_contact_id_fkey(name))`)
       .eq("organization_id", currentOrg.id)
       .eq("product_id", productId);
 

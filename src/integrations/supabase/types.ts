@@ -8911,110 +8911,6 @@ export type Database = {
           },
         ]
       }
-      contact_addresses: {
-        Row: {
-          address_line1: string | null
-          address_line2: string | null
-          address_type: string
-          business_id: string
-          city: string | null
-          contact_id: string
-          country: string | null
-          created_at: string
-          id: string
-          is_default: boolean | null
-          label: string | null
-          organization_id: string
-          postal_code: string | null
-          state: string | null
-          updated_at: string
-        }
-        Insert: {
-          address_line1?: string | null
-          address_line2?: string | null
-          address_type?: string
-          business_id: string
-          city?: string | null
-          contact_id: string
-          country?: string | null
-          created_at?: string
-          id?: string
-          is_default?: boolean | null
-          label?: string | null
-          organization_id: string
-          postal_code?: string | null
-          state?: string | null
-          updated_at?: string
-        }
-        Update: {
-          address_line1?: string | null
-          address_line2?: string | null
-          address_type?: string
-          business_id?: string
-          city?: string | null
-          contact_id?: string
-          country?: string | null
-          created_at?: string
-          id?: string
-          is_default?: boolean | null
-          label?: string | null
-          organization_id?: string
-          postal_code?: string | null
-          state?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_addresses_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "contact_addresses_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       contacts: {
         Row: {
           address_line1: string | null
@@ -9039,6 +8935,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_company: boolean
+          is_default_billing: boolean
+          is_default_shipping: boolean
           is_pinned: boolean | null
           is_sample_data: boolean
           name: string
@@ -9085,6 +8983,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_company?: boolean
+          is_default_billing?: boolean
+          is_default_shipping?: boolean
           is_pinned?: boolean | null
           is_sample_data?: boolean
           name: string
@@ -9131,6 +9031,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_company?: boolean
+          is_default_billing?: boolean
+          is_default_shipping?: boolean
           is_pinned?: boolean | null
           is_sample_data?: boolean
           name?: string
@@ -12778,6 +12680,7 @@ export type Database = {
           received_by_user_id: string | null
           return_of_dn_id: string | null
           sales_order_id: string | null
+          ship_to_contact_id: string | null
           shipping_address: string | null
           shipping_method: string | null
           source_invoice_id: string | null
@@ -12823,6 +12726,7 @@ export type Database = {
           received_by_user_id?: string | null
           return_of_dn_id?: string | null
           sales_order_id?: string | null
+          ship_to_contact_id?: string | null
           shipping_address?: string | null
           shipping_method?: string | null
           source_invoice_id?: string | null
@@ -12868,6 +12772,7 @@ export type Database = {
           received_by_user_id?: string | null
           return_of_dn_id?: string | null
           sales_order_id?: string | null
+          ship_to_contact_id?: string | null
           shipping_address?: string | null
           shipping_method?: string | null
           source_invoice_id?: string | null
@@ -12981,6 +12886,13 @@ export type Database = {
             columns: ["sales_order_id"]
             isOneToOne: false
             referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_ship_to_contact_id_fkey"
+            columns: ["ship_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -53334,6 +53246,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -53368,6 +53282,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          deliver_to_branch_id?: string | null
+          deliver_to_warehouse_id?: string | null
           discount_amount?: number | null
           expected_date?: string | null
           id?: string
@@ -53402,6 +53318,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           currency?: string | null
+          deliver_to_branch_id?: string | null
+          deliver_to_warehouse_id?: string | null
           discount_amount?: number | null
           expected_date?: string | null
           id?: string
@@ -53472,6 +53390,27 @@ export type Database = {
             columns: ["converted_bill_id"]
             isOneToOne: false
             referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_deliver_to_branch_id_fkey"
+            columns: ["deliver_to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_deliver_to_branch_id_fkey"
+            columns: ["deliver_to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_deliver_to_warehouse_id_fkey"
+            columns: ["deliver_to_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
           {
@@ -56927,6 +56866,7 @@ export type Database = {
           payment_term_id: string | null
           project_id: string | null
           salesperson_id: string | null
+          ship_to_contact_id: string | null
           shipping_address: string | null
           shipping_amount: number | null
           so_number: string
@@ -56959,6 +56899,7 @@ export type Database = {
           payment_term_id?: string | null
           project_id?: string | null
           salesperson_id?: string | null
+          ship_to_contact_id?: string | null
           shipping_address?: string | null
           shipping_amount?: number | null
           so_number: string
@@ -56991,6 +56932,7 @@ export type Database = {
           payment_term_id?: string | null
           project_id?: string | null
           salesperson_id?: string | null
+          ship_to_contact_id?: string | null
           shipping_address?: string | null
           shipping_amount?: number | null
           so_number?: string
@@ -57085,6 +57027,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_ship_to_contact_id_fkey"
+            columns: ["ship_to_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -83211,6 +83160,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -84022,6 +83973,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -84976,6 +84929,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -85763,6 +85718,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -93973,6 +93930,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -95229,6 +95188,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -95687,6 +95648,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           currency: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
           discount_amount: number | null
           expected_date: string | null
           id: string
@@ -96493,6 +96456,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_company: boolean
+          is_default_billing: boolean
+          is_default_shipping: boolean
           is_pinned: boolean | null
           is_sample_data: boolean
           name: string

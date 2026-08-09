@@ -98,7 +98,7 @@ async function fetchSalesOrdersFn(orgId: string, businessId: string, branchId: s
     .from("sales_orders")
     .select(`
       *,
-      contact:contacts(name, email)
+      contact:contacts!sales_orders_contact_id_fkey(name, email)
     `)
     .eq("organization_id", orgId)
     .eq("business_id", businessId)
