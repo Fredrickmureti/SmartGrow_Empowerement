@@ -284,16 +284,46 @@ export function useSalesOrders() {
     }
   };
 
-  /** Cancel a sales order — releases any active stock reservations. */
-  const cancelSalesOrder = async (id: string) => {
+  /**
+   * Cancel a sales order.
+   *
+   * Cancellation is a compensating business event owned by the database, not a
+   * client-side status overwrite. `cancel_sales_order_atomic` validates the
+   * cancellable states, refuses orders that are already invoiced or partly
+   * delivered, releases stock reservations, breaks crossdock plans, cancels
+   * still-pending delivery notes and writes the audit row — all in one
+   * transaction. Never write `status = 'cancelled'` from the client.
+   */
+  const cancelSalesOrder = async (id: string, reason?: string) => {
     try {
-      await supabase.rpc("release_sales_order_reservations_atomic", { p_so_id: id });
-      const { error } = await supabase
-        .from("sales_orders")
-        .update({ status: "cancelled" })
-        .eq("id", id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.rpc("cancel_sales_order_atomic" as any, {
+        p_so_id: id,
+        p_user_id: user.id,
+        p_reason: reason ?? null,
+      });
       if (error) throw error;
-      toast.success("Sales order cancelled — reservations released");
+      const result = data as {
+        success: boolean;
+        already_cancelled?: boolean;
+        reservations_released?: number;
+        delivery_notes_cancelled?: number;
+      };
+      if (!result?.success) throw new Error("Failed to cancel sales order");
+
+      if (result.already_cancelled) {
+        toast.success("Sales order is already cancelled");
+      } else {
+        const released = result.reservations_released ?? 0;
+        const dns = result.delivery_notes_cancelled ?? 0;
+        toast.success(
+          `Sales order cancelled${released > 0 ? ` — ${released} reservation(s) released` : ""}${
+            dns > 0 ? `, ${dns} pending delivery note(s) cancelled` : ""
+          }`
+        );
+      }
       invalidate();
       return true;
     } catch (err: any) {
@@ -302,6 +332,7 @@ export function useSalesOrders() {
       return false;
     }
   };
+
 
   const convertToInvoice = async (salesOrderId: string) => {
     if (!currentOrg) return null;
