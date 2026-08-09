@@ -23176,6 +23176,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "invoice_items_delivery_note_item_id_fkey"
+            columns: ["delivery_note_item_id"]
+            isOneToOne: false
+            referencedRelation: "dn_line_balances"
+            referencedColumns: ["delivery_note_item_id"]
+          },
+          {
             foreignKeyName: "invoice_items_display_uom_id_fkey"
             columns: ["display_uom_id"]
             isOneToOne: false
@@ -74029,6 +74036,85 @@ export type Database = {
           },
         ]
       }
+      dn_line_balances: {
+        Row: {
+          business_id: string | null
+          delivery_note_id: string | null
+          delivery_note_item_id: string | null
+          organization_id: string | null
+          product_id: string | null
+          quantity_delivered: number | null
+          quantity_invoiced: number | null
+          quantity_ordered: number | null
+          quantity_outstanding: number | null
+          quantity_returned: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "delivery_note_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "delivery_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       effective_reorder_rule: {
         Row: {
           auto_create_po: boolean | null
@@ -85329,6 +85415,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_delivery_note_atomic: {
+        Args: { p_lines: Json; p_payload: Json; p_user_id: string }
+        Returns: Json
+      }
       create_employee_with_identifiers: {
         Args: { p_employee: Json; p_identifiers?: Json }
         Returns: string
@@ -88171,7 +88261,9 @@ export type Database = {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_delivery_number: { Args: { _org_id: string }; Returns: string }
+      get_next_delivery_number:
+        | { Args: { _org_id: string }; Returns: string }
+        | { Args: { _business_id: string; _org_id: string }; Returns: string }
       get_next_draft_transaction_number: {
         Args: { p_organization_id: string; p_register_code: string }
         Returns: string
