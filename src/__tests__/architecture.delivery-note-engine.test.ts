@@ -50,4 +50,28 @@ describe("delivery note write paths", () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  it("routes every delivery-note print through the shared print event hook", () => {
+    // Print must build the canonical snapshot + document_record; no surface may
+    // re-implement that pipeline inline.
+    const offenders = FILES.filter(
+      ({ path, text }) =>
+        !/services[\\/]documents[\\/]/.test(path) &&
+        !path.endsWith("usePrintDeliveryNote.ts") &&
+        /fetchAndBuildSalesDeliveryNoteSnapshot/.test(text),
+    ).map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
+
+  it("drives lifecycle transitions only through the RPC wrapper hooks", () => {
+    // The record page and the list page must call useDeliveryLifecycle /
+    // DeliveryLogisticsPanel — never supabase.rpc for lifecycle inline.
+    const inlineRpc =
+      /supabase\s*\.\s*rpc\(\s*"(mark_delivery_ready_atomic|dispatch_delivery_atomic|complete_delivery_atomic|record_partial_delivery_atomic|update_delivery_logistics_atomic)"/;
+    const offenders = FILES.filter(
+      ({ path, text }) =>
+        !/use(DeliveryLifecycle|DeliveryNotes)\.ts$/.test(path) && inlineRpc.test(text.replace(/\s+/g, " ")),
+    ).map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
 });

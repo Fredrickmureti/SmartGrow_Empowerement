@@ -1,13 +1,9 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Truck, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
 import { useInvoiceDeliveryStatus } from "@/hooks/useInvoiceDeliveryStatus";
-import { normalizeError } from "@/services/resilience";
+import { useCompleteDelivery } from "@/hooks/useDeliveryLifecycle";
 
 interface Props {
   invoiceId: string;
@@ -26,8 +22,10 @@ interface Props {
 export function DeliveryStatusBanner({ invoiceId, invoiceStatus, onClose }: Props) {
   const { data, isLoading, refetch } = useInvoiceDeliveryStatus(invoiceId);
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const [completing, setCompleting] = useState(false);
+  // Lifecycle transitions always go through the shared RPC wrapper so
+  // toasts, cache invalidation and error handling stay identical everywhere.
+  const complete = useCompleteDelivery(data?.delivery_note_id ?? null);
+  const completing = complete.isPending;
 
   if (isLoading || !data?.found) return null;
   if (invoiceStatus === "draft" || invoiceStatus === "voided" || invoiceStatus === "cancelled") return null;
@@ -40,29 +38,8 @@ export function DeliveryStatusBanner({ invoiceId, invoiceStatus, onClose }: Prop
 
   const handleComplete = async () => {
     if (!data.delivery_note_id) return;
-    setCompleting(true);
-    try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Not authenticated");
-      const { data: res, error } = await supabase.rpc("complete_delivery_atomic", {
-        p_dn_id: data.delivery_note_id,
-        p_user_id: u.user.id,
-        p_received_by: null,
-        p_received_by_user_id: u.user.id,
-      } as any);
-      if (error) throw error;
-      const r = res as any;
-      if (!r?.success) throw new Error(r?.error || "Failed");
-      toast.success(`Stock released — ${r.movements_created} movement(s)${r.gl_posted ? ", COGS posted" : ""}`);
-      await refetch();
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["warehouse-stock"] });
-      qc.invalidateQueries({ queryKey: ["delivery-notes"] });
-    } catch (e: any) {
-      toast.error(normalizeError(e).message || "Failed to complete delivery");
-    } finally {
-      setCompleting(false);
-    }
+    await complete.mutateAsync({ id: data.delivery_note_id }).catch(() => undefined);
+    await refetch();
   };
 
   if (completed) {
