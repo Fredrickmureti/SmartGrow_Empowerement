@@ -160,21 +160,33 @@ export default function SalesReturnCreatePage() {
     form.setValue("invoice_id", invoiceId);
     const inv = invoices.find((i) => i.id === invoiceId);
     if (inv && (inv as any).items && (inv as any).items.length > 0) {
-      const items: LineItem[] = (inv as any).items.map((item: any) => ({
-        product_id: item.product_id || null,
-        invoice_item_id: item.id || null,
-        description: item.description || "",
-        quantity: item.quantity || 1,
-        max_quantity: item.quantity || 1,
-        unit_price: item.unit_price || 0,
-        tax_rate: item.tax_rate || 0,
-        tax_amount: (item.unit_price * item.quantity * (item.tax_rate || 0)) / 100,
-        condition: "good",
-        return_reason: "",
-        packaging_id: item.packaging_id ?? null,
-        display_uom_id: item.display_uom_id ?? null,
-        display_quantity: item.display_quantity ?? null,
-      }));
+      const items: LineItem[] = (inv as any).items.map((item: any) => {
+        const invoicedQty = Number(item.quantity) || 1;
+        const discount = Number(item.discount_percent) || 0;
+        // Net-of-discount unit price: the return must credit what was
+        // actually charged, not the pre-discount list price.
+        const netUnitPrice = (Number(item.unit_price) || 0) * (1 - discount / 100);
+        return {
+          product_id: item.product_id || null,
+          invoice_item_id: item.id || null,
+          description: item.description || "",
+          quantity: invoicedQty,
+          max_quantity: invoicedQty,
+          unit_price: netUnitPrice,
+          tax_rate: Number(item.tax_rate) || 0,
+          // Original line tax, pro-rated to the full quantity = the line tax.
+          tax_amount: Number(item.tax_amount) || 0,
+          condition: "good",
+          return_reason: "",
+          packaging_id: item.packaging_id ?? null,
+          display_uom_id: item.display_uom_id ?? null,
+          display_quantity: item.display_quantity ?? null,
+          invoiced_quantity: invoicedQty,
+          source_tax_amount: Number(item.tax_amount) || 0,
+          source_discount_percent: discount,
+        };
+      });
+
       setLineItems(items);
     }
   };
