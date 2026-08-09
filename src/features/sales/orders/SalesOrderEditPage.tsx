@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { validateLineItems } from "@/lib/validation/lineItems";
+import { ShipToPicker } from "@/components/addresses/ShipToPicker";
 import { ProjectPicker } from "@/components/projects/ProjectPicker";
 import { LineAnalyticsCell } from "@/components/projects/LineAnalyticsCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
@@ -65,6 +66,7 @@ interface OrderData {
   contact_id: string | null;
   order_date: string;
   expected_date: string | null;
+  ship_to_contact_id: string | null;
   shipping_address: string | null;
   notes: string | null;
   terms: string | null;
@@ -87,6 +89,7 @@ export default function SalesOrderEditPage() {
     contact_id: "",
     order_date: "",
     expected_date: "",
+    ship_to_contact_id: null as string | null,
     shipping_address: "",
     notes: "",
     terms: "",
@@ -118,6 +121,7 @@ export default function SalesOrderEditPage() {
         contact_id: row.contact_id || "",
         order_date: row.order_date || "",
         expected_date: row.expected_date || "",
+        ship_to_contact_id: row.ship_to_contact_id ?? null,
         shipping_address: row.shipping_address || "",
         notes: row.notes || "",
         terms: row.terms || "",
@@ -250,6 +254,7 @@ export default function SalesOrderEditPage() {
             contact_id: formData.contact_id || null,
             order_date: formData.order_date,
             expected_date: formData.expected_date || null,
+            ship_to_contact_id: formData.ship_to_contact_id,
             shipping_address: formData.shipping_address || null,
             notes: formData.notes || null,
             terms: formData.terms || null,
@@ -349,12 +354,21 @@ export default function SalesOrderEditPage() {
                   onChange={(e) => setFormData({ ...formData, expected_date: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Shipping Address</Label>
-                <Input
-                  value={formData.shipping_address}
-                  onChange={(e) => setFormData({ ...formData, shipping_address: e.target.value })}
-                  placeholder="Shipping address..."
+              <div className="space-y-2 md:col-span-2">
+                <ShipToPicker
+                  contactId={formData.contact_id || null}
+                  preserveExisting
+                  value={{
+                    shipToContactId: formData.ship_to_contact_id,
+                    shippingAddress: formData.shipping_address,
+                  }}
+                  onChange={(next) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      ship_to_contact_id: next.shipToContactId,
+                      shipping_address: next.shippingAddress,
+                    }))
+                  }
                 />
               </div>
             </FieldGrid>
