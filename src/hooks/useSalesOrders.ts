@@ -439,9 +439,25 @@ export function useSalesOrders() {
       if (dnError) throw dnError;
 
       if (salesOrder.items && salesOrder.items.length > 0) {
+        // Open-to-deliver comes from the ledger view, which nets off cancelled
+        // quantity. Computing `quantity - quantity_fulfilled` here shipped
+        // quantity that had already been written off.
+        const { data: balances } = await supabase
+          .from("so_line_balances" as any)
+          .select("sales_order_item_id, quantity_open_to_deliver")
+          .eq("sales_order_id", salesOrderId);
+        const openByLine = new Map<string, number>(
+          (balances as unknown as Array<{
+            sales_order_item_id: string;
+            quantity_open_to_deliver: number | null;
+          }> | null)?.map((b) => [b.sales_order_item_id, b.quantity_open_to_deliver || 0]) ?? [],
+        );
+
         const deliveryItems = salesOrder.items
           .map((item: any, index: number) => {
-            const remaining = item.quantity - (item.quantity_fulfilled || 0);
+            const remaining = openByLine.get(item.id)
+              ?? Math.max(item.quantity - (item.quantity_fulfilled || 0), 0);
+
             const qtyToDeliver = customQuantities
               ? Math.min(customQuantities[item.id] ?? 0, remaining)
               : remaining;
