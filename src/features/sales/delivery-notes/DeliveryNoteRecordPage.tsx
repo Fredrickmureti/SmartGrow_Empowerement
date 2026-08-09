@@ -12,6 +12,7 @@ import { RecordScaffold } from "@/design-system/records";
 import type { LineItemColumn, LineItemRow } from "@/design-system/records";
 import type { DeliveryNote, DeliveryNoteItem } from "@/hooks/useDeliveryNotes";
 import { useDeliveryNoteRecord } from "./useDeliveryNoteRecord";
+import { useDeliveryNoteLineBalances } from "./useDeliveryNoteLineBalances";
 import { resolveRecipientName } from "@/lib/looksLikeUUID";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 
@@ -35,11 +36,19 @@ export default function DeliveryNoteRecordPage() {
   const { record, loading, error } = useDeliveryNoteRecord(isNew ? null : id);
   const row = record as Row | null;
   const notFound = !loading && !isNew && !row;
+  // Quantities come from the canonical ledger view, never re-derived here:
+  // it zeroes quantities before goods-issue and nets completed return DNs.
+  const { data: balances } = useDeliveryNoteLineBalances(isNew ? null : id);
+  const balanceByItem = useMemo(
+    () => new Map((balances ?? []).map((b) => [b.delivery_note_item_id, b])),
+    [balances],
+  );
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
     { id: "ordered", header: "Ordered", width: "100px", numeric: true },
     { id: "delivered", header: "Delivered", width: "100px", numeric: true },
+    { id: "returned", header: "Returned", width: "100px", numeric: true, hideOnMobile: true },
     { id: "outstanding", header: "Outstanding", width: "110px", numeric: true, hideOnMobile: true },
   ], []);
 
@@ -48,16 +57,20 @@ export default function DeliveryNoteRecordPage() {
     return items
       .slice()
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((l, i) => ({
-        id: l.id ?? String(i),
-        cells: [
-          { columnId: "description", content: l.description || "—" },
-          { columnId: "ordered", content: l.quantity_ordered },
-          { columnId: "delivered", content: l.quantity_delivered },
-          { columnId: "outstanding", content: Math.max(0, (l.quantity_ordered ?? 0) - (l.quantity_delivered ?? 0)) },
-        ],
-      }));
-  }, [row]);
+      .map((l, i) => {
+        const b = l.id ? balanceByItem.get(l.id) : undefined;
+        return {
+          id: l.id ?? String(i),
+          cells: [
+            { columnId: "description", content: l.description || "—" },
+            { columnId: "ordered", content: b?.quantity_ordered ?? l.quantity_ordered },
+            { columnId: "delivered", content: b?.quantity_delivered ?? 0 },
+            { columnId: "returned", content: b?.quantity_returned ?? 0 },
+            { columnId: "outstanding", content: b?.quantity_outstanding ?? 0 },
+          ],
+        };
+      });
+  }, [row, balanceByItem]);
 
   return (
     <RecordScaffold
