@@ -92974,6 +92974,7 @@ export type Database = {
           _receipt_number?: string
           _receivable_account_id?: string
           _reference?: string
+          _request_id?: string
         }
         Returns: Json
       }
