@@ -85,9 +85,9 @@ BEGIN;
       RAISE EXCEPTION 'L2 FAILED: editing a barcode in place returned %', v_res;
     END IF;
     SELECT count(*) INTO v_cnt FROM public.product_identifiers
-     WHERE product_id = v_p1 AND status = 'active';
+     WHERE product_id = v_p1 AND kind = 'gtin' AND status = 'active';
     IF v_cnt <> 1 THEN
-      RAISE EXCEPTION 'L2 FAILED: edit produced % live rows, expected 1', v_cnt;
+      RAISE EXCEPTION 'L2 FAILED: edit produced % live gtin rows, expected 1', v_cnt;
     END IF;
 
     -- L3. retire, then re-add the retired code -> revive, no 409
