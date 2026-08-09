@@ -95,13 +95,32 @@ export function useSalesOrders() {
     queryClient.invalidateQueries({ queryKey: ["paginated-list", "sales_orders"] });
   }, [queryClient, orgId]);
 
+  /**
+   * Reserve a preview-only order number.
+   *
+   * Do NOT use this to mint the number you then insert with: the number is
+   * only collision-safe when it is taken inside the same transaction as the
+   * INSERT, which is what `create_sales_order_atomic` does.
+   */
   const getNextNumber = async () => {
-    if (!currentOrg) return "";
-    const { data, error } = await supabase.rpc("get_next_so_number", { _org_id: currentOrg.id });
+    if (!currentOrg || !currentBusiness) return "";
+    const { data, error } = await supabase.rpc("get_next_so_number", {
+      _org_id: currentOrg.id,
+      _business_id: currentBusiness.id,
+      _branch_id: branchId,
+    } as never);
     if (error) throw error;
-    return data;
+    return data as unknown as string;
   };
 
+  /**
+   * Create a sales order.
+   *
+   * Header, lines, numbering, totals and the captured FX rate are written by
+   * `create_sales_order_atomic` in ONE transaction. The client no longer
+   * pre-mints a number, no longer computes the total that gets stored, and can
+   * no longer leave a header behind when the line insert fails.
+   */
   const createSalesOrder = async (order: Partial<SalesOrder>, items: Array<{
     description: string;
     unit_price: number;
@@ -115,67 +134,58 @@ export function useSalesOrders() {
     if (!currentOrg || !currentBusiness) return null;
 
     try {
-      const soNumber = await getNextNumber();
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-      const subtotal = items.reduce((sum, item) => sum + (item.line_total || 0), 0);
-      const taxAmount = items.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
-      const discountAmount = order.discount_amount || 0;
-      const shippingAmount = order.shipping_amount || 0;
-      const total = subtotal + taxAmount - discountAmount + shippingAmount;
-
-      const { data: newOrder, error: orderError } = await supabase
-        .from("sales_orders")
-        .insert({
+      const { data, error } = await supabase.rpc("create_sales_order_atomic" as any, {
+        p_header: {
           organization_id: currentOrg.id,
           business_id: currentBusiness.id,
-          branch_id: currentBranch?.id ?? null,
-          so_number: soNumber,
-          contact_id: order.contact_id,
-          order_date: order.order_date || new Date().toISOString().split('T')[0],
-          expected_date: order.expected_date,
-          status: order.status || 'draft',
+          branch_id: branchId,
+          contact_id: order.contact_id ?? null,
+          order_date: order.order_date || new Date().toISOString().split("T")[0],
+          expected_date: order.expected_date ?? null,
+          status: order.status || "draft",
           currency: order.currency || currentBusiness.base_currency,
-          subtotal,
-          tax_amount: taxAmount,
-          discount_amount: discountAmount,
-          shipping_amount: shippingAmount,
-          total,
-          shipping_address: order.shipping_address,
-          notes: order.notes,
-          created_by: user?.id,
-          salesperson_id: order.salesperson_id || user?.id,
-          payment_term_id: order.payment_term_id || null,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      if (items.length > 0) {
-        const orderItems = items.map((item, index) => ({
-          sales_order_id: newOrder.id,
+          discount_amount: order.discount_amount ?? 0,
+          shipping_amount: order.shipping_amount ?? 0,
+          shipping_address: order.shipping_address ?? null,
+          notes: order.notes ?? null,
+          salesperson_id: order.salesperson_id ?? user.id,
+          payment_term_id: order.payment_term_id ?? null,
+          project_id: (order as { project_id?: string | null }).project_id ?? null,
+          source_estimate_id: order.source_estimate_id ?? null,
+        },
+        p_items: items.map((item, index) => ({
           description: item.description,
           unit_price: item.unit_price,
           line_total: item.line_total,
-          quantity: item.quantity || 1,
-          product_id: item.product_id,
-          tax_rate: item.tax_rate,
-          tax_amount: item.tax_amount,
-          discount_percent: item.discount_percent,
+          quantity: item.quantity ?? 1,
+          product_id: item.product_id ?? null,
+          tax_rate: item.tax_rate ?? 0,
+          tax_amount: item.tax_amount ?? 0,
+          discount_percent: item.discount_percent ?? 0,
           sort_order: index,
           project_id: (item as { project_id?: string | null }).project_id ?? null,
           task_id: (item as { task_id?: string | null }).task_id ?? null,
-        }));
+        })),
+        p_user_id: user.id,
+      });
+      if (error) throw error;
 
-        const { error: itemsError } = await supabase
-          .from("sales_order_items")
-          .insert(orderItems);
+      const result = data as { success: boolean; sales_order_id: string; so_number: string };
+      if (!result?.success) throw new Error("Failed to create sales order");
 
-        if (itemsError) throw itemsError;
-      }
+      // Read back the persisted row so callers and automations see the
+      // server-computed totals rather than a client-side guess.
+      const { data: newOrder, error: readError } = await supabase
+        .from("sales_orders")
+        .select("*")
+        .eq("id", result.sales_order_id)
+        .single();
+      if (readError) throw readError;
 
-      toast.success("Sales order created successfully");
+      toast.success(`Sales order ${result.so_number} created`);
 
       triggerAutomation({
         event_type: "on_create",
@@ -186,13 +196,14 @@ export function useSalesOrders() {
       });
 
       invalidate();
-      return newOrder;
+      return newOrder as SalesOrder;
     } catch (error) {
       console.error("Error creating sales order:", error);
-      toast.error("Failed to create sales order");
+      toast.error(normalizeError(error).message || "Failed to create sales order");
       return null;
     }
   };
+
 
   const updateSalesOrder = async (id: string, updates: Partial<SalesOrder>) => {
     try {
