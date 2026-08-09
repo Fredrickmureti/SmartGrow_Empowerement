@@ -33,6 +33,7 @@ import noDirectGenerateDocumentInPages from "./eslint-rules/no-direct-generate-d
 import noProductIdAsBarcode from "./eslint-rules/no-product-id-as-barcode.js";
 import noDialogForPosWorkspace from "./eslint-rules/no-dialog-for-pos-workspace.js";
 import noLooseManagerOverrideArgs from "./eslint-rules/no-loose-manager-override-args.js";
+import noHandRolledAddressFormat from "./eslint-rules/no-hand-rolled-address-format.js";
 
 
 
@@ -80,6 +81,7 @@ export default tseslint.config(
           "no-product-id-as-barcode": noProductIdAsBarcode,
           "no-dialog-for-pos-workspace": noDialogForPosWorkspace,
           "no-loose-manager-override-args": noLooseManagerOverrideArgs,
+          "no-hand-rolled-address-format": noHandRolledAddressFormat,
 
 
 
@@ -100,6 +102,10 @@ export default tseslint.config(
       // args to useManagerOverride; the envelope-object form is the
       // only legal shape. See .lovable/plan.md.
       "local/no-loose-manager-override-args": "error",
+      // ADR-0080 (address master-data model): exactly one address formatter.
+      // Hand-rolled `address_line1 + city` concatenation is how printed
+      // addresses drift between the UI, the snapshot and the PDF.
+      "local/no-hand-rolled-address-format": "error",
       // Overlay guard: forbids `cond && <Dialog/Sheet/AlertDialog/Drawer>`,
       // which leaks Radix's body `pointer-events: none` and freezes the UI.
       // See docs/architecture/OVERLAYS.md.
