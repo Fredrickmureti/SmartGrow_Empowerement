@@ -363,22 +363,6 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
     attempt: number;
   }>;
 
-  // Freeze the RFQ into the canonical document model once per dispatch, so
-  // every invited supplier receives the SAME artifact the buyer would print
-  // (ADR-0084). Supplier-neutral on purpose: one document, many recipients.
-  // A failure here must not block delivery — the email degrades to text.
-  if (invitations.length > 0) {
-    const { error: docErr } = await admin.rpc("rfq_ensure_document_record", {
-      _rfq_id: rfqId,
-    });
-    if (docErr) {
-      console.warn(JSON.stringify({
-        event_id: row.id, rfq_id: rfqId,
-        warn: "rfq document record not frozen", error: docErr.message,
-      }));
-    }
-  }
-
   let permanentFailures = 0;
   for (const inv of invitations) {
     if (!inv.contact_email) {
@@ -391,6 +375,13 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
       continue;
     }
     try {
+      const { data: documentRecordId, error: docErr } = await admin.rpc(
+        "rfq_ensure_document_record",
+        { _rfq_id: rfqId, _supplier_id: inv.supplier_id },
+      );
+      if (docErr || typeof documentRecordId !== "string") {
+        throw new Error(`freeze RFQ invitation artifact: ${docErr?.message ?? "no document record"}`);
+      }
       const deadline = inv.response_deadline
         ? new Date(inv.response_deadline).toISOString().slice(0, 10)
         : null;
@@ -398,6 +389,7 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
         body: {
           documentType: "rfq",
           documentId: rfqId,
+          documentRecordId,
           recipientEmail: inv.contact_email,
           subject: `Request for Quotation ${inv.rfq_number}`,
           message:

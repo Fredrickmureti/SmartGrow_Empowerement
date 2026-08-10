@@ -77,6 +77,29 @@ const PROCUREMENT_LAYOUTS: Record<
     ),
 };
 
+const RFQ_FORBIDDEN_BLOCKS = new Set(["totals"]);
+const RFQ_FORBIDDEN_TABLE_PRESETS = new Set(["line_items"]);
+const RFQ_FORBIDDEN_PARTY_ROLES = new Set(["billTo", "customer", "vendor"]);
+
+export function assertRfqTemplateContract(template: ResolvedTemplate, blocks: AstBlock[]): void {
+  if (template.kind_code !== "purchases.rfq") return;
+  const layout = (template.ast as unknown as Record<string, unknown>)["layout"];
+  if (layout !== "solicitation") {
+    throw new Error("rfq_template_contract: layout must be solicitation");
+  }
+  for (const block of blocks) {
+    if (RFQ_FORBIDDEN_BLOCKS.has(block.type)) {
+      throw new Error(`rfq_template_contract: forbidden block ${block.type}`);
+    }
+    if (block.type === "table" && RFQ_FORBIDDEN_TABLE_PRESETS.has(block.preset)) {
+      throw new Error(`rfq_template_contract: forbidden table preset ${block.preset}`);
+    }
+    if (block.type === "party" && RFQ_FORBIDDEN_PARTY_ROLES.has(block.role)) {
+      throw new Error(`rfq_template_contract: forbidden party role ${block.role}`);
+    }
+  }
+}
+
 
 
 
@@ -96,6 +119,8 @@ export async function renderAstToPdf(args: {
   // actually of type undefined`. Consume the snapshot flat and attach
   // `organization` from context when the snapshot doesn't carry it.
   const snap = args.context.document.snapshot as Record<string, unknown>;
+
+  assertRfqTemplateContract(args.template, args.blocks);
 
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);

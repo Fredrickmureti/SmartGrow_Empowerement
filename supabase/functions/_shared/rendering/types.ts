@@ -39,7 +39,7 @@ export interface HeaderBlock extends BlockBase {
 
 export interface PartyBlock extends BlockBase {
   type: "party";
-  role: "customer" | "vendor" | "employee" | "recipient" | "shipTo" | "billTo";
+  role: "customer" | "vendor" | "employee" | "recipient" | "shipTo" | "billTo" | "invited_supplier";
 }
 
 export interface MetaBlock extends BlockBase {
@@ -51,6 +51,9 @@ export interface TableBlock extends BlockBase {
   type: "table";
   preset:
     | "line_items"
+    | "requirements"
+    | "demand_lines"
+    | "approval_trail"
     | "payment_schedule"
     | "statement_transactions"
     | "aging_buckets"

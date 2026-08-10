@@ -97,7 +97,16 @@ export function useRecordPrint(kind: RecordPrintKind) {
       setPrinting(true);
       try {
         const built = await config.build(supabase, docId);
-        const documentRecordId = await ensureDocumentRecord({
+        const rfqRecord = kind === "rfq"
+          ? await supabase.rpc("rfq_ensure_document_record", {
+              _rfq_id: docId,
+              _supplier_id: null,
+            })
+          : null;
+        if (rfqRecord?.error) throw rfqRecord.error;
+        const documentRecordId = typeof rfqRecord?.data === "string"
+          ? rfqRecord.data
+          : await ensureDocumentRecord({
           kindCode: config.kindCode,
           organizationId: currentOrg.id,
           sourceModule: "purchases",

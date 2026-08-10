@@ -57,6 +57,8 @@ interface ResolveInput {
   paperFormat?: string | null;
   /** Caller JWT, forwarded to `render-document` for org-member checks. */
   authorization: string;
+  /** Exact frozen record identity. Required by revision-addressed flows. */
+  documentRecordId?: string | null;
 }
 
 /**
@@ -122,7 +124,8 @@ export async function resolveCanonicalPdf(
 ): Promise<CanonicalPdfResult | null> {
   const { supabase, documentType, documentId, paperFormat, authorization } = input;
 
-  const recordId = await findDocumentRecord(supabase, documentType, documentId);
+  const recordId = input.documentRecordId ??
+    await findDocumentRecord(supabase, documentType, documentId);
   if (!recordId) return null;
 
   // 1. Archived bytes win. Re-rendering a document we already rendered is

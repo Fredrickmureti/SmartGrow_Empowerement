@@ -241,7 +241,14 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceDocType: "rfq",
     // Supplier-neutral: one RFQ document is issued to every invited bidder.
     partyKind: null,
-    build: wrap(fetchAndBuildPurchasesRfqSnapshot),
+    build: async (id: string) => {
+      const built = await fetchAndBuildPurchasesRfqSnapshot(supabase, id);
+      return {
+        ...normalise(built as unknown as Record<string, unknown>),
+        sourceDocType: `rfq:r${built.revision}:buyer`,
+        sourceDocId: built.sourceDocId,
+      };
+    },
   },
   purchase_requisition: {
     kindCode: "purchases.requisition",

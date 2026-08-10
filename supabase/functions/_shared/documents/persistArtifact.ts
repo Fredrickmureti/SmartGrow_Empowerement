@@ -36,6 +36,8 @@ const PERSIST_ALLOWLIST = new Set<string>([
   "payment",
   "sales_return",
   "purchase_return",
+  "rfq",
+  "requisition",
   // Phase 6.1 — HR letter renderers. Each letter is an immutable
   // artifact for HR audit + employee record trails (ADR-0084).
   "offer_letter",
@@ -132,14 +134,14 @@ export async function persistArtifact(
   try {
     const sha = await sha256Hex(bytes);
 
-    // Dedupe against latest non-superseded row for this document.
+    // Dedupe against the current row for this exact frozen document.
     const { data: latest } = await supabase
       .from("document_artifacts")
       .select("id, version, content_sha256")
       .eq("business_id", businessId)
       .eq("document_type", documentType)
       .eq("document_id", documentId)
-      .is("supersedes_id", null)
+      .is("superseded_by", null)
       .order("version", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -203,6 +205,17 @@ export async function persistArtifact(
         .remove([storagePath])
         .catch(() => {});
       return null;
+    }
+
+    if (latest?.id) {
+      const { error: supersedeErr } = await supabase
+        .from("document_artifacts")
+        .update({ superseded_by: inserted.id })
+        .eq("id", latest.id)
+        .is("superseded_by", null);
+      if (supersedeErr) {
+        console.error("[persistArtifact] supersession link failed:", supersedeErr.message);
+      }
     }
 
     return { id: inserted.id, version: inserted.version, deduped: false };
