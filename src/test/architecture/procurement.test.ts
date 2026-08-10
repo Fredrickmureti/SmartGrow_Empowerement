@@ -49,8 +49,8 @@ const PROCUREMENT_RPC_NAMES = [
   "approve_purchase_order",
   "convert_po_to_bill_atomic",
   "confirm_bill_atomic",
-  "match_bill_to_grn",
   "match_bill_atomic",
+
   "match_bill_with_landed_cost",
   "approve_bill",
   "approve_bill_payment",
