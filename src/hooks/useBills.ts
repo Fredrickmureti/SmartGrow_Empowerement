@@ -753,7 +753,10 @@ export function useBills() {
       _reference: args.reference ?? null,
       _notes: args.notes ?? null,
       _created_by: user.id,
+      // Treasury instrument (bank_accounts.id) — optional, stored on the payment.
       _bank_account_id: args.bank_account_id ?? null,
+      // GL account credited by the journal (accounts.id) — distinct id space.
+      _credit_account_id: cashAccountId,
       _payable_account_id: apAccountId,
       _branch_id: args.branch_id ?? currentBranch?.id ?? null,
       _request_id: args.requestId ?? null,
