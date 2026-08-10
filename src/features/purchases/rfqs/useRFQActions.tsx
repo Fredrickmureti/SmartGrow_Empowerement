@@ -36,7 +36,6 @@ export function useRFQActions(
   const navigate = useNavigate();
   const { mode: governanceMode } = useGovernanceMode();
   const {
-    submitForApproval,
     submitForApprovalAsync,
     approveRFQ,
     approveRFQAsync,
