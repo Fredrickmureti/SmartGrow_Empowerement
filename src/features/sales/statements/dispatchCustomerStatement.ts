@@ -97,6 +97,13 @@ export async function dispatchCustomerStatement({
   triggeredSource = "manual",
 }: DispatchCustomerStatementArgs): Promise<DispatchCustomerStatementResult> {
   const built = await fetchAndBuildCustomerStatementSnapshot(supabase, statementId);
+  // The snapshot result carries tenancy but not the counterparty id; the
+  // document record's party link is read from the statement header.
+  const { data: header } = await supabase
+    .from("customer_statements")
+    .select("contact_id")
+    .eq("id", statementId)
+    .maybeSingle();
 
   const documentRecordId = await ensureDocumentRecord({
     kindCode: "sales.statement",
@@ -107,7 +114,7 @@ export async function dispatchCustomerStatement({
     businessId: built.businessId ?? businessId ?? null,
     branchId: built.branchId ?? branchId ?? null,
     partyKind: "customer",
-    partyId: built.contactId,
+    partyId: (header as { contact_id?: string } | null)?.contact_id ?? null,
     currency: built.currency,
     documentNumber: built.documentNumber,
     documentDate: built.documentDate,
