@@ -39,6 +39,46 @@ const STATEMENT_KIND_CODES = new Set([
   "purchases.statement",
 ]);
 
+/**
+ * Procurement solicitation / demand documents.
+ *
+ * Same class of defect as statements, opposite direction: an RFQ and a
+ * requisition carry `items` but NO money, so `generateDocumentPdf` would
+ * happily render them as an invoice with a zeroed Unit price / Tax /
+ * Line total ladder and a "Balance Due" of 0.00. An RFQ that shows a
+ * price column is commercially wrong — the supplier is the one being
+ * asked to state the price — and a requisition has no counterparty to
+ * bill at all.
+ *
+ * These kinds are drawn by dedicated sheet-only layouts that are a pure
+ * function of the frozen snapshot. They sit BEFORE the thermal gate: a
+ * misconfigured `document_print_policies` row must not be able to route a
+ * specification table onto an 80 mm roll.
+ */
+const PROCUREMENT_LAYOUTS: Record<
+  string,
+  (
+    snapshot: Record<string, unknown>,
+    organization: unknown,
+    options: { paperFormat?: string; orientation?: "portrait" | "landscape" },
+  ) => Promise<Uint8Array>
+> = {
+  "purchases.rfq": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/procurement.ts")).generateSolicitationPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+  "purchases.requisition": async (snap, org, opts) =>
+    await (await import("../../pdf/layouts/procurement.ts")).generateRequisitionPdf(
+      snap,
+      org as never,
+      opts as never,
+    ),
+};
+
+
+
 
 export async function renderAstToPdf(args: {
   template: ResolvedTemplate;
