@@ -222,15 +222,25 @@ export async function fetchContactOpenItemAging(
     contactId: string | string[];
     businessId?: string | null;
     branchId?: string | null;
+    /**
+     * Reporting date (YYYY-MM-DD). Aging is measured against this date, not
+     * the browser clock — a statement for a closed period must age as of the
+     * period end, otherwise the same statement re-renders differently
+     * tomorrow. Defaults to today only for "live" surfaces that pass nothing.
+     */
+    asOf?: string;
   },
 ): Promise<AgingBuckets> {
   const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
   const contactIds = Array.isArray(params.contactId) ? params.contactId : [params.contactId];
+  const asOf = params.asOf ?? new Date().toISOString().slice(0, 10);
+  const asOfDate = new Date(`${asOf}T00:00:00Z`);
   let q = supabase
     .from(view as any)
     .select("document_date, due_date, residual_amount")
     .eq("organization_id", params.orgId)
     .in("contact_id", contactIds)
+    .lte("document_date", asOf)
     .gt("residual_amount", 0.01);
   if (params.businessId) q = q.eq("business_id", params.businessId);
   if (params.branchId) q = q.eq("branch_id", params.branchId);
@@ -242,7 +252,11 @@ export async function fetchContactOpenItemAging(
   for (const row of (data || []) as any[]) {
     const residual = Number(row.residual_amount) || 0;
     if (residual <= 0.01) continue;
-    addToAgingBuckets(buckets, residual, daysOverdueFrom(row.due_date || row.document_date));
+    addToAgingBuckets(
+      buckets,
+      residual,
+      daysOverdueFrom(row.due_date || row.document_date, asOfDate),
+    );
   }
 
   if (side === "ar") {
