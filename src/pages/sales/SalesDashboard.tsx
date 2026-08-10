@@ -437,12 +437,13 @@ export default function SalesDashboard() {
           <CardContent>
             <div className="space-y-3">
               {[
-                { label: "Current", value: kpis.aging.current, color: "bg-emerald-500", aging: "current" },
-                { label: "1–30 days", value: kpis.aging.days_1_30, color: "bg-amber-500", aging: "1-30" },
-                { label: "31–60 days", value: kpis.aging.days_31_60, color: "bg-orange-500", aging: "31-60" },
-                { label: "61–90 days", value: kpis.aging.days_61_90, color: "bg-red-400", aging: "61-90" },
-                { label: "90+ days", value: kpis.aging.days_90_plus, color: "bg-destructive", aging: "90+" },
+                { label: AGING_BUCKET_LABELS.not_due, value: kpis.aging.not_due, color: "bg-emerald-500", aging: "not_due" },
+                { label: `${AGING_BUCKET_LABELS.current} overdue`, value: kpis.aging.current, color: "bg-amber-500", aging: "current" },
+                { label: AGING_BUCKET_LABELS.days30, value: kpis.aging.days30, color: "bg-orange-500", aging: "days30" },
+                { label: AGING_BUCKET_LABELS.days60, value: kpis.aging.days60, color: "bg-red-400", aging: "days60" },
+                { label: AGING_BUCKET_LABELS.days90, value: kpis.aging.days90, color: "bg-destructive", aging: "days90" },
               ].map(bucket => (
+
                 <div
                   key={bucket.label}
                   className={`flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 ${bucket.value > 0 ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
