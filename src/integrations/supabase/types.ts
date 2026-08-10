@@ -8519,6 +8519,101 @@ export type Database = {
         }
         Relationships: []
       }
+      collector_assignments: {
+        Row: {
+          active: boolean
+          assigned_at: string
+          assigned_by: string | null
+          business_id: string | null
+          collector_user_id: string
+          contact_id: string
+          created_at: string
+          deactivated_at: string | null
+          deactivated_by: string | null
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          collector_user_id: string
+          contact_id: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          collector_user_id?: string
+          contact_id?: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commercial_audit_logs: {
         Row: {
           actor_id: string | null
@@ -86364,6 +86459,10 @@ export type Database = {
         }
         Returns: string
       }
+      deactivate_collector_assignment: {
+        Args: { _contact_id: string }
+        Returns: undefined
+      }
       default_journal_book_for_source: {
         Args: {
           _bank_account_id?: string
@@ -96511,6 +96610,14 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      upsert_collector_assignment: {
+        Args: {
+          _business_id?: string
+          _collector_user_id: string
+          _contact_id: string
+        }
+        Returns: string
       }
       upsert_customer_statement_atomic: {
         Args: { _payload: Json }
