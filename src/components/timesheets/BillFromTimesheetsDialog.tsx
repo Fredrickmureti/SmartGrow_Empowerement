@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useContacts } from "@/hooks/useContacts";
+import { isCustomerContact } from "@/services/finance/customerIdentity";
 import { useInvoices } from "@/hooks/useInvoices";
 import { toast } from "sonner";
 
