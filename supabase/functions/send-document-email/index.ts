@@ -337,6 +337,23 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Failure audit context. `document_emails` is the single communication
+  // ledger, so a send that throws must leave a row behind — a success-only
+  // trail makes "we never emailed this customer" indistinguishable from
+  // "the provider rejected it".
+  let failureAudit:
+    | {
+        client: any;
+        organization_id: string;
+        business_id?: string | null;
+        document_type: string;
+        document_id: string;
+        recipient_email: string;
+        subject: string | null;
+        sent_by: string | null;
+      }
+    | null = null;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
