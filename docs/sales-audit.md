@@ -19,8 +19,11 @@ a branch is selected (no NULL widening). Three-state UI: auth-warming → soft
 spinner with auto-retry; real RPC failure → error card; success (including
 all-zero workspaces) → KPI cards rendered with zeros. GL revenue failure now
 renders an explicit "Unavailable" state with retry instead of a silent zero.
-Guards: `src/test/architecture/sales-dashboard-projection.test.ts`,
-`supabase/tests/sales_dashboard_reconciliation_test.sql`.
+Credit-note figures exclude `draft` and `void` only — `credit_note_status` has
+no `voided`/`cancelled` label, and comparing against a phantom enum label makes
+Postgres raise 22P02 so PostgREST returns HTTP 400 for the whole dashboard.
+Guards: `src/test/architecture/sales-dashboard-projection.test.ts` (includes an
+enum-literal ratchet), `supabase/tests/sales_dashboard_reconciliation_test.sql`.
 
 
 ## Invoices (`/sales/invoices`)
