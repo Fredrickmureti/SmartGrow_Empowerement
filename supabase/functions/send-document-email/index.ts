@@ -843,6 +843,11 @@ const handler = async (req: Request): Promise<Response> => {
             );
             pdfBytes = canonical.bytes;
           } else {
+            if (documentType === "rfq") {
+              throw new Error(
+                `RFQ ${resolvedDocumentId} has no canonical frozen solicitation record; legacy rendering is forbidden`,
+              );
+            }
             // Legacy path — this document kind has no snapshot builder yet, so
             // there is nothing frozen to render. Logged loudly: every line of
             // this branch is a kind still owed a builder.
