@@ -37,6 +37,7 @@ export function getCurrencySymbol(code?: string): string {
  */
 export function formatAccountingNumber(value: number, currencyCode?: string): string {
   const symbol = getCurrencySymbol(currencyCode);
+  value = coerceFinite(value);
   const absVal = Math.abs(value);
   const formatted = absVal.toLocaleString("en-US", {
     minimumFractionDigits: 2,
