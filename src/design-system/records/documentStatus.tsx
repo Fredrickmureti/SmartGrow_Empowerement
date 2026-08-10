@@ -120,6 +120,9 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
   recurring_invoice: {
     active: { label: "Active", tone: "success" },
     inactive: { label: "Paused", tone: "warning" },
+    paused: { label: "Paused", tone: "warning" },
+    cancelled: { label: "Cancelled", tone: "danger" },
+    completed: { label: "Completed", tone: "neutral" },
   },
   sales_return: {
     approved: { label: "Approved", tone: "info" },

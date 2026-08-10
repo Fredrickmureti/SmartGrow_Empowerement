@@ -41,13 +41,14 @@ interface Result {
   loading: boolean;
   error: string | null;
   view: DocumentRecordView;
+  refresh: () => void;
 }
 
 export function useVendorCreditNoteView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record: creditNote, loading, error } = useVendorCreditNoteRecord(id);
+  const { record: creditNote, loading, error, refetch } = useVendorCreditNoteRecord(id);
 
   const view = useMemo<DocumentRecordView>(() => {
     const items = ((creditNote as any)?.items ?? []) as any[];
@@ -148,5 +149,5 @@ export function useVendorCreditNoteView(
     };
   }, [creditNote, loading, error, formatCurrency]);
 
-  return { creditNote, loading, error, view };
+  return { creditNote, loading, error, view, refresh: refetch };
 }

@@ -1,33 +1,39 @@
 /**
  * PurchaseReturnRecordPage — the full-page projection of
- * `usePurchaseReturnView`. Owns routing and actions only; content comes
- * from the shared descriptor, which the peek sheet also renders.
+ * `usePurchaseReturnView`. Actions come from `usePurchaseReturnActions`,
+ * the same vocabulary the list row menu offers.
  */
 import { useNavigate, useParams } from "react-router-dom";
 
 import { RecordScaffold } from "@/design-system/records";
 import { useCurrency } from "@/hooks/useCurrency";
 import { usePurchaseReturnView } from "./purchaseReturnView";
+import { usePurchaseReturnActions } from "./usePurchaseReturnActions";
 
 export default function PurchaseReturnRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
   const isNew = id === "new";
-  const { purchaseReturn, view } = usePurchaseReturnView(isNew ? null : id, formatCurrency);
+  const { purchaseReturn, view, refresh } = usePurchaseReturnView(
+    isNew ? null : id,
+    formatCurrency,
+  );
 
-  const isPending = purchaseReturn?.status === "pending";
+  const { actions, dialogs } = usePurchaseReturnActions(purchaseReturn, {
+    onChanged: refresh,
+    onDeleted: () => navigate("/purchases/returns"),
+  });
 
   return (
-    <RecordScaffold
-      {...view}
-      id={id}
-      newLabel="New purchase return"
-      onEdit={
-        purchaseReturn && isPending
-          ? () => navigate(`/purchases/returns/${purchaseReturn.id}/edit`)
-          : undefined
-      }
-    />
+    <>
+      <RecordScaffold
+        {...view}
+        id={id}
+        newLabel="New purchase return"
+        actions={actions}
+      />
+      {dialogs}
+    </>
   );
 }

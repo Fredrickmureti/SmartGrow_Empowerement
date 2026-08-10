@@ -6,12 +6,12 @@
  * comes from the shared `useVendorStatementView` descriptor, which the peek
  * sheet also renders.
  */
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Send, Loader2 } from "lucide-react";
+import { useMemo } from "react";
+import { useParams } from "react-router-dom";
+import { Download, Send } from "lucide-react";
 
-import { ActionBar } from "@/design-system";
 import { RecordScaffold } from "@/design-system/records";
-import { Button } from "@/components/ui/button";
+import type { DocumentAction } from "@/design-system/records";
 import { SendDocumentDialog } from "@/components/common/SendDocumentDialog";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
@@ -21,11 +21,36 @@ import {
 
 export default function VendorStatementRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { formatCurrency } = useCurrency();
   const { record, view } = useVendorStatementView(id, formatCurrency);
   const { dispatching, download, emailOpen, setEmailOpen, sendDocument } =
     useVendorStatementActions(record);
+
+  // One action vocabulary — the same array the Statements row menu renders.
+  const actions = useMemo<DocumentAction[]>(
+    () =>
+      record
+        ? [
+            {
+              id: "download",
+              label: "Download PDF",
+              icon: Download,
+              primary: true,
+              disabled: dispatching,
+              disabledReason: dispatching ? "Preparing the document…" : undefined,
+              onSelect: () => void download(),
+            },
+            {
+              id: "email",
+              label: "Send",
+              icon: Send,
+              primary: true,
+              onSelect: () => setEmailOpen(true),
+            },
+          ]
+        : [],
+    [record, dispatching, download, setEmailOpen],
+  );
 
   return (
     <>
@@ -39,37 +64,7 @@ export default function VendorStatementRecordPage() {
             <strong>Generate statement</strong> action on the Statements list.
           </>
         }
-        headerActions={
-          <ActionBar>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/purchases/statements")}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back
-            </Button>
-            {record && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={download}
-                  disabled={dispatching}
-                >
-                  {dispatching ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  Download PDF
-                </Button>
-                <Button size="sm" onClick={() => setEmailOpen(true)}>
-                  <Send className="mr-2 h-4 w-4" /> Send
-                </Button>
-              </>
-            )}
-          </ActionBar>
-        }
+        actions={actions}
       />
       {sendDocument && (
         <SendDocumentDialog
