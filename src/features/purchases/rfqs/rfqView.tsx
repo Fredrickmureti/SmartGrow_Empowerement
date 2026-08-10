@@ -355,6 +355,36 @@ export function useRFQView(
             )}
           </Section>
 
+          {quotes.length > 0 && (
+            <Section title="Bid documents">
+              {/*
+                Evidence submitted with each live bid. Read-only for the buyer:
+                attachments belong to the supplier's quotation version and are
+                immutable once that version is superseded.
+              */}
+              <div className="space-y-5">
+                {quotes.map((q) => (
+                  <div key={q.id}>
+                    <p className="text-sm font-medium">
+                      {q.supplier?.name ?? "—"}{" "}
+                      <span className="text-muted-foreground font-normal">
+                        · quote v{q.quotation_version}
+                      </span>
+                    </p>
+                    <BidAttachmentsPanel
+                      className="mt-2"
+                      rfqId={q.rfq_id}
+                      quotationId={q.id}
+                      canEdit={false}
+                      emptyLabel="This supplier attached no supporting documents."
+                    />
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+
           {awards.length > 0 && (
             <Section title="Awards">
               <div className="space-y-2">
