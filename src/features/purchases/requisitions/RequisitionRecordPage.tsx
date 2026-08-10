@@ -86,9 +86,24 @@ const LINE_COLUMNS: LineItemColumn[] = [
   { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
   { id: "ordered", header: "Ordered", numeric: true, priority: 2, minWidth: 90 },
   { id: "received", header: "Received", numeric: true, priority: 3, minWidth: 90 },
+  { id: "cancelled", header: "Short-closed", numeric: true, priority: 3, minWidth: 100 },
+  { id: "outstanding", header: "Outstanding", numeric: true, priority: 2, minWidth: 100 },
   { id: "lineStatus", header: "Line status", priority: 2, minWidth: 120 },
   { id: "needBy", header: "Need by", priority: 3, minWidth: 100 },
 ];
+
+/** Demand still chasing procurement on a line: qty − ordered − short-closed. */
+export function lineOutstanding(l: {
+  quantity: number | string;
+  quantity_ordered?: number | string | null;
+  quantity_cancelled?: number | string | null;
+}): number {
+  return Math.max(
+    0,
+    Number(l.quantity) - Number(l.quantity_ordered ?? 0) - Number(l.quantity_cancelled ?? 0),
+  );
+}
+
 
 const LINE_TONE: Record<string, "success" | "danger" | "neutral" | "info" | "warning"> = {
   open: "neutral",
