@@ -75,7 +75,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { downloadExport } from "@/services/exports";
+import { downloadCustomerStatement } from "@/features/sales/statements/dispatchCustomerStatement";
 import { fetchReceivableCounterparties } from "@/services/finance/openItems";
 
 export default function CustomerStatements() {
