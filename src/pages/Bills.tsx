@@ -796,7 +796,9 @@ export default function Bills() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="submitted">Awaiting approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="received">Posted</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
