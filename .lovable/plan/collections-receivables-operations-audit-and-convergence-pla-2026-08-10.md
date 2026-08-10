@@ -143,3 +143,88 @@ currency, so no surface adds unlike currencies.
   client-side bucket boundaries outside the single aging module.
 - Idempotency test: repeat statement generation and bulk send for the same
   customer/period and assert one row and one send.
+
+---
+
+# Progress verification — 2026-08-10 (resumed audit)
+
+Verified against the current code and the live database, not against the prior
+agent's summary.
+
+## Wave 0 — verification (PARTIAL)
+Credit-netting divergence was confirmed and fixed (`get_ar_summary` now nets
+`customer_credit_balances`). **Finding 4 (residual overstatement for credit
+applied via `apply_credit_to_invoice_atomic`) is still unproven**:
+`finance_open_items_tieout` cannot be read with the audit role
+(`permission denied for function is_ap_control_account`), so no drift evidence
+exists either way. Finding 4 stays open, not closed.
+
+## Wave 1 — Collections page correctness (DONE)
+`Collections.tsx` renders all five canonical buckets from
+`AGING_BUCKET_SHORT_LABELS`, adds a `not_due` column and filter option, and
+isolates net-credit customers via an `in_credit` filter. No hardcoded labels
+remain.
+
+## Wave 2 — one aging engine (MOSTLY DONE)
+`DEFAULT_AGING_BUCKETS` is gone from `useAgingReport`; boundaries exist once in
+`src/services/finance/aging.ts` mirroring the new SQL `finance_aging_bucket`.
+`useCustomerStatements` / `useVendorStatements` / `ContactAgingBreakdown` /
+`ContactPreviewDrawer` / management reports all call
+`fetchContactOpenItemAging`. Guard test `aging-single-source.test.ts` exists.
+Remaining gaps:
+- `fetchContactOpenItemAging` takes no `asOf` parameter — it ages on the
+  browser clock, so a statement for a past period ages as of today.
+- `fetchTopOpenCounterparties` still derives days-overdue in JS rather than
+  reading the server bucket.
+
+## Wave 3 — credit netting parity (DONE for AR summary)
+`finance_aging_bucket(due_date, as_of)` added; `get_ar_summary`,
+`get_ap_aging_summary` and `get_sales_dashboard_kpis` rebuilt on it, with
+unapplied customer credit netted into `total_residual` and `current`.
+Remaining gap: credit netting is applied by each consumer (SQL RPCs and JS
+helpers) rather than in one projection, so a future consumer can still forget
+it. Not a defect today; note as a hardening candidate.
+
+## Wave 4 — statement / communication hardening (NOT STARTED)
+Confirmed live: `customer_statements` has only `pkey` plus three plain indexes
+— **no unique key** on `(business_id, contact_id, period_start, period_end)`,
+so duplicate statements and duplicate sends are still possible.
+`send-document-email` still inserts `document_emails` only on the success path
+and does not route through `email_event_outbox`. The dead
+`invoice_reminders` / `invoice_emails` trio is untouched (only
+`invoice_activities` is written, by `send-document-email`); no adopt/retire
+decision has been made.
+
+## Wave 5 — currency (NOT STARTED)
+Confirmed live: `finance_ar_open_items` and `finance_ap_open_items` expose no
+currency column, so multi-currency balances are still summed as if equal.
+
+## Gaps found during verification (appended to the plan)
+1. **Statement as-of aging.** Add an explicit `asOf` to
+   `fetchContactOpenItemAging` and pass the statement `period_end`; ban the
+   implicit `new Date()` default in the aging guard test.
+2. **Finding 4 remains unverified.** Before any residual change, prove or
+   disprove it with a direct query comparing `finance_ar_open_items.residual_amount`
+   against `invoices.total - amount_paid` for invoices carrying
+   `credit_note_applications`, using a role that can execute
+   `is_ap_control_account` (or query the underlying views directly).
+3. **Tie-out view is unreadable to auditors.** `finance_open_items_tieout`
+   depends on `is_ap_control_account`, which lacks EXECUTE for the reporting
+   role — the drift sensor cannot actually be monitored. Grant EXECUTE (the
+   function is a lookup over `accounts.system_role`, not privileged).
+4. **Credit netting is duplicated per consumer** (three SQL sites + two JS
+   helpers). Candidate for a single `finance_ar_net_position` projection in a
+   later wave; do not fan it out further meanwhile.
+
+## Next actions, in order
+1. Grant EXECUTE on `is_ap_control_account`, then read
+   `finance_open_items_tieout` and settle finding 4 (read-only).
+2. Wave 4: unique key + server-side idempotent statement generation; record
+   failed sends in `document_emails`; route bulk statement sends through
+   `email_event_outbox`; adopt-or-retire `invoice_reminders` /
+   `invoice_emails`.
+3. Wave 2 residue: `asOf` on `fetchContactOpenItemAging`;
+   `fetchTopOpenCounterparties` onto the server bucket.
+4. Wave 5: currency on the open-items projections and summaries.
+5. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
+   policy, work queue) remain unbuilt and out of the current wave.
