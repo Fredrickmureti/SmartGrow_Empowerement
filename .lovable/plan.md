@@ -17,19 +17,7 @@ views — never from document status, never re-derived in app code.
 
 ## Remaining roadmap (in order — no deferral)
 
-### Wave 9 — Collector assignment [ACTIVE]
-
-### Wave 9 — Collector assignment
-
-1. Table `collector_assignments` (org, business, contact_id, collector_user_id,
-   active, assigned_at/by). RLS org-scoped. RPC `upsert_collector_assignment`,
-   `deactivate_collector_assignment`.
-2. Service `src/services/finance/collectorAssignments.ts` + hook
-   `useCollectorAssignments`.
-3. Collections UI: collector column + assign dialog; "My accounts" filter.
-4. Guard test: assignments are org-scoped and active-scoped.
-
-### Wave 10 — Dunning policy (escalation levels)
+### Wave 10 — Dunning policy (escalation levels) [ACTIVE]
 
 1. Table `dunning_levels` (org, business, name, sequence, min_days_overdue,
    action_type enum, template_id nullable). RLS admin/manage.
