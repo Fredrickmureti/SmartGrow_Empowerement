@@ -41,9 +41,19 @@ interface LineQuote {
   rfq_item_id: string;
   unit_price: number | null;
   quoted_quantity: number | null;
+  discount_percent: number | null;
   tax_rate: number | null;
   delivery_date: string | null;
+  supplier_product_code: string | null;
+  notes: string | null;
 }
+
+/** Free-text line fields are stored verbatim; numeric fields are coerced. */
+const TEXT_LINE_FIELDS = new Set<keyof LineQuote>([
+  "delivery_date",
+  "supplier_product_code",
+  "notes",
+]);
 
 interface RFQHeader {
   id: string;
