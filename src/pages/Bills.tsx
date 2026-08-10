@@ -571,7 +571,7 @@ export default function Bills() {
   // `useBillsPaginated`. The only client-side narrowing left is the custom
   // field filter, which resolves to a set of entity ids.
   const filteredBills = isCustomFiltering
-    ? pagedBills.filter((bill) => filterEntityIds?.includes(bill.id))
+    ? pagedBills.filter((bill) => filterEntityIds?.has(bill.id))
     : pagedBills;
 
   const getStatusBadge = (status: string) => {
