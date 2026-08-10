@@ -9,21 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
 import { Route as ScanTokenRouteImport } from './routes/scan.$token'
 import { Route as PosScanTokenRouteImport } from './routes/pos.scan.$token'
-import { Route as LocalizationPreviewKindTemplateCodeRouteImport } from './routes/localization.preview.$kind.$templateCode'
 import { Route as ApiPublicAttendanceIngestRouteImport } from './routes/api/public/attendance.ingest'
+import { Route as LocalizationPreviewKindTemplateCodeRouteImport } from './routes/localization.preview.$kind.$templateCode'
 
-const SplatRoute = SplatRouteImport.update({
-  id: '/$',
-  path: '/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScanTokenRoute = ScanTokenRouteImport.update({
@@ -36,16 +36,16 @@ const PosScanTokenRoute = PosScanTokenRouteImport.update({
   path: '/pos/scan/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LocalizationPreviewKindTemplateCodeRoute =
-  LocalizationPreviewKindTemplateCodeRouteImport.update({
-    id: '/localization/preview/$kind/$templateCode',
-    path: '/localization/preview/$kind/$templateCode',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiPublicAttendanceIngestRoute =
   ApiPublicAttendanceIngestRouteImport.update({
     id: '/api/public/attendance/ingest',
     path: '/api/public/attendance/ingest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LocalizationPreviewKindTemplateCodeRoute =
+  LocalizationPreviewKindTemplateCodeRouteImport.update({
+    id: '/localization/preview/$kind/$templateCode',
+    path: '/localization/preview/$kind/$templateCode',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -112,18 +112,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/$': {
-      id: '/$'
-      path: '/$'
-      fullPath: '/$'
-      preLoaderRoute: typeof SplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scan/$token': {
@@ -140,18 +140,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PosScanTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/localization/preview/$kind/$templateCode': {
-      id: '/localization/preview/$kind/$templateCode'
-      path: '/localization/preview/$kind/$templateCode'
-      fullPath: '/localization/preview/$kind/$templateCode'
-      preLoaderRoute: typeof LocalizationPreviewKindTemplateCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/attendance/ingest': {
       id: '/api/public/attendance/ingest'
       path: '/api/public/attendance/ingest'
       fullPath: '/api/public/attendance/ingest'
       preLoaderRoute: typeof ApiPublicAttendanceIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/localization/preview/$kind/$templateCode': {
+      id: '/localization/preview/$kind/$templateCode'
+      path: '/localization/preview/$kind/$templateCode'
+      fullPath: '/localization/preview/$kind/$templateCode'
+      preLoaderRoute: typeof LocalizationPreviewKindTemplateCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
