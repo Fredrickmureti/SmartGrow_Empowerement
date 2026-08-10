@@ -132,6 +132,10 @@ describe("RFQ sourcing domain — server-side lifecycle", () => {
       "rfq_awards",
       "rfq_award_items",
       "rfq_revisions",
+      // Phase 4b: bid evidence is written only by
+      // rfq_attach_quotation_document / rfq_remove_quotation_attachment.
+      "rfq_quotation_attachments",
+
     ];
     const offenders: string[] = [];
     for (const file of appSources()) {
