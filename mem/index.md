@@ -12,6 +12,8 @@ Credit notes: money and the per-invoice-line credit ceiling are resolved server-
 Open items sum `base_residual_amount` (currency-converted), never raw `residual_amount`; aging takes an explicit as-of date.
 Collections overlays (collector, dunning level, promise-to-pay) are server-derived from finance_ar_net_position — never computed in the browser.
 Customer/vendor statements project ONE dataset folded from customer_ledger_entries / vendor_ledger_entries (screen, PDF, CSV, email); never re-derive from source documents.
+contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
+Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
 
 
 
