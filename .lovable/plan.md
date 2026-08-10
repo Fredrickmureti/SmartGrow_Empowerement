@@ -1,107 +1,92 @@
-# Order-to-Cash Trust Programme — Status & Roadmap
+# Sales Overview HTTP 400 — Root Cause Found, Minimal Contract-Preserving Repair
 
-Authoritative status file. Update it after every completed implementation.
+## Verdict
 
-**Currently active phase:** Phase 3 complete — no phase in progress.
-**Next phase to start:** Phase 4 (Purchases / Procure-to-Pay overview convergence).
+The convergence architecture is **not** the problem. The frontend/RPC contract is
+intact. One SQL literal inside the new function references credit-note statuses
+that do not exist in the database enum, and Postgres rejects the whole call.
 
----
+## Evidence gathered (live database, not migration files)
 
-## Phase 1 — Statements forensic audit and remediation — COMPLETE (verified)
+1. **RPC exists, single signature, no overloads.**
+   `public.get_sales_dashboard_kpis(p_org_id uuid, p_business_id uuid, p_date_from date, p_date_to date, p_branch_id uuid)` → `jsonb`, `SECURITY DEFINER`, `STABLE`, owner `postgres`.
+2. **Frontend payload matches exactly.** `SalesDashboard.tsx:128` sends
+   `p_org_id, p_business_id, p_date_from, p_date_to, p_branch_id` — same names,
+   same types (uuid / date strings). No missing or extra argument.
+3. **Grants are correct.** `authenticated` has EXECUTE (`anon` does not, which is
+   intended). Not a permission or schema-cache failure.
+4. **Every canonical dependency is healthy** — `finance_ar_net_position`,
+   `finance_ar_net_position_by_currency`, `finance_ar_open_items`,
+   `so_line_balances`, `payment_allocations`, `credit_note_applications` all
+   exist with the exact columns the function reads, and all are queryable.
+5. **Status columns are enums, not text**: `invoices.status`, `estimates.status`,
+   `credit_notes.status` are `USER-DEFINED`.
+6. **Enum label inventory:**
+   - `invoice_status`: draft, sent, viewed, partial, paid, overdue, cancelled, confirmed, voided — every literal the function uses exists.
+   - `estimate_status`: draft, sent, viewed, accepted, rejected, expired, converted — all used literals exist.
+   - `credit_note_status`: **draft, issued, applied, void, refunded** — it has **no `voided` and no `cancelled`**.
 
-All five remediation items shipped and verified against the live database.
+## Root cause (single, primary)
 
-| Item | Status | Verification |
-| --- | --- | --- |
-| Prove the statement renderer live | Done | Post-fix artifacts (10 Aug 05:06 and 05:19 UTC) render at ~14.2 KB with ledger layout, versus the 11.8 KB invoice-shaped pre-fix bytes |
-| Quarantine pre-fix artifacts | Done | All 9 pre-fix `sales.statement` artifacts carry `superseded_by` and `regeneration_reason = 'quarantined: invoice-shaped statement layout (pre routing fix)'`; the 3 legacy `customer_statement` artifacts are superseded too |
-| Separate print from download for statements | Done | `resolve_output_intent` computes `v_is_statement` and suppresses the policy-derived print target for statement kinds |
-| One dispatch exit for customer statements | Done | `src/features/sales/statements/dispatchCustomerStatement.ts`, consumed by `src/pages/CustomerStatements.tsx` |
-| Freeze the regressions | Done | `src/test/architecture/statement-pdf-routing.test.ts`, `statement-kinds-parity.test.ts`, `statement-delivery-durability.test.ts` |
+The new function filters credit notes twice with:
 
-## Phase 2 — Salesperson performance projection — COMPLETE (verified)
+```text
+status NOT IN ('draft','void','voided','cancelled')
+```
 
-- `get_salesperson_performance` and `get_salesperson_performance_documents`
-  own all metric logic server-side; the hook is a thin wrapper.
-- Attribution inherits from the invoice (commercial owner), never the record
-  creator. POS rows with an `invoice_id` are de-duplicated.
-- Receivables read `finance_ar_open_items`; cash reads `payment_allocations`;
-  credit reads `credit_notes` (drafts and voids excluded).
-- Every metric cell drills down to its source documents.
-- Guards: `supabase/tests/salesperson_performance_reconciliation_test.sql`.
-- Memory: `mem://features/salesperson-performance`.
+once in the credit-note KPI block and once inside the `top_customers` lateral
+(`n.status NOT IN (...)`). Postgres must coerce each literal to
+`credit_note_status`; `'voided'` fails with SQLSTATE **22P02 — invalid input
+value for enum credit_note_status**. PostgREST maps 22P02 to **HTTP 400**, which
+is exactly the observed failure. It fires on every call regardless of scope or
+date range, and regardless of whether any credit notes exist, because coercion
+happens at plan time.
 
-## Phase 3 — Sales Overview cockpit convergence — COMPLETE (verified)
+Fix classification: **database function repair — literal/enum contract defect**.
+Not a frontend, deployment, cache, permission, or architectural defect.
 
-`get_sales_dashboard_kpis` is now a projection with no business rules of its own.
+## The repair (smallest safe correction)
 
-| Figure | Canonical source |
-| --- | --- |
-| Revenue | posted GL via `get_account_movements` / `fetchGLTotals` |
-| Receivable + aging | `finance_ar_net_position` (base currency, credit-netted) |
-| Mixed-currency flag | `finance_ar_net_position_by_currency` |
-| Cash applied / unapplied | `payment_allocations` vs `payments.amount` |
-| Orders to fulfil | `so_line_balances.quantity_open_to_deliver > 0` |
-| Quote conversion | period estimate cohort; `accepted` and `converted` are won |
-| Credit notes | `credit_notes`, excluding draft/void/cancelled |
-| Top customers | invoiced net of `credit_note_applications` |
+A new migration that `CREATE OR REPLACE`s `get_sales_dashboard_kpis` with only
+the two credit-note predicates changed, to the real lifecycle:
 
-Also shipped: `meta` block (as-of date, period, mixed-currency flag, per-metric
-date basis) surfaced as card labels; explicit "Unavailable + Retry" state for
-GL revenue failures; scope- and period-preserving drill-downs; aging cards
-deep-link to `/sales/collections?aging=<bucket>` and Collections now honours
-that parameter.
+```text
+status NOT IN ('draft','void')
+```
 
-Guards: `src/test/architecture/sales-dashboard-projection.test.ts` (7 tests,
-passing), `supabase/tests/sales_dashboard_reconciliation_test.sql`.
-Docs: `docs/sales-audit.md` § Dashboard. Memory:
-`mem://features/sales-overview-cockpit`.
+`issued`, `applied` and `refunded` are live commercial credit notes and stay
+counted; `draft` is not yet a document and `void` is cancelled. Nothing else in
+the function body changes — GL revenue, `finance_ar_net_position` receivables and
+aging, allocation-first cash, `so_line_balances` fulfilment, and the
+accepted+converted quote cohort all stay exactly as the convergence work left them.
 
-Known limitation, accepted: the dashboard could not be visually verified in
-the sandbox browser because no signed-in session is injected there; the page
-redirects to login. Verification was by typecheck plus the architecture guard.
+## Regression protection
 
----
+- Extend `src/test/architecture/sales-dashboard-projection.test.ts` with an
+  enum-literal guard: every status literal the dashboard migration compares
+  against `credit_notes`, `invoices` and `estimates` must be a real label of the
+  corresponding enum (labels asserted from a checked-in list), so a future edit
+  cannot reintroduce a phantom status and 400 the page again.
+- Keep the existing ratchets that forbid local AR/aging/payment recomputation.
+- After the migration, verify the RPC end-to-end from the app (page loads, KPI
+  object populated) rather than declaring success on the migration alone.
 
-## Phase 4 — Purchases / Procure-to-Pay overview convergence — NOT STARTED
+## Documentation to correct
 
-Apply the Phase 3 pattern to the buy side, which has the same class of drift.
+`docs/sales-audit.md` and `mem/features/sales-overview-cockpit.md` currently
+state credit notes exclude `draft/void/voided/cancelled`. Update both to the
+actual `credit_note_status` lifecycle (`draft`, `issued`, `applied`, `void`,
+`refunded`; excluded = `draft`, `void`).
 
-1. Audit the purchases overview data lineage the same way: list every figure
-   and name the engine that owns it.
-2. Converge payables and aging on `finance_ap_open_items` /
-   `base_residual_amount` — never document-currency `residual_amount`.
-3. Converge cash out on `bill_payment_allocations`, excluding voided and
-   unreconciled payments, and report unapplied vendor advances separately
-   (`vendor_unapplied_advances`).
-4. Converge open receiving on the PO line-balance engine rather than a
-   status list, mirroring `so_line_balances`.
-5. Add `meta` (as-of, period, mixed currency, per-metric date basis) and
-   scope-preserving drill-downs.
-6. Freeze with an architecture guard plus a SQL reconciliation contract that
-   mirrors the two Phase 3 guards.
+## Explicitly not doing
 
-## Phase 5 — Executive dashboard reconciliation — NOT STARTED
+No RPC signature change, no frontend contract change, no reverting to invoice
+arithmetic, raw payment sums, `customer_credit_balances`, or status-string
+fulfilment heuristics, no deleting functions or migrations, no fake zeros.
 
-`/dashboard` (`useDashboardAnalytics`) has not been audited. It must agree
-with the Sales and Purchases cockpits figure for figure, or explicitly state
-a different basis. Do not start before Phase 4 is closed.
+## Follow-up noted, not silently changed
 
----
-
-## Instructions for the next agent
-
-1. **Verify before you build.** Re-run
-   `bunx vitest run src/test/architecture/sales-dashboard-projection.test.ts`
-   and read `mem://features/sales-overview-cockpit`. Confirm the Phase 3
-   claims above hold: `get_sales_dashboard_kpis` reads no
-   `customer_credit_balances`, sums no document-currency `residual_amount`,
-   and derives open fulfilment from `so_line_balances`. If a claim fails,
-   fix Phase 3 before touching Phase 4.
-2. **Then resume at Phase 4, step 1** — the purchases overview lineage audit.
-   Do not start Phase 5, and do not open unrelated modules.
-3. **Keep the invariant.** Overview surfaces are projections. A dashboard may
-   never re-derive a financial figure that a canonical engine already owns.
-   Every new figure needs a named source, a date basis, and a guard.
-4. **Close each phase coherently** — RPC, UI, guard, docs and memory in the
-   same phase — then update this file before moving on.
+The error card already surfaces `error.message`, but PostgREST `details`/`hint`
+are dropped. A small non-blocking improvement is to log `code`/`details`/`hint`
+to the console while keeping the user-facing text safe. Say the word and I will
+include it; otherwise the fix stays scoped to the enum defect.
