@@ -117,7 +117,7 @@ export function useAgingReport(params: UseAgingReportParams) {
       });
 
       if (error) throw error;
-      const flat = processLedgerAgingRows(data || [], params.reportType, asOfDate, params.buckets);
+      const flat = processLedgerAgingRows(data || [], params.reportType, asOfDate);
       if (!params.rollupToCommercialPartner) return flat;
       return rollupContactsToCommercialPartner(flat, {
         organizationId: currentOrg.id,
