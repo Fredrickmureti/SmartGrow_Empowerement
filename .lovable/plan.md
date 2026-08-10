@@ -18,24 +18,6 @@ views — never from document status, never re-derived in app code.
 
 ### Wave 9 — Collector assignment [ACTIVE]
 
-**Problem:** `finance_ar_net_position` aggregates across currencies into base
-amounts but exposes no currency dimension. `finance_ar_customer_credit.base_credit_amount`
-is a 1:1 copy of `balance` — foreign-currency credit is treated at rate 1.0,
-inflating/deflating the net position.
-
-**Fix:**
-1. SQL function `to_base_amount(business_id, currency, amount, as_of)` that
-   looks up the latest `exchange_rates` row for `(from=currency, to=base_currency)`
-   as of the reporting date. Falls back to 1.0 when currency = base.
-2. Rewrite `finance_ar_customer_credit` so `base_credit_amount =
-   to_base_amount(business_id, currency, balance)` — credit is a monetary
-   liability, so it re-translates at the current rate.
-3. New view `finance_ar_net_position_by_currency` — groups open items + credit
-   by `(contact_id, currency)`, exposing per-currency aging buckets.
-4. Collections UI: expanded customer row shows a per-currency breakdown card.
-5. Guard test: `credit-fx-policy.test.ts` — verifies the view definition
-   converts foreign credit via `to_base_amount`, not 1:1.
-
 ### Wave 9 — Collector assignment
 
 1. Table `collector_assignments` (org, business, contact_id, collector_user_id,
