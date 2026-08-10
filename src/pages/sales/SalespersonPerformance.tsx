@@ -223,7 +223,7 @@ export default function SalespersonPerformance() {
           </CardHeader>
           <CardContent>
             <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.orders}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(0 + metrics.reduce((s, m) => s + m.orders_value, 0))}</p>
+            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totals.ordersValue)}</p>
           </CardContent>
         </Card>
         <Card>
