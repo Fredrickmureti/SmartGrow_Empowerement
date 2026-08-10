@@ -216,32 +216,32 @@ export default function AgedPayables() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">Current</p>
-              <p className="text-lg font-bold text-foreground">{formatCurrency(totals.current)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.not_due}</p>
+              <p className="text-lg font-bold text-foreground">{formatCurrency(totals.not_due)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">1-30 Days</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days_1_30)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.current} overdue</p>
+              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.current)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">31-60 Days</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days_31_60)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days30}</p>
+              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days30)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">61-90 Days</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days_61_90)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days60}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days60)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">90+ Days</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.over_90)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days90}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days90)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -251,6 +251,7 @@ export default function AgedPayables() {
             </CardContent>
           </Card>
         </div>
+
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
