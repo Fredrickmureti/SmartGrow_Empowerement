@@ -90,7 +90,7 @@ const toCents = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100);
  * `makeCustomerPaymentRequestId` on the AR side. Same payment intent (vendor,
  * allocation set, total, date) → same key, so a double submit or a retry after
  * a network timeout collapses onto one vendor payment server-side.
- * Never `crypto.randomUUID()`.
+ * Never a randomly minted key.
  */
 export function makeVendorPaymentRequestId(input: {
   vendorId: string;

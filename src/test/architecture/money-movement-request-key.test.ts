@@ -135,7 +135,7 @@ describe("money movement request keys", () => {
         const pattern = new RegExp(`await\\s+${wrapper}\\(\\{`, "g");
         for (const match of src.matchAll(pattern)) {
           const args = src.slice(match.index!, match.index! + 1600);
-          if (!/requestId\s*:/.test(args)) {
+          if (!/requestId\s*[:,}]/.test(args)) {
             offenders.push(`${file.slice(PROJECT_ROOT.length + 1)} → ${wrapper}`);
           }
         }
