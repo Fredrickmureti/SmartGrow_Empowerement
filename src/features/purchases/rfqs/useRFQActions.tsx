@@ -1,29 +1,61 @@
 /**
  * useRFQActions — the single declaration of what you can do to an RFQ,
  * shared by the record page header and any row menu that adopts it.
+ *
+ * Every entry maps 1:1 to a server-side lifecycle RPC; the UI only decides
+ * which transitions to *offer*, never whether they are legal — the RPC
+ * re-checks state, permissions and locking.
  */
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, FileText, Pencil, Send, Trash2 } from "lucide-react";
+import {
+  Ban,
+  CheckCircle2,
+  FileText,
+  GitBranch,
+  Pencil,
+  Send,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
 import { useRFQs, type RFQ } from "@/hooks/useRFQs";
 
 interface Options {
   onDeleted?: () => void;
+  /** Opens the award drawer on the record page. */
+  onAward?: () => void;
 }
 
 export function useRFQActions(
   rfq: RFQ | null | undefined,
-  { onDeleted }: Options = {},
+  { onDeleted, onAward }: Options = {},
 ) {
   const navigate = useNavigate();
-  const { updateStatus, deleteRFQ } = useRFQs();
+  const {
+    submitForApproval,
+    approveRFQ,
+    releaseRFQ,
+    reviseRFQ,
+    convertToPurchaseOrders,
+    cancelRFQ,
+    deleteRFQ,
+  } = useRFQs();
 
   return useMemo<DocumentAction[]>(() => {
     if (!rfq) return [];
     const status = rfq.status as string;
     const isDraft = status === "draft";
+    const isLive = ["sent", "responses_received", "under_evaluation"].includes(status);
+    const cancellable = [
+      "draft",
+      "pending_approval",
+      "approved",
+      "sent",
+      "responses_received",
+      "under_evaluation",
+    ].includes(status);
 
     return [
       {
@@ -36,30 +68,72 @@ export function useRFQActions(
         onSelect: () => navigate(`/purchases/rfqs/${rfq.id}/edit`),
       },
       {
-        id: "mark-sent",
-        label: "Mark sent",
+        id: "submit",
+        label: "Submit for approval",
         icon: Send,
         group: "core",
         primary: isDraft,
         hidden: !isDraft,
-        onSelect: () => updateStatus({ id: rfq.id, status: "sent" }),
+        onSelect: () => submitForApproval(rfq.id),
       },
       {
-        id: "mark-received",
-        label: "Mark received",
+        id: "approve",
+        label: "Approve",
+        icon: CheckCircle2,
+        group: "core",
+        primary: status === "pending_approval",
+        hidden: status !== "pending_approval",
+        onSelect: () => approveRFQ(rfq.id),
+      },
+      {
+        id: "release",
+        label: "Release to suppliers",
+        icon: Upload,
+        group: "core",
+        primary: status === "approved",
+        hidden: status !== "approved",
+        onSelect: () => releaseRFQ(rfq.id),
+      },
+      {
+        id: "award",
+        label: "Award",
+        icon: CheckCircle2,
+        group: "core",
+        primary: status === "responses_received" || status === "under_evaluation",
+        hidden: !isLive || !onAward,
+        onSelect: () => onAward?.(),
+      },
+      {
+        id: "convert",
+        label: "Convert awards to POs",
         icon: FileText,
         group: "core",
-        primary: status === "sent",
-        hidden: status !== "sent",
-        onSelect: () => updateStatus({ id: rfq.id, status: "received" }),
+        primary: status === "awarded",
+        hidden: status !== "awarded",
+        onSelect: () => convertToPurchaseOrders(rfq.id),
+      },
+      {
+        id: "revise",
+        label: "Revise (new version)",
+        icon: GitBranch,
+        hidden: !isLive && status !== "approved",
+        onSelect: () => {
+          const reason = window.prompt("Why is this RFQ being revised?");
+          if (!reason) return;
+          reviseRFQ({ id: rfq.id, reason });
+        },
       },
       {
         id: "cancel",
         label: "Cancel",
         icon: Ban,
         destructive: true,
-        hidden: !["draft", "sent", "received"].includes(status),
-        onSelect: () => updateStatus({ id: rfq.id, status: "cancelled" }),
+        hidden: !cancellable,
+        onSelect: () => {
+          const reason = window.prompt(`Cancel RFQ ${rfq.rfq_number}? Reason:`);
+          if (reason === null) return;
+          cancelRFQ({ id: rfq.id, reason: reason || null });
+        },
       },
       {
         id: "delete",
@@ -75,5 +149,5 @@ export function useRFQActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rfq, navigate]);
+  }, [rfq, navigate, onAward]);
 }
