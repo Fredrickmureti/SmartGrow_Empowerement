@@ -230,6 +230,7 @@ export default function Collections() {
                               {(c.buckets.total ?? 0) < -0.01 && (
                                 <Badge variant="secondary">In credit</Badge>
                               )}
+                              <DeliveryBadge delivery={delivery?.[c.contact_id]} />
                             </div>
                             {c.company && (
                               <div className="text-xs text-muted-foreground">{c.company}</div>
