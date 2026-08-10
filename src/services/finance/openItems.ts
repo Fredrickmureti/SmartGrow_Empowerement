@@ -10,6 +10,18 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import {
+  addToAgingBuckets,
+  daysOverdueFrom,
+  emptyAgingBuckets,
+  EMPTY_AGING_BUCKETS,
+  type AgingBuckets,
+} from "./aging";
+
+/** @deprecated Use `AgingBuckets` / `EMPTY_AGING_BUCKETS` from `./aging`. */
+export type OpenItemAging = AgingBuckets;
+export const EMPTY_OPEN_ITEM_AGING: AgingBuckets = EMPTY_AGING_BUCKETS;
+
 
 export interface OpenItemsSummary {
   openDocumentCount: number;
