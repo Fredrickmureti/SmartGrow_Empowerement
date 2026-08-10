@@ -337,6 +337,23 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Failure audit context. `document_emails` is the single communication
+  // ledger, so a send that throws must leave a row behind — a success-only
+  // trail makes "we never emailed this customer" indistinguishable from
+  // "the provider rejected it".
+  let failureAudit:
+    | {
+        client: any;
+        organization_id: string;
+        business_id?: string | null;
+        document_type: string;
+        document_id: string;
+        recipient_email: string;
+        subject: string | null;
+        sent_by: string | null;
+      }
+    | null = null;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -726,6 +743,16 @@ const handler = async (req: Request): Promise<Response> => {
     const senderIdentity =
       document.business?.legal_name || document.business?.name || "Your Provider";
     const emailSubject = subject || `${docLabel} ${docNumber} from ${senderIdentity}`;
+    failureAudit = {
+      client: supabaseClient,
+      organization_id: document.organization_id,
+      business_id: document.business_id ?? null,
+      document_type: documentType,
+      document_id: resolvedDocumentId,
+      recipient_email: recipientEmail,
+      subject: emailSubject,
+      sent_by: user.id,
+    };
     const emailHtml = generateEmailHtml(
       document,
       documentType,
@@ -998,6 +1025,19 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error sending document email:", error);
+    if (failureAudit) {
+      const { client, ...ctx } = failureAudit;
+      try {
+        await client.from("document_emails").insert({
+          ...ctx,
+          status: "failed",
+          message: `Send failed: ${error?.message ?? "unknown error"}`,
+          had_attachment: false,
+        });
+      } catch (auditError) {
+        console.error("Failed to record failed send in document_emails:", auditError);
+      }
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
