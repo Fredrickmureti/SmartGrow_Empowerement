@@ -102,7 +102,9 @@ export function useRequisitions() {
     setError(null);
     const { data, error: err } = await (supabase as any)
       .from("purchase_requisitions")
-      .select("*, items:purchase_requisition_items(id)")
+      .select(
+        "*, items:purchase_requisition_items(id, quantity, quantity_ordered, quantity_received, quantity_cancelled)",
+      )
       .eq("organization_id", currentOrg.id)
       .eq("business_id", currentBusiness.id)
       .order("updated_at", { ascending: false });
@@ -114,11 +116,36 @@ export function useRequisitions() {
     const base = (data ?? []) as any[];
     const profiles = await hydrateProfiles(base.map((r) => r.requester_id));
     setRows(
-      base.map((r) => ({
-        ...r,
-        item_count: Array.isArray(r.items) ? r.items.length : 0,
-        requester: profiles.get(r.requester_id) ?? null,
-      })) as RequisitionRow[],
+      base.map((r) => {
+        const items: any[] = Array.isArray(r.items) ? r.items : [];
+        // Outstanding demand mirrors the server rule in `_pr_recalc`:
+        // qty − ordered − short-closed, floored at zero per line.
+        let outstanding = 0;
+        let ordered = 0;
+        let received = 0;
+        let openLines = 0;
+        for (const i of items) {
+          const rest = Math.max(
+            0,
+            Number(i.quantity ?? 0) -
+              Number(i.quantity_ordered ?? 0) -
+              Number(i.quantity_cancelled ?? 0),
+          );
+          if (rest > 0) openLines += 1;
+          outstanding += rest;
+          ordered += Number(i.quantity_ordered ?? 0);
+          received += Number(i.quantity_received ?? 0);
+        }
+        return {
+          ...r,
+          item_count: items.length,
+          open_line_count: openLines,
+          outstanding_quantity: outstanding,
+          ordered_quantity: ordered,
+          received_quantity: received,
+          requester: profiles.get(r.requester_id) ?? null,
+        };
+      }) as RequisitionRow[],
     );
     setLoading(false);
   }, [currentOrg?.id, currentBusiness?.id]);
