@@ -301,13 +301,14 @@ export default function AgedPayables() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Vendor</TableHead>
-                  <TableHead className="text-right">Current</TableHead>
-                  <TableHead className="text-right">1-30 Days</TableHead>
-                  <TableHead className="text-right">31-60 Days</TableHead>
-                  <TableHead className="text-right">61-90 Days</TableHead>
-                  <TableHead className="text-right">90+ Days</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days60}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                 </TableRow>
+
               </TableHeader>
               <TableBody>
                 {filteredData.map((row) => {
