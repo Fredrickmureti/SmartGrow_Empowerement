@@ -1,6 +1,6 @@
 ---
-name: Collections operational overlays (dunning & promises)
-description: Dunning levels and promises-to-pay are server-derived overlays on finance_ar_net_position; never re-derive escalation or promise status in the browser
+name: Collections operational overlays (dunning, promises, disputes, work queue)
+description: Dunning, promises-to-pay, disputes and the collections work queue are server-derived overlays on finance_ar_net_position; never re-derive escalation, promise status, disputed exposure or queue ranking in the browser
 type: feature
 ---
 
@@ -27,7 +27,29 @@ invoice.
 Client surface: `src/services/finance/promises.ts` → `usePromisesToPay` →
 "Promise" column + `PromiseToPayDialog` in Collections.
 
+## Disputes
+`ar_disputes` flags a contested amount. A dispute **never reduces the
+receivable** — no invoice update, no journal entry. Disputed exposure is
+reported beside AR (its own KPI) and is never netted off `net_amount`.
+- Writes go only through `raise_ar_dispute` / `resolve_ar_dispute`, with an
+  idempotency key from the dispute intent (`disputeRequestKey`).
+- An open dispute sets `dunning_assignment.on_hold` — escalation pauses while
+  the balance is contested.
+Client surface: `src/services/finance/disputes.ts` → `useArDisputes` →
+"Dispute" column + `RaiseDisputeDialog` in Collections.
+
+## Work queue
+`collections_work_queue` (+ `get_collections_work_queue(_business_id,
+_collector_user_id)`) is the prioritised action list. Exposure, aging, collector,
+dunning level, open promise and open dispute are joined in SQL, and
+`priority_score = net_amount * (1 + max_days_overdue/30) * factor`, where the
+factor is 0.25 in dispute, 0.5 under an open promise, else 1. Overlays
+**de-prioritise, never hide** rows. The client must not sort or re-score.
+Client surface: `src/services/finance/collectionsWorkQueue.ts` →
+`useCollectionsWorkQueue` → "Work queue" tab in Collections.
+
 ## Guards
 `src/test/architecture/dunning-policy.test.ts`,
 `src/test/architecture/promise-to-pay.test.ts`,
-`src/test/architecture/collector-assignment.test.ts`
+`src/test/architecture/collector-assignment.test.ts`,
+`src/test/architecture/disputes-work-queue.test.ts`
