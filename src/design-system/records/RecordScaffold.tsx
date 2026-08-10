@@ -35,7 +35,13 @@ export type { DetailField };
 interface RecordScaffoldProps extends DocumentRecordView {
   /** Route id (":id" param). "new" renders the create placeholder. */
   id: string;
-  /** Override the default Back/Print/Edit action cluster. */
+  /**
+   * The document's action vocabulary — the same array the list row menu
+   * renders. Preferred over `headerActions`; when supplied it replaces the
+   * default Back/Print/Edit cluster (Back is re-added automatically).
+   */
+  actions?: DocumentAction[];
+  /** Escape hatch for hand-rolled clusters. Prefer `actions`. */
   headerActions?: ReactNode;
   /** Called by the default Edit action; disabled if not supplied. */
   onEdit?: () => void;
@@ -43,6 +49,8 @@ interface RecordScaffoldProps extends DocumentRecordView {
   onPrint?: () => void;
   /** Called by the default Preview action; hidden if not supplied. */
   onPreview?: () => void;
+  /** Extra footer content rendered next to Close (e.g. action dialogs). */
+  footerLeading?: ReactNode;
   /** Copy for the "new" placeholder. */
   newLabel?: string;
   newDescription?: ReactNode;
