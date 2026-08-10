@@ -73,6 +73,23 @@ describe("purchase requisitions — demand engine boundary", () => {
     expect(src).toContain("requisition_close");
   });
 
+  it("delegates purchasing self-action decisions to canonical governance", () => {
+    const sql = globSync("supabase/migrations/*.sql", { cwd: ROOT })
+      .map((f) => read(f))
+      .join("\n");
+    for (const action of ["requisition.approve", "rfq.approve", "rfq.award", "purchase_order.approve", "bill.approve"]) {
+      expect(sql).toMatch(
+        new RegExp(`governance_assert_not_self[\\s\\S]{0,500}?["']${action.replace(".", "\\.")}["']`, "i"),
+      );
+    }
+    const latest = read(
+      globSync("supabase/migrations/*.sql", { cwd: ROOT })
+        .sort()
+        .at(-1) ?? "",
+    );
+    expect(latest).not.toMatch(/Segregation of duties:|requester cannot approve|cannot approve.*you submitted/i);
+  });
+
   it("reads progress from the line rollup columns, not re-summed POs", () => {
     const src = read("src/features/purchases/requisitions/useRequisitions.ts");
     for (const col of ["quantity_ordered", "quantity_received", "quantity_cancelled"]) {

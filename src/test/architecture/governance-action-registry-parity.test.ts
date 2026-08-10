@@ -18,25 +18,14 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { SELF_ACTION_CATALOGUE } from "@/lib/governance/selfActionCatalogue";
 
-function findRegistrySeedMigration(): string {
+function readRegistryMigrations(): string {
   const dir = join(process.cwd(), "supabase", "migrations");
   const files = readdirSync(dir).filter((f) => f.endsWith(".sql"));
-  for (const f of files) {
-    const body = readFileSync(join(dir, f), "utf8");
-    if (
-      body.includes("CREATE TABLE IF NOT EXISTS public.governance_action_registry") ||
-      body.includes("CREATE TABLE public.governance_action_registry")
-    ) {
-      return body;
-    }
-  }
-  throw new Error(
-    "governance_action_registry migration not found under supabase/migrations/"
-  );
+  return files.map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
 }
 
 describe("Approval & Governance — action registry parity (Phase 1)", () => {
-  const migrationSql = findRegistrySeedMigration();
+  const migrationSql = readRegistryMigrations();
 
   it("every SELF_ACTION_CATALOGUE key is seeded into governance_action_registry", () => {
     const missing = SELF_ACTION_CATALOGUE.filter(

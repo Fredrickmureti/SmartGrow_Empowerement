@@ -74,6 +74,9 @@ const ACTION_TO_TABLE: Record<string, string> = {
  * those functions instead of a table guard.
  */
 const RPC_ENFORCED_ACTIONS: Record<string, string> = {
+  "requisition.approve": "approve_requisition",
+  "rfq.approve": "rfq_approve",
+  "rfq.award": "rfq_award",
   "inventory.submit_count": "physical_count_submit",
   "inventory.approve_count": "physical_count_approve",
   "inventory.post_count": "physical_count_post",

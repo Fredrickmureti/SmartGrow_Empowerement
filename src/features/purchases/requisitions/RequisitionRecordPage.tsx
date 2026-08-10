@@ -4,11 +4,11 @@
  * Aggregates requisition header + lines + approval trail into a
  * `DocumentRecordView` descriptor rendered through `RecordScaffold`.
  * Lifecycle transitions (submit / approve / reject / cancel) invoke the
- * P3 lifecycle RPCs. Self-approval is blocked both in the database
- * (`approve_requisition`) and mirrored by the SoD registry rows.
+ * P3 lifecycle RPCs. Self-action policy is resolved by the central
+ * governance engine according to the workspace mode and overrides.
  */
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -40,6 +40,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import {
+  describeGovernanceError,
+  parseGovernanceError,
+} from "@/lib/governance/selfActionErrors";
 import {
   Select,
   SelectContent,
@@ -120,6 +124,7 @@ const LINE_TONE: Record<string, "success" | "danger" | "neutral" | "info" | "war
 
 export default function RequisitionRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
 
@@ -140,6 +145,7 @@ export default function RequisitionRecordPage() {
 
   const canSubmit = record?.status === "draft";
   const canDecide = record?.status === "submitted";
+  const isApprovalGated = Boolean(record?.approval_request_id);
   const canCancel = record?.status === "draft" || record?.status === "submitted";
   // Release + amendment windows. The database is authoritative for all of
   // these; the UI only hides actions the server would reject anyway.
@@ -163,10 +169,16 @@ export default function RequisitionRecordPage() {
       toast({ title: ok });
       await refresh();
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const governanceError = parseGovernanceError(e);
+      const governed = governanceError
+        ? describeGovernanceError(governanceError)
+        : null;
       toast({
-        title: "Action failed",
-        description: e?.message ?? String(e),
+        title: governed?.title ?? "Action failed",
+        description:
+          governed?.body ??
+          (e instanceof Error ? e.message : String(e)),
         variant: "destructive",
       });
       return false;
@@ -373,20 +385,23 @@ export default function RequisitionRecordPage() {
         },
         {
           id: "approve",
-          label: "Approve",
-          icon: CheckCircle2,
+          label: isApprovalGated ? "Review in Approvals" : "Approve",
+          icon: isApprovalGated ? ExternalLink : CheckCircle2,
           group: "core",
           primary: true,
           hidden: !canDecide,
           disabled: busy,
-          onSelect: () => setApproveOpen(true),
+          onSelect: () =>
+            isApprovalGated
+              ? navigate("/settings/workspace?tab=governance")
+              : setApproveOpen(true),
         },
         {
           id: "reject",
           label: "Reject",
           icon: XCircle,
           destructive: true,
-          hidden: !canDecide,
+          hidden: !canDecide || isApprovalGated,
           disabled: busy,
           onSelect: () => setRejectOpen(true),
         },
@@ -456,7 +471,7 @@ export default function RequisitionRecordPage() {
           <DialogHeader>
             <DialogTitle>Approve requisition</DialogTitle>
             <DialogDescription>
-              Approvers cannot approve their own requisitions (Segregation of Duties).
+              Approval follows this workspace’s governance mode and any action-specific policy.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

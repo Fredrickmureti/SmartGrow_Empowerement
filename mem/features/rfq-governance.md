@@ -14,7 +14,9 @@ type: feature
   - `rfqs.approval_request_id` — the RFQ document (`rfq.submit` / `rfq.approve`)
   - `rfqs.award_approval_request_id` — the award decision (`rfq.award`)
   Never add a module-local threshold or a second approval path.
-- SoD on award: the user who submitted or approved the RFQ cannot award it.
+- RFQ approval and award self-action checks delegate to
+  `governance_assert_not_self`; solo/standard/strict, per-action policies, and
+  one-time overrides are never reimplemented by RFQ functions.
 - `_rfq_assert_award_decided` blocks `rfq_convert_awards_to_po` while the award
   approval is pending; award rejection rolls the award back and returns
   quotations to `submitted` via `_mirror_approval_to_rfq`.

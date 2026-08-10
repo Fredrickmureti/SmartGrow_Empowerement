@@ -23,6 +23,8 @@ export type SelfActionEntityType =
   | "payment"
   | "journal_entry"
   | "customer_refund"
+  | "purchase_requisition"
+  | "rfq"
   | "purchase_order"
   | "vendor_credit_note"
   | "credit_note"
@@ -294,6 +296,30 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
   },
   // Purchasing
   {
+    key: "requisition.approve",
+    module: "Purchasing",
+    label: "Approve own requisition",
+    description: "Approve a purchase requisition submitted by the approver.",
+    entityType: "purchase_requisition",
+    subjectMode: "actor",
+  },
+  {
+    key: "rfq.approve",
+    module: "Purchasing",
+    label: "Approve own RFQ",
+    description: "Approve a request for quotation submitted by the approver.",
+    entityType: "rfq",
+    subjectMode: "actor",
+  },
+  {
+    key: "rfq.award",
+    module: "Purchasing",
+    label: "Award own RFQ",
+    description: "Award a request for quotation submitted or approved by the actor.",
+    entityType: "rfq",
+    subjectMode: "actor",
+  },
+  {
     key: "purchase_order.approve",
     module: "Purchasing",
     label: "Approve own purchase order",
@@ -457,6 +483,8 @@ export const ENTITY_TYPE_LABELS: Record<SelfActionEntityType, string> = {
   payment: "payment",
   journal_entry: "journal entry",
   customer_refund: "customer refund",
+  purchase_requisition: "purchase requisition",
+  rfq: "RFQ",
   purchase_order: "purchase order",
   vendor_credit_note: "vendor credit note",
   credit_note: "sales credit note",
@@ -484,6 +512,8 @@ export const ENTITY_TYPE_DB_KEY: Record<SelfActionEntityType, string> = {
   payment: "payment",
   journal_entry: "journal_entry",
   customer_refund: "customer_refund",
+  purchase_requisition: "purchase_requisition",
+  rfq: "rfq",
   purchase_order: "purchase_order",
   vendor_credit_note: "vendor_credit_note",
   credit_note: "credit_note",

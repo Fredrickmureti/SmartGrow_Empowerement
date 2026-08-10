@@ -258,6 +258,38 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.created_by ?? null,
     }));
   },
+  purchase_requisition: async (orgId) => {
+    const { data, error } = await supabase
+      .from("purchase_requisitions")
+      .select("id, requisition_number, estimated_total, currency, status, requester_id, submitted_by")
+      .eq("organization_id", orgId)
+      .in("status", ["draft", "submitted"] as any)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.requisition_number ?? `Requisition ${r.id.slice(0, 8)}`,
+      hint: `${fmtMoney(r.estimated_total, r.currency)} • ${r.status}`,
+      subject_user_id: r.submitted_by ?? r.requester_id ?? null,
+    }));
+  },
+  rfq: async (orgId) => {
+    const { data, error } = await supabase
+      .from("rfqs")
+      .select("id, rfq_number, currency, status, submitted_by")
+      .eq("organization_id", orgId)
+      .in("status", ["draft", "pending_approval", "sent", "responses_received", "under_evaluation"] as any)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.rfq_number ?? `RFQ ${r.id.slice(0, 8)}`,
+      hint: `${r.currency ?? ""} • ${r.status}`,
+      subject_user_id: r.submitted_by ?? null,
+    }));
+  },
   purchase_order: async (orgId) => {
     const { data, error } = await supabase
       .from("purchase_orders")
