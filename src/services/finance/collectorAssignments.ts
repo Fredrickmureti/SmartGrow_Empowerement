@@ -33,16 +33,6 @@ export async function fetchCollectorAssignments(
   orgId: string,
   businessId?: string | null,
 ): Promise<Map<string, CollectorAssignment>> {
-  let q = supabase
-    .from("collector_assignments" as any)
-    .select(
-      "id, contact_id, collector_user_id, active, assigned_at, user_roles!inner(email, full_name)",
-    )
-    .eq("active", true)
-    .order("assigned_at", { ascending: false });
-
-  // We need to filter by organization but the table doesn't expose org_id
-  // in a way Supabase client can easily join. Use the RPC instead.
   const { data, error } = await supabase.rpc("fetch_collector_assignments_with_names", {
     _org_id: orgId,
   });
