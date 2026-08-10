@@ -31,6 +31,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Download, FileText, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { AGING_BUCKET_LABELS, AGING_BUCKET_SHORT_LABELS } from "@/services/finance/aging";
+
 
 interface AgingBill {
   id: string;
@@ -43,14 +45,15 @@ interface AgingBill {
 interface AgingRow {
   vendor_id: string;
   vendor_name: string;
+  not_due: number;
   current: number;
-  days_1_30: number;
-  days_31_60: number;
-  days_61_90: number;
-  over_90: number;
+  days30: number;
+  days60: number;
+  days90: number;
   total: number;
   bills: AgingBill[];
 }
+
 
 export default function AgedPayables() {
   const { currentOrg } = useOrganization();
@@ -93,12 +96,13 @@ export default function AgedPayables() {
       const vendors: AgingRow[] = (result?.vendors || []).map((v: any) => ({
         vendor_id: v.vendor_id || "unknown",
         vendor_name: v.vendor_name || "Unknown Vendor",
+        not_due: Number(v.not_due || 0),
         current: Number(v.current || 0),
-        days_1_30: Number(v.days_1_30 || 0),
-        days_31_60: Number(v.days_31_60 || 0),
-        days_61_90: Number(v.days_61_90 || 0),
-        over_90: Number(v.over_90 || 0),
+        days30: Number(v.days30 || 0),
+        days60: Number(v.days60 || 0),
+        days90: Number(v.days90 || 0),
         total: Number(v.total || 0),
+
         bills: (v.bills || []).map((b: any) => ({
           id: b.id,
           bill_number: b.bill_number || b.id?.slice(0, 8),
@@ -131,45 +135,45 @@ export default function AgedPayables() {
   const totals = useMemo(() => {
     return filteredData.reduce(
       (acc, row) => ({
+        not_due: acc.not_due + row.not_due,
         current: acc.current + row.current,
-        days_1_30: acc.days_1_30 + row.days_1_30,
-        days_31_60: acc.days_31_60 + row.days_31_60,
-        days_61_90: acc.days_61_90 + row.days_61_90,
-        over_90: acc.over_90 + row.over_90,
+        days30: acc.days30 + row.days30,
+        days60: acc.days60 + row.days60,
+        days90: acc.days90 + row.days90,
         total: acc.total + row.total,
       }),
-      { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0, total: 0 }
+      { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 }
     );
   }, [filteredData]);
 
   const getExportConfig = useCallback((): ExportConfig => {
     const cols: ExportColumn[] = [
       { key: "vendor", header: "Vendor", width: 22 },
-      { key: "current", header: "Current", format: "currency", width: 14, align: "right" },
-      { key: "days_1_30", header: "1-30 Days", format: "currency", width: 14, align: "right" },
-      { key: "days_31_60", header: "31-60 Days", format: "currency", width: 14, align: "right" },
-      { key: "days_61_90", header: "61-90 Days", format: "currency", width: 14, align: "right" },
-      { key: "over_90", header: "90+ Days", format: "currency", width: 14, align: "right" },
+      { key: "not_due", header: AGING_BUCKET_LABELS.not_due, format: "currency", width: 14, align: "right" },
+      { key: "current", header: AGING_BUCKET_LABELS.current, format: "currency", width: 14, align: "right" },
+      { key: "days30", header: AGING_BUCKET_LABELS.days30, format: "currency", width: 14, align: "right" },
+      { key: "days60", header: AGING_BUCKET_LABELS.days60, format: "currency", width: 14, align: "right" },
+      { key: "days90", header: AGING_BUCKET_LABELS.days90, format: "currency", width: 14, align: "right" },
       { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
     ];
     const rows = [
       ...filteredData.map((row) => ({
         vendor: row.vendor_name,
+        not_due: row.not_due,
         current: row.current,
-        days_1_30: row.days_1_30,
-        days_31_60: row.days_31_60,
-        days_61_90: row.days_61_90,
-        over_90: row.over_90,
+        days30: row.days30,
+        days60: row.days60,
+        days90: row.days90,
         total: row.total,
         _isGrandTotal: false,
       })),
       {
         vendor: "TOTAL",
+        not_due: totals.not_due,
         current: totals.current,
-        days_1_30: totals.days_1_30,
-        days_31_60: totals.days_31_60,
-        days_61_90: totals.days_61_90,
-        over_90: totals.over_90,
+        days30: totals.days30,
+        days60: totals.days60,
+        days90: totals.days90,
         total: totals.total,
         _isGrandTotal: true,
       },
@@ -185,6 +189,8 @@ export default function AgedPayables() {
       businessId: currentBusiness?.id,
     };
   }, [filteredData, totals, asOfDate, baseCurrency, currentOrg?.id, currentBusiness?.id]);
+
+
 
 
   return (
@@ -212,32 +218,32 @@ export default function AgedPayables() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">Current</p>
-              <p className="text-lg font-bold text-foreground">{formatCurrency(totals.current)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.not_due}</p>
+              <p className="text-lg font-bold text-foreground">{formatCurrency(totals.not_due)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">1-30 Days</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days_1_30)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.current} overdue</p>
+              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.current)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">31-60 Days</p>
-              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days_31_60)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days30}</p>
+              <p className="text-lg font-bold text-accent-foreground">{formatCurrency(totals.days30)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">61-90 Days</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days_61_90)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days60}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days60)}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 pb-3 px-4">
-              <p className="text-xs text-muted-foreground">90+ Days</p>
-              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.over_90)}</p>
+              <p className="text-xs text-muted-foreground">{AGING_BUCKET_LABELS.days90}</p>
+              <p className="text-lg font-bold text-destructive">{formatCurrency(totals.days90)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -247,6 +253,7 @@ export default function AgedPayables() {
             </CardContent>
           </Card>
         </div>
+
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -296,13 +303,14 @@ export default function AgedPayables() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Vendor</TableHead>
-                  <TableHead className="text-right">Current</TableHead>
-                  <TableHead className="text-right">1-30 Days</TableHead>
-                  <TableHead className="text-right">31-60 Days</TableHead>
-                  <TableHead className="text-right">61-90 Days</TableHead>
-                  <TableHead className="text-right">90+ Days</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days60}</TableHead>
+                  <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                 </TableRow>
+
               </TableHeader>
               <TableBody>
                 {filteredData.map((row) => {
@@ -330,20 +338,20 @@ export default function AgedPayables() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
+                        {row.not_due > 0 ? formatCurrency(row.not_due) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {row.current > 0 ? formatCurrency(row.current) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_1_30 > 0 ? formatCurrency(row.days_1_30) : "—"}
+                        {row.days30 > 0 ? formatCurrency(row.days30) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_31_60 > 0 ? formatCurrency(row.days_31_60) : "—"}
+                        {row.days60 > 0 ? formatCurrency(row.days60) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_61_90 > 0 ? formatCurrency(row.days_61_90) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.over_90 > 0 ? (
-                          <span className="text-destructive font-medium">{formatCurrency(row.over_90)}</span>
+                        {row.days90 > 0 ? (
+                          <span className="text-destructive font-medium">{formatCurrency(row.days90)}</span>
                         ) : "—"}
                       </TableCell>
                       <TableCell className="text-right font-bold tabular-nums">
@@ -359,14 +367,14 @@ export default function AgedPayables() {
                         <TableCell className="pl-10 text-xs text-primary">
                           {bill.bill_number}
                           <span className="ml-2 text-muted-foreground">
-                            Due {format(new Date(bill.due_date), "MMM d, yyyy")}
+                            {bill.due_date ? `Due ${format(new Date(bill.due_date), "MMM d, yyyy")}` : "No due date"}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "not_due" ? formatCurrency(bill.balance) : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "current" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "1-30" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "31-60" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "61-90" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "90+" ? <span className="text-destructive">{formatCurrency(bill.balance)}</span> : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days30" ? formatCurrency(bill.balance) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days60" ? formatCurrency(bill.balance) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days90" ? <span className="text-destructive">{formatCurrency(bill.balance)}</span> : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(bill.balance)}</TableCell>
                       </TableRow>
                     ))}
@@ -376,13 +384,14 @@ export default function AgedPayables() {
                 {/* Totals row */}
                 <TableRow className="bg-muted/50 font-bold">
                   <TableCell>Total ({filteredData.length} vendors)</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.not_due)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals.current)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_1_30)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_31_60)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_61_90)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.over_90)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days30)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days60)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days90)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals.total)}</TableCell>
                 </TableRow>
+
               </TableBody>
             </Table>
           </div>

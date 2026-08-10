@@ -218,17 +218,19 @@ export async function fetchContactOpenItemAging(
   side: "ar" | "ap",
   params: {
     orgId: string;
-    contactId: string;
+    /** One contact, or a commercial-partner family (consolidated statements). */
+    contactId: string | string[];
     businessId?: string | null;
     branchId?: string | null;
   },
 ): Promise<AgingBuckets> {
   const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
+  const contactIds = Array.isArray(params.contactId) ? params.contactId : [params.contactId];
   let q = supabase
     .from(view as any)
     .select("document_date, due_date, residual_amount")
     .eq("organization_id", params.orgId)
-    .eq("contact_id", params.contactId)
+    .in("contact_id", contactIds)
     .gt("residual_amount", 0.01);
   if (params.businessId) q = q.eq("business_id", params.businessId);
   if (params.branchId) q = q.eq("branch_id", params.branchId);
@@ -244,12 +246,13 @@ export async function fetchContactOpenItemAging(
   }
 
   if (side === "ar") {
-    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, params.contactId);
+    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds);
     if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
   }
 
   return buckets;
 }
+
 
 /**
  * Unapplied customer credit (advance receipts / unapplied credit notes) for an
@@ -260,7 +263,7 @@ export async function fetchContactOpenItemAging(
 export async function fetchUnappliedCustomerCredit(
   orgId: string,
   businessId?: string | null,
-  contactId?: string | null,
+  contactId?: string | string[] | null,
 ): Promise<number> {
   let q = supabase
     .from("customer_credit_balances" as any)
@@ -268,7 +271,13 @@ export async function fetchUnappliedCustomerCredit(
     .eq("organization_id", orgId)
     .gt("balance", 0.01);
   if (businessId) q = q.eq("business_id", businessId);
-  if (contactId) q = q.eq("contact_id", contactId);
+  if (Array.isArray(contactId)) {
+    if (contactId.length === 0) return 0;
+    q = q.in("contact_id", contactId);
+  } else if (contactId) {
+    q = q.eq("contact_id", contactId);
+  }
+
   const { data, error } = await q;
   if (error) return 0;
   return ((data || []) as any[]).reduce((sum, r) => sum + (Number(r.balance) || 0), 0);
