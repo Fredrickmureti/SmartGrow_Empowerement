@@ -83,16 +83,25 @@ export default function Collections() {
   const { data, isLoading } = useAgingReport({ reportType: "ar" });
   const { data: delivery } = useStatementDeliveryStatus();
   const { data: currencyPositions } = useNetPositionByCurrency();
+  const { assignments, members, currentUserId, assign, unassign } = useCollectorAssignments();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [payContactId, setPayContactId] = useState<string | null>(null);
+  const [myAccountsOnly, setMyAccountsOnly] = useState(false);
+  const [assignDialogContact, setAssignDialogContact] = useState<string | null>(null);
 
   const contacts = useMemo(() => {
-    const rows = (data?.contacts ?? []).filter((c) => filterByBucket(c, bucket));
+    let rows = (data?.contacts ?? []).filter((c) => filterByBucket(c, bucket));
+    // "My accounts" — only contacts assigned to the current user.
+    if (myAccountsOnly && currentUserId) {
+      rows = rows.filter(
+        (c) => assignments[c.contact_id]?.collectorUserId === currentUserId,
+      );
+    }
     const term = search.trim().toLowerCase();
-    return term
+    rows = term
       ? rows.filter(
           (c) =>
             c.contact_name?.toLowerCase().includes(term) ||
@@ -100,7 +109,8 @@ export default function Collections() {
             c.email?.toLowerCase().includes(term),
         )
       : rows;
-  }, [data, bucket, search]);
+    return rows;
+  }, [data, bucket, search, myAccountsOnly, currentUserId, assignments]);
 
   const summary = data?.summary;
   // Net AR position: open residuals less unapplied customer credit (the aging
