@@ -41,22 +41,34 @@ export interface ExpenseCategoryData {
   expenseGrowth: number;
 }
 
+/**
+ * Bucket fields use the canonical AR/AP aging vocabulary owned by SQL
+ * (see `src/services/finance/aging.ts`):
+ *   notDue = not yet due, current = 0-30 past due, days30 = 31-60,
+ *   days60 = 61-90, days90 = 90+.
+ * `totalOverdue` is every bucket except `notDue` — anything past due.
+ */
 export interface ReceivablesData {
   totalReceivables: number;
+  notDue: number;
   current: number;
-  overdue30: number;
-  overdue60: number;
-  overdue90: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  totalOverdue: number;
   topDebtors: { name: string; amount: number; daysOverdue: number }[];
 }
 
 export interface PayablesData {
   totalPayables: number;
+  notDue: number;
   current: number;
-  overdue30: number;
-  overdue60: number;
-  overdue90: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  totalOverdue: number;
 }
+
 
 export interface DashboardAnalytics {
   salesSummary: SalesSummary;
