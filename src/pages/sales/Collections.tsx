@@ -266,6 +266,14 @@ export default function Collections() {
                               <div className="text-xs text-muted-foreground">{c.company}</div>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <CollectorCell
+                              contactId={c.contact_id}
+                              assignment={assignment}
+                              onAssign={() => setAssignDialogContact(c.contact_id)}
+                              onUnassign={() => unassign(c.contact_id)}
+                            />
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCurrency(c.buckets.not_due ?? 0)}
                           </TableCell>
