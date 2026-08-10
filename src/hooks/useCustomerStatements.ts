@@ -247,6 +247,9 @@ export function useCustomerStatements() {
       contactId: contactIds,
       businessId: currentBusiness.id,
       branchId,
+      // Age as of the statement period end, never the browser clock, so a
+      // reprint of a closed period reproduces the original buckets.
+      asOf: input.period_end,
     });
 
 
@@ -275,41 +278,44 @@ export function useCustomerStatements() {
   };
 
 
-  // Save statement record
+  // Save statement record.
+  //
+  // Idempotent by (business, branch, contact, period): the server writer
+  // `upsert_customer_statement_atomic` owns the row, backed by a unique
+  // index. A double click, two tabs, or a retried bulk run refresh the same
+  // snapshot instead of creating duplicate statements (and duplicate sends).
   const saveStatement = useMutation({
     mutationFn: async (data: CustomerStatementData) => {
       if (!organizationId) throw new Error("No organization selected");
       if (!currentBusiness?.id) throw new Error("No business selected");
 
-      const { data: userData } = await supabase.auth.getUser();
-
-      const { data: statement, error } = await supabase
-        .from("customer_statements")
-        .insert({
-          organization_id: organizationId,
-          business_id: currentBusiness.id,
-          // Phase 5: stamp branch on the audit row so a branch user's
-          // saved statements never bleed into HQ / sibling-branch lists.
-          branch_id: data.branch_id ?? branchId ?? null,
-          contact_id: data.contact.id,
-          statement_date: new Date().toISOString().split('T')[0],
-          period_start: data.periodStart,
-          period_end: data.periodEnd,
-          opening_balance: data.openingBalance,
-          total_invoiced: data.transactions
-            .filter(t => t.type === 'invoice')
-            .reduce((sum, t) => sum + t.debit, 0),
-          total_payments: data.transactions
-            .filter(t => t.type === 'payment' || t.type === 'credit_note')
-            .reduce((sum, t) => sum + t.credit, 0),
-          closing_balance: data.closingBalance,
-          created_by: userData?.user?.id,
-        })
-        .select()
-        .single();
+      const { data: statement, error } = await (supabase as any).rpc(
+        "upsert_customer_statement_atomic",
+        {
+          _payload: {
+            organization_id: organizationId,
+            business_id: currentBusiness.id,
+            // Phase 5: stamp branch on the audit row so a branch user's
+            // saved statements never bleed into HQ / sibling-branch lists.
+            branch_id: data.branch_id ?? branchId ?? null,
+            contact_id: data.contact.id,
+            statement_date: new Date().toISOString().split('T')[0],
+            period_start: data.periodStart,
+            period_end: data.periodEnd,
+            opening_balance: data.openingBalance,
+            total_invoiced: data.transactions
+              .filter(t => t.type === 'invoice')
+              .reduce((sum, t) => sum + t.debit, 0),
+            total_payments: data.transactions
+              .filter(t => t.type === 'payment' || t.type === 'credit_note')
+              .reduce((sum, t) => sum + t.credit, 0),
+            closing_balance: data.closingBalance,
+          },
+        },
+      );
 
       if (error) throw error;
-      return statement;
+      return statement as CustomerStatement;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer-statements"] });

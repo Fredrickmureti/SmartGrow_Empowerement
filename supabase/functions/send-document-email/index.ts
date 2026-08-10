@@ -982,21 +982,10 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("id", resolvedDocumentId);
     }
 
-    // For invoices, also log to invoice_activities
-    if (documentType === "invoice") {
-      await supabaseClient.from("invoice_activities").insert({
-        invoice_id: resolvedDocumentId,
-        organization_id: document.organization_id,
-        action: "email_sent",
-        performed_by: user.id,
-        details: { 
-          recipient: recipientEmail, 
-          subject: emailSubject, 
-          had_attachment: attachments.length > 0,
-          auto_generated_pdf: autoGeneratePdf || false,
-        },
-      });
-    }
+    // NOTE: there is exactly one email/activity ledger — `document_emails`
+    // (written above) plus `audit_logs`. The legacy write-only
+    // `invoice_activities` mirror was retired; do not reintroduce a
+    // per-document-type activity table.
 
     return new Response(
       JSON.stringify({ 

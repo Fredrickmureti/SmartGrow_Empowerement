@@ -172,9 +172,6 @@ export const BUSINESS_SCOPED_TABLES = [
   "sms_templates",
   "sms_event_rules",
   "sms_opt_outs",
-  "invoice_reminders",
-  "invoice_emails",
-  "invoice_activities",
   "organization_api_integrations",
   // AR/AP supporting
   "vendor_credit_note_applications",

@@ -22916,89 +22916,6 @@ export type Database = {
           },
         ]
       }
-      invoice_activities: {
-        Row: {
-          action: string
-          business_id: string | null
-          created_at: string
-          details: Json | null
-          id: string
-          invoice_id: string
-          organization_id: string
-          performed_by: string | null
-        }
-        Insert: {
-          action: string
-          business_id?: string | null
-          created_at?: string
-          details?: Json | null
-          id?: string
-          invoice_id: string
-          organization_id: string
-          performed_by?: string | null
-        }
-        Update: {
-          action?: string
-          business_id?: string | null
-          created_at?: string
-          details?: Json | null
-          id?: string
-          invoice_id?: string
-          organization_id?: string
-          performed_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_activities_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "invoice_activities_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       invoice_additional_costs: {
         Row: {
           amount: number
@@ -23039,95 +22956,6 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_emails: {
-        Row: {
-          business_id: string | null
-          error_message: string | null
-          id: string
-          invoice_id: string
-          organization_id: string
-          recipient_email: string
-          sent_at: string
-          sent_by: string | null
-          status: string
-          subject: string
-        }
-        Insert: {
-          business_id?: string | null
-          error_message?: string | null
-          id?: string
-          invoice_id: string
-          organization_id: string
-          recipient_email: string
-          sent_at?: string
-          sent_by?: string | null
-          status?: string
-          subject: string
-        }
-        Update: {
-          business_id?: string | null
-          error_message?: string | null
-          id?: string
-          invoice_id?: string
-          organization_id?: string
-          recipient_email?: string
-          sent_at?: string
-          sent_by?: string | null
-          status?: string
-          subject?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_emails_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "invoice_emails_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -23331,95 +23159,6 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "project_tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      invoice_reminders: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          id: string
-          invoice_id: string
-          organization_id: string
-          reminder_type: string
-          scheduled_at: string
-          sent_at: string | null
-          status: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          invoice_id: string
-          organization_id: string
-          reminder_type?: string
-          scheduled_at: string
-          sent_at?: string | null
-          status?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          invoice_id?: string
-          organization_id?: string
-          reminder_type?: string
-          scheduled_at?: string
-          sent_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_reminders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "invoice_reminders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -96565,6 +96304,34 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      upsert_customer_statement_atomic: {
+        Args: { _payload: Json }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          closing_balance: number
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          opening_balance: number
+          organization_id: string
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          sent_at: string | null
+          sent_to: string | null
+          statement_date: string
+          total_invoiced: number
+          total_payments: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "customer_statements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       upsert_notification_alert_settings: {
         Args: {
