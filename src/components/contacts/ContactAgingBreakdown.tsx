@@ -77,14 +77,15 @@ export function ContactAgingBreakdown({ contactId, contactType }: Props) {
   if (!hasData) return null;
 
   const renderBuckets = (buckets: AgingBuckets, label: string) => {
-    if (buckets.total <= 0) return null;
+    if (Math.abs(buckets.total) <= 0.01) return null;
     const items = [
-      { label: "Current", amount: buckets.current, color: "bg-emerald-500" },
-      { label: "1-30", amount: buckets.days30, color: "bg-yellow-500" },
-      { label: "31-60", amount: buckets.days60, color: "bg-orange-500" },
-      { label: "61-90", amount: buckets.days90, color: "bg-red-500" },
-      { label: "90+", amount: buckets.days120, color: "bg-red-700" },
+      { label: AGING_BUCKET_SHORT_LABELS.not_due, amount: buckets.not_due, color: "bg-emerald-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.current, amount: buckets.current, color: "bg-yellow-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days30, amount: buckets.days30, color: "bg-orange-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days60, amount: buckets.days60, color: "bg-red-500" },
+      { label: AGING_BUCKET_SHORT_LABELS.days90, amount: buckets.days90, color: "bg-red-700" },
     ];
+
 
     return (
       <div className="space-y-2">
