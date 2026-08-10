@@ -124,6 +124,12 @@ export default function RequisitionListPage() {
             <option value="draft">Draft</option>
             <option value="submitted">Submitted</option>
             <option value="approved">Approved</option>
+            <option value="sourcing">Sourcing</option>
+            <option value="partially_procured">Partially procured</option>
+            <option value="procured">Procured</option>
+            <option value="ordered">Ordered</option>
+            <option value="partially_fulfilled">Partially fulfilled</option>
+            <option value="fulfilled">Fulfilled</option>
             <option value="rejected">Rejected</option>
             <option value="cancelled">Cancelled</option>
             <option value="closed">Closed</option>
