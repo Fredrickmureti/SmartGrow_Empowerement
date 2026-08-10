@@ -50,19 +50,19 @@ export function drawSummaryBlock(
   const itemWidth = contentWidth / items.length;
   // Reserve a small gutter so adjacent values don't touch.
   const slotWidth = itemWidth - 8;
-  const MIN_VALUE_FONT = 6;
+  const MIN_VALUE_FONT = t.minNumericFontSize;
 
   let sx = margin;
   for (const item of items) {
     page.drawText(item.label, {
       x: sx, y: builder.y,
-      size: theme.size.summaryLabel, font: fontRegular, color: theme.color.medGray,
+      size: t.size.summaryLabel, font: fontRegular, color: theme.color.medGray,
     });
 
     // Accountant safety: never truncate a monetary value. If it doesn't
     // fit the slot at the default font size, shrink the font down to
     // MIN_VALUE_FONT so every digit remains visible.
-    let valueSize = theme.size.summaryValue;
+    let valueSize = t.size.summaryValue;
     while (
       fontBold.widthOfTextAtSize(item.value, valueSize) > slotWidth &&
       valueSize > MIN_VALUE_FONT
