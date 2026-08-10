@@ -36,15 +36,17 @@ const DOC_ICON: Record<string, any> = {
   deposit: Wallet,
   credit_note: StickyNote,
   refund: RotateCcw,
+  payment_reversal: Undo2,
+  journal: BookOpen,
 };
 
-const DOC_LABEL: Record<string, string> = {
-  invoice: "Invoice",
-  payment: "Payment",
-  deposit: "Customer Deposit",
-  credit_note: "Credit Note",
-  refund: "Refund",
-};
+/**
+ * Labels come from the canonical statement vocabulary so the ledger page and
+ * the printed statement can never describe the same row differently.
+ */
+function docLabel(docType: string): string {
+  return describeLedgerDoc(docType, "").trim() || docType;
+}
 
 function useContact(contactId?: string) {
   return useQuery({
