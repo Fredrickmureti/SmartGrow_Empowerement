@@ -83,8 +83,53 @@ export default function CustomerLedgerPage() {
   const navigate = useNavigate();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // The range is owned by the URL so an inbound link (collections, statements,
+  // dashboards) can hand over the window it was showing, and so the page can be
+  // shared/refreshed without losing the period being read.
+  const urlFrom = searchParams.get("from") ?? "";
+  const urlTo = searchParams.get("to") ?? "";
+  const urlPreset = searchParams.get("period") as DateRangePresetKey | null;
+
+  const initialPreset: DateRangePresetKey =
+    urlPreset && DATE_RANGE_PRESETS.some((p) => p.key === urlPreset)
+      ? urlPreset
+      : matchDateRangePreset({ from: urlFrom, to: urlTo });
+
+  const [preset, setPreset] = useState<DateRangePresetKey>(initialPreset);
+  const initialRange =
+    urlFrom || urlTo
+      ? { from: urlFrom, to: urlTo }
+      : resolveDateRangePreset(initialPreset);
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
+
+  // Keep the URL in step with the active window (replace, so Back still leaves
+  // the page rather than walking the filter history).
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (dateFrom) next.set("from", dateFrom);
+    else next.delete("from");
+    if (dateTo) next.set("to", dateTo);
+    else next.delete("to");
+    next.set("period", preset);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, preset]);
+
+  const applyPreset = (key: DateRangePresetKey) => {
+    setPreset(key);
+    if (key === "custom") return; // keep whatever dates are already typed
+    const range = resolveDateRangePreset(key);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
+
+  const rangeLabel = describeDateRange({ from: dateFrom, to: dateTo });
+
 
   const { data: contact } = useContact(id);
   const { entries, outstandingBalance, isLoading } = useCustomerLedger({
