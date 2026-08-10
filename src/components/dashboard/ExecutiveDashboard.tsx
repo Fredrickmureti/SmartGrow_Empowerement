@@ -172,11 +172,8 @@ export function ExecutiveDashboard() {
             <AIInsightsWidget />
             <AISuggestionsWidget
               pendingInvoices={stats.outstandingCount}
-              overdueAmount={
-                (analytics?.receivables?.overdue30 || 0) +
-                (analytics?.receivables?.overdue60 || 0) +
-                (analytics?.receivables?.overdue90 || 0)
-              }
+              overdueAmount={analytics?.receivables?.totalOverdue || 0}
+
             />
           </div>
         </TabsContent>
