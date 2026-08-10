@@ -180,10 +180,10 @@ export function buildPurchasesRequisitionSnapshot(
 }
 
 /**
- * `requester_id` / `actor_user_id` reference `auth.users`, so there is no
- * embeddable FK — the same follow-up hydration the workbench does.
- * Likewise `project_id` and the destination ids carry no declared FK, so
- * they are resolved in a second round-trip rather than embedded.
+ * `purchase_requisitions` and its children carry NO declared foreign keys,
+ * so PostgREST cannot embed anything (`Could not find a relationship
+ * between 'purchase_requisitions' and 'businesses'`). Every related row is
+ * therefore fetched explicitly.
  */
 export async function fetchAndBuildPurchasesRequisitionSnapshot(
   supabase: SupabaseClient,
@@ -197,18 +197,7 @@ export async function fetchAndBuildPurchasesRequisitionSnapshot(
       id, requisition_number, status, version, created_at, submitted_at,
       need_by_date, cost_center, justification, notes, priority, currency,
       requester_id, project_id, destination_branch_id, destination_warehouse_id,
-      organization_id, business_id, branch_id,
-      business:businesses(name, base_currency),
-      analytic:analytic_accounts!analytic_account_id(name),
-      items:purchase_requisition_items(
-        description, quantity, quantity_ordered, quantity_cancelled,
-        quantity_received, need_by_date, sort_order,
-        product:products(sku),
-        uom:units_of_measure!uom_id(code)
-      ),
-      approvals:purchase_requisition_approvals(
-        step_order, actor_user_id, decision, comment, created_at
-      )
+      analytic_account_id, organization_id, business_id, branch_id
       `,
     )
     .eq("id", requisitionId)
@@ -222,7 +211,77 @@ export async function fetchAndBuildPurchasesRequisitionSnapshot(
     );
   }
 
-  const row = data as Record<string, unknown>;
+  const header = data as Record<string, unknown>;
+
+  const [itemsRes, approvalsRes, businessRes, analyticRes] = await Promise.all([
+    (client as any)
+      .from("purchase_requisition_items")
+      .select(
+        "description, quantity, quantity_ordered, quantity_cancelled, quantity_received, need_by_date, sort_order, product_id, uom_id",
+      )
+      .eq("requisition_id", requisitionId),
+    (client as any)
+      .from("purchase_requisition_approvals")
+      .select("step_order, actor_user_id, decision, comment, created_at")
+      .eq("requisition_id", requisitionId),
+    header["business_id"]
+      ? (client as any)
+          .from("businesses")
+          .select("name, base_currency")
+          .eq("id", header["business_id"] as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    header["analytic_account_id"]
+      ? (client as any)
+          .from("analytic_accounts")
+          .select("name")
+          .eq("id", header["analytic_account_id"] as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const rawItems = (itemsRes?.data ?? []) as Array<Record<string, unknown>>;
+  const productIds = Array.from(
+    new Set(rawItems.map((i) => i["product_id"]).filter((v): v is string => Boolean(v))),
+  );
+  const uomIds = Array.from(
+    new Set(rawItems.map((i) => i["uom_id"]).filter((v): v is string => Boolean(v))),
+  );
+
+  const [productsRes, uomsRes] = await Promise.all([
+    productIds.length
+      ? (client as any).from("products").select("id, sku").in("id", productIds)
+      : Promise.resolve({ data: [] }),
+    uomIds.length
+      ? (client as any).from("units_of_measure").select("id, code").in("id", uomIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const skuById = new Map<string, string | null>(
+    ((productsRes?.data ?? []) as Array<Record<string, unknown>>).map((p) => [
+      p["id"] as string,
+      (p["sku"] as string) ?? null,
+    ]),
+  );
+  const uomById = new Map<string, string | null>(
+    ((uomsRes?.data ?? []) as Array<Record<string, unknown>>).map((u) => [
+      u["id"] as string,
+      (u["code"] as string) ?? null,
+    ]),
+  );
+
+  const row: Record<string, unknown> = {
+    ...header,
+    business: businessRes?.data ?? null,
+    analytic: analyticRes?.data ?? null,
+    approvals: approvalsRes?.data ?? [],
+    items: rawItems.map((i) => ({
+      ...i,
+      product: i["product_id"] ? { sku: skuById.get(i["product_id"] as string) ?? null } : null,
+      uom: i["uom_id"] ? { code: uomById.get(i["uom_id"] as string) ?? null } : null,
+    })),
+  };
+
 
   // Actor / requester display names.
   const userIds = Array.from(
