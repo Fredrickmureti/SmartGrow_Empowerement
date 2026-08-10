@@ -2345,6 +2345,80 @@ export type Database = {
           },
         ]
       }
+      ar_disputes: {
+        Row: {
+          amount_disputed: number
+          base_amount_disputed: number
+          branch_id: string | null
+          business_id: string
+          client_request_id: string | null
+          contact_id: string
+          created_at: string
+          currency: string
+          dispute_type: string
+          document_id: string | null
+          id: string
+          organization_id: string
+          raised_by: string | null
+          reason: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount_disputed?: number
+          base_amount_disputed?: number
+          branch_id?: string | null
+          business_id: string
+          client_request_id?: string | null
+          contact_id: string
+          created_at?: string
+          currency?: string
+          dispute_type?: string
+          document_id?: string | null
+          id?: string
+          organization_id: string
+          raised_by?: string | null
+          reason?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount_disputed?: number
+          base_amount_disputed?: number
+          branch_id?: string | null
+          business_id?: string
+          client_request_id?: string | null
+          contact_id?: string
+          created_at?: string
+          currency?: string
+          dispute_type?: string
+          document_id?: string | null
+          id?: string
+          organization_id?: string
+          raised_by?: string | null
+          reason?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_disputes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ar_promises_to_pay: {
         Row: {
           base_promised_amount: number
@@ -93638,6 +93712,20 @@ export type Database = {
         Returns: number
       }
       purge_scan_events: { Args: never; Returns: undefined }
+      raise_ar_dispute: {
+        Args: {
+          _amount_disputed: number
+          _branch_id?: string
+          _business_id: string
+          _client_request_id?: string
+          _contact_id: string
+          _currency?: string
+          _dispute_type?: string
+          _document_id?: string
+          _reason?: string
+        }
+        Returns: string
+      }
       raise_label_demand: {
         Args: {
           p_branch_id?: string
@@ -94840,6 +94928,14 @@ export type Database = {
           p_warehouse_id: string
         }
         Returns: number
+      }
+      resolve_ar_dispute: {
+        Args: {
+          _dispute_id: string
+          _resolution_note?: string
+          _status: Database["public"]["Enums"]["ar_dispute_status"]
+        }
+        Returns: undefined
       }
       resolve_branch_scoped: {
         Args: { _branch_id: string; _business_id: string; _table_name: string }
@@ -99503,6 +99599,7 @@ export type Database = {
         | "hired"
         | "rejected"
         | "withdrawn"
+      ar_dispute_status: "open" | "resolved" | "rejected"
       ar_promise_status: "open" | "kept" | "broken" | "cancelled"
       bill_match_exception_state:
         | "none"
@@ -100651,6 +100748,7 @@ export const Constants = {
         "rejected",
         "withdrawn",
       ],
+      ar_dispute_status: ["open", "resolved", "rejected"],
       ar_promise_status: ["open", "kept", "broken", "cancelled"],
       bill_match_exception_state: [
         "none",
