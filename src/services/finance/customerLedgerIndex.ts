@@ -7,6 +7,7 @@
  * balances of its own.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { CUSTOMER_IDENTITY_OR_FILTER } from "./customerIdentity";
 
 export interface CustomerLedgerIndexRow {
   contactId: string;
