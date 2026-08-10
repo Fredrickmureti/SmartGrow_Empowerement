@@ -56590,6 +56590,79 @@ export type Database = {
           },
         ]
       }
+      rfq_quotation_attachments: {
+        Row: {
+          attachment_kind: string
+          business_id: string
+          carried_forward_from: string | null
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          quotation_id: string
+          rfq_id: string
+          supplier_id: string
+          uploaded_by: string | null
+          uploaded_via: string
+        }
+        Insert: {
+          attachment_kind?: string
+          business_id: string
+          carried_forward_from?: string | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          quotation_id: string
+          rfq_id: string
+          supplier_id: string
+          uploaded_by?: string | null
+          uploaded_via?: string
+        }
+        Update: {
+          attachment_kind?: string
+          business_id?: string
+          carried_forward_from?: string | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          quotation_id?: string
+          rfq_id?: string
+          supplier_id?: string
+          uploaded_by?: string | null
+          uploaded_via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_quotation_attachments_carried_forward_from_fkey"
+            columns: ["carried_forward_from"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotation_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_attachments_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_attachments_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfq_quotation_items: {
         Row: {
           alternate_product_id: string | null
@@ -96087,6 +96160,17 @@ export type Database = {
         Returns: number
       }
       rfq_approve: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_attach_quotation_document: {
+        Args: {
+          _file_name: string
+          _file_path: string
+          _file_size?: number
+          _kind?: string
+          _mime_type?: string
+          _quotation_id: string
+        }
+        Returns: string
+      }
       rfq_award: {
         Args: { _awards: Json; _justification: string; _rfq_id: string }
         Returns: Json
@@ -96124,6 +96208,10 @@ export type Database = {
         Returns: Json
       }
       rfq_release: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_remove_quotation_attachment: {
+        Args: { _attachment_id: string }
+        Returns: boolean
+      }
       rfq_revise: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
       rfq_submit_for_approval: { Args: { _rfq_id: string }; Returns: Json }
       rfq_withdraw_quotation: {
