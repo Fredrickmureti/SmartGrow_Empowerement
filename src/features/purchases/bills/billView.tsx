@@ -14,6 +14,8 @@ import type {
 } from "@/design-system/records";
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { BillMatchPanel } from "./BillMatchPanel";
+
 import type { Bill } from "@/hooks/useBills";
 import { useBillRecord } from "./useBillRecord";
 
