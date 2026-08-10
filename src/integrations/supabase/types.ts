@@ -96200,6 +96200,10 @@ export type Database = {
       rfq_belongs_to_user_org: { Args: { _rfq_id: string }; Returns: boolean }
       rfq_cancel: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
       rfq_convert_awards_to_po: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_ensure_document_record: {
+        Args: { _rfq_id: string; _supplier_id?: string }
+        Returns: string
+      }
       rfq_expire_due: { Args: { _business_id: string }; Returns: number }
       rfq_expire_due_all: { Args: never; Returns: number }
       rfq_invitation_record_delivery: {
