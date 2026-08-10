@@ -59,6 +59,7 @@ import {
   useStatementDeliveryStatus,
   type StatementDelivery,
 } from "@/hooks/useStatementDeliveryStatus";
+import type { CollectorAssignment } from "@/services/finance/collectorAssignments";
 import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
 import type { CurrencyNetPositionRow } from "@/services/finance/openItems";
