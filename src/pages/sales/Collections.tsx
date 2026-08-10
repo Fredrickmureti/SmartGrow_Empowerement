@@ -330,7 +330,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={9} className="py-3">
+                            <TableCell colSpan={10} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
