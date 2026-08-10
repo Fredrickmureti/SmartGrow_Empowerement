@@ -743,6 +743,16 @@ const handler = async (req: Request): Promise<Response> => {
     const senderIdentity =
       document.business?.legal_name || document.business?.name || "Your Provider";
     const emailSubject = subject || `${docLabel} ${docNumber} from ${senderIdentity}`;
+    failureAudit = {
+      client: supabaseClient,
+      organization_id: document.organization_id,
+      business_id: document.business_id ?? null,
+      document_type: documentType,
+      document_id: resolvedDocumentId,
+      recipient_email: recipientEmail,
+      subject: emailSubject,
+      sent_by: user.id,
+    };
     const emailHtml = generateEmailHtml(
       document,
       documentType,
