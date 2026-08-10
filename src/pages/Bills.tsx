@@ -557,6 +557,8 @@ export default function Bills() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       draft: "secondary",
+      submitted: "outline",
+      approved: "outline",
       received: "default",
       partial: "outline",
       paid: "default",
@@ -564,13 +566,60 @@ export default function Bills() {
       void: "secondary",
     };
     const colors: Record<string, string> = { paid: "bg-green-500", overdue: "bg-red-500" };
-    return <Badge variant={variants[status]} className={colors[status]}>{status}</Badge>;
+    const labels: Record<string, string> = { submitted: "awaiting approval", received: "posted" };
+    return <Badge variant={variants[status]} className={colors[status]}>{labels[status] ?? status}</Badge>;
   };
 
+  // Document-count totals stay client-side (they describe the filtered list).
+  // Money figures come from `get_ap_summary` — the canonical AP projection —
+  // so credit notes, vendor advances and multi-currency are reflected and
+  // pre-posting states (draft/submitted/approved) are excluded.
   const totals = {
     total: filteredBills.reduce((sum, b) => sum + b.total, 0),
-    outstanding: filteredBills.filter((b) => ["received", "partial", "overdue"].includes(b.status)).reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
-    overdue: filteredBills.filter((b) => b.status === "overdue").reduce((sum, b) => sum + (b.total - (b.amount_paid || 0)), 0),
+    outstanding: apSummary.totalOutstanding,
+    overdue: apSummary.totalOverdue,
+  };
+
+  const pendingApprovalCount = filteredBills.filter(
+    (b) => b.status === "submitted" || b.status === "approved"
+  ).length;
+
+  const handleSubmitForApproval = async (id: string) => {
+    try {
+      await submitBillForApproval(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handleApproveBill = async (id: string) => {
+    try {
+      await approveBill(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handleRejectBill = async (id: string) => {
+    const reason = window.prompt("Reason for rejecting this bill?");
+    if (!reason?.trim()) return;
+    try {
+      await rejectBill(id, reason);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
+  };
+
+  const handlePostBill = async (id: string) => {
+    try {
+      await confirmBill(id);
+      await Promise.all([refreshBills(), refreshApSummary()]);
+    } catch {
+      /* toast already surfaced by the hook */
+    }
   };
 
 
