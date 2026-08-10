@@ -13,6 +13,7 @@ views — never from document status, never re-derived in app code.
 | 6 | Credit-netting consolidation: `finance_ar_customer_credit` + `finance_ar_net_position`; all consumers repointed | `aging-single-source.test.ts` (6/6) |
 | 7 | Statement delivery reliability: canonical cohort, durable queue, delivery badges | `statement-delivery-durability.test.ts` (4/4) |
 | 8 | Per-currency presentation & FX policy for credit: `to_base_amount()` function, `finance_ar_customer_credit` FX-converted, `finance_ar_net_position_by_currency` view, Collections per-currency breakdown | `credit-fx-policy.test.ts` (3/3) |
+| 9 | Collector assignment: `collector_assignments` table + RLS, `upsert`/`deactivate` RPCs (single-active per contact), `fetch_collector_assignments_with_names`/`fetch_org_members` RPCs, service + hook, Collections UI collector column + assign dialog + "My accounts" filter | `collector-assignment.test.ts` (7/7) |
 
 ## Remaining roadmap (in order — no deferral)
 
