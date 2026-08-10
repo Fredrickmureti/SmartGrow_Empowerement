@@ -10,20 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Clock, Loader2 } from "lucide-react";
 import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import { AGING_BUCKET_SHORT_LABELS, type AgingBuckets } from "@/services/finance/aging";
 
 interface Props {
   contactId: string;
   contactType: string;
 }
 
-interface AgingBuckets {
-  current: number;
-  days30: number;
-  days60: number;
-  days90: number;
-  days120: number;
-  total: number;
-}
 
 export function ContactAgingBreakdown({ contactId, contactType }: Props) {
   const { currentOrg } = useOrganization();
