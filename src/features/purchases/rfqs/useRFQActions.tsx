@@ -192,5 +192,5 @@ export function useRFQActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rfq, navigate, onAward]);
+  }, [rfq, navigate, onAward, governanceMode]);
 }
