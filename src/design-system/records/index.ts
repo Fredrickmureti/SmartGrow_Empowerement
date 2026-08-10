@@ -40,6 +40,14 @@ export type {
   DocumentAttachment,
 } from "./panels";
 export { usePeekParam } from "./usePeekParam";
+
+// One action vocabulary per document — row menu and record header share it.
+export {
+  DocumentActionsBar,
+  DocumentActionsMenu,
+  visibleDocumentActions,
+} from "./DocumentActions";
+export type { DocumentAction } from "./DocumentActions";
 export { useDocumentRecord } from "./useDocumentRecord";
 export { useDocumentActivity } from "./useDocumentActivity";
 
