@@ -105,6 +105,7 @@ export function useRFQView(
       { id: "qty", header: "Qty", numeric: true, priority: 1, minWidth: 70, compactLabel: "Qty" },
       { id: "target", header: "Target price", numeric: true, priority: 2, minWidth: 120 },
       { id: "best", header: "Best quote", numeric: true, priority: 2, minWidth: 120 },
+      { id: "alternates", header: "Alternates", priority: 3, minWidth: 160 },
       { id: "awarded", header: "Awarded", priority: 3, minWidth: 140 },
     ],
     [],
@@ -117,6 +118,7 @@ export function useRFQView(
     const invitations = rfq?.invitations ?? [];
     const quotes = activeQuotations(rfq);
     const awards = rfq?.awards ?? [];
+    const awardGated = Boolean(rfq?.award_approval_request_id);
 
     const supplierName = (supplierId: string) =>
       invitations.find((i) => i.supplier_id === supplierId)?.supplier?.name ??
@@ -131,6 +133,21 @@ export function useRFQView(
         if (!cur || li.unit_price < cur.price) {
           bestByLine.set(li.rfq_item_id, { price: li.unit_price, supplierId: q.supplier_id });
         }
+      }
+    }
+
+    /**
+     * Suppliers who offered a substitute product instead of the requested
+     * one. Buyers must see this before comparing on price alone — an
+     * alternate is not a like-for-like bid.
+     */
+    const alternatesByLine = new Map<string, string[]>();
+    for (const q of quotes) {
+      for (const li of q.items ?? []) {
+        if (!li.is_alternate) continue;
+        const cur = alternatesByLine.get(li.rfq_item_id) ?? [];
+        cur.push(q.supplier?.name ?? supplierName(q.supplier_id));
+        alternatesByLine.set(li.rfq_item_id, cur);
       }
     }
 
@@ -163,6 +180,10 @@ export function useRFQView(
             content: best
               ? `${formatCurrency(best.price, currency)} · ${supplierName(best.supplierId)}`
               : "—",
+          },
+          {
+            columnId: "alternates",
+            content: (line.id ? alternatesByLine.get(line.id) : undefined)?.join(", ") ?? "—",
           },
           {
             columnId: "awarded",
@@ -387,6 +408,15 @@ export function useRFQView(
 
           {awards.length > 0 && (
             <Section title="Awards">
+              {awardGated && (
+                <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>
+                    This award is awaiting approval. Purchase orders cannot be raised until the
+                    decision is recorded in Approvals.
+                  </span>
+                </div>
+              )}
               <div className="space-y-2">
                 {awards.map((a) => (
                   <div

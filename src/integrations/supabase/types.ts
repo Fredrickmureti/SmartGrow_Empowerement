@@ -56947,6 +56947,7 @@ export type Database = {
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
+          award_approval_request_id: string | null
           award_justification: string | null
           awarded_at: string | null
           awarded_by: string | null
@@ -56984,6 +56985,7 @@ export type Database = {
           approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          award_approval_request_id?: string | null
           award_justification?: string | null
           awarded_at?: string | null
           awarded_by?: string | null
@@ -57021,6 +57023,7 @@ export type Database = {
           approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          award_approval_request_id?: string | null
           award_justification?: string | null
           awarded_at?: string | null
           awarded_by?: string | null
@@ -57055,6 +57058,20 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "rfqs_award_approval_request_id_fkey"
+            columns: ["award_approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_award_approval_request_id_fkey"
+            columns: ["award_approval_request_id"]
+            isOneToOne: false
+            referencedRelation: "reversal_register"
+            referencedColumns: ["approval_request_id"]
+          },
           {
             foreignKeyName: "rfqs_branch_id_fkey"
             columns: ["branch_id"]
@@ -83101,6 +83118,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _rfq_assert_award_decided: {
+        Args: { _rfq_id: string }
+        Returns: undefined
+      }
       _rfq_emit: {
         Args: {
           _actor: string
@@ -83116,6 +83137,7 @@ export type Database = {
           approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
+          award_approval_request_id: string | null
           award_justification: string | null
           awarded_at: string | null
           awarded_by: string | null
@@ -96196,6 +96218,15 @@ export type Database = {
           response_deadline: string
           rfq_number: string
           supplier_id: string
+        }[]
+      }
+      rfq_portal_search_products: {
+        Args: { _invitation_id: string; _limit?: number; _query?: string }
+        Returns: {
+          base_uom_id: string
+          id: string
+          name: string
+          sku: string
         }[]
       }
       rfq_record_quotation: {
