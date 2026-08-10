@@ -80,7 +80,10 @@ async function loadDocument(supabase: SupabaseClient, id: string) {
     organization_id: data.organization_id,
     business_id: data.business_id,
     branch_id: data.branch_id ?? null,
-    number: data.number ?? null,
+    // `document_records` stores the human-facing number in `document_number`.
+    // Reading a non-existent `number` column silently blanked the artifact's
+    // document_number, breaking artifact traceability for every kind.
+    number: data.document_number ?? null,
     date: data.document_date ?? null,
     currency: data.currency ?? null,
     snapshot: (data.snapshot as Record<string, unknown>) ?? {},
