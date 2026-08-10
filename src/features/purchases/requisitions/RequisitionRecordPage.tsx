@@ -4,8 +4,8 @@
  * Aggregates requisition header + lines + approval trail into a
  * `DocumentRecordView` descriptor rendered through `RecordScaffold`.
  * Lifecycle transitions (submit / approve / reject / cancel) invoke the
- * P3 lifecycle RPCs. Self-approval is blocked both in the database
- * (`approve_requisition`) and mirrored by the SoD registry rows.
+ * P3 lifecycle RPCs. Self-action policy is resolved by the central
+ * governance engine according to the workspace mode and overrides.
  */
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
@@ -40,6 +40,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import {
+  describeGovernanceError,
+  parseGovernanceError,
+} from "@/lib/governance/selfActionErrors";
 import {
   Select,
   SelectContent,
@@ -163,10 +167,16 @@ export default function RequisitionRecordPage() {
       toast({ title: ok });
       await refresh();
       return true;
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const governanceError = parseGovernanceError(e);
+      const governed = governanceError
+        ? describeGovernanceError(governanceError)
+        : null;
       toast({
-        title: "Action failed",
-        description: e?.message ?? String(e),
+        title: governed?.title ?? "Action failed",
+        description:
+          governed?.body ??
+          (e instanceof Error ? e.message : String(e)),
         variant: "destructive",
       });
       return false;
@@ -456,7 +466,7 @@ export default function RequisitionRecordPage() {
           <DialogHeader>
             <DialogTitle>Approve requisition</DialogTitle>
             <DialogDescription>
-              Approvers cannot approve their own requisitions (Segregation of Duties).
+              Approval follows this workspace’s governance mode and any action-specific policy.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
