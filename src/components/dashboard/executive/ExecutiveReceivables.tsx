@@ -33,28 +33,36 @@ export function ExecutiveReceivables({
   displayAmount,
   currencySymbol,
 }: ExecutiveReceivablesProps) {
+  // Canonical aging vocabulary (see src/services/finance/aging.ts): the labels
+  // must match the SQL bucket boundaries, not a shifted copy of them.
   const agingData = [
     {
-      bucket: "Current",
+      bucket: "Not yet due",
+      receivables: receivables?.notDue || 0,
+      payables: payables?.notDue || 0,
+    },
+    {
+      bucket: "0-30 days",
       receivables: receivables?.current || 0,
       payables: payables?.current || 0,
     },
     {
-      bucket: "1-30 days",
-      receivables: receivables?.overdue30 || 0,
-      payables: payables?.overdue30 || 0,
-    },
-    {
       bucket: "31-60 days",
-      receivables: receivables?.overdue60 || 0,
-      payables: payables?.overdue60 || 0,
+      receivables: receivables?.days30 || 0,
+      payables: payables?.days30 || 0,
     },
     {
-      bucket: "60+ days",
-      receivables: receivables?.overdue90 || 0,
-      payables: payables?.overdue90 || 0,
+      bucket: "61-90 days",
+      receivables: receivables?.days60 || 0,
+      payables: payables?.days60 || 0,
+    },
+    {
+      bucket: "90+ days",
+      receivables: receivables?.days90 || 0,
+      payables: payables?.days90 || 0,
     },
   ];
+
 
   const hasAgingData = agingData.some(d => d.receivables > 0 || d.payables > 0);
 
