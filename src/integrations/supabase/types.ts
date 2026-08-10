@@ -96566,6 +96566,34 @@ export type Database = {
         }
         Returns: Json
       }
+      upsert_customer_statement_atomic: {
+        Args: { _payload: Json }
+        Returns: {
+          branch_id: string | null
+          business_id: string
+          closing_balance: number
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          opening_balance: number
+          organization_id: string
+          pdf_url: string | null
+          period_end: string
+          period_start: string
+          sent_at: string | null
+          sent_to: string | null
+          statement_date: string
+          total_invoiced: number
+          total_payments: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "customer_statements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       upsert_notification_alert_settings: {
         Args: {
           _business_id: string
