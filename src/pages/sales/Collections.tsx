@@ -97,6 +97,7 @@ export default function Collections() {
   const { data: delivery } = useStatementDeliveryStatus();
   const { data: currencyPositions } = useNetPositionByCurrency();
   const { assignments, members, currentUserId, assign, unassign } = useCollectorAssignments();
+  const { data: dunning } = useDunningAssignments();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
