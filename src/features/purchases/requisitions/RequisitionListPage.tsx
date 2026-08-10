@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRequisitions } from "./useRequisitions";
+import { useRequisitions, type RequisitionRow } from "./useRequisitions";
 
 const STATUS_TONE: Record<
   string,
@@ -67,16 +67,102 @@ function money(n: number | null | undefined, cur?: string | null) {
   })}`.trim();
 }
 
+/**
+ * Operational buckets. A requisition workbench is a work queue, not a status
+ * dump: buyers ask "what needs approving / sourcing / chasing", never "show
+ * me rows whose status column equals `partially_procured`". Each bucket maps
+ * to the server-owned status vocabulary plus outstanding demand, so the UI
+ * never invents a state the database cannot justify.
+ */
+type BucketId =
+  | "action"
+  | "drafts"
+  | "approval"
+  | "sourcing"
+  | "on_order"
+  | "overdue"
+  | "settled"
+  | "all";
+
+const TERMINAL = ["fulfilled", "cancelled", "rejected", "closed"];
+
+function isOverdue(r: RequisitionRow, today: string) {
+  return (
+    !TERMINAL.includes(r.status) &&
+    !!r.need_by_date &&
+    r.need_by_date < today &&
+    (r.outstanding_quantity ?? 0) > 0
+  );
+}
+
+const BUCKETS: {
+  id: BucketId;
+  label: string;
+  hint: string;
+  match: (r: RequisitionRow, today: string) => boolean;
+}[] = [
+  {
+    id: "action",
+    label: "Needs action",
+    hint: "Awaiting approval, or approved with demand nobody has sourced yet.",
+    match: (r) =>
+      r.status === "submitted" ||
+      (r.status === "approved" && (r.outstanding_quantity ?? 0) > 0),
+  },
+  { id: "drafts", label: "Drafts", hint: "Not submitted yet.", match: (r) => r.status === "draft" },
+  {
+    id: "approval",
+    label: "Awaiting approval",
+    hint: "Routed to the approvals inbox.",
+    match: (r) => r.status === "submitted",
+  },
+  {
+    id: "sourcing",
+    label: "In sourcing",
+    hint: "Approved demand being converted into RFQs and purchase orders.",
+    match: (r) => ["approved", "sourcing", "partially_procured"].includes(r.status),
+  },
+  {
+    id: "on_order",
+    label: "On order",
+    hint: "Fully or partly on a purchase order, awaiting receipt.",
+    match: (r) => ["procured", "ordered", "partially_fulfilled"].includes(r.status),
+  },
+  {
+    id: "overdue",
+    label: "Overdue",
+    hint: "Past the need-by date with demand still outstanding.",
+    match: isOverdue,
+  },
+  {
+    id: "settled",
+    label: "Settled",
+    hint: "Fulfilled, short-closed, cancelled or rejected.",
+    match: (r) => TERMINAL.includes(r.status),
+  },
+  { id: "all", label: "All", hint: "Every requisition in this business.", match: () => true },
+];
+
 export default function RequisitionListPage() {
   const navigate = useNavigate();
   const { rows, loading, error, refresh } = useRequisitions();
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
+  const [bucket, setBucket] = useState<BucketId>("action");
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const counts = useMemo(() => {
+    const map = {} as Record<BucketId, number>;
+    for (const b of BUCKETS) map[b.id] = rows.filter((r) => b.match(r, today)).length;
+    return map;
+  }, [rows, today]);
+
+  const active = BUCKETS.find((b) => b.id === bucket) ?? BUCKETS[0];
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (status !== "all" && r.status !== status) return false;
+      if (!active.match(r, today)) return false;
       if (!needle) return true;
       return (
         r.requisition_number?.toLowerCase().includes(needle) ||
@@ -85,7 +171,8 @@ export default function RequisitionListPage() {
         r.requester?.email?.toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, status]);
+  }, [rows, q, active, today]);
+
 
   return (
     <>
@@ -105,6 +192,35 @@ export default function RequisitionListPage() {
         }
       />
       <PageBody>
+        {/* Bucket rail — the buyer's work queue, counts included. */}
+        <div className="flex flex-wrap gap-2">
+          {BUCKETS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              title={b.hint}
+              onClick={() => setBucket(b.id)}
+              className={
+                "rounded-full border px-3 py-1.5 text-sm transition-colors " +
+                (bucket === b.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-background hover:bg-muted")
+              }
+            >
+              {b.label}
+              <span
+                className={
+                  "ml-2 tabular-nums " +
+                  (bucket === b.id ? "opacity-80" : "text-muted-foreground")
+                }
+              >
+                {counts[b.id] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">{active.hint}</p>
+
         <FilterBar>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -115,26 +231,8 @@ export default function RequisitionListPage() {
               className="pl-8"
             />
           </div>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="approved">Approved</option>
-            <option value="sourcing">Sourcing</option>
-            <option value="partially_procured">Partially procured</option>
-            <option value="procured">Procured</option>
-            <option value="ordered">Ordered</option>
-            <option value="partially_fulfilled">Partially fulfilled</option>
-            <option value="fulfilled">Fulfilled</option>
-            <option value="rejected">Rejected</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="closed">Closed</option>
-          </select>
         </FilterBar>
+
 
         {loading ? (
           <LoadingState />
@@ -168,9 +266,12 @@ export default function RequisitionListPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Need by</TableHead>
                   <TableHead className="text-right">Lines</TableHead>
+                  <TableHead className="text-right">Open lines</TableHead>
+                  <TableHead className="text-right">Outstanding qty</TableHead>
                   <TableHead className="text-right">Estimated</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {filtered.map((r) => (
                   <TableRow
@@ -197,10 +298,21 @@ export default function RequisitionListPage() {
                         {fmt(r.status)}
                       </StatusBadge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell
+                      className={
+                        "text-sm " +
+                        (isOverdue(r, today)
+                          ? "font-medium text-destructive"
+                          : "text-muted-foreground")
+                      }
+                    >
                       {r.need_by_date ?? "—"}
                     </TableCell>
                     <TableCell className="text-right text-sm">{r.item_count ?? 0}</TableCell>
+                    <TableCell className="text-right text-sm">{r.open_line_count ?? 0}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">
+                      {r.outstanding_quantity ?? 0}
+                    </TableCell>
                     <TableCell className="text-right text-sm">
                       {money(r.estimated_total, r.currency)}
                     </TableCell>

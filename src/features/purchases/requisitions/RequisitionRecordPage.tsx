@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink } from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Section, StatusBadge } from "@/design-system";
@@ -54,6 +54,8 @@ import {
   amendRequisition,
   cancelRequisition,
   rejectRequisition,
+  requisitionClose,
+  requisitionCloseLine,
   requisitionConvertToPo,
   requisitionCreateRfq,
   submitRequisition,
@@ -86,9 +88,24 @@ const LINE_COLUMNS: LineItemColumn[] = [
   { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
   { id: "ordered", header: "Ordered", numeric: true, priority: 2, minWidth: 90 },
   { id: "received", header: "Received", numeric: true, priority: 3, minWidth: 90 },
+  { id: "cancelled", header: "Short-closed", numeric: true, priority: 3, minWidth: 100 },
+  { id: "outstanding", header: "Outstanding", numeric: true, priority: 2, minWidth: 100 },
   { id: "lineStatus", header: "Line status", priority: 2, minWidth: 120 },
   { id: "needBy", header: "Need by", priority: 3, minWidth: 100 },
 ];
+
+/** Demand still chasing procurement on a line: qty − ordered − short-closed. */
+export function lineOutstanding(l: {
+  quantity: number | string;
+  quantity_ordered?: number | string | null;
+  quantity_cancelled?: number | string | null;
+}): number {
+  return Math.max(
+    0,
+    Number(l.quantity) - Number(l.quantity_ordered ?? 0) - Number(l.quantity_cancelled ?? 0),
+  );
+}
+
 
 const LINE_TONE: Record<string, "success" | "danger" | "neutral" | "info" | "warning"> = {
   open: "neutral",
@@ -116,6 +133,8 @@ export default function RequisitionRecordPage() {
   const [poSupplierId, setPoSupplierId] = useState<string>("");
   const [amendOpen, setAmendOpen] = useState(false);
   const [amendReason, setAmendReason] = useState("");
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
   const [busy, setBusy] = useState(false);
   const { rows: suppliers } = useSuppliers();
 
@@ -128,6 +147,14 @@ export default function RequisitionRecordPage() {
   const canRelease = RELEASABLE.includes(record?.status ?? "");
   const canAmend = record?.status === "approved" &&
     (record?.items ?? []).every((i) => Number(i.quantity_ordered ?? 0) === 0);
+  // Short-close is only meaningful once demand is live and some of it is
+  // still outstanding. `requisition_close` re-validates all of this.
+  const openLines = (record?.items ?? []).filter((i) => lineOutstanding(i) > 0);
+  const canShortClose =
+    RELEASABLE.concat(["procured", "ordered", "partially_fulfilled"]).includes(
+      record?.status ?? "",
+    ) && openLines.length > 0;
+
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -181,6 +208,8 @@ export default function RequisitionRecordPage() {
           { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
           { columnId: "ordered", content: Number(l.quantity_ordered ?? 0) },
           { columnId: "received", content: Number(l.quantity_received ?? 0) },
+          { columnId: "cancelled", content: Number(l.quantity_cancelled ?? 0) },
+          { columnId: "outstanding", content: lineOutstanding(l) },
           {
             columnId: "lineStatus",
             content: (
@@ -391,6 +420,14 @@ export default function RequisitionRecordPage() {
           hidden: !canAmend,
           disabled: busy,
           onSelect: () => setAmendOpen(true),
+        },
+        {
+          id: "short-close",
+          label: "Short-close outstanding demand",
+          icon: Scissors,
+          hidden: !canShortClose,
+          disabled: busy,
+          onSelect: () => setCloseOpen(true),
         },
         {
           id: "cancel",
@@ -613,6 +650,82 @@ export default function RequisitionRecordPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Short-close dialog — per line, or the whole outstanding balance. */}
+      <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Short-close outstanding demand</DialogTitle>
+            <DialogDescription>
+              Cancels the quantity that was never ordered so the requisition stops
+              chasing procurement. Quantities already on a purchase order keep their
+              own lifecycle and are not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Reason (optional)</Label>
+              <Textarea value={closeReason} onChange={(e) => setCloseReason(e.target.value)} rows={2} />
+            </div>
+            <div className="rounded-lg border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Line</TableHead>
+                    <TableHead className="text-right">Outstanding</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {openLines.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell className="text-sm">{l.description}</TableCell>
+                      <TableCell className="text-right text-sm">{lineOutstanding(l)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(
+                              () => requisitionCloseLine(l.id, closeReason || undefined),
+                              "Line short-closed",
+                            )
+                          }
+                        >
+                          Close line
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCloseOpen(false)}>
+              Done
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={async () => {
+                const ok = await run(
+                  () => requisitionClose(record!.id, closeReason || undefined),
+                  "Requisition short-closed",
+                );
+                if (ok) {
+                  setCloseOpen(false);
+                  setCloseReason("");
+                }
+              }}
+            >
+              Short-close everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
+
   );
 }
