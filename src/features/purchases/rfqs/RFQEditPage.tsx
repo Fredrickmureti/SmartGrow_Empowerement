@@ -228,6 +228,14 @@ export default function RFQEditPage() {
             />
           </div>
           <div className="space-y-2">
+            <Label>Required by</Label>
+            <Input
+              type="date"
+              value={requiredBy}
+              onChange={(e) => setRequiredBy(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
             <Label>Notes</Label>
             <Input
               value={notes}
