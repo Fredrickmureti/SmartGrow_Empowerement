@@ -88,7 +88,7 @@ export interface Bill {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  vendor?: { name: string } | null;
+  vendor?: { name: string; email?: string | null } | null;
   items?: BillItem[];
 }
 
