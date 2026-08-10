@@ -126,7 +126,15 @@ export interface OpenItemRow {
   daysOverdue: number;
 }
 
-/** Top counterparties by open residual, straight off the GL-gated projection. */
+/**
+ * Top counterparties by NET open position.
+ *
+ * ADR: for AR this reads `finance_ar_net_position`, the server-side projection
+ * that buckets by age and nets unapplied customer credit in one place. Bucket
+ * boundaries and credit netting are accounting rules, so they live in SQL — an
+ * app-side re-derivation is how the dashboard and the aging report drift apart.
+ * AP has no credit-position analogue, so it still aggregates the projection.
+ */
 export async function fetchTopOpenCounterparties(
   side: "ar" | "ap",
   orgId: string,
@@ -134,7 +142,26 @@ export async function fetchTopOpenCounterparties(
   branchId?: string | null,
   limit = 5,
 ): Promise<Array<{ name: string; amount: number; daysOverdue: number }>> {
-  const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
+  if (side === "ar") {
+    let nq = supabase
+      .from("finance_ar_net_position" as any)
+      .select("contact_name, net_amount, max_days_overdue")
+      .eq("organization_id", orgId)
+      .gt("net_amount", 0.01)
+      .order("net_amount", { ascending: false })
+      .limit(limit);
+    if (businessId) nq = nq.eq("business_id", businessId);
+    if (branchId) nq = nq.eq("branch_id", branchId);
+    const { data: net, error: netError } = await nq;
+    if (netError) throw netError;
+    return ((net || []) as any[]).map((r) => ({
+      name: r.contact_name || "Unknown",
+      amount: Number(r.net_amount) || 0,
+      daysOverdue: Number(r.max_days_overdue) || 0,
+    }));
+  }
+
+  const view = "finance_ap_open_items";
   let q = supabase
     .from(view as any)
     .select(
@@ -168,34 +195,6 @@ export async function fetchTopOpenCounterparties(
     existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(name, existing);
-  }
-
-  // Net unapplied customer credit so a customer sitting on an advance is not
-  // ranked as a top exposure. Same rule the aging RPC applies.
-  if (side === "ar") {
-    let cq = supabase
-      .from("customer_credit_balances" as any)
-      .select("contact_id, balance")
-      .eq("organization_id", orgId)
-      .gt("balance", 0.01);
-    if (businessId) cq = cq.eq("business_id", businessId);
-    const { data: credits } = await cq;
-    const creditContactIds = Array.from(
-      new Set(((credits || []) as any[]).map((c) => c.contact_id).filter(Boolean)),
-    ).filter((id) => !names.has(id));
-    if (creditContactIds.length > 0) {
-      const { data: extra } = await supabase
-        .from("contacts")
-        .select("id, name")
-        .in("id", creditContactIds);
-      for (const c of extra || []) names.set(c.id, c.name);
-    }
-    for (const c of (credits || []) as any[]) {
-      const name = (c.contact_id && names.get(c.contact_id)) || "Unknown";
-      const existing = byContact.get(name);
-      if (!existing) continue; // pure credit position — not an exposure to chase
-      existing.amount -= Number(c.balance) || 0;
-    }
   }
 
   return Array.from(byContact.values())
