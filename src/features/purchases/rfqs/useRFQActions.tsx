@@ -46,8 +46,10 @@ export function useRFQActions(
   return useMemo<DocumentAction[]>(() => {
     if (!rfq) return [];
     const status = rfq.status as string;
+    const gated = Boolean((rfq as { approval_request_id?: string | null }).approval_request_id);
     const isDraft = status === "draft";
     const isLive = ["sent", "responses_received", "under_evaluation"].includes(status);
+
     const cancellable = [
       "draft",
       "pending_approval",
