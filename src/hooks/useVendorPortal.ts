@@ -136,35 +136,49 @@ export function useVendorPortal() {
     }
   };
 
+  /**
+   * A supplier sees invitations, not RFQ rows: the invitation is the
+   * addressed, version-pinned artefact. `id` stays the invitation id so
+   * the detail route and `rfq_record_quotation` share one key.
+   */
   const fetchRFQs = async () => {
     if (!portalData.contactId) return;
 
-    const { data, error } = await supabase
-      .from("rfq_vendors")
+    const { data, error } = await (supabase as any)
+      .from("rfq_invitations")
       .select(`
         id,
         rfq_id,
-        status,
-        quoted_total,
-        rfq:rfqs(rfq_number, status, deadline)
+        invitation_state,
+        response_deadline,
+        rfq_version,
+        rfq:rfqs(rfq_number, status, deadline, currency),
+        quotations:rfq_quotations(total, quotation_version, state)
       `)
-      .eq("vendor_id", portalData.contactId)
-      .order("id", { ascending: false });
+      .eq("supplier_id", portalData.contactId)
+      .neq("invitation_state", "superseded")
+      .order("created_at", { ascending: false });
 
     if (!error && data) {
       setRfqs(
-        data.map((rv: any) => ({
-          id: rv.id,
-          rfq_id: rv.rfq_id,
-          rfq_number: rv.rfq?.rfq_number || "",
-          status: rv.rfq?.status || "",
-          deadline: rv.rfq?.deadline || null,
-          vendor_status: rv.status,
-          quoted_total: rv.quoted_total,
-        }))
+        data.map((inv: any) => {
+          const live = (inv.quotations ?? [])
+            .filter((q: any) => q.state !== "withdrawn" && q.state !== "superseded")
+            .sort((a: any, b: any) => b.quotation_version - a.quotation_version)[0];
+          return {
+            id: inv.id,
+            rfq_id: inv.rfq_id,
+            rfq_number: inv.rfq?.rfq_number || "",
+            status: inv.rfq?.status || "",
+            deadline: inv.response_deadline || inv.rfq?.deadline || null,
+            vendor_status: inv.invitation_state,
+            quoted_total: live?.total ?? null,
+          };
+        }),
       );
     }
   };
+
 
   useEffect(() => {
     if (isVendor && portalData.contactId) {
