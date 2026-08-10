@@ -106,11 +106,15 @@ import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 
 
-// Workflow pipeline for Bills
+// Workflow pipeline for Bills.
+// Mirrors the DB lifecycle: draft → submitted → approved → received (posted)
+// → partial → paid. `submitted`/`approved` are pre-GL review states.
 function BillWorkflowPipeline({ status }: { status: string }) {
   const steps = [
     { key: "draft", label: "Draft" },
-    { key: "received", label: "Confirmed" },
+    { key: "submitted", label: "Submitted" },
+    { key: "approved", label: "Approved" },
+    { key: "received", label: "Posted" },
     { key: "partial", label: "Partial" },
     { key: "paid", label: "Paid" },
   ];
@@ -118,9 +122,11 @@ function BillWorkflowPipeline({ status }: { status: string }) {
   const getActiveStep = () => {
     if (status === "void") return -1;
     if (status === "draft") return 0;
-    if (status === "received" || status === "overdue") return 1;
-    if (status === "partial") return 2;
-    if (status === "paid") return 3;
+    if (status === "submitted") return 1;
+    if (status === "approved") return 2;
+    if (status === "received" || status === "overdue") return 3;
+    if (status === "partial") return 4;
+    if (status === "paid") return 5;
     return 0;
   };
 
