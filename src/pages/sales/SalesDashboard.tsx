@@ -34,6 +34,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { InvoiceIntegrityPanel } from "@/components/sales/InvoiceIntegrityPanel";
 import { format, subMonths, startOfMonth, endOfMonth, startOfYear } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
+import { AGING_BUCKET_LABELS, type AgingBucketKey } from "@/services/finance/aging";
+
 
 const DATE_RANGES = [
   { value: "this_month", label: "This Month" },
