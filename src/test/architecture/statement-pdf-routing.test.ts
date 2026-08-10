@@ -100,3 +100,32 @@ describe("customer statements have one dispatch exit", () => {
     expect(page).not.toContain('documentType: "customer_statement"');
   });
 });
+
+describe("statements render as a legible landscape ledger", () => {
+  const file = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("generateStatementPdf uses the ledger profile on a landscape canvas", () => {
+    const gen = file("supabase/functions/_shared/pdfGenerator.ts");
+    const start = gen.indexOf("export async function generateStatementPdf");
+    expect(start).toBeGreaterThan(-1);
+    const body = gen.slice(start);
+    expect(body).toContain('resolveTypography("ledger")');
+    expect(body).toContain('options.orientation ?? "landscape"');
+    // typography must reach every band of the page, not just the table
+    expect(body).toContain("drawPageNumber(builder, page, stmtTypography)");
+    expect(body).toContain("typography: stmtTypography");
+    expect(body).toContain("drawSummaryBlock(builder, builder.page, summaryItems, stmtTypography)");
+    expect(body).not.toContain('orientation: "portrait"');
+  });
+
+  it("the ledger profile stays above the legibility floor", () => {
+    const p = file("supabase/functions/_shared/pdf/themes/presentation.ts");
+    const start = p.indexOf("LEDGER_TYPOGRAPHY");
+    expect(start).toBeGreaterThan(-1);
+    const block = p.slice(start, start + 900);
+    const cell = Number(/tableCell:\s*([\d.]+)/.exec(block)?.[1]);
+    const floor = Number(/minNumericFontSize:\s*([\d.]+)/.exec(block)?.[1]);
+    expect(cell).toBeGreaterThanOrEqual(8.5);
+    expect(floor).toBeGreaterThanOrEqual(7.5);
+  });
+});
