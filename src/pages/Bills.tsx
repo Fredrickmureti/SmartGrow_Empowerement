@@ -928,14 +928,46 @@ export default function Bills() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          {bill.status !== "paid" && bill.status !== "void" && (
+                          {/* Approval lifecycle — pre-GL states only */}
+                          {requireBillApproval && bill.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handleSubmitForApproval(bill.id)}>
+                              <Send className="mr-2 h-4 w-4" /> Submit for Approval
+                            </DropdownMenuItem>
+                          )}
+                          {bill.status === "submitted" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleApproveBill(bill.id)}>
+                                <ThumbsUp className="mr-2 h-4 w-4" /> Approve
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
+                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {bill.status === "approved" && (
+                            <>
+                              <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
+                                <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleRejectBill(bill.id)} className="text-destructive">
+                                <Undo2 className="mr-2 h-4 w-4" /> Reject (return to draft)
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {!requireBillApproval && bill.status === "draft" && (
+                            <DropdownMenuItem onClick={() => handlePostBill(bill.id)}>
+                              <BookCheck className="mr-2 h-4 w-4" /> Post to Ledger
+                            </DropdownMenuItem>
+                          )}
+                          {(bill.status === "draft" || bill.status === "submitted") && (
                             <DropdownMenuItem onClick={() => {
                               navigate(`/purchases/bills/${bill.id}/edit`);
                             }}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit
                             </DropdownMenuItem>
                           )}
-                          {bill.status !== "paid" && bill.status !== "void" && (
+                          {/* Payment is only legal once the bill is posted to the ledger. */}
+                          {(bill.status === "received" || bill.status === "partial" || bill.status === "overdue") && (
                             <DropdownMenuItem onClick={() => openPaymentDialog(bill.id)}>
                               <CreditCard className="mr-2 h-4 w-4" /> Record Payment
                             </DropdownMenuItem>
