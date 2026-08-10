@@ -241,7 +241,7 @@ export async function fetchContactOpenItemAging(
   const asOfDate = new Date(`${asOf}T00:00:00Z`);
   let q = supabase
     .from(view as any)
-    .select("document_date, due_date, residual_amount")
+    .select("document_date, due_date, residual_amount, base_residual_amount")
     .eq("organization_id", params.orgId)
     .in("contact_id", contactIds)
     .lte("document_date", asOf)
@@ -254,7 +254,8 @@ export async function fetchContactOpenItemAging(
 
   const buckets = emptyAgingBuckets();
   for (const row of (data || []) as any[]) {
-    const residual = Number(row.residual_amount) || 0;
+    // Aging is a summed figure, so it must use the base-currency residual.
+    const residual = Number(row.base_residual_amount ?? row.residual_amount) || 0;
     if (residual <= 0.01) continue;
     addToAgingBuckets(
       buckets,
