@@ -11834,6 +11834,83 @@ export type Database = {
           },
         ]
       }
+      customer_statement_send_jobs: {
+        Row: {
+          attempts: number
+          branch_id: string | null
+          business_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          max_attempts: number
+          message: string | null
+          next_attempt_at: string
+          organization_id: string
+          recipient_email: string
+          requested_by: string | null
+          statement_id: string
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          branch_id?: string | null
+          business_id: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          max_attempts?: number
+          message?: string | null
+          next_attempt_at?: string
+          organization_id: string
+          recipient_email: string
+          requested_by?: string | null
+          statement_id: string
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          branch_id?: string | null
+          business_id?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          max_attempts?: number
+          message?: string | null
+          next_attempt_at?: string
+          organization_id?: string
+          recipient_email?: string
+          requested_by?: string | null
+          statement_id?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_statement_send_jobs_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "customer_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_statements: {
         Row: {
           branch_id: string | null
@@ -85166,6 +85243,37 @@ export type Database = {
         Args: { p_warehouse_stock_id: string }
         Returns: undefined
       }
+      claim_customer_statement_send_jobs: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          branch_id: string | null
+          business_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          max_attempts: number
+          message: string | null
+          next_attempt_at: string
+          organization_id: string
+          recipient_email: string
+          requested_by: string | null
+          statement_id: string
+          status: string
+          subject: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "customer_statement_send_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_label_runs: { Args: { p_limit?: number }; Returns: string[] }
       claim_next_business_event:
         | {
@@ -85590,6 +85698,10 @@ export type Database = {
       }
       complete_business_event: {
         Args: { p_error?: string; p_id: string; p_success: boolean }
+        Returns: undefined
+      }
+      complete_customer_statement_send_job: {
+        Args: { _error?: string; _job_id: string; _success: boolean }
         Returns: undefined
       }
       complete_delivery_atomic: {
@@ -87590,6 +87702,15 @@ export type Database = {
         Returns: undefined
       }
       enforce_company_limit: { Args: { _org_id: string }; Returns: undefined }
+      enqueue_customer_statement_send: {
+        Args: {
+          _message?: string
+          _recipient_email: string
+          _statement_id: string
+          _subject: string
+        }
+        Returns: string
+      }
       enqueue_fiscal_receipt_required:
         | {
             Args: {
