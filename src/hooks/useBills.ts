@@ -1036,6 +1036,7 @@ export function useBills() {
     isLoading,
     requireBillApproval,
     getNextBillNumber,
+    findDuplicateVendorInvoice,
     createBill,
     submitBillForApproval,
     approveBill,
