@@ -92,6 +92,25 @@ export interface BuildPurchasesRfqSnapshotResult {
   revision: number;
 }
 
+const RFQ_FORBIDDEN_KEYS = new Set([
+  "target_price", "price", "unit_price", "tax", "tax_rate", "tax_amount",
+  "amount", "line_amount", "line_total", "subtotal", "total", "amount_due",
+  "balance_due", "payment_instructions",
+]);
+
+export function assertPurchasesRfqSnapshot(snapshot: SnapshotBlob): void {
+  const inspect = (value: unknown, path: string): void => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if (RFQ_FORBIDDEN_KEYS.has(key.toLowerCase())) {
+        throw new Error(`RFQ snapshot contains forbidden monetary field ${path}${key}`);
+      }
+      inspect(nested, `${path}${key}.`);
+    }
+  };
+  inspect(snapshot, "");
+}
+
 function deliveryLocation(rfq: PurchasesRfqHeaderRow): string | null {
   const target = rfq.deliver_to_warehouse ?? rfq.deliver_to_branch ?? null;
   if (!target) return null;
@@ -165,6 +184,8 @@ export function buildPurchasesRfqSnapshot(
     branch_id: rfq.branch_id,
     items,
   };
+
+  assertPurchasesRfqSnapshot(snapshot);
 
   return {
     snapshot,

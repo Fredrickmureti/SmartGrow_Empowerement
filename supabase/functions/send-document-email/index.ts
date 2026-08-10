@@ -17,6 +17,8 @@ type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
   documentId: string;
+  /** Exact immutable document record for revision/supplier-addressed output. */
+  documentRecordId?: string;
   recipientEmail?: string;
   /**
    * Bulk-mode flag: when true and `recipientEmail` is omitted, the server
@@ -382,6 +384,7 @@ const handler = async (req: Request): Promise<Response> => {
     const {
       documentType,
       documentId,
+      documentRecordId,
       recipientEmail: rawRecipientEmail,
       resolveRecipientFromRow,
       ccEmails,
@@ -829,6 +832,7 @@ const handler = async (req: Request): Promise<Response> => {
             documentId: resolvedDocumentId,
             paperFormat: emailPolicy.paper_format,
             authorization: `Bearer ${userJwt}`,
+            documentRecordId: documentRecordId ?? null,
           });
 
           let pdfBytes: Uint8Array;
@@ -888,7 +892,10 @@ const handler = async (req: Request): Promise<Response> => {
         }
       } catch (pdfError) {
         console.error("PDF generation failed:", pdfError);
-        // Don't fail the whole email - just log and continue without attachment
+        // Issued RFQs are solicitation artifacts. Sending the invitation
+        // without its exact frozen revision is a delivery failure, never a
+        // text-only degradation and never a legacy invoice fallback.
+        if (documentType === "rfq") throw pdfError;
       }
     }
     

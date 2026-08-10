@@ -56,8 +56,32 @@ function str(v: unknown): string | null {
 }
 
 function num(v: unknown): number {
-  const n = Number(v ?? 0);
-  return Number.isFinite(n) ? n : 0;
+  if (v === null || v === undefined || v === "") return 0;
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error(`procurement_numeric_invalid:${String(v)}`);
+  return n;
+}
+
+const RFQ_FORBIDDEN_KEYS = new Set([
+  "target_price", "price", "unit_price", "tax", "tax_rate", "tax_amount",
+  "amount", "line_amount", "line_total", "subtotal", "total", "amount_due",
+  "balance_due", "payment_instructions",
+]);
+
+export function assertSolicitationSnapshot(snapshot: Snapshot): void {
+  for (const key of Object.keys(snapshot)) {
+    if (RFQ_FORBIDDEN_KEYS.has(key.toLowerCase())) {
+      throw new Error(`rfq_snapshot_contract: forbidden monetary field ${key}`);
+    }
+  }
+  const items = Array.isArray(snapshot["items"]) ? snapshot["items"] as Snapshot[] : [];
+  for (const item of items) {
+    for (const key of Object.keys(item)) {
+      if (RFQ_FORBIDDEN_KEYS.has(key.toLowerCase())) {
+        throw new Error(`rfq_snapshot_contract: forbidden item monetary field ${key}`);
+      }
+    }
+  }
 }
 
 function date(v: unknown): string | null {
@@ -244,6 +268,7 @@ export async function generateSolicitationPdf(
   options: ProcurementRenderOptions = {},
 ): Promise<Uint8Array> {
   assertSheetPaper("generateSolicitationPdf", options);
+  assertSolicitationSnapshot(snapshot);
 
   const number = str(snapshot["document_number"]) ?? "";
   const revision = str(snapshot["revision"]);
