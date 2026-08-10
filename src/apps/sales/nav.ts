@@ -40,6 +40,7 @@ export const SALES_NAV: WorkspaceNav = {
         { to: "/sales/statements", label: "Statements", icon: ScrollText },
         { to: "/sales/returns", label: "Returns", icon: RotateCcw },
         { to: "/sales/credit-notes", label: "Credit notes", icon: FileMinus },
+        { to: "/sales/ledger", label: "Customer ledger", icon: BookOpen },
         { to: "/sales/collections", label: "Collections", icon: HandCoins },
       ],
     },
