@@ -27,8 +27,12 @@ import {
   Wallet,
   RotateCcw,
   StickyNote,
+  Undo2,
+  BookOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
+import { describeLedgerDoc } from "@/services/finance/customerStatementDataset";
 
 const DOC_ICON: Record<string, any> = {
   invoice: FileText,
