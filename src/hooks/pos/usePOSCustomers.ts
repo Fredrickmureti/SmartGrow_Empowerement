@@ -4,6 +4,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
+import { applyPartyScope } from "@/lib/contactAddresses";
 
 export interface POSCustomer {
   id: string;
@@ -28,9 +29,9 @@ export function usePOSCustomers() {
     queryFn: async () => {
       if (!currentOrg?.id) return [];
 
-      let query = supabase
-        .from("contacts")
-        .select("*")
+      let query = applyPartyScope(
+        supabase.from("contacts").select("*"),
+      )
         .eq("organization_id", currentOrg.id)
         .or("customer_rank.gt.0,type.eq.customer,type.eq.both")
         .eq("is_active", true)
@@ -62,9 +63,9 @@ export function usePOSCustomers() {
   const searchCustomers = async (query: string): Promise<POSCustomer[]> => {
     if (!currentOrg?.id || !query) return [];
 
-    let searchQuery = supabase
-      .from("contacts")
-      .select("*")
+    let searchQuery = applyPartyScope(
+      supabase.from("contacts").select("*"),
+    )
       .eq("organization_id", currentOrg.id)
       .or("customer_rank.gt.0,type.eq.customer,type.eq.both")
       .eq("is_active", true)

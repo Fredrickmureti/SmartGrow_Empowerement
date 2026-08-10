@@ -9,6 +9,7 @@ import { useAccounts } from "@/hooks/useAccounts";
 import { isMpesaSupported } from "@/lib/regionConfig";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,9 +115,11 @@ export function AdvancePaymentDialog({
         // silently hid contacts whose row carried only `customer_rank>0`
         // with a null `type`. Same OR shape used by `useContactsPaginated`
         // so the lookup stays consistent with every other customer picker.
-        const { data } = await (supabase
-          .from("contacts")
-          .select("id, name, company")
+        const { data } = await (applyPartyScope(
+          supabase
+            .from("contacts")
+            .select("id, name, company"),
+        )
           .eq("organization_id", currentOrg.id)
           .eq("business_id", currentBusiness.id) as any)
           .or("customer_rank.gt.0,type.eq.customer,type.eq.both")

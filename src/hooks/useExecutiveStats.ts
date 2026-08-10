@@ -4,6 +4,7 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { startOfMonth, subMonths, differenceInDays, format } from "date-fns";
 import { fetchGLTotals } from "@/services/gl/fetchGLTotals";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import {
   fetchARSummary,
   fetchAPSummary,
@@ -136,9 +137,11 @@ export function useExecutiveStats() {
         .select("id, name")
         .eq("organization_id", orgId)
         .eq("id", scope.businessId);
-      const contactP = supabase
-        .from("contacts")
-        .select("id, created_at, business_id, name, parent_contact:contacts!parent_contact_id(name)")
+      const contactP = applyPartyScope(
+        supabase
+          .from("contacts")
+          .select("id, created_at, business_id, name, parent_contact:contacts!parent_contact_id(name)"),
+      )
         .eq("organization_id", orgId)
         .eq("business_id", scope.businessId);
       const invP = applyBranch(

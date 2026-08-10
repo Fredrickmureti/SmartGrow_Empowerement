@@ -15,6 +15,7 @@
 
 import { Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import type { CommandEntry } from "../types";
 import type { CommandProvider, ProviderContext } from "./types";
 
@@ -27,9 +28,11 @@ async function fetchCustomers(
 
   const pattern = `%${q.replace(/[%_]/g, "\\$&")}%`;
 
-  const { data, error } = await supabase
-    .from("contacts")
-    .select("id, name, email, parent_contact:contacts!parent_contact_id(name)")
+  const { data, error } = await applyPartyScope(
+    supabase
+      .from("contacts")
+      .select("id, name, email, parent_contact:contacts!parent_contact_id(name)"),
+  )
     .or(`name.ilike.${pattern},email.ilike.${pattern}`)
     .eq("is_active", true)
     .limit(8)

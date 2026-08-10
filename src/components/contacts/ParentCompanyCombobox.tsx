@@ -44,6 +44,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useContacts } from "@/hooks/useContacts";
@@ -124,9 +125,11 @@ export function ParentCompanyCombobox({
     let cancelled = false;
     setLoading(true);
     (async () => {
-      let query = supabase
-        .from("contacts")
-        .select("id, name, city, country, email")
+      let query = applyPartyScope(
+        supabase
+          .from("contacts")
+          .select("id, name, city, country, email"),
+      )
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .eq("is_company", true)
