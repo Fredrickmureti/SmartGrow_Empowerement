@@ -61,6 +61,11 @@ import {
 import type { CollectorAssignment } from "@/services/finance/collectorAssignments";
 import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
+import { useDunningAssignments } from "@/hooks/useDunningAssignments";
+import {
+  DUNNING_ACTION_LABELS,
+  type DunningAssignmentRow,
+} from "@/services/finance/dunning";
 import type { CurrencyNetPositionRow } from "@/services/finance/openItems";
 import { UserCog, Check } from "lucide-react";
 
