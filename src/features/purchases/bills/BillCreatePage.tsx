@@ -248,10 +248,33 @@ export default function BillCreatePage() {
     });
   };
 
+  // Debounced duplicate lookup on (supplier, vendor invoice #).
+  useEffect(() => {
+    const vendorId = formData.vendor_id;
+    const ref = formData.vendor_invoice_number.trim();
+    if (!vendorId || !ref) {
+      setDuplicates([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const rows = await findDuplicateVendorInvoice(vendorId, ref);
+      if (!cancelled) setDuplicates(rows);
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // findDuplicateVendorInvoice is stable enough (derives from org context).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.vendor_id, formData.vendor_invoice_number]);
+
   const subtotal = lineItems.reduce((sum, item) => sum + item.line_total, 0);
   const totalTax = lineItems.reduce((sum, item) => sum + item.tax_amount, 0);
   const grandTotal = subtotal + totalTax - formData.discount_amount;
   const validItems = lineItems.filter((item) => item.description.trim());
+
+
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
