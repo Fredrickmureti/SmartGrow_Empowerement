@@ -7,7 +7,7 @@
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Award, Clock, Trophy } from "lucide-react";
+import { Award, Clock, MailWarning, Send, Trophy } from "lucide-react";
 
 import type {
   DocumentRecordView,
@@ -16,12 +16,14 @@ import type {
 } from "@/design-system/records";
 import { Section, StatusBadge } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
   rfqAwardedValue,
   rfqEstimatedValue,
   type RFQQuotation,
   type RFQWithRelations,
+  useRFQs,
 } from "@/hooks/useRFQs";
 import { useRFQRecord } from "./useRFQRecord";
 
@@ -50,6 +52,20 @@ const INVITATION_TONE: Record<
   superseded: "neutral",
 };
 
+// Delivery is a separate axis from the invitation's commercial state: an
+// invitation can be `pending` because the email bounced, not because the
+// supplier is slow. Surfacing it is what makes a stuck queue visible.
+const DELIVERY_TONE: Record<
+  string,
+  "neutral" | "info" | "success" | "warning" | "danger" | "accent"
+> = {
+  not_sent: "neutral",
+  queued: "warning",
+  sent: "success",
+  failed: "danger",
+  bounced: "danger",
+};
+
 interface Result {
   rfq: RFQWithRelations | null;
   loading: boolean;
@@ -76,6 +92,7 @@ export function useRFQView(
   formatCurrency: (v: number, currency?: string) => string,
 ): Result {
   const { record, loading, error } = useRFQRecord(id);
+  const { resendInvitation, isResendingInvitation } = useRFQs();
   const { baseCurrency } = useCurrency();
   const rfq = (record as RFQWithRelations | undefined) ?? null;
   const currency = rfq?.currency || baseCurrency;
@@ -241,10 +258,21 @@ export function useRFQView(
                             >
                               {label(inv.invitation_state)}
                             </StatusBadge>
-                            {inv.sent_at && (
+                            <StatusBadge tone={DELIVERY_TONE[inv.delivery_state] ?? "neutral"}>
+                              {inv.delivery_state === "sent" && inv.sent_at
+                                ? `Sent ${fmt(inv.sent_at)}`
+                                : label(inv.delivery_state)}
+                            </StatusBadge>
+                            {(inv.delivery_attempts ?? 0) > 1 && (
                               <Badge variant="outline" className="text-xs">
-                                Sent {fmt(inv.sent_at)}
+                                {inv.delivery_attempts} attempts
                               </Badge>
+                            )}
+                            {inv.delivery_error && (
+                              <span className="inline-flex items-center gap-1 text-xs text-destructive">
+                                <MailWarning className="h-3 w-3" />
+                                {inv.delivery_error}
+                              </span>
                             )}
                             {quote && (
                               <Badge variant="outline" className="text-xs">
@@ -261,6 +289,19 @@ export function useRFQView(
                           </div>
                         </div>
                       </div>
+                      {(inv.delivery_state === "failed" ||
+                        inv.delivery_state === "bounced" ||
+                        inv.delivery_state === "queued") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isResendingInvitation}
+                          onClick={() => resendInvitation(inv.id)}
+                        >
+                          <Send className="mr-1.5 h-3.5 w-3.5" />
+                          Resend
+                        </Button>
+                      )}
                     </div>
                   );
                 })}

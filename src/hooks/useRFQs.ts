@@ -93,6 +93,9 @@ export interface RFQInvitation {
   sent_at: string | null;
   response_deadline: string | null;
   reminder_count: number;
+  delivery_attempts?: number | null;
+  last_attempt_at?: string | null;
+  delivery_error?: string | null;
   supplier?: { id: string; name: string; email: string | null } | null;
 }
 
