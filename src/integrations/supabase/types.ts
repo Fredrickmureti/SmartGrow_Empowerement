@@ -74215,6 +74215,33 @@ export type Database = {
         }
         Relationships: []
       }
+      collections_work_queue: {
+        Row: {
+          business_id: string | null
+          collector_user_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          disputed_amount: number | null
+          dunning_level_id: string | null
+          dunning_level_name: string | null
+          expected_payment_date: string | null
+          in_dispute: boolean | null
+          in_promise: boolean | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          not_due: number | null
+          organization_id: string | null
+          priority_score: number | null
+          promise_id: string | null
+          promised_amount: number | null
+        }
+        Relationships: []
+      }
       contract_statutory_inputs: {
         Row: {
           amount: number | null
@@ -74545,12 +74572,14 @@ export type Database = {
           business_id: string | null
           contact_id: string | null
           contact_name: string | null
+          disputed_amount: number | null
           dunning_level_id: string | null
           dunning_level_name: string | null
           dunning_sequence: number | null
           max_days_overdue: number | null
           net_amount: number | null
           next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          on_hold: boolean | null
           organization_id: string | null
           template_id: string | null
         }
@@ -89037,6 +89066,39 @@ export type Database = {
       get_business_transit_location: {
         Args: { p_business_id: string }
         Returns: string
+      }
+      get_collections_work_queue: {
+        Args: { _business_id: string; _collector_user_id?: string }
+        Returns: {
+          business_id: string | null
+          collector_user_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          disputed_amount: number | null
+          dunning_level_id: string | null
+          dunning_level_name: string | null
+          expected_payment_date: string | null
+          in_dispute: boolean | null
+          in_promise: boolean | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          not_due: number | null
+          organization_id: string | null
+          priority_score: number | null
+          promise_id: string | null
+          promised_amount: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "collections_work_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_commercial_timeline: {
         Args: { _before?: string; _limit?: number; _org_id: string }
