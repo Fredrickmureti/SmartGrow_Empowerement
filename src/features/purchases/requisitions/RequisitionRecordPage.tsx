@@ -8,7 +8,7 @@
  * (`approve_requisition`) and mirrored by the SoD registry rows.
  */
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { CheckCircle2, Send, XCircle, Ban } from "lucide-react";
 
 import { Section, StatusBadge } from "@/design-system";
@@ -77,8 +77,6 @@ const LINE_COLUMNS: LineItemColumn[] = [
 
 export default function RequisitionRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  void navigate;
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
 
