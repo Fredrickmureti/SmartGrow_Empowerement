@@ -13,7 +13,13 @@ interface State {
   error: string | null;
 }
 
-export function useInvoiceRecord(id: string | null | undefined): State {
+interface Result extends State {
+  /** Re-fetch the record — used after an action mutates it. */
+  refresh: () => void;
+}
+
+export function useInvoiceRecord(id: string | null | undefined): Result {
+  const [nonce, setNonce] = useState(0);
   const [state, setState] = useState<State>({
     invoice: null,
     loading: !!id,
@@ -47,7 +53,7 @@ export function useInvoiceRecord(id: string | null | undefined): State {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, nonce]);
 
-  return state;
+  return { ...state, refresh: () => setNonce((n) => n + 1) };
 }
