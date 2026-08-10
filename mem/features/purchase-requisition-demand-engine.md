@@ -47,7 +47,8 @@ database owns every quantity and state transition.
 `requisition.submit` and `requisition.approve` are registered in
 `governance_action_registry` (`severity_default` must be one of
 `low | standard | high | critical`). Approval routes through
-`approval_route('requisition.approve', ...)`; self-approval is blocked in
-`approve_requisition` and mirrored by the SoD registry.
+`approval_route('requisition.approve', ...)`. The ungated fallback delegates
+self-action decisions to `governance_assert_not_self`; solo/standard/strict,
+per-action policies, and one-time overrides are never reimplemented locally.
 
 SQL invariants: `supabase/tests/purchase_requisitions_demand_engine_test.sql`.

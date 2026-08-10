@@ -22,6 +22,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { applyBranchFilter } from "@/lib/branchScope";
 import { normalizeError } from "@/services/resilience";
+import {
+  describeGovernanceError,
+  parseGovernanceError,
+} from "@/lib/governance/selfActionErrors";
 
 const db = supabase as any;
 
@@ -420,6 +424,12 @@ export function useRFQs() {
         toast.success(typeof success === "function" ? success(data) : success);
       },
       onError: (error: Error) => {
+        const governanceError = parseGovernanceError(error);
+        if (governanceError) {
+          const governed = describeGovernanceError(governanceError);
+          toast.error(governed.title, { description: governed.body });
+          return;
+        }
         toast.error(normalizeError(error).message);
       },
     });

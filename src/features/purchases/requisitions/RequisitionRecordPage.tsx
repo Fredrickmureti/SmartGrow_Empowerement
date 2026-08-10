@@ -8,7 +8,7 @@
  * governance engine according to the workspace mode and overrides.
  */
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -124,6 +124,7 @@ const LINE_TONE: Record<string, "success" | "danger" | "neutral" | "info" | "war
 
 export default function RequisitionRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
 
@@ -144,6 +145,7 @@ export default function RequisitionRecordPage() {
 
   const canSubmit = record?.status === "draft";
   const canDecide = record?.status === "submitted";
+  const isApprovalGated = Boolean(record?.approval_request_id);
   const canCancel = record?.status === "draft" || record?.status === "submitted";
   // Release + amendment windows. The database is authoritative for all of
   // these; the UI only hides actions the server would reject anyway.
@@ -383,20 +385,23 @@ export default function RequisitionRecordPage() {
         },
         {
           id: "approve",
-          label: "Approve",
-          icon: CheckCircle2,
+          label: isApprovalGated ? "Review in Approvals" : "Approve",
+          icon: isApprovalGated ? ExternalLink : CheckCircle2,
           group: "core",
           primary: true,
           hidden: !canDecide,
           disabled: busy,
-          onSelect: () => setApproveOpen(true),
+          onSelect: () =>
+            isApprovalGated
+              ? navigate("/settings/workspace?tab=governance")
+              : setApproveOpen(true),
         },
         {
           id: "reject",
           label: "Reject",
           icon: XCircle,
           destructive: true,
-          hidden: !canDecide,
+          hidden: !canDecide || isApprovalGated,
           disabled: busy,
           onSelect: () => setRejectOpen(true),
         },
