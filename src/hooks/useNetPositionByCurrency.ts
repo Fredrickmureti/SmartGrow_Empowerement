@@ -16,7 +16,7 @@ export interface PerCurrencyByContact {
 }
 
 export function useNetPositionByCurrency() {
-  const { currentBusiness } = useBusiness();
+  const { currentBusiness } = useBusinesses();
   const [data, setData] = useState<PerCurrencyByContact>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
