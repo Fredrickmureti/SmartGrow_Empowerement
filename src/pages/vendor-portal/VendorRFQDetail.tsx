@@ -26,6 +26,8 @@ import {
   ArrowLeft, Send, Clock, AlertTriangle, CheckCircle, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BidAttachmentsPanel } from "@/features/purchases/rfqs/BidAttachmentsPanel";
+
 
 const db = supabase as any;
 
