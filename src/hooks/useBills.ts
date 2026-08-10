@@ -231,6 +231,34 @@ export function useBills() {
   };
 
   /**
+   * Pre-submit duplicate-invoice lookup (C1).
+   * The DB trigger `trg_bills_unique_vendor_invoice_number` is the hard
+   * guarantee; this is the friendly warning so the user sees the clashing
+   * bill BEFORE hitting a constraint error. Returns [] when the company
+   * allows duplicates or nothing matches.
+   */
+  const findDuplicateVendorInvoice = async (
+    vendorId: string,
+    vendorInvoiceNumber: string,
+    excludeBillId?: string,
+  ): Promise<DuplicateVendorInvoice[]> => {
+    if (!currentOrg || !vendorId || !vendorInvoiceNumber.trim()) return [];
+    const { data, error } = await supabase.rpc("find_duplicate_vendor_invoice", {
+      _org_id: currentOrg.id,
+      _vendor_id: vendorId,
+      _vendor_invoice_number: vendorInvoiceNumber.trim(),
+      _exclude_bill_id: excludeBillId ?? null,
+    } as any);
+    if (error) {
+      // Non-fatal: the DB trigger still blocks true duplicates on write.
+      console.warn("[useBills] duplicate invoice lookup failed", error);
+      return [];
+    }
+    return (data ?? []) as DuplicateVendorInvoice[];
+  };
+
+
+  /**
    * Create a bill and auto-post to GL.
    * Forces draft status internally, then immediately confirms (draft → received)
    * with proper GL posting. The user never sees draft status.
