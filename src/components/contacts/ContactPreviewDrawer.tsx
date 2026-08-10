@@ -160,12 +160,13 @@ export function ContactPreviewDrawer({
           : EMPTY_OPEN_ITEM_AGING;
         setReceivable(arAging.total);
         setAging({
-          current: arAging.current,
-          days1_30: arAging.days30,
-          days31_60: arAging.days60,
-          days61_90: arAging.days90,
-          days90plus: arAging.days120,
+          current: arAging.not_due,
+          days1_30: arAging.current,
+          days31_60: arAging.days30,
+          days61_90: arAging.days60,
+          days90plus: arAging.days90,
         });
+
 
         // Recent bills (list only)
         const { data: bills } = await (scoped("bills") as any)
