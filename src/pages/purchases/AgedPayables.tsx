@@ -336,20 +336,20 @@ export default function AgedPayables() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
+                        {row.not_due > 0 ? formatCurrency(row.not_due) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {row.current > 0 ? formatCurrency(row.current) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_1_30 > 0 ? formatCurrency(row.days_1_30) : "—"}
+                        {row.days30 > 0 ? formatCurrency(row.days30) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_31_60 > 0 ? formatCurrency(row.days_31_60) : "—"}
+                        {row.days60 > 0 ? formatCurrency(row.days60) : "—"}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {row.days_61_90 > 0 ? formatCurrency(row.days_61_90) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {row.over_90 > 0 ? (
-                          <span className="text-destructive font-medium">{formatCurrency(row.over_90)}</span>
+                        {row.days90 > 0 ? (
+                          <span className="text-destructive font-medium">{formatCurrency(row.days90)}</span>
                         ) : "—"}
                       </TableCell>
                       <TableCell className="text-right font-bold tabular-nums">
@@ -365,14 +365,14 @@ export default function AgedPayables() {
                         <TableCell className="pl-10 text-xs text-primary">
                           {bill.bill_number}
                           <span className="ml-2 text-muted-foreground">
-                            Due {format(new Date(bill.due_date), "MMM d, yyyy")}
+                            {bill.due_date ? `Due ${format(new Date(bill.due_date), "MMM d, yyyy")}` : "No due date"}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "not_due" ? formatCurrency(bill.balance) : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "current" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "1-30" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "31-60" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "61-90" ? formatCurrency(bill.balance) : "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "90+" ? <span className="text-destructive">{formatCurrency(bill.balance)}</span> : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days30" ? formatCurrency(bill.balance) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days60" ? formatCurrency(bill.balance) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-xs">{bill.bucket === "days90" ? <span className="text-destructive">{formatCurrency(bill.balance)}</span> : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums text-xs font-medium">{formatCurrency(bill.balance)}</TableCell>
                       </TableRow>
                     ))}
@@ -382,13 +382,14 @@ export default function AgedPayables() {
                 {/* Totals row */}
                 <TableRow className="bg-muted/50 font-bold">
                   <TableCell>Total ({filteredData.length} vendors)</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.not_due)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals.current)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_1_30)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_31_60)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days_61_90)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.over_90)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days30)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days60)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatCurrency(totals.days90)}</TableCell>
                   <TableCell className="text-right tabular-nums">{formatCurrency(totals.total)}</TableCell>
                 </TableRow>
+
               </TableBody>
             </Table>
           </div>
