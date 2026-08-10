@@ -100,6 +100,17 @@ export async function renderAstToPdf(args: {
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);
 
+  const procurementLayout = PROCUREMENT_LAYOUTS[args.template.kind_code];
+  if (procurementLayout) {
+    return await procurementLayout(
+      snap,
+      (snap["organization"] as unknown) ?? (args.context.business as unknown) ?? null,
+      { paperFormat: mediaClassToPaper(args.template.media_class) },
+    );
+  }
+
+
+
   if (STATEMENT_KIND_CODES.has(args.template.kind_code)) {
     const statementData = {
       ...snap,
