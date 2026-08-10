@@ -10,11 +10,13 @@ Delivery note status/dates/deletion are DB-owned (atomic RPCs only); clients edi
 Every settlement RPC takes a request key derived from the payment intent — never crypto.randomUUID(); one customer money-in dialog only.
 Credit notes: money and the per-invoice-line credit ceiling are resolved server-side from the invoice; clients never write credit_notes/credit_note_items.
 Open items sum `base_residual_amount` (currency-converted), never raw `residual_amount`; aging takes an explicit as-of date.
+Collections overlays (collector, dunning level, promise-to-pay) are server-derived from finance_ar_net_position — never computed in the browser.
 
 
 
 ## Memories
 - [Collections & open-items invariants](mem://features/collections-open-items) — currency-aware projections, as-of aging, statement idempotency, single email/activity ledger
+- [Collections overlays](mem://features/collections-overlays) — dunning ladder view, promise-to-pay RPCs/idempotency, server-owned kept/broken evaluation
 - [Open items & payability](mem://features/open-items-and-payability) — AR/AP projection settlement channels, payability predicate, invoice status vocabulary
 - [Customer payment allocations](mem://features/customer-payment-allocations) — ADR 0027 allocation-first payments, customer ledger SoT
 - [Vendor payment allocations](mem://features/vendor-payment-allocations) — ADR 0028 allocation-first AP, supplier advances (record vs apply accounting), vendor_unapplied_advances SoT

@@ -61,6 +61,17 @@ import {
 import type { CollectorAssignment } from "@/services/finance/collectorAssignments";
 import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
+import { useDunningAssignments } from "@/hooks/useDunningAssignments";
+import { usePromisesToPay } from "@/hooks/usePromisesToPay";
+import type { PromiseToPay } from "@/services/finance/promises";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { HandCoins } from "lucide-react";
+import {
+  DUNNING_ACTION_LABELS,
+  type DunningAssignmentRow,
+} from "@/services/finance/dunning";
 import type { CurrencyNetPositionRow } from "@/services/finance/openItems";
 import { UserCog, Check } from "lucide-react";
 
@@ -92,6 +103,12 @@ export default function Collections() {
   const { data: delivery } = useStatementDeliveryStatus();
   const { data: currencyPositions } = useNetPositionByCurrency();
   const { assignments, members, currentUserId, assign, unassign } = useCollectorAssignments();
+  const { data: dunning } = useDunningAssignments();
+  const {
+    data: promises,
+    record: recordPromise,
+    cancel: cancelPromise,
+  } = usePromisesToPay();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
@@ -99,6 +116,7 @@ export default function Collections() {
   const [payContactId, setPayContactId] = useState<string | null>(null);
   const [myAccountsOnly, setMyAccountsOnly] = useState(false);
   const [assignDialogContact, setAssignDialogContact] = useState<string | null>(null);
+  const [promiseDialogContact, setPromiseDialogContact] = useState<string | null>(null);
 
   const contacts = useMemo(() => {
     let rows = (data?.contacts ?? []).filter((c) => filterByBucket(c, bucket));
@@ -207,6 +225,8 @@ export default function Collections() {
               <TableHead className="w-8" />
               <TableHead>Customer</TableHead>
               <TableHead>Collector</TableHead>
+              <TableHead>Next action</TableHead>
+              <TableHead>Promise</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
@@ -221,7 +241,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={12}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -229,7 +249,7 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
@@ -282,6 +302,16 @@ export default function Collections() {
                               onUnassign={() => unassign(c.contact_id)}
                             />
                           </TableCell>
+                          <TableCell>
+                            <NextActionCell row={dunning?.[c.contact_id]} />
+                          </TableCell>
+                          <TableCell>
+                            <PromiseCell
+                              promise={promises?.[c.contact_id]}
+                              formatCurrency={formatCurrency}
+                              onCancel={cancelPromise}
+                            />
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCurrency(c.buckets.not_due ?? 0)}
                           </TableCell>
@@ -314,6 +344,14 @@ export default function Collections() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => setPromiseDialogContact(c.contact_id)}
+                                title="Record promise to pay"
+                              >
+                                <HandCoins className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 asChild
                                 title="Open ledger"
                               >
@@ -338,7 +376,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={10} className="py-3">
+                            <TableCell colSpan={12} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
@@ -414,6 +452,13 @@ export default function Collections() {
         open={!!payContactId}
         onOpenChange={(v) => !v && setPayContactId(null)}
         preSelectedContactId={payContactId ?? undefined}
+      />
+
+      <PromiseToPayDialog
+        open={!!promiseDialogContact}
+        onOpenChange={(v) => !v && setPromiseDialogContact(null)}
+        contactId={promiseDialogContact}
+        onRecord={recordPromise}
       />
 
       <AssignCollectorDialog
@@ -535,6 +580,178 @@ function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
       <MailCheck className="h-3 w-3" />
       Queued
     </Badge>
+  );
+}
+
+/**
+ * Promise cell — the customer's earliest open commitment. Amounts are shown in
+ * the promise's own currency; kept/broken transitions are decided server-side.
+ */
+function PromiseCell({
+  promise,
+  formatCurrency,
+  onCancel,
+}: {
+  promise?: PromiseToPay;
+  formatCurrency: (v: number) => string;
+  onCancel: (id: string) => Promise<void> | void;
+}) {
+  if (!promise) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const overdue = promise.expectedPaymentDate < new Date().toISOString().slice(0, 10);
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-sm tabular-nums">
+        {formatCurrency(promise.promisedAmount)}
+      </span>
+      <span
+        className={`text-xs ${overdue ? "text-destructive" : "text-muted-foreground"}`}
+      >
+        by {promise.expectedPaymentDate}
+      </span>
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:underline text-left"
+        onClick={() => void onCancel(promise.id)}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Records a promise to pay. The dialog only captures intent — the server
+ * resolves org, base-currency value and idempotency.
+ */
+function PromiseToPayDialog({
+  open,
+  onOpenChange,
+  contactId,
+  onRecord,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  contactId: string | null;
+  onRecord: (input: {
+    contactId: string;
+    promisedAmount: number;
+    expectedPaymentDate: string;
+    notes?: string | null;
+  }) => Promise<void>;
+}) {
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setAmount("");
+      setDate("");
+      setNotes("");
+    }
+  }, [open]);
+
+  const submit = async () => {
+    if (!contactId) return;
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error("Enter a promised amount greater than zero");
+      return;
+    }
+    if (!date) {
+      toast.error("Choose the date the customer promised to pay");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onRecord({
+        contactId,
+        promisedAmount: value,
+        expectedPaymentDate: date,
+        notes: notes.trim() || null,
+      });
+      toast.success("Promise to pay recorded");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error((e as Error).message || "Could not record the promise");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Record promise to pay</DialogTitle>
+          <DialogDescription>
+            Log the amount and date the customer committed to. This does not
+            post any money — it is tracked against their outstanding balance.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ptp-amount">Promised amount</Label>
+            <Input
+              id="ptp-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ptp-date">Expected payment date</Label>
+            <Input
+              id="ptp-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ptp-notes">Notes</Label>
+            <Textarea
+              id="ptp-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="What was agreed on the call?"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Record promise"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Next-action cell — renders the escalation step the server assigned to this
+ * customer via `dunning_assignment`. The label is policy-driven; the browser
+ * never decides which dunning level applies.
+ */
+function NextActionCell({ row }: { row?: DunningAssignmentRow }) {
+  if (!row?.nextAction) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col">
+      <span className="text-sm">{DUNNING_ACTION_LABELS[row.nextAction]}</span>
+      {row.dunningLevelName && (
+        <span className="text-xs text-muted-foreground">{row.dunningLevelName}</span>
+      )}
+    </div>
   );
 }
 
