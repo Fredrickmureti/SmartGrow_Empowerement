@@ -996,8 +996,12 @@ export function useBills() {
   return {
     bills,
     isLoading,
+    requireBillApproval,
     getNextBillNumber,
     createBill,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
     confirmBill,
     updateBill,
     deleteBill,
