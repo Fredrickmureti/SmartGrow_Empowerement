@@ -67,12 +67,8 @@ export function useRFQActions(
         icon: Trash2,
         destructive: true,
         hidden: !isDraft,
-        confirm: {
-          title: `Delete RFQ ${rfq.rfq_number}?`,
-          description: "This permanently removes the draft RFQ.",
-          confirmLabel: "Delete",
-        },
         onSelect: () => {
+          if (!window.confirm(`Delete RFQ ${rfq.rfq_number}?`)) return;
           deleteRFQ(rfq.id);
           onDeleted?.();
         },
