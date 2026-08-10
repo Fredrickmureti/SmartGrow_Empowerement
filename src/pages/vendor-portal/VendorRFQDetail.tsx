@@ -156,8 +156,11 @@ export default function VendorRFQDetail() {
         rfq_item_id: item.id,
         unit_price: prior?.unit_price ?? null,
         quoted_quantity: prior?.quoted_quantity ?? item.quantity,
+        discount_percent: prior?.discount_percent ?? null,
         tax_rate: prior?.tax_rate ?? null,
         delivery_date: prior?.delivery_date ?? null,
+        supplier_product_code: prior?.supplier_product_code ?? null,
+        notes: prior?.notes ?? null,
       };
     }
     setQuotes(seeded);
@@ -174,12 +177,11 @@ export default function VendorRFQDetail() {
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]:
-          field === "delivery_date"
-            ? value || null
-            : value === ""
-              ? null
-              : Number(value),
+        [field]: TEXT_LINE_FIELDS.has(field)
+          ? value || null
+          : value === ""
+            ? null
+            : Number(value),
       },
     }));
   };
@@ -190,7 +192,7 @@ export default function VendorRFQDetail() {
       const q = quotes[item.id];
       if (q?.unit_price == null) return sum;
       const qty = q.quoted_quantity ?? item.quantity;
-      const net = q.unit_price * qty;
+      const net = q.unit_price * qty * (1 - (q.discount_percent ?? 0) / 100);
       return sum + net + net * ((q.tax_rate ?? 0) / 100);
     }, 0) + (freight ? Number(freight) : 0);
 
@@ -202,8 +204,11 @@ export default function VendorRFQDetail() {
         rfq_item_id: q.rfq_item_id,
         unit_price: q.unit_price,
         quoted_quantity: q.quoted_quantity,
+        discount_percent: q.discount_percent ?? 0,
         tax_rate: q.tax_rate ?? 0,
         delivery_date: q.delivery_date,
+        supplier_product_code: q.supplier_product_code,
+        notes: q.notes,
       }));
 
     if (lines.length === 0) {
