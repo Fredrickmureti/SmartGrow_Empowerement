@@ -141,5 +141,5 @@ export function useInvoiceView(
     };
   }, [invoice, loading, error, formatCurrency]);
 
-  return { invoice, loading, error, view };
+  return { invoice, loading, error, refresh, view };
 }
