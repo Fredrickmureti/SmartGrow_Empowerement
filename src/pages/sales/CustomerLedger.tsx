@@ -95,12 +95,27 @@ export default function CustomerLedgerPage() {
     );
   }, [entries]);
 
+  // A running balance across mixed transaction currencies is meaningless.
+  // The statement builder raises the same guard (`otherCurrencies`).
+  const currencies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          entries
+            .map((e) => (e.currency ? String(e.currency).toUpperCase() : null))
+            .filter((c): c is string => !!c),
+        ),
+      ),
+    [entries],
+  );
+  const isMixedCurrency = currencies.length > 1;
+
   const handleExportCsv = () => {
     if (entries.length === 0) return;
     const header = ["Date", "Type", "Reference", "Debit", "Credit", "Running Balance"];
     const rows = entries.map((e) => [
       e.entry_date,
-      DOC_LABEL[e.doc_type] ?? e.doc_type,
+      docLabel(e.doc_type),
       e.doc_ref,
       e.debit ? e.debit.toFixed(2) : "",
       e.credit ? e.credit.toFixed(2) : "",
