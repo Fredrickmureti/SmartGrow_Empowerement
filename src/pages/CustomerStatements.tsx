@@ -2,9 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { useCustomerStatements, CustomerStatementData } from "@/hooks/useCustomerStatements";
-import { fetchAndBuildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
 import { ensureDocumentRecord } from "@/services/documents/ensureDocumentRecord";
-import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { useContacts } from "@/hooks/useContacts";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useCurrency } from "@/hooks/useCurrency";
