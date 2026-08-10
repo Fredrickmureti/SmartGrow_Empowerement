@@ -51,6 +51,7 @@ const SalesReturnCreatePage = lazy(() => import("@/features/sales/returns/SalesR
 const CustomerStatements = lazy(() => import("@/pages/CustomerStatements"));
 const SalespersonPerformance = lazy(() => import("@/pages/sales/SalespersonPerformance"));
 const CustomerLedger = lazy(() => import("@/pages/sales/CustomerLedger"));
+const CustomerLedgerIndex = lazy(() => import("@/pages/sales/CustomerLedgerIndex"));
 const Collections = lazy(() => import("@/pages/sales/Collections"));
 
 // Wrapper for lazy routes
@@ -494,6 +495,19 @@ export function SalesApp() {
             </SubscriptionProtectedRoute>
           }
         />
+
+        {/* Customer ledger directory — first-class entry point */}
+        <Route
+          path="ledger"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Customer Ledger">
+                <CustomerLedgerIndex />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
 
         {/* Collections workspace — actionable AR aging */}
         <Route
