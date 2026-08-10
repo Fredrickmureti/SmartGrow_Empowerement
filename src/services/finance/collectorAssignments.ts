@@ -66,35 +66,18 @@ export async function fetchCollectorAssignments(
 
 /**
  * Fetch active org members who can be assigned as collectors.
+ * Uses the SECURITY DEFINER RPC so auth.users email/name is accessible.
  */
 export async function fetchOrgMembers(orgId: string): Promise<OrgMember[]> {
-  const { data, error } = await supabase
-    .from("user_roles" as any)
-    .select("user_id, full_name, email, raw_user_meta_data")
-    .eq("organization_id", orgId)
-    .eq("is_active", true)
-    .order("full_name" as any, { ascending: true });
+  const { data, error } = await supabase.rpc("fetch_org_members", {
+    _org_id: orgId,
+  });
 
-  if (error) {
-    // user_roles may not have full_name/email columns directly. Fall back to
-    // auth.users metadata via a simpler query.
-    const { data: fallback, error: err2 } = await supabase
-      .from("user_roles" as any)
-      .select("user_id, email")
-      .eq("organization_id", orgId)
-      .eq("is_active", true);
+  if (error) throw error;
 
-    if (err2) throw err2;
-    return (fallback || []).map((r: any) => ({
-      userId: r.user_id,
-      fullName: r.email?.split("@")[0] || "Unknown",
-      email: r.email || "",
-    }));
-  }
-
-  return (data || []).map((r: any) => ({
+  return ((data || []) as any[]).map((r) => ({
     userId: r.user_id,
-    fullName: r.full_name || r.email?.split("@")[0] || "Unknown",
+    fullName: r.full_name || "Unknown",
     email: r.email || "",
   }));
 }
