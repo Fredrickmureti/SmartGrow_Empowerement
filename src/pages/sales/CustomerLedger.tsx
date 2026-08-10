@@ -5,9 +5,10 @@
  * `customer_ledger_entries` view via `useCustomerLedger`.
  * Single-source-of-truth for the customer's balance, statement, and aging.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { downloadCsv } from "@/lib/exports/csv";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
+
 import { useCustomerLedger } from "@/hooks/useCustomerLedger";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -19,6 +20,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  DATE_RANGE_PRESETS,
+  describeDateRange,
+  matchDateRangePreset,
+  resolveDateRangePreset,
+  type DateRangePresetKey,
+} from "@/lib/dateRangePresets";
+
 import {
   ArrowLeft,
   Download,
@@ -73,8 +83,53 @@ export default function CustomerLedgerPage() {
   const navigate = useNavigate();
   const { currentBusiness } = useBusinesses();
   const { formatCurrency } = useCurrency();
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // The range is owned by the URL so an inbound link (collections, statements,
+  // dashboards) can hand over the window it was showing, and so the page can be
+  // shared/refreshed without losing the period being read.
+  const urlFrom = searchParams.get("from") ?? "";
+  const urlTo = searchParams.get("to") ?? "";
+  const urlPreset = searchParams.get("period") as DateRangePresetKey | null;
+
+  const initialPreset: DateRangePresetKey =
+    urlPreset && DATE_RANGE_PRESETS.some((p) => p.key === urlPreset)
+      ? urlPreset
+      : matchDateRangePreset({ from: urlFrom, to: urlTo });
+
+  const [preset, setPreset] = useState<DateRangePresetKey>(initialPreset);
+  const initialRange =
+    urlFrom || urlTo
+      ? { from: urlFrom, to: urlTo }
+      : resolveDateRangePreset(initialPreset);
+  const [dateFrom, setDateFrom] = useState(initialRange.from);
+  const [dateTo, setDateTo] = useState(initialRange.to);
+
+  // Keep the URL in step with the active window (replace, so Back still leaves
+  // the page rather than walking the filter history).
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (dateFrom) next.set("from", dateFrom);
+    else next.delete("from");
+    if (dateTo) next.set("to", dateTo);
+    else next.delete("to");
+    next.set("period", preset);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, preset]);
+
+  const applyPreset = (key: DateRangePresetKey) => {
+    setPreset(key);
+    if (key === "custom") return; // keep whatever dates are already typed
+    const range = resolveDateRangePreset(key);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
+
+  const rangeLabel = describeDateRange({ from: dateFrom, to: dateTo });
+
 
   const { data: contact } = useContact(id);
   const { entries, outstandingBalance, isLoading } = useCustomerLedger({
@@ -153,37 +208,91 @@ export default function CustomerLedgerPage() {
         </Button>
       </div>
 
-      <Card className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div>
-          <Label htmlFor="from">From</Label>
-          <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="to">To</Label>
-          <Input id="to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2 sm:text-right">
-          <div className="text-xs text-muted-foreground">Outstanding balance</div>
-          <div
-            className={`text-3xl font-bold tabular-nums ${
-              outstandingBalance > 0
-                ? "text-amber-700 dark:text-amber-400"
-                : outstandingBalance < 0
-                ? "text-emerald-700 dark:text-emerald-400"
-                : ""
-            }`}
-          >
-            {formatCurrency(outstandingBalance)}
+      <Card className="p-4 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="space-y-3 flex-1 min-w-0">
+            <div>
+              <Label className="text-xs text-muted-foreground">Period</Label>
+              <ToggleGroup
+                type="single"
+                value={preset}
+                onValueChange={(v) => v && applyPreset(v as DateRangePresetKey)}
+                className="flex flex-wrap justify-start gap-1 mt-1"
+              >
+                {DATE_RANGE_PRESETS.map((p) => (
+                  <ToggleGroupItem
+                    key={p.key}
+                    value={p.key}
+                    size="sm"
+                    className="h-8 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    {p.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            {preset === "custom" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <Label htmlFor="from">From</Label>
+                  <Input
+                    id="from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="to">To</Label>
+                  <Input
+                    id="to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="text-sm text-muted-foreground">
+              Viewing:{" "}
+              <span className="font-medium text-foreground">{rangeLabel}</span>
+              {preset !== "custom" && preset !== "all" && (
+                <>
+                  {" "}
+                  <Badge variant="secondary" className="ml-1 align-middle">
+                    {DATE_RANGE_PRESETS.find((p) => p.key === preset)?.label}
+                  </Badge>
+                </>
+              )}
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {outstandingBalance > 0
-              ? "Owed by customer"
-              : outstandingBalance < 0
-              ? "Customer credit on file"
-              : "Settled"}
+
+          <div className="lg:text-right shrink-0">
+            <div className="text-xs text-muted-foreground">Outstanding balance</div>
+            <div
+              className={`text-3xl font-bold tabular-nums ${
+                outstandingBalance > 0
+                  ? "text-amber-700 dark:text-amber-400"
+                  : outstandingBalance < 0
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : ""
+              }`}
+            >
+              {formatCurrency(outstandingBalance)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {outstandingBalance > 0
+                ? "Owed by customer"
+                : outstandingBalance < 0
+                ? "Customer credit on file"
+                : "Settled"}
+            </div>
           </div>
         </div>
       </Card>
+
 
       {isMixedCurrency && (
         <Card className="p-3 flex items-start gap-2 border-amber-500/50 bg-amber-500/10">
