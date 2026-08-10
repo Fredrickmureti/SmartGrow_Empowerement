@@ -52,7 +52,9 @@ import {
   type StatementDelivery,
 } from "@/hooks/useStatementDeliveryStatus";
 import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
+import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
 import type { CurrencyNetPositionRow } from "@/services/finance/openItems";
+import { UserCog, Check } from "lucide-react";
 
 import {
   AGING_BUCKET_LABELS,
