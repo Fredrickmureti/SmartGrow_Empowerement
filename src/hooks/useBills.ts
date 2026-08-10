@@ -141,6 +141,13 @@ export function useBills() {
   const { defaultPaymentTerm } = usePaymentTerms();
   const [bills, setBills] = useState<Bill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  /**
+   * Company AP policy: when true, a bill must be approved before it can be
+   * posted. The DB trigger `enforce_bill_approval_gate` is the authority —
+   * this flag only shapes the UI so users are not shown an action the server
+   * will refuse.
+   */
+  const [requireBillApproval, setRequireBillApproval] = useState(false);
 
   const fetchBills = useCallback(async () => {
     if (!currentOrg || !currentBusiness) {
