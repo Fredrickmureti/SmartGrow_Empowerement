@@ -1,17 +1,40 @@
 /**
- * Wave 7.2 · Step 6 — Customer statement snapshot builder.
+ * Customer statement snapshot builder — the export projection of the ONE
+ * canonical statement dataset.
  *
- * Mirrors `supabase/functions/generate-document/index.ts::fetchCustomerStatement`
- * (`document_kinds.code = 'sales.statement'`). A statement is not a
- * fiscal document — it summarizes invoices, payments, and credit notes
- * for a customer over a period. The renderer reads:
- *   - `statement_transactions[]` — sorted ledger with running balance
- *   - `statement_aging[]` — five-bucket aging summary
+ * SOURCE OF TRUTH: `customer_ledger_entries` (posted AR subledger), read
+ * through `fetchCustomerLedgerRows` and folded by `buildStatementDataset`,
+ * exactly as the on-screen statement does. This module used to re-derive the
+ * statement from `invoices` + `payments` + `credit_notes`; that second engine
+ * charged draft/void invoices to the customer, ignored branch and currency,
+ * could not see refunds / deposits / payment reversals, and filtered credit
+ * notes on a `credit_note_status` value that does not exist in the enum
+ * (`partially_applied`) — which is why statement PDFs failed with HTTP 400.
+ *
+ * Aging comes from the GL-anchored open-items projection through the one
+ * shared helper (`fetchContactOpenItemAging`), aged as of the period end.
+ *
+ * The renderer reads:
+ *   - `statement_transactions[]` — ledger rows with running balance
+ *   - `statement_aging[]` — canonical aging summary
  *   - `statement_opening_balance` / `statement_closing_balance`
  *   - `statement_period_start` / `statement_period_end`
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SnapshotBlob } from "./index";
+import {
+  buildStatementDataset,
+  type StatementDataset,
+} from "@/services/finance/customerStatementDataset";
+import { fetchCustomerLedgerRows } from "@/services/finance/customerStatementLedger";
+import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import {
+  AGING_BUCKET_KEYS,
+  AGING_BUCKET_LABELS,
+  EMPTY_AGING_BUCKETS,
+  type AgingBuckets,
+} from "@/services/finance/aging";
+import { expandToCommercialPartnerSet } from "@/lib/contactHierarchy";
 
 export interface StatementContactRow {
   name: string | null;
@@ -50,26 +73,6 @@ export interface StatementHeaderRow {
   business: StatementBusinessRow | null;
 }
 
-export interface StatementInvoiceRow {
-  invoice_number: string | null;
-  issue_date: string;
-  total: number | null;
-  amount_paid: number | null;
-  status: string | null;
-}
-export interface StatementPaymentRow {
-  receipt_number: string | null;
-  payment_date: string;
-  amount: number | null;
-  payment_method?: string | null;
-}
-export interface StatementCreditNoteRow {
-  credit_note_number: string | null;
-  issue_date: string;
-  total: number | null;
-  status: string | null;
-}
-
 export interface StatementTransactionOut {
   date: string;
   type: string;
@@ -78,6 +81,9 @@ export interface StatementTransactionOut {
   charges: number;
   credits: number;
   balance: number;
+  /** Drill-down anchor: the originating business document. */
+  source_id?: string;
+  source_type?: string;
 }
 
 export interface StatementAgingBucketOut {
@@ -98,121 +104,60 @@ export interface BuildStatementSnapshotResult {
 
 export interface BuildStatementInput {
   statement: StatementHeaderRow;
-  invoices: StatementInvoiceRow[];
-  payments: StatementPaymentRow[];
-  creditNotes: StatementCreditNoteRow[];
-  /**
-   * Injectable clock for deterministic aging in tests. Aging buckets use
-   * `now - issue_date`; passing a fixed instant keeps snapshots stable.
-   */
-  now?: Date;
+  /** The canonical dataset folded from `customer_ledger_entries`. */
+  dataset: StatementDataset;
+  /** Canonical aging buckets, aged as of the period end. */
+  aging?: AgingBuckets;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  invoice: "Invoice",
+  payment: "Payment",
+  credit_note: "Credit Note",
+  deposit: "Deposit",
+  refund: "Refund",
+  payment_reversal: "Payment Reversal",
+};
+
+function labelFor(docType: string): string {
+  return TYPE_LABEL[docType] ?? docType.replace(/_/g, " ");
 }
 
 /**
- * Pure builder. Deterministic given the same inputs (plus `now` for aging).
+ * Pure builder. Deterministic: the same header + dataset always produce the
+ * same snapshot — no clock, no ambient state.
  */
 export function buildCustomerStatementSnapshot(
   input: BuildStatementInput,
 ): BuildStatementSnapshotResult {
-  const { statement, invoices, payments, creditNotes } = input;
+  const { statement, dataset } = input;
   if (!statement.id) throw new Error("buildCustomerStatementSnapshot: id required");
   if (!statement.period_start || !statement.period_end) {
     throw new Error("buildCustomerStatementSnapshot: period_start / period_end required");
   }
+  if (!dataset) throw new Error("buildCustomerStatementSnapshot: dataset required");
 
-  type Row = {
-    date: string;
-    type: string;
-    ref: string;
-    desc: string;
-    debit: number;
-    credit: number;
-  };
-  const rows: Row[] = [];
+  const statement_transactions: StatementTransactionOut[] = dataset.transactions.map((t) => ({
+    date: t.date,
+    type: labelFor(t.docType),
+    reference: t.reference,
+    description: t.description,
+    charges: t.debit,
+    credits: t.credit,
+    balance: t.balance,
+    source_id: t.sourceId,
+    source_type: t.docType,
+  }));
 
-  for (const inv of invoices ?? []) {
-    rows.push({
-      date: inv.issue_date,
-      type: "Invoice",
-      ref: inv.invoice_number || "",
-      desc: `Invoice ${inv.invoice_number || ""}`.trim(),
-      debit: Number(inv.total) || 0,
-      credit: 0,
-    });
-  }
-  for (const pmt of payments ?? []) {
-    rows.push({
-      date: pmt.payment_date,
-      type: "Payment",
-      ref: pmt.receipt_number || "—",
-      desc: `Payment received${
-        pmt.receipt_number ? ` (${pmt.receipt_number})` : ""
-      }`,
-      debit: 0,
-      credit: Number(pmt.amount) || 0,
-    });
-  }
-  for (const cn of creditNotes ?? []) {
-    rows.push({
-      date: cn.issue_date,
-      type: "Credit Note",
-      ref: cn.credit_note_number || "",
-      desc: `Credit Note ${cn.credit_note_number || ""}`.trim(),
-      debit: 0,
-      credit: Number(cn.total) || 0,
-    });
-  }
-
-  // Stable sort — date first, then type / reference — so replays match.
-  rows.sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    if (a.type !== b.type) return a.type < b.type ? -1 : 1;
-    return a.ref < b.ref ? -1 : a.ref > b.ref ? 1 : 0;
-  });
-
-  let running = Number(statement.opening_balance) || 0;
-  const statement_transactions: StatementTransactionOut[] = rows.map((r) => {
-    running += r.debit - r.credit;
-    return {
-      date: r.date,
-      type: r.type,
-      reference: r.ref,
-      description: r.desc,
-      charges: r.debit,
-      credits: r.credit,
-      balance: running,
-    };
-  });
-
-  const now = input.now ?? new Date();
-  let current = 0,
-    d30 = 0,
-    d60 = 0,
-    d90 = 0,
-    dOver = 0;
-  for (const inv of invoices ?? []) {
-    const bal = (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0);
-    if (bal <= 0) continue;
-    const days = Math.floor(
-      (now.getTime() - new Date(inv.issue_date).getTime()) /
-        (1000 * 60 * 60 * 24),
-    );
-    if (days <= 0) current += bal;
-    else if (days <= 30) d30 += bal;
-    else if (days <= 60) d60 += bal;
-    else if (days <= 90) d90 += bal;
-    else dOver += bal;
-  }
-  const statement_aging: StatementAgingBucketOut[] = [
-    { label: "Current", amount: current },
-    { label: "1-30 Days", amount: d30 },
-    { label: "31-60 Days", amount: d60 },
-    { label: "61-90 Days", amount: d90 },
-    { label: "90+ Days", amount: dOver },
-  ];
+  const aging = input.aging ?? EMPTY_AGING_BUCKETS;
+  const statement_aging: StatementAgingBucketOut[] = AGING_BUCKET_KEYS.map((k) => ({
+    label: AGING_BUCKET_LABELS[k],
+    amount: Number(aging[k]) || 0,
+  }));
 
   const currency = statement.business?.base_currency || "USD";
-  const closingBalance = statement.closing_balance ?? running;
+  const openingBalance = dataset.openingBalance;
+  const closingBalance = dataset.closingBalance;
   const documentNumber = `Statement - ${statement.contact?.name || "Customer"}`;
   const issueDateIso = statement.statement_date || statement.created_at;
 
@@ -222,13 +167,17 @@ export function buildCustomerStatementSnapshot(
     document_type_label: "CUSTOMER STATEMENT",
     status: statement.sent_at ? "sent" : "draft",
     issue_date: issueDateIso,
-    subtotal: Number(statement.total_invoiced) || 0,
+    subtotal: dataset.totalCharges,
     tax_amount: 0,
     discount_amount: 0,
     total: closingBalance,
-    amount_paid: Number(statement.total_payments) || 0,
+    amount_paid: dataset.totalCredits,
     currency,
-    notes: null,
+    notes: dataset.otherCurrencies.length
+      ? `This statement covers ${currency} activity only. This customer also has activity in: ${dataset.otherCurrencies.join(
+          ", ",
+        )}.`
+      : null,
     terms: null,
     contact: statement.contact,
     business_id: statement.business_id,
@@ -237,7 +186,7 @@ export function buildCustomerStatementSnapshot(
     items: [],
     statement_transactions,
     statement_aging,
-    statement_opening_balance: Number(statement.opening_balance) || 0,
+    statement_opening_balance: openingBalance,
     statement_closing_balance: closingBalance,
     statement_period_start: statement.period_start,
     statement_period_end: statement.period_end,
@@ -260,7 +209,7 @@ export function buildCustomerStatementSnapshot(
 export async function fetchAndBuildCustomerStatementSnapshot(
   supabase: SupabaseClient,
   statementId: string,
-  opts?: { now?: Date },
+  opts?: { consolidate?: boolean },
 ): Promise<BuildStatementSnapshotResult> {
   const { data: stmt, error } = await supabase
     .from("customer_statements")
@@ -285,49 +234,41 @@ export async function fetchAndBuildCustomerStatementSnapshot(
   }
 
   const s = stmt as unknown as StatementHeaderRow;
+  if (!s.business_id) {
+    throw new Error(
+      `fetchAndBuildCustomerStatementSnapshot: statement ${statementId} has no business_id`,
+    );
+  }
 
-  // Same three queries, in parallel — reproduces the edge-function view.
-  const invoiceQ = supabase
-    .from("invoices")
-    .select("invoice_number, issue_date, total, amount_paid, status")
-    .eq("organization_id", s.organization_id)
-    .eq("contact_id", s.contact_id)
-    .gte("issue_date", s.period_start)
-    .lte("issue_date", s.period_end)
-    .order("issue_date");
-  const paymentQ = supabase
-    .from("payments")
-    .select("receipt_number, payment_date, amount, payment_method")
-    .eq("organization_id", s.organization_id)
-    .eq("contact_id", s.contact_id)
-    .gte("payment_date", s.period_start)
-    .lte("payment_date", s.period_end)
-    .order("payment_date");
-  const cnQ = supabase
-    .from("credit_notes")
-    .select("credit_note_number, issue_date, total, status")
-    .eq("organization_id", s.organization_id)
-    .eq("contact_id", s.contact_id)
-    .gte("issue_date", s.period_start)
-    .lte("issue_date", s.period_end)
-    .in("status", ["issued", "applied", "partially_applied"])
-    .order("issue_date");
+  const contactIds = opts?.consolidate
+    ? await expandToCommercialPartnerSet(s.contact_id, {
+        organizationId: s.organization_id,
+        businessId: s.business_id,
+      })
+    : [s.contact_id];
 
-  const [invRes, pmtRes, cnRes] = await Promise.all([
-    s.business_id ? invoiceQ.eq("business_id", s.business_id) : invoiceQ,
-    s.business_id ? paymentQ.eq("business_id", s.business_id) : paymentQ,
-    s.business_id ? cnQ.eq("business_id", s.business_id) : cnQ,
-  ]);
-
-  if (invRes.error) throw new Error(`statement invoices: ${invRes.error.message}`);
-  if (pmtRes.error) throw new Error(`statement payments: ${pmtRes.error.message}`);
-  if (cnRes.error) throw new Error(`statement credit_notes: ${cnRes.error.message}`);
-
-  return buildCustomerStatementSnapshot({
-    statement: s,
-    invoices: (invRes.data ?? []) as StatementInvoiceRow[],
-    payments: (pmtRes.data ?? []) as StatementPaymentRow[],
-    creditNotes: (cnRes.data ?? []) as StatementCreditNoteRow[],
-    now: opts?.now,
+  const rows = await fetchCustomerLedgerRows(supabase, {
+    organizationId: s.organization_id,
+    businessId: s.business_id,
+    branchId: s.branch_id,
+    contactIds,
+    periodEnd: s.period_end,
   });
+
+  const dataset = buildStatementDataset({
+    rows,
+    periodStart: s.period_start,
+    periodEnd: s.period_end,
+    currency: s.business?.base_currency ?? null,
+  });
+
+  const aging = await fetchContactOpenItemAging("ar", {
+    orgId: s.organization_id,
+    contactId: contactIds,
+    businessId: s.business_id,
+    branchId: s.branch_id,
+    asOf: s.period_end,
+  });
+
+  return buildCustomerStatementSnapshot({ statement: s, dataset, aging });
 }
