@@ -78,6 +78,7 @@ const LINE_COLUMNS: LineItemColumn[] = [
 export default function RequisitionRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  void navigate;
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
 
