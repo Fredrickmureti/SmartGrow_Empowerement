@@ -68,7 +68,8 @@ export async function fetchLedgerSearchableCustomers(
     .select("id, name")
     .eq("organization_id", orgId)
     .eq("is_active", true)
-    .in("contact_type", ["customer", "both"])
+    // `contacts.contact_type` does not exist — see customerIdentity.ts.
+    .or(CUSTOMER_IDENTITY_OR_FILTER)
     .order("name", { ascending: true })
     .limit(500);
   if (businessId) q = q.eq("business_id", businessId);
