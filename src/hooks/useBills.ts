@@ -324,21 +324,50 @@ export function useBills() {
       changesSummary: `Created bill ${bill.bill_number} for ${total}`,
     });
 
-    // Auto-confirm and post to GL immediately (atomic RPC)
-    try {
-      const billWithItems = { ...created, items } as unknown as Bill;
-      await confirmBillAndPostGL(billWithItems, {
-        logAction,
-        userId: user.id,
-      });
-    } catch (glError: any) {
-      console.error("Auto GL posting failed for bill:", glError);
-      // Bill is created as draft — surface failure to user so they know to retry
-      toast({
-        title: "Bill created as draft",
-        description: `GL posting failed: ${glError?.message || "Unknown error"}. Please confirm the bill manually from the bill list.`,
-        variant: "destructive",
-      });
+    if (requireBillApproval) {
+      // Approval-gated company: the bill goes out for approval instead of
+      // being posted. `enforce_bill_approval_gate` would refuse the post
+      // anyway, so we never attempt it.
+      const { error: submitError } = await supabase.rpc("submit_bill_atomic", {
+        _bill_id: created.id,
+        _actor: user.id,
+      } as any);
+      if (submitError) {
+        toast({
+          title: "Bill created as draft",
+          description: `Could not submit for approval: ${normalizeError(submitError).message}`,
+          variant: "destructive",
+        });
+      } else {
+        logAction({
+          action: "submitted",
+          entityType: "bill",
+          entityId: created.id,
+          entityName: bill.bill_number,
+          changesSummary: `Submitted bill ${bill.bill_number} for approval`,
+        });
+        toast({
+          title: "Submitted for approval",
+          description: `${bill.bill_number} is awaiting approval before it is posted to the ledger.`,
+        });
+      }
+    } else {
+      // Auto-confirm and post to GL immediately (atomic RPC)
+      try {
+        const billWithItems = { ...created, items } as unknown as Bill;
+        await confirmBillAndPostGL(billWithItems, {
+          logAction,
+          userId: user.id,
+        });
+      } catch (glError: any) {
+        console.error("Auto GL posting failed for bill:", glError);
+        // Bill is created as draft — surface failure to user so they know to retry
+        toast({
+          title: "Bill created as draft",
+          description: `GL posting failed: ${glError?.message || "Unknown error"}. Please confirm the bill manually from the bill list.`,
+          variant: "destructive",
+        });
+      }
     }
 
     // Refresh bills from DB to get accurate status
