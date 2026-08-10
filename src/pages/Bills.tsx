@@ -104,6 +104,7 @@ import { type ExportConfig, type ExportColumn } from "@/services/reports/ReportE
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
+import { useApSummary } from "@/hooks/useApSummary";
 
 
 // Workflow pipeline for Bills.
