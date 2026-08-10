@@ -296,10 +296,13 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
           contact: { name: "Acme Ltd" },
           business: { id: "b", name: "Widget Co", base_currency: "KES" },
         },
-        invoices: [],
-        payments: [],
-        creditNotes: [],
-        now: new Date("2026-07-27T00:00:00Z"),
+        dataset: buildStatementDataset({
+          rows: [],
+          periodStart: "2026-06-01",
+          periodEnd: "2026-06-30",
+          currency: "KES",
+        }),
+
       }),
   },
   {
