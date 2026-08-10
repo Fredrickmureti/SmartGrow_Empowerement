@@ -8519,6 +8519,101 @@ export type Database = {
         }
         Relationships: []
       }
+      collector_assignments: {
+        Row: {
+          active: boolean
+          assigned_at: string
+          assigned_by: string | null
+          business_id: string | null
+          collector_user_id: string
+          contact_id: string
+          created_at: string
+          deactivated_at: string | null
+          deactivated_by: string | null
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          collector_user_id: string
+          contact_id: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assigned_at?: string
+          assigned_by?: string | null
+          business_id?: string | null
+          collector_user_id?: string
+          contact_id?: string
+          created_at?: string
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_payroll_settings_effective"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "v_pos_holding_account_readiness"
+            referencedColumns: ["business_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "collector_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commercial_audit_logs: {
         Row: {
           actor_id: string | null
@@ -74809,6 +74904,30 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_ar_net_position_by_currency: {
+        Row: {
+          base_credit_amount: number | null
+          base_net_amount: number | null
+          base_open_amount: number | null
+          branch_id: string | null
+          business_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          credit_amount: number | null
+          currency: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          not_due: number | null
+          open_amount: number | null
+          open_document_count: number | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
       finance_ar_open_items: {
         Row: {
           applied_amount: number | null
@@ -86340,6 +86459,10 @@ export type Database = {
         }
         Returns: string
       }
+      deactivate_collector_assignment: {
+        Args: { _contact_id: string }
+        Returns: undefined
+      }
       default_journal_book_for_source: {
         Args: {
           _bank_account_id?: string
@@ -87960,6 +88083,26 @@ export type Database = {
           title: string
           weight: number
           weight_sum_warning: boolean
+        }[]
+      }
+      fetch_collector_assignments_with_names: {
+        Args: { _org_id: string }
+        Returns: {
+          active: boolean
+          assigned_at: string
+          collector_email: string
+          collector_name: string
+          collector_user_id: string
+          contact_id: string
+          id: string
+        }[]
+      }
+      fetch_org_members: {
+        Args: { _org_id: string }
+        Returns: {
+          email: string
+          full_name: string
+          user_id: string
         }[]
       }
       filtered_employee_directory: {
@@ -96260,6 +96403,15 @@ export type Database = {
           test_name: string
         }[]
       }
+      to_base_amount: {
+        Args: {
+          _amount: number
+          _as_of?: string
+          _business_id: string
+          _currency: string
+        }
+        Returns: number
+      }
       trailer_departure_blockers: {
         Args: { p_visit_id: string }
         Returns: Json
@@ -96478,6 +96630,14 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      upsert_collector_assignment: {
+        Args: {
+          _business_id?: string
+          _collector_user_id: string
+          _contact_id: string
+        }
+        Returns: string
       }
       upsert_customer_statement_atomic: {
         Args: { _payload: Json }

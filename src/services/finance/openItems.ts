@@ -362,3 +362,67 @@ export async function fetchReceivableCounterparties(
   }
   return Array.from(byContact.values()).sort((a, b) => b.netAmount - a.netAmount);
 }
+
+export interface CurrencyNetPositionRow {
+  contactId: string;
+  contactName: string;
+  currency: string;
+  openDocumentCount: number;
+  openAmount: number;
+  creditAmount: number;
+  netAmount: number;
+  baseNetAmount: number;
+  notDue: number;
+  current: number;
+  days30: number;
+  days60: number;
+  days90: number;
+  maxDaysOverdue: number;
+}
+
+/**
+ * Per-currency net AR position per customer.
+ *
+ * ADR: reads `finance_ar_net_position_by_currency`, the server-side projection
+ * that buckets by age AND currency. Aging buckets are in document currency so
+ * a collector sees what the customer owes in their own currency. base_net_amount
+ * is the base-currency equivalent for cross-currency totals.
+ */
+export async function fetchNetPositionByCurrency(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+): Promise<CurrencyNetPositionRow[]> {
+  let q = supabase
+    .from("finance_ar_net_position_by_currency" as any)
+    .select(
+      "contact_id, contact_name, currency, open_document_count, open_amount, credit_amount, net_amount, base_net_amount, not_due, current_bucket, days30, days60, days90, max_days_overdue",
+    )
+    .eq("organization_id", orgId)
+    .gt("net_amount", 0.01)
+    .order("net_amount", { ascending: false });
+  if (businessId) q = q.eq("business_id", businessId);
+  if (branchId) q = q.eq("branch_id", branchId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  return ((data || []) as any[])
+    .filter((r) => r.contact_id)
+    .map((r) => ({
+      contactId: r.contact_id,
+      contactName: r.contact_name || "Unknown",
+      currency: r.currency,
+      openDocumentCount: Number(r.open_document_count) || 0,
+      openAmount: Number(r.open_amount) || 0,
+      creditAmount: Number(r.credit_amount) || 0,
+      netAmount: Number(r.net_amount) || 0,
+      baseNetAmount: Number(r.base_net_amount) || 0,
+      notDue: Number(r.not_due) || 0,
+      current: Number(r.current_bucket) || 0,
+      days30: Number(r.days30) || 0,
+      days60: Number(r.days60) || 0,
+      days90: Number(r.days90) || 0,
+      maxDaysOverdue: Number(r.max_days_overdue) || 0,
+    }));
+}

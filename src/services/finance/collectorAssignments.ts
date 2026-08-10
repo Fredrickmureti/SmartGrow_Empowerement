@@ -1,0 +1,101 @@
+/**
+ * Collector assignment service.
+ *
+ * Maps customers (contacts) to the staff member responsible for collecting
+ * their outstanding receivables. Assignments are org-scoped and single-active
+ * per contact — the database RPC `upsert_collector_assignment` deactivates any
+ * prior active assignment before inserting the new one.
+ */
+import { supabase } from "@/integrations/supabase/client";
+
+export interface CollectorAssignment {
+  id: string;
+  contactId: string;
+  collectorUserId: string;
+  collectorName: string;
+  collectorEmail: string;
+  active: boolean;
+  assignedAt: string;
+}
+
+export interface OrgMember {
+  userId: string;
+  fullName: string;
+  email: string;
+}
+
+/**
+ * Fetch all active collector assignments for the organization, joined with
+ * the collector's profile (email + full_name) so the UI can show a name
+ * without a second round-trip.
+ */
+export async function fetchCollectorAssignments(
+  orgId: string,
+  businessId?: string | null,
+): Promise<Map<string, CollectorAssignment>> {
+  const { data, error } = await supabase.rpc("fetch_collector_assignments_with_names", {
+    _org_id: orgId,
+  });
+
+  if (error) throw error;
+
+  const map = new Map<string, CollectorAssignment>();
+  for (const r of (data || []) as any[]) {
+    map.set(r.contact_id, {
+      id: r.id,
+      contactId: r.contact_id,
+      collectorUserId: r.collector_user_id,
+      collectorName: r.collector_name || "Unknown",
+      collectorEmail: r.collector_email || "",
+      active: r.active,
+      assignedAt: r.assigned_at,
+    });
+  }
+  return map;
+}
+
+/**
+ * Fetch active org members who can be assigned as collectors.
+ * Uses the SECURITY DEFINER RPC so auth.users email/name is accessible.
+ */
+export async function fetchOrgMembers(orgId: string): Promise<OrgMember[]> {
+  const { data, error } = await supabase.rpc("fetch_org_members", {
+    _org_id: orgId,
+  });
+
+  if (error) throw error;
+
+  return ((data || []) as any[]).map((r) => ({
+    userId: r.user_id,
+    fullName: r.full_name || "Unknown",
+    email: r.email || "",
+  }));
+}
+
+/**
+ * Assign a collector to a contact. Deactivates any prior active assignment.
+ */
+export async function assignCollector(
+  contactId: string,
+  collectorUserId: string,
+  businessId?: string | null,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("upsert_collector_assignment", {
+    _contact_id: contactId,
+    _collector_user_id: collectorUserId,
+    _business_id: businessId ?? null,
+  });
+
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * Unassign the active collector from a contact.
+ */
+export async function unassignCollector(contactId: string): Promise<void> {
+  const { error } = await supabase.rpc("deactivate_collector_assignment", {
+    _contact_id: contactId,
+  });
+  if (error) throw error;
+}
