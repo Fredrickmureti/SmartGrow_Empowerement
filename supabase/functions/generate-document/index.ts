@@ -1790,109 +1790,112 @@ async function fetchVendorStatement(supabase: any, documentId: string): Promise<
   const contactId = stmt.contact_id;
   const orgId = stmt.organization_id;
   const businessId = stmt.business_id;
+  const branchId = stmt.branch_id ?? null;
   const periodStart = stmt.period_start;
   const periodEnd = stmt.period_end;
+  const currency = stmt.business?.base_currency || stmt.organization?.base_currency || "USD";
 
-  // Fetch bills
-  let billQuery = supabase
-    .from("bills")
-    .select("bill_number, bill_date, total, amount_paid, status, vendor_invoice_number")
+  // SOURCE OF TRUTH: the posted AP subledger (`vendor_ledger_entries`),
+  // folded by the SAME builder the app uses (`vendorStatementDataset.ts`,
+  // mirrored into _shared). This fetcher previously re-derived the statement
+  // from `bills` + `bill_payments` + `vendor_credit_notes`, which hard-coded
+  // a status vocabulary, mis-attributed any payment settling several bills,
+  // ignored branch and currency, and hid advances and payment reversals.
+  let ledgerQuery = supabase
+    .from("vendor_ledger_entries")
+    .select("entry_date, doc_type, doc_id, doc_ref, debit, credit, currency, created_at")
     .eq("organization_id", orgId)
-    .eq("vendor_id", contactId)
-    .in("status", ["received", "paid", "partial", "overdue"])
-    .gte("bill_date", periodStart)
-    .lte("bill_date", periodEnd)
-    .order("bill_date");
-  if (businessId) billQuery = billQuery.eq("business_id", businessId);
-  const { data: bills } = await billQuery;
+    .eq("contact_id", contactId)
+    .lte("entry_date", periodEnd)
+    .order("entry_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (businessId) ledgerQuery = ledgerQuery.eq("business_id", businessId);
+  if (branchId) ledgerQuery = ledgerQuery.eq("branch_id", branchId);
+  const { data: ledgerRows, error: ledgerError } = await ledgerQuery;
+  if (ledgerError) throw new Error(`Vendor statement ledger: ${ledgerError.message}`);
 
-  // Fetch bill payments (need bill IDs first)
-  let allBillQuery = supabase
-    .from("bills")
-    .select("id")
+  const dataset = buildVendorStatementDataset({
+    rows: (ledgerRows || []) as VendorLedgerRow[],
+    periodStart,
+    periodEnd,
+    currency,
+  });
+
+  const TYPE_LABEL: Record<string, string> = {
+    bill: "Bill",
+    bill_payment: "Payment",
+    payment: "Payment",
+    vendor_credit_note: "Vendor Credit",
+    credit_note: "Vendor Credit",
+    advance: "Supplier Advance",
+    payment_reversal: "Payment Reversal",
+  };
+
+  const statementTransactions: StatementTransaction[] = dataset.transactions.map((t) => ({
+    date: t.date,
+    type: TYPE_LABEL[t.docType] ?? t.docType.replace(/_/g, " "),
+    reference: t.reference,
+    description: t.description,
+    charges: t.debit,
+    credits: t.credit,
+    balance: t.balance,
+    source_id: t.sourceId,
+    source_type: t.docType,
+  }));
+
+  // Aging: the GL-anchored open-items projection, aged as of the period end
+  // (never the server clock), so a reprint of a closed period reproduces the
+  // original buckets. Bucket boundaries mirror the SQL definition.
+  let agingQuery = supabase
+    .from("finance_ap_open_items")
+    .select("document_date, due_date, residual_amount, base_residual_amount")
     .eq("organization_id", orgId)
-    .eq("vendor_id", contactId);
-  if (businessId) allBillQuery = allBillQuery.eq("business_id", businessId);
-  const { data: allBills } = await allBillQuery;
-  const allBillIds = (allBills || []).map((b: any) => b.id);
+    .eq("contact_id", contactId)
+    .lte("document_date", periodEnd)
+    .gt("residual_amount", 0.01);
+  if (businessId) agingQuery = agingQuery.eq("business_id", businessId);
+  if (branchId) agingQuery = agingQuery.eq("branch_id", branchId);
+  const { data: openItems, error: agingError } = await agingQuery;
+  if (agingError) throw new Error(`Vendor statement aging: ${agingError.message}`);
 
-  let payments: any[] = [];
-  if (allBillIds.length > 0) {
-    const { data: pmts } = await supabase
-      .from("bill_payments")
-      .select("reference, payment_date, amount")
-      .eq("organization_id", orgId)
-      .in("bill_id", allBillIds)
-      .gte("payment_date", periodStart)
-      .lte("payment_date", periodEnd)
-      .order("payment_date");
-    payments = pmts || [];
-  }
-
-  // Fetch vendor credit notes
-  let cnQuery = supabase
-    .from("vendor_credit_notes")
-    .select("credit_note_number, credit_date, total, status")
-    .eq("organization_id", orgId)
-    .eq("vendor_id", contactId)
-    .in("status", ["confirmed", "applied"])
-    .gte("credit_date", periodStart)
-    .lte("credit_date", periodEnd)
-    .order("credit_date");
-  if (businessId) cnQuery = cnQuery.eq("business_id", businessId);
-  const { data: creditNotes } = await cnQuery;
-
-  // Build transactions
-  type TxnEntry = { date: string; type: string; ref: string; desc: string; debit: number; credit: number };
-  const txns: TxnEntry[] = [];
-
-  for (const bill of (bills || [])) {
-    txns.push({ date: bill.bill_date, type: "Bill", ref: bill.bill_number, desc: `Bill ${bill.bill_number}${bill.vendor_invoice_number ? ` (Ref: ${bill.vendor_invoice_number})` : ''}`, debit: bill.total || 0, credit: 0 });
-  }
-  for (const pmt of payments) {
-    txns.push({ date: pmt.payment_date, type: "Payment", ref: pmt.reference || "—", desc: `Payment${pmt.reference ? ` (${pmt.reference})` : ""}`, debit: 0, credit: pmt.amount || 0 });
-  }
-  for (const cn of (creditNotes || [])) {
-    txns.push({ date: cn.credit_date, type: "Credit Note", ref: cn.credit_note_number, desc: `Vendor Credit ${cn.credit_note_number}`, debit: 0, credit: cn.total || 0 });
-  }
-
-  txns.sort((a, b) => a.date.localeCompare(b.date));
-
-  let runningBalance = stmt.opening_balance || 0;
-  const statementTransactions: StatementTransaction[] = [];
-
-  for (const txn of txns) {
-    runningBalance += txn.debit - txn.credit;
-    statementTransactions.push({
-      date: txn.date, type: txn.type, reference: txn.ref, description: txn.desc,
-      charges: txn.debit, credits: txn.credit, balance: runningBalance,
-    });
-  }
-
-  // Aging buckets
-  const now = new Date();
-  let agingCurrent = 0, aging30 = 0, aging60 = 0, aging90 = 0, agingOver90 = 0;
-  for (const bill of (bills || [])) {
-    const balance = (bill.total || 0) - (bill.amount_paid || 0);
-    if (balance <= 0) continue;
-    const daysOld = Math.floor((now.getTime() - new Date(bill.bill_date).getTime()) / (1000 * 60 * 60 * 24));
-    if (daysOld <= 0) agingCurrent += balance;
-    else if (daysOld <= 30) aging30 += balance;
-    else if (daysOld <= 60) aging60 += balance;
-    else if (daysOld <= 90) aging90 += balance;
-    else agingOver90 += balance;
+  const asOf = Date.UTC(
+    Number(periodEnd.slice(0, 4)),
+    Number(periodEnd.slice(5, 7)) - 1,
+    Number(periodEnd.slice(8, 10)),
+  );
+  const buckets = { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0 };
+  for (const row of (openItems || []) as any[]) {
+    const residual = Number(row.base_residual_amount ?? row.residual_amount) || 0;
+    if (residual <= 0.01) continue;
+    const ref = String(row.due_date || row.document_date || periodEnd);
+    const due = Date.UTC(
+      Number(ref.slice(0, 4)),
+      Number(ref.slice(5, 7)) - 1,
+      Number(ref.slice(8, 10)),
+    );
+    const daysOverdue = Math.floor((asOf - due) / 86_400_000);
+    const key =
+      daysOverdue < 0
+        ? "not_due"
+        : daysOverdue <= 30
+          ? "current"
+          : daysOverdue <= 60
+            ? "days30"
+            : daysOverdue <= 90
+              ? "days60"
+              : "days90";
+    buckets[key] += residual;
   }
 
   const statementAging: StatementAgingBucket[] = [
-    { label: "Current", amount: agingCurrent },
-    { label: "1-30 Days", amount: aging30 },
-    { label: "31-60 Days", amount: aging60 },
-    { label: "61-90 Days", amount: aging90 },
-    { label: "90+ Days", amount: agingOver90 },
+    { label: "Not yet due", amount: buckets.not_due },
+    { label: "0–30 days", amount: buckets.current },
+    { label: "31–60 days", amount: buckets.days30 },
+    { label: "61–90 days", amount: buckets.days60 },
+    { label: "90+ days", amount: buckets.days90 },
   ];
 
-  const currency = stmt.business?.base_currency || stmt.organization?.base_currency || "USD";
-  const closingBalance = stmt.closing_balance ?? runningBalance;
+  const closingBalance = dataset.closingBalance;
 
   return {
     document_number: `Vendor Statement - ${stmt.contact?.name || "Vendor"}`,
@@ -1900,13 +1903,15 @@ async function fetchVendorStatement(supabase: any, documentId: string): Promise<
     document_type_label: "VENDOR STATEMENT",
     status: stmt.sent_at ? "sent" : "draft",
     issue_date: stmt.statement_date || stmt.created_at,
-    subtotal: stmt.total_billed || 0,
+    subtotal: dataset.totalCharges,
     tax_amount: 0,
     discount_amount: 0,
     total: closingBalance,
-    amount_paid: stmt.total_payments || 0,
+    amount_paid: dataset.totalCredits,
     currency,
-    notes: null,
+    notes: dataset.otherCurrencies.length
+      ? `This statement covers ${currency} activity only. This vendor also has activity in: ${dataset.otherCurrencies.join(", ")}.`
+      : null,
     terms: null,
     contact: stmt.contact,
     organization: await mapBusinessToOrg(supabase, stmt.business, stmt.organization, stmt.branch_id),
@@ -1915,7 +1920,7 @@ async function fetchVendorStatement(supabase: any, documentId: string): Promise<
     items: [],
     statement_transactions: statementTransactions,
     statement_aging: statementAging,
-    statement_opening_balance: stmt.opening_balance || 0,
+    statement_opening_balance: dataset.openingBalance,
     statement_closing_balance: closingBalance,
     statement_period_start: periodStart,
     statement_period_end: periodEnd,
