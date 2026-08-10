@@ -62,9 +62,13 @@ views — never from document status, never re-derived in app code.
 
 ## Instructions for the next agent
 
-1. **Verify first:** confirm the previous wave's migration landed, tests pass,
-   and the UI renders correctly before starting the next wave.
-2. **Resume chronologically:** start from the first wave marked `[pending]`.
+1. **Verify first:** confirm Wave 9's migration landed (`collector_assignments`
+   table + 4 RPCs exist), `collector-assignment.test.ts` passes (7/7), and the
+   Collections UI renders the Collector column + assign dialog + "My accounts"
+   filter before starting Wave 10.
+2. **Resume chronologically:** start from Wave 10 — Dunning policy. Create the
+   `dunning_levels` table, seed default levels, build the `dunning_assignment`
+   view, and add the "Next action" column to Collections.
 3. **Do not skip:** each wave depends on the prior — collector assignment
    feeds the work queue, dunning policy drives the next-action label, etc.
 4. **Update this file** after each wave is verified.
