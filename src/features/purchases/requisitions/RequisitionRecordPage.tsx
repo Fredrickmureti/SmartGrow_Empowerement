@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink } from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Section, StatusBadge } from "@/design-system";
