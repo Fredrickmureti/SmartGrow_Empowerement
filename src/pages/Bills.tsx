@@ -899,6 +899,8 @@ export default function Bills() {
                     <TableCell>{format(new Date(bill.bill_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{format(new Date(bill.due_date), "MMM d, yyyy")}</TableCell>
                     <TableCell><BillWorkflowPipeline status={bill.status} /></TableCell>
+                    <TableCell><BillMatchBadge result={matchResults[bill.id]} /></TableCell>
+
                     <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(bill.total - (bill.amount_paid || 0), bill.currency)}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
