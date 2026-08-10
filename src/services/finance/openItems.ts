@@ -137,7 +137,9 @@ export async function fetchTopOpenCounterparties(
   const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
   let q = supabase
     .from(view as any)
-    .select("document_id, document_number, contact_id, document_date, due_date, residual_amount")
+    .select(
+      "document_id, document_number, contact_id, document_date, due_date, residual_amount, base_residual_amount",
+    )
     .eq("organization_id", orgId)
     .gt("residual_amount", 0.01);
   if (businessId) q = q.eq("business_id", businessId);
@@ -161,7 +163,9 @@ export async function fetchTopOpenCounterparties(
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
     const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
     const existing = byContact.get(name) || { name, amount: 0, daysOverdue: 0 };
-    existing.amount += Number(r.residual_amount) || 0;
+    // Base currency: exposures across currencies may only be added up after
+    // conversion (`base_residual_amount`), never as raw document amounts.
+    existing.amount += Number(r.base_residual_amount ?? r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(name, existing);
   }
