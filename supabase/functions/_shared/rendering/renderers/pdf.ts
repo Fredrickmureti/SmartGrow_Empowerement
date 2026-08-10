@@ -37,7 +37,6 @@ const STATEMENT_LAYOUTS: Record<
 const STATEMENT_KIND_CODES = new Set([
   "sales.statement",
   "purchases.statement",
-  "legal.recipient_statement",
 ]);
 
 
@@ -60,6 +59,24 @@ export async function renderAstToPdf(args: {
 
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);
+
+  if (STATEMENT_KIND_CODES.has(args.template.kind_code)) {
+    const statementData = {
+      ...snap,
+      id: args.context.document.id,
+      organization:
+        (snap["organization"] as unknown) ??
+        (args.context.business as unknown) ??
+        null,
+    } as unknown as Parameters<typeof generateStatementPdf>[0];
+    return await generateStatementPdf(
+      statementData,
+      {},
+      // A4-only by construction: never forward a thermal paper token.
+      { paperFormat: mediaClassToPaper(args.template.media_class) } as
+        Parameters<typeof generateStatementPdf>[2],
+    );
+  }
 
   // Thermal gate (ADR-0085 / rendering ownership): a thermal document is
   // structured by the canonical Line[] engine and drawn by the flow-based
