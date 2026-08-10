@@ -190,6 +190,20 @@ export function RecordBillPaymentDialog({
 
   const isOverdue = bill ? isPast(parseISO(bill.due_date)) && (bill.total - (bill.amount_paid || 0)) > 0 : false;
 
+  // Idempotency key derived from the payment intent — a double-click or a
+  // retry after a timeout replays the same vendor payment instead of paying twice.
+  const requestId = useMemo(
+    () =>
+      makeVendorPaymentRequestId({
+        vendorId: bill?.vendor_id ?? "",
+        allocations,
+        totalCents: toCents(totalAllocated),
+        paymentDate: formData.payment_date,
+      }),
+    [bill?.vendor_id, allocations, totalAllocated, formData.payment_date],
+  );
+
+
   const setAllocationAmount = (billId: string, amount: number) => {
     setAllocations((prev) =>
       prev.map((a) => (a.bill_id === billId ? { ...a, amount: isNaN(amount) ? 0 : amount } : a)),
