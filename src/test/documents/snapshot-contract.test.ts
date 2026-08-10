@@ -402,9 +402,11 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
           contact: { name: "Widgets Supplier Ltd" },
           business: { id: "b", name: "Acme", base_currency: "KES" },
         },
-        bills: [],
-        payments: [],
-        creditNotes: [],
+        dataset: buildVendorStatementDataset({
+          rows: [],
+          periodStart: "2026-06-01",
+          periodEnd: "2026-06-30",
+        }),
       }),
   },
   {
