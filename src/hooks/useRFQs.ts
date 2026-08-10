@@ -541,7 +541,9 @@ export function useRFQs() {
     deleteRFQ: deleteRFQMutation.mutate,
 
     submitForApproval: submitMutation.mutate,
+    submitForApprovalAsync: submitMutation.mutateAsync,
     approveRFQ: approveMutation.mutate,
+    approveRFQAsync: approveMutation.mutateAsync,
     releaseRFQ: releaseMutation.mutate,
     reviseRFQ: reviseMutation.mutate,
     recordQuotation: recordQuotationMutation.mutate,
