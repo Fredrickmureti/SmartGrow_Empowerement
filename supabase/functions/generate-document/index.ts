@@ -11,6 +11,11 @@ import {
   type StatementAgingBucket,
 } from "../_shared/templateRenderer.ts";
 import { generateDocumentPdf, generateStatementPdf } from "../_shared/pdfGenerator.ts";
+import {
+  buildStatementDataset,
+  type CustomerLedgerRow,
+} from "../_shared/reports/customerStatementDataset.ts";
+
 import { generateHrLetterPdf } from "../_shared/hrLetterGenerator.ts";
 import { fetchHrLetter, getHrLetterTenancy, isHrLetterType } from "./hrLetterFetchers.ts";
 import { mapEtimsToFiscalBlock } from "../_shared/pos/fiscalBlock.ts";
