@@ -743,13 +743,21 @@ export default function Bills() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Draft</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {requireBillApproval ? "In approval" : "Draft"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-muted-foreground">
-                {filteredBills.filter(b => b.status === "draft").length}
+                {requireBillApproval
+                  ? pendingApprovalCount
+                  : filteredBills.filter(b => b.status === "draft").length}
               </div>
-              <p className="text-xs text-muted-foreground">Awaiting confirmation — no GL impact</p>
+              <p className="text-xs text-muted-foreground">
+                {requireBillApproval
+                  ? "Submitted or approved — not yet posted, no GL impact"
+                  : "Awaiting confirmation — no GL impact"}
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -758,6 +766,9 @@ export default function Bills() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{formatCurrency(totals.outstanding, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">
+                {apSummary.openDocumentCount} open AP documents
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -768,6 +779,7 @@ export default function Bills() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{formatCurrency(totals.overdue, baseCurrency)}</div>
+              <p className="text-xs text-muted-foreground">{apSummary.overdueCount} past due</p>
             </CardContent>
           </Card>
         </div>
