@@ -26,6 +26,8 @@ import {
   useRFQs,
 } from "@/hooks/useRFQs";
 import { useRFQRecord } from "./useRFQRecord";
+import { BidAttachmentsPanel } from "./BidAttachmentsPanel";
+
 
 const fmt = (v?: string | null) => {
   if (!v) return "—";
