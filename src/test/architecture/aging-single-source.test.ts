@@ -57,7 +57,9 @@ describe("aging single source of truth", () => {
     // sums across documents must read `base_residual_amount`, otherwise a
     // multi-currency business adds up incomparable numbers.
     const src = readFileSync(join(ROOT, "services/finance/openItems.ts"), "utf8");
-    const aggregates = src.match(/\+=\s*Number\([^)]*residual[^)]*\)/gi) ?? [];
+    const aggregates = (src.match(/\+=\s*Number\([^;]*residual_amount[^;]*\)/gi) ?? []).filter(
+      (m) => !m.includes("base_residual_amount"),
+    );
     expect(aggregates).toEqual([]);
     expect(src).toContain("base_residual_amount");
   });
