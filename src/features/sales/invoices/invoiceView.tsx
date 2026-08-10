@@ -42,6 +42,8 @@ interface Result {
   invoice: Invoice | null;
   loading: boolean;
   error: string | null;
+  /** Re-fetch the underlying record (after an action mutates it). */
+  refresh: () => void;
   view: DocumentRecordView;
 }
 
@@ -49,7 +51,7 @@ export function useInvoiceView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { invoice, loading, error } = useInvoiceRecord(id);
+  const { invoice, loading, error, refresh } = useInvoiceRecord(id);
 
   const view = useMemo<DocumentRecordView>(() => {
     const rows: LineItemRow[] = (invoice?.invoice_items ?? [])
