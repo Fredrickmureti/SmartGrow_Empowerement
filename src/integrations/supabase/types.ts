@@ -96341,6 +96341,10 @@ export type Database = {
         Returns: boolean
       }
       rfq_revise: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
+      rfq_snapshot_assert_solicitation: {
+        Args: { _snapshot: Json }
+        Returns: undefined
+      }
       rfq_submit_for_approval: { Args: { _rfq_id: string }; Returns: Json }
       rfq_withdraw_quotation: {
         Args: { _quotation_id: string; _reason?: string }
