@@ -63,6 +63,16 @@ import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
 import { useDunningAssignments } from "@/hooks/useDunningAssignments";
 import { usePromisesToPay } from "@/hooks/usePromisesToPay";
+import { useArDisputes } from "@/hooks/useArDisputes";
+import {
+  DISPUTE_TYPES,
+  DISPUTE_TYPE_LABELS,
+  type DisputeType,
+} from "@/services/finance/disputes";
+import { useCollectionsWorkQueue } from "@/hooks/useCollectionsWorkQueue";
+import type { WorkQueueRow } from "@/services/finance/collectionsWorkQueue";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShieldAlert } from "lucide-react";
 import type { PromiseToPay } from "@/services/finance/promises";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -109,6 +119,12 @@ export default function Collections() {
     record: recordPromise,
     cancel: cancelPromise,
   } = usePromisesToPay();
+  const {
+    data: disputes,
+    raise: raiseDispute,
+    resolve: resolveDispute,
+    totalDisputed,
+  } = useArDisputes();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
@@ -117,6 +133,7 @@ export default function Collections() {
   const [myAccountsOnly, setMyAccountsOnly] = useState(false);
   const [assignDialogContact, setAssignDialogContact] = useState<string | null>(null);
   const [promiseDialogContact, setPromiseDialogContact] = useState<string | null>(null);
+  const [disputeDialogContact, setDisputeDialogContact] = useState<string | null>(null);
 
   const contacts = useMemo(() => {
     let rows = (data?.contacts ?? []).filter((c) => filterByBucket(c, bucket));
@@ -171,14 +188,32 @@ export default function Collections() {
       </header>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <KpiCard label="Net AR" value={formatCurrency(totalAR)} />
         <KpiCard label="Not yet due" value={formatCurrency(notDueTotal)} />
         <KpiCard label="Overdue" value={formatCurrency(overdueTotal)} accent />
         <KpiCard label="% Overdue" value={`${pctOverdue}%`} />
         <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
+        {/* Disputed exposure is reported beside AR, never subtracted from it. */}
+        <KpiCard label="Disputed" value={formatCurrency(totalDisputed)} />
       </div>
 
+      <Tabs defaultValue="list" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="list">Customer list</TabsTrigger>
+          <TabsTrigger value="queue">Work queue</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="queue" className="space-y-4">
+          <WorkQueuePanel
+            formatCurrency={formatCurrency}
+            currentUserId={currentUserId}
+            onRecordPayment={setPayContactId}
+            onRecordPromise={setPromiseDialogContact}
+          />
+        </TabsContent>
+
+        <TabsContent value="list" className="space-y-4">
       {/* Filters */}
       <Card className="p-4 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px]">
@@ -227,6 +262,7 @@ export default function Collections() {
               <TableHead>Collector</TableHead>
               <TableHead>Next action</TableHead>
               <TableHead>Promise</TableHead>
+              <TableHead>Dispute</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
@@ -241,7 +277,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={12}>
+                    <TableCell colSpan={13}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -249,7 +285,7 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
@@ -306,6 +342,13 @@ export default function Collections() {
                             <NextActionCell row={dunning?.[c.contact_id]} />
                           </TableCell>
                           <TableCell>
+                            <DisputeCell
+                              summary={disputes?.[c.contact_id]}
+                              formatCurrency={formatCurrency}
+                              onResolve={resolveDispute}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <PromiseCell
                               promise={promises?.[c.contact_id]}
                               formatCurrency={formatCurrency}
@@ -352,6 +395,14 @@ export default function Collections() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => setDisputeDialogContact(c.contact_id)}
+                                title="Flag dispute"
+                              >
+                                <ShieldAlert className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 asChild
                                 title="Open ledger"
                               >
@@ -376,7 +427,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={12} className="py-3">
+                            <TableCell colSpan={13} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
@@ -447,6 +498,8 @@ export default function Collections() {
           </TableBody>
         </Table>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       <RecordPaymentDialog
         open={!!payContactId}
@@ -459,6 +512,13 @@ export default function Collections() {
         onOpenChange={(v) => !v && setPromiseDialogContact(null)}
         contactId={promiseDialogContact}
         onRecord={recordPromise}
+      />
+
+      <RaiseDisputeDialog
+        open={!!disputeDialogContact}
+        onOpenChange={(v) => !v && setDisputeDialogContact(null)}
+        contactId={disputeDialogContact}
+        onRaise={raiseDispute}
       />
 
       <AssignCollectorDialog
@@ -580,6 +640,313 @@ function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
       <MailCheck className="h-3 w-3" />
       Queued
     </Badge>
+  );
+}
+
+/**
+ * Work queue — the prioritised action list. Ranking, exposure and the
+ * dispute/promise de-prioritisation are all computed by SQL
+ * (`collections_work_queue`); this panel only renders and filters by owner.
+ */
+function WorkQueuePanel({
+  formatCurrency,
+  currentUserId,
+  onRecordPayment,
+  onRecordPromise,
+}: {
+  formatCurrency: (v: number) => string;
+  currentUserId: string | null;
+  onRecordPayment: (contactId: string) => void;
+  onRecordPromise: (contactId: string) => void;
+}) {
+  const [mineOnly, setMineOnly] = useState(false);
+  const { data, isLoading } = useCollectionsWorkQueue(
+    mineOnly ? currentUserId : null,
+  );
+
+  return (
+    <>
+      <Card className="p-4 flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted-foreground flex-1 min-w-[220px]">
+          Ranked by exposure and age. Accounts in dispute or under an open
+          promise are de-prioritised, not hidden.
+        </p>
+        <Button
+          variant={mineOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setMineOnly((v) => !v)}
+        >
+          <UserCog className="h-4 w-4 mr-1.5" />
+          My accounts
+        </Button>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12 text-right">#</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead>Next action</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Days overdue</TableHead>
+              <TableHead className="text-right">Net outstanding</TableHead>
+              <TableHead className="text-right">Priority</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={8}>
+                    <Skeleton className="h-8 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  Nothing to chase — the queue is clear.
+                </TableCell>
+              </TableRow>
+            ) : (
+              data.map((row: WorkQueueRow, i: number) => (
+                <TableRow key={row.contactId} className="hover:bg-muted/40">
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {i + 1}
+                  </TableCell>
+                  <TableCell className="font-medium">{row.contactName ?? "—"}</TableCell>
+                  <TableCell>
+                    {row.nextAction ? (
+                      <span className="text-sm">
+                        {DUNNING_ACTION_LABELS[row.nextAction]}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                    {row.dunningLevelName && (
+                      <div className="text-xs text-muted-foreground">
+                        {row.dunningLevelName}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {row.inDispute && (
+                        <Badge variant="destructive" className="gap-1">
+                          <ShieldAlert className="h-3 w-3" />
+                          {formatCurrency(row.disputedAmount)}
+                        </Badge>
+                      )}
+                      {row.inPromise && (
+                        <Badge variant="secondary" className="gap-1">
+                          <HandCoins className="h-3 w-3" />
+                          {row.expectedPaymentDate}
+                        </Badge>
+                      )}
+                      {!row.inDispute && !row.inPromise && (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.maxDaysOverdue > 0 ? row.maxDaysOverdue : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">
+                    {formatCurrency(row.netAmount)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {Math.round(row.priorityScore).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRecordPayment(row.contactId)}
+                        title="Record payment"
+                      >
+                        <Receipt className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onRecordPromise(row.contactId)}
+                        title="Record promise to pay"
+                      >
+                        <HandCoins className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" asChild title="Open ledger">
+                        <Link to={`/sales/customers/${row.contactId}/ledger`}>
+                          <Wallet className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+    </>
+  );
+}
+
+/**
+ * Dispute cell — open contested exposure for the customer. The amount is
+ * reported, never netted off the receivable.
+ */
+function DisputeCell({
+  summary,
+  formatCurrency,
+  onResolve,
+}: {
+  summary?: { count: number; baseAmount: number; first: { id: string } };
+  formatCurrency: (v: number) => string;
+  onResolve: (
+    id: string,
+    status: "resolved" | "rejected",
+    note?: string | null,
+  ) => Promise<void> | void;
+}) {
+  if (!summary) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Badge variant="destructive" className="gap-1 w-fit">
+        <ShieldAlert className="h-3 w-3" />
+        {formatCurrency(summary.baseAmount)}
+      </Badge>
+      {summary.count > 1 && (
+        <span className="text-xs text-muted-foreground">
+          {summary.count} disputes
+        </span>
+      )}
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:underline text-left"
+        onClick={() => void onResolve(summary.first.id, "resolved")}
+      >
+        Resolve
+      </button>
+    </div>
+  );
+}
+
+/** Flags a contested amount. Never changes the receivable itself. */
+function RaiseDisputeDialog({
+  open,
+  onOpenChange,
+  contactId,
+  onRaise,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  contactId: string | null;
+  onRaise: (input: {
+    contactId: string;
+    amountDisputed: number;
+    disputeType: string;
+    reason?: string | null;
+  }) => Promise<void>;
+}) {
+  const [amount, setAmount] = useState("");
+  const [type, setType] = useState<DisputeType>("other");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setAmount("");
+      setType("other");
+      setReason("");
+    }
+  }, [open]);
+
+  const submit = async () => {
+    if (!contactId) return;
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error("Enter the disputed amount");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onRaise({
+        contactId,
+        amountDisputed: value,
+        disputeType: type,
+        reason: reason.trim() || null,
+      });
+      toast.success("Dispute flagged");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error((e as Error).message || "Could not flag the dispute");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Flag a dispute</DialogTitle>
+          <DialogDescription>
+            Records a contested amount. The receivable is unchanged — disputed
+            exposure is reported separately and pauses dunning escalation.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="disp-amount">Disputed amount</Label>
+            <Input
+              id="disp-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Dispute type</Label>
+            <Select value={type} onValueChange={(v) => setType(v as DisputeType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISPUTE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {DISPUTE_TYPE_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="disp-reason">Reason</Label>
+            <Textarea
+              id="disp-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="What is the customer contesting?"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Flag dispute"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

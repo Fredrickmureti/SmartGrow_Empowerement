@@ -2345,6 +2345,80 @@ export type Database = {
           },
         ]
       }
+      ar_disputes: {
+        Row: {
+          amount_disputed: number
+          base_amount_disputed: number
+          branch_id: string | null
+          business_id: string
+          client_request_id: string | null
+          contact_id: string
+          created_at: string
+          currency: string
+          dispute_type: string
+          document_id: string | null
+          id: string
+          organization_id: string
+          raised_by: string | null
+          reason: string | null
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount_disputed?: number
+          base_amount_disputed?: number
+          branch_id?: string | null
+          business_id: string
+          client_request_id?: string | null
+          contact_id: string
+          created_at?: string
+          currency?: string
+          dispute_type?: string
+          document_id?: string | null
+          id?: string
+          organization_id: string
+          raised_by?: string | null
+          reason?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount_disputed?: number
+          base_amount_disputed?: number
+          branch_id?: string | null
+          business_id?: string
+          client_request_id?: string | null
+          contact_id?: string
+          created_at?: string
+          currency?: string
+          dispute_type?: string
+          document_id?: string | null
+          id?: string
+          organization_id?: string
+          raised_by?: string | null
+          reason?: string | null
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["ar_dispute_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ar_disputes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ar_promises_to_pay: {
         Row: {
           base_promised_amount: number
@@ -74141,6 +74215,33 @@ export type Database = {
         }
         Relationships: []
       }
+      collections_work_queue: {
+        Row: {
+          business_id: string | null
+          collector_user_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          disputed_amount: number | null
+          dunning_level_id: string | null
+          dunning_level_name: string | null
+          expected_payment_date: string | null
+          in_dispute: boolean | null
+          in_promise: boolean | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          not_due: number | null
+          organization_id: string | null
+          priority_score: number | null
+          promise_id: string | null
+          promised_amount: number | null
+        }
+        Relationships: []
+      }
       contract_statutory_inputs: {
         Row: {
           amount: number | null
@@ -74471,12 +74572,14 @@ export type Database = {
           business_id: string | null
           contact_id: string | null
           contact_name: string | null
+          disputed_amount: number | null
           dunning_level_id: string | null
           dunning_level_name: string | null
           dunning_sequence: number | null
           max_days_overdue: number | null
           net_amount: number | null
           next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          on_hold: boolean | null
           organization_id: string | null
           template_id: string | null
         }
@@ -88964,6 +89067,39 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: string
       }
+      get_collections_work_queue: {
+        Args: { _business_id: string; _collector_user_id?: string }
+        Returns: {
+          business_id: string | null
+          collector_user_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          disputed_amount: number | null
+          dunning_level_id: string | null
+          dunning_level_name: string | null
+          expected_payment_date: string | null
+          in_dispute: boolean | null
+          in_promise: boolean | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          not_due: number | null
+          organization_id: string | null
+          priority_score: number | null
+          promise_id: string | null
+          promised_amount: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "collections_work_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_commercial_timeline: {
         Args: { _before?: string; _limit?: number; _org_id: string }
         Returns: {
@@ -93638,6 +93774,20 @@ export type Database = {
         Returns: number
       }
       purge_scan_events: { Args: never; Returns: undefined }
+      raise_ar_dispute: {
+        Args: {
+          _amount_disputed: number
+          _branch_id?: string
+          _business_id: string
+          _client_request_id?: string
+          _contact_id: string
+          _currency?: string
+          _dispute_type?: string
+          _document_id?: string
+          _reason?: string
+        }
+        Returns: string
+      }
       raise_label_demand: {
         Args: {
           p_branch_id?: string
@@ -94840,6 +94990,14 @@ export type Database = {
           p_warehouse_id: string
         }
         Returns: number
+      }
+      resolve_ar_dispute: {
+        Args: {
+          _dispute_id: string
+          _resolution_note?: string
+          _status: Database["public"]["Enums"]["ar_dispute_status"]
+        }
+        Returns: undefined
       }
       resolve_branch_scoped: {
         Args: { _branch_id: string; _business_id: string; _table_name: string }
@@ -99503,6 +99661,7 @@ export type Database = {
         | "hired"
         | "rejected"
         | "withdrawn"
+      ar_dispute_status: "open" | "resolved" | "rejected"
       ar_promise_status: "open" | "kept" | "broken" | "cancelled"
       bill_match_exception_state:
         | "none"
@@ -100651,6 +100810,7 @@ export const Constants = {
         "rejected",
         "withdrawn",
       ],
+      ar_dispute_status: ["open", "resolved", "rejected"],
       ar_promise_status: ["open", "kept", "broken", "cancelled"],
       bill_match_exception_state: [
         "none",
