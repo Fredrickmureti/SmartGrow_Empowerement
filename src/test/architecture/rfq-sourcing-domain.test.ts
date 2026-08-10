@@ -77,6 +77,9 @@ const CANONICAL_RFQ_RPCS = [
   "rfq_revise",
   "rfq_cancel",
   "rfq_expire_due",
+  "rfq_attach_quotation_document",
+  "rfq_remove_quotation_attachment",
+
 ];
 
 describe("RFQ sourcing domain — legacy retirement", () => {
