@@ -1,60 +1,93 @@
-# Purchases & Accounts Payable — Bills Domain: Authoritative Status
+# AP Payment Failure — Root Cause and Settlement Convergence
 
-Last updated: 2026-08-10. Source audit: `.lovable/plan/purchases-accounts-payable-bills-domain-audit-2026-08-10.md`.
+## 1. Immediate root cause (verified, not inferred)
 
-## Domain contract (do not drift from this)
+The database error behind the 400 is captured in the Postgres logs at the exact time of the attempt:
 
-- A **Bill** recognises a liability from a supplier invoice. Employee/cash spend stays in **Expenses**.
-- Inventory moves at **Goods Receipt (GRN)** only. Bill posting never touches stock.
-- **Overdue is derived, never stored.** No trigger, no status value written by clients.
-- Money KPIs come from **`useApSummary`** (ledger-canonical), never from client-side sums.
-- `purchase_order_items.quantity_billed` has a **single writer**: the server sync trigger.
-- Match state has a **single writer**: `match_bill_atomic`. Clients never write `bill_grn_matches`.
+```
+ERROR: Bank/cash account is required for multi-bill payment.
+```
 
-## Completed and verified
+Chain of facts, each verified:
 
-| Step | Scope | State |
-| --- | --- | --- |
-| 0 | Build repair — `"submitted"` added to the `AuditAction` union | Done |
-| 1 | Duplicate vendor invoice prevention (`trg_bills_unique_vendor_invoice_number`) + friendly warnings on the create page **and** the edit page (self-excluded) | Done |
-| 2 | Approval gate: `submitted` / `approved` statuses, `submit_bill_atomic`, `approve_bill_atomic`, SoD enforced server-side | Done |
-| 2b | Overdue derived: `trg_bill_overdue_check` and `mark_overdue_bills` dropped, existing rows backfilled to `received` / `partial`, `billStatus.ts` helpers consumed by the list, record view and dashboard | Done |
-| 3 | Matching consolidated into `match_bill_atomic` (also populates `bill_grn_matches`), legacy `match_bill_to_grn` retired, matching runs automatically inside `submit_bill_atomic`, `resolve_bill_match_exception_atomic` for SoD-guarded accept/reject, Match column + `BillMatchPanel` in the UI | Done |
-| 4 | `convert_po_to_bill_atomic` bills **received** quantities, not ordered. Live drift check returned 0 rows | Done |
-| 5 | AP KPIs from `useApSummary`; **server-side pagination for the Bills list** (`useBillsPaginated`, `DataTablePagination`, `useBills` capped to a 500-row working set) | Done |
+- `RecordBillPaymentDialog` only renders the bank-account selector when `bankAccounts.length > 0`, and seeds `bank_account_id` from `bankAccounts.find(a => a.is_primary)`.
+- The `bank_accounts` table in this database contains **0 rows** (0 primary, 0 with a GL link). So the selector never renders and `formData.bank_account_id` stays `""`.
+- The dialog sends `bank_account_id: formData.bank_account_id || null`.
+- `useBills.recordMultiBillPayment` computes a valid GL cash account (`accounts.bank_account_id || accounts.cash_account_id`), validates it, **and then never sends it** — it forwards `args.bank_account_id ?? null`.
+- `record_multi_bill_payment` line 1 of its body raises on a null `_bank_account_id`.
 
-### Architecture ratchets in place
+So the payment fails because the client dropped the only account it had resolved, and the treasury table it did consult is empty.
 
-`src/test/architecture/`:
-- `bill-match-single-writer.test.ts`
-- `bill-overdue-derived.test.ts`
-- `ap-kpis-canonical.test.ts`
-- `po-billed-quantity-single-writer.test.ts`
-- `bills-list-pagination.test.ts`
+## 2. The deeper defect this exposes
 
-All green, typecheck clean.
+`_bank_account_id` is used for **two incompatible things** inside one parameter:
 
-## Currently active
+- it is written to `bill_payments.bank_account_id`, whose FK is `REFERENCES bank_accounts(id)` — a **treasury instrument**;
+- it is used as `account_id` on the credit line handed to `post_journal_entry_atomic` — a **GL account** in `accounts`.
 
-Nothing in flight. Step 5 closed with the pagination work; the domain is at a coherent, production-ready state.
+These are different ID spaces. Had a bank account existed, the dialog would have sent a `bank_accounts.id` and the journal line would have referenced a non-existent GL account (or a mismatched one). The 400 is therefore masking a latent posting defect, not just a missing selection.
 
-## Next milestone — Step 6: vendor credit and debit notes against bills
+AR does not have this confusion: `payments.deposit_account_id` FKs to `accounts(id)` (GL) and `record_multi_invoice_payment` takes `_deposit_account_id` as a GL account, with the treasury link handled separately at reconciliation. **AP must be brought to the AR shape, not the other way round.**
 
-Rationale: the AP liability side is now complete for the happy path (bill → match → approve → pay), but there is no first-class way to reduce a recognised liability. Returns to suppliers and pricing corrections currently have no AP counterpart, which is the largest remaining gap versus the AR side (credit notes exist there already).
+## 3. Verified architecture status (what is already right)
 
-Scope sketch:
-1. Read the AR credit-note implementation (`.lovable/plan/credit-notes-audit-findings-and-completion-plan-2026-08-09.md`) and mirror its posting model, not its UI.
-2. Server-side atomic issue/apply RPCs; allocation against open bills; never mutate `bills.total`.
-3. `useApSummary` must net vendor credits so KPIs stay canonical.
-4. Ratchet: no client-side allocation writes.
+- **Posting monopoly holds.** `record_multi_bill_payment` posts through `post_journal_entry_atomic`; no raw journal inserts (ADR 0123).
+- **Allocation-first AP is real.** One `bill_payments` header + N `bill_payment_allocations`, single-vendor / single-currency / single-company guards, per-bill open-balance ceiling, sum-vs-total check, `FOR UPDATE` row locks (ADR 0028).
+- **Reversal is server-side.** `void_bill_payment_atomic` is the single writer; client writes to `bills.amount_paid` and deletes on `bill_payments` are ratcheted (ADR 0126).
+- **Reconciliation is correctly separate.** Payment recording does not touch bank statements; matching lives in the reconciliation engines.
+- **Server-side idempotency exists** — `record_multi_bill_payment` replays on `client_request_id`.
 
-## Instructions for the next agent
+Verdict on the engine itself: ⚠ needs a targeted fix, not a redesign. AR and AP are correctly *separate domain commands over shared infrastructure* (one posting engine, one allocation shape per direction). No duplicate payment engine was found.
 
-1. **Verify before you build.** Confirm each "Done" row above against the live database and the source, not against this document. Specifically: check that `match_bill_to_grn` no longer exists, that no trigger writes an `overdue` status, that `quantity_billed` drift is still 0, and that `src/pages/Bills.tsx` renders only paged rows.
-2. Run the full architecture suite (`src/test/architecture/`) plus a typecheck; treat any failure as a regression in the work above, not as a flaky test.
-3. Only then start Step 6. Do not open unrelated areas of the system, and do not leave a phase half-built — each step must reach a coherent, shippable state before the next begins.
-4. Update this file the moment a step changes state.
+## 4. Real defects to fix
 
-### Known non-code issue
+1. ❌ **Account-space conflation** — one parameter serving both `bank_accounts.id` and `accounts.id`.
+2. ❌ **Client can send no funding account at all**, and the hook silently discards the GL account it validated.
+3. ⚠ **Idempotency not wired on the AP dialog** — `RecordBillPaymentDialog` passes no `requestId`, so a double-click or retry can record the payment twice. Server support exists; the client never uses it. The existing ratchet only bans `randomUUID()`; it does not require a key, so CI passes today.
+4. ⚠ **Client-side accounting decisions** — the dialog derives open balance and allocation amounts from cached `bill.total - amount_paid`. Acceptable as *input pre-validation* (the server re-checks under lock), so this stays; no change.
 
-Deploys have been failing with an S3 `AccessDenied` on asset upload. That is infrastructure, not source. Do not attempt code fixes for it.
+## 5. Plan
+
+### Step 1 — Split the two account concepts in the AP payment RPC
+Migration adding an explicit GL parameter alongside the treasury one:
+`record_multi_bill_payment(..., _bank_account_id uuid /* treasury, nullable */, _credit_account_id uuid /* GL, required */, ...)`.
+- `_credit_account_id` is what the JE credits.
+- `_bank_account_id` is stored on `bill_payments` only, and only when it references a real `bank_accounts` row.
+- When `_credit_account_id` is null but `_bank_account_id` is given, resolve the GL account from `bank_accounts.account_id`; raise a clear error if that treasury row has no GL mapping.
+- Keep the invariant that *some* funding account must resolve — do not weaken it.
+- Old signature kept as a thin shim resolving the GL account the same way, so nothing else breaks.
+
+### Step 2 — Make the hook send what it resolved
+`useBills.recordMultiBillPayment` forwards its validated GL cash account as `_credit_account_id` and the (optional) treasury id as `_bank_account_id`. The "Cash or Bank account is not mapped" guard stays as the single client-side precondition.
+
+### Step 3 — Wire idempotency on the AP dialog
+Mint a request key from the payment intent when the dialog opens (vendor + allocation set + date + amount), pass it as `requestId`, and disable submit while in flight. Never `crypto.randomUUID()` per render.
+
+### Step 4 — Make the funding account selectable even with no treasury rows
+When `bank_accounts` is empty, the dialog shows the mapped default cash/bank GL account as the funding source (read-only line) instead of hiding the control, so the user always sees where the money leaves from.
+
+### Step 5 — Tighten the ratchets
+- Extend `money-movement-request-key.test.ts`: every client caller of a settlement RPC must pass a request key, not merely avoid `randomUUID()`.
+- New architecture assertion: no client may pass a `bank_accounts` id into a parameter used as a GL account.
+- ADR `0129-ap-funding-account-split.md` recording the treasury-vs-GL boundary and AR/AP ownership map.
+
+### Step 6 — Verify
+Re-run the KES 7,000 payment end to end: bill → payment → allocation → `bills.amount_paid`/status → balanced JE (Dr AP / Cr Bank) → unreconciled bank movement. Plus `tsgo --noEmit` and the architecture ratchets.
+
+## Ownership map (unchanged by this work, recorded for clarity)
+
+| Concern | Owner |
+| --- | --- |
+| Payment identity, method, date, currency | `bill_payments` / `payments` headers |
+| AP allocation | `bill_payment_allocations` via `record_multi_bill_payment` |
+| AR allocation | `payment_allocations` via `record_multi_invoice_payment` |
+| GL posting | `post_journal_entry_atomic` (sole writer) |
+| Cash/bank instrument | `bank_accounts` (treasury), linked to a GL account |
+| Reconciliation | bank reconciliation engine, strictly downstream of payment |
+| Reversal | `void_bill_payment_atomic` / `void_payment_atomic` |
+| Idempotency | `client_request_id` on the settlement header |
+
+## Not doing
+- Not relaxing any invariant in the RPC to force a 200.
+- Not merging reconciliation into payment recording.
+- Not unifying AR and AP into one RPC — the separation is correct.
