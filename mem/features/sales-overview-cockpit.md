@@ -17,7 +17,7 @@ engine that owns the event:
 | Cash applied / unapplied | `payment_allocations` vs `payments.amount` |
 | Orders to fulfil | `so_line_balances.quantity_open_to_deliver > 0` |
 | Quote conversion | `estimates`, period cohort, `accepted` **and** `converted` are won |
-| Credit notes | `credit_notes`, excluding `draft/void/voided/cancelled` |
+| Credit notes | `credit_notes`, excluding `draft` and `void` |
 | Top customers | invoiced net of `credit_note_applications` |
 
 ## Forbidden
