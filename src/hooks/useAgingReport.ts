@@ -57,7 +57,9 @@ export interface AgingReportData {
 interface UseAgingReportParams {
   reportType: "ar" | "ap";
   asOfDate?: string;
-  buckets?: AgingBucketConfig[]; // Custom aging buckets — uses DEFAULT_AGING_BUCKETS if not provided
+  // Custom client bucket overrides are deliberately NOT supported: boundaries
+  // are owned by SQL so every AR/AP surface ages identically.
+
   /**
    * Optional explicit branch override (typically `filters.branchId` from
    * `ReportFilterContext`). When omitted, falls back to the active
