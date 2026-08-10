@@ -7,6 +7,7 @@
  * balances of its own.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { CUSTOMER_IDENTITY_OR_FILTER } from "./customerIdentity";
 
 export interface CustomerLedgerIndexRow {
   contactId: string;
@@ -68,7 +69,8 @@ export async function fetchLedgerSearchableCustomers(
     .select("id, name")
     .eq("organization_id", orgId)
     .eq("is_active", true)
-    .in("contact_type", ["customer", "both"])
+    // The contacts table has no such column named after the enum — see customerIdentity.ts.
+    .or(CUSTOMER_IDENTITY_OR_FILTER)
     .order("name", { ascending: true })
     .limit(500);
   if (businessId) q = q.eq("business_id", businessId);

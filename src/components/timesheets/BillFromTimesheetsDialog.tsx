@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useContacts } from "@/hooks/useContacts";
+import { isCustomerContact } from "@/services/finance/customerIdentity";
 import { useInvoices } from "@/hooks/useInvoices";
 import { toast } from "sonner";
 
@@ -53,7 +54,8 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
   const { createInvoice } = useInvoices();
 
   const customers = useMemo(
-    () => (contacts || []).filter((c: any) => c.contact_type === "customer" || c.contact_type === "both"),
+    // The enum name is not a property on contacts — see customerIdentity.ts.
+    () => (contacts || []).filter((c: any) => isCustomerContact(c)),
     [contacts],
   );
 

@@ -14,7 +14,14 @@ import { supabase } from "@/integrations/supabase/client";
  * statements, and aging. Do NOT shadow-derive customer balance from
  * `invoices.amount_paid` + `payments.outstanding_amount` in new code.
  */
-export type LedgerDocType = "invoice" | "payment" | "deposit" | "credit_note" | "refund";
+export type LedgerDocType =
+  | "invoice"
+  | "payment"
+  | "deposit"
+  | "credit_note"
+  | "refund"
+  | "payment_reversal"
+  | "journal";
 
 export interface LedgerEntry {
   entry_date: string;

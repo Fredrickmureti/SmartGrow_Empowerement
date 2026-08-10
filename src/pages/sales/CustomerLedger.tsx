@@ -27,8 +27,12 @@ import {
   Wallet,
   RotateCcw,
   StickyNote,
+  Undo2,
+  BookOpen,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
+import { describeLedgerDoc } from "@/services/finance/customerStatementDataset";
 
 const DOC_ICON: Record<string, any> = {
   invoice: FileText,
@@ -36,15 +40,17 @@ const DOC_ICON: Record<string, any> = {
   deposit: Wallet,
   credit_note: StickyNote,
   refund: RotateCcw,
+  payment_reversal: Undo2,
+  journal: BookOpen,
 };
 
-const DOC_LABEL: Record<string, string> = {
-  invoice: "Invoice",
-  payment: "Payment",
-  deposit: "Customer Deposit",
-  credit_note: "Credit Note",
-  refund: "Refund",
-};
+/**
+ * Labels come from the canonical statement vocabulary so the ledger page and
+ * the printed statement can never describe the same row differently.
+ */
+function docLabel(docType: string): string {
+  return describeLedgerDoc(docType, "").trim() || docType;
+}
 
 function useContact(contactId?: string) {
   return useQuery({
@@ -89,12 +95,27 @@ export default function CustomerLedgerPage() {
     );
   }, [entries]);
 
+  // A running balance across mixed transaction currencies is meaningless.
+  // The statement builder raises the same guard (`otherCurrencies`).
+  const currencies = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          entries
+            .map((e) => (e.currency ? String(e.currency).toUpperCase() : null))
+            .filter((c): c is string => !!c),
+        ),
+      ),
+    [entries],
+  );
+  const isMixedCurrency = currencies.length > 1;
+
   const handleExportCsv = () => {
     if (entries.length === 0) return;
     const header = ["Date", "Type", "Reference", "Debit", "Credit", "Running Balance"];
     const rows = entries.map((e) => [
       e.entry_date,
-      DOC_LABEL[e.doc_type] ?? e.doc_type,
+      docLabel(e.doc_type),
       e.doc_ref,
       e.debit ? e.debit.toFixed(2) : "",
       e.credit ? e.credit.toFixed(2) : "",
@@ -164,6 +185,18 @@ export default function CustomerLedgerPage() {
         </div>
       </Card>
 
+      {isMixedCurrency && (
+        <Card className="p-3 flex items-start gap-2 border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-700 dark:text-amber-400" />
+          <div className="text-sm">
+            <span className="font-medium">Mixed-currency ledger.</span>{" "}
+            Entries are recorded in {currencies.join(", ")}. The running balance
+            adds transaction-currency amounts and is not a valid total — filter
+            to a single currency, or use the base-currency AR reports.
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         {isLoading ? (
           <div className="p-6 space-y-2">
@@ -199,7 +232,7 @@ export default function CustomerLedgerPage() {
                       <td className="px-3 py-2">
                         <Badge variant="outline" className="gap-1 capitalize">
                           <Icon className="h-3 w-3" />
-                          {DOC_LABEL[e.doc_type] ?? e.doc_type}
+                          {docLabel(e.doc_type)}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 font-medium">{e.doc_ref}</td>

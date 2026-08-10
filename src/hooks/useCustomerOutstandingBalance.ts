@@ -4,26 +4,35 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 
 /**
- * ADR 0027 — Canonical customer-receivable read model.
+ * ADR 0029 — Single AR balance engine.
  *
- * Derives the receivable position from the canonical
- * `customer_ledger_entries` view (invoices + payment allocations +
- * unapplied deposits + credit notes + refunds). This replaces the
- * earlier shadow-derivation from `invoices.amount_paid` +
- * `payments.outstanding_amount`, which double-counted under partial
- * reallocations and cross-business allocations.
+ * The receivable position is `Σ(debit − credit)` over the GL-anchored
+ * `customer_ledger_entries` view. There is exactly ONE balance formula and it
+ * does not branch on `doc_type`: every row that hits the AR control account —
+ * invoice, allocation, unapplied deposit, credit note, refund, payment
+ * reversal, manual journal — is counted by construction.
  *
- *   - openInvoices         : SUM(invoice.debit) − SUM(payment.credit
- *                            against invoices)  → strict AR.
- *   - outstandingCash      : SUM(deposit.credit) — unapplied cash.
- *   - unappliedCreditNotes : SUM(credit_note.credit) − refund debit.
- *   - netReceivable        : openInvoices − outstandingCash − unappliedCreditNotes.
+ * The previous implementation switched on `doc_type` and therefore:
+ *   - never matched `deposit` (the view emits unapplied cash as `payment`),
+ *   - silently dropped `payment_reversal` and `journal` rows,
+ *   - clamped negatives to zero, hiding customer-credit positions.
+ * Do not reintroduce a per-doc_type switch here.
+ *
+ *   - netReceivable : Σ(debit − credit). Positive = owed by customer.
+ *   - openInvoices  : the positive part of netReceivable.
+ *   - customerCredit: the absolute negative part (credit on file).
  */
 export interface CustomerOutstandingBalance {
   customerId: string;
+  /** Positive receivable exposure (0 when the customer is in credit). */
   openInvoices: number;
+  /** Credit on file — unapplied cash and unapplied credit notes combined. */
+  customerCredit: number;
+  /** @deprecated split of cash vs credit-note credit is not GL-derivable here. */
   outstandingCash: number;
+  /** @deprecated see `customerCredit`. */
   unappliedCreditNotes: number;
+  /** Σ(debit − credit) — the canonical signed position. */
   netReceivable: number;
 }
 
@@ -43,54 +52,31 @@ export function useCustomerOutstandingBalance(customerId?: string) {
 
       const { data, error } = await supabase
         .from("customer_ledger_entries" as any)
-        .select("doc_type, debit, credit")
+        .select("debit, credit")
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .eq("contact_id", customerId);
 
       if (error) throw error;
 
-      let invoiceDebit = 0;
-      let paymentAgainstInvoice = 0;
-      let outstandingCash = 0;
-      let creditNoteCredit = 0;
-      let refundDebit = 0;
-
+      let netReceivable = 0;
       for (const row of (data ?? []) as unknown as Array<{
-        doc_type: string;
         debit: number | string;
         credit: number | string;
       }>) {
-        const debit = Number(row.debit) || 0;
-        const credit = Number(row.credit) || 0;
-        switch (row.doc_type) {
-          case "invoice":
-            invoiceDebit += debit;
-            break;
-          case "payment":
-            paymentAgainstInvoice += credit;
-            break;
-          case "deposit":
-            outstandingCash += credit;
-            break;
-          case "credit_note":
-            creditNoteCredit += credit;
-            break;
-          case "refund":
-            refundDebit += debit;
-            break;
-        }
+        netReceivable += (Number(row.debit) || 0) - (Number(row.credit) || 0);
       }
+      netReceivable = Math.round(netReceivable * 100) / 100;
 
-      const openInvoices = Math.max(0, invoiceDebit - paymentAgainstInvoice);
-      const unappliedCreditNotes = Math.max(0, creditNoteCredit - refundDebit);
+      const customerCredit = netReceivable < 0 ? -netReceivable : 0;
 
       return {
         customerId,
-        openInvoices,
-        outstandingCash,
-        unappliedCreditNotes,
-        netReceivable: openInvoices - outstandingCash - unappliedCreditNotes,
+        openInvoices: Math.max(0, netReceivable),
+        customerCredit,
+        outstandingCash: customerCredit,
+        unappliedCreditNotes: 0,
+        netReceivable,
       };
     },
     enabled: !!customerId && !!currentOrg?.id && !!currentBusiness?.id,

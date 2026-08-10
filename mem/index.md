@@ -12,6 +12,8 @@ Credit notes: money and the per-invoice-line credit ceiling are resolved server-
 Open items sum `base_residual_amount` (currency-converted), never raw `residual_amount`; aging takes an explicit as-of date.
 Collections overlays (collector, dunning level, promise-to-pay) are server-derived from finance_ar_net_position — never computed in the browser.
 Customer/vendor statements project ONE dataset folded from customer_ledger_entries / vendor_ledger_entries (screen, PDF, CSV, email); never re-derive from source documents.
+contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
+Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
 
 
 
@@ -30,3 +32,4 @@ Customer/vendor statements project ONE dataset folded from customer_ledger_entri
 - [Credit note provenance](mem://features/credit-note-provenance) — invoice_item_id lineage, v_invoice_creditable_qty ceiling, server-resolved money, idempotency, draft-only edits
 - [Payment terms](mem://features/payment-terms) — resolve_payment_term cascade, fill-on-insert triggers, snapshot freezing, one-default-per-business index, ADR 0020 document ownership, historical backfill rule, no hardcoded credit periods
 - [Customer statement engine](mem://features/customer-statement-engine) — AR+AP ledger-sourced datasets, mirrored builders, period-end aging, retired raw-table/fallback paths
+- [Contact identity vocabulary](mem://constraints/contact-identity-vocabulary) — contacts.type vs the contact_type enum name, customer_rank, commercial_partner_id family rollup
