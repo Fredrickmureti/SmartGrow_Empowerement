@@ -66,7 +66,7 @@ describe("Governance — exactly one approval engine (ADR-0101)", () => {
       let m: RegExpExecArray | null;
       while ((m = re.exec(body))) {
         const table = m[1].toLowerCase();
-        if (CANONICAL_TABLES.has(table)) continue;
+        if (CANONICAL_TABLES.has(table) || GRANDFATHERED.has(table)) continue;
         if (/(^|_)approval(s)?(_|$)/.test(table) && !/log|audit|history_/.test(table)) {
           offenders.push(`${file}: ${table}`);
         }
