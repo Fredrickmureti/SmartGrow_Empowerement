@@ -63,6 +63,7 @@ export interface RFQ {
   awarded_at: string | null;
   converted_at: string | null;
   submitted_by: string | null;
+  approval_request_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
