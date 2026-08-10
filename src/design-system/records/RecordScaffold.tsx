@@ -165,6 +165,15 @@ export function RecordScaffold(props: RecordScaffoldProps) {
     </ActionBar>
   );
 
+  const actionCluster = actions?.length ? (
+    <ActionBar>
+      <Button variant="outline" size="sm" onClick={() => navigate(listPath)}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      </Button>
+      <DocumentActionsBar actions={actions} />
+    </ActionBar>
+  ) : null;
+
   return (
     <RecordShell
       header={
@@ -174,12 +183,13 @@ export function RecordScaffold(props: RecordScaffoldProps) {
           docNumber={docNumber}
           status={<DocumentStatusSlot view={props} />}
           meta={meta}
-          actions={headerActions ?? defaultActions}
+          actions={actionCluster ?? headerActions ?? defaultActions}
         />
       }
       aside={hasAside(props) ? <DocumentWorkspaceAside view={props} /> : undefined}
       footer={
         <FooterActionBar
+          leading={footerLeading}
           trailing={
             <Button variant="outline" onClick={() => navigate(listPath)}>
               Close
