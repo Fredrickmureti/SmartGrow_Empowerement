@@ -128,6 +128,16 @@ export interface BillPayment {
   created_at: string;
 }
 
+/** Row shape returned by the `find_duplicate_vendor_invoice` RPC. */
+export interface DuplicateVendorInvoice {
+  bill_id: string;
+  bill_number: string;
+  bill_date: string;
+  total: number;
+  status: string;
+}
+
+
 export function useBills() {
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
