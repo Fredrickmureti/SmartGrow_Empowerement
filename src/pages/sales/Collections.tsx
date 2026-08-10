@@ -63,6 +63,16 @@ import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 import { useCollectorAssignments } from "@/hooks/useCollectorAssignments";
 import { useDunningAssignments } from "@/hooks/useDunningAssignments";
 import { usePromisesToPay } from "@/hooks/usePromisesToPay";
+import { useArDisputes } from "@/hooks/useArDisputes";
+import {
+  DISPUTE_TYPES,
+  DISPUTE_TYPE_LABELS,
+  type DisputeType,
+} from "@/services/finance/disputes";
+import { useCollectionsWorkQueue } from "@/hooks/useCollectionsWorkQueue";
+import type { WorkQueueRow } from "@/services/finance/collectionsWorkQueue";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ShieldAlert } from "lucide-react";
 import type { PromiseToPay } from "@/services/finance/promises";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -109,6 +119,12 @@ export default function Collections() {
     record: recordPromise,
     cancel: cancelPromise,
   } = usePromisesToPay();
+  const {
+    data: disputes,
+    raise: raiseDispute,
+    resolve: resolveDispute,
+    totalDisputed,
+  } = useArDisputes();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
@@ -117,6 +133,7 @@ export default function Collections() {
   const [myAccountsOnly, setMyAccountsOnly] = useState(false);
   const [assignDialogContact, setAssignDialogContact] = useState<string | null>(null);
   const [promiseDialogContact, setPromiseDialogContact] = useState<string | null>(null);
+  const [disputeDialogContact, setDisputeDialogContact] = useState<string | null>(null);
 
   const contacts = useMemo(() => {
     let rows = (data?.contacts ?? []).filter((c) => filterByBucket(c, bucket));
@@ -171,12 +188,14 @@ export default function Collections() {
       </header>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <KpiCard label="Net AR" value={formatCurrency(totalAR)} />
         <KpiCard label="Not yet due" value={formatCurrency(notDueTotal)} />
         <KpiCard label="Overdue" value={formatCurrency(overdueTotal)} accent />
         <KpiCard label="% Overdue" value={`${pctOverdue}%`} />
         <KpiCard label="Customers 90+ days" value={String(customers90Plus)} />
+        {/* Disputed exposure is reported beside AR, never subtracted from it. */}
+        <KpiCard label="Disputed" value={formatCurrency(totalDisputed)} />
       </div>
 
       {/* Filters */}
@@ -227,6 +246,7 @@ export default function Collections() {
               <TableHead>Collector</TableHead>
               <TableHead>Next action</TableHead>
               <TableHead>Promise</TableHead>
+              <TableHead>Dispute</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
@@ -241,7 +261,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={12}>
+                    <TableCell colSpan={13}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -249,7 +269,7 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
@@ -306,6 +326,13 @@ export default function Collections() {
                             <NextActionCell row={dunning?.[c.contact_id]} />
                           </TableCell>
                           <TableCell>
+                            <DisputeCell
+                              summary={disputes?.[c.contact_id]}
+                              formatCurrency={formatCurrency}
+                              onResolve={resolveDispute}
+                            />
+                          </TableCell>
+                          <TableCell>
                             <PromiseCell
                               promise={promises?.[c.contact_id]}
                               formatCurrency={formatCurrency}
@@ -352,6 +379,14 @@ export default function Collections() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => setDisputeDialogContact(c.contact_id)}
+                                title="Flag dispute"
+                              >
+                                <ShieldAlert className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 asChild
                                 title="Open ledger"
                               >
@@ -376,7 +411,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={12} className="py-3">
+                            <TableCell colSpan={13} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
@@ -459,6 +494,13 @@ export default function Collections() {
         onOpenChange={(v) => !v && setPromiseDialogContact(null)}
         contactId={promiseDialogContact}
         onRecord={recordPromise}
+      />
+
+      <RaiseDisputeDialog
+        open={!!disputeDialogContact}
+        onOpenChange={(v) => !v && setDisputeDialogContact(null)}
+        contactId={disputeDialogContact}
+        onRaise={raiseDispute}
       />
 
       <AssignCollectorDialog
