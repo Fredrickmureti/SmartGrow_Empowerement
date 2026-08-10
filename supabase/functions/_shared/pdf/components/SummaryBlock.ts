@@ -6,6 +6,7 @@
 import { PDFPage } from "https://esm.sh/pdf-lib@1.17.1";
 import { PdfBuilder } from "../PdfBuilder.ts";
 import { theme } from "../themes/accountantMono.ts";
+import { DOCUMENT_TYPOGRAPHY, type Typography } from "../themes/presentation.ts";
 
 export interface SummaryItem {
   label: string;
@@ -15,13 +16,18 @@ export interface SummaryItem {
 /**
  * Draws a separator + a single horizontal row of label/value pairs at
  * builder.y. Triggers a page break if needed. Updates builder.y.
+ *
+ * `typography` is optional; omitted resolves to the document profile so
+ * every existing caller renders byte-identically.
  */
 export function drawSummaryBlock(
   builder: PdfBuilder,
   page: PDFPage,
   items: SummaryItem[],
+  typography?: Typography,
 ): void {
   if (!items || items.length === 0) return;
+  const t = typography ?? DOCUMENT_TYPOGRAPHY;
 
   const { state, fontRegular, fontBold } = builder;
   const { margin, pageWidth, contentWidth } = state;
