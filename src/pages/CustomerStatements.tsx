@@ -743,11 +743,11 @@ export default function CustomerStatements() {
                                   // Download is a DOWNLOAD disposition: render the
                                   // frozen snapshot to PDF bytes and hand them to the
                                   // browser. It must never dispatch a print job.
-                                  const res = await downloadExport({
-                                    documentType: "customer_statement",
-                                    documentId: statement.id,
+                                  const res = await downloadCustomerStatement({
+                                    statementId: statement.id,
                                     format: "pdf",
-                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.pdf`,
+                                    contactName: statement.contacts?.name,
+                                    dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                                   });
                                   if (!res.success) {
                                     toast.error("Failed to download: " + (res.error ?? "Unknown error"));
@@ -759,11 +759,11 @@ export default function CustomerStatements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  const res = await downloadExport({
-                                    documentType: "customer_statement",
-                                    documentId: statement.id,
+                                  const res = await downloadCustomerStatement({
+                                    statementId: statement.id,
                                     format: "csv",
-                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.csv`,
+                                    contactName: statement.contacts?.name,
+                                    dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                                   });
                                   if (!res.success) {
                                     toast.error("Export failed: " + (res.error ?? "Unknown error"));
