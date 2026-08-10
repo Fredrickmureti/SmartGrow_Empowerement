@@ -66,16 +66,31 @@ function getDateRange(rangeKey: string) {
 interface DashboardKPIs {
   pipeline: { draft: number; sent: number; overdue: number; paid: number };
   period_paid_count: number;
-  receivable: { total: number; overdue_amount: number; overdue_count: number; credit_balance: number };
+  receivable: {
+    total: number;
+    open_amount?: number;
+    overdue_amount: number;
+    overdue_count: number;
+    credit_balance: number;
+  };
   aging: Record<AgingBucketKey, number>;
 
   estimates: { total: number; accepted: number; open: number };
   sales_orders_pending: number;
+  sales_orders_partial?: number;
   credit_notes: { count: number; total: number };
-  payments: { count: number; total: number };
+  payments: { count: number; total: number; applied?: number; unapplied?: number };
   top_customers: Array<{ contact_id: string; name: string; invoice_count: number; total_revenue: number }>;
-  recent_payments: Array<{ id: string; amount: number; payment_date: string; contact_id: string | null; contact_name: string | null }>;
+  recent_payments: Array<{ id: string; amount: number; applied_amount?: number; payment_date: string; contact_id: string | null; contact_name: string | null }>;
+  meta?: {
+    as_of: string;
+    period_from: string;
+    period_to: string;
+    mixed_currency: boolean;
+    currency_count: number;
+  };
 }
+
 
 /**
  * Sales Module Dashboard — Server-side aggregated KPIs
@@ -137,6 +152,8 @@ export default function SalesDashboard() {
 
   // GL Revenue for the period (separate call since GL aggregation is its own service)
   const [glRevenue, setGlRevenue] = useState<number | null>(null);
+  const [glError, setGlError] = useState(false);
+  const [glReloadKey, setGlReloadKey] = useState(0);
   useEffect(() => {
     if (!orgId) return;
     const now = new Date();
@@ -144,10 +161,12 @@ export default function SalesDashboard() {
     const df = r ? format(r.start, "yyyy-MM-dd") : "1900-01-01";
     const dt = r ? format(r.end, "yyyy-MM-dd") : format(now, "yyyy-MM-dd");
     setGlRevenue(null);
+    setGlError(false);
     fetchGLTotals(orgId, df, dt, businessId, branchId)
-      .then(gl => setGlRevenue(gl.revenue))
-      .catch(() => setGlRevenue(null));
-  }, [orgId, businessId, branchId, dateRange]);
+      .then(gl => { setGlRevenue(gl.revenue); setGlError(false); })
+      .catch(() => { setGlRevenue(null); setGlError(true); });
+  }, [orgId, businessId, branchId, dateRange, glReloadKey]);
+
 
   // Sales audit Phase 1: distinguish three load states cleanly.
   // (a) Auth/org not ready yet → soft spinner.
@@ -219,6 +238,26 @@ export default function SalesDashboard() {
   const conversionRate = kpis.estimates.total > 0
     ? Math.round((kpis.estimates.accepted / kpis.estimates.total) * 100)
     : 0;
+  const cashApplied = kpis.payments.applied ?? kpis.payments.total;
+  const cashUnapplied = kpis.payments.unapplied ?? 0;
+  const asOfLabel = kpis.meta?.as_of
+    ? format(new Date(kpis.meta.as_of), "MMM d, yyyy")
+    : "today";
+  const periodLabel = DATE_RANGES.find((r) => r.value === dateRange)?.label ?? "period";
+
+  /** Carry the active scope + period into every drill-down target. */
+  const withScope = (path: string) => {
+    const [base, existing] = path.split("?");
+    const params = new URLSearchParams(existing ?? "");
+    if (businessId) params.set("business", businessId);
+    if (branchId) params.set("branch", branchId);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
+  const go = (path: string) => navigate(withScope(path));
+
 
   return (
     <CompanyScopeGate reportName="Sales overview">
@@ -251,32 +290,68 @@ export default function SalesDashboard() {
 
       {salesGaps.length > 0 && <DashboardSetupGuide gaps={salesGaps} />}
 
+      {kpis.meta?.mixed_currency && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+          <span>
+            Receivables span {kpis.meta.currency_count} currencies. Balances and aging are
+            shown converted to your base currency.
+          </span>
+        </div>
+      )}
+
       {/* Primary KPIs — gated; cashier/operations don't see revenue KPIs. */}
       {composition.allowsWidget("sales.kpis") && (
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/sales/invoices?status=paid")}>
+        <Card className="border-l-4 border-l-emerald-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/invoices?status=paid")}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Revenue (GL)</CardTitle>
+            <CardTitle className="text-sm font-medium">Revenue (GL, posted)</CardTitle>
+            <CardDescription className="text-xs">{periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(periodRevenue)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{kpis.period_paid_count} paid invoices</p>
+            {glError ? (
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-destructive">Unavailable</div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); setGlReloadKey((k) => k + 1); }}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : glRevenue === null ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading…</span>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-primary">{formatCurrency(periodRevenue)}</div>
+                <p className="text-xs text-muted-foreground mt-1">{kpis.period_paid_count} paid invoices</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/sales/payments")}>
+        <Card className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/payments")}>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Payments Received</CardTitle>
+            <CardTitle className="text-sm font-medium">Cash Applied</CardTitle>
+            <CardDescription className="text-xs">{periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(kpis.payments.total)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{kpis.payments.count} payments</p>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(cashApplied)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {kpis.payments.count} payments
+              {cashUnapplied > 0 && <> · {formatCurrency(cashUnapplied)} unapplied</>}
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/sales/invoices?status=open")}>
+        <Card className="border-l-4 border-l-amber-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/invoices?status=open")}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Outstanding Receivable</CardTitle>
+            <CardDescription className="text-xs">as of {asOfLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{formatCurrency(kpis.receivable.total)}</div>
@@ -285,19 +360,26 @@ export default function SalesDashboard() {
                 <span className="text-destructive">{kpis.receivable.overdue_count} overdue ({formatCurrency(kpis.receivable.overdue_amount)})</span>
               ) : "No overdue invoices"}
             </p>
+            {kpis.receivable.credit_balance > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                net of {formatCurrency(kpis.receivable.credit_balance)} customer credit
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/sales/estimates")}>
+        <Card className="border-l-4 border-l-purple-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/estimates")}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Quote Conversion</CardTitle>
+            <CardDescription className="text-xs">{periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">{conversionRate}%</div>
-            <p className="text-xs text-muted-foreground mt-1">{kpis.estimates.accepted} of {kpis.estimates.total} accepted</p>
+            <p className="text-xs text-muted-foreground mt-1">{kpis.estimates.accepted} of {kpis.estimates.total} quotes won</p>
           </CardContent>
         </Card>
       </div>
+
       )}
 
       {/* Action-Oriented Task Cards — visible to executive/sales/accountant/operations. */}
@@ -305,7 +387,7 @@ export default function SalesDashboard() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card
           className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.pipeline.draft > 0 ? "border-l-4 border-l-amber-400" : ""}`}
-          onClick={() => kpis.pipeline.draft > 0 && navigate("/sales/invoices?status=draft")}
+          onClick={() => kpis.pipeline.draft > 0 && go("/sales/invoices?status=draft")}
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -320,7 +402,7 @@ export default function SalesDashboard() {
 
         <Card
           className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.pipeline.overdue > 0 ? "border-l-4 border-l-destructive" : ""}`}
-          onClick={() => kpis.pipeline.overdue > 0 && navigate("/sales/invoices?status=overdue")}
+          onClick={() => kpis.pipeline.overdue > 0 && go("/sales/invoices?status=overdue")}
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -335,7 +417,7 @@ export default function SalesDashboard() {
 
         <Card
           className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.sales_orders_pending > 0 ? "border-l-4 border-l-blue-400" : ""}`}
-          onClick={() => kpis.sales_orders_pending > 0 && navigate("/sales/orders")}
+          onClick={() => kpis.sales_orders_pending > 0 && go("/sales/orders?fulfillment=open")}
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -344,13 +426,16 @@ export default function SalesDashboard() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${kpis.sales_orders_pending > 0 ? "text-blue-600" : "text-muted-foreground"}`}>{kpis.sales_orders_pending}</div>
-            <p className="text-xs text-muted-foreground">pending fulfillment</p>
+            <p className="text-xs text-muted-foreground">
+              with quantities still open to deliver
+              {(kpis.sales_orders_partial ?? 0) > 0 && <> · {kpis.sales_orders_partial} partly delivered</>}
+            </p>
           </CardContent>
         </Card>
 
         <Card
           className={`cursor-pointer hover:shadow-md transition-shadow ${kpis.estimates.open > 0 ? "border-l-4 border-l-indigo-400" : ""}`}
-          onClick={() => kpis.estimates.open > 0 && navigate("/sales/estimates")}
+          onClick={() => kpis.estimates.open > 0 && go("/sales/estimates")}
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
@@ -362,17 +447,19 @@ export default function SalesDashboard() {
             <p className="text-xs text-muted-foreground">awaiting customer response</p>
           </CardContent>
         </Card>
+
       </div>
       )}
 
       {/* Secondary KPIs */}
       {composition.allowsWidget("sales.kpis") && (
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/sales/credit-notes")}>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => go("/sales/credit-notes")}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
               <Undo2 className="h-4 w-4" /> Credit Notes
             </CardTitle>
+            <CardDescription className="text-xs">{periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.credit_notes.count}</div>
@@ -384,12 +471,14 @@ export default function SalesDashboard() {
             <CardTitle className="text-sm font-medium flex items-center gap-1.5">
               <FileText className="h-4 w-4" /> Estimate Conversion
             </CardTitle>
+            <CardDescription className="text-xs">{periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{kpis.estimates.accepted}</div>
-            <p className="text-xs text-muted-foreground">of {kpis.estimates.total} accepted ({conversionRate}%)</p>
+            <p className="text-xs text-muted-foreground">of {kpis.estimates.total} quotes won ({conversionRate}%)</p>
           </CardContent>
         </Card>
+
       </div>
       )}
 
@@ -400,27 +489,27 @@ export default function SalesDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Invoice Pipeline</CardTitle>
-            <CardDescription>Status breakdown of all invoices</CardDescription>
+            <CardDescription>Status breakdown of all invoices (as of {asOfLabel})</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => navigate("/sales/invoices?status=draft")}>
+              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => go("/sales/invoices?status=draft")}>
                 <div className="text-2xl font-bold">{kpis.pipeline.draft}</div>
                 <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
                   <Clock className="h-3 w-3" /> Draft
                 </div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => navigate("/sales/invoices?status=sent")}>
+              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => go("/sales/invoices?status=sent")}>
                 <div className="text-2xl font-bold">{kpis.pipeline.sent}</div>
                 <div className="text-xs text-muted-foreground mt-1">Sent / Viewed</div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => navigate("/sales/invoices?status=overdue")}>
+              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => go("/sales/invoices?status=overdue")}>
                 <div className="text-2xl font-bold text-destructive">{kpis.pipeline.overdue}</div>
                 <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
                   <AlertCircle className="h-3 w-3" /> Overdue
                 </div>
               </div>
-              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => navigate("/sales/invoices?status=paid")}>
+              <div className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors" onClick={() => go("/sales/invoices?status=paid")}>
                 <div className="text-2xl font-bold text-emerald-600">{kpis.pipeline.paid}</div>
                 <div className="text-xs text-muted-foreground mt-1">Paid</div>
               </div>
@@ -434,7 +523,7 @@ export default function SalesDashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Receivables Aging</CardTitle>
-            <CardDescription>Outstanding amounts by aging bucket</CardDescription>
+            <CardDescription>Base-currency balances by aging bucket, as of {asOfLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -449,7 +538,7 @@ export default function SalesDashboard() {
                 <div
                   key={bucket.label}
                   className={`flex items-center justify-between rounded-md px-2 py-1.5 -mx-2 ${bucket.value > 0 ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}`}
-                  onClick={() => bucket.value > 0 && navigate(`/sales/invoices?aging=${bucket.aging}`)}
+                  onClick={() => bucket.value > 0 && go(`/sales/collections?aging=${bucket.aging}`)}
                 >
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${bucket.color}`} />
@@ -475,7 +564,7 @@ export default function SalesDashboard() {
             <CardTitle className="text-base flex items-center gap-1.5">
               <Users className="h-4 w-4" /> Top Customers
             </CardTitle>
-            <CardDescription>By revenue in selected period</CardDescription>
+            <CardDescription>Invoiced net of credit notes · {periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             {kpis.top_customers.length === 0 ? (
@@ -515,7 +604,7 @@ export default function SalesDashboard() {
             <CardTitle className="text-base flex items-center gap-1.5">
               <CreditCard className="h-4 w-4" /> Recent Payments
             </CardTitle>
-            <CardDescription>Latest customer payments received</CardDescription>
+            <CardDescription>Latest customer payments · {periodLabel}</CardDescription>
           </CardHeader>
           <CardContent>
             {kpis.recent_payments.length === 0 ? (
@@ -534,7 +623,7 @@ export default function SalesDashboard() {
                     <TableRow
                       key={p.id}
                       className="cursor-pointer hover:bg-muted/30"
-                      onClick={() => navigate(`/sales/payments?id=${p.id}`)}
+                      onClick={() => go(`/sales/payments?id=${p.id}`)}
                     >
                       <TableCell className="font-medium">
                         {p.contact_name ? (
