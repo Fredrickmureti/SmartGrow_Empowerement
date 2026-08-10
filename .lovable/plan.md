@@ -12,10 +12,11 @@ views — never from document status, never re-derived in app code.
 | 0–5 | Audit + drift sensor, canonical buckets in Collections, one aging source with as-of dating, AR summary nets credit, statement idempotency, currency integrity | see archived audit under `.lovable/plan/` |
 | 6 | Credit-netting consolidation: `finance_ar_customer_credit` + `finance_ar_net_position`; all consumers repointed | `aging-single-source.test.ts` (6/6) |
 | 7 | Statement delivery reliability: canonical cohort, durable queue, delivery badges | `statement-delivery-durability.test.ts` (4/4) |
+| 8 | Per-currency presentation & FX policy for credit: `to_base_amount()` function, `finance_ar_customer_credit` FX-converted, `finance_ar_net_position_by_currency` view, Collections per-currency breakdown | `credit-fx-policy.test.ts` (3/3) |
 
 ## Remaining roadmap (in order — no deferral)
 
-### Wave 8 — Per-currency presentation & FX policy for credit [ACTIVE]
+### Wave 9 — Collector assignment [ACTIVE]
 
 **Problem:** `finance_ar_net_position` aggregates across currencies into base
 amounts but exposes no currency dimension. `finance_ar_customer_credit.base_credit_amount`
