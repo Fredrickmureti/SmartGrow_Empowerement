@@ -24,6 +24,7 @@ import {
   drawNotesBlock,
   drawDataTable,
   drawSummaryBlock,
+  resolveTypography,
   theme,
   type LineItem,
   type PaperPreset,
@@ -34,9 +35,14 @@ import {
  * Stage P3 (ADR-0008): callers may pass a `paperFormat` to render a
  * thermal-width PDF (`"58mm"` / `"80mm"` / explicit mm spec). When omitted,
  * the renderer defaults to A4 portrait — exactly the pre-Stage-P3 behaviour.
+ *
+ * `orientation` is an escape hatch for layout-pinned callers. Statements
+ * default to landscape (ledger presentation); transactional documents are
+ * unaffected.
  */
 export interface DocumentRenderOptions {
   paperFormat?: PaperPreset | PaperSpec;
+  orientation?: "portrait" | "landscape";
 }
 import { fetchLogoBytes as fetchLogoBytesCached, getOrganizationBranding } from "./branding/index.ts";
 import {
@@ -697,9 +703,17 @@ export async function generateStatementPdf(
     ? `${formatDate(periodStart)} — ${formatDate(periodEnd)}`
     : (data.issue_date ? `Statement Date: ${formatDate(data.issue_date)}` : undefined);
 
+  // Presentation (2026-08-10): a statement is a multi-column ledger, not a
+  // transactional document. It resolves the `ledger` profile (8.5pt body,
+  // 40pt gutter) on a LANDSCAPE canvas so Date / Type / Reference /
+  // Description / Charges / Credits / Balance each get real width instead
+  // of wrapping at 7.5pt inside a portrait 451pt content box.
+  const stmtTypography = resolveTypography("ledger");
   const builder = await PdfBuilder.create({
-    orientation: "portrait",
+    orientation: options.orientation ?? "landscape",
     paperFormat: options.paperFormat ?? "a4",
+    margin: stmtTypography.pageMargin,
+    bottomMargin: stmtTypography.pageMargin,
   });
 
   const logoBytes = data.organization?.logo_url
@@ -709,13 +723,14 @@ export async function generateStatementPdf(
 
   const stmtBranding = mapJoinedOrgRow(data.organization);
   builder.onNewPage = (page) => {
-    drawPageNumber(builder, page);
+    drawPageNumber(builder, page, stmtTypography);
     const drawn = drawBrandedHeader(builder, page, {
       title,
       dateRange: periodLabel,
       organization: stmtBranding,
       companyName: data.organization?.name,
       logo,
+      typography: stmtTypography,
     });
     return drawn.bodyY;
   };
@@ -761,16 +776,17 @@ export async function generateStatementPdf(
 
   drawDataTable(builder, {
     columns: [
-      { key: "date", header: "Date", width: 11, align: "left" },
+      { key: "date", header: "Date", width: 10, align: "left" },
       { key: "type", header: "Type", width: 11, align: "left" },
       { key: "reference", header: "Reference", width: 14, align: "left" },
-      { key: "description", header: "Description", width: 25, align: "left" },
-      { key: "charges", header: "Charges", width: 13, format: "currency", align: "right" },
-      { key: "credits", header: "Credits", width: 13, format: "currency", align: "right" },
-      { key: "balance", header: "Balance", width: 13, format: "currency", align: "right" },
+      { key: "description", header: "Description", width: 29, align: "left" },
+      { key: "charges", header: "Charges", width: 12, format: "currency", align: "right" },
+      { key: "credits", header: "Credits", width: 12, format: "currency", align: "right" },
+      { key: "balance", header: "Balance", width: 12, format: "currency", align: "right" },
     ],
     rows,
     currency,
+    typography: stmtTypography,
   });
 
   // Aging summary
@@ -779,7 +795,7 @@ export async function generateStatementPdf(
       label: b.label,
       value: formatCurrency(b.amount, currency),
     }));
-    drawSummaryBlock(builder, builder.page, summaryItems);
+    drawSummaryBlock(builder, builder.page, summaryItems, stmtTypography);
   }
 
   // Amount Due (closing balance, if positive)
@@ -793,6 +809,7 @@ export async function generateStatementPdf(
   drawFinalFooter(builder, builder.page, {
     footerNote: t.footer_text || "Computer-generated statement — no signature required",
     includeGeneratedStamp: true,
+    typography: stmtTypography,
   });
 
   return await builder.save();
