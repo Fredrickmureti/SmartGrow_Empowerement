@@ -1,13 +1,12 @@
 /**
  * ProformaRecordPage — object-page route for a Proforma Invoice.
- * Read-only view built on RecordScaffold. Creation lives on
- * ProformaCreatePage (`/sales/proforma/new`); lifecycle actions are on the
- * list page and go through set_proforma_status_atomic.
+ * Actions come from `useProformaActions`, the same array the list row menu
+ * renders, so the full page is never a read-only dead end.
  */
 
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
@@ -17,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { ProformaInvoice, ProformaInvoiceItem } from "@/hooks/useProformaInvoices";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { useProformaActions } from "./useProformaActions";
 
 type Row = ProformaInvoice & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -31,9 +31,12 @@ function fmt(d?: string | null) {
 export default function ProformaRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
+  const navigate = useNavigate();
   const [row, setRow] = useState<Row | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
   const isNew = id === "new";
 
   useEffect(() => {
@@ -52,7 +55,12 @@ export default function ProformaRecordPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id, isNew]);
+  }, [id, isNew, nonce]);
+
+  const { actions, dialogs } = useProformaActions(row, {
+    onChanged: refresh,
+    onDeleted: () => navigate("/sales/proforma"),
+  });
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
@@ -82,6 +90,7 @@ export default function ProformaRecordPage() {
   }, [row, formatCurrency]);
 
   return (
+    <>
     <RecordScaffold
       eyebrow="Proforma Invoice"
       listPath="/sales/proforma"
@@ -124,7 +133,10 @@ export default function ProformaRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Proforma ${row.proforma_number} created` },
         ...(row.converted_at ? [{ id: "converted", at: fmt(row.converted_at), title: "Converted to invoice", tone: "success" as const }] : []),
       ] : undefined}
+      actions={actions}
       extraSections={row ? <DocumentVersionsSection documentType="proforma" documentId={row.id} /> : undefined}
     />
+    {dialogs}
+    </>
   );
 }

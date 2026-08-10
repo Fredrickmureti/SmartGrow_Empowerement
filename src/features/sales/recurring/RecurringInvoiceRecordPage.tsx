@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
@@ -17,6 +17,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import type { RecurringInvoice, RecurringInvoiceItem } from "@/hooks/useRecurringInvoices";
 import { RECURRING_STATUS_LABEL, type RecurringInvoiceStatus } from "@/lib/recurringLifecycle";
 import { RecurringBillingHistory } from "./RecurringBillingHistory";
+import { useRecurringInvoiceActions } from "./useRecurringInvoiceActions";
 
 type Row = RecurringInvoice & {
   items?: RecurringInvoiceItem[];
@@ -38,9 +39,11 @@ function calcLineTotal(l: RecurringInvoiceItem) {
 export default function RecurringInvoiceRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
+  const navigate = useNavigate();
   const [row, setRow] = useState<Row | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
   const isNew = id === "new";
 
   useEffect(() => {
@@ -59,7 +62,12 @@ export default function RecurringInvoiceRecordPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id, isNew]);
+  }, [id, isNew, nonce]);
+
+  const { actions } = useRecurringInvoiceActions(row, {
+    onChanged: () => setNonce((n) => n + 1),
+    onDeleted: () => navigate("/sales/recurring"),
+  });
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
@@ -137,6 +145,7 @@ export default function RecurringInvoiceRecordPage() {
         { label: "Currency", value: row.currency },
         { label: "Definition version", value: row.definition_version ?? 1 },
       ] : undefined}
+      actions={actions}
       extraSections={row ? <RecurringBillingHistory recurringId={id} /> : undefined}
       lineColumns={columns}
       lineRows={rows}
