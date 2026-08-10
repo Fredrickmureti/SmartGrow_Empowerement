@@ -404,7 +404,7 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
             `You have been invited to quote on request for quotation ${inv.rfq_number}.` +
             (deadline ? `\n\nResponses are due by ${deadline}.` : "") +
             `\n\nPlease submit your quotation through the supplier portal.`,
-          autoGeneratePdf: false,
+          autoGeneratePdf: true,
         },
       });
       if (error) throw new Error(error.message ?? String(error));
