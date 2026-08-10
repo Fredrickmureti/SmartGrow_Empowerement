@@ -208,37 +208,91 @@ export default function CustomerLedgerPage() {
         </Button>
       </div>
 
-      <Card className="p-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div>
-          <Label htmlFor="from">From</Label>
-          <Input id="from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </div>
-        <div>
-          <Label htmlFor="to">To</Label>
-          <Input id="to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
-        <div className="sm:col-span-2 sm:text-right">
-          <div className="text-xs text-muted-foreground">Outstanding balance</div>
-          <div
-            className={`text-3xl font-bold tabular-nums ${
-              outstandingBalance > 0
-                ? "text-amber-700 dark:text-amber-400"
-                : outstandingBalance < 0
-                ? "text-emerald-700 dark:text-emerald-400"
-                : ""
-            }`}
-          >
-            {formatCurrency(outstandingBalance)}
+      <Card className="p-4 space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+          <div className="space-y-3 flex-1 min-w-0">
+            <div>
+              <Label className="text-xs text-muted-foreground">Period</Label>
+              <ToggleGroup
+                type="single"
+                value={preset}
+                onValueChange={(v) => v && applyPreset(v as DateRangePresetKey)}
+                className="flex flex-wrap justify-start gap-1 mt-1"
+              >
+                {DATE_RANGE_PRESETS.map((p) => (
+                  <ToggleGroupItem
+                    key={p.key}
+                    value={p.key}
+                    size="sm"
+                    className="h-8 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                  >
+                    {p.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            {preset === "custom" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <Label htmlFor="from">From</Label>
+                  <Input
+                    id="from"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="to">To</Label>
+                  <Input
+                    id="to"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="text-sm text-muted-foreground">
+              Viewing:{" "}
+              <span className="font-medium text-foreground">{rangeLabel}</span>
+              {preset !== "custom" && preset !== "all" && (
+                <>
+                  {" "}
+                  <Badge variant="secondary" className="ml-1 align-middle">
+                    {DATE_RANGE_PRESETS.find((p) => p.key === preset)?.label}
+                  </Badge>
+                </>
+              )}
+            </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {outstandingBalance > 0
-              ? "Owed by customer"
-              : outstandingBalance < 0
-              ? "Customer credit on file"
-              : "Settled"}
+
+          <div className="lg:text-right shrink-0">
+            <div className="text-xs text-muted-foreground">Outstanding balance</div>
+            <div
+              className={`text-3xl font-bold tabular-nums ${
+                outstandingBalance > 0
+                  ? "text-amber-700 dark:text-amber-400"
+                  : outstandingBalance < 0
+                  ? "text-emerald-700 dark:text-emerald-400"
+                  : ""
+              }`}
+            >
+              {formatCurrency(outstandingBalance)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {outstandingBalance > 0
+                ? "Owed by customer"
+                : outstandingBalance < 0
+                ? "Customer credit on file"
+                : "Settled"}
+            </div>
           </div>
         </div>
       </Card>
+
 
       {isMixedCurrency && (
         <Card className="p-3 flex items-start gap-2 border-amber-500/50 bg-amber-500/10">
