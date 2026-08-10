@@ -152,7 +152,7 @@ function drawFactsGrid(
   title: string,
   facts: Array<[string, string | null]>,
 ): void {
-  const present = facts.filter((f): f[1] is string => Boolean(f[1])) as Array<[string, string]>;
+  const present = facts.filter((f) => Boolean(f[1])) as Array<[string, string]>;
   if (present.length === 0) return;
 
   const { state, fontRegular, fontBold } = builder;
