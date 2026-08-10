@@ -68,13 +68,8 @@ export interface CustomerStatementData {
     sourceId?: string;
   }[];
   closingBalance: number;
-  agingBuckets: {
-    current: number;
-    days30: number;
-    days60: number;
-    days90: number;
-    over90: number;
-  };
+  agingBuckets: AgingBuckets;
+
 }
 
 export interface GenerateStatementInput {
