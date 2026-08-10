@@ -313,12 +313,14 @@ export default function CustomerStatements() {
       // "Download PDF" is a DOWNLOAD disposition. It renders the frozen
       // snapshot to PDF bytes and hands them to the browser — it must never
       // dispatch a print job to a physical printer. Printing is a separate,
-      // explicit action.
-      const res = await downloadExport({
-        documentType: "customer_statement",
-        documentId: statementId,
+      // explicit action. Every AR statement surface goes through the one
+      // customer-statement exit.
+      const res = await downloadCustomerStatement({
+        statementId,
         format: "pdf",
-        filename: `customer-statement-${dataToUse.contact.name ?? "contact"}-${dataToUse.periodStart}-${dataToUse.periodEnd}.pdf`,
+        contactName: dataToUse.contact.name,
+        dateLabel: dataToUse.periodStart,
+        periodEndLabel: dataToUse.periodEnd,
       });
       if (!res.success) throw new Error(res.error ?? "Unknown error");
     } catch (error: any) {
