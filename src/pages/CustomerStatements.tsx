@@ -268,7 +268,7 @@ export default function CustomerStatements() {
     setShowEmailDialog(true);
   };
 
-  const handlePrint = async (statementData?: CustomerStatementData) => {
+  const handleDownloadPdf = async (statementData?: CustomerStatementData) => {
     const dataToUse = statementData || previewData;
     if (!dataToUse) return;
 
@@ -313,36 +313,20 @@ export default function CustomerStatements() {
         throw new Error("Could not determine statement ID for PDF generation");
       }
 
-      // Wave 7.2 migration: dispatch through the unified document engine.
-      // The routing plan for `sales.statement` fans out to view/download/email
-      // dispositions, so a manual "PDF" click cannot bypass archive rules.
-      const built = await fetchAndBuildCustomerStatementSnapshot(supabase, statementId);
-      const documentRecordId = await ensureDocumentRecord({
-        kindCode: "sales.statement",
-        organizationId: currentOrg?.id ?? built.organizationId,
-        sourceModule: "sales",
-        sourceDocType: "customer_statement",
-        sourceDocId: statementId,
-        businessId: built.businessId ?? currentBusiness?.id ?? null,
-        branchId: built.branchId ?? null,
-        partyKind: "customer",
-        currency: built.currency,
-        documentNumber: built.documentNumber,
-        documentDate: built.documentDate,
-        snapshot: built.snapshot,
+      // "Download PDF" is a DOWNLOAD disposition. It renders the frozen
+      // snapshot to PDF bytes and hands them to the browser — it must never
+      // dispatch a print job to a physical printer. Printing is a separate,
+      // explicit action.
+      const res = await downloadExport({
+        documentType: "customer_statement",
+        documentId: statementId,
+        format: "pdf",
+        filename: `customer-statement-${dataToUse.contact.name ?? "contact"}-${dataToUse.periodStart}-${dataToUse.periodEnd}.pdf`,
       });
-      // Sonner surface: adapt the shared outcome copy to success/error calls.
-      await acknowledgeRecordPrint(
-        { documentRecordId, triggeredSource: "manual" },
-        (t) => {
-          if (t.variant === "destructive") toast.error(t.description);
-          else toast.success(t.description);
-        },
-        { label: `Statement ${built.documentNumber ?? ""}`.trim() },
-      );
+      if (!res.success) throw new Error(res.error ?? "Unknown error");
     } catch (error: any) {
-      console.error("Statement print error:", error);
-      toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
+      console.error("Statement download error:", error);
+      toast.error("Failed to download statement PDF: " + (normalizeError(error).message || "Unknown error"));
     } finally {
       setIsGenerating(false);
     }
@@ -993,7 +977,7 @@ export default function CustomerStatements() {
                 </DialogDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs sm:text-sm" onClick={() => handlePrint()} disabled={isGenerating}>
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs sm:text-sm" onClick={() => handleDownloadPdf()} disabled={isGenerating}>
                   {isGenerating ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
                   PDF
                 </Button>
