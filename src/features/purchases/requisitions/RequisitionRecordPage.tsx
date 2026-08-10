@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban, FileText, FileSearch, Printer, ShoppingCart, PenLine, ExternalLink, Scissors } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Section, StatusBadge } from "@/design-system";
@@ -53,6 +53,8 @@ import {
 } from "@/components/ui/select";
 import { useRequisitionRecord } from "./useRequisitions";
 import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
+import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import {
   approveRequisition,
@@ -458,6 +460,31 @@ export default function RequisitionRecordPage() {
           disabled: busy,
           onSelect: () => setCloseOpen(true),
         },
+        {
+          id: "preview",
+          label: "Preview",
+          icon: FileSearch,
+          group: "output",
+          onSelect: () =>
+            preview({
+              documentType: "purchase_requisition",
+              documentId: record.id,
+              title: `Requisition ${record.requisition_number}`,
+              filename: `requisition-${record.requisition_number}`,
+            }),
+        },
+        {
+          id: "print",
+          label: "Print",
+          icon: Printer,
+          group: "output",
+          disabled: printing,
+          onSelect: () =>
+            void print(record.id, `Requisition ${record.requisition_number}`),
+        },
+        // No email action: `purchases.requisition` is registered without an
+        // `email` intent — a requisition is an internal approval artefact and
+        // must never be dispatched to a supplier.
         {
           id: "cancel",
           label: "Cancel requisition",
