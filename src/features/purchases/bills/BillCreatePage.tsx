@@ -307,7 +307,11 @@ export default function BillCreatePage() {
         } as Omit<Bill, "id" | "organization_id" | "business_id" | "branch_id" | "created_at" | "updated_at" | "created_by" | "vendor" | "items" | "currency_rate" | "company_currency_total">,
         validItems,
       );
-      toast.success("Bill created");
+      toast.success(
+        requireBillApproval
+          ? "Bill created and submitted for approval"
+          : "Bill created and posted to accounts payable",
+      );
       navigate(created?.id ? `/purchases/bills/${created.id}` : "/purchases/bills");
     } catch (error) {
       toast.error(normalizeError(error).message || "Failed to create bill");
