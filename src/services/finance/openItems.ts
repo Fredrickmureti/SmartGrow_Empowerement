@@ -275,8 +275,12 @@ export async function fetchContactOpenItemAging(
 /**
  * Unapplied customer credit (advance receipts / unapplied credit notes) for an
  * org, optionally narrowed to one contact. This is a genuine credit position on
- * the customer and reduces the net receivable — `get_ar_ap_aging_from_ledger`
- * and `get_ar_summary` both net it, so read-side helpers must too.
+ * the customer and reduces the net receivable.
+ *
+ * ADR: reads `finance_ar_customer_credit`, the single canonical definition of
+ * unapplied credit. `get_ar_summary`, `get_ar_ap_aging_from_ledger` and
+ * `finance_ar_net_position` all read the same view, so no consumer can invent
+ * its own credit filter (e.g. forget the 0.01 floor or the currency handling).
  */
 export async function fetchUnappliedCustomerCredit(
   orgId: string,
@@ -284,10 +288,9 @@ export async function fetchUnappliedCustomerCredit(
   contactId?: string | string[] | null,
 ): Promise<number> {
   let q = supabase
-    .from("customer_credit_balances" as any)
-    .select("balance")
-    .eq("organization_id", orgId)
-    .gt("balance", 0.01);
+    .from("finance_ar_customer_credit" as any)
+    .select("base_credit_amount")
+    .eq("organization_id", orgId);
   if (businessId) q = q.eq("business_id", businessId);
   if (Array.isArray(contactId)) {
     if (contactId.length === 0) return 0;
@@ -298,6 +301,9 @@ export async function fetchUnappliedCustomerCredit(
 
   const { data, error } = await q;
   if (error) return 0;
-  return ((data || []) as any[]).reduce((sum, r) => sum + (Number(r.balance) || 0), 0);
+  return ((data || []) as any[]).reduce(
+    (sum, r) => sum + (Number(r.base_credit_amount) || 0),
+    0,
+  );
 }
 
