@@ -74809,6 +74809,30 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_ar_net_position_by_currency: {
+        Row: {
+          base_credit_amount: number | null
+          base_net_amount: number | null
+          base_open_amount: number | null
+          branch_id: string | null
+          business_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          credit_amount: number | null
+          currency: string | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          not_due: number | null
+          open_amount: number | null
+          open_document_count: number | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
       finance_ar_open_items: {
         Row: {
           applied_amount: number | null
@@ -96259,6 +96283,15 @@ export type Database = {
           passed: boolean
           test_name: string
         }[]
+      }
+      to_base_amount: {
+        Args: {
+          _amount: number
+          _as_of?: string
+          _business_id: string
+          _currency: string
+        }
+        Returns: number
       }
       trailer_departure_blockers: {
         Args: { p_visit_id: string }
