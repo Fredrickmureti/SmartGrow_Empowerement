@@ -34,9 +34,12 @@ export function useRFQActions(
   { onDeleted, onAward }: Options = {},
 ) {
   const navigate = useNavigate();
+  const { mode: governanceMode } = useGovernanceMode();
   const {
     submitForApproval,
+    submitForApprovalAsync,
     approveRFQ,
+    approveRFQAsync,
     releaseRFQ,
     reviseRFQ,
     convertToPurchaseOrders,
