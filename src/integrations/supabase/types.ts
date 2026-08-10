@@ -88156,6 +88156,10 @@ export type Database = {
         }
         Returns: Json
       }
+      finance_aging_bucket: {
+        Args: { p_as_of: string; p_due_date: string }
+        Returns: string
+      }
       finance_loan_receivable_integrity_check: {
         Args: { _org: string }
         Returns: {
