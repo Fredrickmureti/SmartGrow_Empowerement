@@ -133,6 +133,8 @@ export default function RequisitionRecordPage() {
   const [poSupplierId, setPoSupplierId] = useState<string>("");
   const [amendOpen, setAmendOpen] = useState(false);
   const [amendReason, setAmendReason] = useState("");
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
   const [busy, setBusy] = useState(false);
   const { rows: suppliers } = useSuppliers();
 
@@ -145,6 +147,14 @@ export default function RequisitionRecordPage() {
   const canRelease = RELEASABLE.includes(record?.status ?? "");
   const canAmend = record?.status === "approved" &&
     (record?.items ?? []).every((i) => Number(i.quantity_ordered ?? 0) === 0);
+  // Short-close is only meaningful once demand is live and some of it is
+  // still outstanding. `requisition_close` re-validates all of this.
+  const openLines = (record?.items ?? []).filter((i) => lineOutstanding(i) > 0);
+  const canShortClose =
+    RELEASABLE.concat(["procured", "ordered", "partially_fulfilled"]).includes(
+      record?.status ?? "",
+    ) && openLines.length > 0;
+
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
