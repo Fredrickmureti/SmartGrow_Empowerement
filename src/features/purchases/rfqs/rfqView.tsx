@@ -455,7 +455,16 @@ export function useRFQView(
           ]
         : undefined,
     };
-  }, [rfq, loading, error, formatCurrency, currency, columns]);
+  }, [
+    rfq,
+    loading,
+    error,
+    formatCurrency,
+    currency,
+    columns,
+    resendInvitation,
+    isResendingInvitation,
+  ]);
 
   return { rfq, loading, error, view };
 }
