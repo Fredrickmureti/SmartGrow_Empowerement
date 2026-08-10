@@ -237,83 +237,20 @@ export function useCustomerStatements() {
       });
     }
 
-    // ----- Aging buckets (unchanged math; nets unapplied credit) -----
-    const today = new Date();
-    let outstandingQ = supabase
-      .from("invoices")
-      .select("due_date, total, amount_paid")
-      .eq("organization_id", organizationId)
-      .eq("business_id", currentBusiness.id)
-      .in("contact_id", contactIds)
-      .in("status", ["confirmed", "sent", "overdue", "partial"]);
-    outstandingQ = applyBranchFilter(outstandingQ, branchId);
-    const { data: outstandingInvoices } = await outstandingQ;
+    // ----- Aging buckets (canonical) -----
+    // ADR 0027: aging is read from the GL-anchored open-items projection
+    // (`finance_ar_open_items`) via the ONE shared helper, never recomputed
+    // from `invoices.total - amount_paid`. The helper also nets unapplied
+    // customer credit (`customer_credit_balances`), so the statement's aging
+    // block agrees with the AR aging report, the Collections workspace and
+    // `get_ar_summary` by construction.
+    const agingBuckets = await fetchContactOpenItemAging("ar", {
+      orgId: organizationId,
+      contactId: contactIds,
+      businessId: currentBusiness.id,
+      branchId,
+    });
 
-    // Unapplied customer credit is read from the credit ledger
-    // (`customer_credit_balances`, projected from append-only
-    // `customer_credit_movements`) — the ADR 0131 authority. It is NEVER
-    // derived from `credit_notes.total - amount_applied - refund_amount`,
-    // which would let the statement disagree with the aging report and
-    // with `customer_credit_tieout`. The balance is not branch-scoped
-    // (credit belongs to the customer within a business), so no branch
-    // filter is applied here.
-    const { data: creditBalances } = await supabase
-      .from("customer_credit_balances")
-      .select("balance, currency")
-      .eq("organization_id", organizationId)
-      .eq("business_id", currentBusiness.id)
-      .in("contact_id", contactIds);
-
-
-    // Advance / unapplied customer cash — canonical signal under ADR 0027
-    // is `payments.outstanding_amount > 0`, NOT `invoice_id IS NULL`.
-    let advPayQ = supabase
-      .from("payments")
-      .select("outstanding_amount")
-      .eq("organization_id", organizationId)
-      .eq("business_id", currentBusiness.id)
-      .in("contact_id", contactIds)
-      .neq("status", "voided")
-      .gt("outstanding_amount", 0);
-    advPayQ = applyBranchFilter(advPayQ, branchId);
-    const { data: advancePayments } = await advPayQ;
-
-    let unappliedCredit =
-      (creditBalances?.reduce((s, c: any) => s + Math.max(0, Number(c.balance) || 0), 0) || 0) +
-      (advancePayments?.reduce((s, p: any) => s + (Number(p.outstanding_amount) || 0), 0) || 0);
-
-
-    const agingBuckets = {
-      current: 0,
-      days30: 0,
-      days60: 0,
-      days90: 0,
-      over90: 0,
-    };
-
-    const sortedOutstanding = [...(outstandingInvoices || [])].sort(
-      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-    );
-
-    for (const inv of sortedOutstanding) {
-      const dueDate = new Date(inv.due_date);
-      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      let outstanding = inv.total - (inv.amount_paid || 0);
-      if (outstanding <= 0) continue;
-
-      if (unappliedCredit > 0) {
-        const used = Math.min(unappliedCredit, outstanding);
-        outstanding -= used;
-        unappliedCredit -= used;
-      }
-      if (outstanding <= 0) continue;
-
-      if (daysOverdue <= 0) agingBuckets.current += outstanding;
-      else if (daysOverdue <= 30) agingBuckets.days30 += outstanding;
-      else if (daysOverdue <= 60) agingBuckets.days60 += outstanding;
-      else if (daysOverdue <= 90) agingBuckets.days90 += outstanding;
-      else agingBuckets.over90 += outstanding;
-    }
 
     return {
       business_id: currentBusiness!.id,
