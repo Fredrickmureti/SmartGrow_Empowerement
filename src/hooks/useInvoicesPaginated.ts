@@ -21,7 +21,7 @@ export interface InvoiceFilters {
   status?: string;
   source?: "pos" | string;
   salespersonId?: string;
-  /** Filter by aging bucket: "current", "1-30", "31-60", "61-90", "90+" */
+  /** Canonical aging bucket key: "not_due" | "current" | "days30" | "days60" | "days90" */
   aging?: string;
   /** Invoice-date lower bound (ISO yyyy-mm-dd, inclusive). */
   dateFrom?: string;
