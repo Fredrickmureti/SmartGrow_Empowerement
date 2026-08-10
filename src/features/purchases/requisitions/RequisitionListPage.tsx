@@ -67,16 +67,102 @@ function money(n: number | null | undefined, cur?: string | null) {
   })}`.trim();
 }
 
+/**
+ * Operational buckets. A requisition workbench is a work queue, not a status
+ * dump: buyers ask "what needs approving / sourcing / chasing", never "show
+ * me rows whose status column equals `partially_procured`". Each bucket maps
+ * to the server-owned status vocabulary plus outstanding demand, so the UI
+ * never invents a state the database cannot justify.
+ */
+type BucketId =
+  | "action"
+  | "drafts"
+  | "approval"
+  | "sourcing"
+  | "on_order"
+  | "overdue"
+  | "settled"
+  | "all";
+
+const TERMINAL = ["fulfilled", "cancelled", "rejected", "closed"];
+
+function isOverdue(r: RequisitionRow, today: string) {
+  return (
+    !TERMINAL.includes(r.status) &&
+    !!r.need_by_date &&
+    r.need_by_date < today &&
+    (r.outstanding_quantity ?? 0) > 0
+  );
+}
+
+const BUCKETS: {
+  id: BucketId;
+  label: string;
+  hint: string;
+  match: (r: RequisitionRow, today: string) => boolean;
+}[] = [
+  {
+    id: "action",
+    label: "Needs action",
+    hint: "Awaiting approval, or approved with demand nobody has sourced yet.",
+    match: (r) =>
+      r.status === "submitted" ||
+      (r.status === "approved" && (r.outstanding_quantity ?? 0) > 0),
+  },
+  { id: "drafts", label: "Drafts", hint: "Not submitted yet.", match: (r) => r.status === "draft" },
+  {
+    id: "approval",
+    label: "Awaiting approval",
+    hint: "Routed to the approvals inbox.",
+    match: (r) => r.status === "submitted",
+  },
+  {
+    id: "sourcing",
+    label: "In sourcing",
+    hint: "Approved demand being converted into RFQs and purchase orders.",
+    match: (r) => ["approved", "sourcing", "partially_procured"].includes(r.status),
+  },
+  {
+    id: "on_order",
+    label: "On order",
+    hint: "Fully or partly on a purchase order, awaiting receipt.",
+    match: (r) => ["procured", "ordered", "partially_fulfilled"].includes(r.status),
+  },
+  {
+    id: "overdue",
+    label: "Overdue",
+    hint: "Past the need-by date with demand still outstanding.",
+    match: isOverdue,
+  },
+  {
+    id: "settled",
+    label: "Settled",
+    hint: "Fulfilled, short-closed, cancelled or rejected.",
+    match: (r) => TERMINAL.includes(r.status),
+  },
+  { id: "all", label: "All", hint: "Every requisition in this business.", match: () => true },
+];
+
 export default function RequisitionListPage() {
   const navigate = useNavigate();
   const { rows, loading, error, refresh } = useRequisitions();
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
+  const [bucket, setBucket] = useState<BucketId>("action");
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const counts = useMemo(() => {
+    const map = {} as Record<BucketId, number>;
+    for (const b of BUCKETS) map[b.id] = rows.filter((r) => b.match(r, today)).length;
+    return map;
+  }, [rows, today]);
+
+  const active = BUCKETS.find((b) => b.id === bucket) ?? BUCKETS[0];
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) => {
-      if (status !== "all" && r.status !== status) return false;
+      if (!active.match(r, today)) return false;
       if (!needle) return true;
       return (
         r.requisition_number?.toLowerCase().includes(needle) ||
@@ -85,7 +171,8 @@ export default function RequisitionListPage() {
         r.requester?.email?.toLowerCase().includes(needle)
       );
     });
-  }, [rows, q, status]);
+  }, [rows, q, active, today]);
+
 
   return (
     <>
