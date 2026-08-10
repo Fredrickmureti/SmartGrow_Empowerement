@@ -15,6 +15,7 @@ import type {
 import { Section } from "@/design-system";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
 import { BillMatchPanel } from "./BillMatchPanel";
+import { deriveBillStatus } from "./billStatus";
 
 import type { Bill } from "@/hooks/useBills";
 import { useBillRecord } from "./useBillRecord";
@@ -75,7 +76,8 @@ export function useBillView(
       listPath: "/purchases/bills",
       title: bill?.vendor?.name ?? "Vendor",
       docNumber: bill?.bill_number,
-      status: bill?.status,
+      // Displayed status is derived — overdue is a condition, not a stored state.
+      status: bill ? deriveBillStatus(bill) : undefined,
       loading,
       error,
       notFound: !loading && !error && !bill,
