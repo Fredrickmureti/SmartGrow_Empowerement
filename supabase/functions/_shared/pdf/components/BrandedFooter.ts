@@ -106,7 +106,9 @@ export function drawFinalFooter(builder: PdfBuilder, page: PDFPage, config: Foot
     leftText = winansiSafe(`Generated: ${ts}`);
   }
 
+  let leftWidth = 0;
   if (leftText) {
+    leftWidth = fontRegular.widthOfTextAtSize(leftText, t.size.footerNote);
     page.drawText(leftText, {
       x: state.margin,
       y: footerY,
@@ -117,10 +119,21 @@ export function drawFinalFooter(builder: PdfBuilder, page: PDFPage, config: Foot
   if (config.footerNote) {
     const safeFooterNote = winansiSafe(config.footerNote);
     const w = fontRegular.widthOfTextAtSize(safeFooterNote, t.size.footerNote);
-    page.drawText(safeFooterNote, {
-      x: state.pageWidth / 2 - w / 2,
-      y: footerY,
-      size: t.size.footerNote, font: fontRegular, color: theme.color.lightGray,
-    });
+    // The centred note shares the baseline with the generated stamp on the
+    // left and the page number on the right. Centring it blindly made a long
+    // note collide with the stamp ("…UTComputer-generated statement…"), so
+    // the note is pushed right of the stamp when true centring would overlap.
+    const gap = 8;
+    const minX = state.margin + (leftWidth > 0 ? leftWidth + gap : 0);
+    const maxX = state.pageWidth - state.margin - w;
+    const centredX = state.pageWidth / 2 - w / 2;
+    const x = Math.min(Math.max(centredX, minX), Math.max(maxX, minX));
+    if (x + w <= state.pageWidth - state.margin) {
+      page.drawText(safeFooterNote, {
+        x,
+        y: footerY,
+        size: t.size.footerNote, font: fontRegular, color: theme.color.lightGray,
+      });
+    }
   }
 }
