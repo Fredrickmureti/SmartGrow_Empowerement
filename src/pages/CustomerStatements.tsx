@@ -75,7 +75,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { downloadExport } from "@/services/exports";
+import {
+  downloadCustomerStatement,
+  CUSTOMER_STATEMENT_DOC_TYPE,
+} from "@/features/sales/statements/dispatchCustomerStatement";
 import { fetchReceivableCounterparties } from "@/services/finance/openItems";
 
 export default function CustomerStatements() {
@@ -253,7 +256,7 @@ export default function CustomerStatements() {
     }
 
     setEmailDocument({
-      documentType: "customer_statement",
+      documentType: CUSTOMER_STATEMENT_DOC_TYPE,
       documentId: statementId,
       documentNumber: `Statement_${format(new Date(), "yyyy-MM-dd")}`,
       recipientEmail: previewData.contact.email || "",
@@ -313,12 +316,14 @@ export default function CustomerStatements() {
       // "Download PDF" is a DOWNLOAD disposition. It renders the frozen
       // snapshot to PDF bytes and hands them to the browser — it must never
       // dispatch a print job to a physical printer. Printing is a separate,
-      // explicit action.
-      const res = await downloadExport({
-        documentType: "customer_statement",
-        documentId: statementId,
+      // explicit action. Every AR statement surface goes through the one
+      // customer-statement exit.
+      const res = await downloadCustomerStatement({
+        statementId,
         format: "pdf",
-        filename: `customer-statement-${dataToUse.contact.name ?? "contact"}-${dataToUse.periodStart}-${dataToUse.periodEnd}.pdf`,
+        contactName: dataToUse.contact.name,
+        dateLabel: dataToUse.periodStart,
+        periodEndLabel: dataToUse.periodEnd,
       });
       if (!res.success) throw new Error(res.error ?? "Unknown error");
     } catch (error: any) {
@@ -741,11 +746,11 @@ export default function CustomerStatements() {
                                   // Download is a DOWNLOAD disposition: render the
                                   // frozen snapshot to PDF bytes and hand them to the
                                   // browser. It must never dispatch a print job.
-                                  const res = await downloadExport({
-                                    documentType: "customer_statement",
-                                    documentId: statement.id,
+                                  const res = await downloadCustomerStatement({
+                                    statementId: statement.id,
                                     format: "pdf",
-                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.pdf`,
+                                    contactName: statement.contacts?.name,
+                                    dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                                   });
                                   if (!res.success) {
                                     toast.error("Failed to download: " + (res.error ?? "Unknown error"));
@@ -757,11 +762,11 @@ export default function CustomerStatements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  const res = await downloadExport({
-                                    documentType: "customer_statement",
-                                    documentId: statement.id,
+                                  const res = await downloadCustomerStatement({
+                                    statementId: statement.id,
                                     format: "csv",
-                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.csv`,
+                                    contactName: statement.contacts?.name,
+                                    dateLabel: format(new Date(statement.statement_date), "yyyy-MM-dd"),
                                   });
                                   if (!res.success) {
                                     toast.error("Export failed: " + (res.error ?? "Unknown error"));
@@ -782,7 +787,7 @@ export default function CustomerStatements() {
                                       period_end: statement.period_end,
                                     });
                                     setEmailDocument({
-                                      documentType: "customer_statement",
+                                      documentType: CUSTOMER_STATEMENT_DOC_TYPE,
                                       documentId: statement.id,
                                       documentNumber: `Statement_${format(new Date(statement.statement_date), "yyyy-MM-dd")}`,
                                       recipientEmail: statement.contacts?.email || "",

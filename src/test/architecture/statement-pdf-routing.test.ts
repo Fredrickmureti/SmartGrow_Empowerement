@@ -53,3 +53,50 @@ describe("statement download disposition", () => {
     expect(body).toContain('pdf: "application/pdf"');
   });
 });
+
+describe("statements never acquire a printer target from a document print policy", () => {
+  const migrations = () => {
+    const dir = resolve(process.cwd(), "supabase/migrations");
+    return require("node:fs")
+      .readdirSync(dir)
+      .filter((f: string) => f.endsWith(".sql"))
+      .map((f: string) => readFileSync(resolve(dir, f), "utf8"))
+      .join("\n");
+  };
+
+  it("resolve_output_intent excludes statement kinds from the policy print target", () => {
+    const sql = migrations();
+    // The latest definition must know statements are not transactional
+    // documents: no print-disposition target derived from
+    // `document_print_policies`, and no thermal receipt path.
+    const last = sql.lastIndexOf("CREATE OR REPLACE FUNCTION public.resolve_output_intent");
+    expect(last).toBeGreaterThan(-1);
+    const def = sql.slice(last);
+    expect(def).toContain("v_is_statement");
+    expect(def).toContain("AND NOT v_is_statement");
+    const thermalList = def.slice(
+      def.indexOf("v_is_thermal_capable_kind :="),
+      def.indexOf("IF p_organization_id IS NOT NULL"),
+    );
+    expect(thermalList).not.toContain("customer_statement");
+    expect(thermalList).not.toContain("vendor_statement");
+  });
+});
+
+describe("customer statements have one dispatch exit", () => {
+  const file = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
+
+  it("the AR side mirrors the AP single-exit module", () => {
+    const exit = file("src/features/sales/statements/dispatchCustomerStatement.ts");
+    expect(exit).toContain("downloadCustomerStatement");
+    expect(exit).toContain("dispatchCustomerStatement");
+    expect(exit).toContain('kindCode: "sales.statement"');
+  });
+
+  it("the statements page does not call the raw export seam", () => {
+    const page = file("src/pages/CustomerStatements.tsx");
+    expect(page).toContain("downloadCustomerStatement");
+    expect(page).not.toContain("downloadExport(");
+    expect(page).not.toContain('documentType: "customer_statement"');
+  });
+});
