@@ -30,5 +30,12 @@ on both the success and failure paths of `send-document-email`. The legacy
 `invoice_reminders` / `invoice_emails` / `invoice_activities` tables were
 dropped — do not reintroduce a per-document-type activity table.
 
+## Credit netting (one definition)
+`finance_ar_customer_credit` is the canonical unapplied-customer-credit view;
+never read `customer_credit_balances` directly from app code or from a new SQL
+consumer. `finance_ar_net_position` is the per-counterparty net AR position
+(base-currency buckets as of today, less credit, with `max_days_overdue`) —
+top-exposure and collections work lists read it instead of bucketing in JS.
+
 ## Guards
 `src/test/architecture/aging-single-source.test.ts`
