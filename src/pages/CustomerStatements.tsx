@@ -75,7 +75,10 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
-import { downloadCustomerStatement } from "@/features/sales/statements/dispatchCustomerStatement";
+import {
+  downloadCustomerStatement,
+  CUSTOMER_STATEMENT_DOC_TYPE,
+} from "@/features/sales/statements/dispatchCustomerStatement";
 import { fetchReceivableCounterparties } from "@/services/finance/openItems";
 
 export default function CustomerStatements() {
@@ -253,7 +256,7 @@ export default function CustomerStatements() {
     }
 
     setEmailDocument({
-      documentType: "customer_statement",
+      documentType: CUSTOMER_STATEMENT_DOC_TYPE,
       documentId: statementId,
       documentNumber: `Statement_${format(new Date(), "yyyy-MM-dd")}`,
       recipientEmail: previewData.contact.email || "",
@@ -784,7 +787,7 @@ export default function CustomerStatements() {
                                       period_end: statement.period_end,
                                     });
                                     setEmailDocument({
-                                      documentType: "customer_statement",
+                                      documentType: CUSTOMER_STATEMENT_DOC_TYPE,
                                       documentId: statement.id,
                                       documentNumber: `Statement_${format(new Date(statement.statement_date), "yyyy-MM-dd")}`,
                                       recipientEmail: statement.contacts?.email || "",
