@@ -15,6 +15,10 @@ import {
   buildStatementDataset,
   type CustomerLedgerRow,
 } from "../_shared/reports/customerStatementDataset.ts";
+import {
+  buildVendorStatementDataset,
+  type VendorLedgerRow,
+} from "../_shared/reports/vendorStatementDataset.ts";
 
 import { generateHrLetterPdf } from "../_shared/hrLetterGenerator.ts";
 import { fetchHrLetter, getHrLetterTenancy, isHrLetterType } from "./hrLetterFetchers.ts";
