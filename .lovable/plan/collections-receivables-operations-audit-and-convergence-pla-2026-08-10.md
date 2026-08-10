@@ -306,3 +306,39 @@ catch block, so the communication ledger is no longer success-only.
    UI surface shows a per-currency breakdown yet.
 4. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
    policy, work queue) remain unbuilt.
+
+## Execution log — 2026-08-10 (fourth pass) — Wave 6 CONSOLIDATE
+
+Credit netting had five independent implementations (`get_ar_summary`,
+`get_ar_ap_aging_from_ledger`, `get_sales_dashboard_kpis`,
+`fetchTopOpenCounterparties`, `fetchUnappliedCustomerCredit`) plus a sixth
+spendable-balance read in `useCustomerCredits`. Each carried its own filter, so
+"unapplied credit" could mean six subtly different numbers.
+
+Now one definition:
+- `finance_ar_customer_credit` (security_invoker) — the canonical unapplied
+  credit position, with the `> 0.01` floor and the currency decision made once.
+- `finance_ar_net_position` (security_invoker + explicit `is_org_member` guard,
+  because `finance_ar_open_items` is owner-run) — per-counterparty base-currency
+  open amount bucketed by age on the SERVER, less credit, with
+  `max_days_overdue`. This also closes the "top counterparties buckets in JS"
+  finding.
+- `get_ar_summary` and `get_ar_ap_aging_from_ledger` rewritten onto the credit
+  view; `get_ar_summary` now sums `base_residual_amount` (it was still summing
+  document-currency residuals after Wave 5) and uses `finance_aging_bucket`
+  instead of an inline CASE.
+- `fetchTopOpenCounterparties` (AR) reads the net-position view; the JS netting
+  and bucketing loops are gone. `fetchUnappliedCustomerCredit` and
+  `useCustomerCredits` read the credit view.
+
+Verification: `get_ar_summary` on the live org returns `-1800.00` total, which
+is exactly the single outstanding credit position with no open items — the
+credit view and the summary agree. Tie-out unchanged at `0.00`.
+
+Guards added/updated: no `.from("customer_credit_balances")` anywhere in `src`;
+the schema-cache guard now checks a reload exists at or after the newest
+function-defining migration (applied migrations are immutable, so a trailing
+NOTIFY migration is the supported remedy).
+
+### Next: Wave 7 — delivery reliability
+See `.lovable/plan.md` for the live status board and next-agent instructions.

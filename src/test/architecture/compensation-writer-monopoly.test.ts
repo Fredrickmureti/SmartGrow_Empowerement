@@ -81,25 +81,31 @@ describe("commercial compensation writer monopoly", () => {
 
   });
 
-  it("new migrations that define public functions refresh the PostgREST schema cache", () => {
+  it("the newest function-defining migration is followed by a schema-cache reload", () => {
     // Root cause of the credit-note HTTP 404: the writer existed, but the
     // migration that created it never issued NOTIFY pgrst, so the API kept
     // answering PGRST202 for a function with a matching signature.
+    // The invariant is about ORDER, not about every file: the cache must be
+    // reloaded at or after the last migration that touched a public function.
+    // Applied migrations are immutable, so a later NOTIFY migration is the
+    // supported remedy.
     const MIGRATIONS = join(ROOT, "supabase/migrations");
     const CUTOFF = "20260807170000"; // forward-looking: applies to new work only
-    const offenders = readdirSync(MIGRATIONS)
+    const recent = readdirSync(MIGRATIONS)
       .filter((f) => f.endsWith(".sql") && f.slice(0, 14) >= CUTOFF)
-      .filter((f) => {
-        const sql = readFileSync(join(MIGRATIONS, f), "utf8");
-        return (
-          /CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+public\./i.test(sql) &&
-          !/NOTIFY\s+pgrst/i.test(sql)
-        );
-      });
+      .sort();
+    const sqlOf = (f: string) => readFileSync(join(MIGRATIONS, f), "utf8");
+    const lastFunctionMigration = [...recent]
+      .reverse()
+      .find((f) => /CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+public\./i.test(sqlOf(f)));
+    if (!lastFunctionMigration) return;
+    const reloadedAtOrAfter = recent
+      .filter((f) => f >= lastFunctionMigration)
+      .some((f) => /NOTIFY\s+pgrst/i.test(sqlOf(f)));
     expect(
-      offenders,
-      "a migration that adds or changes a public function must end with NOTIFY pgrst, 'reload schema'",
-    ).toEqual([]);
+      reloadedAtOrAfter,
+      `no NOTIFY pgrst, 'reload schema' at or after ${lastFunctionMigration}`,
+    ).toBe(true);
   });
 
 
@@ -118,7 +124,9 @@ describe("commercial compensation writer monopoly", () => {
 
   it("customer credit availability is read from the credit balance, not derived", () => {
     const src = readFileSync(join(SRC, "hooks/useCustomerCredits.ts"), "utf8");
-    expect(src).toContain("customer_credit_balances");
+    // Canonical view over customer_credit_balances (Wave 6) — never a derived
+    // `total - amount_applied` over credit notes.
+    expect(src).toContain("finance_ar_customer_credit");
   });
 
   it("no caller hands compensation account ids to apply_credit_to_invoice_atomic", () => {

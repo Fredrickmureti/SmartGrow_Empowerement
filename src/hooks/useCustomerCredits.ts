@@ -16,10 +16,12 @@ export interface AvailableCredit {
 /**
  * Customer credit for a contact (ADR 0131).
  *
- * The spendable amount comes from `customer_credit_balances` — a GL-anchored
- * liability projection of `customer_credit_movements` — NOT from a derived
- * `total - amount_applied` on credit notes. The credit-note list is kept only
- * as the document-level provenance shown next to the balance.
+ * The spendable amount comes from `finance_ar_customer_credit` — the canonical
+ * view over `customer_credit_balances`, itself a GL-anchored projection of
+ * `customer_credit_movements` — NOT from a derived `total - amount_applied` on
+ * credit notes. Reading the canonical view (rather than the table) keeps this
+ * balance identical to the one the AR summary and aging report net out. The
+ * credit-note list is kept only as document-level provenance beside it.
  */
 export function useCustomerCredits(contactId?: string | null) {
   const { currentOrg } = useOrganization();
@@ -61,12 +63,15 @@ export function useCustomerCredits(contactId?: string | null) {
     queryFn: async (): Promise<number> => {
       if (!contactId || !currentBusiness?.id) return 0;
       const { data, error } = await supabase
-        .from("customer_credit_balances")
-        .select("balance")
+        .from("finance_ar_customer_credit" as any)
+        .select("base_credit_amount")
         .eq("business_id", currentBusiness.id)
         .eq("contact_id", contactId);
       if (error) throw error;
-      return (data || []).reduce((sum, row: { balance: number | null }) => sum + Number(row.balance ?? 0), 0);
+      return ((data || []) as any[]).reduce(
+        (sum, row) => sum + Number(row.base_credit_amount ?? 0),
+        0,
+      );
     },
     enabled: !!contactId && !!currentBusiness?.id,
   });

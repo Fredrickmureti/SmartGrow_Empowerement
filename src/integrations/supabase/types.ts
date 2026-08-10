@@ -74685,6 +74685,53 @@ export type Database = {
         }
         Relationships: []
       }
+      finance_ar_customer_credit: {
+        Row: {
+          base_credit_amount: number | null
+          business_id: string | null
+          contact_id: string | null
+          credit_amount: number | null
+          currency: string | null
+          organization_id: string | null
+        }
+        Insert: {
+          base_credit_amount?: never
+          business_id?: string | null
+          contact_id?: string | null
+          credit_amount?: never
+          currency?: string | null
+          organization_id?: string | null
+        }
+        Update: {
+          base_credit_amount?: never
+          business_id?: string | null
+          contact_id?: string | null
+          credit_amount?: never
+          currency?: string | null
+          organization_id?: string | null
+        }
+        Relationships: []
+      }
+      finance_ar_net_position: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          credit_amount: number | null
+          current_bucket: number | null
+          days30: number | null
+          days60: number | null
+          days90: number | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          not_due: number | null
+          open_amount: number | null
+          open_document_count: number | null
+          organization_id: string | null
+        }
+        Relationships: []
+      }
       finance_ar_open_items: {
         Row: {
           applied_amount: number | null
