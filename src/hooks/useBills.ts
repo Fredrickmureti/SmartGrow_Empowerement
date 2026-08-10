@@ -194,6 +194,27 @@ export function useBills() {
     fetchBills();
   }, [fetchBills]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentBusiness?.id) {
+        setRequireBillApproval(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("businesses")
+        .select("require_bill_approval")
+        .eq("id", currentBusiness.id)
+        .maybeSingle();
+      if (!cancelled && !error) {
+        setRequireBillApproval(Boolean((data as any)?.require_bill_approval));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentBusiness?.id]);
+
   const getNextBillNumber = async (): Promise<string> => {
     if (!currentOrg) throw new Error("No organization selected");
 
