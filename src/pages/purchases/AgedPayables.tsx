@@ -43,14 +43,15 @@ interface AgingBill {
 interface AgingRow {
   vendor_id: string;
   vendor_name: string;
+  not_due: number;
   current: number;
-  days_1_30: number;
-  days_31_60: number;
-  days_61_90: number;
-  over_90: number;
+  days30: number;
+  days60: number;
+  days90: number;
   total: number;
   bills: AgingBill[];
 }
+
 
 export default function AgedPayables() {
   const { currentOrg } = useOrganization();
