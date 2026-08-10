@@ -77,6 +77,9 @@ const CANONICAL_RFQ_RPCS = [
   "rfq_revise",
   "rfq_cancel",
   "rfq_expire_due",
+  "rfq_attach_quotation_document",
+  "rfq_remove_quotation_attachment",
+
 ];
 
 describe("RFQ sourcing domain — legacy retirement", () => {
@@ -132,6 +135,10 @@ describe("RFQ sourcing domain — server-side lifecycle", () => {
       "rfq_awards",
       "rfq_award_items",
       "rfq_revisions",
+      // Phase 4b: bid evidence is written only by
+      // rfq_attach_quotation_document / rfq_remove_quotation_attachment.
+      "rfq_quotation_attachments",
+
     ];
     const offenders: string[] = [];
     for (const file of appSources()) {

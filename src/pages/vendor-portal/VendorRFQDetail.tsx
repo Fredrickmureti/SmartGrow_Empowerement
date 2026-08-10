@@ -26,6 +26,8 @@ import {
   ArrowLeft, Send, Clock, AlertTriangle, CheckCircle, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BidAttachmentsPanel } from "@/features/purchases/rfqs/BidAttachmentsPanel";
+
 
 const db = supabase as any;
 
@@ -369,6 +371,37 @@ export default function VendorRFQDetail() {
           </CardContent>
         </Card>
       )}
+
+      {/*
+        Bid attachments hang off a quotation version, so they only become
+        available once the supplier has submitted a bid. Revising the bid
+        carries the documents forward server-side.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Supporting documents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {quotation ? (
+            <BidAttachmentsPanel
+              rfqId={rfq.id}
+              quotationId={quotation.id}
+              canEdit={canSubmit}
+              emptyLabel={
+                canSubmit
+                  ? "Attach technical specs, certificates or a signed price list to your bid."
+                  : "No supporting documents attached."
+              }
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Submit your quote first — supporting documents attach to a bid version.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader>
