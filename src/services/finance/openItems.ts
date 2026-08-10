@@ -263,7 +263,7 @@ export async function fetchContactOpenItemAging(
 export async function fetchUnappliedCustomerCredit(
   orgId: string,
   businessId?: string | null,
-  contactId?: string | null,
+  contactId?: string | string[] | null,
 ): Promise<number> {
   let q = supabase
     .from("customer_credit_balances" as any)
@@ -271,7 +271,13 @@ export async function fetchUnappliedCustomerCredit(
     .eq("organization_id", orgId)
     .gt("balance", 0.01);
   if (businessId) q = q.eq("business_id", businessId);
-  if (contactId) q = q.eq("contact_id", contactId);
+  if (Array.isArray(contactId)) {
+    if (contactId.length === 0) return 0;
+    q = q.in("contact_id", contactId);
+  } else if (contactId) {
+    q = q.eq("contact_id", contactId);
+  }
+
   const { data, error } = await q;
   if (error) return 0;
   return ((data || []) as any[]).reduce((sum, r) => sum + (Number(r.balance) || 0), 0);
