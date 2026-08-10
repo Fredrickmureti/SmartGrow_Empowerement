@@ -48,6 +48,14 @@ import {
 } from "lucide-react";
 import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   useStatementDeliveryStatus,
   type StatementDelivery,
 } from "@/hooks/useStatementDeliveryStatus";
