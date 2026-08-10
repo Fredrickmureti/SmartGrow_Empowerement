@@ -28,7 +28,11 @@ Retired (do not reintroduce): the raw-table snapshot query, the second edge
 statement derivation, and `send-document-email`'s "statement id not found →
 email the customer's latest statement" fallback (it emailed the wrong period).
 
-Known remaining gap: the **vendor** statement
-(`src/services/documents/snapshots/purchasesVendorStatement.ts`) still
-re-derives from raw bills/payments/vendor credit notes — same defect class,
-not yet converged.
+The **vendor** (AP) statement is converged the same way:
+`vendor_ledger_entries` → `fetchVendorLedgerRows` →
+`buildVendorStatementDataset` (sign-swaps GL→statement, then reuses the AR
+accumulator; mirrored to `_shared/reports/vendorStatementDataset.ts`) →
+screen hook, `purchasesVendorStatement.ts` snapshot, and the
+`fetchVendorStatement` edge fetcher. Aging from `finance_ap_open_items` as of
+the period end. Never re-derive from bills / bill_payments /
+vendor_credit_notes.
