@@ -230,6 +230,8 @@ export function useVendorStatements() {
       contactId: vendorIds,
       businessId: currentBusiness.id,
       branchId,
+      // Age as of the statement period end, not the browser clock.
+      asOf: input.period_end,
     });
 
 
