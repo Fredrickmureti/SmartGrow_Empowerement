@@ -24,6 +24,7 @@ import {
   drawNotesBlock,
   drawDataTable,
   drawSummaryBlock,
+  resolveTypography,
   theme,
   type LineItem,
   type PaperPreset,
@@ -34,9 +35,14 @@ import {
  * Stage P3 (ADR-0008): callers may pass a `paperFormat` to render a
  * thermal-width PDF (`"58mm"` / `"80mm"` / explicit mm spec). When omitted,
  * the renderer defaults to A4 portrait — exactly the pre-Stage-P3 behaviour.
+ *
+ * `orientation` is an escape hatch for layout-pinned callers. Statements
+ * default to landscape (ledger presentation); transactional documents are
+ * unaffected.
  */
 export interface DocumentRenderOptions {
   paperFormat?: PaperPreset | PaperSpec;
+  orientation?: "portrait" | "landscape";
 }
 import { fetchLogoBytes as fetchLogoBytesCached, getOrganizationBranding } from "./branding/index.ts";
 import {
