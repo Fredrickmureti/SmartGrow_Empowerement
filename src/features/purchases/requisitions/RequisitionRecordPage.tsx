@@ -422,6 +422,14 @@ export default function RequisitionRecordPage() {
           onSelect: () => setAmendOpen(true),
         },
         {
+          id: "short-close",
+          label: "Short-close outstanding demand",
+          icon: Scissors,
+          hidden: !canShortClose,
+          disabled: busy,
+          onSelect: () => setCloseOpen(true),
+        },
+        {
           id: "cancel",
           label: "Cancel requisition",
           icon: Ban,
