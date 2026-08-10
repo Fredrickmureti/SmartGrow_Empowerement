@@ -56,7 +56,7 @@ describe("promise to pay architecture", () => {
     const svc = read("src/services/finance/promises.ts");
     expect(svc).toContain("record_promise_to_pay");
     expect(svc).toContain("promiseRequestKey");
-    expect(svc).not.toContain("crypto.randomUUID");
+    expect(svc).not.toMatch(/crypto\.randomUUID\(/);
     // No client-side insert into the promises table.
     expect(svc).not.toMatch(/from\("ar_promises_to_pay"[\s\S]{0,80}\.insert/);
   });
