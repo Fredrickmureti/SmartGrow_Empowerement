@@ -44,19 +44,28 @@ import {
 } from "lucide-react";
 import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
 
-type Bucket = "all" | "current" | "days30" | "days60" | "days90";
+import {
+  AGING_BUCKET_LABELS,
+  AGING_BUCKET_SHORT_LABELS,
+  type AgingBucketKey,
+} from "@/services/finance/aging";
 
-const BUCKET_LABELS: Record<Exclude<Bucket, "all">, string> = {
-  current: "Current",
-  days30: "1–30 days",
-  days60: "31–60 days",
-  days90: "60+ days",
-};
+/**
+ * Bucket vocabulary is the canonical one owned by SQL — `not_due`, then
+ * 0-30 / 31-60 / 61-90 / 90+ days past due. `in_credit` is not an aging
+ * bucket: it isolates customers whose net position is a credit (unapplied
+ * receipts or credit notes exceed their open invoices).
+ */
+type Bucket = "all" | "in_credit" | AgingBucketKey;
+
+const BUCKET_LABELS = AGING_BUCKET_LABELS;
 
 function filterByBucket(c: AgingContactDetail, bucket: Bucket): boolean {
-  if (bucket === "all") return c.buckets.total > 0;
-  return (c.buckets[bucket] ?? 0) > 0;
+  if (bucket === "all") return c.buckets.total > 0.01;
+  if (bucket === "in_credit") return c.buckets.total < -0.01;
+  return (c.buckets[bucket] ?? 0) > 0.01;
 }
+
 
 export default function Collections() {
   const { data, isLoading } = useAgingReport({ reportType: "ar" });
