@@ -50,6 +50,7 @@ import {
   useStatementDeliveryStatus,
   type StatementDelivery,
 } from "@/hooks/useStatementDeliveryStatus";
+import { useNetPositionByCurrency } from "@/hooks/useNetPositionByCurrency";
 
 import {
   AGING_BUCKET_LABELS,
