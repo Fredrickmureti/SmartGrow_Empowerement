@@ -40,3 +40,4 @@ Treasury ids (bank_accounts.id) and GL ids (accounts.id) are distinct: settlemen
 - [Sales Overview cockpit](mem://features/sales-overview-cockpit) — dashboard RPC is a projection: net-position receivables/aging, allocation-based cash, so_line_balances fulfilment, converted quotes count as won
 - [RFQ governance](mem://features/rfq-governance) — RPC-only lifecycle, dual approval gates (document + award), award SoD, server-validated alternate-product offers, outbox delivery and cron expiry
 - [Purchase requisition demand engine](mem://features/purchase-requisition-demand-engine) — quantity-driven `_pr_recalc` rollups, short-close RPCs, RPC-only client writes, bucketed workbench, governance registration
+- [Procurement document rendering](mem://features/procurement-document-rendering) — RFQ/requisition use the procurement PDF layouts (never invoice shape), NaN-proof money formatter, document_number column, mandatory redeploy set after `_shared` changes
