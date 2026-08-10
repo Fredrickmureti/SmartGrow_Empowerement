@@ -9,7 +9,8 @@
  */
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CheckCircle2, Send, XCircle, Ban } from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban, FileText, ShoppingCart, PenLine, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { Section, StatusBadge } from "@/design-system";
 import { RecordScaffold } from "@/design-system/records";
@@ -39,11 +40,22 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRequisitionRecord } from "./useRequisitions";
+import { useSuppliers } from "../suppliers/useSuppliers";
 import {
   approveRequisition,
+  amendRequisition,
   cancelRequisition,
   rejectRequisition,
+  requisitionConvertToPo,
+  requisitionCreateRfq,
   submitRequisition,
 } from "./requisitionRpcs";
 
@@ -72,8 +84,22 @@ const LINE_COLUMNS: LineItemColumn[] = [
   { id: "unit", header: "Est. unit", numeric: true, priority: 2, minWidth: 100, compactLabel: "@" },
   { id: "total", header: "Est. total", numeric: true, priority: 1, minWidth: 110 },
   { id: "supplier", header: "Suggested supplier", priority: 3, minWidth: 140 },
+  { id: "ordered", header: "Ordered", numeric: true, priority: 2, minWidth: 90 },
+  { id: "received", header: "Received", numeric: true, priority: 3, minWidth: 90 },
+  { id: "lineStatus", header: "Line status", priority: 2, minWidth: 120 },
   { id: "needBy", header: "Need by", priority: 3, minWidth: 100 },
 ];
+
+const LINE_TONE: Record<string, "success" | "danger" | "neutral" | "info" | "warning"> = {
+  open: "neutral",
+  sourcing: "info",
+  partially_ordered: "warning",
+  ordered: "info",
+  partially_received: "warning",
+  received: "success",
+  cancelled: "danger",
+  closed: "neutral",
+};
 
 export default function RequisitionRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
@@ -86,11 +112,22 @@ export default function RequisitionRecordPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [poOpen, setPoOpen] = useState(false);
+  const [poSupplierId, setPoSupplierId] = useState<string>("");
+  const [amendOpen, setAmendOpen] = useState(false);
+  const [amendReason, setAmendReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const { rows: suppliers } = useSuppliers();
 
   const canSubmit = record?.status === "draft";
   const canDecide = record?.status === "submitted";
   const canCancel = record?.status === "draft" || record?.status === "submitted";
+  // Release + amendment windows. The database is authoritative for all of
+  // these; the UI only hides actions the server would reject anyway.
+  const RELEASABLE = ["approved", "sourcing", "partially_procured"];
+  const canRelease = RELEASABLE.includes(record?.status ?? "");
+  const canAmend = record?.status === "approved" &&
+    (record?.items ?? []).every((i) => Number(i.quantity_ordered ?? 0) === 0);
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -142,6 +179,14 @@ export default function RequisitionRecordPage() {
             ),
           },
           { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
+          { columnId: "ordered", content: Number(l.quantity_ordered ?? 0) },
+          { columnId: "received", content: Number(l.quantity_received ?? 0) },
+          {
+            columnId: "lineStatus",
+            content: (
+              <StatusBadge tone={LINE_TONE[l.status] ?? "neutral"}>{fmt(l.status)}</StatusBadge>
+            ),
+          },
           { columnId: "needBy", content: l.need_by_date ?? "—" },
         ],
       };
@@ -165,6 +210,7 @@ export default function RequisitionRecordPage() {
       detailFields: [
         { label: "Requisition #", value: <span className="font-mono">{record.requisition_number}</span> },
         { label: "Currency", value: record.currency },
+        { label: "Version", value: `v${record.version ?? 1}` },
         { label: "Need by", value: record.need_by_date ?? "—" },
         { label: "Estimated total", value: money(record.estimated_total, record.currency) },
         { label: "Submitted at", value: record.submitted_at ? new Date(record.submitted_at).toLocaleString() : "—" },
@@ -192,6 +238,51 @@ export default function RequisitionRecordPage() {
               <p className="text-sm whitespace-pre-wrap">{record.notes}</p>
             </Section>
           )}
+          <Section title={`Procurement (${record.procurement.length})`}>
+            {record.procurement.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nothing sourced yet. Approved lines can be released to an RFQ or straight
+                to a purchase order.
+              </p>
+            ) : (
+              <div className="rounded-lg border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Lines</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {record.procurement.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-mono text-sm">{d.number}</TableCell>
+                        <TableCell className="text-sm">
+                          {d.kind === "rfq" ? "RFQ" : "Purchase order"}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge tone="info">{fmt(d.status)}</StatusBadge>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{d.lines}</TableCell>
+                        <TableCell className="text-right text-sm">{d.quantity}</TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm">
+                            <Link to={d.path}>
+                              Open <ExternalLink className="ml-1 h-3 w-3" />
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Section>
           <Section title={`Approvals (${record.approvals.length})`}>
             {record.approvals.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -269,6 +360,37 @@ export default function RequisitionRecordPage() {
           hidden: !canDecide,
           disabled: busy,
           onSelect: () => setRejectOpen(true),
+        },
+        {
+          id: "create-rfq",
+          label: "Source via RFQ",
+          icon: FileText,
+          group: "core",
+          primary: true,
+          hidden: !canRelease,
+          disabled: busy,
+          onSelect: () =>
+            void run(
+              () => requisitionCreateRfq(record.id),
+              "Draft RFQ created from requisition",
+            ),
+        },
+        {
+          id: "convert-po",
+          label: "Convert to purchase order",
+          icon: ShoppingCart,
+          group: "core",
+          hidden: !canRelease,
+          disabled: busy,
+          onSelect: () => setPoOpen(true),
+        },
+        {
+          id: "amend",
+          label: "Amend (return to draft)",
+          icon: PenLine,
+          hidden: !canAmend,
+          disabled: busy,
+          onSelect: () => setAmendOpen(true),
         },
         {
           id: "cancel",
@@ -361,6 +483,95 @@ export default function RequisitionRecordPage() {
               }}
             >
               Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Convert to PO dialog */}
+      <Dialog open={poOpen} onOpenChange={setPoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Convert to purchase order</DialogTitle>
+            <DialogDescription>
+              Creates a draft purchase order for the unordered approved lines. Use this only
+              when the supplier is already decided — otherwise run an RFQ first.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Supplier *</Label>
+              <Select value={poSupplierId} onValueChange={setPoSupplierId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(suppliers ?? []).map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.contact?.name ?? s.supplier_code ?? s.id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setPoOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={busy || !poSupplierId}
+              onClick={async () => {
+                const ok = await run(
+                  () => requisitionConvertToPo(record!.id, poSupplierId),
+                  "Draft purchase order created",
+                );
+                if (ok) {
+                  setPoOpen(false);
+                  setPoSupplierId("");
+                }
+              }}
+            >
+              Create purchase order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Amend dialog */}
+      <Dialog open={amendOpen} onOpenChange={setAmendOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Amend requisition</DialogTitle>
+            <DialogDescription>
+              Returns the requisition to draft as a new version and voids the existing
+              approval. It must be submitted and approved again before it can be sourced.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Reason (optional)</Label>
+              <Textarea value={amendReason} onChange={(e) => setAmendReason(e.target.value)} rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAmendOpen(false)}>
+              Keep approved
+            </Button>
+            <Button
+              disabled={busy}
+              onClick={async () => {
+                const ok = await run(
+                  () => amendRequisition(record!.id, amendReason || undefined),
+                  "Requisition returned to draft",
+                );
+                if (ok) {
+                  setAmendOpen(false);
+                  setAmendReason("");
+                }
+              }}
+            >
+              Amend
             </Button>
           </DialogFooter>
         </DialogContent>
