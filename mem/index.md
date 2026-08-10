@@ -15,6 +15,7 @@ Customer/vendor statements project ONE dataset folded from customer_ledger_entri
 contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
 Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
 Salesperson metrics come only from get_salesperson_performance; attribution inherits from the invoice, never from created_by.
+Treasury ids (bank_accounts.id) and GL ids (accounts.id) are distinct: settlement RPCs take _bank_account_id AND _credit_account_id separately.
 
 
 
