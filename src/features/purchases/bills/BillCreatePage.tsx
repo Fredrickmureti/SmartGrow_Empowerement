@@ -36,7 +36,7 @@ import { LineAccountCell } from "@/components/documents/lines/LineAccountCell";
 import { CapabilityGate } from "@/components/apps/CapabilityGate";
 import { CustomFieldsSection } from "@/components/studio/CustomFieldsSection";
 import { supabase } from "@/integrations/supabase/client";
-import { useBills, type Bill, type BillItem } from "@/hooks/useBills";
+import { useBills, type Bill, type BillItem, type DuplicateVendorInvoice } from "@/hooks/useBills";
 import { useContacts } from "@/hooks/useContacts";
 import { useProducts } from "@/hooks/useProducts";
 import { useCurrency } from "@/hooks/useCurrency";
