@@ -496,6 +496,19 @@ export function SalesApp() {
           }
         />
 
+        {/* Customer ledger directory — first-class entry point */}
+        <Route
+          path="ledger"
+          element={
+            <SubscriptionProtectedRoute allowReadOnly>
+              <LazyRoute module="Customer Ledger">
+                <CustomerLedgerIndex />
+              </LazyRoute>
+            </SubscriptionProtectedRoute>
+          }
+        />
+
+
         {/* Collections workspace — actionable AR aging */}
         <Route
           path="collections"
