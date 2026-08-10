@@ -11,6 +11,7 @@ Every settlement RPC takes a request key derived from the payment intent — nev
 Credit notes: money and the per-invoice-line credit ceiling are resolved server-side from the invoice; clients never write credit_notes/credit_note_items.
 Open items sum `base_residual_amount` (currency-converted), never raw `residual_amount`; aging takes an explicit as-of date.
 Collections overlays (collector, dunning level, promise-to-pay) are server-derived from finance_ar_net_position — never computed in the browser.
+Customer statements project ONE dataset folded from customer_ledger_entries (screen, PDF, CSV, email); never re-derive from invoices/payments/credit_notes.
 
 
 
@@ -28,3 +29,4 @@ Collections overlays (collector, dunning level, promise-to-pay) are server-deriv
 - [Sales return tax basis](mem://features/sales-return-tax-basis) — invoice-line tax/discount/eTIMS snapshot on returns, document-level rounding, credit note as sole fiscal exit
 - [Credit note provenance](mem://features/credit-note-provenance) — invoice_item_id lineage, v_invoice_creditable_qty ceiling, server-resolved money, idempotency, draft-only edits
 - [Payment terms](mem://features/payment-terms) — resolve_payment_term cascade, fill-on-insert triggers, snapshot freezing, one-default-per-business index, ADR 0020 document ownership, historical backfill rule, no hardcoded credit periods
+- [Customer statement engine](mem://features/customer-statement-engine) — ledger-sourced dataset, mirrored builder, period-end aging, retired raw-table/fallback paths, vendor-statement gap
