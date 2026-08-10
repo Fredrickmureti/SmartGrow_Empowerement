@@ -48,7 +48,17 @@ const CANONICAL_TABLES = new Set([
   "governance_action_registry",
 ]);
 
+/**
+ * Pre-ADR legacy tables. They are NOT a licence to add more: new modules must
+ * use the canonical engine. This list must never grow.
+ */
+const GRANDFATHERED = new Set([
+  "purchase_requisition_approvals",
+  "reversal_approval_policies",
+]);
+
 describe("Governance — exactly one approval engine (ADR-0101)", () => {
+
   it("no migration introduces a parallel approval table", () => {
     const offenders: string[] = [];
     for (const { file, body } of migrationBodies()) {
