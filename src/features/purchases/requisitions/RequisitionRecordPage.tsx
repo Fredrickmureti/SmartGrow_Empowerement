@@ -52,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRequisitionRecord } from "./useRequisitions";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { useSuppliers } from "../suppliers/useSuppliers";
 import {
   approveRequisition,
@@ -127,6 +128,7 @@ export default function RequisitionRecordPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
+  const { mode: governanceMode } = useGovernanceMode();
 
   const [approveOpen, setApproveOpen] = useState(false);
   const [approveComment, setApproveComment] = useState("");
