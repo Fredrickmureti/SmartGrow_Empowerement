@@ -228,3 +228,50 @@ currency column, so multi-currency balances are still summed as if equal.
 4. Wave 5: currency on the open-items projections and summaries.
 5. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
    policy, work queue) remain unbuilt and out of the current wave.
+
+---
+
+## Execution log — 2026-08-10 (second pass)
+
+### Settled
+1. **Tie-out is now readable.** `EXECUTE` on `is_ap_control_account` granted to
+   PUBLIC. `finance_open_items_tieout` reads clean: one live business, side
+   `ar`, `ledger_net = projection_residual = 0.00`, `drift = 0.00`.
+2. **Finding 4 disproved on live data.** The only invoice carrying a
+   `credit_note_applications` row (invoice 00002, total 20 000) has
+   `amount_paid = 20 000` = payments 5 000 + credit applied 15 000, is
+   correctly absent from `finance_ar_open_items`, and contributes zero drift.
+   The projection nets credit-note applications correctly; no residual change
+   needed. Finding 4 → CLOSED (no defect).
+3. **Wave 4 — statement idempotency.** Unique index
+   `customer_statements_one_per_period` on
+   `(business_id, COALESCE(branch_id, zero-uuid), contact_id, period_start,
+   period_end)`, plus `upsert_customer_statement_atomic(_payload jsonb)`
+   (SECURITY DEFINER, org-membership + contact/business checks) as the single
+   writer. `useCustomerStatements.saveStatement` now calls the RPC instead of a
+   client insert, so a double click or two tabs refresh one snapshot instead of
+   creating duplicates.
+4. **Wave 4 — dead comms system retired.** `invoice_reminders`,
+   `invoice_emails` and `invoice_activities` (all empty, no readers) dropped;
+   the write-only `invoice_activities` insert removed from
+   `send-document-email`; the three names removed from
+   `businessScopedTables.ts`. `document_emails` + `audit_logs` is now the only
+   email/activity trail.
+5. **Wave 2 residue — as-of aging.** `fetchContactOpenItemAging` takes an
+   optional `asOf` (YYYY-MM-DD): it filters `document_date <= asOf` and ages
+   against that date. `useCustomerStatements` and `useVendorStatements` pass
+   `period_end`, so reprinting a closed period reproduces its original buckets.
+
+### Still open (unchanged priority order)
+1. `fetchTopOpenCounterparties` still derives days-overdue in JS instead of
+   reading the server bucket.
+2. Failed sends are still not recorded — `send-document-email` writes
+   `document_emails` only on the success path, and bulk statement sends do not
+   go through `email_event_outbox`.
+3. Wave 5 — no `currency` column on `finance_ar_open_items` /
+   `finance_ap_open_items`; multi-currency balances are still summed as if
+   equal. Largest remaining integrity gap.
+4. Credit netting still duplicated per consumer (three SQL sites, two JS
+   helpers); candidate for one `finance_ar_net_position` projection.
+5. PRODUCT GAP items (promise-to-pay, disputes, collector assignment, dunning
+   policy, work queue) remain unbuilt.
