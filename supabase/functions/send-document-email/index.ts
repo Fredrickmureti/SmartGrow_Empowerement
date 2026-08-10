@@ -581,6 +581,10 @@ const handler = async (req: Request): Promise<Response> => {
     selectQuery = `*, contact:employees!employee_contracts_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "pos_receipt") {
     selectQuery = `*, contact:contacts!pos_transactions_customer_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
+  } else if (documentType === "rfq") {
+    // No contact join: the supplier is the invited party, not a column on
+    // the RFQ. The caller (invitation delivery worker) supplies the address.
+    selectQuery = `*, organization:organizations(id, name), ${businessJoin}`;
     } else {
       selectQuery = `*, contact:contacts(*), organization:organizations(id, name), ${businessJoin}`;
     }
