@@ -83,6 +83,28 @@ function PaymentHistoryList({
   );
 }
 
+const toCents = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100);
+
+/**
+ * Deterministic settlement request key for AP money-out — mirrors
+ * `makeCustomerPaymentRequestId` on the AR side. Same payment intent (vendor,
+ * allocation set, total, date) → same key, so a double submit or a retry after
+ * a network timeout collapses onto one vendor payment server-side.
+ * Never `crypto.randomUUID()`.
+ */
+export function makeVendorPaymentRequestId(input: {
+  vendorId: string;
+  allocations: Array<{ bill_id: string; amount: number }>;
+  totalCents: number;
+  paymentDate: string;
+}): string {
+  const alloc = [...input.allocations]
+    .map((a) => `${a.bill_id}:${toCents(a.amount)}`)
+    .sort()
+    .join("|");
+  return `bpm-${input.vendorId}-${input.paymentDate}-${input.totalCents}-${alloc || "unapplied"}`;
+}
+
 export function RecordBillPaymentDialog({
   bill,
   open,
