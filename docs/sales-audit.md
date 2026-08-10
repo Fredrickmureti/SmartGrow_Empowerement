@@ -6,12 +6,22 @@ and remaining Odoo gaps. Updated alongside the migration that introduced
 `convert_estimate_to_so_atomic` and `confirm_invoice_atomic`.
 
 ## Dashboard (`/sales/dashboard`)
-Server-aggregated KPIs via the single RPC `get_sales_dashboard_kpis`. Strict
-branch equality when a branch is selected (no NULL widening). Three-state UI:
-auth-warming → soft spinner with auto-retry; real RPC failure → error card;
-success (including all-zero workspaces) → KPI cards rendered with zeros. No
-racing analytics engine on this page (`useDashboardAnalytics` is the executive
-dashboard at `/dashboard`).
+Server-aggregated KPIs via the single RPC `get_sales_dashboard_kpis`, which is
+a **projection only**: receivables and aging come from
+`finance_ar_net_position` (base currency, credit-netted), cash from
+`payment_allocations` (voided/unreconciled payments excluded, unapplied cash
+reported separately), open fulfilment from `so_line_balances`, quote
+conversion from the period estimate cohort counting `accepted` and
+`converted` as won, and revenue from posted GL via `fetchGLTotals`. The RPC
+returns `meta` (as-of date, period, mixed-currency flag, per-metric date
+basis) so every card can state its own semantics. Strict branch equality when
+a branch is selected (no NULL widening). Three-state UI: auth-warming → soft
+spinner with auto-retry; real RPC failure → error card; success (including
+all-zero workspaces) → KPI cards rendered with zeros. GL revenue failure now
+renders an explicit "Unavailable" state with retry instead of a silent zero.
+Guards: `src/test/architecture/sales-dashboard-projection.test.ts`,
+`supabase/tests/sales_dashboard_reconciliation_test.sql`.
+
 
 ## Invoices (`/sales/invoices`)
 Branch-scoped via `applyBranchFilter` on every list query. Direct-invoice
