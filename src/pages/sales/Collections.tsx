@@ -350,6 +350,14 @@ export default function Collections() {
                                     ))}
                                   </TableBody>
                                 </Table>
+
+                                {/* Per-currency net position breakdown */}
+                                {(currencyPositions?.[c.contact_id]?.length ?? 0) > 1 && (
+                                  <CurrencyBreakdown
+                                    rows={currencyPositions[c.contact_id]}
+                                    formatCurrency={formatCurrency}
+                                  />
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
