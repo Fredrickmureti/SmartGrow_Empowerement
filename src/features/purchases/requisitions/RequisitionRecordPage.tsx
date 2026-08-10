@@ -208,6 +208,8 @@ export default function RequisitionRecordPage() {
           { columnId: "supplier", content: sup?.contact?.name ?? sup?.supplier_code ?? "—" },
           { columnId: "ordered", content: Number(l.quantity_ordered ?? 0) },
           { columnId: "received", content: Number(l.quantity_received ?? 0) },
+          { columnId: "cancelled", content: Number(l.quantity_cancelled ?? 0) },
+          { columnId: "outstanding", content: lineOutstanding(l) },
           {
             columnId: "lineStatus",
             content: (
