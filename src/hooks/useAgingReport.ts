@@ -3,22 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useBranch } from "@/contexts/BranchContext";
+import {
+  AGING_BUCKET_KEYS,
+  bucketForDaysOverdue,
+  emptyAgingBuckets,
+  type AgingBucketKey,
+} from "@/services/finance/aging";
 // `differenceInDays` import removed with processAgingData (2026-06-02).
+// Client-side bucket configuration (`DEFAULT_AGING_BUCKETS`) was removed
+// 2026-08-10: bucket boundaries live in SQL only, mirrored once in
+// `src/services/finance/aging.ts`. See ADR-0027 / ADR-0038.
 
-export interface AgingBucketConfig {
-  label: string;
-  minDays: number;
-  maxDays: number | null; // null = unlimited (e.g., 90+)
-}
-
-// Default aging buckets — can be overridden per organization
-export const DEFAULT_AGING_BUCKETS: AgingBucketConfig[] = [
-  { label: "not_due", minDays: -999999, maxDays: -1 },
-  { label: "current", minDays: 0, maxDays: 30 },
-  { label: "days30", minDays: 31, maxDays: 60 },
-  { label: "days60", minDays: 61, maxDays: 90 },
-  { label: "days90", minDays: 91, maxDays: null },
-];
 
 export interface AgingBucket {
   current: number;
