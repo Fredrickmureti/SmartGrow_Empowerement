@@ -197,6 +197,27 @@ export function normalizeError(
     if (status === 422 || code === "23514" || code === "23P01") {
       return shape("validation", err);
     }
+    // Business rules our own RPCs RAISE EXCEPTION with (SQLSTATE P0001) carry
+    // an author-written, user-safe sentence ("Allocation exceeds open balance
+    // on bill INV-1"). Collapsing those into "An unexpected error occurred"
+    // hides the one piece of information the user needs, so pass them through.
+    if (code === "P0001" && typeof e.message === "string" && e.message.trim().length > 0) {
+      return shape("validation", err, {
+        title: "Couldn't complete this action",
+        message: e.message.trim(),
+        action: "Review and try again",
+      });
+    }
+    // The RPC signature the client called does not exist on the server —
+    // a deploy/schema mismatch, not something the user can fix by retrying.
+    if (code === "PGRST202") {
+      return shape("server_unavailable", err, {
+        title: "This action isn't available yet",
+        message:
+          "The server is running an older version of this feature. Refresh the page, and contact support if it persists.",
+        action: "Refresh",
+      });
+    }
     if (typeof status === "number" && status >= 500) {
       return shape("server_unavailable", err);
     }
@@ -204,6 +225,7 @@ export function normalizeError(
     if (msg.includes("timeout") || msg.includes("timed out")) {
       return shape("timeout", err);
     }
+
   }
 
   return shape("unknown", err);
