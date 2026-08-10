@@ -10,11 +10,12 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Pencil, XCircle } from "lucide-react";
+import { CheckCircle2, Pencil, XCircle } from "lucide-react";
 
-import { ActionBar, Section, StatusBadge } from "@/design-system";
+import { Section, StatusBadge } from "@/design-system";
 import { RecordScaffold } from "@/design-system/records";
 import type {
+  DocumentAction,
   DocumentRecordView,
   LineItemColumn,
   LineItemRow,
@@ -299,27 +300,39 @@ export default function ContractRecordPage() {
     };
   }, [record, loading, error, navigate]);
 
-  const headerActions = (
-    <ActionBar>
-      <Button variant="ghost" size="sm" onClick={() => navigate("/purchases/contracts")}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
-      {canActivate && (
-        <Button size="sm" onClick={handleActivate} disabled={busy}>
-          <CheckCircle2 className="mr-2 h-4 w-4" /> Activate
-        </Button>
-      )}
-      {canAmend && (
-        <Button variant="outline" size="sm" onClick={() => setAmendOpen(true)} disabled={busy}>
-          <Pencil className="mr-2 h-4 w-4" /> Amend
-        </Button>
-      )}
-      {canTerminate && (
-        <Button variant="destructive" size="sm" onClick={() => setTermOpen(true)} disabled={busy}>
-          <XCircle className="mr-2 h-4 w-4" /> Terminate
-        </Button>
-      )}
-    </ActionBar>
+  // One action vocabulary — same descriptor the Contracts list row menu uses.
+  const actions = useMemo<DocumentAction[]>(
+    () => [
+      {
+        id: "activate",
+        label: "Activate",
+        icon: CheckCircle2,
+        primary: true,
+        hidden: !canActivate,
+        disabled: busy,
+        onSelect: () => void handleActivate(),
+      },
+      {
+        id: "amend",
+        label: "Amend",
+        icon: Pencil,
+        primary: true,
+        hidden: !canAmend,
+        disabled: busy,
+        onSelect: () => setAmendOpen(true),
+      },
+      {
+        id: "terminate",
+        label: "Terminate",
+        icon: XCircle,
+        destructive: true,
+        hidden: !canTerminate,
+        disabled: busy,
+        onSelect: () => setTermOpen(true),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canActivate, canAmend, canTerminate, busy],
   );
 
   return (
@@ -328,7 +341,7 @@ export default function ContractRecordPage() {
         {...view}
         id={id}
         newLabel="New contract"
-        headerActions={record ? headerActions : undefined}
+        actions={record ? actions : undefined}
       />
 
       {/* Amend dialog */}

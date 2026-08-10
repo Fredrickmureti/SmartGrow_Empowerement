@@ -48,13 +48,14 @@ interface Result {
   loading: boolean;
   error: string | null;
   view: DocumentRecordView;
+  refresh: () => void;
 }
 
 export function usePurchaseOrderView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record, loading, error } = usePurchaseOrderRecord(id);
+  const { record, loading, error, refetch } = usePurchaseOrderRecord(id);
   const po = record ?? null;
 
   const view = useMemo<DocumentRecordView>(() => {
@@ -167,5 +168,5 @@ export function usePurchaseOrderView(
     };
   }, [po, loading, error, formatCurrency]);
 
-  return { po, loading, error, view };
+  return { po, loading, error, view, refresh: refetch };
 }

@@ -38,13 +38,14 @@ interface Result {
   loading: boolean;
   error: string | null;
   view: DocumentRecordView;
+  refresh: () => void;
 }
 
 export function usePurchaseReturnView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record: purchaseReturn, loading, error } = usePurchaseReturnRecord(id);
+  const { record: purchaseReturn, loading, error, refetch } = usePurchaseReturnRecord(id);
 
   const view = useMemo<DocumentRecordView>(() => {
     const items = ((purchaseReturn as any)?.items ?? []) as any[];
@@ -122,5 +123,5 @@ export function usePurchaseReturnView(
     };
   }, [purchaseReturn, loading, error, formatCurrency]);
 
-  return { purchaseReturn, loading, error, view };
+  return { purchaseReturn, loading, error, view, refresh: refetch };
 }

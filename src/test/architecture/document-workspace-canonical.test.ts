@@ -229,6 +229,25 @@ describe("document workspace — the layer covers Purchases, Finance and Invento
     expect(offenders, "Status vocabulary lives in documentStatus.tsx").toEqual([]);
   });
 
+  /**
+   * The reported bug: the invoice full page offered 4 actions while its row
+   * menu offered 14, and Edit was permanently disabled. A document record
+   * page must therefore feed `RecordScaffold` the shared `actions` array —
+   * never a hand-rolled header cluster, which is how the two drifted.
+   * `customer` is a master record, not a transactional document.
+   */
+  const HEADER_CLUSTER_EXEMPT = /CustomerRecordPage\.tsx$/;
+
+  it("document record pages render the shared actions bar, not a hand-rolled cluster", () => {
+    const offenders = ALL_RECORD_SURFACES.filter((f) => /RecordPage\.tsx$/.test(f))
+      .filter((f) => !HEADER_CLUSTER_EXEMPT.test(f))
+      .filter((f) => /headerActions=/.test(read(f)));
+    expect(
+      offenders,
+      "Pass `actions={[…]}` from the document's use<Doc>Actions hook instead of headerActions",
+    ).toEqual([]);
+  });
+
   it("Sales and Purchases carry no type suppressions", () => {
     const offenders = [
       ...SALES_FILES,
