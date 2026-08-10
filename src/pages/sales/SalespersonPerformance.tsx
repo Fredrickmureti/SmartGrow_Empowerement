@@ -91,8 +91,9 @@ export default function SalespersonPerformance() {
       outstanding: acc.outstanding + m.outstanding,
       overdue: acc.overdue + m.overdue_amount,
       pos: acc.pos + m.pos_sales_value,
+      ordersValue: acc.ordersValue + m.orders_value,
     }),
-    { gross: 0, credit: 0, net: 0, invoices: 0, orders: 0, cash: 0, outstanding: 0, overdue: 0, pos: 0 },
+    { gross: 0, credit: 0, net: 0, invoices: 0, orders: 0, cash: 0, outstanding: 0, overdue: 0, pos: 0, ordersValue: 0 },
   );
 
   const hasForeignCurrency = metrics.some((m) => m.has_foreign_currency);
@@ -222,7 +223,7 @@ export default function SalespersonPerformance() {
           </CardHeader>
           <CardContent>
             <p className="stat-value text-foreground tabular-nums whitespace-nowrap">{totals.orders}</p>
-            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(0 + metrics.reduce((s, m) => s + m.orders_value, 0))}</p>
+            <p className="text-xs text-muted-foreground mt-1">{formatCurrency(totals.ordersValue)}</p>
           </CardContent>
         </Card>
         <Card>
