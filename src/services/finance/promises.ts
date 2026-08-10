@@ -11,7 +11,7 @@
  * Writes go exclusively through `record_promise_to_pay`, which resolves the
  * organization, converts to base currency and de-duplicates on an explicit
  * request key (per the money-in idempotency rule: the key is derived from the
- * promise intent, never `crypto.randomUUID()`).
+ * promise intent, never a random per-render identifier).
  */
 import { supabase } from "@/integrations/supabase/client";
 
