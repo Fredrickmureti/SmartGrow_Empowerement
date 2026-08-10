@@ -864,6 +864,7 @@ export default function Bills() {
                 <TableHead>Bill Date</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Pipeline</TableHead>
+                <TableHead>Match</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
@@ -871,9 +872,10 @@ export default function Bills() {
             </TableHeader>
             <TableBody>
               {(isLoading || !currencyReady) ? (
-                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-8">Loading...</TableCell></TableRow>
               ) : filteredBills.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-8 text-muted-foreground">No bills found</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-8 text-muted-foreground">No bills found</TableCell></TableRow>
+
               ) : (
                 filteredBills.map((bill) => (
                   <TableRow key={bill.id} className={`cursor-pointer ${selectedBills.has(bill.id) ? "bg-muted/50" : ""}`} onClick={() => setPeekId(bill.id)}>
