@@ -281,28 +281,28 @@ export function StatementPreview({ data }: StatementPreviewProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50">
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">Current</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">1-30 Days</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">31-60 Days</th>
-                <th className="px-4 py-2 text-left font-medium text-muted-foreground">61-90 Days</th>
-                <th className="px-4 py-2 text-left font-medium text-destructive">90+ Days</th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">{AGING_BUCKET_LABELS.not_due}</th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">{AGING_BUCKET_LABELS.current}</th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">{AGING_BUCKET_LABELS.days30}</th>
+                <th className="px-4 py-2 text-left font-medium text-muted-foreground">{AGING_BUCKET_LABELS.days60}</th>
+                <th className="px-4 py-2 text-left font-medium text-destructive">{AGING_BUCKET_LABELS.days90}</th>
                 <th className="px-4 py-2 text-right font-semibold">Total</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td className="px-4 py-2 font-medium">{formatCurrency(data.agingBuckets.current)}</td>
-                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days30 > 0 ? "text-amber-600" : ""}`}>
+                <td className="px-4 py-2 font-medium">{formatCurrency(data.agingBuckets.not_due)}</td>
+                <td className={`px-4 py-2 font-medium ${data.agingBuckets.current > 0 ? "text-amber-600" : ""}`}>
+                  {formatCurrency(data.agingBuckets.current)}
+                </td>
+                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days30 > 0 ? "text-orange-600" : ""}`}>
                   {formatCurrency(data.agingBuckets.days30)}
                 </td>
-                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days60 > 0 ? "text-orange-600" : ""}`}>
+                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days60 > 0 ? "text-red-500" : ""}`}>
                   {formatCurrency(data.agingBuckets.days60)}
                 </td>
-                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days90 > 0 ? "text-red-500" : ""}`}>
+                <td className={`px-4 py-2 font-medium ${data.agingBuckets.days90 > 0 ? "text-destructive font-bold" : ""}`}>
                   {formatCurrency(data.agingBuckets.days90)}
-                </td>
-                <td className={`px-4 py-2 font-medium ${data.agingBuckets.over90 > 0 ? "text-destructive font-bold" : ""}`}>
-                  {formatCurrency(data.agingBuckets.over90)}
                 </td>
                 <td className="px-4 py-2 text-right font-bold">{formatCurrency(agingTotal)}</td>
               </tr>
@@ -312,11 +312,11 @@ export function StatementPreview({ data }: StatementPreviewProps) {
         {/* Mobile aging grid */}
         <div className="sm:hidden grid grid-cols-2 gap-2">
           {[
-            { label: "Current", value: data.agingBuckets.current, color: "" },
-            { label: "1-30 Days", value: data.agingBuckets.days30, color: data.agingBuckets.days30 > 0 ? "text-amber-600" : "" },
-            { label: "31-60 Days", value: data.agingBuckets.days60, color: data.agingBuckets.days60 > 0 ? "text-orange-600" : "" },
-            { label: "61-90 Days", value: data.agingBuckets.days90, color: data.agingBuckets.days90 > 0 ? "text-red-500" : "" },
-            { label: "90+ Days", value: data.agingBuckets.over90, color: data.agingBuckets.over90 > 0 ? "text-destructive" : "" },
+            { label: AGING_BUCKET_LABELS.not_due, value: data.agingBuckets.not_due, color: "" },
+            { label: AGING_BUCKET_LABELS.current, value: data.agingBuckets.current, color: data.agingBuckets.current > 0 ? "text-amber-600" : "" },
+            { label: AGING_BUCKET_LABELS.days30, value: data.agingBuckets.days30, color: data.agingBuckets.days30 > 0 ? "text-orange-600" : "" },
+            { label: AGING_BUCKET_LABELS.days60, value: data.agingBuckets.days60, color: data.agingBuckets.days60 > 0 ? "text-red-500" : "" },
+            { label: AGING_BUCKET_LABELS.days90, value: data.agingBuckets.days90, color: data.agingBuckets.days90 > 0 ? "text-destructive" : "" },
             { label: "Total", value: agingTotal, color: "font-bold" },
           ].map((bucket) => (
             <div key={bucket.label} className="rounded-md border p-2">
@@ -325,6 +325,7 @@ export function StatementPreview({ data }: StatementPreviewProps) {
             </div>
           ))}
         </div>
+
       </div>
 
       {/* Footer — Amount Due highlight */}
