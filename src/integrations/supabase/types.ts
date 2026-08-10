@@ -96220,6 +96220,15 @@ export type Database = {
           supplier_id: string
         }[]
       }
+      rfq_portal_search_products: {
+        Args: { _invitation_id: string; _limit?: number; _query?: string }
+        Returns: {
+          base_uom_id: string
+          id: string
+          name: string
+          sku: string
+        }[]
+      }
       rfq_record_quotation: {
         Args: {
           _allow_late?: boolean
