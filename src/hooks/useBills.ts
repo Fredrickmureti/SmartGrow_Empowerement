@@ -386,8 +386,99 @@ export function useBills() {
   };
 
   /**
+   * Submit a draft bill for approval (draft → submitted).
+   * No GL effect — the bill is still a pre-posting document.
+   */
+  const submitBillForApproval = async (id: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to submit bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("submit_bill_atomic", {
+      _bill_id: id,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot submit", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "submitted" as const } : b)));
+    logAction({
+      action: "submitted",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "submitted" },
+      changesSummary: `Submitted bill ${bill?.bill_number ?? id} for approval`,
+    });
+    toast({ title: "Submitted for approval", description: `${bill?.bill_number ?? "Bill"} is awaiting approval.` });
+  };
+
+  /**
+   * Approve a submitted bill (submitted → approved). The server enforces
+   * segregation of duties (the preparer cannot approve) and blocks approval
+   * while an unresolved three-way match exception exists.
+   */
+  const approveBill = async (id: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to approve bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("approve_bill_atomic", {
+      _bill_id: id,
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot approve", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "approved" as const } : b)));
+    logAction({
+      action: "approved",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "approved" },
+      changesSummary: `Approved bill ${bill?.bill_number ?? id}`,
+    });
+    toast({ title: "Bill approved", description: `${bill?.bill_number ?? "Bill"} can now be posted to the ledger.` });
+  };
+
+  /** Send a submitted/approved bill back to draft with a reason. */
+  const rejectBill = async (id: string, reason: string) => {
+    if (!can("managePurchases")) { toast({ title: "Permission denied", description: "You don't have permission to reject bills", variant: "destructive" }); throw new Error("Permission denied"); }
+    if (!reason?.trim()) throw new Error("A rejection reason is required");
+    const bill = bills.find((b) => b.id === id);
+
+    const { error } = await supabase.rpc("reject_bill_atomic", {
+      _bill_id: id,
+      _reason: reason.trim(),
+      _actor: user?.id ?? null,
+    } as any);
+    if (error) {
+      toast({ title: "Cannot reject", description: normalizeError(error).message, variant: "destructive" });
+      throw error;
+    }
+
+    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, status: "draft" as const } : b)));
+    logAction({
+      action: "rejected",
+      entityType: "bill",
+      entityId: id,
+      entityName: bill?.bill_number,
+      oldValues: { status: bill?.status },
+      newValues: { status: "draft" },
+      changesSummary: `Rejected bill ${bill?.bill_number ?? id}. Reason: ${reason.trim()}`,
+    });
+    toast({ title: "Bill rejected", description: `${bill?.bill_number ?? "Bill"} was returned to draft.` });
+  };
+
+  /**
    * Confirm a bill and post to the General Ledger.
-   * Transitions from "draft" to "received" and creates journal entries.
+   * Transitions "draft" (or "approved", when the approval gate is on) to
+   * "received" and creates journal entries.
    * Per Odoo/QuickBooks standards, only confirmed bills affect the GL.
    *
    * H3 FIX: Delegates to shared confirmBillAndPostGL module (like invoices).
@@ -398,10 +489,21 @@ export function useBills() {
     const bill = bills.find((b) => b.id === id);
     if (!bill) throw new Error("Bill not found");
 
-    if (bill.status !== "draft") {
-      toast({ title: "Cannot confirm", description: "Only draft bills can be confirmed", variant: "destructive" });
-      throw new Error("Only draft bills can be confirmed");
+    if (bill.status !== "draft" && bill.status !== "approved") {
+      toast({ title: "Cannot confirm", description: "Only draft or approved bills can be confirmed", variant: "destructive" });
+      throw new Error("Only draft or approved bills can be confirmed");
     }
+
+    if (requireBillApproval && bill.status === "draft") {
+      toast({
+        title: "Approval required",
+        description: "This company requires bills to be approved before they are posted. Submit it for approval first.",
+        variant: "destructive",
+      });
+      throw new Error("Bill requires approval before posting");
+    }
+
+    const previousStatus = bill.status;
 
     // Optimistic update
     setBills((prev) =>
@@ -418,7 +520,7 @@ export function useBills() {
     } catch (error) {
       // Rollback on error
       setBills((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: "draft" as const } : b))
+        prev.map((b) => (b.id === id ? { ...b, status: previousStatus } : b))
       );
       throw error;
     }
