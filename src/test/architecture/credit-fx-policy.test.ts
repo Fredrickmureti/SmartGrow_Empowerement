@@ -12,8 +12,23 @@ import { resolve } from "node:path";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
 
+// The migration tool writes with a timestamp + uuid filename. Find the latest
+// migration that contains the Wave 8 markers.
+const migrationDir = "supabase/migrations";
+const { readdirSync } = require("node:fs");
+const wave8File = readdirSync(resolve(process.cwd(), migrationDir))
+  .filter((f: string) => f.endsWith(".sql"))
+  .sort()
+  .reverse()
+  .find((f: string) => {
+    const content = readFileSync(resolve(process.cwd(), migrationDir, f), "utf8");
+    return content.includes("to_base_amount") && content.includes("finance_ar_net_position_by_currency");
+  });
+
 describe("credit FX policy & per-currency presentation", () => {
-  const migrations = read("supabase/migrations/20260812000001_wave8_per_currency_fx.sql");
+  const migrations = wave8File
+    ? readFileSync(resolve(process.cwd(), migrationDir, wave8File), "utf8")
+    : "";
 
   it("defines the to_base_amount FX conversion function", () => {
     expect(migrations).toContain("CREATE OR REPLACE FUNCTION public.to_base_amount");
