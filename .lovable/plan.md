@@ -1,75 +1,82 @@
-# Collections & Receivables Convergence — live status
+# Collections & Receivables — verification verdict, then Wave 7
 
-Authoritative status file. Full audit and findings live in
-`.lovable/plan/collections-receivables-operations-audit-and-convergence-pla-2026-08-10.md`.
+## Phase 1 verdict on the previous engineer's claims
 
-North star: Collections is a trusted **operational layer over canonical AR
-truth**. Receivables, aging and exposure come from the GL-gated projections
-(`finance_ar_open_items` / `finance_ap_open_items`) and their derived
-canonical views — never from document status, never re-derived in app code.
+Checked directly against the codebase and the live database.
 
-## Completed and verified
-
-| Wave | Scope | Evidence |
+| Claim | Verdict | Evidence |
 | --- | --- | --- |
-| 0 | Audit + drift sensor (`finance_open_items_tieout`) readable by audit role | tie-out re-read: `ar` drift `0.00` |
-| 1 | Collections UI on canonical buckets (`Not Due` column, `In Credit` filter) | `src/pages/sales/Collections.tsx` |
-| 2 | One aging source; statements age as of `period_end`, not the browser clock | `useAgingReport`, `useCustomerStatements`, `useVendorStatements`; guard test |
-| 3 | AR summary nets unapplied customer credit | `get_ar_summary` |
-| 4 | Statement idempotency (`customer_statements_one_per_period` + `upsert_customer_statement_atomic`); legacy `invoice_reminders` / `invoice_emails` / `invoice_activities` retired; failed sends now written to `document_emails` | migration + `send-document-email` |
-| 5 | Currency integrity: `currency`, `exchange_rate`, `base_residual_amount` on both projections; tie-out and all aggregates in base currency | views + `src/services/finance/openItems.ts` |
-| 6 | Credit-netting consolidation: `finance_ar_customer_credit` (one definition of unapplied credit) and `finance_ar_net_position` (server-side per-customer buckets, net of credit). `get_ar_summary`, `get_ar_ap_aging_from_ledger`, `fetchTopOpenCounterparties`, `fetchUnappliedCustomerCredit`, `useCustomerCredits` all repointed; `get_ar_summary` now sums base-currency residuals | migrations + guards in `aging-single-source.test.ts` |
+| Wave 6 canonical credit/net-position views exist | CONFIRMED | `finance_ar_customer_credit`, `finance_ar_net_position`, `finance_ar_open_items`, `finance_open_items_tieout` all present in the database |
+| Consumers repointed off `customer_credit_balances` | CONFIRMED in code | `src/services/finance/openItems.ts`, `src/hooks/useCustomerCredits.ts`, guards in `src/test/architecture/aging-single-source.test.ts` |
+| Wave 7 item 1 — bulk statement sends routed through the durable email outbox | NOT DONE | `src/pages/CustomerStatements.tsx` still runs a browser `for` loop calling `send-document-email` one contact at a time |
+| Wave 7 item 2 — send outcomes visible on Collections | NOT DONE | no reference to email/delivery status anywhere in `src/pages/sales/Collections.tsx` |
 
-Guards in `src/test/architecture/aging-single-source.test.ts`:
-one bucket implementation; no legacy bucket field names; no raw
-`residual_amount` cross-row aggregates; statements age as of `period_end`;
-no direct `.from("customer_credit_balances")` read.
+### New defect found during verification (not in the previous plan)
 
-## Active phase
+The bulk statement run picks its customer cohort from
+`invoices.status in ('sent','partial','overdue')`. That is a status-based
+receivables read — exactly what the whole programme banned. It will miss
+customers whose debt comes from manual journals on the AR control account,
+and include documents with no posted journal entry. It must read canonical
+AR instead.
 
-**Wave 6 — complete.** Nothing is half-built: every consumer named above was
-migrated in the same change, and typecheck plus the receivables guard tests
-pass.
+Secondary problems in the same loop: it runs in the browser (closing the tab
+mid-run leaves a half-finished batch), each failure is swallowed into
+`console.error` with no operator-visible record, there is no retry, and
+re-running the batch re-sends every statement because nothing is keyed on
+"this statement, this period, already sent".
 
-## Next milestone — Wave 7: statement/dunning delivery reliability
+## What I will build
 
-1. Route **bulk** statement sends through `email_event_outbox` +
-   `flushEmailOutbox` so batch sends get the same retry/backoff and audit trail
-   single sends now have. Single-send path is already fully audited.
-2. Surface send outcomes (`document_emails.status`) on the Collections screen
-   so a collector can see "reminder bounced" without leaving the page.
+### 7.0 — Bulk statement cohort from canonical AR (REPAIR)
+Replace the invoice-status query with the canonical net-position source, so the
+set of customers who get a statement is the same set Collections, aging and
+the GL agree owes money.
 
-## Backlog (after Wave 7, in order)
+### 7.1 — Durable, idempotent bulk statement delivery (HARDEN)
+Move the batch off the browser. One server-side entry point accepts the period
+and company, resolves the cohort, upserts the statement per customer through
+the existing `upsert_customer_statement_atomic`, and enqueues one send job per
+statement. A worker drains the queue, renders through the existing
+`send-document-email` path (statements need the PDF attachment, so this cannot
+reuse the plain `send-email` outbox flusher unchanged), retries with backoff on
+transient failure, and writes every outcome to `document_emails`.
 
-3. Per-currency presentation: projections expose `currency` but no UI shows a
-   currency breakdown; also decide an FX policy for credit balances
-   (`finance_ar_customer_credit.base_credit_amount` is currently 1:1).
-4. PRODUCT GAP — promise-to-pay, disputes, collector assignment, dunning
-   policy, collections work queue. All unbuilt; each needs its own plan.
+Idempotency: the job key is derived from `(statement id, recipient)`, so a
+retry, a double click, or a re-run of the batch never produces a second email
+for a statement already sent. No `crypto.randomUUID()` keys.
 
-## Instructions for the next agent
+Explicitly unchanged: statement figures, `upsert_customer_statement_atomic`,
+the single-send path (already audited), and the credit-note / payment-allocation
+contracts.
 
-1. **Verify before you build.** Confirm Wave 6 is enterprise-grade:
-   - `select * from finance_ar_net_position limit 5` and
-     `select * from finance_ar_customer_credit limit 5` return rows scoped to
-     the caller's org (both are `security_invoker`; the net-position view also
-     carries an explicit `is_org_member` guard because
-     `finance_ar_open_items` is owner-run).
-   - `get_ar_summary`, `get_ar_ap_aging_from_ledger`, the sales dashboard KPIs
-     and the Collections screen must agree on the same customer, to the cent.
-   - `finance_open_items_tieout` must still show `0.00` drift for `ar` and `ap`.
-   - `bunx vitest run src/test/architecture/aging-single-source.test.ts
-     src/test/architecture/compensation-writer-monopoly.test.ts` must pass.
-2. **Then resume at Wave 7 item 1** (bulk statement sends through
-   `email_event_outbox`). Do not start the PRODUCT GAP features before the
-   delivery layer is reliable — a dunning workflow on an unreliable sender is
-   an incomplete business workflow.
-3. Keep this file updated as each item lands: what is done and verified, what
-   is pending, which phase is active, what is next.
+### 7.2 — Delivery outcome visible to the collector (EXTEND)
+Surface the latest `document_emails` outcome per customer on the Collections
+screen and in the statements list: sent / failed / bounced with timestamp, so a
+collector sees "the reminder never arrived" without leaving the page. Read-only
+presentation over the existing audit trail — no new status column.
 
-## Known repo-wide caveat
+### 7.3 — Guards
+Extend `src/test/architecture/aging-single-source.test.ts` so a future statement
+or dunning batch cannot re-derive its cohort from invoice status, and cannot
+call `send-document-email` in a client-side loop.
 
-The full `src/test/architecture` suite has ~145 pre-existing failing files
-unrelated to receivables (WMS topic vocabulary, etc.). They predate this work;
-do not treat them as Wave 6 regressions, and do not fix them inside a
-receivables phase.
+## Technical notes
+
+- Queue table carries organization/business scope, statement id, recipient,
+  attempt count, next-attempt time, terminal status, and a unique idempotency
+  key; RLS scoped to org membership with explicit GRANTs.
+- The worker is driven by the existing scheduled-automation runner, so no new
+  scheduling mechanism is introduced.
+- Financial truth is untouched throughout: this wave only changes who runs the
+  batch, how it retries, and what the operator can see.
+
+## After this wave (unchanged backlog)
+
+1. Per-currency presentation for open items; FX policy for credit balances.
+2. PRODUCT GAP — promise-to-pay, disputes, collector assignment, dunning
+   policy, collections work queue. Each needs its own plan; none should start
+   before delivery is reliable.
+
+Known caveat carried forward: `src/test/architecture` has ~145 pre-existing
+failing files unrelated to receivables. Not regressions, not fixed here.
