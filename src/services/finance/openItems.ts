@@ -156,24 +156,50 @@ export async function fetchTopOpenCounterparties(
     for (const c of contacts || []) names.set(c.id, c.name);
   }
 
-  const today = Date.now();
   const byContact = new Map<string, { name: string; amount: number; daysOverdue: number }>();
   for (const r of rows) {
     const name = (r.contact_id && names.get(r.contact_id)) || "Unknown";
-    const due = r.due_date || r.document_date;
-    const daysOverdue = due
-      ? Math.floor((today - new Date(due).getTime()) / 86_400_000)
-      : 0;
+    const daysOverdue = daysOverdueFrom(r.due_date || r.document_date);
     const existing = byContact.get(name) || { name, amount: 0, daysOverdue: 0 };
     existing.amount += Number(r.residual_amount) || 0;
     existing.daysOverdue = Math.max(existing.daysOverdue, daysOverdue);
     byContact.set(name, existing);
   }
 
+  // Net unapplied customer credit so a customer sitting on an advance is not
+  // ranked as a top exposure. Same rule the aging RPC applies.
+  if (side === "ar") {
+    let cq = supabase
+      .from("customer_credit_balances" as any)
+      .select("contact_id, balance")
+      .eq("organization_id", orgId)
+      .gt("balance", 0.01);
+    if (businessId) cq = cq.eq("business_id", businessId);
+    const { data: credits } = await cq;
+    const creditContactIds = Array.from(
+      new Set(((credits || []) as any[]).map((c) => c.contact_id).filter(Boolean)),
+    ).filter((id) => !names.has(id));
+    if (creditContactIds.length > 0) {
+      const { data: extra } = await supabase
+        .from("contacts")
+        .select("id, name")
+        .in("id", creditContactIds);
+      for (const c of extra || []) names.set(c.id, c.name);
+    }
+    for (const c of (credits || []) as any[]) {
+      const name = (c.contact_id && names.get(c.contact_id)) || "Unknown";
+      const existing = byContact.get(name);
+      if (!existing) continue; // pure credit position — not an exposure to chase
+      existing.amount -= Number(c.balance) || 0;
+    }
+  }
+
   return Array.from(byContact.values())
+    .filter((c) => c.amount > 0.01)
     .sort((a, b) => b.amount - a.amount)
     .slice(0, limit);
 }
+
 
 /**
  * Per-counterparty open-item aging.
