@@ -86,7 +86,9 @@ const TABLE_ALIASES: Record<string, string[]> = {
 function statusLiterals(sql: string, prefixes: string[]): string[] {
   const found: string[] = [];
   for (const prefix of prefixes) {
-    const escaped = prefix.replace(".", "\\.");
+    // An empty prefix means the bare column; make sure it is not the tail of
+    // another alias (`i.status` must not be read as an aliasless `status`).
+    const escaped = prefix === "" ? "(?<![\\w.])" : prefix.replace(".", "\\.");
     const re = new RegExp(`${escaped}status\\s*(?:NOT\\s+)?IN\\s*\\(([^)]*)\\)|${escaped}status\\s*(?:<>|=)\\s*'([^']+)'`, "gi");
     let m: RegExpExecArray | null;
     while ((m = re.exec(sql))) {
