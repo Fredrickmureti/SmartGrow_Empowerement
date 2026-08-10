@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -68,6 +68,10 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   // first). `statusField` is deliberately omitted: contract status is a
   // lifecycle value (new/running/expired/cancelled), never "sent".
   contract_letter: { table: "employee_contracts", numberField: "contract_reference", statusField: undefined, itemsTable: undefined, contactField: "employee_id" },
+  // Sourcing — supplier invitation to quote. The recipient is always passed
+  // explicitly by the invitation delivery worker (one invitation = one
+  // supplier), so no contactField is resolved from the RFQ row itself.
+  rfq: { table: "rfqs", numberField: "rfq_number", statusField: undefined, itemsTable: "rfq_items" },
   pos_receipt: { table: "pos_transactions", numberField: "transaction_number", statusField: undefined, itemsTable: undefined, contactField: "customer_id" },
 };
 
@@ -87,6 +91,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   payslip: "Payslip",
   pos_receipt: "Sales Receipt",
   contract_letter: "Employment Contract",
+  rfq: "Request for Quotation",
 };
 
 async function getPlatformSettings(supabaseClient: any): Promise<Map<string, string | null>> {
@@ -576,6 +581,10 @@ const handler = async (req: Request): Promise<Response> => {
     selectQuery = `*, contact:employees!employee_contracts_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "pos_receipt") {
     selectQuery = `*, contact:contacts!pos_transactions_customer_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
+  } else if (documentType === "rfq") {
+    // No contact join: the supplier is the invited party, not a column on
+    // the RFQ. The caller (invitation delivery worker) supplies the address.
+    selectQuery = `*, organization:organizations(id, name), ${businessJoin}`;
     } else {
       selectQuery = `*, contact:contacts(*), organization:organizations(id, name), ${businessJoin}`;
     }
