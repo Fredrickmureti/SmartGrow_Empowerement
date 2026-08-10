@@ -27,6 +27,8 @@ import {
   DocumentWorkspaceBody,
   hasAside,
 } from "./DocumentWorkspace";
+import { DocumentActionsBar } from "./DocumentActions";
+import type { DocumentAction } from "./DocumentActions";
 import type { DocumentRecordView } from "./types";
 
 import type { DetailField } from "./RecordBody";
