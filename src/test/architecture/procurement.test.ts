@@ -44,8 +44,11 @@ const PROCUREMENT_RPC_NAMES = [
   "create_goods_receipt",
   "record_goods_receipt_line",
   "receive_inbound_shipment",
-  "convert_rfq_to_po_atomic",
-  "award_rfq_atomic",
+  // RFQ/sourcing lifecycle is guarded by `rfq-sourcing-domain.test.ts`;
+  // the retired `award_rfq_atomic` / `convert_rfq_to_po_atomic` RPCs were
+  // deleted in the Phase 5a retirement migration.
+  "rfq_award",
+  "rfq_convert_awards_to_po",
   "approve_purchase_order",
   "convert_po_to_bill_atomic",
   "confirm_bill_atomic",
