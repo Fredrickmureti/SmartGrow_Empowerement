@@ -11,9 +11,11 @@ import { useNavigate } from "react-router-dom";
 import {
   Ban,
   CheckCircle2,
+  FileSearch,
   FileText,
   GitBranch,
   Pencil,
+  Printer,
   Send,
   Trash2,
   Upload,
@@ -22,6 +24,8 @@ import {
 import type { DocumentAction } from "@/design-system/records";
 import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { useRFQs, type RFQ } from "@/hooks/useRFQs";
+import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
+import { useRecordPrint } from "@/features/purchases/record/useRecordPrint";
 
 interface Options {
   onDeleted?: () => void;
@@ -35,6 +39,10 @@ export function useRFQActions(
 ) {
   const navigate = useNavigate();
   const { mode: governanceMode } = useGovernanceMode();
+  const { preview } = useDocumentPreview();
+  // Solicitation layout, not the invoice one: the RFQ kind routes to
+  // `generateSolicitationPdf`, which carries no price column.
+  const { print, printing } = useRecordPrint("rfq");
   const {
     submitForApprovalAsync,
     approveRFQ,
@@ -167,6 +175,27 @@ export function useRFQActions(
         },
       },
       {
+        id: "preview",
+        label: "Preview",
+        icon: FileSearch,
+        group: "output",
+        onSelect: () =>
+          preview({
+            documentType: "rfq",
+            documentId: rfq.id,
+            title: `RFQ ${rfq.rfq_number}`,
+            filename: `rfq-${rfq.rfq_number}`,
+          }),
+      },
+      {
+        id: "print",
+        label: "Print",
+        icon: Printer,
+        group: "output",
+        disabled: printing,
+        onSelect: () => void print(rfq.id, `RFQ ${rfq.rfq_number}`),
+      },
+      {
         id: "cancel",
         label: "Cancel",
         icon: Ban,
@@ -192,5 +221,5 @@ export function useRFQActions(
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rfq, navigate, onAward, governanceMode]);
+  }, [rfq, navigate, onAward, governanceMode, preview, print, printing]);
 }
