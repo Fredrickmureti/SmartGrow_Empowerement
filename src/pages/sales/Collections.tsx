@@ -401,6 +401,59 @@ function KpiCard({
 }
 
 /**
+ * Per-currency net position breakdown for a customer who owes in more than one
+ * currency. Document-currency amounts are labelled with their ISO code so a
+ * collector can distinguish KES exposure from USD exposure at a glance.
+ */
+function CurrencyBreakdown({
+  rows,
+  formatCurrency,
+}: {
+  rows: CurrencyNetPositionRow[];
+  formatCurrency: (amount: number, currencyCode?: string) => string;
+}) {
+  return (
+    <div className="mt-3 border-t pt-3">
+      <h4 className="font-medium text-sm mb-2">By currency</h4>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Currency</TableHead>
+            <TableHead className="text-right">Open</TableHead>
+            <TableHead className="text-right">Credit</TableHead>
+            <TableHead className="text-right">Net (doc ccy)</TableHead>
+            <TableHead className="text-right">Net (base)</TableHead>
+            <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days90}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.currency}>
+              <TableCell className="font-mono text-xs">{r.currency}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCurrency(r.openAmount, r.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatCurrency(r.creditAmount, r.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-medium">
+                {formatCurrency(r.netAmount, r.currency)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {formatCurrency(r.baseNetAmount)}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-destructive">
+                {formatCurrency(r.days90, r.currency)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+/**
  * Last statement/reminder delivery outcome for this customer. A collector must
  * be able to see "reminder bounced" without leaving the page — a chase that was
  * never delivered is not a chase.
