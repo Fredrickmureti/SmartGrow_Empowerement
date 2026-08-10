@@ -120,7 +120,7 @@ describe("statements render as a legible landscape ledger", () => {
 
   it("the ledger profile stays above the legibility floor", () => {
     const p = file("supabase/functions/_shared/pdf/themes/presentation.ts");
-    const start = p.indexOf("LEDGER_TYPOGRAPHY");
+    const start = p.indexOf("const LEDGER: Typography");
     expect(start).toBeGreaterThan(-1);
     const block = p.slice(start, start + 900);
     const cell = Number(/tableCell:\s*([\d.]+)/.exec(block)?.[1]);
