@@ -54,7 +54,7 @@ export function BillFromTimesheetsDialog({ open, onOpenChange, projectId, contac
   const { createInvoice } = useInvoices();
 
   const customers = useMemo(
-    // `contact_type` is the ENUM name, not a column/property — see customerIdentity.ts.
+    // The enum name is not a property on contacts — see customerIdentity.ts.
     () => (contacts || []).filter((c: any) => isCustomerContact(c)),
     [contacts],
   );

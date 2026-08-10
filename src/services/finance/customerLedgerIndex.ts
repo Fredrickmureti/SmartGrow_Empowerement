@@ -69,7 +69,7 @@ export async function fetchLedgerSearchableCustomers(
     .select("id, name")
     .eq("organization_id", orgId)
     .eq("is_active", true)
-    // `contacts.contact_type` does not exist — see customerIdentity.ts.
+    // The contacts table has no such column named after the enum — see customerIdentity.ts.
     .or(CUSTOMER_IDENTITY_OR_FILTER)
     .order("name", { ascending: true })
     .limit(500);
