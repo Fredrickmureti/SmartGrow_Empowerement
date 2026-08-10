@@ -26,6 +26,8 @@ import { buildSalesOrderSnapshot } from "@/services/documents/snapshots/salesOrd
 import { buildSalesReturnSnapshot } from "@/services/documents/snapshots/salesReturn";
 import { buildPaymentReceiptSnapshot } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { buildCustomerStatementSnapshot } from "@/services/documents/snapshots/salesCustomerStatement";
+import { buildStatementDataset } from "@/services/finance/customerStatementDataset";
+
 import { buildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { buildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { buildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
@@ -296,10 +298,13 @@ const SUITE: Array<{ file: string; run: () => { snapshot: Record<string, unknown
           contact: { name: "Acme Ltd" },
           business: { id: "b", name: "Widget Co", base_currency: "KES" },
         },
-        invoices: [],
-        payments: [],
-        creditNotes: [],
-        now: new Date("2026-07-27T00:00:00Z"),
+        dataset: buildStatementDataset({
+          rows: [],
+          periodStart: "2026-06-01",
+          periodEnd: "2026-06-30",
+          currency: "KES",
+        }),
+
       }),
   },
   {
