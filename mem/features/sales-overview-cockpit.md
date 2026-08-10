@@ -17,7 +17,7 @@ engine that owns the event:
 | Cash applied / unapplied | `payment_allocations` vs `payments.amount` |
 | Orders to fulfil | `so_line_balances.quantity_open_to_deliver > 0` |
 | Quote conversion | `estimates`, period cohort, `accepted` **and** `converted` are won |
-| Credit notes | `credit_notes`, excluding `draft/void/voided/cancelled` |
+| Credit notes | `credit_notes`, excluding `draft` and `void` |
 | Top customers | invoiced net of `credit_note_applications` |
 
 ## Forbidden
@@ -29,6 +29,12 @@ engine that owns the event:
   credit is netted only at the receivable total.
 - Never count pending sales orders from a status list.
 - Never include voided/unreconciled payments in cash figures.
+- Never compare an enum status column to a label that does not exist. The real
+  lifecycles are `invoice_status` (draft, sent, viewed, partial, paid, overdue,
+  cancelled, confirmed, voided), `estimate_status` (draft, sent, viewed,
+  accepted, rejected, expired, converted) and `credit_note_status` (draft,
+  issued, applied, void, refunded — there is no `voided`/`cancelled`). A phantom
+  label raises 22P02 at plan time and the whole RPC returns HTTP 400.
 
 ## Date semantics
 Period-based: revenue, cash, credit notes, quotes. As-of-today: receivable,
