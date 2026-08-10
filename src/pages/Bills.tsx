@@ -110,6 +110,7 @@ import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 import { useApSummary } from "@/hooks/useApSummary";
 import { useBillMatchResults } from "@/hooks/useBillMatch";
+import { deriveBillStatus } from "@/features/purchases/bills/billStatus";
 import { BillMatchBadge } from "@/features/purchases/bills/BillMatchPanel";
 
 
@@ -550,7 +551,8 @@ export default function Bills() {
     const matchesSearch =
       bill.bill_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bill.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bill.status === statusFilter;
+    // Overdue is derived, never stored (Step 2b) — filter on the display status.
+    const matchesStatus = statusFilter === "all" || deriveBillStatus(bill) === statusFilter;
     let matchesDate = true;
     if (dateFrom) {
       matchesDate = matchesDate && bill.bill_date >= dateFrom;
@@ -898,7 +900,7 @@ export default function Bills() {
                     </TableCell>
                     <TableCell>{format(new Date(bill.bill_date), "MMM d, yyyy")}</TableCell>
                     <TableCell>{format(new Date(bill.due_date), "MMM d, yyyy")}</TableCell>
-                    <TableCell><BillWorkflowPipeline status={bill.status} /></TableCell>
+                    <TableCell><BillWorkflowPipeline status={deriveBillStatus(bill)} /></TableCell>
                     <TableCell><BillMatchBadge result={matchResults[bill.id]} /></TableCell>
 
                     <TableCell className="text-right">{formatCurrency(bill.total, bill.currency)}</TableCell>
