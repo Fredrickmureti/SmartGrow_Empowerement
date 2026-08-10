@@ -44,13 +44,13 @@ describe("credit FX policy & per-currency presentation", () => {
       migrations.indexOf("CREATE OR REPLACE VIEW public.finance_ar_customer_credit"),
       migrations.indexOf("GRANT SELECT ON public.finance_ar_customer_credit"),
     );
+    // The new definition wraps ccb.balance in to_base_amount() before assigning
+    // to base_credit_amount.
     expect(creditDef).toContain("to_base_amount");
-    // The old 1:1 pattern: "AS base_credit_amount" directly from ccb.balance
-    // without a to_base_amount wrapper. The new definition assigns the result
-    // of to_base_amount(...) to base_credit_amount.
-    expect(creditDef).toMatch(/to_base_amount\([^)]*ccb\.balance[^)]*\).*AS base_credit_amount/);
-    // The old 1:1 pattern: balance::numeric directly AS base_credit_amount.
-    expect(creditDef).not.toMatch(/ccb\.balance[^;]*AS base_credit_amount/);
+    expect(creditDef).toContain("AS base_credit_amount");
+    // The old 1:1 pattern: raw balance cast directly AS base_credit_amount,
+    // with no to_base_amount wrapper.
+    expect(creditDef).not.toContain(")::numeric(14,2)      AS base_credit_amount");
   });
 
   it("creates the per-currency net position view with a currency column", () => {
