@@ -19,14 +19,29 @@ import { acknowledgeRecordPrint } from "@/services/printing/acknowledge";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
+import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
+import { fetchAndBuildPurchasesRequisitionSnapshot } from "@/services/documents/snapshots/purchasesRequisition";
 
-export type RecordPrintKind = "bill" | "purchase_order" | "purchase_return";
+export type RecordPrintKind =
+  | "bill"
+  | "purchase_order"
+  | "purchase_return"
+  | "rfq"
+  | "purchase_requisition";
 
 const KIND_CONFIG: Record<
   RecordPrintKind,
   {
     kindCode: string;
     sourceDocType: string;
+    /**
+     * Solicitation and demand documents have no counterparty on the
+     * artifact: one RFQ sheet is issued to every invited bidder, and a
+     * requisition is internal. Tagging them with a supplier would key a
+     * separate frozen record per vendor for a document whose content is
+     * identical.
+     */
+    partyKind?: "supplier" | null;
     build: (client: typeof supabase, id: string) => Promise<any>;
   }
 > = {
@@ -44,6 +59,18 @@ const KIND_CONFIG: Record<
     kindCode: "purchases.return",
     sourceDocType: "purchase_return",
     build: fetchAndBuildPurchasesReturnSnapshot,
+  },
+  rfq: {
+    kindCode: "purchases.rfq",
+    sourceDocType: "rfq",
+    partyKind: null,
+    build: fetchAndBuildPurchasesRfqSnapshot,
+  },
+  purchase_requisition: {
+    kindCode: "purchases.requisition",
+    sourceDocType: "purchase_requisition",
+    partyKind: null,
+    build: fetchAndBuildPurchasesRequisitionSnapshot,
   },
 };
 
@@ -78,8 +105,8 @@ export function useRecordPrint(kind: RecordPrintKind) {
           sourceDocId: docId,
           businessId: built.businessId ?? currentBusiness.id,
           branchId: built.branchId ?? currentBranch?.id ?? null,
-          partyKind: "supplier",
-          partyId: built.vendorId,
+          partyKind: config.partyKind === null ? null : "supplier",
+          partyId: config.partyKind === null ? null : built.vendorId,
           currency: built.currency,
           documentNumber: built.documentNumber,
           documentDate: built.documentDate,
