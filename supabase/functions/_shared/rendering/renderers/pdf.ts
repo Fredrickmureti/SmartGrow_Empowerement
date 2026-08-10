@@ -9,7 +9,7 @@
  */
 
 import type { AstBlock, RenderContext, ResolvedTemplate } from "../types.ts";
-import { generateDocumentPdf } from "../../pdfGenerator.ts";
+import { generateDocumentPdf, generateStatementPdf } from "../../pdfGenerator.ts";
 import { renderPayslipSnapshotToPdf } from "../../payslip/payslipSnapshot.ts";
 
 /**
@@ -24,6 +24,22 @@ const STATEMENT_LAYOUTS: Record<
 > = {
   "payroll.payslip": renderPayslipSnapshotToPdf,
 };
+
+/**
+ * Account statements (AR / AP / legal recipient) are a period ledger —
+ * opening balance, dated charges/credits, running balance, aging — NOT a
+ * line-item commercial document. Routing them through
+ * `generateDocumentPdf` produced an invoice-shaped page ("Bill To",
+ * Qty/Price/Tax columns, "Balance Due") with an empty item table, because
+ * a statement snapshot carries no `items`. They are drawn by
+ * `generateStatementPdf`, which is A4-only by construction.
+ */
+const STATEMENT_KIND_CODES = new Set([
+  "sales.statement",
+  "purchases.statement",
+  "legal.recipient_statement",
+]);
+
 
 export async function renderAstToPdf(args: {
   template: ResolvedTemplate;
