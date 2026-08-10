@@ -192,6 +192,35 @@ export default function RequisitionListPage() {
         }
       />
       <PageBody>
+        {/* Bucket rail — the buyer's work queue, counts included. */}
+        <div className="flex flex-wrap gap-2">
+          {BUCKETS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              title={b.hint}
+              onClick={() => setBucket(b.id)}
+              className={
+                "rounded-full border px-3 py-1.5 text-sm transition-colors " +
+                (bucket === b.id
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-background hover:bg-muted")
+              }
+            >
+              {b.label}
+              <span
+                className={
+                  "ml-2 tabular-nums " +
+                  (bucket === b.id ? "opacity-80" : "text-muted-foreground")
+                }
+              >
+                {counts[b.id] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">{active.hint}</p>
+
         <FilterBar>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -202,26 +231,8 @@ export default function RequisitionListPage() {
               className="pl-8"
             />
           </div>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="approved">Approved</option>
-            <option value="sourcing">Sourcing</option>
-            <option value="partially_procured">Partially procured</option>
-            <option value="procured">Procured</option>
-            <option value="ordered">Ordered</option>
-            <option value="partially_fulfilled">Partially fulfilled</option>
-            <option value="fulfilled">Fulfilled</option>
-            <option value="rejected">Rejected</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="closed">Closed</option>
-          </select>
         </FilterBar>
+
 
         {loading ? (
           <LoadingState />
