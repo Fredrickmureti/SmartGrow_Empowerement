@@ -8,17 +8,11 @@ import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { expandToCommercialPartnerSet } from "@/lib/contactHierarchy";
 import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import { fetchVendorLedgerRows } from "@/services/finance/vendorStatementLedger";
+import { buildVendorStatementDataset } from "@/services/finance/vendorStatementDataset";
 import type { AgingBuckets } from "@/services/finance/aging";
 
 
-// "Day before YYYY-MM-DD" as YYYY-MM-DD — used to scope prior-period
-// rows when computing the opening balance from the canonical
-// `vendor_ledger_entries` view.
-function _isoBefore(d: string): string {
-  const dt = new Date(d);
-  dt.setDate(dt.getDate() - 1);
-  return dt.toISOString().split('T')[0];
-}
 
 export interface VendorStatement {
   id: string;
