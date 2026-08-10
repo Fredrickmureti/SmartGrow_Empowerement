@@ -15171,6 +15171,51 @@ export type Database = {
           },
         ]
       }
+      dunning_levels: {
+        Row: {
+          action_type: Database["public"]["Enums"]["dunning_action_type"]
+          active: boolean
+          business_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          min_days_overdue: number
+          name: string
+          organization_id: string
+          sequence: number
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_type?: Database["public"]["Enums"]["dunning_action_type"]
+          active?: boolean
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_days_overdue?: number
+          name: string
+          organization_id: string
+          sequence: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_type?: Database["public"]["Enums"]["dunning_action_type"]
+          active?: boolean
+          business_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          min_days_overdue?: number
+          name?: string
+          organization_id?: string
+          sequence?: number
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       edge_jobs: {
         Row: {
           claimed_at: string | null
@@ -74349,6 +74394,23 @@ export type Database = {
           },
         ]
       }
+      dunning_assignment: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          contact_id: string | null
+          contact_name: string | null
+          dunning_level_id: string | null
+          dunning_level_name: string | null
+          dunning_sequence: number | null
+          max_days_overdue: number | null
+          net_amount: number | null
+          next_action: Database["public"]["Enums"]["dunning_action_type"] | null
+          organization_id: string | null
+          template_id: string | null
+        }
+        Relationships: []
+      }
       effective_reorder_rule: {
         Row: {
           auto_create_po: boolean | null
@@ -99422,6 +99484,12 @@ export type Database = {
         | "auto"
         | "preview_only"
         | "download_only"
+      dunning_action_type:
+        | "reminder"
+        | "statement"
+        | "call"
+        | "escalate"
+        | "legal"
       employee_advance_status:
         | "requested"
         | "approved"
@@ -100565,6 +100633,13 @@ export const Constants = {
         "auto",
         "preview_only",
         "download_only",
+      ],
+      dunning_action_type: [
+        "reminder",
+        "statement",
+        "call",
+        "escalate",
+        "legal",
       ],
       employee_advance_status: [
         "requested",
