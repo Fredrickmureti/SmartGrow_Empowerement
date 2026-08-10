@@ -218,17 +218,19 @@ export async function fetchContactOpenItemAging(
   side: "ar" | "ap",
   params: {
     orgId: string;
-    contactId: string;
+    /** One contact, or a commercial-partner family (consolidated statements). */
+    contactId: string | string[];
     businessId?: string | null;
     branchId?: string | null;
   },
 ): Promise<AgingBuckets> {
   const view = side === "ar" ? "finance_ar_open_items" : "finance_ap_open_items";
+  const contactIds = Array.isArray(params.contactId) ? params.contactId : [params.contactId];
   let q = supabase
     .from(view as any)
     .select("document_date, due_date, residual_amount")
     .eq("organization_id", params.orgId)
-    .eq("contact_id", params.contactId)
+    .in("contact_id", contactIds)
     .gt("residual_amount", 0.01);
   if (params.businessId) q = q.eq("business_id", params.businessId);
   if (params.branchId) q = q.eq("branch_id", params.branchId);
@@ -244,12 +246,13 @@ export async function fetchContactOpenItemAging(
   }
 
   if (side === "ar") {
-    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, params.contactId);
+    const credit = await fetchUnappliedCustomerCredit(params.orgId, params.businessId, contactIds);
     if (credit > 0.01) addToAgingBuckets(buckets, -credit, 0);
   }
 
   return buckets;
 }
+
 
 /**
  * Unapplied customer credit (advance receipts / unapplied credit notes) for an
