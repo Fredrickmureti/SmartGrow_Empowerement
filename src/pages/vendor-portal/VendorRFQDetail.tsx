@@ -381,10 +381,13 @@ export default function VendorRFQDetail() {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead className="text-right">Requested</TableHead>
+                  <TableHead className="w-[140px]">Your item code</TableHead>
                   <TableHead className="w-[120px]">Unit price</TableHead>
                   <TableHead className="w-[110px]">Qty offered</TableHead>
+                  <TableHead className="w-[90px]">Disc %</TableHead>
                   <TableHead className="w-[90px]">Tax %</TableHead>
                   <TableHead className="w-[150px]">Delivery</TableHead>
+                  <TableHead className="w-[180px]">Line note</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -392,6 +395,16 @@ export default function VendorRFQDetail() {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.description}</TableCell>
                     <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
+                    <TableCell>
+                      <Input
+                        disabled={!canSubmit}
+                        placeholder="SKU / ref"
+                        value={quotes[item.id]?.supplier_product_code ?? ""}
+                        onChange={(e) =>
+                          updateQuote(item.id, "supplier_product_code", e.target.value)
+                        }
+                      />
+                    </TableCell>
                     <TableCell>
                       <Input
                         type="number"
@@ -415,6 +428,17 @@ export default function VendorRFQDetail() {
                       <Input
                         type="number"
                         min="0"
+                        max="100"
+                        step="0.01"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.discount_percent ?? ""}
+                        onChange={(e) => updateQuote(item.id, "discount_percent", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
                         step="0.01"
                         disabled={!canSubmit}
                         value={quotes[item.id]?.tax_rate ?? ""}
@@ -427,6 +451,14 @@ export default function VendorRFQDetail() {
                         disabled={!canSubmit}
                         value={quotes[item.id]?.delivery_date ?? ""}
                         onChange={(e) => updateQuote(item.id, "delivery_date", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        disabled={!canSubmit}
+                        placeholder="Substitute / remark"
+                        value={quotes[item.id]?.notes ?? ""}
+                        onChange={(e) => updateQuote(item.id, "notes", e.target.value)}
                       />
                     </TableCell>
                   </TableRow>
