@@ -257,6 +257,7 @@ export function RecordBillPaymentDialog({
         reference: formData.reference || null,
         notes: formData.notes || null,
         bank_account_id: formData.bank_account_id || null,
+        requestId,
         branch_id: (bill as any).branch_id ?? null,
       });
       toast({
