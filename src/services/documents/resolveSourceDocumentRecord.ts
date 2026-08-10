@@ -233,6 +233,14 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: "supplier",
     build: wrap(fetchAndBuildPurchasesPoSnapshot),
   },
+  rfq: {
+    kindCode: "purchases.rfq",
+    sourceModule: "purchases",
+    sourceDocType: "rfq",
+    // Supplier-neutral: one RFQ document is issued to every invited bidder.
+    partyKind: null,
+    build: wrap(fetchAndBuildPurchasesRfqSnapshot),
+  },
   purchase_return: {
     kindCode: "purchases.return",
     sourceModule: "purchases",
