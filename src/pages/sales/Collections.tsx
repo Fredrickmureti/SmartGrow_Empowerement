@@ -530,10 +530,155 @@ function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
       </Badge>
     );
   }
-  return (
-    <Badge variant="secondary" className="gap-1" title="Queued for delivery">
-      <Clock className="h-3 w-3" />
-      {delivery.state === "sending" ? "Sending" : "Queued"}
     </Badge>
+  );
+}
+
+/**
+ * Collector cell — shows the assigned collector's name or an "Assign" link.
+ */
+function CollectorCell({
+  contactId,
+  assignment,
+  onAssign,
+  onUnassign,
+}: {
+  contactId: string;
+  assignment?: CollectorAssignment;
+  onAssign: () => void;
+  onUnassign: () => void;
+}) {
+  if (assignment) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm">{assignment.collectorName}</span>
+        <button
+          className="text-xs text-muted-foreground hover:text-foreground underline"
+          onClick={onAssign}
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+  return (
+    <button
+      className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+      onClick={onAssign}
+    >
+      <UserCog className="h-3.5 w-3.5" />
+      Assign
+    </button>
+  );
+}
+
+/**
+ * Dialog to assign or reassign a collector to a customer.
+ */
+function AssignCollectorDialog({
+  open,
+  onOpenChange,
+  contactId,
+  members,
+  currentAssignment,
+  onAssign,
+  onUnassign,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  contactId: string | null;
+  members: { userId: string; fullName: string; email: string }[];
+  currentAssignment?: CollectorAssignment;
+  onAssign: (userId: string) => void;
+  onUnassign: () => void;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setSelected(currentAssignment?.collectorUserId ?? null);
+      setSubmitting(false);
+    }
+  }, [open, currentAssignment?.collectorUserId]);
+
+  const handleAssign = useCallback(async () => {
+    if (!contactId || !selected) return;
+    setSubmitting(true);
+    try {
+      await onAssign(selected);
+      onOpenChange(false);
+    } catch {
+      setSubmitting(false);
+    }
+  }, [contactId, selected, onAssign, onOpenChange]);
+
+  const handleUnassign = useCallback(async () => {
+    if (!contactId) return;
+    setSubmitting(true);
+    try {
+      await onUnassign();
+      onOpenChange(false);
+    } catch {
+      setSubmitting(false);
+    }
+  }, [contactId, onUnassign, onOpenChange]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[400px]">
+        <DialogHeader>
+          <DialogTitle>Assign collector</DialogTitle>
+          <DialogDescription>
+            Choose the team member responsible for collecting this customer's
+            outstanding receivables.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 max-h-[300px] overflow-y-auto py-2">
+          {members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No active organization members found.
+            </p>
+          ) : (
+            members.map((m) => (
+              <button
+                key={m.userId}
+                onClick={() => setSelected(m.userId)}
+                className={`w-full flex items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                  selected === m.userId
+                    ? "border-primary bg-primary/5"
+                    : "hover:bg-muted/40"
+                }`}
+              >
+                <div className="flex-1">
+                  <div className="font-medium">{m.fullName}</div>
+                  <div className="text-xs text-muted-foreground">{m.email}</div>
+                </div>
+                {selected === m.userId && <Check className="h-4 w-4 text-primary" />}
+              </button>
+            ))
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          {currentAssignment && (
+            <Button
+              variant="outline"
+              onClick={handleUnassign}
+              disabled={submitting}
+            >
+              Unassign
+            </Button>
+          )}
+          <Button
+            onClick={handleAssign}
+            disabled={!selected || submitting}
+          >
+            {submitting ? "Saving…" : "Assign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
