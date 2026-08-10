@@ -28,7 +28,12 @@
 import { renderDocumentRecord } from "@/services/printing/render";
 import { resolveSourceDocumentRecordId } from "@/services/documents/resolveSourceDocumentRecord";
 
-export type ExportFormat = "csv" | "xlsx";
+/**
+ * `pdf` is included deliberately: "Download PDF" is a DOWNLOAD disposition,
+ * not a print job. Downloading must never dispatch to a physical printer —
+ * it renders the same frozen snapshot and hands the bytes to the browser.
+ */
+export type ExportFormat = "csv" | "xlsx" | "pdf";
 
 export interface ExportDocumentInput {
   /** Document type with a registered snapshot builder, e.g. `customer_statement`. */
@@ -48,6 +53,7 @@ export interface ExportResult {
 }
 
 const MIME: Record<ExportFormat, string> = {
+  pdf: "application/pdf",
   csv: "text/csv;charset=utf-8",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 };

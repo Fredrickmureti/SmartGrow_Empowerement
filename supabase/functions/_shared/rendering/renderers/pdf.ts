@@ -9,7 +9,7 @@
  */
 
 import type { AstBlock, RenderContext, ResolvedTemplate } from "../types.ts";
-import { generateDocumentPdf } from "../../pdfGenerator.ts";
+import { generateDocumentPdf, generateStatementPdf } from "../../pdfGenerator.ts";
 import { renderPayslipSnapshotToPdf } from "../../payslip/payslipSnapshot.ts";
 
 /**
@@ -24,6 +24,21 @@ const STATEMENT_LAYOUTS: Record<
 > = {
   "payroll.payslip": renderPayslipSnapshotToPdf,
 };
+
+/**
+ * Account statements (AR / AP / legal recipient) are a period ledger —
+ * opening balance, dated charges/credits, running balance, aging — NOT a
+ * line-item commercial document. Routing them through
+ * `generateDocumentPdf` produced an invoice-shaped page ("Bill To",
+ * Qty/Price/Tax columns, "Balance Due") with an empty item table, because
+ * a statement snapshot carries no `items`. They are drawn by
+ * `generateStatementPdf`, which is A4-only by construction.
+ */
+const STATEMENT_KIND_CODES = new Set([
+  "sales.statement",
+  "purchases.statement",
+]);
+
 
 export async function renderAstToPdf(args: {
   template: ResolvedTemplate;
@@ -44,6 +59,24 @@ export async function renderAstToPdf(args: {
 
   const statementLayout = STATEMENT_LAYOUTS[args.template.kind_code];
   if (statementLayout) return await statementLayout(snap);
+
+  if (STATEMENT_KIND_CODES.has(args.template.kind_code)) {
+    const statementData = {
+      ...snap,
+      id: args.context.document.id,
+      organization:
+        (snap["organization"] as unknown) ??
+        (args.context.business as unknown) ??
+        null,
+    } as unknown as Parameters<typeof generateStatementPdf>[0];
+    return await generateStatementPdf(
+      statementData,
+      {},
+      // A4-only by construction: never forward a thermal paper token.
+      { paperFormat: mediaClassToPaper(args.template.media_class) } as
+        Parameters<typeof generateStatementPdf>[2],
+    );
+  }
 
   // Thermal gate (ADR-0085 / rendering ownership): a thermal document is
   // structured by the canonical Line[] engine and drawn by the flow-based

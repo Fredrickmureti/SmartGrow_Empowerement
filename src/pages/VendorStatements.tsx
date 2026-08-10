@@ -4,7 +4,6 @@ import { usePeekParam } from "@/design-system";
 import { VendorStatementPeekSheet } from "@/features/purchases/statements/VendorStatementPeekSheet";
 
 import { useVendorStatements, VendorStatementData } from "@/hooks/useVendorStatements";
-import { dispatchVendorStatement } from "@/features/purchases/statements/dispatchVendorStatement";
 
 import { useBranches } from "@/hooks/useBranches";
 import { useContacts } from "@/hooks/useContacts";
@@ -248,7 +247,7 @@ export default function VendorStatements() {
     setShowEmailDialog(true);
   };
 
-  const handlePrint = async (statementData?: VendorStatementData) => {
+  const handleDownloadPdf = async (statementData?: VendorStatementData) => {
     const dataToUse = statementData || previewData;
     if (!dataToUse) return;
     setIsGenerating(true);
@@ -281,20 +280,20 @@ export default function VendorStatements() {
       }
       if (!statementId) throw new Error("Could not determine statement ID for PDF generation");
 
-      // Wave 7.2 — dispatch through the unified document engine so a manual
-      // "PDF" click cannot bypass archive / disposition rules. Shared with
-      // the peek sheet and the record page: one implementation only.
-      const result = await dispatchVendorStatement({
-        statementId,
-        organizationId: currentOrg?.id ?? null,
-        businessId: currentBusiness?.id ?? null,
-        branchId: currentBranch?.id ?? null,
+      // "Download PDF" is a DOWNLOAD disposition — render the frozen
+      // snapshot to PDF bytes and hand them to the browser. Dispatching a
+      // print job here is what made a download silently hit a printer.
+      const res = await downloadExport({
+        documentType: "vendor_statement",
+        documentId: statementId,
+        format: "pdf",
+        filename: `vendor-statement-${dataToUse.contact.name ?? "contact"}-${dataToUse.periodStart}-${dataToUse.periodEnd}.pdf`,
       });
-      toast.success(`Statement dispatched to ${result.targetCount} target(s).`);
+      if (!res.success) throw new Error(res.error ?? "Unknown error");
 
     } catch (error: any) {
-      console.error("Statement print error:", error);
-      toast.error("Failed to generate statement PDF: " + (normalizeError(error).message || "Unknown error"));
+      console.error("Statement download error:", error);
+      toast.error("Failed to download statement PDF: " + (normalizeError(error).message || "Unknown error"));
     } finally {
       setIsGenerating(false);
     }
@@ -631,7 +630,7 @@ export default function VendorStatements() {
                             <DropdownMenuItem onClick={async () => {
                               try {
                                 const data = await generateStatementData({ contact_id: statement.contact_id, period_start: statement.period_start, period_end: statement.period_end });
-                                await handlePrint(data);
+                                await handleDownloadPdf(data);
                               } catch (err: any) { toast.error("Failed to download: " + normalizeError(err).message); }
                             }}>
                               <Download className="mr-2 h-4 w-4" />Download PDF
@@ -777,7 +776,7 @@ export default function VendorStatements() {
           {previewData && <VendorStatementPreview data={previewData} />}
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => { setShowPreviewDialog(false); setPreviewData(null); }}>Close</Button>
-            <Button variant="outline" onClick={() => handlePrint()} disabled={isGenerating}>
+            <Button variant="outline" onClick={() => handleDownloadPdf()} disabled={isGenerating}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Download PDF
             </Button>
