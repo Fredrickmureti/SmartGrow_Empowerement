@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import type { DocumentAction } from "@/design-system/records";
+import { useGovernanceMode } from "@/hooks/governance/useGovernanceMode";
 import { useRFQs, type RFQ } from "@/hooks/useRFQs";
 
 interface Options {
