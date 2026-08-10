@@ -131,6 +131,9 @@ export default function RequisitionRecordPage() {
   const { toast } = useToast();
   const { record, loading, error, refresh } = useRequisitionRecord(id);
   const { mode: governanceMode } = useGovernanceMode();
+  const { preview } = useDocumentPreview();
+  // Internal demand layout — no counterparty, no money ladder.
+  const { print, printing } = useRecordPrint("purchase_requisition");
 
   const [approveOpen, setApproveOpen] = useState(false);
   const [approveComment, setApproveComment] = useState("");
