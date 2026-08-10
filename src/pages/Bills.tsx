@@ -192,7 +192,24 @@ export default function Bills() {
   // Custom field filtering
   const { filters: customFieldFilters, setFilters: setCustomFieldFilters, filterEntityIds, isFiltering: isCustomFiltering } = useCustomFieldFiltering("bill");
 
-  const { bills, isLoading, getNextBillNumber, createBill, confirmBill, updateBill, deleteBill, recordBillPayment, getDefaultDueDate } = useBills();
+  const {
+    bills,
+    isLoading,
+    requireBillApproval,
+    getNextBillNumber,
+    createBill,
+    confirmBill,
+    submitBillForApproval,
+    approveBill,
+    rejectBill,
+    updateBill,
+    deleteBill,
+    recordBillPayment,
+    getDefaultDueDate,
+    refreshBills,
+  } = useBills();
+  // Canonical AP figures (posted documents net of allocations/credits).
+  const { summary: apSummary, refresh: refreshApSummary } = useApSummary();
   const navigate = useNavigate();
   const { contacts } = useContacts();
 
