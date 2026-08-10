@@ -37,6 +37,7 @@ import {
 } from "@/services/documents/snapshots/salesPaymentReceipt";
 import { fetchAndBuildPurchasesBillSnapshot } from "@/services/documents/snapshots/purchasesBill";
 import { fetchAndBuildPurchasesPoSnapshot } from "@/services/documents/snapshots/purchasesPo";
+import { fetchAndBuildPurchasesRfqSnapshot } from "@/services/documents/snapshots/purchasesRfq";
 import { fetchAndBuildPurchasesReturnSnapshot } from "@/services/documents/snapshots/purchasesReturn";
 import { fetchAndBuildPurchasesGrnSnapshot } from "@/services/documents/snapshots/purchasesGrn";
 import { fetchAndBuildVendorStatementSnapshot } from "@/services/documents/snapshots/purchasesVendorStatement";
@@ -232,6 +233,14 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceDocType: "purchase_order",
     partyKind: "supplier",
     build: wrap(fetchAndBuildPurchasesPoSnapshot),
+  },
+  rfq: {
+    kindCode: "purchases.rfq",
+    sourceModule: "purchases",
+    sourceDocType: "rfq",
+    // Supplier-neutral: one RFQ document is issued to every invited bidder.
+    partyKind: null,
+    build: wrap(fetchAndBuildPurchasesRfqSnapshot),
   },
   purchase_return: {
     kindCode: "purchases.return",

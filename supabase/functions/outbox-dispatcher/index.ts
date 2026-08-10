@@ -363,6 +363,22 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
     attempt: number;
   }>;
 
+  // Freeze the RFQ into the canonical document model once per dispatch, so
+  // every invited supplier receives the SAME artifact the buyer would print
+  // (ADR-0084). Supplier-neutral on purpose: one document, many recipients.
+  // A failure here must not block delivery — the email degrades to text.
+  if (invitations.length > 0) {
+    const { error: docErr } = await admin.rpc("rfq_ensure_document_record", {
+      _rfq_id: rfqId,
+    });
+    if (docErr) {
+      console.warn(JSON.stringify({
+        event_id: row.id, rfq_id: rfqId,
+        warn: "rfq document record not frozen", error: docErr.message,
+      }));
+    }
+  }
+
   let permanentFailures = 0;
   for (const inv of invitations) {
     if (!inv.contact_email) {
@@ -388,7 +404,7 @@ async function handleRfqInvitationRequested(row: OutboxRow): Promise<void> {
             `You have been invited to quote on request for quotation ${inv.rfq_number}.` +
             (deadline ? `\n\nResponses are due by ${deadline}.` : "") +
             `\n\nPlease submit your quotation through the supplier portal.`,
-          autoGeneratePdf: false,
+          autoGeneratePdf: true,
         },
       });
       if (error) throw new Error(error.message ?? String(error));
