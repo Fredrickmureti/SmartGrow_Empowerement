@@ -407,6 +407,16 @@ export default function Collections() {
         onOpenChange={(v) => !v && setPayContactId(null)}
         preSelectedContactId={payContactId ?? undefined}
       />
+
+      <AssignCollectorDialog
+        open={!!assignDialogContact}
+        onOpenChange={(v) => !v && setAssignDialogContact(null)}
+        contactId={assignDialogContact}
+        members={members}
+        currentAssignment={assignDialogContact ? assignments[assignDialogContact] : undefined}
+        onAssign={(userId) => assign(assignDialogContact!, userId)}
+        onUnassign={() => assignDialogContact && unassign(assignDialogContact)}
+      />
     </div>
   );
 }
