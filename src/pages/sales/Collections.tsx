@@ -8,7 +8,7 @@
  * jump into the existing record-payment / customer-ledger /
  * customer-statements flows — no shadow data, no duplicate state.
  */
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAgingReport, type AgingContactDetail } from "@/hooks/useAgingReport";
 import { useCurrency } from "@/hooks/useCurrency";
