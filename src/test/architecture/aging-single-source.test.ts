@@ -51,4 +51,20 @@ describe("aging single source of truth", () => {
       .filter((f) => /days_1_30|days_31_60|days_61_90|days_90_plus/.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
   });
+
+  it("cross-row open-item aggregates use the base-currency residual", () => {
+    // Wave 5: `residual_amount` is a DOCUMENT-currency amount. Anything that
+    // sums across documents must read `base_residual_amount`, otherwise a
+    // multi-currency business adds up incomparable numbers.
+    const src = readFileSync(join(ROOT, "services/finance/openItems.ts"), "utf8");
+    const aggregates = src.match(/\+=\s*Number\([^)]*residual[^)]*\)/gi) ?? [];
+    expect(aggregates).toEqual([]);
+    expect(src).toContain("base_residual_amount");
+  });
+
+  it("statement aging is measured as of the period end, not the browser clock", () => {
+    for (const hook of ["hooks/useCustomerStatements.ts", "hooks/useVendorStatements.ts"]) {
+      expect(readFileSync(join(ROOT, hook), "utf8")).toMatch(/asOf:\s*(input|data)\.period_end/);
+    }
+  });
 });
