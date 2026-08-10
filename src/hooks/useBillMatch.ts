@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeError } from "@/lib/errors";
+import { normalizeError } from "@/services/resilience";
 import type { BillMatchResult } from "@/features/purchases/bills/matchState";
 
 const SELECT =
