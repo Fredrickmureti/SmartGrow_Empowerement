@@ -95440,6 +95440,14 @@ export type Database = {
         Args: { _reason?: string; _requisition_id: string }
         Returns: Json
       }
+      requisition_close: {
+        Args: { _reason?: string; _requisition_id: string }
+        Returns: Json
+      }
+      requisition_close_line: {
+        Args: { _item_id: string; _reason?: string }
+        Returns: Json
+      }
       requisition_convert_to_po: {
         Args: {
           _line_ids?: string[]
