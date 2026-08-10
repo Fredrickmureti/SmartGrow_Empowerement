@@ -93,7 +93,7 @@ export default function SalespersonPerformance() {
       pos: acc.pos + m.pos_sales_value,
       ordersValue: acc.ordersValue + m.orders_value,
     }),
-    { gross: 0, credit: 0, net: 0, invoices: 0, orders: 0, cash: 0, outstanding: 0, overdue: 0, pos: 0 },
+    { gross: 0, credit: 0, net: 0, invoices: 0, orders: 0, cash: 0, outstanding: 0, overdue: 0, pos: 0, ordersValue: 0 },
   );
 
   const hasForeignCurrency = metrics.some((m) => m.has_foreign_currency);
