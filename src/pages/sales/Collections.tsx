@@ -213,6 +213,7 @@ export default function Collections() {
               <TableHead className="w-8" />
               <TableHead>Customer</TableHead>
               <TableHead>Collector</TableHead>
+              <TableHead>Next action</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
@@ -227,7 +228,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={11}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -235,7 +236,7 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
@@ -287,6 +288,9 @@ export default function Collections() {
                               onAssign={() => setAssignDialogContact(c.contact_id)}
                               onUnassign={() => unassign(c.contact_id)}
                             />
+                          </TableCell>
+                          <TableCell>
+                            <NextActionCell row={dunning?.[c.contact_id]} />
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCurrency(c.buckets.not_due ?? 0)}
@@ -344,7 +348,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={10} className="py-3">
+                            <TableCell colSpan={11} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
@@ -541,6 +545,25 @@ function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
       <MailCheck className="h-3 w-3" />
       Queued
     </Badge>
+  );
+}
+
+/**
+ * Next-action cell — renders the escalation step the server assigned to this
+ * customer via `dunning_assignment`. The label is policy-driven; the browser
+ * never decides which dunning level applies.
+ */
+function NextActionCell({ row }: { row?: DunningAssignmentRow }) {
+  if (!row?.nextAction) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col">
+      <span className="text-sm">{DUNNING_ACTION_LABELS[row.nextAction]}</span>
+      {row.dunningLevelName && (
+        <span className="text-xs text-muted-foreground">{row.dunningLevelName}</span>
+      )}
+    </div>
   );
 }
 
