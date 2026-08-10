@@ -81,19 +81,23 @@ describe("Session 8 · Priority B — non-movement stock lifecycle fabric", () =
 });
 
 describe("ADR-0077 3-way match + landed cost — session-8 RPCs", () => {
-  it("migration files declare allocate_landed_cost_bill and match_bill_to_grn", () => {
+  it("migration files declare allocate_landed_cost_bill and the single matcher", () => {
     const files = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql"));
     const joined = files
       .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
       .join("\n");
     expect(joined).toMatch(/CREATE OR REPLACE FUNCTION\s+public\.allocate_landed_cost_bill\b/);
-    expect(joined).toMatch(/CREATE OR REPLACE FUNCTION\s+public\.match_bill_to_grn\b/);
+    expect(joined).toMatch(/CREATE OR REPLACE FUNCTION\s+public\.match_bill_atomic\b/);
+    // The legacy second matcher was consolidated into match_bill_atomic.
+    expect(joined).toMatch(/DROP FUNCTION IF EXISTS public\.match_bill_to_grn/);
   });
 
-  it("Bill record page exposes a match-receipts action wired to match_bill_to_grn", () => {
-    const src = readFileSync(join(SRC, "features/purchases/bills/BillRecordPage.tsx"), "utf8");
-    expect(src).toContain("match_bill_to_grn");
+  it("the bill match action is wired to the single matcher, never the legacy one", () => {
+    const src = readFileSync(join(SRC, "features/purchases/bills/useBillActions.tsx"), "utf8");
+    expect(src).toContain("match_bill_atomic");
+    expect(src).not.toContain("match_bill_to_grn");
   });
+
 
   it("Landed cost management page is registered on the Purchases router", () => {
     const routes = readFileSync(join(SRC, "apps/purchases/routes.tsx"), "utf8");

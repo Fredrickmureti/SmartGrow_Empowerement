@@ -90854,7 +90854,6 @@ export type Database = {
         }
         Returns: Json
       }
-      match_bill_to_grn: { Args: { p_bill_id: string }; Returns: number }
       match_bill_with_landed_cost: {
         Args: { _actor: string; _bill_id: string; _landed_cost_bill_id: string }
         Returns: Json
@@ -95076,6 +95075,15 @@ export type Database = {
           _status: Database["public"]["Enums"]["ar_dispute_status"]
         }
         Returns: undefined
+      }
+      resolve_bill_match_exception_atomic: {
+        Args: {
+          _actor?: string
+          _bill_id: string
+          _decision: string
+          _note?: string
+        }
+        Returns: Json
       }
       resolve_branch_scoped: {
         Args: { _branch_id: string; _business_id: string; _table_name: string }

@@ -58,17 +58,26 @@ export function useBillActions(
     if (!bill?.id) return;
     setMatching(true);
     try {
-      // ADR 0077 · 3-way match — RPC auto-links bill lines to open GRN
-      // lines by (bill_id → PO → GRN → item) and records unit-cost
-      // variances into bill_grn_matches. Idempotent on re-run.
-      const { data, error: err } = await supabase.rpc("match_bill_to_grn", {
-        p_bill_id: bill.id,
+      // ADR 0123-family · single matcher. `match_bill_atomic` is the only
+      // engine allowed to write `bill_match_results` / `bill_grn_matches`.
+      // It runs automatically on submit; this action is a manual re-run.
+      const { data: userRes } = await supabase.auth.getUser();
+      const actor = userRes.user?.id;
+      if (!actor) throw new Error("You must be signed in to match a bill.");
+      const { data, error: err } = await supabase.rpc("match_bill_atomic", {
+        _bill_id: bill.id,
+        _actor: actor,
       });
       if (err) throw err;
-      const count = typeof data === "number" ? data : 0;
+      const result = (data ?? {}) as { match_state?: string; grn_links?: number };
+      const state = result.match_state ?? "matched";
       toast({
-        title: count > 0 ? `Matched ${count} bill line${count === 1 ? "" : "s"} to receipts` : "No new lines to match",
-        description: count > 0 ? undefined : "Bill is fully reconciled or has no PO link.",
+        title: state === "matched" ? "Bill matched to receipts" : `Match exception: ${state.replace(/_/g, " ")}`,
+        description:
+          state === "matched"
+            ? `${result.grn_links ?? 0} receipt line link${result.grn_links === 1 ? "" : "s"} recorded.`
+            : "Approval is blocked until the exception is reviewed.",
+        variant: state === "matched" ? undefined : "destructive",
       });
       onChanged?.();
     } catch (err) {
@@ -77,6 +86,7 @@ export function useBillActions(
       setMatching(false);
     }
   };
+
 
   const actions = useMemo<DocumentAction[]>(() => {
     if (!bill) return [];
