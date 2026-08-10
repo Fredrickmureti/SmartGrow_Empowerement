@@ -82,13 +82,28 @@ export function useRFQActions(
         onSelect: () => navigate(`/purchases/rfqs/${rfq.id}/edit`),
       },
       {
+        /**
+         * Context aware: the server tells us whether the canonical governance
+         * engine actually gated this RFQ (`gated` in the submit result). In a
+         * solo / ungated tenant there is no second person to wait for, so we
+         * complete the transition in one click instead of parking the RFQ in
+         * `pending_approval` for the same user to approve. The server still
+         * enforces everything — we only avoid a pointless extra click.
+         */
         id: "submit",
-        label: "Submit for approval",
+        label: governanceMode === "solo" ? "Submit & approve" : "Submit for approval",
         icon: Send,
         group: "core",
         primary: isDraft,
         hidden: !isDraft,
-        onSelect: () => submitForApproval(rfq.id),
+        onSelect: async () => {
+          const result = (await submitForApprovalAsync(rfq.id)) as
+            | { gated?: boolean }
+            | null;
+          if (result && result.gated === false) {
+            await approveRFQAsync(rfq.id).catch(() => undefined);
+          }
+        },
       },
       {
         /**
