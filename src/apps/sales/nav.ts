@@ -20,6 +20,7 @@ import {
   Users,
   HandCoins,
   TrendingUp,
+  BookOpen,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
