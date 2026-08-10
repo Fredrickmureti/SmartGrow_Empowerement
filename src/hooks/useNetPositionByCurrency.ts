@@ -9,7 +9,7 @@ import {
   fetchNetPositionByCurrency,
   type CurrencyNetPositionRow,
 } from "@/services/finance/openItems";
-import { useBusiness } from "@/hooks/useBusiness";
+import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface PerCurrencyByContact {
   [contactId: string]: CurrencyNetPositionRow[];
