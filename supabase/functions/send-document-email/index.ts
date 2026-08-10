@@ -588,33 +588,14 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("id", resolvedDocumentId)
       .maybeSingle();
 
-    let { data: documentRaw, error: docError } = await documentQuery;
+    const { data: documentRaw, error: docError } = await documentQuery;
 
-    if ((!documentRaw || docError) && documentType === "customer_statement") {
-      console.warn("Customer statement not found by id, attempting contact_id fallback", {
-        requestedDocumentId: documentId,
-      });
+    // RETIRED: the "statement not found by id → email the customer's most
+    // recent statement instead" fallback. Every caller passes a persisted
+    // statement id (CustomerStatements.tsx saves before sending), and guessing
+    // silently emailed a DIFFERENT period to the customer. Not found is now
+    // a 404, as it is for every other document type.
 
-      const fallbackQuery = supabaseClient
-        .from("customer_statements")
-        .select(selectQuery)
-        .eq("contact_id", documentId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const { data: fallbackDocument, error: fallbackError } = await fallbackQuery;
-
-      if (!fallbackError && fallbackDocument) {
-        documentRaw = fallbackDocument;
-        resolvedDocumentId = (fallbackDocument as any).id;
-        docError = null;
-        console.warn("Customer statement resolved via contact_id fallback", {
-          requestedDocumentId: documentId,
-          resolvedDocumentId,
-        });
-      }
-    }
 
     const document = documentRaw as any;
 
