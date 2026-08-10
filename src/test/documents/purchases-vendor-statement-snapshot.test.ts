@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import {
   buildVendorStatementSnapshot,
   type VendorStatementHeaderRow,
-  type VendorStatementBillRow,
-  type VendorStatementPaymentRow,
-  type VendorStatementCreditNoteRow,
 } from "@/services/documents/snapshots/purchasesVendorStatement";
+import {
+  buildVendorStatementDataset,
+  type VendorLedgerRow,
+} from "@/services/finance/vendorStatementDataset";
+import { EMPTY_AGING_BUCKETS } from "@/services/finance/aging";
 
 const HEADER: VendorStatementHeaderRow = {
   id: "vs-1",
@@ -26,78 +28,113 @@ const HEADER: VendorStatementHeaderRow = {
   contact: { name: "Widgets Supplier Ltd" },
   business: { id: "biz-1", name: "Acme", base_currency: "KES" },
 };
-const BILLS: VendorStatementBillRow[] = [
-  { bill_number: "B-1", bill_date: "2026-06-10", total: 500, amount_paid: 200, status: "partial", vendor_invoice_number: "VI-9" },
-];
-const PMTS: VendorStatementPaymentRow[] = [
-  { reference: "PAY-1", payment_date: "2026-06-15", amount: 200 },
-];
-const CNS: VendorStatementCreditNoteRow[] = [
-  { credit_note_number: "VCN-1", credit_date: "2026-06-20", total: 50, status: "confirmed" },
+
+// `vendor_ledger_entries` convention: credit increases what we owe (bill),
+// debit decreases it (payment / vendor credit).
+const ROWS: VendorLedgerRow[] = [
+  // Prior period → opening balance of 100.
+  { entry_date: "2026-05-02", doc_type: "bill", doc_id: "b-0", doc_ref: "B-0", debit: 0, credit: 100, currency: "KES", created_at: "2026-05-02T00:00:00Z" },
+  { entry_date: "2026-06-10", doc_type: "bill", doc_id: "b-1", doc_ref: "B-1", debit: 0, credit: 500, currency: "KES", created_at: "2026-06-10T00:00:00Z" },
+  { entry_date: "2026-06-15", doc_type: "bill_payment", doc_id: "p-1", doc_ref: "PAY-1", debit: 200, credit: 0, currency: "KES", created_at: "2026-06-15T00:00:00Z" },
+  { entry_date: "2026-06-20", doc_type: "vendor_credit_note", doc_id: "c-1", doc_ref: "VCN-1", debit: 50, credit: 0, currency: "KES", created_at: "2026-06-20T00:00:00Z" },
 ];
 
+const dataset = () =>
+  buildVendorStatementDataset({
+    rows: ROWS,
+    periodStart: HEADER.period_start,
+    periodEnd: HEADER.period_end,
+    currency: "KES",
+  });
+
 describe("buildVendorStatementSnapshot", () => {
-  const NOW = new Date("2026-07-27T00:00:00Z");
   it("emits document_type / label / number", () => {
     const { snapshot, documentNumber } = buildVendorStatementSnapshot({
-      statement: HEADER, bills: BILLS, payments: PMTS, creditNotes: CNS, now: NOW,
+      statement: HEADER,
+      dataset: dataset(),
     });
     expect(snapshot.document_type).toBe("vendor_statement");
     expect(snapshot.document_type_label).toBe("VENDOR STATEMENT");
     expect(documentNumber).toBe("Vendor Statement - Widgets Supplier Ltd");
   });
 
-  it("computes running balance across bill/payment/credit-note rows", () => {
-    const { snapshot } = buildVendorStatementSnapshot({
-      statement: HEADER, bills: BILLS, payments: PMTS, creditNotes: CNS, now: NOW,
-    });
-    const txns = snapshot.statement_transactions as Array<{ balance: number; type: string }>;
-    expect(txns.length).toBe(3);
-    // Opening 100 + Bill 500 = 600, - Payment 200 = 400, - CN 50 = 350
-    expect(txns[0].type).toBe("Bill");
-    expect(txns[0].balance).toBe(600);
-    expect(txns[1].balance).toBe(400);
-    expect(txns[2].balance).toBe(350);
-    expect(snapshot.statement_closing_balance).toBe(350);
-  });
-
-  it("uses closing_balance override when provided", () => {
-    const { snapshot } = buildVendorStatementSnapshot({
-      statement: { ...HEADER, closing_balance: 999 },
-      bills: BILLS, payments: PMTS, creditNotes: CNS, now: NOW,
-    });
-    expect(snapshot.statement_closing_balance).toBe(999);
-    expect(snapshot.total).toBe(999);
-  });
-
-  it("aging buckets 45 days old → 31-60", () => {
-    const { snapshot } = buildVendorStatementSnapshot({
-      statement: HEADER, bills: BILLS, payments: [], creditNotes: [], now: new Date("2026-07-25T00:00:00Z"),
-    });
-    const aging = snapshot.statement_aging as Array<{ label: string; amount: number }>;
-    expect(aging.find(a => a.label === "31-60 Days")!.amount).toBe(300);
-  });
-
-  it("skips fully-paid bills from aging", () => {
+  it("folds the ledger into a running balance", () => {
     const { snapshot } = buildVendorStatementSnapshot({
       statement: HEADER,
-      bills: [{ ...BILLS[0], amount_paid: 500 }],
-      payments: [], creditNotes: [], now: NOW,
+      dataset: dataset(),
+    });
+    const txns = snapshot.statement_transactions as Array<{ balance: number; type: string }>;
+    expect(snapshot.statement_opening_balance).toBe(100);
+    expect(txns.length).toBe(3);
+    // Opening 100 + Bill 500 = 600, − Payment 200 = 400, − Vendor credit 50 = 350
+    expect(txns[0].type).toBe("Bill");
+    expect(txns[0].balance).toBe(600);
+    expect(txns[1].type).toBe("Payment");
+    expect(txns[1].balance).toBe(400);
+    expect(txns[2].type).toBe("Vendor Credit");
+    expect(txns[2].balance).toBe(350);
+    expect(snapshot.statement_closing_balance).toBe(350);
+    expect(snapshot.total).toBe(350);
+  });
+
+  it("closing balance comes from the ledger, never the stored header column", () => {
+    const { snapshot } = buildVendorStatementSnapshot({
+      statement: { ...HEADER, closing_balance: 999, opening_balance: 999 },
+      dataset: dataset(),
+    });
+    expect(snapshot.statement_closing_balance).toBe(350);
+    expect(snapshot.statement_opening_balance).toBe(100);
+  });
+
+  it("projects the canonical aging buckets it is given", () => {
+    const { snapshot } = buildVendorStatementSnapshot({
+      statement: HEADER,
+      dataset: dataset(),
+      aging: { ...EMPTY_AGING_BUCKETS, days30: 300 },
+    });
+    const aging = snapshot.statement_aging as Array<{ label: string; amount: number }>;
+    expect(aging.reduce((s, a) => s + a.amount, 0)).toBe(300);
+  });
+
+  it("defaults aging to zeroes when none is supplied", () => {
+    const { snapshot } = buildVendorStatementSnapshot({
+      statement: HEADER,
+      dataset: dataset(),
     });
     const aging = snapshot.statement_aging as Array<{ amount: number }>;
     expect(aging.reduce((s, a) => s + a.amount, 0)).toBe(0);
   });
 
+  it("discloses other-currency activity instead of summing it", () => {
+    const ds = buildVendorStatementDataset({
+      rows: [
+        ...ROWS,
+        { entry_date: "2026-06-12", doc_type: "bill", doc_id: "b-9", doc_ref: "B-9", debit: 0, credit: 1000, currency: "USD", created_at: "2026-06-12T00:00:00Z" },
+      ],
+      periodStart: HEADER.period_start,
+      periodEnd: HEADER.period_end,
+      currency: "KES",
+    });
+    const { snapshot } = buildVendorStatementSnapshot({ statement: HEADER, dataset: ds });
+    expect(snapshot.statement_closing_balance).toBe(350);
+    expect(String(snapshot.notes)).toContain("USD");
+  });
+
   it("emits deterministic snapshots", () => {
-    const a = buildVendorStatementSnapshot({ statement: HEADER, bills: BILLS, payments: PMTS, creditNotes: CNS, now: NOW });
-    const b = buildVendorStatementSnapshot({ statement: HEADER, bills: BILLS, payments: PMTS, creditNotes: CNS, now: NOW });
+    const a = buildVendorStatementSnapshot({ statement: HEADER, dataset: dataset() });
+    const b = buildVendorStatementSnapshot({ statement: HEADER, dataset: dataset() });
     expect(JSON.stringify(a.snapshot)).toBe(JSON.stringify(b.snapshot));
   });
 
   it("throws on missing identity/period fields", () => {
-    expect(() => buildVendorStatementSnapshot({ statement: { ...HEADER, id: "" }, bills: [], payments: [], creditNotes: [] }))
-      .toThrow(/id required/);
-    expect(() => buildVendorStatementSnapshot({ statement: { ...HEADER, period_start: "" }, bills: [], payments: [], creditNotes: [] }))
-      .toThrow(/period_start/);
+    expect(() =>
+      buildVendorStatementSnapshot({ statement: { ...HEADER, id: "" }, dataset: dataset() }),
+    ).toThrow(/id required/);
+    expect(() =>
+      buildVendorStatementSnapshot({
+        statement: { ...HEADER, period_start: "" },
+        dataset: dataset(),
+      }),
+    ).toThrow(/period_start/);
   });
 });
