@@ -79,6 +79,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
 import { downloadExport } from "@/services/exports";
+import { fetchReceivableCounterparties } from "@/services/finance/openItems";
 
 export default function CustomerStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
