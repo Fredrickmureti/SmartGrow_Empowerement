@@ -15,6 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { StatementScopeLabel } from "@/components/finance/StatementScopeLabel";
+import { AGING_BUCKET_LABELS } from "@/services/finance/aging";
+
 
 interface StatementPreviewProps {
   data: CustomerStatementData;
