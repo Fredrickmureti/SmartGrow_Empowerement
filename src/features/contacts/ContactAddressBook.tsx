@@ -110,7 +110,12 @@ export function ContactAddressBook({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey });
     queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    // The address change is a master-data business event: its projections
+    // (the 360° profile and the hierarchy tree) must follow it.
+    queryClient.invalidateQueries({ queryKey: ["contact-profile", contactId] });
+    queryClient.invalidateQueries({ queryKey: ["contact-hierarchy"] });
   };
+
 
   const failed = (error: unknown) =>
     toast({
