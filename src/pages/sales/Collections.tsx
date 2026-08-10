@@ -219,13 +219,19 @@ export default function Collections() {
                               {isOverdue && (
                                 <Badge variant="destructive" className="gap-1">
                                   <AlertTriangle className="h-3 w-3" />
-                                  60+
+                                  90+
                                 </Badge>
+                              )}
+                              {(c.buckets.total ?? 0) < -0.01 && (
+                                <Badge variant="secondary">In credit</Badge>
                               )}
                             </div>
                             {c.company && (
                               <div className="text-xs text-muted-foreground">{c.company}</div>
                             )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatCurrency(c.buckets.not_due ?? 0)}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatCurrency(c.buckets.current ?? 0)}
@@ -238,6 +244,7 @@ export default function Collections() {
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-destructive">
                             {formatCurrency(c.buckets.days90 ?? 0)}
+
                           </TableCell>
                           <TableCell className="text-right tabular-nums font-semibold">
                             {formatCurrency(c.buckets.total ?? 0)}
