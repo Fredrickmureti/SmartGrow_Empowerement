@@ -179,7 +179,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={8}>
+                    <TableCell colSpan={9}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -187,14 +187,14 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
                   )
                 : contacts.map((c) => {
                     const isOpen = expanded === c.contact_id;
-                    const isOverdue = (c.buckets.days90 ?? 0) > 0;
+                    const isOverdue = (c.buckets.days90 ?? 0) > 0.01;
                     return (
                       <>
                         <TableRow key={c.contact_id} className="hover:bg-muted/40">
@@ -286,7 +286,7 @@ export default function Collections() {
                         </TableRow>
                         {isOpen && (
                           <TableRow key={`${c.contact_id}-detail`} className="bg-muted/20">
-                            <TableCell colSpan={8} className="py-3">
+                            <TableCell colSpan={9} className="py-3">
                               <div className="px-6 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-medium text-sm">Open documents</h4>
