@@ -220,25 +220,6 @@ export default function Bills() {
   } = useBills();
   // Canonical AP figures (posted documents net of allocations/credits).
   const { summary: apSummary, refresh: refreshApSummary } = useApSummary();
-
-  // Server-side paged read model for the list. `useBills` above stays the
-  // write surface (create / confirm / approve / pay); the rows on screen come
-  // from `useBillsPaginated`, which pushes search, status and date filters to
-  // the database so an AP ledger of any size loads one page at a time.
-  const {
-    bills: pagedBills,
-    isLoading,
-    isFetching,
-    pagination,
-    setPage,
-    setPageSize,
-    refetch: refetchBillsPage,
-  } = useBillsPaginated({
-    search: searchQuery,
-    status: statusFilter,
-    dateFrom,
-    dateTo,
-  });
   const navigate = useNavigate();
   const { contacts } = useContacts();
 
@@ -277,6 +258,25 @@ export default function Bills() {
   });
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Server-side paged read model for the list. `useBills` above stays the
+  // write surface (create / confirm / approve / pay); the rows on screen come
+  // from `useBillsPaginated`, which pushes search, status and date filters to
+  // the database so an AP ledger of any size loads one page at a time.
+  const {
+    bills: pagedBills,
+    isLoading,
+    isFetching,
+    pagination,
+    setPage,
+    setPageSize,
+    refetch: refetchBillsPage,
+  } = useBillsPaginated({
+    search: searchQuery,
+    status: statusFilter,
+    dateFrom,
+    dateTo,
+  });
+
   const [previewContactId, setPreviewContactId] = useState<string | null>(null);
   // isSubmitting removed with the inline create dialog.
   const [showImportWizard, setShowImportWizard] = useState(false);
