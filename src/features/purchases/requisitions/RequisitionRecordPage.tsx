@@ -650,6 +650,82 @@ export default function RequisitionRecordPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Short-close dialog — per line, or the whole outstanding balance. */}
+      <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Short-close outstanding demand</DialogTitle>
+            <DialogDescription>
+              Cancels the quantity that was never ordered so the requisition stops
+              chasing procurement. Quantities already on a purchase order keep their
+              own lifecycle and are not affected.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Reason (optional)</Label>
+              <Textarea value={closeReason} onChange={(e) => setCloseReason(e.target.value)} rows={2} />
+            </div>
+            <div className="rounded-lg border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Line</TableHead>
+                    <TableHead className="text-right">Outstanding</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {openLines.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell className="text-sm">{l.description}</TableCell>
+                      <TableCell className="text-right text-sm">{lineOutstanding(l)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(
+                              () => requisitionCloseLine(l.id, closeReason || undefined),
+                              "Line short-closed",
+                            )
+                          }
+                        >
+                          Close line
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCloseOpen(false)}>
+              Done
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busy}
+              onClick={async () => {
+                const ok = await run(
+                  () => requisitionClose(record!.id, closeReason || undefined),
+                  "Requisition short-closed",
+                );
+                if (ok) {
+                  setCloseOpen(false);
+                  setCloseReason("");
+                }
+              }}
+            >
+              Short-close everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
+
   );
 }
