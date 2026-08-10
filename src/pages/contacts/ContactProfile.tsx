@@ -821,14 +821,8 @@ export default function ContactProfile() {
                     <p className="text-sm font-medium">{contact.tax_id}</p>
                   </div>
                 )}
-                {(contact.address_line1 || contact.city || contact.country) && (
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-muted-foreground mb-1">Address</p>
-                    <p className="text-sm">
-                      {formatAddressInline(contact)}
-                    </p>
-                  </div>
-                )}
+                <ContactAddressesSection contactId={contactId} />
+
                 {contact.notes && (
                   <div className="sm:col-span-2">
                     <p className="text-xs text-muted-foreground mb-1">Notes</p>
