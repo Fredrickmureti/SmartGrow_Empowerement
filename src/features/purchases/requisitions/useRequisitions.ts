@@ -62,6 +62,13 @@ export interface RequisitionRow {
   updated_at: string;
   requester?: { id: string; full_name: string | null; email: string | null } | null;
   item_count?: number;
+  /** Lines still carrying demand nobody has ordered (or short-closed) yet. */
+  open_line_count?: number;
+  /** Σ(quantity − ordered − short-closed) across the lines. */
+  outstanding_quantity?: number;
+  /** Σ ordered, Σ received — the procurement/fulfilment progress pair. */
+  ordered_quantity?: number;
+  received_quantity?: number;
 }
 
 type ProfileLite = { id: string; full_name: string | null; email: string | null };
