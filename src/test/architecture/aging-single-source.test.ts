@@ -69,4 +69,14 @@ describe("aging single source of truth", () => {
       expect(readFileSync(join(ROOT, hook), "utf8")).toMatch(/asOf:\s*(input|data)\.period_end/);
     }
   });
+
+  it("unapplied customer credit is read only through the canonical view", () => {
+    // Wave 6: `customer_credit_balances` is the storage table; every read-side
+    // netting must go through `finance_ar_customer_credit` so the floor, the
+    // scoping and the currency handling are decided once.
+    const offenders = files.filter((f) =>
+      /\.from\(\s*"customer_credit_balances"/.test(readFileSync(f, "utf8")),
+    );
+    expect(offenders).toEqual([]);
+  });
 });
