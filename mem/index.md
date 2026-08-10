@@ -34,3 +34,4 @@ Salesperson metrics come only from get_salesperson_performance; attribution inhe
 - [Payment terms](mem://features/payment-terms) — resolve_payment_term cascade, fill-on-insert triggers, snapshot freezing, one-default-per-business index, ADR 0020 document ownership, historical backfill rule, no hardcoded credit periods
 - [Customer statement engine](mem://features/customer-statement-engine) — AR+AP ledger-sourced datasets, mirrored builders, period-end aging, retired raw-table/fallback paths
 - [Contact identity vocabulary](mem://constraints/contact-identity-vocabulary) — contacts.type vs the contact_type enum name, customer_rank, commercial_partner_id family rollup
+- [Salesperson performance](mem://features/salesperson-performance) — server projection + drill-down RPCs, invoice-inherited attribution, POS de-duplication, metric source table
