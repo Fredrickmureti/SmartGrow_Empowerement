@@ -46,7 +46,9 @@ describe("customer statement dataset", () => {
       "supabase/functions/generate-document/index.ts",
       "src/hooks/useCustomerStatements.ts",
     ]) {
-      expect(read(f)).not.toContain("partially_applied");
+      // Prose may name the retired value; code may not use it.
+      expect(read(f)).not.toMatch(/["']partially_applied["']/);
+
     }
   });
 
