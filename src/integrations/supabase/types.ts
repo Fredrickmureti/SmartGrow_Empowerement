@@ -83400,6 +83400,62 @@ export type Database = {
         }
         Returns: Json
       }
+      _rfq_emit: {
+        Args: {
+          _actor: string
+          _event: string
+          _payload: Json
+          _rfq: Database["public"]["Tables"]["rfqs"]["Row"]
+        }
+        Returns: undefined
+      }
+      _rfq_guard: {
+        Args: { _allowed: string[]; _rfq_id: string }
+        Returns: {
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          award_justification: string | null
+          awarded_at: string | null
+          awarded_by: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          converted_at: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          deadline: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
+          expires_at: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          project_id: string | null
+          released_at: string | null
+          released_by: string | null
+          required_by_date: string | null
+          requisition_id: string | null
+          rfq_number: string
+          sourcing_event_id: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rfqs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _rtest: {
         Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
@@ -85725,10 +85781,6 @@ export type Database = {
         }[]
       }
       auto_create_replenishment_po: { Args: never; Returns: Json }
-      award_rfq_atomic: {
-        Args: { _rfq_id: string; _rfq_vendor_id: string }
-        Returns: Json
-      }
       award_sourcing_event_atomic: {
         Args: { p_awards: Json; p_event_id: string; p_justification: string }
         Returns: Json
@@ -87099,10 +87151,6 @@ export type Database = {
           p_to_warehouse_id: string
         }
         Returns: string
-      }
-      convert_rfq_to_po_atomic: {
-        Args: { _rfq_id: string; _rfq_vendor_id: string; _user_id: string }
-        Returns: Json
       }
       convert_so_to_invoice_atomic: {
         Args: { p_so_id: string; p_user_id: string }
@@ -96438,7 +96486,31 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: number
       }
+      rfq_approve: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_award: {
+        Args: { _awards: Json; _justification: string; _rfq_id: string }
+        Returns: Json
+      }
       rfq_belongs_to_user_org: { Args: { _rfq_id: string }; Returns: boolean }
+      rfq_cancel: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
+      rfq_convert_awards_to_po: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_expire_due: { Args: { _business_id: string }; Returns: number }
+      rfq_record_quotation: {
+        Args: {
+          _allow_late?: boolean
+          _header: Json
+          _invitation_id: string
+          _lines: Json
+        }
+        Returns: Json
+      }
+      rfq_release: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_revise: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
+      rfq_submit_for_approval: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_withdraw_quotation: {
+        Args: { _quotation_id: string; _reason?: string }
+        Returns: Json
+      }
       rls_check_feature_access: {
         Args: { p_feature_key: string; p_org_id: string }
         Returns: boolean
