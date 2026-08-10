@@ -9,11 +9,12 @@
  */
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle2, Send, XCircle, Ban, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Send, XCircle, Ban } from "lucide-react";
 
-import { ActionBar, Section, StatusBadge } from "@/design-system";
+import { Section, StatusBadge } from "@/design-system";
 import { RecordScaffold } from "@/design-system/records";
 import type {
+  DocumentAction,
   DocumentRecordView,
   LineItemColumn,
   LineItemRow,
@@ -237,37 +238,50 @@ export default function RequisitionRecordPage() {
     };
   }, [record, loading, error]);
 
-  const headerActions = (
-    <ActionBar>
-      <Button variant="ghost" size="sm" onClick={() => navigate("/purchases/requisitions")}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back
-      </Button>
-      {canSubmit && (
-        <Button
-          size="sm"
-          disabled={busy}
-          onClick={() => run(() => submitRequisition(record!.id), "Requisition submitted")}
-        >
-          <Send className="mr-2 h-4 w-4" /> Submit
-        </Button>
-      )}
-      {canDecide && (
-        <>
-          <Button size="sm" disabled={busy} onClick={() => setApproveOpen(true)}>
-            <CheckCircle2 className="mr-2 h-4 w-4" /> Approve
-          </Button>
-          <Button variant="destructive" size="sm" disabled={busy} onClick={() => setRejectOpen(true)}>
-            <XCircle className="mr-2 h-4 w-4" /> Reject
-          </Button>
-        </>
-      )}
-      {canCancel && (
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => setCancelOpen(true)}>
-          <Ban className="mr-2 h-4 w-4" /> Cancel
-        </Button>
-      )}
-    </ActionBar>
-  );
+  // One action vocabulary, same descriptor shape every other document uses.
+  const actions: DocumentAction[] = record
+    ? [
+        {
+          id: "submit",
+          label: "Submit",
+          icon: Send,
+          group: "core",
+          primary: true,
+          hidden: !canSubmit,
+          disabled: busy,
+          onSelect: () =>
+            void run(() => submitRequisition(record.id), "Requisition submitted"),
+        },
+        {
+          id: "approve",
+          label: "Approve",
+          icon: CheckCircle2,
+          group: "core",
+          primary: true,
+          hidden: !canDecide,
+          disabled: busy,
+          onSelect: () => setApproveOpen(true),
+        },
+        {
+          id: "reject",
+          label: "Reject",
+          icon: XCircle,
+          destructive: true,
+          hidden: !canDecide,
+          disabled: busy,
+          onSelect: () => setRejectOpen(true),
+        },
+        {
+          id: "cancel",
+          label: "Cancel requisition",
+          icon: Ban,
+          destructive: true,
+          hidden: !canCancel,
+          disabled: busy,
+          onSelect: () => setCancelOpen(true),
+        },
+      ]
+    : [];
 
   return (
     <>
@@ -275,7 +289,7 @@ export default function RequisitionRecordPage() {
         {...view}
         id={id}
         newLabel="New requisition"
-        headerActions={record ? headerActions : undefined}
+        actions={actions}
       />
 
       {/* Approve dialog */}
