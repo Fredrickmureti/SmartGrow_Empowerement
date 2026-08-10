@@ -179,10 +179,16 @@ export function RFQAwardDrawer({ rfq, open, onOpenChange }: Props) {
                           {formatCurrency(o.item.unit_price, o.quotation.currency)}
                           {o.quotation.lead_time_days != null &&
                             ` · ${o.quotation.lead_time_days}d`}
+                          {o.item.is_alternate && " · ALTERNATE"}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {offers.some((o) => o.item.is_alternate) && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      One or more bids offer a substitute product — not a like-for-like comparison.
+                    </p>
+                  )}
                   {offers.length === 0 && (
                     <p className="text-xs text-muted-foreground">No supplier quoted this line.</p>
                   )}
