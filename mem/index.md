@@ -10,6 +10,7 @@ Delivery note status/dates/deletion are DB-owned (atomic RPCs only); clients edi
 Every settlement RPC takes a request key derived from the payment intent — never crypto.randomUUID(); one customer money-in dialog only.
 Credit notes: money and the per-invoice-line credit ceiling are resolved server-side from the invoice; clients never write credit_notes/credit_note_items.
 Open items sum `base_residual_amount` (currency-converted), never raw `residual_amount`; aging takes an explicit as-of date.
+Collections overlays (collector, dunning level, promise-to-pay) are server-derived from finance_ar_net_position — never computed in the browser.
 
 
 
