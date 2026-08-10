@@ -198,6 +198,7 @@ export default function Collections() {
             <TableRow>
               <TableHead className="w-8" />
               <TableHead>Customer</TableHead>
+              <TableHead>Collector</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.not_due}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.current}</TableHead>
               <TableHead className="text-right">{AGING_BUCKET_SHORT_LABELS.days30}</TableHead>
@@ -212,7 +213,7 @@ export default function Collections() {
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={9}>
+                    <TableCell colSpan={10}>
                       <Skeleton className="h-8 w-full" />
                     </TableCell>
                   </TableRow>
@@ -220,7 +221,7 @@ export default function Collections() {
               : contacts.length === 0
                 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                         No customers with outstanding balances.
                       </TableCell>
                     </TableRow>
@@ -228,6 +229,7 @@ export default function Collections() {
                 : contacts.map((c) => {
                     const isOpen = expanded === c.contact_id;
                     const isOverdue = (c.buckets.days90 ?? 0) > 0.01;
+                    const assignment = assignments[c.contact_id];
                     return (
                       <>
                         <TableRow key={c.contact_id} className="hover:bg-muted/40">
