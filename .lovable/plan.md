@@ -1,4 +1,4 @@
-# Collections & Receivables Convergence — live status
+# Collections & Receivables Convergence — CLOSED (all planned waves complete)
 
 North star: Collections is a trusted **operational layer over canonical AR
 truth**. Receivables, aging and exposure come from the GL-gated projections
