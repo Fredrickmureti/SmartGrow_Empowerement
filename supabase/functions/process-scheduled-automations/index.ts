@@ -115,6 +115,24 @@ serve(async (req: Request) => {
       console.error("[process-scheduled-automations] Email flush failed:", e);
     }
 
+    // ── Customer statement send-queue flush ──
+    // Bulk statement delivery is durable and retried here, never in a browser
+    // loop; the queue's idempotency key prevents duplicate sends.
+    try {
+      const { flushStatementSendOutbox } = await import(
+        "../_shared/flushStatementSendOutbox.ts"
+      );
+      const stmtResult = await flushStatementSendOutbox(supabaseUrl, supabaseServiceKey);
+      if (stmtResult.processed > 0) {
+        console.log(
+          `[process-scheduled-automations] Statement sends — ${stmtResult.sent}/${stmtResult.processed} sent, ${stmtResult.failed} failed`,
+        );
+      }
+    } catch (e) {
+      console.error("[process-scheduled-automations] Statement send flush failed:", e);
+    }
+
+
     // Fetch all due scheduled automations
     const { data: automations, error: fetchError } = await supabase
       .from("automated_actions")
