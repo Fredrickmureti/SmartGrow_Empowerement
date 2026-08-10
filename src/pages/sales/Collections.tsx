@@ -180,6 +180,15 @@ export default function Collections() {
             </SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant={myAccountsOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setMyAccountsOnly((v) => !v)}
+          title="Show only accounts assigned to me"
+        >
+          <UserCog className="h-4 w-4 mr-1.5" />
+          My accounts
+        </Button>
       </Card>
 
       {/* Table */}
