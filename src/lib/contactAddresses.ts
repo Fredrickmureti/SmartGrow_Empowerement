@@ -78,6 +78,32 @@ export function isEmptyAddress(
   return formatAddress(address).length === 0;
 }
 
+/**
+ * THE party-scope rule (ADR-0038 / ADR-0080).
+ *
+ * A `contacts` row carrying `child_address_type` is an ADDRESS of a party,
+ * not a party. It must never appear in a contacts list, a customer picker,
+ * a vendor picker, a ledger party list, or any other surface where the user
+ * is choosing a business relationship — it only appears inside its owning
+ * party's address book and in the ship-to / bill-to pickers.
+ *
+ * Every party read expresses that rule through this one helper:
+ *
+ *   applyPartyScope(supabase.from("contacts").select("..."))
+ *     .eq("organization_id", orgId)
+ *
+ * Do not hand-roll `.is("child_address_type", null)` at call sites, and do
+ * not omit it — `src/test/architecture/contact-party-scope.test.ts` fails
+ * the build either way.
+ */
+export function applyPartyScope<Q extends { is(column: string, value: null): Q }>(
+  query: Q,
+): Q {
+  return query.is("child_address_type", null);
+}
+
+
+
 function toPartyAddress(row: any, isParty: boolean): PartyAddress {
   return {
     id: row.id,

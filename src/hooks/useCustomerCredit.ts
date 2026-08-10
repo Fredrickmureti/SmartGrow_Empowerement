@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "./useBusinesses";
 import { useCustomerOutstandingBalance } from "./useCustomerOutstandingBalance";
+import { applyPartyScope } from "@/lib/contactAddresses";
 
 export interface CustomerCreditInfo {
   customerId: string;
@@ -130,9 +131,11 @@ export function useCustomersNearCreditLimit(threshold: number = 80) {
       if (!currentOrg?.id || !currentBusiness?.id) return [];
 
       // Get all customers with credit limits — scoped to current business
-      const { data: contacts, error: contactsError } = await supabase
-        .from("contacts")
-        .select("id, name, credit_limit, credit_hold")
+      const { data: contacts, error: contactsError } = await applyPartyScope(
+        supabase
+          .from("contacts")
+          .select("id, name, credit_limit, credit_hold"),
+      )
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .not("credit_limit", "is", null)

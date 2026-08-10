@@ -18,6 +18,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import { toast } from "sonner";
 import {
   PageHeader,
@@ -183,9 +184,9 @@ export default function BillingBoard() {
     queryKey: ["wms-billing-contact-options", currentBusiness?.id],
     enabled: !!currentBusiness?.id && clientOpen,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id,name")
+      const { data, error } = await applyPartyScope(
+        supabase.from("contacts").select("id,name"),
+      )
         .eq("business_id", currentBusiness!.id)
         .order("name")
         .limit(500);

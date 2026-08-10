@@ -9209,7 +9209,7 @@ export type Database = {
           tax_exemption_expiry: string | null
           tax_exemption_number: string | null
           tax_id: string | null
-          type: Database["public"]["Enums"]["contact_type"]
+          type: Database["public"]["Enums"]["contact_type"] | null
           updated_at: string
           withholding_tax_rate: number | null
         }
@@ -9257,7 +9257,7 @@ export type Database = {
           tax_exemption_expiry?: string | null
           tax_exemption_number?: string | null
           tax_id?: string | null
-          type?: Database["public"]["Enums"]["contact_type"]
+          type?: Database["public"]["Enums"]["contact_type"] | null
           updated_at?: string
           withholding_tax_rate?: number | null
         }
@@ -9305,7 +9305,7 @@ export type Database = {
           tax_exemption_expiry?: string | null
           tax_exemption_number?: string | null
           tax_id?: string | null
-          type?: Database["public"]["Enums"]["contact_type"]
+          type?: Database["public"]["Enums"]["contact_type"] | null
           updated_at?: string
           withholding_tax_rate?: number | null
         }
@@ -96958,7 +96958,7 @@ export type Database = {
           tax_exemption_expiry: string | null
           tax_exemption_number: string | null
           tax_id: string | null
-          type: Database["public"]["Enums"]["contact_type"]
+          type: Database["public"]["Enums"]["contact_type"] | null
           updated_at: string
           withholding_tax_rate: number | null
         }

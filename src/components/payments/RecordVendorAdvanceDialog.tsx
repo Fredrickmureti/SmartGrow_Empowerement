@@ -29,6 +29,7 @@ import {
 import { Loader2, Banknote, ArrowDown } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import { useBills } from "@/hooks/useBills";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -100,9 +101,9 @@ export function RecordVendorAdvanceDialog({
     queryKey: ["advance-vendor-options", currentOrg?.id, currentBusiness?.id],
     queryFn: async () => {
       if (!currentOrg?.id) return [];
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, name, type")
+      const { data, error } = await applyPartyScope(
+        supabase.from("contacts").select("id, name, type"),
+      )
         .eq("organization_id", currentOrg.id)
         .in("type", ["supplier", "both"])
         .order("name");

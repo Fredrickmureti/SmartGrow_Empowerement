@@ -5,6 +5,7 @@ import { useBusinesses } from "./useBusinesses";
 import { useToast } from "./use-toast";
 import { useAuditLog } from "./useAuditLog";
 import { useQueryClient } from "@tanstack/react-query";
+import { applyPartyScope } from "@/lib/contactAddresses";
 
 export interface Contact {
   id: string;
@@ -70,9 +71,11 @@ export function useContactsPaginated(options: UseContactsPaginatedOptions = {}) 
     queryFn: async ({ from, to }) => {
       if (!currentOrg || !currentBusiness) return { data: [], count: 0 };
 
-      let query = supabase
-        .from("contacts")
-        .select("*, parent:contacts!parent_contact_id(name)", { count: "exact" })
+      let query = applyPartyScope(
+        supabase
+          .from("contacts")
+          .select("*, parent:contacts!parent_contact_id(name)", { count: "exact" }),
+      )
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .eq("is_sample_data", false)

@@ -7,6 +7,7 @@ import { useAuditLog } from "./useAuditLog";
 import { usePermissions } from "./usePermissions";
 import { triggerAutomation, getChangedFields } from "@/lib/automations/triggerAutomation";
 import { normalizeError } from "@/services/resilience";
+import { applyPartyScope } from "@/lib/contactAddresses";
 
 export type ContactChildAddressType = "contact" | "invoice" | "delivery" | "other";
 
@@ -80,9 +81,11 @@ export function useContacts() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("*, parent:contacts!parent_contact_id(name)")
+      const { data, error } = await applyPartyScope(
+        supabase
+          .from("contacts")
+          .select("*, parent:contacts!parent_contact_id(name)"),
+      )
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .eq("is_sample_data", false)

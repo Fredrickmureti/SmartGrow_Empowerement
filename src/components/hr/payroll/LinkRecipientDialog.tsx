@@ -43,6 +43,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { applyPartyScope } from "@/lib/contactAddresses";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import {
@@ -216,9 +217,11 @@ export function LinkRecipientDialog({
     enabled: open && !!orgId,
     queryKey: ["link-recipient-contacts", orgId, search],
     queryFn: async () => {
-      let q = (supabase as any)
-        .from("contacts")
-        .select("id,name,email,phone,country,type,customer_rank,supplier_rank")
+      let q = applyPartyScope(
+        (supabase as any)
+          .from("contacts")
+          .select("id,name,email,phone,country,type,customer_rank,supplier_rank"),
+      )
         .eq("organization_id", orgId!)
         .order("name", { ascending: true })
         .limit(100);
