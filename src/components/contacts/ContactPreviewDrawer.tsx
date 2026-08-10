@@ -458,11 +458,12 @@ export function ContactPreviewDrawer({
                         </h4>
                         <div className="flex flex-col gap-1">
                           {([
-                            { label: "Current", value: aging.current },
-                            { label: "1-30 days", value: aging.days1_30 },
+                            { label: "Not yet due", value: aging.current },
+                            { label: "0-30 days", value: aging.days1_30 },
                             { label: "31-60 days", value: aging.days31_60 },
                             { label: "61-90 days", value: aging.days61_90 },
                             { label: "90+ days", value: aging.days90plus },
+
                           ] as const).map(({ label, value }) => (
                             <div
                               key={label}
