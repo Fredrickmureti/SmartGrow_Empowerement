@@ -56428,10 +56428,12 @@ export type Database = {
           decline_reason: string | null
           declined_at: string | null
           delivered_at: string | null
+          delivery_attempts: number
           delivery_error: string | null
           delivery_state: string
           id: string
           invitation_state: string
+          last_attempt_at: string | null
           last_reminder_at: string | null
           reminder_count: number
           requested_at: string | null
@@ -56450,10 +56452,12 @@ export type Database = {
           decline_reason?: string | null
           declined_at?: string | null
           delivered_at?: string | null
+          delivery_attempts?: number
           delivery_error?: string | null
           delivery_state?: string
           id?: string
           invitation_state?: string
+          last_attempt_at?: string | null
           last_reminder_at?: string | null
           reminder_count?: number
           requested_at?: string | null
@@ -56472,10 +56476,12 @@ export type Database = {
           decline_reason?: string | null
           declined_at?: string | null
           delivered_at?: string | null
+          delivery_attempts?: number
           delivery_error?: string | null
           delivery_state?: string
           id?: string
           invitation_state?: string
+          last_attempt_at?: string | null
           last_reminder_at?: string | null
           reminder_count?: number
           requested_at?: string | null
@@ -96089,6 +96095,25 @@ export type Database = {
       rfq_cancel: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
       rfq_convert_awards_to_po: { Args: { _rfq_id: string }; Returns: Json }
       rfq_expire_due: { Args: { _business_id: string }; Returns: number }
+      rfq_expire_due_all: { Args: never; Returns: number }
+      rfq_invitation_record_delivery: {
+        Args: { _error?: string; _invitation_id: string; _state: string }
+        Returns: undefined
+      }
+      rfq_invitation_resend: { Args: { _invitation_id: string }; Returns: Json }
+      rfq_invitations_claim_for_delivery: {
+        Args: { _limit?: number; _max_attempts?: number; _rfq_id: string }
+        Returns: {
+          attempt: number
+          business_id: string
+          contact_email: string
+          invitation_id: string
+          organization_id: string
+          response_deadline: string
+          rfq_number: string
+          supplier_id: string
+        }[]
+      }
       rfq_record_quotation: {
         Args: {
           _allow_late?: boolean
