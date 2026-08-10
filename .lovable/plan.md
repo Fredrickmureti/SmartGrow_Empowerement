@@ -40,7 +40,16 @@ Added, based on the above:
 
 ## Phase 3 — Execution order
 
+### Step 0 — fix the build break the previous engineer left (do first)
+`src/hooks/useBills.ts` logs `action: "submitted"` in two places, but the
+`AuditAction` union in `src/hooks/useAuditLog.ts` has no `"submitted"` member —
+TS2322 at useBills.ts:381 and :445. The `audit_logs.action` constraint is a
+lowercase-slug pattern, so the value is already legal server-side; only the
+client union needs the member, next to `"approved"` / `"rejected"`. This is why
+the Step 2 submit path has never run in a passing build.
+
 ### Step 3 — one matcher, automatically run, visible (active)
+
 1. Extend `match_bill_atomic` if needed so it fully supersedes
    `match_bill_to_grn` (line linkage into `bill_grn_matches`, landed cost).
 2. Call it automatically from `submit_bill_atomic` (and on GRN linkage change),
