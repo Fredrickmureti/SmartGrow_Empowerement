@@ -83,6 +83,10 @@ import {
   Ban,
   History,
   RotateCcw,
+  Send,
+  ThumbsUp,
+  Undo2,
+  BookCheck,
 } from "lucide-react";
 import { ImportWizard } from "@/components/common/ImportWizard";
 import { FieldDefinition } from "@/lib/importUtils";
