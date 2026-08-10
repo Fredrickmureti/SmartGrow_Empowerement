@@ -42,7 +42,7 @@ import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
 import { useInvoicesPaginated, type Invoice } from "@/hooks/useInvoicesPaginated";
 import { isInvoicePayable } from "@/services/finance/invoicePayability";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeError } from "@/lib/errors";
+import { normalizeError } from "@/services/resilience";
 
 interface Options {
   /** Re-fetch the record after a mutation succeeds. */
