@@ -78,6 +78,7 @@ function filterByBucket(c: AgingContactDetail, bucket: Bucket): boolean {
 export default function Collections() {
   const { data, isLoading } = useAgingReport({ reportType: "ar" });
   const { data: delivery } = useStatementDeliveryStatus();
+  const { data: currencyPositions } = useNetPositionByCurrency();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
