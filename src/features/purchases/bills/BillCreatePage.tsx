@@ -355,8 +355,19 @@ export default function BillCreatePage() {
               onChange={(event) =>
                 setFormData({ ...formData, vendor_invoice_number: event.target.value })
               }
+              aria-invalid={duplicates.length > 0}
             />
+            {duplicates.length > 0 && (
+              <p className="text-xs text-destructive" role="alert">
+                Possible duplicate: this supplier already has{" "}
+                {duplicates
+                  .map((d) => `${d.bill_number} (${d.bill_date}, ${d.status})`)
+                  .join(", ")}
+                . Saving may be blocked by company policy.
+              </p>
+            )}
           </div>
+
           <div className="space-y-2">
             <Label>Bill date</Label>
             <Input
