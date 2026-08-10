@@ -91,6 +91,11 @@ export default function BillEditPage() {
   });
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [primed, setPrimed] = useState(false);
+  /**
+   * Friendly duplicate warning on (supplier, vendor invoice #), excluding the
+   * bill being edited. The DB trigger is still the hard guarantee.
+   */
+  const [duplicates, setDuplicates] = useState<DuplicateVendorInvoice[]>([]);
   /** Vendor tier of the purchase account ladder (ADR 0122). */
   const [vendorExpenseAccountId, setVendorExpenseAccountId] = useState<string | null>(null);
 
