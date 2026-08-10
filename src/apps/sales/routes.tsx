@@ -51,6 +51,7 @@ const SalesReturnCreatePage = lazy(() => import("@/features/sales/returns/SalesR
 const CustomerStatements = lazy(() => import("@/pages/CustomerStatements"));
 const SalespersonPerformance = lazy(() => import("@/pages/sales/SalespersonPerformance"));
 const CustomerLedger = lazy(() => import("@/pages/sales/CustomerLedger"));
+const CustomerLedgerIndex = lazy(() => import("@/pages/sales/CustomerLedgerIndex"));
 const Collections = lazy(() => import("@/pages/sales/Collections"));
 
 // Wrapper for lazy routes
