@@ -759,11 +759,11 @@ export default function Bills() {
         <div className="stats-grid grid-cols-2 sm:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Bills</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Bills on this page</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(totals.total, baseCurrency)}</div>
-              <p className="text-xs text-muted-foreground">{filteredBills.length} bills</p>
+              <p className="text-xs text-muted-foreground">{filteredBills.length} of {pagination.totalCount} bills</p>
             </CardContent>
           </Card>
           <Card>
@@ -1033,6 +1033,12 @@ export default function Bills() {
               )}
             </TableBody>
           </Table>
+          <DataTablePagination
+            pagination={pagination}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            isLoading={isFetching}
+          />
         </div>}
       </div>
 
