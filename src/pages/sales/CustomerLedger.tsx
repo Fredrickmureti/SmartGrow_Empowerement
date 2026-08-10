@@ -185,6 +185,18 @@ export default function CustomerLedgerPage() {
         </div>
       </Card>
 
+      {isMixedCurrency && (
+        <Card className="p-3 flex items-start gap-2 border-amber-500/50 bg-amber-500/10">
+          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-700 dark:text-amber-400" />
+          <div className="text-sm">
+            <span className="font-medium">Mixed-currency ledger.</span>{" "}
+            Entries are recorded in {currencies.join(", ")}. The running balance
+            adds transaction-currency amounts and is not a valid total — filter
+            to a single currency, or use the base-currency AR reports.
+          </div>
+        </Card>
+      )}
+
       <Card className="overflow-hidden">
         {isLoading ? (
           <div className="p-6 space-y-2">
