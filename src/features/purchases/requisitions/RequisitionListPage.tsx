@@ -266,9 +266,12 @@ export default function RequisitionListPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Need by</TableHead>
                   <TableHead className="text-right">Lines</TableHead>
+                  <TableHead className="text-right">Open lines</TableHead>
+                  <TableHead className="text-right">Outstanding qty</TableHead>
                   <TableHead className="text-right">Estimated</TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {filtered.map((r) => (
                   <TableRow
