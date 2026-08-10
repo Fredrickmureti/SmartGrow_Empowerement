@@ -25,17 +25,21 @@ export function ReceivablesWidget({ receivables, payables, displayCurrency }: Re
   const { formatCurrency } = useCurrency();
   const navigate = useNavigate();
 
+  // Canonical aging vocabulary — labels mirror the SQL bucket boundaries.
   const agingData = [
-    { name: "Current", receivables: receivables.current, payables: payables.current },
-    { name: "1-30 days", receivables: receivables.overdue30, payables: payables.overdue30 },
-    { name: "31-60 days", receivables: receivables.overdue60, payables: payables.overdue60 },
-    { name: "60+ days", receivables: receivables.overdue90, payables: payables.overdue90 },
+    { name: "Not yet due", receivables: receivables.notDue, payables: payables.notDue },
+    { name: "0-30 days", receivables: receivables.current, payables: payables.current },
+    { name: "31-60 days", receivables: receivables.days30, payables: payables.days30 },
+    { name: "61-90 days", receivables: receivables.days60, payables: payables.days60 },
+    { name: "90+ days", receivables: receivables.days90, payables: payables.days90 },
   ];
 
-  const totalOverdue = receivables.overdue30 + receivables.overdue60 + receivables.overdue90;
+  // Overdue = everything past due, i.e. every bucket except `notDue`.
+  const totalOverdue = receivables.totalOverdue;
   const overduePercentage = receivables.totalReceivables > 0 
     ? (totalOverdue / receivables.totalReceivables) * 100 
     : 0;
+
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
