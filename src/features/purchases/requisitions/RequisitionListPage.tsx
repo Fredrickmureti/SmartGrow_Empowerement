@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useRequisitions } from "./useRequisitions";
+import { useRequisitions, type RequisitionRow } from "./useRequisitions";
 
 const STATUS_TONE: Record<
   string,
