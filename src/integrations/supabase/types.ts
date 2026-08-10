@@ -8043,9 +8043,11 @@ export type Database = {
       businesses: {
         Row: {
           address: string | null
+          allow_duplicate_vendor_invoice_numbers: boolean
           archived_at: string | null
           base_currency: string
           bill_prefix: string | null
+          block_bill_approval_on_match_exception: boolean
           business_type: string | null
           city: string | null
           cost_model: string
@@ -8082,6 +8084,7 @@ export type Database = {
           receipt_settings: Json
           receipt_theme: Json | null
           registration_number: string | null
+          require_bill_approval: boolean
           sales_return_prefix: string | null
           sample_data_prompt_dismissed: boolean | null
           setup_wizard_completed: boolean | null
@@ -8097,9 +8100,11 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          allow_duplicate_vendor_invoice_numbers?: boolean
           archived_at?: string | null
           base_currency?: string
           bill_prefix?: string | null
+          block_bill_approval_on_match_exception?: boolean
           business_type?: string | null
           city?: string | null
           cost_model?: string
@@ -8136,6 +8141,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
+          require_bill_approval?: boolean
           sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
@@ -8151,9 +8157,11 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          allow_duplicate_vendor_invoice_numbers?: boolean
           archived_at?: string | null
           base_currency?: string
           bill_prefix?: string | null
+          block_bill_approval_on_match_exception?: boolean
           business_type?: string | null
           city?: string | null
           cost_model?: string
@@ -8190,6 +8198,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
+          require_bill_approval?: boolean
           sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
@@ -83737,6 +83746,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_bill_atomic: {
+        Args: { _actor: string; _bill_id: string }
+        Returns: Json
+      }
       approve_bill_payment: {
         Args: { p_payment_id: string }
         Returns: {
@@ -88485,6 +88498,21 @@ export type Database = {
           entry_business_id: string
           entry_id: string
           line_id: string
+        }[]
+      }
+      find_duplicate_vendor_invoice: {
+        Args: {
+          _exclude_bill_id?: string
+          _org_id: string
+          _vendor_id: string
+          _vendor_invoice_number: string
+        }
+        Returns: {
+          bill_date: string
+          bill_id: string
+          bill_number: string
+          status: string
+          total: number
         }[]
       }
       find_invoice_contact_business_mismatches: {
@@ -94367,6 +94395,10 @@ export type Database = {
         Args: { p_notes?: string; p_supplier_id: string }
         Returns: Json
       }
+      reject_bill_atomic: {
+        Args: { _actor: string; _bill_id: string; _reason: string }
+        Returns: Json
+      }
       reject_purchase_order: {
         Args: { p_po_id: string; p_reason: string }
         Returns: {
@@ -96092,6 +96124,10 @@ export type Database = {
           p_provider_id: string
         }
         Returns: string
+      }
+      submit_bill_atomic: {
+        Args: { _actor: string; _bill_id: string }
+        Returns: Json
       }
       submit_document_intent: {
         Args: {
@@ -99727,6 +99763,8 @@ export type Database = {
         | "paid"
         | "overdue"
         | "void"
+        | "submitted"
+        | "approved"
       bulk_operation_kind:
         | "import_employees"
         | "export_employees"
@@ -100871,7 +100909,16 @@ export const Constants = {
         "price_variance",
         "no_po",
       ],
-      bill_status: ["draft", "received", "partial", "paid", "overdue", "void"],
+      bill_status: [
+        "draft",
+        "received",
+        "partial",
+        "paid",
+        "overdue",
+        "void",
+        "submitted",
+        "approved",
+      ],
       bulk_operation_kind: [
         "import_employees",
         "export_employees",
