@@ -64,6 +64,8 @@ export interface RFQ {
   converted_at: string | null;
   submitted_by: string | null;
   approval_request_id: string | null;
+  /** Set while the award itself is gated by the canonical approval engine. */
+  award_approval_request_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

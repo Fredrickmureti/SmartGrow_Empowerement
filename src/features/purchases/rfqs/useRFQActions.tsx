@@ -47,6 +47,14 @@ export function useRFQActions(
     if (!rfq) return [];
     const status = rfq.status as string;
     const gated = Boolean((rfq as { approval_request_id?: string | null }).approval_request_id);
+    /**
+     * The award has its own governance gate (`rfq.award`). While it is open,
+     * `rfq_convert_awards_to_po` refuses — so we offer the decision surface
+     * instead of an action the server will reject.
+     */
+    const awardGated = Boolean(
+      (rfq as { award_approval_request_id?: string | null }).award_approval_request_id,
+    );
     const isDraft = status === "draft";
     const isLive = ["sent", "responses_received", "under_evaluation"].includes(status);
 
@@ -119,12 +127,15 @@ export function useRFQActions(
       },
       {
         id: "convert",
-        label: "Convert awards to POs",
+        label: awardGated ? "Award awaiting approval" : "Convert awards to POs",
         icon: FileText,
         group: "core",
-        primary: status === "awarded",
-        hidden: status !== "awarded",
-        onSelect: () => convertToPurchaseOrders(rfq.id),
+        primary: status === "awarded" || status === "partially_awarded",
+        hidden: !["awarded", "partially_awarded"].includes(status),
+        onSelect: () =>
+          awardGated
+            ? navigate("/settings/workspace?tab=governance")
+            : convertToPurchaseOrders(rfq.id),
       },
       {
         id: "revise",
