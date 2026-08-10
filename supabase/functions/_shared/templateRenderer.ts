@@ -165,13 +165,17 @@ export interface PaymentMethodData {
 
 export interface StatementTransaction {
   date: string;
-  type: string; // 'Invoice' | 'Payment' | 'Credit Note'
+  type: string; // 'Invoice' | 'Payment' | 'Credit Note' | 'Refund' | …
   reference: string;
   description: string;
   charges: number;
   credits: number;
   balance: number;
+  /** Drill-down anchors from the AR subledger. Not rendered. */
+  source_id?: string;
+  source_type?: string;
 }
+
 
 export interface StatementAgingBucket {
   label: string;
