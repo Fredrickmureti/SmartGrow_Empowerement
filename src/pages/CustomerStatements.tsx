@@ -79,6 +79,7 @@ import { ClickableEntity } from "@/components/common/ClickableEntity";
 import { ContactPreviewDrawer } from "@/components/contacts/ContactPreviewDrawer";
 import { normalizeError } from "@/services/resilience";
 import { downloadExport } from "@/services/exports";
+import { fetchReceivableCounterparties } from "@/services/finance/openItems";
 
 export default function CustomerStatements() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -348,6 +349,16 @@ export default function CustomerStatements() {
   };
 
   // Bulk generation handler
+  //
+  // Cohort: `fetchReceivableCounterparties` (canonical `finance_ar_net_position`).
+  // Never `invoices.status` — that both invents debt for unposted documents and
+  // hides receivables that originate from manual journals on AR control.
+  //
+  // Delivery: statements are enqueued into `customer_statement_send_jobs` and
+  // drained by the scheduled worker. The browser never sends the emails, so
+  // closing the tab cannot truncate a run, every attempt is retried with
+  // backoff, and the per-(statement, recipient) idempotency key makes a re-run
+  // a no-op instead of a second email.
   const handleBulkGenerate = async (sendEmail = false) => {
     if (isBulkGenerating) return;
     // Statements summarize a Company's books — refuse to bulk-generate
@@ -356,69 +367,68 @@ export default function CustomerStatements() {
       toast.error("Select a Company first to generate statements.");
       return;
     }
+    if (!currentOrg?.id) return;
     setIsBulkGenerating(true);
 
     try {
-      // Find customers with outstanding invoices in THIS company only.
-      const { data: outstandingInvoices } = await supabase
-        .from("invoices")
-        .select("contact_id")
-        .eq("organization_id", currentOrg?.id)
-        .eq("business_id", currentBusiness.id)
-        .in("status", ["sent", "partial", "overdue"])
-        .not("contact_id", "is", null);
-      
-      if (!outstandingInvoices || outstandingInvoices.length === 0) {
+      const cohort = await fetchReceivableCounterparties(
+        currentOrg.id,
+        currentBusiness.id,
+      );
+
+      if (cohort.length === 0) {
         toast.info("No customers with outstanding balances found");
         setIsBulkGenerating(false);
         return;
       }
-      
-      const uniqueContactIds = [...new Set(outstandingInvoices.map(i => i.contact_id))];
-      setBulkProgress({ current: 0, total: uniqueContactIds.length });
-      
+
+      setBulkProgress({ current: 0, total: cohort.length });
+
       let successCount = 0;
-      let emailCount = 0;
-      for (let i = 0; i < uniqueContactIds.length; i++) {
+      let queuedCount = 0;
+      let skippedNoEmail = 0;
+      for (let i = 0; i < cohort.length; i++) {
+        const target = cohort[i];
         try {
           const data = await generateStatementData({
-            contact_id: uniqueContactIds[i] as string,
+            contact_id: target.contactId,
             period_start: periodStart,
             period_end: periodEnd,
           });
           const saved = await saveStatement.mutateAsync(data);
+          successCount++;
 
-          // Send email if requested and customer has email
-          if (sendEmail && data.contact.email) {
-            try {
-              const statementId = (saved as any)?.id;
-              if (statementId) {
-                await supabase.functions.invoke("send-document-email", {
-                  body: {
-                    documentType: "customer_statement",
-                    documentId: statementId,
-                    to: data.contact.email,
-                    subject: `Account Statement - ${format(new Date(periodStart), "MMM yyyy")} to ${format(new Date(periodEnd), "MMM yyyy")}`,
-                    body: `Dear ${data.contact.name},\n\nPlease find attached your account statement for the period ${format(new Date(periodStart), "MMMM d, yyyy")} to ${format(new Date(periodEnd), "MMMM d, yyyy")}.\n\nClosing balance: ${formatCurrency(data.closingBalance)}\n\nPlease do not hesitate to contact us if you have any questions.\n\nBest regards`,
-                  },
-                });
-                emailCount++;
-              }
-            } catch (emailErr) {
-              console.error(`Email failed for ${data.contact.name}:`, emailErr);
+          if (sendEmail) {
+            const statementId = (saved as any)?.id;
+            if (!data.contact.email) {
+              skippedNoEmail++;
+            } else if (statementId) {
+              const { error: queueError } = await supabase.rpc(
+                "enqueue_customer_statement_send" as any,
+                {
+                  _statement_id: statementId,
+                  _recipient_email: data.contact.email,
+                  _subject: `Account Statement - ${format(new Date(periodStart), "MMM yyyy")} to ${format(new Date(periodEnd), "MMM yyyy")}`,
+                  _message: `Dear ${data.contact.name},\n\nPlease find attached your account statement for the period ${format(new Date(periodStart), "MMMM d, yyyy")} to ${format(new Date(periodEnd), "MMMM d, yyyy")}.\n\nClosing balance: ${formatCurrency(data.closingBalance)}\n\nPlease do not hesitate to contact us if you have any questions.\n\nBest regards`,
+                } as any,
+              );
+              if (queueError) throw queueError;
+              queuedCount++;
             }
           }
-          successCount++;
         } catch (err) {
-          console.error(`Failed for contact ${uniqueContactIds[i]}:`, err);
+          console.error(`Failed for contact ${target.contactId}:`, err);
         }
-        setBulkProgress({ current: i + 1, total: uniqueContactIds.length });
+        setBulkProgress({ current: i + 1, total: cohort.length });
       }
-      
+
       if (sendEmail) {
-        toast.success(`Generated ${successCount} statements, emailed ${emailCount}`);
+        toast.success(
+          `Generated ${successCount} statements, queued ${queuedCount} for delivery` +
+            (skippedNoEmail > 0 ? ` (${skippedNoEmail} without an email address)` : ""),
+        );
       } else {
-        toast.success(`Generated ${successCount} of ${uniqueContactIds.length} statements`);
+        toast.success(`Generated ${successCount} of ${cohort.length} statements`);
       }
     } catch (error: any) {
       toast.error("Bulk generation failed: " + (normalizeError(error).message || "Unknown error"));

@@ -307,3 +307,58 @@ export async function fetchUnappliedCustomerCredit(
   );
 }
 
+
+export interface ReceivableCounterparty {
+  contactId: string;
+  contactName: string;
+  netAmount: number;
+  maxDaysOverdue: number;
+}
+
+/**
+ * The set of customers who actually owe money right now.
+ *
+ * ADR: this is the ONLY sanctioned cohort for statement runs, dunning sweeps
+ * and collection work lists. It reads `finance_ar_net_position`, so the cohort
+ * is GL-gated, nets unapplied customer credit, and includes receivables that
+ * originate from manual journals on the AR control account. A cohort derived
+ * from `invoices.status` is wrong in both directions: it invents debt for
+ * unposted documents and hides debt that never came from an invoice.
+ */
+export async function fetchReceivableCounterparties(
+  orgId: string,
+  businessId?: string | null,
+  branchId?: string | null,
+): Promise<ReceivableCounterparty[]> {
+  let q = supabase
+    .from("finance_ar_net_position" as any)
+    .select("contact_id, contact_name, net_amount, max_days_overdue")
+    .eq("organization_id", orgId)
+    .gt("net_amount", 0.01)
+    .order("net_amount", { ascending: false });
+  if (businessId) q = q.eq("business_id", businessId);
+  if (branchId) q = q.eq("branch_id", branchId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  const byContact = new Map<string, ReceivableCounterparty>();
+  for (const r of (data || []) as any[]) {
+    if (!r.contact_id) continue;
+    const existing = byContact.get(r.contact_id);
+    const netAmount = Number(r.net_amount) || 0;
+    const maxDaysOverdue = Number(r.max_days_overdue) || 0;
+    if (existing) {
+      existing.netAmount += netAmount;
+      existing.maxDaysOverdue = Math.max(existing.maxDaysOverdue, maxDaysOverdue);
+    } else {
+      byContact.set(r.contact_id, {
+        contactId: r.contact_id,
+        contactName: r.contact_name || "Unknown",
+        netAmount,
+        maxDaysOverdue,
+      });
+    }
+  }
+  return Array.from(byContact.values()).sort((a, b) => b.netAmount - a.netAmount);
+}

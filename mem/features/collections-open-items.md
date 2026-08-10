@@ -37,5 +37,14 @@ consumer. `finance_ar_net_position` is the per-counterparty net AR position
 (base-currency buckets as of today, less credit, with `max_days_overdue`) —
 top-exposure and collections work lists read it instead of bucketing in JS.
 
+## Statement runs & bulk delivery
+The statement/dunning cohort is `fetchReceivableCounterparties`
+(`finance_ar_net_position`) — never a query over `invoices.status`. Bulk sends
+are enqueued into `customer_statement_send_jobs` (unique idempotency key per
+statement+recipient) and drained server-side by `flushStatementSendOutbox` from
+`process-scheduled-automations`; never loop `send-document-email` in the
+browser. Delivery outcome per customer is read via `useStatementDeliveryStatus`.
+
 ## Guards
-`src/test/architecture/aging-single-source.test.ts`
+`src/test/architecture/aging-single-source.test.ts`,
+`src/test/architecture/statement-delivery-durability.test.ts`

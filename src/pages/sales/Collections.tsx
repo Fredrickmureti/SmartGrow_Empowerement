@@ -37,12 +37,19 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  Clock,
   Mail,
+  MailCheck,
+  MailX,
   Receipt,
   Search,
   Wallet,
 } from "lucide-react";
 import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
+import {
+  useStatementDeliveryStatus,
+  type StatementDelivery,
+} from "@/hooks/useStatementDeliveryStatus";
 
 import {
   AGING_BUCKET_LABELS,
@@ -69,6 +76,7 @@ function filterByBucket(c: AgingContactDetail, bucket: Bucket): boolean {
 
 export default function Collections() {
   const { data, isLoading } = useAgingReport({ reportType: "ar" });
+  const { data: delivery } = useStatementDeliveryStatus();
   const { formatCurrency } = useCurrency();
   const [bucket, setBucket] = useState<Bucket>("all");
   const [search, setSearch] = useState("");
@@ -225,6 +233,7 @@ export default function Collections() {
                               {(c.buckets.total ?? 0) < -0.01 && (
                                 <Badge variant="secondary">In credit</Badge>
                               )}
+                              <DeliveryBadge delivery={delivery?.[c.contact_id]} />
                             </div>
                             {c.company && (
                               <div className="text-xs text-muted-foreground">{c.company}</div>
@@ -377,5 +386,40 @@ function KpiCard({
         {value}
       </div>
     </Card>
+  );
+}
+
+/**
+ * Last statement/reminder delivery outcome for this customer. A collector must
+ * be able to see "reminder bounced" without leaving the page — a chase that was
+ * never delivered is not a chase.
+ */
+function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
+  if (!delivery) return null;
+  if (delivery.state === "sent") {
+    return (
+      <Badge variant="outline" className="gap-1" title={`Statement sent ${delivery.at ?? ""}`}>
+        <MailCheck className="h-3 w-3" />
+        Sent
+      </Badge>
+    );
+  }
+  if (delivery.state === "failed") {
+    return (
+      <Badge
+        variant="destructive"
+        className="gap-1"
+        title={delivery.lastError ?? "Delivery failed"}
+      >
+        <MailX className="h-3 w-3" />
+        Send failed
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="gap-1" title="Queued for delivery">
+      <Clock className="h-3 w-3" />
+      {delivery.state === "sending" ? "Sending" : "Queued"}
+    </Badge>
   );
 }
