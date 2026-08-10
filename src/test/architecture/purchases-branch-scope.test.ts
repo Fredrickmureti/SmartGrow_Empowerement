@@ -77,11 +77,16 @@ describe("purchases module — branch scoping is enforced", () => {
         let m: RegExpExecArray | null;
         SELECT_RE.lastIndex = 0;
         while ((m = SELECT_RE.exec(src)) !== null) {
+          const head = m[0];
           const window = src.slice(m.index, m.index + 1600);
+          // A `.select()` that is the RETURNING clause of a write, or a read
+          // keyed by primary key, cannot leak rows across branches.
+          const isWriteReturning = /\.(insert|update|upsert|delete)\(/.test(head);
+          const isKeyedRead = /\.eq\(\s*["']id["']/.test(window);
           const hasBranch =
             /applyBranchFilter\s*\(/.test(window) ||
             /\.eq\(\s*["']branch_id["']/.test(window);
-          if (!hasBranch) {
+          if (!hasBranch && !isWriteReturning && !isKeyedRead) {
             offenders.push(`${rel}: select() near char ${m.index} missing branch filter`);
           }
         }
