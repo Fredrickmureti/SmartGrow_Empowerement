@@ -67,7 +67,7 @@ export default function BillEditPage() {
   const { formatCurrency } = useCurrency();
   const { paymentTerms } = usePaymentTerms();
   const { isDateLocked } = useFiscalPeriods();
-  const { bills, isLoading, updateBill } = useBills();
+  const { bills, isLoading, updateBill, findDuplicateVendorInvoice } = useBills();
 
   const bill = useMemo(
     () => bills.find((b) => b.id === id) ?? null,
