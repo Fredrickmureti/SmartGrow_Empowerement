@@ -108,4 +108,44 @@ describe("money movement request keys", () => {
     // the order the operator ticked the invoices.
     expect(DIALOG).toMatch(/\.sort\(\)/);
   });
+
+  it("the bill payment dialog derives its key deterministically", () => {
+    const DIALOG = readFileSync(
+      join(PROJECT_ROOT, "src/components/bills/RecordBillPaymentDialog.tsx"),
+      "utf8",
+    );
+    expect(DIALOG).toMatch(/export function makeVendorPaymentRequestId/);
+    expect(DIALOG).not.toMatch(/randomUUID\(\)/);
+    expect(DIALOG).toMatch(/\.sort\(\)/);
+  });
+
+  /**
+   * The RPC-level check above only sees the hook that owns the `supabase.rpc`
+   * call. A UI wrapper that omits `requestId` leaves the hook forwarding
+   * `null`, which silently disables the server-side replay guard.
+   */
+  it("every caller of a settlement hook wrapper passes requestId", () => {
+    const WRAPPERS = ["recordMultiBillPayment", "recordMultiInvoicePayment"];
+    const offenders: string[] = [];
+
+    for (const file of FILES) {
+      if (file.includes(join("src", "hooks"))) continue; // hook definitions
+      const src = readFileSync(file, "utf8");
+      for (const wrapper of WRAPPERS) {
+        const pattern = new RegExp(`await\\s+${wrapper}\\(\\{`, "g");
+        for (const match of src.matchAll(pattern)) {
+          const args = src.slice(match.index!, match.index! + 1600);
+          if (!/requestId\s*:/.test(args)) {
+            offenders.push(`${file.slice(PROJECT_ROOT.length + 1)} → ${wrapper}`);
+          }
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      `Settlement wrapper called without requestId in:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
 });
+
