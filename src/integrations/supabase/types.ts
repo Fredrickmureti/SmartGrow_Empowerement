@@ -53687,14 +53687,20 @@ export type Database = {
           contract_line_id: string | null
           created_at: string
           description: string
+          destination_branch_id: string | null
+          destination_warehouse_id: string | null
           estimated_line_total: number | null
           estimated_unit_price: number
           id: string
+          is_non_catalog: boolean | null
           need_by_date: string | null
           notes: string | null
           product_id: string | null
           purchase_order_item_id: string | null
           quantity: number
+          quantity_cancelled: number
+          quantity_ordered: number
+          quantity_received: number
           requisition_id: string
           sort_order: number
           status: string
@@ -53706,14 +53712,20 @@ export type Database = {
           contract_line_id?: string | null
           created_at?: string
           description: string
+          destination_branch_id?: string | null
+          destination_warehouse_id?: string | null
           estimated_line_total?: number | null
           estimated_unit_price?: number
           id?: string
+          is_non_catalog?: boolean | null
           need_by_date?: string | null
           notes?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
+          quantity_cancelled?: number
+          quantity_ordered?: number
+          quantity_received?: number
           requisition_id: string
           sort_order?: number
           status?: string
@@ -53725,14 +53737,20 @@ export type Database = {
           contract_line_id?: string | null
           created_at?: string
           description?: string
+          destination_branch_id?: string | null
+          destination_warehouse_id?: string | null
           estimated_line_total?: number | null
           estimated_unit_price?: number
           id?: string
+          is_non_catalog?: boolean | null
           need_by_date?: string | null
           notes?: string | null
           product_id?: string | null
           purchase_order_item_id?: string | null
           quantity?: number
+          quantity_cancelled?: number
+          quantity_ordered?: number
+          quantity_received?: number
           requisition_id?: string
           sort_order?: number
           status?: string
@@ -53787,6 +53805,8 @@ export type Database = {
       }
       purchase_requisitions: {
         Row: {
+          analytic_account_id: string | null
+          approval_request_id: string | null
           approved_at: string | null
           approved_by: string | null
           branch_id: string | null
@@ -53797,6 +53817,8 @@ export type Database = {
           cost_center: string | null
           created_at: string
           currency: string
+          destination_branch_id: string | null
+          destination_warehouse_id: string | null
           estimated_total: number
           id: string
           is_sample_data: boolean
@@ -53813,9 +53835,13 @@ export type Database = {
           requisition_number: string
           status: string
           submitted_at: string | null
+          submitted_by: string | null
           updated_at: string
+          version: number
         }
         Insert: {
+          analytic_account_id?: string | null
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           branch_id?: string | null
@@ -53826,6 +53852,8 @@ export type Database = {
           cost_center?: string | null
           created_at?: string
           currency?: string
+          destination_branch_id?: string | null
+          destination_warehouse_id?: string | null
           estimated_total?: number
           id?: string
           is_sample_data?: boolean
@@ -53842,9 +53870,13 @@ export type Database = {
           requisition_number: string
           status?: string
           submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
+          analytic_account_id?: string | null
+          approval_request_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
           branch_id?: string | null
@@ -53855,6 +53887,8 @@ export type Database = {
           cost_center?: string | null
           created_at?: string
           currency?: string
+          destination_branch_id?: string | null
+          destination_warehouse_id?: string | null
           estimated_total?: number
           id?: string
           is_sample_data?: boolean
@@ -53871,9 +53905,19 @@ export type Database = {
           requisition_number?: string
           status?: string
           submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
+          version?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requisitions_analytic_account_id_fkey"
+            columns: ["analytic_account_id"]
+            isOneToOne: false
+            referencedRelation: "analytic_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_return_items: {
         Row: {
@@ -83064,6 +83108,9 @@ export type Database = {
         }
         Returns: undefined
       }
+      _pr_lifecycle_active: { Args: never; Returns: boolean }
+      _pr_lifecycle_begin: { Args: never; Returns: undefined }
+      _pr_recalc: { Args: { _requisition_id: string }; Returns: undefined }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _recalc_so_item_invoiced: {
@@ -87047,19 +87094,37 @@ export type Database = {
         Args: { p_header: Json; p_items: Json }
         Returns: Json
       }
-      create_purchase_requisition: {
-        Args: {
-          p_business_id: string
-          p_cost_center?: string
-          p_currency?: string
-          p_justification?: string
-          p_lines?: Json
-          p_need_by_date?: string
-          p_notes?: string
-          p_priority?: string
-        }
-        Returns: string
-      }
+      create_purchase_requisition:
+        | {
+            Args: {
+              p_business_id: string
+              p_cost_center?: string
+              p_currency?: string
+              p_justification?: string
+              p_lines?: Json
+              p_need_by_date?: string
+              p_notes?: string
+              p_priority?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_analytic_account_id?: string
+              p_business_id: string
+              p_cost_center?: string
+              p_currency?: string
+              p_destination_branch_id?: string
+              p_destination_warehouse_id?: string
+              p_justification?: string
+              p_lines?: Json
+              p_need_by_date?: string
+              p_notes?: string
+              p_priority?: string
+              p_project_id?: string
+            }
+            Returns: string
+          }
       create_return_delivery_atomic: {
         Args: {
           p_lines: Json
@@ -95370,6 +95435,26 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      requisition_amend: {
+        Args: { _reason?: string; _requisition_id: string }
+        Returns: Json
+      }
+      requisition_convert_to_po: {
+        Args: {
+          _line_ids?: string[]
+          _requisition_id: string
+          _supplier_id: string
+        }
+        Returns: Json
+      }
+      requisition_create_rfq: {
+        Args: {
+          _deadline?: string
+          _line_ids?: string[]
+          _requisition_id: string
+        }
+        Returns: Json
       }
       reschedule_dock_appointment: {
         Args: {

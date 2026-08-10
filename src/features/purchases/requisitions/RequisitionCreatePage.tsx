@@ -5,6 +5,11 @@
  * a PR number (PR-YYYY-XXXX) and inserts lines atomically. Draft
  * requisitions do not consume any budget or emit lifecycle events
  * until submitted.
+ *
+ * Currency is derived, never typed: a requisition estimates spend in the
+ * money the business keeps its books in. Foreign-currency exposure is
+ * created by the supplier, which is unknown at requisition time, so it
+ * shows up on the quotation and the purchase order instead.
  */
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +35,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useBusinesses } from "@/contexts/BusinessContext";
 import { useSuppliers } from "../suppliers/useSuppliers";
+import { useProducts } from "@/hooks/useProducts";
+import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
+import { useWarehouses } from "@/hooks/useWarehouses";
 import {
   createPurchaseRequisition,
   type RequisitionLineInput,
@@ -42,23 +50,28 @@ export default function RequisitionCreatePage() {
   const { toast } = useToast();
   const { currentBusiness } = useBusinesses();
   const { rows: suppliers, loading: suppliersLoading } = useSuppliers();
+  const { products } = useProducts();
+  const { accounts: analyticAccounts } = useAnalyticAccounts();
+  const { warehouses } = useWarehouses();
 
   const [needByDate, setNeedByDate] = useState<string>("");
   const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>("normal");
-  const [currency, setCurrency] = useState("USD");
-  const [costCenter, setCostCenter] = useState("");
+  const [analyticAccountId, setAnalyticAccountId] = useState<string>("none");
+  const [destinationWarehouseId, setDestinationWarehouseId] = useState<string>("none");
   const [justification, setJustification] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<RequisitionLineInput[]>([
-    { description: "", quantity: 1, estimated_unit_price: 0 },
+    { product_id: null, description: "", quantity: 1, estimated_unit_price: 0 },
   ]);
+
+  const currency = currentBusiness?.base_currency ?? "—";
   const [busy, setBusy] = useState(false);
 
   const addLine = useCallback(
     () =>
       setLines((ls) => [
         ...ls,
-        { description: "", quantity: 1, estimated_unit_price: 0 },
+        { product_id: null, description: "", quantity: 1, estimated_unit_price: 0 },
       ]),
     [],
   );
@@ -72,6 +85,22 @@ export default function RequisitionCreatePage() {
   const removeLine = useCallback(
     (idx: number) => setLines((ls) => ls.filter((_, i) => i !== idx)),
     [],
+  );
+
+  const productOptions = useMemo(
+    () =>
+      products
+        .filter((p) => p.is_active !== false)
+        .map((p) => ({ id: p.id, name: p.name, sku: p.sku, unit_price: p.unit_price })),
+    [products],
+  );
+
+  const costCentreOptions = useMemo(
+    () =>
+      (analyticAccounts ?? []).filter(
+        (a: any) => a.is_active !== false && (a.analytic_type === "cost_center" || a.analytic_type === "department"),
+      ),
+    [analyticAccounts],
   );
 
   const supplierOptions = useMemo(
@@ -107,8 +136,11 @@ export default function RequisitionCreatePage() {
         businessId: currentBusiness.id,
         needByDate: needByDate || null,
         priority,
-        currency,
-        costCenter: costCenter || null,
+        analyticAccountId: analyticAccountId === "none" ? null : analyticAccountId,
+        destinationWarehouseId:
+          destinationWarehouseId === "none" ? null : destinationWarehouseId,
+        costCenter:
+          costCentreOptions.find((a: any) => a.id === analyticAccountId)?.code ?? null,
         justification: justification || null,
         notes: notes || null,
         lines: cleanLines,
@@ -175,19 +207,42 @@ export default function RequisitionCreatePage() {
             </div>
             <div>
               <Label>Currency</Label>
-              <Input
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                maxLength={3}
-              />
+              <Input value={currency} readOnly disabled />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Company base currency. Supplier currency is decided on the quotation or PO.
+              </p>
             </div>
             <div>
               <Label>Cost centre</Label>
-              <Input
-                value={costCenter}
-                onChange={(e) => setCostCenter(e.target.value)}
-                placeholder="e.g. OPS-KE"
-              />
+              <Select value={analyticAccountId} onValueChange={setAnalyticAccountId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {costCentreOptions.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.code ? `${a.code} · ${a.name}` : a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Deliver to</Label>
+              <Select value={destinationWarehouseId} onValueChange={setDestinationWarehouseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="No specific location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No specific location</SelectItem>
+                  {(warehouses ?? []).map((w: any) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.code ? `${w.code} · ${w.name}` : w.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="md:col-span-2">
               <Label>Justification</Label>
@@ -216,6 +271,7 @@ export default function RequisitionCreatePage() {
                 key={i}
                 index={i}
                 item={line}
+                products={productOptions}
                 suppliers={supplierOptions}
                 suppliersLoading={suppliersLoading}
                 layout={layout}

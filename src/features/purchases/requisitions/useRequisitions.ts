@@ -17,6 +17,12 @@ export type RequisitionStatus =
   | "submitted"
   | "approved"
   | "rejected"
+  | "sourcing"
+  | "partially_procured"
+  | "procured"
+  | "ordered"
+  | "partially_fulfilled"
+  | "fulfilled"
   | "cancelled"
   | "closed";
 
@@ -26,15 +32,23 @@ export interface RequisitionRow {
   id: string;
   organization_id: string;
   business_id: string;
+  branch_id: string | null;
   requisition_number: string;
   requester_id: string;
   cost_center: string | null;
+  analytic_account_id: string | null;
+  project_id: string | null;
+  destination_branch_id: string | null;
+  destination_warehouse_id: string | null;
   need_by_date: string | null;
   justification: string | null;
   status: RequisitionStatus | string;
   priority: RequisitionPriority | string;
   currency: string;
   estimated_total: number;
+  version: number;
+  approval_request_id: string | null;
+  submitted_by: string | null;
   submitted_at: string | null;
   approved_by: string | null;
   approved_at: string | null;
@@ -121,6 +135,12 @@ export interface RequisitionItem {
   need_by_date: string | null;
   suggested_supplier_id: string | null;
   contract_line_id: string | null;
+  destination_branch_id: string | null;
+  destination_warehouse_id: string | null;
+  quantity_ordered: number;
+  quantity_received: number;
+  quantity_cancelled: number;
+  is_non_catalog: boolean;
   status: string;
   purchase_order_item_id: string | null;
   sort_order: number;
@@ -138,9 +158,21 @@ export interface RequisitionApproval {
   actor?: ProfileLite | null;
 }
 
+/** Sourcing / ordering documents that consumed this requisition's lines. */
+export interface RequisitionProcurementLink {
+  id: string;
+  number: string;
+  status: string;
+  kind: "rfq" | "purchase_order";
+  lines: number;
+  quantity: number;
+  path: string;
+}
+
 export interface RequisitionRecord extends RequisitionRow {
   items: RequisitionItem[];
   approvals: RequisitionApproval[];
+  procurement: RequisitionProcurementLink[];
   suggested_suppliers: Array<{
     id: string;
     supplier_code: string | null;
@@ -206,6 +238,51 @@ export function useRequisitionRecord(id: string | undefined) {
         suppliers = (supData ?? []) as any;
       }
 
+      // Downstream traceability: which RFQs / POs consumed these lines.
+      const itemIds = items.map((i) => i.id);
+      const procurement: RequisitionProcurementLink[] = [];
+      if (itemIds.length > 0) {
+        const [rfqRes, poRes] = await Promise.all([
+          (supabase as any)
+            .from("rfq_items")
+            .select("quantity, rfq:rfqs(id, rfq_number, status)")
+            .in("requisition_item_id", itemIds),
+          (supabase as any)
+            .from("purchase_order_items")
+            .select("quantity, purchase_order:purchase_orders(id, po_number, status)")
+            .in("requisition_item_id", itemIds),
+        ]);
+        const roll = new Map<string, RequisitionProcurementLink>();
+        for (const r of (rfqRes.data ?? []) as any[]) {
+          if (!r.rfq) continue;
+          const prev = roll.get(r.rfq.id);
+          roll.set(r.rfq.id, {
+            id: r.rfq.id,
+            number: r.rfq.rfq_number,
+            status: r.rfq.status,
+            kind: "rfq",
+            lines: (prev?.lines ?? 0) + 1,
+            quantity: (prev?.quantity ?? 0) + Number(r.quantity ?? 0),
+            path: `/purchases/rfqs/${r.rfq.id}`,
+          });
+        }
+        for (const p of (poRes.data ?? []) as any[]) {
+          const po = p.purchase_order;
+          if (!po) continue;
+          const prev = roll.get(po.id);
+          roll.set(po.id, {
+            id: po.id,
+            number: po.po_number,
+            status: po.status,
+            kind: "purchase_order",
+            lines: (prev?.lines ?? 0) + 1,
+            quantity: (prev?.quantity ?? 0) + Number(p.quantity ?? 0),
+            path: `/purchases/orders/${po.id}`,
+          });
+        }
+        procurement.push(...roll.values());
+      }
+
       const profiles = await hydrateProfiles([
         (core as any).requester_id,
         ...approvals.map((a) => a.actor_user_id),
@@ -215,6 +292,7 @@ export function useRequisitionRecord(id: string | undefined) {
         ...(core as RequisitionRow),
         requester: profiles.get((core as any).requester_id) ?? null,
         items,
+        procurement,
         approvals: approvals.map((a) => ({
           ...a,
           actor: profiles.get(a.actor_user_id) ?? null,

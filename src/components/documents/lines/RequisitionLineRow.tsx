@@ -1,8 +1,11 @@
 /**
  * RequisitionLineRow — line editor for purchase requisitions.
  *
- * Requisitions request *demand* rather than committing to a purchase: the
- * line carries a free-text description (no catalogue picker), a quantity, an
+ * Requisitions request *demand* rather than committing to a purchase. A line
+ * may reference the product master (catalogue demand, carrying product_id and
+ * therefore UOM / category downstream) or stay free-text (non-catalog demand,
+ * flagged `is_non_catalog` in the database and requiring a buyer to assign a
+ * product before it can become stock). It also carries a quantity, an
  * estimated unit price, an optional suggested supplier and a per-line need-by
  * date. That column set is unique to requisitions, so it gets its own row on
  * top of the shared measured `EditableLineItemsGrid` rather than bending
@@ -14,6 +17,7 @@
 
 import { memo } from "react";
 import { Input } from "@/components/ui/input";
+import { ProductCombobox, type ProductOption } from "@/components/common/ProductCombobox";
 import { NumericInput } from "@/components/ui/numeric-input";
 import {
   Select,
@@ -29,6 +33,7 @@ import {
 } from "@/design-system/records/EditableLineItemsGrid";
 
 export interface RequisitionLineShape {
+  product_id?: string | null;
   description: string;
   quantity: number;
   estimated_unit_price: number;
@@ -42,6 +47,7 @@ export interface RequisitionSupplierOption {
 }
 
 export const REQUISITION_LINE_COLUMNS: EditableLineColumn[] = [
+  { id: "product_id", header: "Product / service", priority: 1, minWidth: 200, compactLabel: "Item" },
   { id: "description", header: "Description", priority: 1, minWidth: 220 },
   { id: "quantity", header: "Qty", priority: 1, minWidth: 90, numeric: true, compactLabel: "Qty" },
   {
@@ -65,6 +71,7 @@ export const REQUISITION_LINE_COLUMNS: EditableLineColumn[] = [
 interface Props<T extends RequisitionLineShape> {
   index: number;
   item: T;
+  products: ProductOption[];
   suppliers: RequisitionSupplierOption[];
   suppliersLoading?: boolean;
   layout: EditableRowLayout;
@@ -75,6 +82,7 @@ interface Props<T extends RequisitionLineShape> {
 function RequisitionLineRowInner<T extends RequisitionLineShape>({
   index,
   item,
+  products,
   suppliers,
   suppliersLoading,
   layout,
@@ -83,6 +91,28 @@ function RequisitionLineRowInner<T extends RequisitionLineShape>({
 }: Props<T>) {
   const cell = (columnId: string) => {
     switch (columnId) {
+      case "product_id":
+        return (
+          <ProductCombobox
+            products={products}
+            value={item.product_id ?? null}
+            disabled={disabled}
+            placeholder="Free text"
+            className="h-8"
+            onChange={(productId) => {
+              const p = products.find((x) => x.id === productId);
+              onPatch(index, {
+                product_id: productId,
+                description: item.description?.trim() ? item.description : (p?.name ?? ""),
+                estimated_unit_price:
+                  Number(item.estimated_unit_price) > 0
+                    ? item.estimated_unit_price
+                    : Number(p?.unit_price ?? 0),
+              } as Partial<T>);
+            }}
+          />
+        );
+
       case "description":
         return (
           <Input
