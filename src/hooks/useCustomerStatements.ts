@@ -247,6 +247,9 @@ export function useCustomerStatements() {
       contactId: contactIds,
       businessId: currentBusiness.id,
       branchId,
+      // Age as of the statement period end, never the browser clock, so a
+      // reprint of a closed period reproduces the original buckets.
+      asOf: input.period_end,
     });
 
 
