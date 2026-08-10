@@ -222,31 +222,18 @@ export function useVendorStatements() {
       });
     }
 
-    // Calculate aging buckets based on outstanding bills
-    const today = new Date();
-    let outstandingQ = supabase
-      .from("bills")
-      .select("due_date, total, amount_paid")
-      .eq("organization_id", organizationId)
-      .eq("business_id", currentBusiness.id)
-      .in("vendor_id", vendorIds)
-      .in("status", ["received", "overdue", "partial"]);
-    outstandingQ = applyBranchFilter(outstandingQ, branchId);
-    const { data: outstandingBills } = await outstandingQ;
+    // ----- Aging buckets (canonical) -----
+    // ADR 0027: read from the GL-anchored `finance_ap_open_items` projection
+    // through the one shared helper instead of recomputing from
+    // `bills.total - amount_paid`, so vendor statements agree with Aged
+    // Payables and `get_ap_aging_summary`.
+    const agingBuckets = await fetchContactOpenItemAging("ap", {
+      orgId: organizationId,
+      contactId: vendorIds,
+      businessId: currentBusiness.id,
+      branchId,
+    });
 
-    const agingBuckets = { current: 0, days30: 0, days60: 0, days90: 0, over90: 0 };
-
-    for (const bill of outstandingBills || []) {
-      const dueDate = new Date(bill.due_date);
-      const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      const outstanding = bill.total - (bill.amount_paid || 0);
-
-      if (daysOverdue <= 0) agingBuckets.current += outstanding;
-      else if (daysOverdue <= 30) agingBuckets.days30 += outstanding;
-      else if (daysOverdue <= 60) agingBuckets.days60 += outstanding;
-      else if (daysOverdue <= 90) agingBuckets.days90 += outstanding;
-      else agingBuckets.over90 += outstanding;
-    }
 
     return {
       business_id: currentBusiness!.id,
