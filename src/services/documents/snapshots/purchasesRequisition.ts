@@ -338,7 +338,7 @@ export async function fetchAndBuildPurchasesRequisitionSnapshot(
   }
 
   return buildPurchasesRequisitionSnapshot(
-    data as unknown as PurchasesRequisitionHeaderRow,
+    row as unknown as PurchasesRequisitionHeaderRow,
     {
       requesterName: row["requester_id"]
         ? (actorNames.get(row["requester_id"] as string) ?? null)
