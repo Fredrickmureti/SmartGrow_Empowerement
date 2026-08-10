@@ -43,6 +43,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { RecordCustomerPaymentDialog as RecordPaymentDialog } from "@/components/payments/RecordCustomerPaymentDialog";
+import {
+  useStatementDeliveryStatus,
+  type StatementDelivery,
+} from "@/hooks/useStatementDeliveryStatus";
 
 import {
   AGING_BUCKET_LABELS,
