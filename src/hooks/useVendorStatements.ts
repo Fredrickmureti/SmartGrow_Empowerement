@@ -8,17 +8,11 @@ import { toast } from "sonner";
 import { normalizeError } from "@/services/resilience";
 import { expandToCommercialPartnerSet } from "@/lib/contactHierarchy";
 import { fetchContactOpenItemAging } from "@/services/finance/openItems";
+import { fetchVendorLedgerRows } from "@/services/finance/vendorStatementLedger";
+import { buildVendorStatementDataset } from "@/services/finance/vendorStatementDataset";
 import type { AgingBuckets } from "@/services/finance/aging";
 
 
-// "Day before YYYY-MM-DD" as YYYY-MM-DD — used to scope prior-period
-// rows when computing the opening balance from the canonical
-// `vendor_ledger_entries` view.
-function _isoBefore(d: string): string {
-  const dt = new Date(d);
-  dt.setDate(dt.getDate() - 1);
-  return dt.toISOString().split('T')[0];
-}
 
 export interface VendorStatement {
   id: string;
@@ -152,73 +146,41 @@ export function useVendorStatements() {
         })
       : [input.contact_id];
 
-    // ADR 0028 — read from the canonical `vendor_ledger_entries` view
-    // (mirrors the AR-side `customer_ledger_entries`). The view unions
+    // ADR 0028 / 0132 — one engine. The ledger read and the fold are the
+    // SAME code the vendor-statement PDF, CSV and email use
+    // (`vendorStatementLedger.ts` + `vendorStatementDataset.ts`), so the
+    // screen and the exported document cannot disagree. The view unions
     // bills (credit / "we owe"), bill-payment allocations (debit / paid),
-    // and vendor credit notes — so multi-bill payments resolve correctly
-    // instead of falling back to the per-bill FK shape. Convention in the
-    // AP ledger view: credit increases vendor balance, debit decreases.
-    // For statement display we map view.credit → statement.debit (bill
-    // posted) and view.debit → statement.credit (cash out) so the existing
-    // PDF template keeps rendering unchanged.
-    const ledgerSelect = async (
-      from: string | null,
-      to: string | null,
-    ): Promise<any[]> => {
-      let q = supabase
-        .from("vendor_ledger_entries" as any)
-        .select("*")
-        .eq("organization_id", organizationId)
-        .eq("business_id", currentBusiness!.id)
-        .in("contact_id", vendorIds)
-        .order("entry_date", { ascending: true })
-        .order("created_at", { ascending: true });
-      q = applyBranchFilter(q, branchId);
-      if (from) q = q.gte("entry_date", from);
-      if (to) q = q.lte("entry_date", to);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as any[];
-    };
+    // vendor credit notes and advances — so multi-bill payments resolve
+    // correctly instead of falling back to the per-bill FK shape. Sign
+    // conversion (GL → statement) happens inside the shared builder.
+    const rows = await fetchVendorLedgerRows(supabase as any, {
+      organizationId,
+      businessId: currentBusiness.id,
+      branchId,
+      contactIds: vendorIds,
+      periodEnd: input.period_end,
+    });
 
-    const priorEntries = await ledgerSelect(null, _isoBefore(input.period_start));
-    const periodEntries = await ledgerSelect(input.period_start, input.period_end);
+    const dataset = buildVendorStatementDataset({
+      rows,
+      periodStart: input.period_start,
+      periodEnd: input.period_end,
+      currency: (currentBusiness as any)?.base_currency ?? null,
+    });
 
-    const openingBalance = priorEntries.reduce(
-      (acc, e) => acc + (Number(e.credit) || 0) - (Number(e.debit) || 0),
-      0,
-    );
-
-    const TYPE_MAP: Record<string, VendorStatementData['transactions'][number]['type']> = {
-      bill: 'bill',
-      bill_payment: 'payment',
-      vendor_credit_note: 'vendor_credit_note',
-    };
-    const DESC_PREFIX: Record<string, string> = {
-      bill: 'Bill',
-      bill_payment: 'Payment',
-      vendor_credit_note: 'Vendor Credit',
-    };
-
-    const transactions: VendorStatementData['transactions'] = [];
-    let runningBalance = openingBalance;
-    for (const e of periodEntries) {
-      // Statement convention: debit increases AP, credit decreases.
-      // View convention: credit increases AP (bill), debit decreases (payment).
-      const stmtDebit = Number(e.credit) || 0;
-      const stmtCredit = Number(e.debit) || 0;
-      runningBalance = runningBalance + stmtDebit - stmtCredit;
-      transactions.push({
-        date: e.entry_date,
-        type: TYPE_MAP[e.doc_type as string] ?? 'bill',
-        reference: e.doc_ref ?? '',
-        description: `${DESC_PREFIX[e.doc_type as string] ?? 'Entry'} ${e.doc_ref ?? ''}`.trim(),
-        debit: stmtDebit,
-        credit: stmtCredit,
-        balance: runningBalance,
-        sourceId: e.doc_id,
-      });
-    }
+    const openingBalance = dataset.openingBalance;
+    const runningBalance = dataset.closingBalance;
+    const transactions: VendorStatementData['transactions'] = dataset.transactions.map((t) => ({
+      date: t.date,
+      type: t.type,
+      reference: t.reference,
+      description: t.description,
+      debit: t.debit,
+      credit: t.credit,
+      balance: t.balance,
+      sourceId: t.sourceId,
+    }));
 
     // ----- Aging buckets (canonical) -----
     // ADR 0027: read from the GL-anchored `finance_ap_open_items` projection
