@@ -66,8 +66,17 @@ export default function PurchasesDashboard() {
     .filter(po => ["draft", "sent", "partial_received"].includes(po.status))
     .reduce((s, po) => s + po.total, 0);
 
-  // RFQs
-  const pendingRFQs = rfqs.filter((r: any) => r.status === "draft" || r.status === "sent");
+  // RFQs — "in flight" means the sourcing event is still consuming buyer
+  // attention: not yet awarded, converted, closed, cancelled or expired.
+  const RFQ_IN_FLIGHT = [
+    "draft",
+    "pending_approval",
+    "approved",
+    "sent",
+    "responses_received",
+    "under_evaluation",
+  ];
+  const pendingRFQs = rfqs.filter((r: any) => RFQ_IN_FLIGHT.includes(r.status));
 
   // Returns
   const pendingReturns = purchaseReturns.filter(r => r.status === "pending");
