@@ -1,11 +1,12 @@
 /**
  * CreditNoteRecordPage — object-page route for a Credit Note.
- * Read-only, powered by RecordScaffold. The "apply to invoice"
- * wizard lands separately at /sales/credit-notes/:id/apply.
+ * Powered by RecordScaffold. Actions come from `useCreditNoteActions`, the
+ * same array the list row menu renders; the "apply to invoice" wizard still
+ * lands separately at /finance/customer-credits/:id/apply.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
@@ -15,8 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { CreditNote, CreditNoteItem } from "@/hooks/useCreditNotes";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
-import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
-import { useRecordPrint } from "@/features/sales/record/useRecordPrint";
+import { useCreditNoteActions } from "./useCreditNoteActions";
 
 
 type Row = CreditNote & {
@@ -32,11 +32,12 @@ function fmt(d?: string | null) {
 export default function CreditNoteRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
-  const { preview } = useDocumentPreview();
-  const { print, printing } = useRecordPrint("credit_note");
+  const navigate = useNavigate();
   const [row, setRow] = useState<Row | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
   const isNew = id === "new";
 
   useEffect(() => {
@@ -55,7 +56,12 @@ export default function CreditNoteRecordPage() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [id, isNew]);
+  }, [id, isNew, nonce]);
+
+  const { actions, dialogs } = useCreditNoteActions(row, {
+    onChanged: refresh,
+    onDeleted: () => navigate("/sales/credit-notes"),
+  });
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
@@ -86,6 +92,7 @@ export default function CreditNoteRecordPage() {
   const isFullyApplied = row && remaining <= 0;
 
   return (
+    <>
     <RecordScaffold
       eyebrow="Credit Note"
       listPath="/sales/credit-notes"
@@ -130,14 +137,10 @@ export default function CreditNoteRecordPage() {
         { id: "created", at: fmt(row.created_at), actor: "System", title: `Credit note ${row.credit_note_number} created` },
         ...(isFullyApplied ? [{ id: "applied", at: fmt(row.updated_at), title: "Fully applied", tone: "success" as const }] : []),
       ] : undefined}
-      onPreview={row ? () => preview({
-        documentType: "credit_note",
-        documentId: row.id,
-        title: `Credit Note ${row.credit_note_number}`,
-        filename: `credit-note-${row.credit_note_number}`,
-      }) : undefined}
-      onPrint={row && !printing ? () => void print(row.id, `Credit Note ${row.credit_note_number}`) : undefined}
+      actions={actions}
       extraSections={row ? <DocumentVersionsSection documentType="credit_note" documentId={row.id} /> : undefined}
     />
+    {dialogs}
+    </>
   );
 }

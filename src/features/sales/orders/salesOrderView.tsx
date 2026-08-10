@@ -39,6 +39,8 @@ interface Result {
   order: SalesOrder | null;
   loading: boolean;
   error: string | null;
+  /** Re-fetch the underlying record (after an action mutates it). */
+  refresh: () => void;
   view: DocumentRecordView;
 }
 
@@ -46,7 +48,7 @@ export function useSalesOrderView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record, loading, error } = useSalesOrderRecord(id);
+  const { record, loading, error, refetch } = useSalesOrderRecord(id);
   const order = record ?? null;
 
   const view = useMemo<DocumentRecordView>(() => {
@@ -148,5 +150,5 @@ export function useSalesOrderView(
     };
   }, [order, loading, error, formatCurrency]);
 
-  return { order, loading, error, view };
+  return { order, loading, error, refresh: refetch, view };
 }

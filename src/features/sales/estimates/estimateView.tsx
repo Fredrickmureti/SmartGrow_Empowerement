@@ -37,6 +37,8 @@ interface Result {
   estimate: Estimate | null;
   loading: boolean;
   error: string | null;
+  /** Re-fetch the underlying record (after an action mutates it). */
+  refresh: () => void;
   view: DocumentRecordView;
 }
 
@@ -44,7 +46,7 @@ export function useEstimateView(
   id: string | null | undefined,
   formatCurrency: (v: number) => string,
 ): Result {
-  const { record, loading, error } = useEstimateRecord(id);
+  const { record, loading, error, refetch } = useEstimateRecord(id);
   const estimate = record ?? null;
 
   const view = useMemo<DocumentRecordView>(() => {
@@ -157,5 +159,5 @@ export function useEstimateView(
     };
   }, [estimate, loading, error, formatCurrency]);
 
-  return { estimate, loading, error, view };
+  return { estimate, loading, error, refresh: refetch, view };
 }
