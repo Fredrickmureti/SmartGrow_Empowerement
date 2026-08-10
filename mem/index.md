@@ -16,7 +16,7 @@ Collections overlays (collector, dunning level, promise-to-pay) are server-deriv
 
 ## Memories
 - [Collections & open-items invariants](mem://features/collections-open-items) — currency-aware projections, as-of aging, statement idempotency, single email/activity ledger
-- [Collections overlays](mem://features/collections-overlays) — dunning ladder view, promise-to-pay RPCs/idempotency, server-owned kept/broken evaluation
+- [Collections overlays](mem://features/collections-overlays) — dunning ladder view, promise-to-pay RPCs/idempotency, server-owned kept/broken evaluation, AR disputes (never reduce AR, pause dunning), SQL-scored collections work queue
 - [Open items & payability](mem://features/open-items-and-payability) — AR/AP projection settlement channels, payability predicate, invoice status vocabulary
 - [Customer payment allocations](mem://features/customer-payment-allocations) — ADR 0027 allocation-first payments, customer ledger SoT
 - [Vendor payment allocations](mem://features/vendor-payment-allocations) — ADR 0028 allocation-first AP, supplier advances (record vs apply accounting), vendor_unapplied_advances SoT
