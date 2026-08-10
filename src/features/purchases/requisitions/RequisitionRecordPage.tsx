@@ -373,15 +373,27 @@ export default function RequisitionRecordPage() {
   const actions: DocumentAction[] = record
     ? [
         {
+          /**
+           * Context aware: `submit_requisition` reports whether the canonical
+           * governance engine actually gated the record. When it did not
+           * (solo / no matching rule) there is nobody else to wait for, so we
+           * finish the transition in the same click instead of parking it in
+           * `submitted` for the same user to approve.
+           */
           id: "submit",
-          label: "Submit",
+          label: governanceMode === "solo" ? "Submit & approve" : "Submit",
           icon: Send,
           group: "core",
           primary: true,
           hidden: !canSubmit,
           disabled: busy,
           onSelect: () =>
-            void run(() => submitRequisition(record.id), "Requisition submitted"),
+            void run(async () => {
+              const res = (await submitRequisition(record.id)) as { gated?: boolean } | null;
+              if (res && res.gated === false) {
+                await approveRequisition(record.id);
+              }
+            }, "Requisition submitted"),
         },
         {
           id: "approve",
