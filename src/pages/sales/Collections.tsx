@@ -126,7 +126,15 @@ export default function Collections() {
     totalDisputed,
   } = useArDisputes();
   const { formatCurrency } = useCurrency();
-  const [bucket, setBucket] = useState<Bucket>("all");
+  // Drill-down from the Sales Overview aging card arrives as ?aging=<bucket>.
+  const initialBucket = ((): Bucket => {
+    if (typeof window === "undefined") return "all";
+    const v = new URLSearchParams(window.location.search).get("aging");
+    const allowed: Bucket[] = ["all", "not_due", "current", "days30", "days60", "days90", "in_credit"];
+    return (allowed as string[]).includes(v ?? "") ? (v as Bucket) : "all";
+  })();
+  const [bucket, setBucket] = useState<Bucket>(initialBucket);
+
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [payContactId, setPayContactId] = useState<string | null>(null);
