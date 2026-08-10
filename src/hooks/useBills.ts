@@ -56,7 +56,15 @@ export interface Bill {
   account_id: string | null;
   bill_number: string;
   vendor_invoice_number: string | null;
-  status: "draft" | "received" | "partial" | "paid" | "overdue" | "void";
+  /**
+   * Lifecycle (ADR: AP approval gate).
+   *   draft → submitted → approved → received (posted) → partial/paid
+   * `submitted` and `approved` are PRE-GL review states: no journal entry
+   * exists yet and they are excluded from AP aging / unposted-liability KPIs.
+   * When the company policy `require_bill_approval` is off, draft → received
+   * remains legal and the review states are simply never used.
+   */
+  status: "draft" | "submitted" | "approved" | "received" | "partial" | "paid" | "overdue" | "void";
   bill_date: string;
   due_date: string;
   subtotal: number;
