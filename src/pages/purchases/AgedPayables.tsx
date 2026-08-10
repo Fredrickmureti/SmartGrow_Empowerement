@@ -133,45 +133,45 @@ export default function AgedPayables() {
   const totals = useMemo(() => {
     return filteredData.reduce(
       (acc, row) => ({
+        not_due: acc.not_due + row.not_due,
         current: acc.current + row.current,
-        days_1_30: acc.days_1_30 + row.days_1_30,
-        days_31_60: acc.days_31_60 + row.days_31_60,
-        days_61_90: acc.days_61_90 + row.days_61_90,
-        over_90: acc.over_90 + row.over_90,
+        days30: acc.days30 + row.days30,
+        days60: acc.days60 + row.days60,
+        days90: acc.days90 + row.days90,
         total: acc.total + row.total,
       }),
-      { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, over_90: 0, total: 0 }
+      { not_due: 0, current: 0, days30: 0, days60: 0, days90: 0, total: 0 }
     );
   }, [filteredData]);
 
   const getExportConfig = useCallback((): ExportConfig => {
     const cols: ExportColumn[] = [
       { key: "vendor", header: "Vendor", width: 22 },
-      { key: "current", header: "Current", format: "currency", width: 14, align: "right" },
-      { key: "days_1_30", header: "1-30 Days", format: "currency", width: 14, align: "right" },
-      { key: "days_31_60", header: "31-60 Days", format: "currency", width: 14, align: "right" },
-      { key: "days_61_90", header: "61-90 Days", format: "currency", width: 14, align: "right" },
-      { key: "over_90", header: "90+ Days", format: "currency", width: 14, align: "right" },
+      { key: "not_due", header: AGING_BUCKET_LABELS.not_due, format: "currency", width: 14, align: "right" },
+      { key: "current", header: AGING_BUCKET_LABELS.current, format: "currency", width: 14, align: "right" },
+      { key: "days30", header: AGING_BUCKET_LABELS.days30, format: "currency", width: 14, align: "right" },
+      { key: "days60", header: AGING_BUCKET_LABELS.days60, format: "currency", width: 14, align: "right" },
+      { key: "days90", header: AGING_BUCKET_LABELS.days90, format: "currency", width: 14, align: "right" },
       { key: "total", header: "Total", format: "currency", width: 14, align: "right" },
     ];
     const rows = [
       ...filteredData.map((row) => ({
         vendor: row.vendor_name,
+        not_due: row.not_due,
         current: row.current,
-        days_1_30: row.days_1_30,
-        days_31_60: row.days_31_60,
-        days_61_90: row.days_61_90,
-        over_90: row.over_90,
+        days30: row.days30,
+        days60: row.days60,
+        days90: row.days90,
         total: row.total,
         _isGrandTotal: false,
       })),
       {
         vendor: "TOTAL",
+        not_due: totals.not_due,
         current: totals.current,
-        days_1_30: totals.days_1_30,
-        days_31_60: totals.days_31_60,
-        days_61_90: totals.days_61_90,
-        over_90: totals.over_90,
+        days30: totals.days30,
+        days60: totals.days60,
+        days90: totals.days90,
         total: totals.total,
         _isGrandTotal: true,
       },
@@ -187,6 +187,8 @@ export default function AgedPayables() {
       businessId: currentBusiness?.id,
     };
   }, [filteredData, totals, asOfDate, baseCurrency, currentOrg?.id, currentBusiness?.id]);
+
+
 
 
   return (
