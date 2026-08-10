@@ -89621,6 +89621,52 @@ export type Database = {
         }
         Returns: Json
       }
+      get_salesperson_performance: {
+        Args: {
+          p_branch_id?: string
+          p_business_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_org_id: string
+        }
+        Returns: {
+          cash_collected: number
+          credit_notes_value: number
+          gross_invoiced: number
+          has_foreign_currency: boolean
+          invoice_count: number
+          net_revenue: number
+          orders_booked: number
+          orders_value: number
+          outstanding: number
+          overdue_amount: number
+          pos_sales_count: number
+          pos_sales_value: number
+          salesperson_id: string
+          salesperson_name: string
+        }[]
+      }
+      get_salesperson_performance_documents: {
+        Args: {
+          p_branch_id?: string
+          p_business_id?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_metric: string
+          p_org_id: string
+          p_salesperson_id: string
+        }
+        Returns: {
+          amount: number
+          contact_id: string
+          contact_name: string
+          document_date: string
+          document_id: string
+          document_kind: string
+          document_number: string
+          status: string
+        }[]
+      }
       get_sample_data_counts: {
         Args: { org_id: string }
         Returns: {

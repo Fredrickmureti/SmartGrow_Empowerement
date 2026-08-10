@@ -14,6 +14,7 @@ Collections overlays (collector, dunning level, promise-to-pay) are server-deriv
 Customer/vendor statements project ONE dataset folded from customer_ledger_entries / vendor_ledger_entries (screen, PDF, CSV, email); never re-derive from source documents.
 contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
 Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
+Salesperson metrics come only from get_salesperson_performance; attribution inherits from the invoice, never from created_by.
 
 
 
@@ -33,3 +34,4 @@ Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_typ
 - [Payment terms](mem://features/payment-terms) — resolve_payment_term cascade, fill-on-insert triggers, snapshot freezing, one-default-per-business index, ADR 0020 document ownership, historical backfill rule, no hardcoded credit periods
 - [Customer statement engine](mem://features/customer-statement-engine) — AR+AP ledger-sourced datasets, mirrored builders, period-end aging, retired raw-table/fallback paths
 - [Contact identity vocabulary](mem://constraints/contact-identity-vocabulary) — contacts.type vs the contact_type enum name, customer_rank, commercial_partner_id family rollup
+- [Salesperson performance](mem://features/salesperson-performance) — server projection + drill-down RPCs, invoice-inherited attribution, POS de-duplication, metric source table
