@@ -94,12 +94,13 @@ export default function AgedPayables() {
       const vendors: AgingRow[] = (result?.vendors || []).map((v: any) => ({
         vendor_id: v.vendor_id || "unknown",
         vendor_name: v.vendor_name || "Unknown Vendor",
+        not_due: Number(v.not_due || 0),
         current: Number(v.current || 0),
-        days_1_30: Number(v.days_1_30 || 0),
-        days_31_60: Number(v.days_31_60 || 0),
-        days_61_90: Number(v.days_61_90 || 0),
-        over_90: Number(v.over_90 || 0),
+        days30: Number(v.days30 || 0),
+        days60: Number(v.days60 || 0),
+        days90: Number(v.days90 || 0),
         total: Number(v.total || 0),
+
         bills: (v.bills || []).map((b: any) => ({
           id: b.id,
           bill_number: b.bill_number || b.id?.slice(0, 8),
