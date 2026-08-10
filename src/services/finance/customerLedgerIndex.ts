@@ -63,8 +63,8 @@ export async function fetchLedgerSearchableCustomers(
   orgId: string,
   businessId?: string | null,
 ): Promise<Array<{ id: string; name: string }>> {
-  let q = supabase
-    .from("contacts")
+  let q: any = supabase
+    .from("contacts" as any)
     .select("id, name")
     .eq("organization_id", orgId)
     .eq("is_active", true)
