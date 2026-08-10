@@ -109,6 +109,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeError } from "@/services/resilience";
 import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumentButton";
 import { useApSummary } from "@/hooks/useApSummary";
+import { useBillMatchResults } from "@/hooks/useBillMatch";
+import { BillMatchBadge } from "@/features/purchases/bills/BillMatchPanel";
+
 
 
 // Workflow pipeline for Bills.
