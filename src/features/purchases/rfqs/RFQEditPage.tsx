@@ -58,6 +58,7 @@ export default function RFQEditPage() {
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [deadline, setDeadline] = useState("");
+  const [requiredBy, setRequiredBy] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
@@ -71,9 +72,10 @@ export default function RFQEditPage() {
       return;
     }
     setDeadline(record.deadline ? record.deadline.slice(0, 10) : "");
+    setRequiredBy(record.required_by_date ? record.required_by_date.slice(0, 10) : "");
     setNotes(record.notes ?? "");
     setSelectedVendorIds(
-      (record.vendors ?? []).map((v: any) => v.vendor_id).filter(Boolean),
+      (record.invitations ?? []).map((inv: any) => inv.supplier_id).filter(Boolean),
     );
     const items = ((record.items ?? []) as any[])
       .slice()
@@ -174,7 +176,11 @@ export default function RFQEditPage() {
     try {
       await updateRFQAsync({
         id,
-        rfq: { deadline: deadline || null, notes: notes || null },
+        rfq: {
+          deadline: deadline || null,
+          notes: notes || null,
+          required_by_date: requiredBy || null,
+        },
         items: validItems,
         vendorIds: selectedVendorIds,
       });
