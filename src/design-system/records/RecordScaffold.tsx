@@ -71,6 +71,7 @@ export function RecordScaffold(props: RecordScaffoldProps) {
     actions,
     headerActions,
     footerLeading,
+    onEdit,
     onPrint,
     onPreview,
     newLabel = "New record",
