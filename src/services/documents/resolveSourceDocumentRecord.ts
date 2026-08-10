@@ -243,6 +243,15 @@ const REGISTRY: Record<string, RegistryEntry> = {
     partyKind: null,
     build: wrap(fetchAndBuildPurchasesRfqSnapshot),
   },
+  purchase_requisition: {
+    kindCode: "purchases.requisition",
+    sourceModule: "purchases",
+    sourceDocType: "purchase_requisition",
+    // Internal demand record — there is no counterparty to address, and
+    // the kind carries no `email` intent.
+    partyKind: null,
+    build: wrap(fetchAndBuildPurchasesRequisitionSnapshot),
+  },
   purchase_return: {
     kindCode: "purchases.return",
     sourceModule: "purchases",
