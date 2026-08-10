@@ -53213,6 +53213,8 @@ export type Database = {
           quantity_received: number | null
           receipt_status: string
           requisition_item_id: string | null
+          rfq_item_id: string | null
+          rfq_quotation_item_id: string | null
           sort_order: number | null
           task_id: string | null
           tax_amount: number | null
@@ -53238,6 +53240,8 @@ export type Database = {
           quantity_received?: number | null
           receipt_status?: string
           requisition_item_id?: string | null
+          rfq_item_id?: string | null
+          rfq_quotation_item_id?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -53263,6 +53267,8 @@ export type Database = {
           quantity_received?: number | null
           receipt_status?: string
           requisition_item_id?: string | null
+          rfq_item_id?: string | null
+          rfq_quotation_item_id?: string | null
           sort_order?: number | null
           task_id?: string | null
           tax_amount?: number | null
@@ -53325,6 +53331,20 @@ export type Database = {
             columns: ["requisition_item_id"]
             isOneToOne: false
             referencedRelation: "purchase_requisition_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_rfq_quotation_item_id_fkey"
+            columns: ["rfq_quotation_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotation_items"
             referencedColumns: ["id"]
           },
           {
@@ -53405,6 +53425,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -53441,6 +53463,8 @@ export type Database = {
           po_number: string
           project_id?: string | null
           requisition_id?: string | null
+          rfq_award_id?: string | null
+          rfq_id?: string | null
           shipping_address?: string | null
           status?: Database["public"]["Enums"]["po_status"]
           submitted_at?: string | null
@@ -53477,6 +53501,8 @@ export type Database = {
           po_number?: string
           project_id?: string | null
           requisition_id?: string | null
+          rfq_award_id?: string | null
+          rfq_id?: string | null
           shipping_address?: string | null
           status?: Database["public"]["Enums"]["po_status"]
           submitted_at?: string | null
@@ -53593,6 +53619,20 @@ export type Database = {
             columns: ["requisition_id"]
             isOneToOne: false
             referencedRelation: "purchase_requisitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_rfq_award_id_fkey"
+            columns: ["rfq_award_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_awards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
             referencedColumns: ["id"]
           },
           {
@@ -56237,36 +56277,274 @@ export type Database = {
         }
         Relationships: []
       }
+      rfq_award_items: {
+        Row: {
+          award_id: string
+          awarded_quantity: number
+          awarded_uom_id: string | null
+          created_at: string
+          id: string
+          line_total: number
+          quotation_item_id: string
+          rfq_item_id: string
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          award_id: string
+          awarded_quantity: number
+          awarded_uom_id?: string | null
+          created_at?: string
+          id?: string
+          line_total?: number
+          quotation_item_id: string
+          rfq_item_id: string
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          award_id?: string
+          awarded_quantity?: number
+          awarded_uom_id?: string | null
+          created_at?: string
+          id?: string
+          line_total?: number
+          quotation_item_id?: string
+          rfq_item_id?: string
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_award_items_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_awards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_award_items_awarded_uom_id_fkey"
+            columns: ["awarded_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_award_items_quotation_item_id_fkey"
+            columns: ["quotation_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotation_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_award_items_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_awards: {
+        Row: {
+          award_reason: string | null
+          awarded_at: string
+          awarded_by: string | null
+          awarded_value: number
+          converted_at: string | null
+          created_at: string
+          currency: string
+          id: string
+          purchase_order_id: string | null
+          quotation_id: string
+          rfq_id: string
+          supplier_id: string
+        }
+        Insert: {
+          award_reason?: string | null
+          awarded_at?: string
+          awarded_by?: string | null
+          awarded_value?: number
+          converted_at?: string | null
+          created_at?: string
+          currency: string
+          id?: string
+          purchase_order_id?: string | null
+          quotation_id: string
+          rfq_id: string
+          supplier_id: string
+        }
+        Update: {
+          award_reason?: string | null
+          awarded_at?: string
+          awarded_by?: string | null
+          awarded_value?: number
+          converted_at?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          purchase_order_id?: string | null
+          quotation_id?: string
+          rfq_id?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_awards_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_awards_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_awards_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_awards_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_invitations: {
+        Row: {
+          channel: string
+          contact_email: string | null
+          created_at: string
+          created_by: string | null
+          decline_reason: string | null
+          declined_at: string | null
+          delivered_at: string | null
+          delivery_error: string | null
+          delivery_state: string
+          id: string
+          invitation_state: string
+          last_reminder_at: string | null
+          reminder_count: number
+          requested_at: string | null
+          response_deadline: string | null
+          rfq_id: string
+          rfq_version: number
+          sent_at: string | null
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          contact_email?: string | null
+          created_at?: string
+          created_by?: string | null
+          decline_reason?: string | null
+          declined_at?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_state?: string
+          id?: string
+          invitation_state?: string
+          last_reminder_at?: string | null
+          reminder_count?: number
+          requested_at?: string | null
+          response_deadline?: string | null
+          rfq_id: string
+          rfq_version?: number
+          sent_at?: string | null
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          contact_email?: string | null
+          created_at?: string
+          created_by?: string | null
+          decline_reason?: string | null
+          declined_at?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_state?: string
+          id?: string
+          invitation_state?: string
+          last_reminder_at?: string | null
+          reminder_count?: number
+          requested_at?: string | null
+          response_deadline?: string | null
+          rfq_id?: string
+          rfq_version?: number
+          sent_at?: string | null
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_invitations_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_invitations_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfq_items: {
         Row: {
           created_at: string
           description: string
           id: string
+          need_by_date: string | null
           product_id: string | null
           quantity: number
+          requisition_item_id: string | null
           rfq_id: string
           sort_order: number
+          specification: string | null
           target_price: number | null
+          uom_id: string | null
         }
         Insert: {
           created_at?: string
           description: string
           id?: string
+          need_by_date?: string | null
           product_id?: string | null
           quantity?: number
+          requisition_item_id?: string | null
           rfq_id: string
           sort_order?: number
+          specification?: string | null
           target_price?: number | null
+          uom_id?: string | null
         }
         Update: {
           created_at?: string
           description?: string
           id?: string
+          need_by_date?: string | null
           product_id?: string | null
           quantity?: number
+          requisition_item_id?: string | null
           rfq_id?: string
           sort_order?: number
+          specification?: string | null
           target_price?: number | null
+          uom_id?: string | null
         }
         Relationships: [
           {
@@ -56284,7 +56562,300 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rfq_items_requisition_item_id_fkey"
+            columns: ["requisition_item_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisition_items"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rfq_items_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_items_uom_id_fkey"
+            columns: ["uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_quotation_items: {
+        Row: {
+          alternate_product_id: string | null
+          base_quantity: number | null
+          created_at: string
+          delivery_date: string | null
+          description: string | null
+          discount_percent: number
+          id: string
+          is_alternate: boolean
+          lead_time_days: number | null
+          line_total: number
+          notes: string | null
+          product_id: string | null
+          quotation_id: string
+          quoted_quantity: number
+          quoted_uom_id: string | null
+          rfq_item_id: string
+          sort_order: number
+          supplier_product_code: string | null
+          tax_amount: number
+          tax_rate: number
+          unit_price: number
+        }
+        Insert: {
+          alternate_product_id?: string | null
+          base_quantity?: number | null
+          created_at?: string
+          delivery_date?: string | null
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          is_alternate?: boolean
+          lead_time_days?: number | null
+          line_total?: number
+          notes?: string | null
+          product_id?: string | null
+          quotation_id: string
+          quoted_quantity?: number
+          quoted_uom_id?: string | null
+          rfq_item_id: string
+          sort_order?: number
+          supplier_product_code?: string | null
+          tax_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Update: {
+          alternate_product_id?: string | null
+          base_quantity?: number | null
+          created_at?: string
+          delivery_date?: string | null
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          is_alternate?: boolean
+          lead_time_days?: number | null
+          line_total?: number
+          notes?: string | null
+          product_id?: string | null
+          quotation_id?: string
+          quoted_quantity?: number
+          quoted_uom_id?: string | null
+          rfq_item_id?: string
+          sort_order?: number
+          supplier_product_code?: string | null
+          tax_amount?: number
+          tax_rate?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_quotation_items_alternate_product_id_fkey"
+            columns: ["alternate_product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_alternate_product_id_fkey"
+            columns: ["alternate_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_quoted_uom_id_fkey"
+            columns: ["quoted_uom_id"]
+            isOneToOne: false
+            referencedRelation: "units_of_measure"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotation_items_rfq_item_id_fkey"
+            columns: ["rfq_item_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_quotations: {
+        Row: {
+          created_at: string
+          currency: string
+          exchange_rate: number | null
+          freight_amount: number
+          id: string
+          incoterms: string | null
+          invitation_id: string
+          is_late: boolean
+          lead_time_days: number | null
+          notes: string | null
+          payment_terms: string | null
+          quotation_version: number
+          rfq_id: string
+          rfq_version: number
+          state: string
+          submitted_at: string
+          submitted_by: string | null
+          submitted_via: string
+          subtotal: number
+          superseded_by: string | null
+          supplier_id: string
+          supplier_reference: string | null
+          tax_total: number
+          total: number
+          valid_until: string | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          exchange_rate?: number | null
+          freight_amount?: number
+          id?: string
+          incoterms?: string | null
+          invitation_id: string
+          is_late?: boolean
+          lead_time_days?: number | null
+          notes?: string | null
+          payment_terms?: string | null
+          quotation_version?: number
+          rfq_id: string
+          rfq_version?: number
+          state?: string
+          submitted_at?: string
+          submitted_by?: string | null
+          submitted_via?: string
+          subtotal?: number
+          superseded_by?: string | null
+          supplier_id: string
+          supplier_reference?: string | null
+          tax_total?: number
+          total?: number
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          exchange_rate?: number | null
+          freight_amount?: number
+          id?: string
+          incoterms?: string | null
+          invitation_id?: string
+          is_late?: boolean
+          lead_time_days?: number | null
+          notes?: string | null
+          payment_terms?: string | null
+          quotation_version?: number
+          rfq_id?: string
+          rfq_version?: number
+          state?: string
+          submitted_at?: string
+          submitted_by?: string | null
+          submitted_via?: string
+          subtotal?: number
+          superseded_by?: string | null
+          supplier_id?: string
+          supplier_reference?: string | null
+          tax_total?: number
+          total?: number
+          valid_until?: string | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_quotations_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "rfq_invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotations_rfq_id_fkey"
+            columns: ["rfq_id"]
+            isOneToOne: false
+            referencedRelation: "rfqs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotations_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "rfq_quotations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfq_quotations_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfq_revisions: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string | null
+          revised_at: string
+          revised_by: string | null
+          rfq_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          revised_at?: string
+          revised_by?: string | null
+          rfq_id: string
+          snapshot: Json
+          version: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string | null
+          revised_at?: string
+          revised_by?: string | null
+          rfq_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfq_revisions_rfq_id_fkey"
             columns: ["rfq_id"]
             isOneToOne: false
             referencedRelation: "rfqs"
@@ -56387,46 +56958,118 @@ export type Database = {
       }
       rfqs: {
         Row: {
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          award_justification: string | null
+          awarded_at: string | null
+          awarded_by: string | null
           branch_id: string | null
           business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          converted_at: string | null
           created_at: string
           created_by: string | null
+          currency: string | null
           deadline: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
+          expires_at: string | null
           id: string
           notes: string | null
           organization_id: string
+          project_id: string | null
+          released_at: string | null
+          released_by: string | null
+          required_by_date: string | null
+          requisition_id: string | null
           rfq_number: string
           sourcing_event_id: string | null
           status: string
+          submitted_at: string | null
+          submitted_by: string | null
           updated_at: string
+          version: number
         }
         Insert: {
+          approval_request_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          award_justification?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
           branch_id?: string | null
           business_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          converted_at?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string | null
           deadline?: string | null
+          deliver_to_branch_id?: string | null
+          deliver_to_warehouse_id?: string | null
+          expires_at?: string | null
           id?: string
           notes?: string | null
           organization_id: string
+          project_id?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          required_by_date?: string | null
+          requisition_id?: string | null
           rfq_number: string
           sourcing_event_id?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
+          version?: number
         }
         Update: {
+          approval_request_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          award_justification?: string | null
+          awarded_at?: string | null
+          awarded_by?: string | null
           branch_id?: string | null
           business_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          converted_at?: string | null
           created_at?: string
           created_by?: string | null
+          currency?: string | null
           deadline?: string | null
+          deliver_to_branch_id?: string | null
+          deliver_to_warehouse_id?: string | null
+          expires_at?: string | null
           id?: string
           notes?: string | null
           organization_id?: string
+          project_id?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          required_by_date?: string | null
+          requisition_id?: string | null
           rfq_number?: string
           sourcing_event_id?: string | null
           status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
           updated_at?: string
+          version?: number
         }
         Relationships: [
           {
@@ -56465,6 +57108,27 @@ export type Database = {
             referencedColumns: ["business_id"]
           },
           {
+            foreignKeyName: "rfqs_deliver_to_branch_id_fkey"
+            columns: ["deliver_to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_deliver_to_branch_id_fkey"
+            columns: ["deliver_to_branch_id"]
+            isOneToOne: false
+            referencedRelation: "effective_reorder_rule"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "rfqs_deliver_to_warehouse_id_fkey"
+            columns: ["deliver_to_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "rfqs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -56483,6 +57147,20 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfqs_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
             referencedColumns: ["id"]
           },
           {
@@ -82722,6 +83400,62 @@ export type Database = {
         }
         Returns: Json
       }
+      _rfq_emit: {
+        Args: {
+          _actor: string
+          _event: string
+          _payload: Json
+          _rfq: Database["public"]["Tables"]["rfqs"]["Row"]
+        }
+        Returns: undefined
+      }
+      _rfq_guard: {
+        Args: { _allowed: string[]; _rfq_id: string }
+        Returns: {
+          approval_request_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          award_justification: string | null
+          awarded_at: string | null
+          awarded_by: string | null
+          branch_id: string | null
+          business_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          converted_at: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          deadline: string | null
+          deliver_to_branch_id: string | null
+          deliver_to_warehouse_id: string | null
+          expires_at: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          project_id: string | null
+          released_at: string | null
+          released_by: string | null
+          required_by_date: string | null
+          requisition_id: string | null
+          rfq_number: string
+          sourcing_event_id: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          version: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rfqs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       _rtest: {
         Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
@@ -83442,6 +84176,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -84264,6 +85000,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -85043,10 +85781,6 @@ export type Database = {
         }[]
       }
       auto_create_replenishment_po: { Args: never; Returns: Json }
-      award_rfq_atomic: {
-        Args: { _rfq_id: string; _rfq_vendor_id: string }
-        Returns: Json
-      }
       award_sourcing_event_atomic: {
         Args: { p_awards: Json; p_event_id: string; p_justification: string }
         Returns: Json
@@ -85220,6 +85954,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -86040,6 +86776,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -86413,10 +87151,6 @@ export type Database = {
           p_to_warehouse_id: string
         }
         Returns: string
-      }
-      convert_rfq_to_po_atomic: {
-        Args: { _rfq_id: string; _rfq_vendor_id: string; _user_id: string }
-        Returns: Json
       }
       convert_so_to_invoice_atomic: {
         Args: { p_so_id: string; p_user_id: string }
@@ -94425,6 +95159,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -95713,6 +96449,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null
@@ -95748,7 +96486,31 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: number
       }
+      rfq_approve: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_award: {
+        Args: { _awards: Json; _justification: string; _rfq_id: string }
+        Returns: Json
+      }
       rfq_belongs_to_user_org: { Args: { _rfq_id: string }; Returns: boolean }
+      rfq_cancel: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
+      rfq_convert_awards_to_po: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_expire_due: { Args: { _business_id: string }; Returns: number }
+      rfq_record_quotation: {
+        Args: {
+          _allow_late?: boolean
+          _header: Json
+          _invitation_id: string
+          _lines: Json
+        }
+        Returns: Json
+      }
+      rfq_release: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_revise: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
+      rfq_submit_for_approval: { Args: { _rfq_id: string }; Returns: Json }
+      rfq_withdraw_quotation: {
+        Args: { _quotation_id: string; _reason?: string }
+        Returns: Json
+      }
       rls_check_feature_access: {
         Args: { p_feature_key: string; p_org_id: string }
         Returns: boolean
@@ -96177,6 +96939,8 @@ export type Database = {
           po_number: string
           project_id: string | null
           requisition_id: string | null
+          rfq_award_id: string | null
+          rfq_id: string | null
           shipping_address: string | null
           status: Database["public"]["Enums"]["po_status"]
           submitted_at: string | null

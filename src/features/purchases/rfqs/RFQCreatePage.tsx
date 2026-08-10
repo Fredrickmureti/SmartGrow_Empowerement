@@ -58,6 +58,7 @@ export default function RFQCreatePage() {
   const { formatCurrency, baseCurrency } = useCurrency();
 
   const [deadline, setDeadline] = useState("");
+  const [requiredBy, setRequiredBy] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([emptyLine(0)]);
@@ -147,7 +148,12 @@ export default function RFQCreatePage() {
     }
     try {
       await createRFQAsync({
-        rfq: { deadline: deadline || null, notes: notes || null },
+        rfq: {
+          deadline: deadline || null,
+          notes: notes || null,
+          required_by_date: requiredBy || null,
+          currency: baseCurrency || null,
+        },
         items: validItems,
         vendorIds: selectedVendorIds,
       });
@@ -176,6 +182,14 @@ export default function RFQCreatePage() {
               type="date"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Required by</Label>
+            <Input
+              type="date"
+              value={requiredBy}
+              onChange={(e) => setRequiredBy(e.target.value)}
             />
           </div>
           <div className="space-y-2">

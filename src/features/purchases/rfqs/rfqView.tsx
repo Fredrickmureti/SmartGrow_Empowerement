@@ -1,10 +1,13 @@
 /**
  * rfqView — the one description of an RFQ, shared by the peek and the
  * full record page.
+ *
+ * Reads the sourcing graph produced by the RFQ RPCs: lines, invitations,
+ * versioned quotations (with a per-line comparison matrix) and awards.
  */
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { Award, ArrowRightLeft } from "lucide-react";
+import { Award, Clock, Trophy } from "lucide-react";
 
 import type {
   DocumentRecordView,
@@ -13,9 +16,13 @@ import type {
 } from "@/design-system/records";
 import { Section, StatusBadge } from "@/design-system";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useRFQs, type RFQWithRelations } from "@/hooks/useRFQs";
+import {
+  rfqAwardedValue,
+  rfqEstimatedValue,
+  type RFQQuotation,
+  type RFQWithRelations,
+} from "@/hooks/useRFQs";
 import { useRFQRecord } from "./useRFQRecord";
 
 const fmt = (v?: string | null) => {
@@ -27,26 +34,41 @@ const fmt = (v?: string | null) => {
   }
 };
 
-const label = (s: string) =>
-  s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+const label = (s?: string | null) =>
+  (s ?? "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
-const VENDOR_TONE: Record<
+const INVITATION_TONE: Record<
   string,
   "neutral" | "info" | "success" | "warning" | "danger" | "accent"
 > = {
   pending: "neutral",
-  quoted: "info",
-  awarded: "success",
+  sent: "info",
+  viewed: "info",
+  responded: "success",
   declined: "danger",
+  no_bid: "warning",
+  superseded: "neutral",
 };
 
-type RFQRecord = RFQWithRelations & { vendors?: any[]; items?: any[] };
-
 interface Result {
-  rfq: RFQRecord | null;
+  rfq: RFQWithRelations | null;
   loading: boolean;
   error: string | null;
   view: DocumentRecordView;
+}
+
+/** Only the newest non-withdrawn quotation per supplier competes. */
+export function activeQuotations(rfq: RFQWithRelations | null): RFQQuotation[] {
+  const bySupplier = new Map<string, RFQQuotation>();
+  for (const q of rfq?.quotations ?? []) {
+    if (q.state === "withdrawn" || q.state === "superseded") continue;
+    if (q.rfq_version !== (rfq?.version ?? q.rfq_version)) continue;
+    const prev = bySupplier.get(q.supplier_id);
+    if (!prev || q.quotation_version > prev.quotation_version) {
+      bySupplier.set(q.supplier_id, q);
+    }
+  }
+  return [...bySupplier.values()].sort((a, b) => a.total - b.total);
 }
 
 export function useRFQView(
@@ -55,27 +77,59 @@ export function useRFQView(
 ): Result {
   const { record, loading, error } = useRFQRecord(id);
   const { baseCurrency } = useCurrency();
-  const { convertToPurchaseOrder } = useRFQs();
-  const rfq = (record as RFQRecord | undefined) ?? null;
+  const rfq = (record as RFQWithRelations | undefined) ?? null;
+  const currency = rfq?.currency || baseCurrency;
 
   const columns = useMemo<LineItemColumn[]>(
     () => [
       { id: "description", header: "Description", priority: 1, minWidth: 200 },
       { id: "qty", header: "Qty", numeric: true, priority: 1, minWidth: 70, compactLabel: "Qty" },
       { id: "target", header: "Target price", numeric: true, priority: 2, minWidth: 120 },
-      { id: "total", header: "Est. total", numeric: true, priority: 2, minWidth: 120 },
+      { id: "best", header: "Best quote", numeric: true, priority: 2, minWidth: 120 },
+      { id: "awarded", header: "Awarded", priority: 3, minWidth: 140 },
     ],
     [],
   );
 
   const view = useMemo<DocumentRecordView>(() => {
-    const items = (rfq?.items ?? []) as any[];
-    const vendors = (rfq?.vendors ?? []) as any[];
+    const items = (rfq?.items ?? []).slice().sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+    );
+    const invitations = rfq?.invitations ?? [];
+    const quotes = activeQuotations(rfq);
+    const awards = rfq?.awards ?? [];
 
-    const rows: LineItemRow[] = items
-      .slice()
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      .map((line, idx) => ({
+    const supplierName = (supplierId: string) =>
+      invitations.find((i) => i.supplier_id === supplierId)?.supplier?.name ??
+      quotes.find((q) => q.supplier_id === supplierId)?.supplier?.name ??
+      "Unknown supplier";
+
+    /** Cheapest unit price offered per RFQ line, across live quotations. */
+    const bestByLine = new Map<string, { price: number; supplierId: string }>();
+    for (const q of quotes) {
+      for (const li of q.items ?? []) {
+        const cur = bestByLine.get(li.rfq_item_id);
+        if (!cur || li.unit_price < cur.price) {
+          bestByLine.set(li.rfq_item_id, { price: li.unit_price, supplierId: q.supplier_id });
+        }
+      }
+    }
+
+    /** Awarded quantity + winner per line (split awards accumulate). */
+    const awardedByLine = new Map<string, { qty: number; suppliers: Set<string> }>();
+    for (const a of awards) {
+      for (const ai of a.items ?? []) {
+        const cur = awardedByLine.get(ai.rfq_item_id) ?? { qty: 0, suppliers: new Set<string>() };
+        cur.qty += ai.awarded_quantity ?? 0;
+        cur.suppliers.add(a.supplier_id);
+        awardedByLine.set(ai.rfq_item_id, cur);
+      }
+    }
+
+    const rows: LineItemRow[] = items.map((line, idx) => {
+      const best = line.id ? bestByLine.get(line.id) : undefined;
+      const awarded = line.id ? awardedByLine.get(line.id) : undefined;
+      return {
         id: line.id ?? String(idx),
         cells: [
           { columnId: "description", content: line.description || "—" },
@@ -83,35 +137,37 @@ export function useRFQView(
           {
             columnId: "target",
             content:
-              line.target_price != null
-                ? formatCurrency(line.target_price, baseCurrency)
-                : "—",
+              line.target_price != null ? formatCurrency(line.target_price, currency) : "—",
           },
           {
-            columnId: "total",
-            content:
-              line.target_price != null
-                ? formatCurrency(
-                    (line.target_price ?? 0) * (line.quantity ?? 0),
-                    baseCurrency,
-                  )
-                : "—",
+            columnId: "best",
+            content: best
+              ? `${formatCurrency(best.price, currency)} · ${supplierName(best.supplierId)}`
+              : "—",
+          },
+          {
+            columnId: "awarded",
+            content: awarded
+              ? `${awarded.qty} → ${[...awarded.suppliers].map(supplierName).join(", ")}`
+              : "—",
           },
         ],
-      }));
+      };
+    });
 
-    const estimatedTotal = items.reduce(
-      (s, i) => s + (i.target_price ?? 0) * (i.quantity ?? 0),
-      0,
-    );
+    const estimatedTotal = rfqEstimatedValue({ items });
+    const awardedTotal = rfqAwardedValue({ awards });
+    const responded = invitations.filter((i) => i.invitation_state === "responded").length;
 
     return {
       kind: "rfq",
       documentId: rfq?.id,
-      eyebrow: "Request for Quotation",
+      eyebrow: `Request for Quotation${rfq && rfq.version > 1 ? ` · rev ${rfq.version}` : ""}`,
       listPath: "/purchases/rfqs",
       title: rfq?.rfq_number ?? "RFQ",
-      docNumber: rfq ? `${vendors.length} suppliers · ${items.length} items` : undefined,
+      docNumber: rfq
+        ? `${invitations.length} invited · ${quotes.length} quoted · ${items.length} lines`
+        : undefined,
       status: rfq?.status,
       loading,
       error,
@@ -120,128 +176,183 @@ export function useRFQView(
         <>
           <span>Created {fmt(rfq.created_at)}</span>
           {rfq.deadline && <span>Deadline {fmt(rfq.deadline)}</span>}
-          {estimatedTotal > 0 && (
-            <span className="tabular-nums">
-              Est. {formatCurrency(estimatedTotal, baseCurrency)}
-            </span>
-          )}
+          {rfq.required_by_date && <span>Need by {fmt(rfq.required_by_date)}</span>}
+          <span className="tabular-nums">
+            {awardedTotal > 0
+              ? `Awarded ${formatCurrency(awardedTotal, currency)}`
+              : `Est. ${formatCurrency(estimatedTotal, currency)}`}
+          </span>
         </>
       ) : undefined,
       totalsRows: rfq
         ? [
-            { label: "Items", value: String(items.length) },
-            { label: "Suppliers", value: String(vendors.length) },
+            { label: "Lines", value: String(items.length) },
+            { label: "Invited", value: String(invitations.length) },
+            { label: "Responded", value: `${responded} / ${invitations.length}` },
             {
-              label: "Estimated value",
-              value: formatCurrency(estimatedTotal, baseCurrency),
+              label: awardedTotal > 0 ? "Awarded value" : "Estimated value",
+              value: formatCurrency(awardedTotal > 0 ? awardedTotal : estimatedTotal, currency),
               emphasized: true,
             },
           ]
         : undefined,
-      totalsFooter: rfq ? `Currency ${baseCurrency}` : undefined,
+      totalsFooter: rfq ? `Currency ${currency}` : undefined,
       detailFields: rfq
         ? [
             { label: "RFQ #", value: rfq.rfq_number },
-            { label: "Created", value: fmt(rfq.created_at) },
-            { label: "Deadline", value: fmt(rfq.deadline) },
-            { label: "Items", value: String(items.length) },
-            { label: "Suppliers", value: String(vendors.length) },
+            { label: "Revision", value: String(rfq.version) },
             { label: "Status", value: label(rfq.status) },
+            { label: "Created", value: fmt(rfq.created_at) },
+            { label: "Quote deadline", value: fmt(rfq.deadline) },
+            { label: "Required by", value: fmt(rfq.required_by_date) },
+            { label: "Approved", value: fmt(rfq.approved_at) },
+            { label: "Released", value: fmt(rfq.released_at) },
+            { label: "Awarded", value: fmt(rfq.awarded_at) },
           ]
         : undefined,
       lineColumns: columns,
       lineRows: rows,
-      lineEmpty: "No items on this RFQ.",
+      lineEmpty: "No lines on this RFQ.",
       extraSections: rfq ? (
         <>
           <Section title="Invited suppliers">
-            {vendors.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No suppliers were invited.
-              </p>
+            {invitations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No suppliers were invited.</p>
             ) : (
               <div className="space-y-2">
-                {vendors.map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
-                        {v.vendor?.name?.charAt(0) ?? "?"}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {v.vendor?.name ?? "Unknown supplier"}
-                        </p>
-                        <div className="mt-0.5 flex items-center gap-2">
-                          <StatusBadge tone={VENDOR_TONE[v.status] ?? "neutral"}>
-                            {v.status === "awarded" && (
-                              <Award className="mr-1 h-3 w-3" />
+                {invitations.map((inv) => {
+                  const quote = quotes.find((q) => q.supplier_id === inv.supplier_id);
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between rounded-lg border p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
+                          {inv.supplier?.name?.charAt(0) ?? "?"}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {inv.supplier?.name ?? "Unknown supplier"}
+                          </p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                            <StatusBadge
+                              tone={INVITATION_TONE[inv.invitation_state] ?? "neutral"}
+                            >
+                              {label(inv.invitation_state)}
+                            </StatusBadge>
+                            {inv.sent_at && (
+                              <Badge variant="outline" className="text-xs">
+                                Sent {fmt(inv.sent_at)}
+                              </Badge>
                             )}
-                            {v.status}
-                          </StatusBadge>
-                          {v.quoted_total != null && (
-                            <Badge variant="outline" className="text-xs">
-                              Quoted {formatCurrency(v.quoted_total, baseCurrency)}
-                            </Badge>
-                          )}
-                          {v.lead_time_days != null && (
-                            <Badge variant="outline" className="text-xs">
-                              {v.lead_time_days} days
-                            </Badge>
-                          )}
+                            {quote && (
+                              <Badge variant="outline" className="text-xs">
+                                v{quote.quotation_version} ·{" "}
+                                {formatCurrency(quote.total, quote.currency)}
+                              </Badge>
+                            )}
+                            {quote?.is_late && (
+                              <Badge variant="destructive" className="text-xs">
+                                <Clock className="mr-1 h-3 w-3" />
+                                Late
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Quotation comparison">
+            {quotes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No quotations received yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                      <th className="py-2 pr-3">Supplier</th>
+                      <th className="py-2 pr-3 text-right">Total</th>
+                      <th className="py-2 pr-3 text-right">Lead time</th>
+                      <th className="py-2 pr-3">Incoterms</th>
+                      <th className="py-2 pr-3">Payment terms</th>
+                      <th className="py-2 pr-3">Valid until</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotes.map((q, i) => (
+                      <tr key={q.id} className="border-b last:border-0">
+                        <td className="py-2 pr-3">
+                          <span className="flex items-center gap-2">
+                            {i === 0 && <Trophy className="h-3.5 w-3.5 text-emerald-600" />}
+                            {q.supplier?.name ?? "—"}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3 text-right font-medium tabular-nums">
+                          {formatCurrency(q.total, q.currency)}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">
+                          {q.lead_time_days != null ? `${q.lead_time_days} d` : "—"}
+                        </td>
+                        <td className="py-2 pr-3">{q.incoterms ?? "—"}</td>
+                        <td className="py-2 pr-3">{q.payment_terms ?? "—"}</td>
+                        <td className="py-2 pr-3">{fmt(q.valid_until)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Section>
+
+          {awards.length > 0 && (
+            <Section title="Awards">
+              <div className="space-y-2">
+                {awards.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between rounded-lg border p-3 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4 text-emerald-600" />
+                      <span className="font-medium">{a.supplier?.name ?? "—"}</span>
+                      <span className="text-muted-foreground">
+                        {(a.items ?? []).length} line(s)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="tabular-nums font-medium">
+                        {formatCurrency(a.awarded_value, a.currency)}
+                      </span>
+                      <StatusBadge tone={a.purchase_order_id ? "success" : "warning"}>
+                        {a.purchase_order_id ? "Converted to PO" : "Awaiting PO"}
+                      </StatusBadge>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </Section>
+              {rfq.award_justification && (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                  {rfq.award_justification}
+                </p>
+              )}
+            </Section>
+          )}
+
           {rfq.notes && (
             <Section title="Notes">
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {rfq.notes}
-              </p>
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{rfq.notes}</p>
             </Section>
           )}
         </>
       ) : undefined,
-      extraAside:
-        rfq && rfq.status === "received" ? (
-          <Section title="Award">
-            <div className="space-y-2">
-              {vendors.map((v) => (
-                <div
-                  key={v.id}
-                  className="flex items-center justify-between rounded-md border p-2 text-sm"
-                >
-                  <span className="truncate">{v.vendor?.name ?? "—"}</span>
-                  {v.status !== "awarded" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        convertToPurchaseOrder({
-                          rfqId: rfq.id,
-                          rfqVendorId: v.id,
-                        })
-                      }
-                    >
-                      <ArrowRightLeft className="mr-1 h-3 w-3" />
-                      Convert to PO
-                    </Button>
-                  ) : (
-                    <StatusBadge tone="success">
-                      <Award className="mr-1 h-3 w-3" /> Awarded
-                    </StatusBadge>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Section>
-        ) : undefined,
       activity: rfq
         ? [
             {
@@ -250,22 +361,42 @@ export function useRFQView(
               actor: "System",
               title: `RFQ ${rfq.rfq_number} created`,
             },
-            ...(rfq.status === "sent" || rfq.status === "received" || rfq.status === "closed"
+            ...(rfq.approved_at
               ? [
                   {
-                    id: "sent",
-                    at: fmt(rfq.updated_at),
-                    title: "Sent to suppliers",
+                    id: "approved",
+                    at: fmt(rfq.approved_at),
+                    title: "Approved for sourcing",
                     tone: "info" as const,
                   },
                 ]
               : []),
-            ...(rfq.status === "closed"
+            ...(rfq.released_at
               ? [
                   {
-                    id: "closed",
-                    at: fmt(rfq.updated_at),
-                    title: "Awarded and closed",
+                    id: "released",
+                    at: fmt(rfq.released_at),
+                    title: `Released to ${invitations.length} supplier(s)`,
+                    tone: "info" as const,
+                  },
+                ]
+              : []),
+            ...(rfq.awarded_at
+              ? [
+                  {
+                    id: "awarded",
+                    at: fmt(rfq.awarded_at),
+                    title: `Awarded ${formatCurrency(awardedTotal, currency)}`,
+                    tone: "success" as const,
+                  },
+                ]
+              : []),
+            ...(rfq.converted_at
+              ? [
+                  {
+                    id: "converted",
+                    at: fmt(rfq.converted_at),
+                    title: "Converted to purchase order(s)",
                     tone: "success" as const,
                   },
                 ]
@@ -283,7 +414,7 @@ export function useRFQView(
           ]
         : undefined,
     };
-  }, [rfq, loading, error, formatCurrency, baseCurrency, columns, convertToPurchaseOrder]);
+  }, [rfq, loading, error, formatCurrency, currency, columns]);
 
   return { rfq, loading, error, view };
 }

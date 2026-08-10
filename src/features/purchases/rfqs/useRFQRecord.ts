@@ -1,23 +1,15 @@
 /**
  * useRFQRecord — canonical single-record fetch for the RFQ peek + record
- * page. Mirrors usePurchaseOrderRecord / useVendorCreditNoteRecord.
+ * page. Loads the full sourcing graph: lines, invitations, versioned
+ * quotations and awards.
  */
 import { useDocumentRecord } from "@/design-system";
-import type { RFQWithRelations } from "@/hooks/useRFQs";
+import { RFQ_SELECT, type RFQWithRelations } from "@/hooks/useRFQs";
 
 export function useRFQRecord(id: string | null | undefined) {
-  return useDocumentRecord<
-    RFQWithRelations & {
-      vendors?: any[];
-      items?: any[];
-    }
-  >({
+  return useDocumentRecord<RFQWithRelations>({
     table: "rfqs",
-    select: [
-      "*",
-      "items:rfq_items(*)",
-      "vendors:rfq_vendors(*, vendor:contacts!vendor_id(id, name))",
-    ].join(","),
+    select: RFQ_SELECT,
     id,
     entityLabel: "RFQ",
   });

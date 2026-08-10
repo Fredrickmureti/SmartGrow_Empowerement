@@ -1,7 +1,12 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * Vendor Portal - RFQ Detail & Response View
- * Allows vendors to view RFQ items and submit per-item pricing
+ * Vendor Portal — RFQ invitation detail & quotation submission.
+ *
+ * The supplier never writes RFQ tables directly: the whole offer is posted
+ * through `rfq_record_quotation`, which validates the invitation, pins the
+ * RFQ version, computes totals server-side and supersedes the supplier's
+ * previous quotation instead of mutating it. Re-quoting therefore produces
+ * a new immutable version, which is what an audit needs.
  */
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -22,6 +27,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+const db = supabase as any;
+
 interface RFQItem {
   id: string;
   description: string;
@@ -30,10 +37,12 @@ interface RFQItem {
   product_id: string | null;
 }
 
-interface VendorItemQuote {
+interface LineQuote {
   rfq_item_id: string;
   unit_price: number | null;
-  available_qty: number | null;
+  quoted_quantity: number | null;
+  tax_rate: number | null;
+  delivery_date: string | null;
 }
 
 interface RFQHeader {
@@ -42,158 +51,178 @@ interface RFQHeader {
   status: string;
   deadline: string | null;
   notes: string | null;
+  currency: string | null;
+  version: number;
 }
 
-interface RFQVendorEntry {
+interface Invitation {
   id: string;
-  status: string;
-  quoted_total: number | null;
+  rfq_id: string;
+  rfq_version: number;
+  invitation_state: string;
+  response_deadline: string | null;
+}
+
+interface LiveQuotation {
+  id: string;
+  quotation_version: number;
+  total: number;
+  submitted_at: string;
   lead_time_days: number | null;
+  incoterms: string | null;
+  payment_terms: string | null;
+  valid_until: string | null;
   notes: string | null;
-  responded_at: string | null;
+  items: any[];
 }
 
 export default function VendorRFQDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { portalData } = useVendorPortal();
+  const { portalData, refreshRFQs } = useVendorPortal();
 
   const [rfq, setRfq] = useState<RFQHeader | null>(null);
-  const [rfqVendor, setRfqVendor] = useState<RFQVendorEntry | null>(null);
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [quotation, setQuotation] = useState<LiveQuotation | null>(null);
   const [items, setItems] = useState<RFQItem[]>([]);
-  const [quotes, setQuotes] = useState<Record<string, VendorItemQuote>>({});
-  const [leadTimeDays, setLeadTimeDays] = useState<string>("");
+  const [quotes, setQuotes] = useState<Record<string, LineQuote>>({});
+  const [leadTimeDays, setLeadTimeDays] = useState("");
+  const [incoterms, setIncoterms] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [freight, setFreight] = useState("");
   const [vendorNotes, setVendorNotes] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (id && portalData.contactId) fetchRFQDetail();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, portalData.contactId]);
 
   const fetchRFQDetail = async () => {
     if (!id || !portalData.contactId) return;
     setIsLoading(true);
 
-    // id here is the rfq_vendor id from the list
-    const { data: rvData } = await supabase
-      .from("rfq_vendors")
-      .select("id, status, quoted_total, lead_time_days, notes, responded_at, rfq_id")
+    // `id` is the invitation id — the supplier's addressable handle on the RFQ.
+    const { data: inv } = await db
+      .from("rfq_invitations")
+      .select("id, rfq_id, rfq_version, invitation_state, response_deadline")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
-    if (!rvData) {
+    if (!inv) {
       setIsLoading(false);
       return;
     }
+    setInvitation(inv as Invitation);
 
-    setRfqVendor({
-      id: rvData.id,
-      status: rvData.status,
-      quoted_total: rvData.quoted_total,
-      lead_time_days: rvData.lead_time_days,
-      notes: rvData.notes,
-      responded_at: rvData.responded_at,
-    });
-    setLeadTimeDays(rvData.lead_time_days?.toString() || "");
-    setVendorNotes(rvData.notes || "");
-
-    const rfqId = rvData.rfq_id;
-
-    const [rfqResult, itemsResult, vendorItemsResult] = await Promise.all([
-      supabase.from("rfqs").select("id, rfq_number, status, deadline, notes").eq("id", rfqId).single(),
-      supabase.from("rfq_items").select("id, description, quantity, target_price, product_id").eq("rfq_id", rfqId).order("sort_order"),
-      (supabase as any).from("rfq_vendor_items").select("rfq_item_id, unit_price, available_qty").eq("rfq_vendor_id", rvData.id),
+    const [rfqResult, itemsResult, quotationsResult] = await Promise.all([
+      db.from("rfqs").select("id, rfq_number, status, deadline, notes, currency, version")
+        .eq("id", inv.rfq_id).maybeSingle(),
+      db.from("rfq_items").select("id, description, quantity, target_price, product_id")
+        .eq("rfq_id", inv.rfq_id).order("sort_order"),
+      db.from("rfq_quotations")
+        .select("id, quotation_version, total, submitted_at, lead_time_days, incoterms, payment_terms, valid_until, notes, state, items:rfq_quotation_items(*)")
+        .eq("invitation_id", inv.id)
+        .order("quotation_version", { ascending: false }),
     ]);
 
     if (rfqResult.data) setRfq(rfqResult.data as RFQHeader);
+    const rfqItems = (itemsResult.data ?? []) as RFQItem[];
+    setItems(rfqItems);
 
-    if (itemsResult.data) setItems(itemsResult.data as RFQItem[]);
+    const live = (quotationsResult.data ?? []).find(
+      (q: any) => q.state !== "withdrawn" && q.state !== "superseded",
+    ) as LiveQuotation | undefined;
+    setQuotation(live ?? null);
 
-    // Build quotes map
-    const quotesMap: Record<string, VendorItemQuote> = {};
-    if (itemsResult.data) {
-      (itemsResult.data as RFQItem[]).forEach((item) => {
-        quotesMap[item.id] = { rfq_item_id: item.id, unit_price: null, available_qty: null };
-      });
+    // Seed the form from the previous version so re-quoting is an edit,
+    // not a retype — the server still stores it as a new version.
+    const seeded: Record<string, LineQuote> = {};
+    for (const item of rfqItems) {
+      const prior = (live?.items ?? []).find((li: any) => li.rfq_item_id === item.id);
+      seeded[item.id] = {
+        rfq_item_id: item.id,
+        unit_price: prior?.unit_price ?? null,
+        quoted_quantity: prior?.quoted_quantity ?? item.quantity,
+        tax_rate: prior?.tax_rate ?? null,
+        delivery_date: prior?.delivery_date ?? null,
+      };
     }
-    if (vendorItemsResult.data) {
-      (vendorItemsResult.data as any[]).forEach((vi: any) => {
-        quotesMap[vi.rfq_item_id] = {
-          rfq_item_id: vi.rfq_item_id,
-          unit_price: vi.unit_price,
-          available_qty: vi.available_qty,
-        };
-      });
-    }
-    setQuotes(quotesMap);
+    setQuotes(seeded);
+    setLeadTimeDays(live?.lead_time_days?.toString() ?? "");
+    setIncoterms(live?.incoterms ?? "");
+    setPaymentTerms(live?.payment_terms ?? "");
+    setValidUntil(live?.valid_until ?? "");
+    setVendorNotes(live?.notes ?? "");
     setIsLoading(false);
   };
 
-  const updateQuote = (itemId: string, field: "unit_price" | "available_qty", value: string) => {
+  const updateQuote = (itemId: string, field: keyof LineQuote, value: string) => {
     setQuotes((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]: value === "" ? null : Number(value),
+        [field]:
+          field === "delivery_date"
+            ? value || null
+            : value === ""
+              ? null
+              : Number(value),
       },
     }));
   };
 
-  const calculateTotal = () => {
-    return items.reduce((sum, item) => {
-      const quote = quotes[item.id];
-      if (quote?.unit_price != null) {
-        const qty = quote.available_qty ?? item.quantity;
-        return sum + quote.unit_price * qty;
-      }
-      return sum;
-    }, 0);
-  };
+  /** Indicative only — the authoritative total is recomputed by the RPC. */
+  const calculateTotal = () =>
+    items.reduce((sum, item) => {
+      const q = quotes[item.id];
+      if (q?.unit_price == null) return sum;
+      const qty = q.quoted_quantity ?? item.quantity;
+      const net = q.unit_price * qty;
+      return sum + net + net * ((q.tax_rate ?? 0) / 100);
+    }, 0) + (freight ? Number(freight) : 0);
 
   const handleSubmitQuote = async () => {
-    if (!rfqVendor) return;
+    if (!invitation) return;
+    const lines = Object.values(quotes)
+      .filter((q) => q.unit_price != null)
+      .map((q) => ({
+        rfq_item_id: q.rfq_item_id,
+        unit_price: q.unit_price,
+        quoted_quantity: q.quoted_quantity,
+        tax_rate: q.tax_rate ?? 0,
+        delivery_date: q.delivery_date,
+      }));
+
+    if (lines.length === 0) {
+      toast.error("Price at least one line before submitting");
+      return;
+    }
+
     setIsSubmitting(true);
-
     try {
-      // Delete existing vendor items and re-insert
-      await (supabase as any)
-        .from("rfq_vendor_items")
-        .delete()
-        .eq("rfq_vendor_id", rfqVendor.id);
-
-      const itemsToInsert = Object.values(quotes)
-        .filter((q) => q.unit_price != null)
-        .map((q) => ({
-          rfq_vendor_id: rfqVendor.id,
-          rfq_item_id: q.rfq_item_id,
-          unit_price: q.unit_price,
-          available_qty: q.available_qty,
-        }));
-
-      if (itemsToInsert.length > 0) {
-        const { error: insertErr } = await (supabase as any)
-          .from("rfq_vendor_items")
-          .insert(itemsToInsert);
-        if (insertErr) throw insertErr;
-      }
-
-      // Update rfq_vendors record
-      const { error: updateErr } = await supabase
-        .from("rfq_vendors")
-        .update({
-          status: "quoted",
-          quoted_total: calculateTotal(),
-          lead_time_days: leadTimeDays ? parseInt(leadTimeDays) : null,
+      const { error } = await db.rpc("rfq_record_quotation", {
+        _invitation_id: invitation.id,
+        _header: {
+          lead_time_days: leadTimeDays ? parseInt(leadTimeDays, 10) : null,
+          incoterms: incoterms || null,
+          payment_terms: paymentTerms || null,
+          valid_until: validUntil || null,
+          freight_amount: freight ? Number(freight) : 0,
           notes: vendorNotes || null,
-          responded_at: new Date().toISOString(),
-        })
-        .eq("id", rfqVendor.id);
+        },
+        _lines: lines,
+        _allow_late: false,
+      });
+      if (error) throw error;
 
-      if (updateErr) throw updateErr;
-
-      toast.success("Quote submitted successfully");
-      fetchRFQDetail();
+      toast.success(
+        quotation ? "Revised quotation submitted" : "Quotation submitted successfully",
+      );
+      await fetchRFQDetail();
+      refreshRFQs?.();
     } catch (err: any) {
       toast.error("Failed to submit quote: " + normalizeError(err).message);
     } finally {
@@ -201,12 +230,18 @@ export default function VendorRFQDetail() {
     }
   };
 
-  const isDeadlinePassed = rfq?.deadline ? new Date(rfq.deadline) < new Date() : false;
-  const isDeadlineSoon = rfq?.deadline
-    ? new Date(rfq.deadline).getTime() - Date.now() < 48 * 60 * 60 * 1000 && !isDeadlinePassed
+  const effectiveDeadline = invitation?.response_deadline ?? rfq?.deadline ?? null;
+  const isDeadlinePassed = effectiveDeadline ? new Date(effectiveDeadline) < new Date() : false;
+  const isDeadlineSoon = effectiveDeadline
+    ? new Date(effectiveDeadline).getTime() - Date.now() < 48 * 60 * 60 * 1000 && !isDeadlinePassed
     : false;
-  const isAlreadyQuoted = rfqVendor?.status === "quoted";
-  const canSubmit = !isDeadlinePassed && rfq?.status !== "closed" && rfq?.status !== "cancelled";
+  const isStale = !!invitation && !!rfq && invitation.rfq_version !== rfq.version;
+  const canSubmit =
+    !isDeadlinePassed &&
+    !isStale &&
+    !!rfq &&
+    ["sent", "responses_received", "under_evaluation"].includes(rfq.status);
+  const currency = rfq?.currency ?? "";
 
   if (isLoading) {
     return (
@@ -216,7 +251,7 @@ export default function VendorRFQDetail() {
     );
   }
 
-  if (!rfq || !rfqVendor) {
+  if (!rfq || !invitation) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate("/vendor-portal/rfqs")}>
@@ -235,23 +270,40 @@ export default function VendorRFQDetail() {
         </Button>
       </div>
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{rfq.rfq_number}</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            {rfq.rfq_number}
+            {rfq.version > 1 && (
+              <span className="ml-2 text-base font-normal text-muted-foreground">
+                rev {rfq.version}
+              </span>
+            )}
+          </h2>
           <p className="text-sm text-muted-foreground mt-1">
             Request for Quotation from {portalData.organizationName || "Organization"}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary">{rfq.status}</Badge>
-          <Badge variant={rfqVendor.status === "pending" ? "destructive" : "default"}>
-            {rfqVendor.status}
+          <Badge variant="secondary">{rfq.status.replace(/_/g, " ")}</Badge>
+          <Badge variant={invitation.invitation_state === "responded" ? "default" : "destructive"}>
+            {invitation.invitation_state.replace(/_/g, " ")}
           </Badge>
+          {quotation && <Badge variant="outline">Quote v{quotation.quotation_version}</Badge>}
         </div>
       </div>
 
-      {/* Deadline warning */}
+      {isStale && (
+        <Card className="border-orange-300 dark:border-orange-700">
+          <CardContent className="pt-4 pb-4 flex items-center gap-2 text-orange-600">
+            <AlertTriangle className="h-5 w-5" />
+            <span className="font-medium">
+              This RFQ has been revised. Wait for the buyer to re-issue your invitation before quoting.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
       {isDeadlinePassed && (
         <Card className="border-destructive">
           <CardContent className="pt-4 pb-4 flex items-center gap-2 text-destructive">
@@ -265,19 +317,18 @@ export default function VendorRFQDetail() {
           <CardContent className="pt-4 pb-4 flex items-center gap-2 text-orange-600">
             <Clock className="h-5 w-5" />
             <span className="font-medium">
-              Deadline approaching: {new Date(rfq.deadline!).toLocaleString()}
+              Deadline approaching: {new Date(effectiveDeadline!).toLocaleString()}
             </span>
           </CardContent>
         </Card>
       )}
 
-      {/* RFQ Info */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-sm text-muted-foreground">Deadline</p>
+            <p className="text-sm text-muted-foreground">Response deadline</p>
             <p className="font-medium">
-              {rfq.deadline ? new Date(rfq.deadline).toLocaleString() : "No deadline"}
+              {effectiveDeadline ? new Date(effectiveDeadline).toLocaleString() : "No deadline"}
             </p>
           </CardContent>
         </Card>
@@ -291,141 +342,165 @@ export default function VendorRFQDetail() {
         )}
       </div>
 
-      {/* Already submitted confirmation */}
-      {isAlreadyQuoted && rfqVendor.responded_at && (
+      {quotation && (
         <Card className="border-green-200 dark:border-green-800">
           <CardContent className="pt-4 pb-4 flex items-center gap-2 text-green-600">
             <CheckCircle className="h-5 w-5" />
             <span className="font-medium">
-              Quote submitted on {new Date(rfqVendor.responded_at).toLocaleDateString()}
-              {rfqVendor.quoted_total != null && ` — Total: ${rfqVendor.quoted_total.toLocaleString()}`}
+              Quotation v{quotation.quotation_version} submitted{" "}
+              {new Date(quotation.submitted_at).toLocaleString()} — total {currency}{" "}
+              {quotation.total.toFixed(2)}. Submitting again creates a new version.
             </span>
           </CardContent>
         </Card>
       )}
 
-      {/* Items & Quote Form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">
-            {canSubmit ? "Requested Items — Enter Your Quote" : "Requested Items"}
-          </CardTitle>
+          <CardTitle className="text-base">Your pricing</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="space-y-4">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[30%]">Description</TableHead>
-                  <TableHead className="text-right">Requested Qty</TableHead>
-                  <TableHead className="text-right">Target Price</TableHead>
-                  <TableHead className="text-right">Your Unit Price</TableHead>
-                  <TableHead className="text-right">Available Qty</TableHead>
-                  <TableHead className="text-right">Line Total</TableHead>
+                  <TableHead>Item</TableHead>
+                  <TableHead className="text-right">Requested</TableHead>
+                  <TableHead className="w-[120px]">Unit price</TableHead>
+                  <TableHead className="w-[110px]">Qty offered</TableHead>
+                  <TableHead className="w-[90px]">Tax %</TableHead>
+                  <TableHead className="w-[150px]">Delivery</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => {
-                  const quote = quotes[item.id];
-                  const lineTotal =
-                    quote?.unit_price != null
-                      ? quote.unit_price * (quote.available_qty ?? item.quantity)
-                      : 0;
-
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.description}</TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">
-                        {item.target_price != null ? item.target_price.toLocaleString() : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {canSubmit ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            className="w-28 ml-auto text-right"
-                            placeholder="0.00"
-                            value={quote?.unit_price ?? ""}
-                            onChange={(e) => updateQuote(item.id, "unit_price", e.target.value)}
-                          />
-                        ) : (
-                          <span>{quote?.unit_price?.toLocaleString() ?? "—"}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {canSubmit ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            className="w-24 ml-auto text-right"
-                            placeholder={String(item.quantity)}
-                            value={quote?.available_qty ?? ""}
-                            onChange={(e) => updateQuote(item.id, "available_qty", e.target.value)}
-                          />
-                        ) : (
-                          <span>{quote?.available_qty ?? item.quantity}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {lineTotal > 0 ? lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {items.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.description}</TableCell>
+                    <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.unit_price ?? ""}
+                        onChange={(e) => updateQuote(item.id, "unit_price", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.quoted_quantity ?? ""}
+                        onChange={(e) => updateQuote(item.id, "quoted_quantity", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.tax_rate ?? ""}
+                        onChange={(e) => updateQuote(item.id, "tax_rate", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="date"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.delivery_date ?? ""}
+                        onChange={(e) => updateQuote(item.id, "delivery_date", e.target.value)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Totals & Submit */}
-      {canSubmit && (
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex flex-col items-end">
-              <div className="flex justify-between w-full max-w-xs font-bold text-lg">
-                <span>Quoted Total</span>
-                <span>{calculateTotal().toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-              </div>
+          <Separator />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Lead time (days)</Label>
+              <Input
+                type="number"
+                min="0"
+                disabled={!canSubmit}
+                value={leadTimeDays}
+                onChange={(e) => setLeadTimeDays(e.target.value)}
+              />
             </div>
-
-            <Separator />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Lead Time (days)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  placeholder="e.g., 14"
-                  value={leadTimeDays}
-                  onChange={(e) => setLeadTimeDays(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  placeholder="Any notes about availability, terms, etc."
-                  value={vendorNotes}
-                  onChange={(e) => setVendorNotes(e.target.value)}
-                  rows={2}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Incoterms</Label>
+              <Input
+                disabled={!canSubmit}
+                placeholder="e.g. DDP"
+                value={incoterms}
+                onChange={(e) => setIncoterms(e.target.value)}
+              />
             </div>
+            <div className="space-y-2">
+              <Label>Payment terms</Label>
+              <Input
+                disabled={!canSubmit}
+                placeholder="e.g. Net 30"
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Quote valid until</Label>
+              <Input
+                type="date"
+                disabled={!canSubmit}
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Freight / other charges</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                disabled={!canSubmit}
+                value={freight}
+                onChange={(e) => setFreight(e.target.value)}
+              />
+            </div>
+          </div>
 
-            <Button onClick={handleSubmitQuote} disabled={isSubmitting} className="w-full sm:w-auto">
+          <div className="space-y-2">
+            <Label>Notes to buyer</Label>
+            <Textarea
+              rows={3}
+              disabled={!canSubmit}
+              value={vendorNotes}
+              onChange={(e) => setVendorNotes(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              Indicative total:{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {currency} {calculateTotal().toFixed(2)}
+              </span>
+            </p>
+            <Button onClick={handleSubmitQuote} disabled={!canSubmit || isSubmitting}>
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
               )}
-              {isAlreadyQuoted ? "Update Quote" : "Submit Quote"}
+              {quotation ? "Submit revised quote" : "Submit quote"}
             </Button>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
