@@ -31,6 +31,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Download, FileText, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { AGING_BUCKET_LABELS, AGING_BUCKET_SHORT_LABELS } from "@/services/finance/aging";
+
 
 interface AgingBill {
   id: string;
