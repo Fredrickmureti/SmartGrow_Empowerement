@@ -56,27 +56,31 @@ import { ScanToDocumentButton } from "@/components/documents/lines/ScanToDocumen
 function RFQPipeline({ status }: { status: string }) {
   const steps = [
     { key: "draft", label: "Draft" },
-    { key: "sent", label: "Sent" },
-    { key: "received", label: "Received" },
-    { key: "closed", label: "Closed" },
+    { key: "approved", label: "Approved" },
+    { key: "sent", label: "Sourcing" },
+    { key: "awarded", label: "Awarded" },
+    { key: "converted", label: "Converted" },
   ];
 
+  // Sourcing collapses several live states onto one dot: the pipeline shows
+  // progress, the status badge shows the exact state.
   const getActiveStep = () => {
-    if (status === "cancelled") return -1;
-    if (status === "draft") return 0;
-    if (status === "sent") return 1;
-    if (status === "received") return 2;
-    if (status === "closed") return 3;
+    if (status === "cancelled" || status === "expired") return -1;
+    if (status === "draft" || status === "pending_approval") return 0;
+    if (status === "approved") return 1;
+    if (["sent", "responses_received", "under_evaluation"].includes(status)) return 2;
+    if (status === "awarded") return 3;
+    if (status === "converted" || status === "closed") return 4;
     return 0;
   };
 
   const activeStep = getActiveStep();
 
-  if (status === "cancelled") {
+  if (status === "cancelled" || status === "expired") {
     return (
       <div className="flex items-center gap-1">
         <Ban className="h-3.5 w-3.5 text-destructive" />
-        <span className="text-xs text-destructive font-medium">Cancelled</span>
+        <span className="text-xs text-destructive font-medium capitalize">{status}</span>
       </div>
     );
   }
@@ -107,7 +111,15 @@ function RFQPipeline({ status }: { status: string }) {
 export default function RFQs() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { rfqs, isLoading, updateStatus, deleteRFQ } = useRFQs();
+  const {
+    rfqs,
+    isLoading,
+    submitForApproval,
+    approveRFQ,
+    releaseRFQ,
+    convertToPurchaseOrders,
+    deleteRFQ,
+  } = useRFQs();
   const { contacts } = useContacts();
   const { formatCurrency, baseCurrency } = useCurrency();
   const [peekId, setPeekId] = usePeekParam();
@@ -141,11 +153,15 @@ export default function RFQs() {
   // Stats
   const stats = {
     total: rfqs.length,
-    open: rfqs.filter((r) => ["draft", "sent", "received"].includes(r.status)).length,
-    closed: rfqs.filter((r) => r.status === "closed").length,
+    open: rfqs.filter((r) =>
+      ["draft", "pending_approval", "approved", "sent", "responses_received", "under_evaluation"].includes(r.status),
+    ).length,
+    closed: rfqs.filter((r) => ["converted", "closed"].includes(r.status)).length,
     totalEstimatedValue: rfqs.reduce((sum, rfq) => sum + getRFQEstimatedValue(rfq), 0),
     conversionRate: rfqs.length > 0
-      ? Math.round((rfqs.filter((r) => r.status === "closed").length / rfqs.length) * 100)
+      ? Math.round(
+          (rfqs.filter((r) => ["converted", "closed"].includes(r.status)).length / rfqs.length) * 100,
+        )
       : 0,
   };
 
@@ -206,7 +222,7 @@ export default function RFQs() {
                     rfq_number: rfq.rfq_number,
                     deadline: rfq.deadline ? format(new Date(rfq.deadline), "MMM d, yyyy") : "—",
                     status: rfq.status,
-                    vendors: (rfq.vendors || []).map((v: any) => v.vendor?.name).filter(Boolean).join(", "),
+                    vendors: (rfq.invitations || []).map((v: any) => v.vendor?.name).filter(Boolean).join(", "),
                     items_count: (rfq.items || []).length,
                     estimated_value: getRFQEstimatedValue(rfq),
                   })),
@@ -289,10 +305,15 @@ export default function RFQs() {
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
-              <SelectItem value="received">Received</SelectItem>
-              <SelectItem value="closed">Closed</SelectItem>
+              <SelectItem value="pending_approval">Pending approval</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="sent">Sent to suppliers</SelectItem>
+              <SelectItem value="responses_received">Responses received</SelectItem>
+              <SelectItem value="under_evaluation">Under evaluation</SelectItem>
+              <SelectItem value="awarded">Awarded</SelectItem>
+              <SelectItem value="converted">Converted</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -338,14 +359,19 @@ export default function RFQs() {
                       <TableCell>{rfq.items?.length || 0} items</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {rfq.vendors?.slice(0, 3).map((v: any) => (
-                            <Badge key={v.id} variant="outline" className="text-xs">
-                              {v.vendor?.name}
+                          {rfq.invitations?.slice(0, 3).map((inv: any) => (
+                            <Badge key={inv.id} variant="outline" className="text-xs">
+                              {inv.supplier?.name}
                             </Badge>
                           ))}
-                          {(rfq.vendors?.length || 0) > 3 && (
+                          {(rfq.invitations?.length || 0) > 3 && (
                             <Badge variant="outline" className="text-xs">
-                              +{(rfq.vendors?.length || 0) - 3}
+                              +{(rfq.invitations?.length || 0) - 3}
+                            </Badge>
+                          )}
+                          {(rfq.quotations?.length || 0) > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {rfq.quotations?.length} quoted
                             </Badge>
                           )}
                         </div>
@@ -376,13 +402,23 @@ export default function RFQs() {
                               </DropdownMenuItem>
                             )}
                             {rfq.status === "draft" && (
-                              <DropdownMenuItem onClick={() => updateStatus({ id: rfq.id, status: "sent" })}>
-                                <Send className="mr-2 h-4 w-4" /> Mark as Sent
+                              <DropdownMenuItem onClick={() => submitForApproval(rfq.id)}>
+                                <Send className="mr-2 h-4 w-4" /> Submit for approval
                               </DropdownMenuItem>
                             )}
-                            {rfq.status === "sent" && (
-                              <DropdownMenuItem onClick={() => updateStatus({ id: rfq.id, status: "received" })}>
-                                <FileText className="mr-2 h-4 w-4" /> Mark Responses Received
+                            {rfq.status === "pending_approval" && (
+                              <DropdownMenuItem onClick={() => approveRFQ(rfq.id)}>
+                                <Award className="mr-2 h-4 w-4" /> Approve
+                              </DropdownMenuItem>
+                            )}
+                            {rfq.status === "approved" && (
+                              <DropdownMenuItem onClick={() => releaseRFQ(rfq.id)}>
+                                <Send className="mr-2 h-4 w-4" /> Release to suppliers
+                              </DropdownMenuItem>
+                            )}
+                            {rfq.status === "awarded" && (
+                              <DropdownMenuItem onClick={() => convertToPurchaseOrders(rfq.id)}>
+                                <ArrowRightLeft className="mr-2 h-4 w-4" /> Convert awards to POs
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
