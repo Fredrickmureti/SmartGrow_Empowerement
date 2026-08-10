@@ -152,3 +152,32 @@ export async function requisitionConvertToPo(
     }),
   );
 }
+
+/**
+ * Short-close one requisition line: cancels the outstanding (un-ordered)
+ * quantity so the demand stops chasing procurement. The server records
+ * `quantity_cancelled`, recalculates the line + header state through
+ * `_pr_recalc`, and emits `procurement.requisition.line_closed`.
+ */
+export async function requisitionCloseLine(itemId: string, reason?: string) {
+  return unwrap(
+    await (supabase as any).rpc("requisition_close_line", {
+      _item_id: itemId,
+      _reason: reason ?? null,
+    }),
+  );
+}
+
+/**
+ * Short-close the whole requisition: every line with outstanding demand is
+ * cancelled and the header lands on `closed`. Already-ordered quantities are
+ * untouched — the PO keeps its own lifecycle.
+ */
+export async function requisitionClose(requisitionId: string, reason?: string) {
+  return unwrap(
+    await (supabase as any).rpc("requisition_close", {
+      _requisition_id: requisitionId,
+      _reason: reason ?? null,
+    }),
+  );
+}
