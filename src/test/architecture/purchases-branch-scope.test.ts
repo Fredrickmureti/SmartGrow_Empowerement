@@ -106,7 +106,7 @@ describe("purchases module — branch scoping is enforced", () => {
         let m: RegExpExecArray | null;
         INSERT_RE.lastIndex = 0;
         while ((m = INSERT_RE.exec(src)) !== null) {
-          const payload = m[1] ?? "";
+          const payload = m[2] ?? "";
           if (!/branch_id\s*:/.test(payload)) {
             offenders.push(`${rel}: insert() near char ${m.index} missing branch_id in payload`);
           }
