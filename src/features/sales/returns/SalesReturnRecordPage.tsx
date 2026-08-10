@@ -4,8 +4,8 @@
  * /sales/returns/:id/refund.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 
 import { StatusBadge } from "@/design-system";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrency } from "@/hooks/useCurrency";
 import type { SalesReturn, SalesReturnItem } from "@/hooks/useSalesReturns";
 import { DocumentVersionsSection } from "@/components/documents/DocumentVersionsSection";
+import { useSalesReturnActions } from "./useSalesReturnActions";
 
 type Row = SalesReturn & {
   contact?: { name: string; email: string | null; phone: string | null } | null;
@@ -62,11 +63,14 @@ function fmt(d?: string | null) {
 export default function SalesReturnRecordPage() {
   const { id = "" } = useParams<{ id: string }>();
   const { formatCurrency } = useCurrency();
+  const navigate = useNavigate();
   const [row, setRow] = useState<Row | null>(null);
   const [costBasis, setCostBasis] = useState<CostBasis[]>([]);
   const [settlement, setSettlement] = useState<Settlement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
   const isNew = id === "new";
 
   useEffect(() => {
@@ -98,7 +102,12 @@ export default function SalesReturnRecordPage() {
       if (!cancelled) setSettlement((st as unknown as Settlement) ?? null);
     })();
     return () => { cancelled = true; };
-  }, [id, isNew]);
+  }, [id, isNew, nonce]);
+
+  const { actions, dialogs } = useSalesReturnActions(row, {
+    onChanged: refresh,
+    onDeleted: () => navigate("/sales/returns"),
+  });
 
   const columns = useMemo<LineItemColumn[]>(() => [
     { id: "description", header: "Description", width: "minmax(0,1fr)" },
@@ -136,6 +145,7 @@ export default function SalesReturnRecordPage() {
   }, [row, costBasis, formatCurrency]);
 
   return (
+    <>
     <RecordScaffold
       eyebrow="Sales Return"
       listPath="/sales/returns"
@@ -202,7 +212,10 @@ export default function SalesReturnRecordPage() {
           tone: (b.fallback_qty > 0 ? "warning" : "info") as "warning" | "info",
         })),
       ] : undefined}
+      actions={actions}
       extraSections={row ? <DocumentVersionsSection documentType="sales_return" documentId={row.id} /> : undefined}
     />
+    {dialogs}
+    </>
   );
 }
