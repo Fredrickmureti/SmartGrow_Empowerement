@@ -41,9 +41,19 @@ interface LineQuote {
   rfq_item_id: string;
   unit_price: number | null;
   quoted_quantity: number | null;
+  discount_percent: number | null;
   tax_rate: number | null;
   delivery_date: string | null;
+  supplier_product_code: string | null;
+  notes: string | null;
 }
+
+/** Free-text line fields are stored verbatim; numeric fields are coerced. */
+const TEXT_LINE_FIELDS = new Set<keyof LineQuote>([
+  "delivery_date",
+  "supplier_product_code",
+  "notes",
+]);
 
 interface RFQHeader {
   id: string;
@@ -146,8 +156,11 @@ export default function VendorRFQDetail() {
         rfq_item_id: item.id,
         unit_price: prior?.unit_price ?? null,
         quoted_quantity: prior?.quoted_quantity ?? item.quantity,
+        discount_percent: prior?.discount_percent ?? null,
         tax_rate: prior?.tax_rate ?? null,
         delivery_date: prior?.delivery_date ?? null,
+        supplier_product_code: prior?.supplier_product_code ?? null,
+        notes: prior?.notes ?? null,
       };
     }
     setQuotes(seeded);
@@ -164,12 +177,11 @@ export default function VendorRFQDetail() {
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]:
-          field === "delivery_date"
-            ? value || null
-            : value === ""
-              ? null
-              : Number(value),
+        [field]: TEXT_LINE_FIELDS.has(field)
+          ? value || null
+          : value === ""
+            ? null
+            : Number(value),
       },
     }));
   };
@@ -180,7 +192,7 @@ export default function VendorRFQDetail() {
       const q = quotes[item.id];
       if (q?.unit_price == null) return sum;
       const qty = q.quoted_quantity ?? item.quantity;
-      const net = q.unit_price * qty;
+      const net = q.unit_price * qty * (1 - (q.discount_percent ?? 0) / 100);
       return sum + net + net * ((q.tax_rate ?? 0) / 100);
     }, 0) + (freight ? Number(freight) : 0);
 
@@ -192,8 +204,11 @@ export default function VendorRFQDetail() {
         rfq_item_id: q.rfq_item_id,
         unit_price: q.unit_price,
         quoted_quantity: q.quoted_quantity,
+        discount_percent: q.discount_percent ?? 0,
         tax_rate: q.tax_rate ?? 0,
         delivery_date: q.delivery_date,
+        supplier_product_code: q.supplier_product_code,
+        notes: q.notes,
       }));
 
     if (lines.length === 0) {
@@ -366,10 +381,13 @@ export default function VendorRFQDetail() {
                 <TableRow>
                   <TableHead>Item</TableHead>
                   <TableHead className="text-right">Requested</TableHead>
+                  <TableHead className="w-[140px]">Your item code</TableHead>
                   <TableHead className="w-[120px]">Unit price</TableHead>
                   <TableHead className="w-[110px]">Qty offered</TableHead>
+                  <TableHead className="w-[90px]">Disc %</TableHead>
                   <TableHead className="w-[90px]">Tax %</TableHead>
                   <TableHead className="w-[150px]">Delivery</TableHead>
+                  <TableHead className="w-[180px]">Line note</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -377,6 +395,16 @@ export default function VendorRFQDetail() {
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.description}</TableCell>
                     <TableCell className="text-right tabular-nums">{item.quantity}</TableCell>
+                    <TableCell>
+                      <Input
+                        disabled={!canSubmit}
+                        placeholder="SKU / ref"
+                        value={quotes[item.id]?.supplier_product_code ?? ""}
+                        onChange={(e) =>
+                          updateQuote(item.id, "supplier_product_code", e.target.value)
+                        }
+                      />
+                    </TableCell>
                     <TableCell>
                       <Input
                         type="number"
@@ -400,6 +428,17 @@ export default function VendorRFQDetail() {
                       <Input
                         type="number"
                         min="0"
+                        max="100"
+                        step="0.01"
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.discount_percent ?? ""}
+                        onChange={(e) => updateQuote(item.id, "discount_percent", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
                         step="0.01"
                         disabled={!canSubmit}
                         value={quotes[item.id]?.tax_rate ?? ""}
@@ -412,6 +451,14 @@ export default function VendorRFQDetail() {
                         disabled={!canSubmit}
                         value={quotes[item.id]?.delivery_date ?? ""}
                         onChange={(e) => updateQuote(item.id, "delivery_date", e.target.value)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        disabled={!canSubmit}
+                        placeholder="Substitute / remark"
+                        value={quotes[item.id]?.notes ?? ""}
+                        onChange={(e) => updateQuote(item.id, "notes", e.target.value)}
                       />
                     </TableCell>
                   </TableRow>

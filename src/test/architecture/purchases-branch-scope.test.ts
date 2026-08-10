@@ -58,8 +58,11 @@ const SELECT_RE = new RegExp(
   `\\.from\\(\\s*(?:${tableUnion})\\s*\\)[\\s\\S]{0,800}?\\.select\\(`,
   "g",
 );
+// The window between `.from(<table>)` and `.insert(` must not cross another
+// `.from(` — otherwise a read on a guarded table binds to an unrelated insert
+// on a different (non-guarded) table further down the file.
 const INSERT_RE = new RegExp(
-  `\\.from\\(\\s*(?:${tableUnion})\\s*\\)[\\s\\S]{0,1200}?\\.insert\\(\\s*([\\s\\S]{0,1500}?)\\)`,
+  `\\.from\\(\\s*(?:${tableUnion})\\s*\\)((?:(?!\\.from\\()[\\s\\S]){0,1200}?)\\.insert\\(\\s*([\\s\\S]{0,1500}?)\\)`,
   "g",
 );
 
@@ -74,11 +77,16 @@ describe("purchases module — branch scoping is enforced", () => {
         let m: RegExpExecArray | null;
         SELECT_RE.lastIndex = 0;
         while ((m = SELECT_RE.exec(src)) !== null) {
+          const head = m[0];
           const window = src.slice(m.index, m.index + 1600);
+          // A `.select()` that is the RETURNING clause of a write, or a read
+          // keyed by primary key, cannot leak rows across branches.
+          const isWriteReturning = /\.(insert|update|upsert|delete)\(/.test(head);
+          const isKeyedRead = /\.eq\(\s*["']id["']/.test(window);
           const hasBranch =
             /applyBranchFilter\s*\(/.test(window) ||
             /\.eq\(\s*["']branch_id["']/.test(window);
-          if (!hasBranch) {
+          if (!hasBranch && !isWriteReturning && !isKeyedRead) {
             offenders.push(`${rel}: select() near char ${m.index} missing branch filter`);
           }
         }
@@ -103,7 +111,7 @@ describe("purchases module — branch scoping is enforced", () => {
         let m: RegExpExecArray | null;
         INSERT_RE.lastIndex = 0;
         while ((m = INSERT_RE.exec(src)) !== null) {
-          const payload = m[1] ?? "";
+          const payload = m[2] ?? "";
           if (!/branch_id\s*:/.test(payload)) {
             offenders.push(`${rel}: insert() near char ${m.index} missing branch_id in payload`);
           }

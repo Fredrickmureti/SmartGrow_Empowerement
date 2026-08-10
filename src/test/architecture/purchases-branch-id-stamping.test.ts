@@ -39,8 +39,11 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 const tableUnion = TABLES.map((t) => `["']${t}["']`).join("|");
+// The window between `.from(<table>)` and `.insert(` must not cross another
+// `.from(` — otherwise a read on a guarded table binds to an unrelated insert
+// on a different (non-guarded) table further down the file.
 const INSERT_RE = new RegExp(
-  `\\.from\\(\\s*(?:${tableUnion})\\s*\\)[\\s\\S]{0,1200}?\\.insert\\(\\s*([\\s\\S]{0,1500}?)\\)`,
+  `\\.from\\(\\s*(?:${tableUnion})\\s*\\)((?:(?!\\.from\\()[\\s\\S]){0,1200}?)\\.insert\\(\\s*([\\s\\S]{0,1500}?)\\)`,
   "g",
 );
 
@@ -54,7 +57,7 @@ describe("purchases module — write-side branch_id stamping", () => {
         let m: RegExpExecArray | null;
         INSERT_RE.lastIndex = 0;
         while ((m = INSERT_RE.exec(src)) !== null) {
-          const payload = m[1] ?? "";
+          const payload = m[2] ?? "";
           if (!/branch_id\s*:/.test(payload)) {
             offenders.push(`${rel}: insert() near char ${m.index} missing branch_id`);
           }
