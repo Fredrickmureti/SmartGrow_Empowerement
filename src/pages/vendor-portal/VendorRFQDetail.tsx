@@ -27,6 +27,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BidAttachmentsPanel } from "@/features/purchases/rfqs/BidAttachmentsPanel";
+import {
+  AlternateProductPicker,
+  type PortalProductOption,
+} from "./AlternateProductPicker";
 
 
 const db = supabase as any;
@@ -48,6 +52,11 @@ interface LineQuote {
   delivery_date: string | null;
   supplier_product_code: string | null;
   notes: string | null;
+  /**
+   * A structured substitute offer. When set, the buyer's comparison matrix
+   * and any resulting PO line use this product instead of the requested one.
+   */
+  alternate_product: PortalProductOption | null;
 }
 
 /** Free-text line fields are stored verbatim; numeric fields are coerced. */
@@ -163,6 +172,13 @@ export default function VendorRFQDetail() {
         delivery_date: prior?.delivery_date ?? null,
         supplier_product_code: prior?.supplier_product_code ?? null,
         notes: prior?.notes ?? null,
+        alternate_product: prior?.alternate_product_id
+          ? {
+              id: prior.alternate_product_id,
+              name: prior.description ?? "Alternate product",
+              sku: prior.supplier_product_code ?? null,
+            }
+          : null,
       };
     }
     setQuotes(seeded);
@@ -185,6 +201,13 @@ export default function VendorRFQDetail() {
             ? null
             : Number(value),
       },
+    }));
+  };
+
+  const setAlternate = (itemId: string, product: PortalProductOption | null) => {
+    setQuotes((prev) => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], alternate_product: product },
     }));
   };
 
@@ -211,6 +234,9 @@ export default function VendorRFQDetail() {
         delivery_date: q.delivery_date,
         supplier_product_code: q.supplier_product_code,
         notes: q.notes,
+        is_alternate: !!q.alternate_product,
+        alternate_product_id: q.alternate_product?.id ?? null,
+        description: q.alternate_product?.name ?? null,
       }));
 
     if (lines.length === 0) {
@@ -415,6 +441,7 @@ export default function VendorRFQDetail() {
                   <TableHead>Item</TableHead>
                   <TableHead className="text-right">Requested</TableHead>
                   <TableHead className="w-[140px]">Your item code</TableHead>
+                  <TableHead className="w-[220px]">Alternate offered</TableHead>
                   <TableHead className="w-[120px]">Unit price</TableHead>
                   <TableHead className="w-[110px]">Qty offered</TableHead>
                   <TableHead className="w-[90px]">Disc %</TableHead>
@@ -436,6 +463,14 @@ export default function VendorRFQDetail() {
                         onChange={(e) =>
                           updateQuote(item.id, "supplier_product_code", e.target.value)
                         }
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <AlternateProductPicker
+                        invitationId={invitation.id}
+                        disabled={!canSubmit}
+                        value={quotes[item.id]?.alternate_product ?? null}
+                        onChange={(product) => setAlternate(item.id, product)}
                       />
                     </TableCell>
                     <TableCell>
