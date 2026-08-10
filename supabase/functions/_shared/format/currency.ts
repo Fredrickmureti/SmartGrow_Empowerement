@@ -31,18 +31,31 @@ export function getCurrencySymbol(code?: string): string {
 }
 
 /**
+ * Money is never allowed to print as `NaN`, `Infinity`, `null` or `undefined`.
+ * A document is a legal artifact: a garbage numeric input must degrade to a
+ * defensible `0.00`, never to a token that leaks an arithmetic bug onto paper.
+ * Guarded centrally so every renderer (A4, thermal, ESC/POS, reports) inherits
+ * the same floor.
+ */
+function coerceFinite(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
  * Accountant-grade number formatting.
  * Negative: (KES 1,234.56)
  * Positive: KES 1,234.56
  */
 export function formatAccountingNumber(value: number, currencyCode?: string): string {
   const symbol = getCurrencySymbol(currencyCode);
-  const absVal = Math.abs(value);
+  const safe = coerceFinite(value);
+  const absVal = Math.abs(safe);
   const formatted = absVal.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  if (value < 0) {
+  if (safe < 0) {
     return `(${symbol}${formatted})`;
   }
   return `${symbol}${formatted}`;
@@ -53,8 +66,9 @@ export function formatAccountingNumber(value: number, currencyCode?: string): st
  * Used for line totals inside sales documents that already show currency in headers.
  */
 export function formatAmount(value: number): string {
-  return value.toLocaleString("en-US", {
+  return coerceFinite(value).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
+
