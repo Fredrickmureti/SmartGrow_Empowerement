@@ -503,6 +503,15 @@ export function RecordBillPaymentDialog({
               </Select>
             </div>
           )}
+          {bankAccounts.length === 0 && (
+            <div className="space-y-2">
+              <Label>Paid from</Label>
+              <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                Your default Cash / Bank ledger account. Add bank accounts in
+                Settings &gt; Banking to choose a specific account.
+              </p>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="bp-reference">Reference / Transaction ID</Label>
             <Input
