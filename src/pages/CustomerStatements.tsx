@@ -757,15 +757,17 @@ export default function CustomerStatements() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
-                                  try {
-                                    const data = await generateStatementData({
-                                      contact_id: statement.contact_id,
-                                      period_start: statement.period_start,
-                                      period_end: statement.period_end,
-                                    });
-                                    await handlePrint(data);
-                                  } catch (err: any) {
-                                    toast.error("Failed to download: " + normalizeError(err).message);
+                                  // Download is a DOWNLOAD disposition: render the
+                                  // frozen snapshot to PDF bytes and hand them to the
+                                  // browser. It must never dispatch a print job.
+                                  const res = await downloadExport({
+                                    documentType: "customer_statement",
+                                    documentId: statement.id,
+                                    format: "pdf",
+                                    filename: `customer-statement-${format(new Date(statement.statement_date), "yyyy-MM-dd")}-${statement.contacts?.name ?? "contact"}.pdf`,
+                                  });
+                                  if (!res.success) {
+                                    toast.error("Failed to download: " + (res.error ?? "Unknown error"));
                                   }
                                 }}
                               >
