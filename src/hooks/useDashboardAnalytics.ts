@@ -509,20 +509,27 @@ export function useDashboardAnalytics() {
 
       const receivables: ReceivablesData = {
         totalReceivables: arSummary.totalResidual,
-        current: arSummary.notDue + arSummary.current,
-        overdue30: arSummary.days30,
-        overdue60: arSummary.days60,
-        overdue90: arSummary.days90,
+        notDue: arSummary.notDue,
+        current: arSummary.current,
+        days30: arSummary.days30,
+        days60: arSummary.days60,
+        days90: arSummary.days90,
+        totalOverdue:
+          arSummary.current + arSummary.days30 + arSummary.days60 + arSummary.days90,
         topDebtors,
       };
 
       const payables: PayablesData = {
         totalPayables: apSummary.totalResidual,
-        current: apSummary.notDue + apSummary.current,
-        overdue30: apSummary.days30,
-        overdue60: apSummary.days60,
-        overdue90: apSummary.days90,
+        notDue: apSummary.notDue,
+        current: apSummary.current,
+        days30: apSummary.days30,
+        days60: apSummary.days60,
+        days90: apSummary.days90,
+        totalOverdue:
+          apSummary.current + apSummary.days30 + apSummary.days60 + apSummary.days90,
       };
+
 
 
       setAnalytics({
