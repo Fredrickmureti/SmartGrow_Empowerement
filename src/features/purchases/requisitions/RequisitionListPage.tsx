@@ -298,10 +298,21 @@ export default function RequisitionListPage() {
                         {fmt(r.status)}
                       </StatusBadge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell
+                      className={
+                        "text-sm " +
+                        (isOverdue(r, today)
+                          ? "font-medium text-destructive"
+                          : "text-muted-foreground")
+                      }
+                    >
                       {r.need_by_date ?? "—"}
                     </TableCell>
                     <TableCell className="text-right text-sm">{r.item_count ?? 0}</TableCell>
+                    <TableCell className="text-right text-sm">{r.open_line_count ?? 0}</TableCell>
+                    <TableCell className="text-right text-sm tabular-nums">
+                      {r.outstanding_quantity ?? 0}
+                    </TableCell>
                     <TableCell className="text-right text-sm">
                       {money(r.estimated_total, r.currency)}
                     </TableCell>
