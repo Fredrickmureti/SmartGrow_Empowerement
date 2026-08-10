@@ -530,6 +530,10 @@ function DeliveryBadge({ delivery }: { delivery?: StatementDelivery }) {
       </Badge>
     );
   }
+  return (
+    <Badge variant="secondary" className="gap-1" title="Delivery queued">
+      <MailCheck className="h-3 w-3" />
+      Queued
     </Badge>
   );
 }
