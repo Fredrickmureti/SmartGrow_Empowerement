@@ -1025,6 +1025,19 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error sending document email:", error);
+    if (failureAudit) {
+      const { client, ...ctx } = failureAudit;
+      try {
+        await client.from("document_emails").insert({
+          ...ctx,
+          status: "failed",
+          message: `Send failed: ${error?.message ?? "unknown error"}`,
+          had_attachment: false,
+        });
+      } catch (auditError) {
+        console.error("Failed to record failed send in document_emails:", auditError);
+      }
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
