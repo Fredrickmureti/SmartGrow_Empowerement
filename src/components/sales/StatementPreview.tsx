@@ -39,7 +39,7 @@ export function StatementPreview({ data }: StatementPreviewProps) {
 
   const totalDebit = data.transactions.reduce((s, t) => s + t.debit, 0);
   const totalCredit = data.transactions.reduce((s, t) => s + t.credit, 0);
-  const agingTotal = data.agingBuckets.current + data.agingBuckets.days30 + data.agingBuckets.days60 + data.agingBuckets.days90 + data.agingBuckets.over90;
+  const agingTotal = data.agingBuckets.total;
 
   const handleNavigateToSource = (txn: CustomerStatementData['transactions'][number]) => {
     if (!txn.sourceId) return;
