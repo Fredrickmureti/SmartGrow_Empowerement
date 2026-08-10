@@ -93,6 +93,9 @@ export interface RFQInvitation {
   sent_at: string | null;
   response_deadline: string | null;
   reminder_count: number;
+  delivery_attempts?: number | null;
+  last_attempt_at?: string | null;
+  delivery_error?: string | null;
   supplier?: { id: string; name: string; email: string | null } | null;
 }
 
@@ -217,9 +220,9 @@ export function useRFQs() {
     queryFn: async () => {
       if (!organizationId || !businessId) return [];
 
-      // Expiry is a server-side derivation persisted on read — no cron job.
-      await db.rpc("rfq_expire_due", { _business_id: businessId });
-
+      // Expiry is enforced by the scheduled sweep `rfq_expire_due_all`
+      // (pg_cron, hourly). Deliberately NOT triggered from a page load: an
+      // RFQ nobody looks at must still expire on its deadline.
       let q = db
         .from("rfqs")
         .select(RFQ_SELECT)
@@ -486,6 +489,14 @@ export function useRFQs() {
     },
   );
 
+  // Re-queue one supplier invitation for delivery. The RFQ owns the intent;
+  // the outbox handler + communication subsystem own the send.
+  const resendInvitationMutation = lifecycle<string>(
+    "rfq_invitation_resend",
+    (invitationId) => ({ _invitation_id: invitationId }),
+    "Invitation queued for resend",
+  );
+
   const cancelMutation = lifecycle<{ id: string; reason?: string }>(
     "rfq_cancel",
     ({ id, reason }) => ({ _rfq_id: id, _reason: reason ?? null }),
@@ -527,6 +538,8 @@ export function useRFQs() {
     awardRFQAsync: awardMutation.mutateAsync,
     convertToPurchaseOrders: convertMutation.mutate,
     cancelRFQ: cancelMutation.mutate,
+    resendInvitation: resendInvitationMutation.mutate,
+    isResendingInvitation: resendInvitationMutation.isPending,
 
     isCreating: createRFQMutation.isPending,
     isUpdating: updateRFQMutation.isPending,
