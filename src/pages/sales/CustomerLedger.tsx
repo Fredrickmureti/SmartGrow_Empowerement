@@ -220,7 +220,7 @@ export default function CustomerLedgerPage() {
                       <td className="px-3 py-2">
                         <Badge variant="outline" className="gap-1 capitalize">
                           <Icon className="h-3 w-3" />
-                          {DOC_LABEL[e.doc_type] ?? e.doc_type}
+                          {docLabel(e.doc_type)}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 font-medium">{e.doc_ref}</td>
