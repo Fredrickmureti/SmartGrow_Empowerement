@@ -184,12 +184,13 @@ export function ContactPreviewDrawer({
           : EMPTY_OPEN_ITEM_AGING;
         setPayable(apAging.total);
         setApAging({
-          current: apAging.current,
-          days1_30: apAging.days30,
-          days31_60: apAging.days60,
-          days61_90: apAging.days90,
-          days90plus: apAging.days120,
+          current: apAging.not_due,
+          days1_30: apAging.current,
+          days31_60: apAging.days30,
+          days61_90: apAging.days60,
+          days90plus: apAging.days90,
         });
+
 
         const txns: TransactionSummary[] = [];
 
