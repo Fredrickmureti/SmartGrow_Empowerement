@@ -83,6 +83,28 @@ function PaymentHistoryList({
   );
 }
 
+const toCents = (n: number) => Math.round((Number.isFinite(n) ? n : 0) * 100);
+
+/**
+ * Deterministic settlement request key for AP money-out — mirrors
+ * `makeCustomerPaymentRequestId` on the AR side. Same payment intent (vendor,
+ * allocation set, total, date) → same key, so a double submit or a retry after
+ * a network timeout collapses onto one vendor payment server-side.
+ * Never a randomly minted key.
+ */
+export function makeVendorPaymentRequestId(input: {
+  vendorId: string;
+  allocations: Array<{ bill_id: string; amount: number }>;
+  totalCents: number;
+  paymentDate: string;
+}): string {
+  const alloc = [...input.allocations]
+    .map((a) => `${a.bill_id}:${toCents(a.amount)}`)
+    .sort()
+    .join("|");
+  return `bpm-${input.vendorId}-${input.paymentDate}-${input.totalCents}-${alloc || "unapplied"}`;
+}
+
 export function RecordBillPaymentDialog({
   bill,
   open,
@@ -168,6 +190,20 @@ export function RecordBillPaymentDialog({
 
   const isOverdue = bill ? isPast(parseISO(bill.due_date)) && (bill.total - (bill.amount_paid || 0)) > 0 : false;
 
+  // Idempotency key derived from the payment intent — a double-click or a
+  // retry after a timeout replays the same vendor payment instead of paying twice.
+  const requestId = useMemo(
+    () =>
+      makeVendorPaymentRequestId({
+        vendorId: bill?.vendor_id ?? "",
+        allocations,
+        totalCents: toCents(totalAllocated),
+        paymentDate: formData.payment_date,
+      }),
+    [bill?.vendor_id, allocations, totalAllocated, formData.payment_date],
+  );
+
+
   const setAllocationAmount = (billId: string, amount: number) => {
     setAllocations((prev) =>
       prev.map((a) => (a.bill_id === billId ? { ...a, amount: isNaN(amount) ? 0 : amount } : a)),
@@ -221,6 +257,7 @@ export function RecordBillPaymentDialog({
         reference: formData.reference || null,
         notes: formData.notes || null,
         bank_account_id: formData.bank_account_id || null,
+        requestId,
         branch_id: (bill as any).branch_id ?? null,
       });
       toast({
@@ -464,6 +501,15 @@ export function RecordBillPaymentDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+          {bankAccounts.length === 0 && (
+            <div className="space-y-2">
+              <Label>Paid from</Label>
+              <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                Your default Cash / Bank ledger account. Add bank accounts in
+                Settings &gt; Banking to choose a specific account.
+              </p>
             </div>
           )}
           <div className="space-y-2">

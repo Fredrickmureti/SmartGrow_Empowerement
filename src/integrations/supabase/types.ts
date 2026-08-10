@@ -94101,6 +94101,7 @@ export type Database = {
           _branch_id?: string
           _business_id: string
           _created_by?: string
+          _credit_account_id?: string
           _notes?: string
           _org_id: string
           _payable_account_id?: string

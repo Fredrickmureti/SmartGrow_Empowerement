@@ -15,6 +15,7 @@ Customer/vendor statements project ONE dataset folded from customer_ledger_entri
 contacts has NO contact_type column — customer selection = type in (customer,both) OR customer_rank > 0, via services/finance/customerIdentity.ts.
 Customer balance = Σ(debit − credit) over customer_ledger_entries. No doc_type switch, no clamps — reversals and journals count.
 Salesperson metrics come only from get_salesperson_performance; attribution inherits from the invoice, never from created_by.
+Treasury ids (bank_accounts.id) and GL ids (accounts.id) are distinct: settlement RPCs take _bank_account_id AND _credit_account_id separately.
 
 
 
@@ -25,6 +26,7 @@ Salesperson metrics come only from get_salesperson_performance; attribution inhe
 - [Customer payment allocations](mem://features/customer-payment-allocations) — ADR 0027 allocation-first payments, customer ledger SoT
 - [Vendor payment allocations](mem://features/vendor-payment-allocations) — ADR 0028 allocation-first AP, supplier advances (record vs apply accounting), vendor_unapplied_advances SoT
 - [Money-in idempotency](mem://features/money-in-idempotency) — settlement request keys, client_request_id unique indexes, the single RecordCustomerPaymentDialog
+- [AP funding account split](mem://features/ap-funding-account-split) — ADR 0129 treasury vs GL ids, record_multi_bill_payment params, vendor payment request key
 
 - [Document scanning layer](mem://features/document-scanning-layer) — shared scanner across Sales/Purchases, cost-vs-selling price rule, requisition exclusion, import-based guards
 - [Sales order lifecycle](mem://features/sales-order-lifecycle) — status vocabulary, atomic creation, DB-owned cancellation, quantity ledger, FX capture, the two invoicing routes

@@ -152,7 +152,25 @@ export function useSalesReturns() {
         currency: returnData.currency || currentBusiness.base_currency,
         refund_method: returnData.refund_method ?? null,
         notes: returnData.notes ?? null,
-        client_request_id: crypto.randomUUID(),
+        // Derived from the return intent (customer, invoice, date, line
+        // fingerprint) — a random key would be fresh on every retry and would
+        // defeat the server-side replay guard entirely.
+        client_request_id: [
+          "sret",
+          currentBusiness.id,
+          returnData.contact_id ?? "none",
+          returnData.invoice_id ?? "none",
+          returnData.return_date || new Date().toISOString().split("T")[0],
+          items
+            .map(
+              (i) =>
+                `${i.invoice_item_id ?? i.product_id ?? i.description}:${
+                  Math.round((i.quantity ?? 1) * 1000)
+                }:${Math.round((i.unit_price ?? 0) * 100)}`,
+            )
+            .sort()
+            .join("|"),
+        ].join("-"),
         items: items.map((item) => ({
           description: item.description,
           unit_price: item.unit_price,
