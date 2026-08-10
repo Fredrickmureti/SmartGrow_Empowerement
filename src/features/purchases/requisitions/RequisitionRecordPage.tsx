@@ -54,6 +54,8 @@ import {
   amendRequisition,
   cancelRequisition,
   rejectRequisition,
+  requisitionClose,
+  requisitionCloseLine,
   requisitionConvertToPo,
   requisitionCreateRfq,
   submitRequisition,
