@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { formatAddressInline } from "@/lib/contactAddresses";
+import { ContactAddressesSection } from "@/components/contacts/ContactAddressesSection";
 /**
  * Unified Contact Profile Page - 360-degree business view
  * 
