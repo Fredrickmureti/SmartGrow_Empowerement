@@ -64,8 +64,9 @@ function getDateRange(rangeKey: string) {
 interface DashboardKPIs {
   pipeline: { draft: number; sent: number; overdue: number; paid: number };
   period_paid_count: number;
-  receivable: { total: number; overdue_amount: number; overdue_count: number };
-  aging: { current: number; days_1_30: number; days_31_60: number; days_61_90: number; days_90_plus: number };
+  receivable: { total: number; overdue_amount: number; overdue_count: number; credit_balance: number };
+  aging: Record<AgingBucketKey, number>;
+
   estimates: { total: number; accepted: number; open: number };
   sales_orders_pending: number;
   credit_notes: { count: number; total: number };
